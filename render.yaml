@@ -26,7 +26,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
     healthCheckPath: /api/health/live/
-    autoDeploy: false
+    autoDeployTrigger: off
     envVars:
       - key: DJANGO_ENV
         value: production
@@ -94,7 +94,7 @@ services:
     plan: standard
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A config worker -l INFO --concurrency=2
-    autoDeploy: false
+    autoDeployTrigger: off
     envVars:
       - key: DJANGO_ENV
         value: production
@@ -148,7 +148,7 @@ services:
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A config beat -l INFO
-    autoDeploy: false
+    autoDeployTrigger: off
     envVars:
       - key: DJANGO_ENV
         value: production
@@ -199,7 +199,7 @@ services:
     plan: starter
     buildCommand: npm ci && npm run build
     startCommand: npm run start -- -p $PORT
-    autoDeploy: false
+    autoDeployTrigger: off
     envVars:
       - key: NEXT_PUBLIC_API_BASE_URL
         value: https://backend-api-prod.onrender.com
@@ -213,7 +213,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /api/health/live/
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: DJANGO_ENV
         value: staging
@@ -279,7 +279,7 @@ services:
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A config worker -l INFO --concurrency=1
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: DJANGO_ENV
         value: staging
@@ -329,7 +329,7 @@ services:
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A config beat -l INFO
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: DJANGO_ENV
         value: staging
@@ -380,7 +380,7 @@ services:
     plan: starter
     buildCommand: npm ci && npm run build
     startCommand: npm run start -- -p $PORT
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: NEXT_PUBLIC_API_BASE_URL
         value: https://backend-api-staging.onrender.com

@@ -26,8 +26,14 @@ Use a branch flow that keeps updates simple:
   - celery beat
 
 Deployment policy:
-- staging services auto-deploy from `main`
+- staging services auto-deploy from `main` after GitHub checks pass
 - production services require manual deploy approval from the latest `main`
+
+GitHub Actions are quality gates only:
+- `backend-quality`
+- `frontend-quality`
+
+Render is the only deployment controller. This repo does not use GitHub deploy hooks.
 
 ## 3) Create services from Blueprint
 
@@ -37,6 +43,7 @@ Prerequisite: the repository must already be pushed to GitHub before Render can 
 2. Select this GitHub repository.
 3. Use the repo-root [`render.yaml`](../render.yaml).
 4. Review the resource list and create the fresh staging + production stack.
+5. Configure the required secrets in Render before validating the services.
 
 ## 4) Configure mandatory secrets
 

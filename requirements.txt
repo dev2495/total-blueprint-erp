@@ -1,5 +1,6 @@
 Django>=5.0
 djangorestframework
+django-filter
 django-cors-headers
 gunicorn
 psycopg2-binary
