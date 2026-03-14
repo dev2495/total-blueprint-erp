@@ -6,6 +6,7 @@ from rest_framework import status
 
 from apps.factory.models import Process
 from apps.routing.models import RoutingRule
+from apps.users.models import Role
 
 from apps.templates.models import (
     TemplateBlueprint,
@@ -20,10 +21,16 @@ from apps.templates.views import TemplateBlueprintViewSet
 class TemplateStepContractTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
+        self.role_engineering = Role.objects.create(
+            code="ENGINEERING",
+            name="Engineering",
+            default_permissions=["templates.view", "templates.manage"],
+        )
         self.user = get_user_model().objects.create_user(
             username="template_tester",
             email="template_tester@example.com",
             password="pass1234",
+            role=self.role_engineering,
         )
         self.process_a = Process.objects.create(
             code="PROC_A",
