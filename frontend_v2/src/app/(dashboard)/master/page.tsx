@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import {
     Package, Users, Palette, FlaskConical,
     Layers, Filter, Droplets, Plus, ShieldCheck,
     Search, ArrowRight, LayoutGrid, Tag
 } from "lucide-react"
 import { useState } from "react"
-import { Badge } from "@/components/ui/badge"
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 
 export default function MasterDataPage() {
     const [searchQuery, setSearchQuery] = useState("")
@@ -131,40 +131,25 @@ export default function MasterDataPage() {
     )
 
     return (
-        <FactoryPageLayout
+        <MasterRegistryShell
             title="Master Data"
             description="Centralized registry for all material, formulation, and commercial data entities."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search master data registries..."
+            stats={[
+                { label: "Total masters", value: "12", subLabel: "Active registries", icon: LayoutGrid, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Materials", value: "128", subLabel: "Film, ink, adhesive, granule", icon: Layers, toneClassName: "bg-blue-50 text-blue-700" },
+                { label: "Partners", value: "201", subLabel: "Customers and vendors", icon: Users, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Recipes", value: "28", subLabel: "Formulation masters", icon: Palette, toneClassName: "bg-violet-50 text-violet-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "FILM" },
+                { kind: "materialCategory", value: "INK" },
+                { kind: "materialCategory", value: "GRANULE" },
+                { kind: "approval", value: "APPROVED", label: "Controlled master base" },
+            ]}
         >
-            {/* KPI Cards */}
-            <div className="grid gap-6 md:grid-cols-4 mb-8">
-                {[
-                    { label: "Total Masters", value: "11", sub: "Active Registries", icon: LayoutGrid, color: "text-indigo-600" },
-                    { label: "Materials", value: "128", sub: "SKUs Managed", icon: Layers, color: "text-blue-600" },
-                    { label: "Customers", value: "156", sub: "Active Clients", icon: Users, color: "text-emerald-600" },
-                    { label: "Recipes", value: "28", sub: "Formulations", icon: Palette, color: "text-purple-600" },
-                ].map((stat, i) => (
-                    <Card key={i} className="border-none shadow-premium hover:shadow-premium-hover transition-all duration-300 rounded-[1.5rem] overflow-hidden group">
-                        <CardContent className="p-6">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className={`p-3 rounded-2xl bg-slate-50 group-hover:bg-white inset-ring group-hover:shadow-sm transition-all duration-300 ${stat.color}`}>
-                                    <stat.icon className="h-6 w-6" />
-                                </div>
-                                <Badge variant="outline" className="bg-slate-50/50 text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                                    Live
-                                </Badge>
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className="text-4xl font-black text-slate-900 tracking-tight">{stat.value}</h3>
-                                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{stat.label}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
             {/* Master Cards Grid */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredMasters.map((master, index) => (
@@ -189,10 +174,11 @@ export default function MasterDataPage() {
                                     <p className="text-sm text-slate-500 font-medium leading-relaxed mb-4">
                                         {master.description}
                                     </p>
-                                    <div className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                    <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
                                         <span className="bg-slate-100 px-2 py-1 rounded-md text-slate-500">
                                             {master.count} Records
                                         </span>
+                                        <SemanticBadge kind="approval" value="APPROVED" label="Live" className="text-[9px]" />
                                     </div>
                                 </div>
                             </CardContent>
@@ -200,6 +186,6 @@ export default function MasterDataPage() {
                     </Link>
                 ))}
             </div>
-        </FactoryPageLayout>
+        </MasterRegistryShell>
     )
 }

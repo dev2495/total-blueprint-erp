@@ -111,6 +111,9 @@ export default function LoginPage() {
                         <CardHeader className="space-y-2">
                             <CardTitle className="text-2xl font-black tracking-tight text-slate-900">Sign In</CardTitle>
                             <CardDescription>Use your email or username to continue.</CardDescription>
+                            <div className="text-[11px] font-semibold text-slate-500">
+                                Backend target: <span className="font-black text-slate-700">{RESOLVED_API_BASE}</span>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <Form {...form}>

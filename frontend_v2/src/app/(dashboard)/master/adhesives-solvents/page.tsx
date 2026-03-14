@@ -2,11 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { masterDataService, Material } from "@/services/master-data"
-import { PageHeader } from "@/components/ui-custom/page-header"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2 } from "lucide-react"
+import { FlaskConical, Loader2, PackageCheck, Plus, ShieldCheck } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -117,6 +117,7 @@ export default function AdhesivesSolventsPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<Material | null>(null)
     const [itemToDelete, setItemToDelete] = useState<Material | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
 
     const { data: items } = useQuery({
         queryKey: ["adhesives-solvents"],
@@ -152,37 +153,62 @@ export default function AdhesivesSolventsPage() {
         onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" })
     })
 
-    return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Adhesives & Solvents"
-                description="Manage lamination adhesives and solvents used in the conversion process."
-                actions={
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" /> Add Item
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Create Adhesive / Solvent</DialogTitle>
-                            </DialogHeader>
-                            <AdhesiveSolventForm
-                                onSubmit={(data) => createMutation.mutate(data)}
-                                isLoading={createMutation.isPending}
-                            />
-                        </DialogContent>
-                    </Dialog>
-                }
-            />
+    const filteredItems = (items || []).filter((item) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return true
+        return (
+            item.name.toLowerCase().includes(query) ||
+            item.code.toLowerCase().includes(query) ||
+            String(item.category || "").toLowerCase().includes(query)
+        )
+    })
 
+    const adhesiveCount = (items || []).filter((item) => item.category === "ADHESIVE").length
+    const solventCount = (items || []).filter((item) => item.category === "SOLVENT").length
+
+    return (
+        <MasterRegistryShell
+            title="Adhesives & Solvents"
+            description="Manage lamination adhesives and solvents used in conversion and cleaning loops."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search adhesives, solvents, or codes..."
+            stats={[
+                { label: "Chemical masters", value: (items || []).length, subLabel: "Adhesives and solvents", icon: FlaskConical, toneClassName: "bg-amber-50 text-amber-700" },
+                { label: "Adhesives", value: adhesiveCount, subLabel: "Bonding inputs", icon: PackageCheck, toneClassName: "bg-orange-50 text-orange-700" },
+                { label: "Solvents", value: solventCount, subLabel: "Cleaning and viscosity control", icon: FlaskConical, toneClassName: "bg-cyan-50 text-cyan-700" },
+                { label: "Visible", value: filteredItems.length, subLabel: "Matching current search", icon: ShieldCheck, toneClassName: "bg-slate-50 text-slate-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "ADHESIVE" },
+                { kind: "materialCategory", value: "SOLVENT" },
+                { kind: "processState", value: "LAMINATED", label: "Lamination line" },
+            ]}
+            actions={
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
+                            <Plus className="mr-2 h-4 w-4" /> Add Item
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create Adhesive / Solvent</DialogTitle>
+                        </DialogHeader>
+                        <AdhesiveSolventForm
+                            onSubmit={(data) => createMutation.mutate(data)}
+                            isLoading={createMutation.isPending}
+                        />
+                    </DialogContent>
+                </Dialog>
+            }
+        >
             <DataTable
                 columns={getColumns({
                     onEdit: setEditingItem,
                     onDelete: (item) => setItemToDelete(item)
                 })}
-                data={items || []}
+                data={filteredItems}
                 filterColumn="name"
                 filterPlaceholder="Filter items..."
             />
@@ -227,6 +253,6 @@ export default function AdhesivesSolventsPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </MasterRegistryShell>
     )
 }

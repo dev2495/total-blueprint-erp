@@ -24,6 +24,7 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SemanticBadge } from '@/components/ui-custom/semantic-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -960,18 +961,12 @@ export default function MachineExecutionPage() {
                                         <Server className="h-8 w-8 text-blue-600" />
                                         {machineDetail?.machine?.name || 'Machine Terminal'}
                                     </h1>
-                                    <Badge
-                                        variant={isActive ? 'default' : 'secondary'}
-                                        className={cn(
-                                            "rounded-full px-3 py-0.5 font-bold uppercase tracking-widest text-[10px] border shadow-sm",
-                                            isActive
-                                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                                : "bg-slate-100 text-slate-500 border-slate-200"
-                                        )}
-                                    >
-                                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />}
-                                        {machineDetail?.machine?.status || 'OFFLINE'}
-                                    </Badge>
+                                    <SemanticBadge
+                                        kind="jobState"
+                                        value={isActive ? "READY" : "BLOCKED"}
+                                        label={machineDetail?.machine?.status || 'OFFLINE'}
+                                        className="rounded-full px-3 py-1 text-[10px]"
+                                    />
                                 </div>
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                                     <div className="flex items-center gap-1.5">
@@ -1093,17 +1088,7 @@ export default function MachineExecutionPage() {
                                                 )}>
                                                     {job.job_number}
                                                 </div>
-                                                <Badge
-                                                    variant="outline"
-                                                    className={cn(
-                                                        "text-[9px] font-black uppercase tracking-tighter px-2 py-0 border",
-                                                        isRunning
-                                                            ? "bg-blue-50 text-blue-600 border-blue-100"
-                                                            : "bg-slate-50 text-slate-400 border-slate-100"
-                                                    )}
-                                                >
-                                                    {job.job_state}
-                                                </Badge>
+                                                <SemanticBadge kind="jobState" value={job.job_state} label={job.job_state || "Queued"} className="text-[9px] px-2 py-1" />
                                             </div>
                                             <div className="text-[11px] font-black text-slate-900 truncate mb-1">
                                                 {job.template_name || job.product_name}
@@ -1147,8 +1132,9 @@ export default function MachineExecutionPage() {
                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
                                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
                                     <div className="mt-2 text-base font-black text-slate-900">{operatorNextStep}</div>
-                                    <div className="mt-1 text-xs text-slate-600">
-                                        Job state: {jobState || "NO JOB"} · Machine: {isActive ? "READY" : "OFFLINE"}
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <SemanticBadge kind="jobState" value={jobState || "PENDING"} label={jobState || "No job"} className="text-[10px]" />
+                                        <SemanticBadge kind="jobState" value={isActive ? "READY" : "BLOCKED"} label={isActive ? "Machine ready" : "Machine offline"} className="text-[10px]" />
                                     </div>
                                 </div>
                                 {[
@@ -1187,9 +1173,7 @@ export default function MachineExecutionPage() {
                                             <div className="space-y-4">
                                                 <div className="flex items-center justify-between">
                                                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Reserved Rolls</h4>
-                                                    <Badge variant="outline" className="text-[9px] bg-blue-50/50 border-blue-100 text-blue-600 font-bold">
-                                                        {reservedRolls.length} ITEMS
-                                                    </Badge>
+                                                    <SemanticBadge kind="jobState" value={reservedRolls.length > 0 ? "ASSIGNED" : "PENDING"} label={`${reservedRolls.length} items`} className="text-[9px]" />
                                                 </div>
                                                 <div className="grid gap-3">
                                                     {reservedRolls.map((roll: any) => (
@@ -1230,9 +1214,7 @@ export default function MachineExecutionPage() {
                                             <div className="space-y-4">
                                                 <div className="flex items-center justify-between">
                                                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Bulk Materials</h4>
-                                                    <Badge variant="outline" className="text-[9px] bg-emerald-50/50 border-emerald-100 text-emerald-600 font-bold">
-                                                        {bulkPreview.length} ACTIVE
-                                                    </Badge>
+                                                    <SemanticBadge kind="jobState" value={bulkPreview.length > 0 ? "READY" : "PENDING"} label={`${bulkPreview.length} active`} className="text-[9px]" />
                                                 </div>
                                                 <div className="grid gap-3">
                                                     {bulkPreview.map((req: any, idx: number) => (

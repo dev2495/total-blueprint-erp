@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { inventoryService, Vendor } from "@/services/inventory"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { Factory, Plus, ShieldCheck, Truck } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -28,8 +28,8 @@ import {
 
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
-import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Card, CardContent } from "@/components/ui/card"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 
 export default function VendorsPage() {
     const { toast } = useToast()
@@ -86,12 +86,23 @@ export default function VendorsPage() {
     ) || []
 
     return (
-        <FactoryPageLayout
+        <MasterRegistryShell
             title="Vendors"
             description="Manage suppliers, job workers, and service providers used across GRN and Job Work loops."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search by name or code..."
+            stats={[
+                { label: "Partners", value: (vendors || []).length, subLabel: "Suppliers and job workers", icon: Truck, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Active", value: (vendors || []).filter((vendor) => vendor.status === "ACTIVE").length, subLabel: "Ready for purchase or jobwork", icon: ShieldCheck, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Jobwork ready", value: (vendors || []).filter((vendor) => ["JOBWORK", "BOTH"].includes(vendor.type)).length, subLabel: "Can receive outsourced work", icon: Factory, toneClassName: "bg-cyan-50 text-cyan-700" },
+                { label: "QC required", value: (vendors || []).filter((vendor) => Boolean(vendor.qc_required)).length, subLabel: "Extra incoming quality checks", icon: ShieldCheck, toneClassName: "bg-amber-50 text-amber-700" },
+            ]}
+            chips={[
+                { kind: "origin", value: "PURCHASED", label: "Raw-material suppliers" },
+                { kind: "origin", value: "JOBWORK_RETURN", label: "Jobwork loop" },
+                { kind: "approval", value: "APPROVED", label: "Approved source base" },
+            ]}
             actions={
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
@@ -171,6 +182,6 @@ export default function VendorsPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </FactoryPageLayout>
+        </MasterRegistryShell>
     )
 }

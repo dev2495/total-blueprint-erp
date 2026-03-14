@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus } from "lucide-react"
+import { Layers, Package, Plus, Tag } from "lucide-react"
 
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { PageHeader } from "@/components/ui-custom/page-header"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import {
     Dialog,
     DialogContent,
@@ -37,6 +37,7 @@ export default function CommercialFamiliesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingFamily, setEditingFamily] = useState<CommercialFamily | null>(null)
     const [familyToDelete, setFamilyToDelete] = useState<CommercialFamily | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
 
     const { data: families = [] } = useQuery({
         queryKey: ["commercial-families"],
@@ -78,37 +79,60 @@ export default function CommercialFamiliesPage() {
         },
     })
 
+    const filteredFamilies = families.filter((family) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return true
+        return (
+            family.name.toLowerCase().includes(query) ||
+            family.code.toLowerCase().includes(query) ||
+            String(family.default_reporting_group || "").toLowerCase().includes(query)
+        )
+    })
+
     return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Commercial Families"
-                description="Controlled business-facing family names used for stock naming, grouping, reporting, and planner readability."
-                actions={
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" /> Add Business Family
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Create Commercial Family</DialogTitle>
-                                <DialogDescription>
-                                    Create the human-friendly stock family that explorer, planner, and reports will use.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <CommercialFamilyForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
-                        </DialogContent>
-                    </Dialog>
-                }
-            />
+        <MasterRegistryShell
+            title="Commercial Families"
+            description="Controlled business-facing family names used for stock naming, grouping, reports, and planner readability."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search business families..."
+            stats={[
+                { label: "Total families", value: families.length, subLabel: "Controlled business aliases", icon: Tag, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Active", value: families.filter((family) => family.active).length, subLabel: "Visible across planner and reports", icon: Layers, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Roll defaults", value: families.filter((family) => String(family.default_form || "").toUpperCase() === "ROLL").length, subLabel: "Family defaults for roll stock", icon: Package, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Pouch defaults", value: families.filter((family) => String(family.default_form || "").toUpperCase() === "POUCH").length, subLabel: "Family defaults for pouch stock", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },
+            ]}
+            chips={[
+                { kind: "processState", value: "PRINTED", label: "Readable stock names" },
+                { kind: "stockStrategy", value: "FINAL_STOCK", label: "Planner aligned" },
+                { kind: "origin", value: "IN_HOUSE", label: "Report friendly" },
+            ]}
+            actions={
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
+                            <Plus className="mr-2 h-4 w-4" /> Add Business Family
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create Commercial Family</DialogTitle>
+                            <DialogDescription>
+                                Create the human-friendly stock family that explorer, planner, and reports will use.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <CommercialFamilyForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+                    </DialogContent>
+                </Dialog>
+            }
+        >
 
             <DataTable
                 columns={getColumns({
                     onEdit: setEditingFamily,
                     onDelete: (family) => setFamilyToDelete(family),
                 })}
-                data={families}
+                data={filteredFamilies}
                 filterColumn="name"
                 filterPlaceholder="Filter business families..."
             />
@@ -153,7 +177,6 @@ export default function CommercialFamiliesPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </MasterRegistryShell>
     )
 }
-

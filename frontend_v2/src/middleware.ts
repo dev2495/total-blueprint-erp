@@ -29,10 +29,32 @@ function appendOrigin(sources: Set<string>, value?: string) {
   }
 }
 
-function buildContentSecurityPolicy(nonce: string) {
+function inferBackendOrigins(request: NextRequest) {
+  const sources = new Set<string>();
+  const protocol = request.nextUrl.protocol || "http:";
+  const apiPort = String(process.env.NEXT_PUBLIC_API_PORT || "8000").trim() || "8000";
+  const hostname = String(request.nextUrl.hostname || "").trim().toLowerCase();
+
+  if (!hostname) return sources;
+
+  const hosts = new Set<string>([hostname]);
+  if (hostname === "localhost") hosts.add("127.0.0.1");
+  if (hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1") hosts.add("localhost");
+
+  for (const host of hosts) {
+    sources.add(`${protocol}//${host}:${apiPort}`);
+  }
+
+  return sources;
+}
+
+function buildContentSecurityPolicy(nonce: string, request: NextRequest) {
   const connectSources = new Set<string>(["'self'"]);
   appendOrigin(connectSources, process.env.NEXT_PUBLIC_API_BASE_URL);
   appendOrigin(connectSources, process.env.NEXT_PUBLIC_SENTRY_DSN);
+  for (const origin of inferBackendOrigins(request)) {
+    connectSources.add(origin);
+  }
 
   return [
     "default-src 'self'",
@@ -67,7 +89,7 @@ export function middleware(request: NextRequest) {
   }
 
   const nonce = buildNonce();
-  const csp = buildContentSecurityPolicy(nonce);
+  const csp = buildContentSecurityPolicy(nonce, request);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);

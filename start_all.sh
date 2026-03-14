@@ -410,10 +410,12 @@ start_services() {
     echo "Backend log: ${BACKEND_LOG}"
     echo "Frontend log: ${FRONTEND_LOG}"
     echo "Frontend build log: ${FRONTEND_BUILD_LOG}"
+    echo "Manual QA: frontend=http://127.0.0.1:3000/login backend-health=http://127.0.0.1:8000/api/health/"
     local lan_ip
     lan_ip="$(detect_lan_ip | tr -d '[:space:]')"
     if [ -n "${lan_ip}" ]; then
       echo "LAN access: frontend=http://${lan_ip}:3000 backend=http://${lan_ip}:8000"
+      echo "LAN QA: login=http://${lan_ip}:3000/login health=http://${lan_ip}:8000/api/health/"
     else
       echo "LAN access: could not auto-detect host IP, run 'ipconfig getifaddr en0' and use :3000/:8000."
     fi

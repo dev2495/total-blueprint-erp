@@ -39,6 +39,7 @@ try:
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
+    from reportlab.graphics.shapes import Drawing, Rect, String
     from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 except Exception:  # pragma: no cover
     colors = None
@@ -47,6 +48,9 @@ except Exception:  # pragma: no cover
     getSampleStyleSheet = None
     mm = None
     canvas = None
+    Drawing = None
+    Rect = None
+    String = None
     PageBreak = None
     Paragraph = None
     SimpleDocTemplate = None
@@ -1112,6 +1116,11 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         section_style = ParagraphStyle("SectionTitle", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=13, textColor=colors.HexColor("#0F172A"), spaceAfter=6)
         body_style = ParagraphStyle("Body", parent=styles["BodyText"], fontName="Helvetica", fontSize=8.5, textColor=colors.HexColor("#334155"), leading=11)
         small_style = ParagraphStyle("Small", parent=styles["BodyText"], fontName="Helvetica", fontSize=7.5, textColor=colors.HexColor("#475569"), leading=9)
+        tiny_style = ParagraphStyle("Tiny", parent=styles["BodyText"], fontName="Helvetica", fontSize=6.8, textColor=colors.HexColor("#475569"), leading=8.3)
+        card_label_style = ParagraphStyle("CardLabel", parent=styles["BodyText"], fontName="Helvetica-Bold", fontSize=7.5, textColor=colors.HexColor("#64748B"), leading=9)
+        card_value_style = ParagraphStyle("CardValue", parent=styles["BodyText"], fontName="Helvetica-Bold", fontSize=15, textColor=colors.HexColor("#0F172A"), leading=17)
+        hero_title_style = ParagraphStyle("HeroTitle", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=18, textColor=colors.HexColor("#0F172A"), leading=20)
+        chip_style = ParagraphStyle("ChipStyle", parent=styles["BodyText"], fontName="Helvetica-Bold", fontSize=7, textColor=colors.HexColor("#0F172A"), leading=8)
 
         def styled_table(rows, col_widths, header_bg="#E2E8F0", body_font_size=7.2, repeat_rows=1):
             table = Table(rows, colWidths=col_widths, repeatRows=repeat_rows)
@@ -1134,6 +1143,222 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             )
             return table
 
+        def metric_card(label: str, value: str, accent: str):
+            card = Table(
+                [
+                    [Paragraph(label.upper(), card_label_style)],
+                    [Paragraph(value, card_value_style)],
+                ],
+                colWidths=[44 * mm],
+            )
+            card.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#CBD5E1")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("LINEABOVE", (0, 0), (-1, 0), 4, colors.HexColor(accent)),
+                    ]
+                )
+            )
+            return card
+
+        def label_chip(text: str, fill: str, text_color: str = "#0F172A"):
+            chip = Table([[Paragraph(text.upper(), chip_style)]], colWidths=[None])
+            chip.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(fill)),
+                        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor(text_color)),
+                        ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor(fill)),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+                    ]
+                )
+            )
+            return chip
+
+        def horizontal_bar_chart(title: str, rows: list[dict], label_key: str, value_key: str, color_hex: str, suffix: str = "kg"):
+            if not rows or Drawing is None or Rect is None or String is None:
+                return styled_table(
+                    [[title, "Value"]] + [[str(row.get(label_key, "-")), f"{_safe_number(row.get(value_key)):,.1f} {suffix}"] for row in rows],
+                    [80 * mm, 28 * mm],
+                    repeat_rows=1,
+                )
+
+            limited_rows = rows[:6]
+            max_value = max((_safe_number(row.get(value_key)) for row in limited_rows), default=1.0) or 1.0
+            drawing = Drawing(180, 18 + (len(limited_rows) * 20))
+            y = drawing.height - 20
+            for row in limited_rows:
+                label = str(row.get(label_key, "-"))[:24]
+                value = _safe_number(row.get(value_key))
+                width = max(6, (value / max_value) * 74) if value > 0 else 0
+                drawing.add(String(0, y + 3, label, fontName="Helvetica-Bold", fontSize=7.2, fillColor=colors.HexColor("#334155")))
+                drawing.add(Rect(72, y, 74, 10, fillColor=colors.HexColor("#E2E8F0"), strokeColor=colors.HexColor("#CBD5E1"), strokeWidth=0.4))
+                if width:
+                    drawing.add(Rect(72, y, width, 10, fillColor=colors.HexColor(color_hex), strokeColor=colors.HexColor(color_hex), strokeWidth=0))
+                drawing.add(String(151, y + 2, f"{value:,.1f} {suffix}", fontName="Helvetica-Bold", fontSize=7.2, fillColor=colors.HexColor("#0F172A")))
+                y -= 18
+            return Table(
+                [
+                    [Paragraph(title, section_style)],
+                    [drawing],
+                ],
+                colWidths=[87 * mm],
+                style=TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#E2E8F0")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]
+                ),
+            )
+
+        def family_hero(family: dict, rows: list[dict]):
+            chips = [
+                label_chip(family["reporting_group"], "#E2E8F0"),
+                label_chip(f"{int(family['variant_count'])} variants", "#DBEAFE", "#1D4ED8"),
+                label_chip(f"{int(family['roll_count'])} rolls", "#E0F2FE", "#0369A1"),
+            ]
+            if any(str(row.get("stock_strategy", "")).upper() == "FINAL_STOCK" for row in rows):
+                chips.append(label_chip("final stock", "#DCFCE7", "#166534"))
+            if any(str(row.get("stock_strategy", "")).upper() == "INTERMEDIATE_POOL" for row in rows):
+                chips.append(label_chip("intermediate", "#FEF3C7", "#92400E"))
+            if any("PRINT" in str(row.get("print_status", "")).upper() for row in rows):
+                chips.append(label_chip("printed", "#DBEAFE", "#1D4ED8"))
+            if any("LAMIN" in str(row.get("lamination_status", "")).upper() for row in rows):
+                chips.append(label_chip("laminated", "#EDE9FE", "#6D28D9"))
+
+            hero_table = Table(
+                [
+                    [
+                        Table(
+                            [
+                                [Paragraph(family["family_display_name"], hero_title_style)],
+                                [Paragraph(f"Available {family['available_kg']:,.1f} kg • Reserved {family['reserved_kg']:,.1f} kg • Blocked {family['blocked_kg']:,.1f} kg", body_style)],
+                            ],
+                            colWidths=[92 * mm],
+                            style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 2)]),
+                        ),
+                        Table(
+                            [
+                                [Paragraph("Oldest stock", card_label_style), Paragraph(f"{int(family['oldest_age_days'])} days", ParagraphStyle("HeroValue", parent=card_value_style, fontSize=13, leading=15))],
+                                [Paragraph("Reporting group", card_label_style), Paragraph(str(family["reporting_group"]), body_style)],
+                            ],
+                            colWidths=[25 * mm, 28 * mm],
+                            style=TableStyle(
+                                [
+                                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+                                    ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+                                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                                ]
+                            ),
+                        ),
+                    ],
+                    [Table([chips], style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)])), ""],
+                ],
+                colWidths=[112 * mm, 53 * mm],
+            )
+            hero_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                        ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#CBD5E1")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("SPAN", (0, 1), (1, 1)),
+                    ]
+                )
+            )
+            return hero_table
+
+        def variant_card(row: dict):
+            chips = [
+                label_chip(str(row["stage"]), "#E2E8F0"),
+                label_chip(str(row["print_status"]), "#DBEAFE", "#1D4ED8"),
+                label_chip(str(row["lamination_status"]), "#EDE9FE", "#6D28D9"),
+                label_chip(str(row["stock_strategy_label"]), "#DCFCE7" if str(row["stock_strategy"]).upper() == "FINAL_STOCK" else "#FEF3C7", "#166534" if str(row["stock_strategy"]).upper() == "FINAL_STOCK" else "#92400E"),
+            ]
+            location_text = row["plant_location_summary"] or "-"
+            card = Table(
+                [
+                    [Paragraph(row["variant_display_name"], ParagraphStyle("VariantTitle", parent=body_style, fontName="Helvetica-Bold", fontSize=9.4, textColor=colors.HexColor("#0F172A"), leading=11))],
+                    [Paragraph(row["size_line"], small_style)],
+                    [Table([chips[:2], chips[2:]], style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))],
+                    [styled_table(
+                        [
+                            ["Rolls", "Avail", "Reserved", "Blocked", "Oldest"],
+                            [str(int(row["roll_count"])), f"{row['available_kg']:,.1f}", f"{row['reserved_kg']:,.1f}", f"{row['blocked_kg']:,.1f}", f"{int(row['oldest_age_days'])}d"],
+                        ],
+                        [12 * mm, 18 * mm, 18 * mm, 18 * mm, 14 * mm],
+                        header_bg="#F8FAFC",
+                        body_font_size=7.2,
+                        repeat_rows=0,
+                    )],
+                    [Paragraph(f"Where: {location_text[:120]}", tiny_style)],
+                ],
+                colWidths=[82 * mm],
+            )
+            card.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            return card
+
+        def family_location_strip(rows: list[dict]):
+            plant_map: dict[str, dict] = {}
+            for row in rows:
+                for plant_summary in row.get("plant_summary", []):
+                    bucket = plant_map.setdefault(
+                        plant_summary["plant"],
+                        {"plant": plant_summary["plant"], "available_kg": 0.0, "reserved_kg": 0.0, "blocked_kg": 0.0, "locations": set()},
+                    )
+                    bucket["available_kg"] += _safe_number(plant_summary["available_kg"])
+                    bucket["reserved_kg"] += _safe_number(plant_summary["reserved_kg"])
+                    bucket["blocked_kg"] += _safe_number(plant_summary["blocked_kg"])
+                    bucket["locations"].update(plant_summary.get("locations") or [])
+            strip_rows = sorted(plant_map.values(), key=lambda item: (-item["available_kg"], item["plant"]))[:6]
+            if not strip_rows:
+                return Paragraph("No plant/location detail available.", small_style)
+            return styled_table(
+                [["Plant", "Locations", "Avail KG", "Reserved KG", "Blocked KG"]]
+                + [
+                    [
+                        row["plant"],
+                        ", ".join(sorted(row["locations"]))[:42] or "-",
+                        f"{row['available_kg']:,.1f}",
+                        f"{row['reserved_kg']:,.1f}",
+                        f"{row['blocked_kg']:,.1f}",
+                    ]
+                    for row in strip_rows
+                ],
+                [33 * mm, 66 * mm, 19 * mm, 21 * mm, 20 * mm],
+                header_bg="#F8FAFC",
+                body_font_size=6.8,
+            )
+
         elements = [
             styled_table(
                 [[Paragraph(_company_name(), title_style), Paragraph(cls.report_title, title_style)]],
@@ -1144,17 +1369,12 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             ),
             Spacer(1, 4 * mm),
             Paragraph(f"Report Date: {report_date.strftime('%d-%b-%Y')}<br/>Generated: {_fmt_dt(timezone.now())}", body_style),
-            Paragraph("Official plant stock position with roll variant detail, stock strategy summary, and operational exceptions.", body_style),
+            Paragraph("Official plant stock position with visual family pages, stock mix charts, and a compact audit appendix.", body_style),
             Spacer(1, 4 * mm),
-            styled_table(
-                [
-                    [label.upper() for label, _value in summary_cards],
-                    [value for _label, value in summary_cards],
-                ],
-                [47 * mm, 47 * mm, 47 * mm, 47 * mm],
-                header_bg="#F1F5F9",
-                body_font_size=10,
-                repeat_rows=0,
+            Table(
+                [[metric_card(label, value, accent) for (label, value), accent in zip(summary_cards, ["#2563EB", "#10B981", "#D97706", "#7C3AED"], strict=False)]],
+                colWidths=[47 * mm, 47 * mm, 47 * mm, 47 * mm],
+                style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]),
             ),
             Spacer(1, 4 * mm),
             Paragraph("Official Plant Snapshot", section_style),
@@ -1177,36 +1397,22 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             Paragraph("Risk Callouts", section_style),
             *[Paragraph(f"- {item}", body_style) for item in risk_callouts],
             PageBreak(),
-            Paragraph("Stock by Stage", section_style),
-            styled_table(
-                [["Stage", "Weight KG", "Roll Count"]]
-                + [[row["stage"], f"{row['weight_kg']:,.1f}", str(int(row["roll_count"]))] for row in stage_rows],
-                [70 * mm, 45 * mm, 45 * mm],
+            Table(
+                [[
+                    horizontal_bar_chart("Stage mix", stage_rows, "stage", "weight_kg", "#2563EB"),
+                    horizontal_bar_chart("Strategy mix", strategy_rows, "stock_strategy", "weight_kg", "#D97706"),
+                ]],
+                colWidths=[90 * mm, 90 * mm],
+                style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]),
             ),
             Spacer(1, 4 * mm),
-            Paragraph("Stock by Strategy", section_style),
-            styled_table(
-                [["Strategy", "Weight KG", "Roll Count"]]
-                + [[row["stock_strategy"], f"{row['weight_kg']:,.1f}", str(int(row["roll_count"]))] for row in strategy_rows],
-                [70 * mm, 45 * mm, 45 * mm],
-            ),
-            Spacer(1, 4 * mm),
-            Paragraph("Family Summary", section_style),
-            styled_table(
-                [["Business Family", "Group", "Variants", "Rolls", "Available KG", "Reserved KG", "Blocked KG"]]
-                + [
-                    [
-                        row["family_display_name"],
-                        row["reporting_group"],
-                        str(int(row["variant_count"])),
-                        str(int(row["roll_count"])),
-                        f"{row['available_kg']:,.1f}",
-                        f"{row['reserved_kg']:,.1f}",
-                        f"{row['blocked_kg']:,.1f}",
-                    ]
-                    for row in family_rows
-                ],
-                [52 * mm, 24 * mm, 18 * mm, 18 * mm, 24 * mm, 24 * mm, 24 * mm],
+            Table(
+                [[
+                    horizontal_bar_chart("Family contribution", family_rows, "family_display_name", "available_kg", "#7C3AED"),
+                    horizontal_bar_chart("Blocked / aging watch", [{"label": "Blocked kg", "value": sum(_safe_number(row.get("blocked_kg")) for row in family_rows)}, {"label": "Aged 90+ kg", "value": sum(_safe_number(row.get("weight_kg")) for row in variant_rows if row.get("oldest_age_days", 0) >= 90)}], "label", "value", "#DC2626"),
+                ]],
+                colWidths=[90 * mm, 90 * mm],
+                style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]),
             ),
             Spacer(1, 4 * mm),
             Paragraph("Top Locations", section_style),
@@ -1226,51 +1432,70 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             if not rows:
                 continue
             elements.append(PageBreak())
-            elements.append(Paragraph(family["family_display_name"], section_style))
+            elements.append(family_hero(family, rows))
+            elements.append(Spacer(1, 3 * mm))
+            elements.append(Paragraph("Size / variant view", section_style))
+            card_rows = []
+            pending_cards = [variant_card(row) for row in rows]
+            for index in range(0, len(pending_cards), 2):
+                left = pending_cards[index]
+                right = pending_cards[index + 1] if index + 1 < len(pending_cards) else ""
+                card_rows.append([left, right])
             elements.append(
-                Paragraph(
-                    f"{family['variant_count']} variants • {family['roll_count']} rolls • {family['available_kg']:,.1f} kg available • {family['reserved_kg']:,.1f} kg reserved",
-                    small_style,
+                Table(
+                    card_rows,
+                    colWidths=[87 * mm, 87 * mm],
+                    style=TableStyle(
+                        [
+                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                            ("TOPPADDING", (0, 0), (-1, -1), 0),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ]
+                    ),
                 )
             )
-            table_rows = [[
-                "Variant",
-                "Size",
-                "Stage",
-                "Print",
-                "Lam",
-                "Strategy",
-                "Rolls",
-                "Avail KG",
-                "Res KG",
-                "Blocked KG",
-                "Where",
-                "Oldest",
-            ]]
-            for row in rows:
-                table_rows.append(
-                    [
-                        row["variant_display_name"],
-                        row["size_line"],
-                        row["stage"],
-                        row["print_status"],
-                        row["lamination_status"],
-                        row["stock_strategy_label"],
-                        str(int(row["roll_count"])),
-                        f"{row['available_kg']:.1f}",
-                        f"{row['reserved_kg']:.1f}",
-                        f"{row['blocked_kg']:.1f}",
-                        row["plant_location_summary"][:48],
-                        f"{int(row['oldest_age_days'])}d",
-                    ]
-                )
-            elements.append(
-                styled_table(
-                    table_rows,
-                    [36 * mm, 24 * mm, 16 * mm, 12 * mm, 14 * mm, 18 * mm, 10 * mm, 12 * mm, 12 * mm, 12 * mm, 34 * mm, 10 * mm],
-                    body_font_size=6.4,
-                )
+            elements.append(Spacer(1, 2 * mm))
+            elements.append(Paragraph("Plant / location strip", section_style))
+            elements.append(family_location_strip(rows))
+
+        elements.append(PageBreak())
+        elements.append(Paragraph("Audit appendix", section_style))
+        appendix_rows = [[
+            "Family",
+            "Variant",
+            "Size",
+            "Stage",
+            "Strategy",
+            "Rolls",
+            "Avail KG",
+            "Res KG",
+            "Blocked KG",
+            "Where",
+        ]]
+        for row in variant_rows:
+            appendix_rows.append(
+                [
+                    row["family_display_name"],
+                    row["variant_display_name"][:24],
+                    row["size_line"][:22],
+                    row["stage"],
+                    row["stock_strategy_label"],
+                    str(int(row["roll_count"])),
+                    f"{row['available_kg']:.1f}",
+                    f"{row['reserved_kg']:.1f}",
+                    f"{row['blocked_kg']:.1f}",
+                    row["plant_location_summary"][:42],
+                ]
             )
+        elements.append(
+            styled_table(
+                appendix_rows,
+                [28 * mm, 28 * mm, 20 * mm, 16 * mm, 18 * mm, 10 * mm, 14 * mm, 14 * mm, 16 * mm, 34 * mm],
+                body_font_size=6.3,
+            )
+        )
 
         doc.build(elements)
         return buffer.getvalue()

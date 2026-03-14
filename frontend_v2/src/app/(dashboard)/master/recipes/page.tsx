@@ -2,11 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { recipeService, ExtrusionRecipe } from "@/services/recipes"
-import { PageHeader } from "@/components/ui-custom/page-header"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { Factory, Layers, Palette, Plus } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -35,6 +35,7 @@ export default function RecipesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingRecipe, setEditingRecipe] = useState<ExtrusionRecipe | null>(null)
     const [recipeToDelete, setRecipeToDelete] = useState<ExtrusionRecipe | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
 
     const { data: recipes } = useQuery({
         queryKey: ["recipes"],
@@ -85,40 +86,61 @@ export default function RecipesPage() {
         }
     })
 
-    return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Extrusion Recipes"
-                description="Manage formulations and material blends for film extrusion."
-                actions={
-                    <div className="flex gap-2">
-                        <GradeMasterDialog />
-                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <Plus className="mr-2 h-4 w-4" /> Add Recipe
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                    <DialogTitle>Create Extrusion Recipe</DialogTitle>
-                                </DialogHeader>
-                                <RecipeForm
-                                    onSubmit={(data) => createMutation.mutate(data)}
-                                    isLoading={createMutation.isPending}
-                                />
-                            </DialogContent>
-                        </Dialog>
-                    </div>
-                }
-            />
+    const filteredRecipes = (recipes || []).filter((recipe) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return true
+        return (
+            recipe.film_variant_name.toLowerCase().includes(query) ||
+            recipe.grade_name.toLowerCase().includes(query)
+        )
+    })
 
+    return (
+        <MasterRegistryShell
+            title="Extrusion Recipes"
+            description="Manage formulations and granule blends used for extrusion output across film variants and grades."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search by variant or grade..."
+            stats={[
+                { label: "Recipes", value: (recipes || []).length, subLabel: "Configured formulations", icon: Palette, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Active", value: (recipes || []).filter((recipe) => recipe.is_active).length, subLabel: "Ready for production planning", icon: Factory, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Variants covered", value: new Set((recipes || []).map((recipe) => recipe.film_variant_name)).size, subLabel: "Film variants with a recipe", icon: Layers, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Visible", value: filteredRecipes.length, subLabel: "Matching current search", icon: Layers, toneClassName: "bg-slate-50 text-slate-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "GRANULE" },
+                { kind: "processState", value: "EXTRUDED", label: "Extrusion base" },
+                { kind: "origin", value: "IN_HOUSE", label: "Made in-house" },
+            ]}
+            actions={
+                <div className="flex gap-2">
+                    <GradeMasterDialog />
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
+                                <Plus className="mr-2 h-4 w-4" /> Add Recipe
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Create Extrusion Recipe</DialogTitle>
+                            </DialogHeader>
+                            <RecipeForm
+                                onSubmit={(data) => createMutation.mutate(data)}
+                                isLoading={createMutation.isPending}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            }
+        >
             <DataTable
                 columns={getColumns({
                     onEdit: setEditingRecipe,
                     onDelete: (recipe) => setRecipeToDelete(recipe)
                 })}
-                data={recipes || []}
+                data={filteredRecipes}
                 filterColumn="film_variant_name"
                 filterPlaceholder="Filter by variant..."
             />
@@ -162,6 +184,6 @@ export default function RecipesPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </MasterRegistryShell>
     )
 }

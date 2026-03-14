@@ -29,6 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge";
+import { humanizeToken } from "@/lib/visual-semantics";
 import { toast } from "sonner";
 
 import { factoryService } from "@/services/factory";
@@ -55,64 +57,23 @@ function toNumber(value: unknown, fallback = 0): number {
     return Number.isFinite(n) ? n : fallback;
 }
 
-function toneForStatus(status?: string): string {
-    const s = String(status || "").toUpperCase();
-    if (s === "AVAILABLE") return "bg-emerald-50/80 text-emerald-700 border-emerald-200";
-    if (s === "RESERVED") return "bg-amber-50/80 text-amber-700 border-amber-200";
-    if (s === "IN_PROCESS") return "bg-blue-50/80 text-blue-700 border-blue-200";
-    if (s === "SCRAPPED") return "bg-rose-50/80 text-rose-700 border-rose-200";
-    if (s === "CONSUMED") return "bg-slate-100 text-slate-700 border-slate-200";
-    return "bg-slate-50 text-slate-600 border-slate-200";
-}
-
-function toneForRole(role?: string | null): string {
-    const r = String(role || "").toUpperCase();
-    if (r === "REMAINDER") return "bg-orange-50/80 text-orange-700 border-orange-200";
-    if (r === "OUTPUT" || r === "SPLIT_OUTPUT") return "bg-indigo-50/80 text-indigo-700 border-indigo-200";
-    if (r === "FG") return "bg-emerald-50/80 text-emerald-700 border-emerald-200";
-    return "bg-slate-50 text-slate-600 border-slate-200";
-}
-
-function toneForOrigin(originType?: string | null): string {
-    const normalized = String(originType || "").toUpperCase();
-    if (normalized === "IN_HOUSE") return "bg-indigo-50/80 text-indigo-700 border-indigo-200";
-    if (normalized === "PURCHASED") return "bg-emerald-50/80 text-emerald-700 border-emerald-200";
-    if (normalized === "JOBWORK_RETURN") return "bg-fuchsia-50/80 text-fuchsia-700 border-fuchsia-200";
-    if (normalized === "INTERPLANT_IN") return "bg-cyan-50/80 text-cyan-700 border-cyan-200";
-    if (normalized === "REMAINDER") return "bg-orange-50/80 text-orange-700 border-orange-200";
-    return "bg-slate-50 text-slate-600 border-slate-200";
-}
-
-function originLabel(originType?: string | null): string {
-    const normalized = String(originType || "").toUpperCase();
-    if (normalized === "IN_HOUSE") return "In-house made";
-    if (normalized === "PURCHASED") return "Purchased";
-    if (normalized === "JOBWORK_RETURN") return "Jobwork return";
-    if (normalized === "INTERPLANT_IN") return "Inter-plant";
-    if (normalized === "REMAINDER") return "Remainder";
-    return normalized || "Unknown";
-}
-
-function stockStrategyLabel(value?: string | null): string {
-    const normalized = String(value || "").toUpperCase();
-    if (normalized === "INTERMEDIATE_POOL") return "Intermediate pool";
-    if (normalized === "PACKAGING_STOCK") return "Packaging";
-    return "Final stock";
-}
-
-function toneForStockStrategy(value?: string | null): string {
-    const normalized = String(value || "").toUpperCase();
-    if (normalized === "INTERMEDIATE_POOL") return "bg-amber-50/80 text-amber-700 border-amber-200";
-    if (normalized === "PACKAGING_STOCK") return "bg-slate-100 text-slate-700 border-slate-200";
-    return "bg-emerald-50/80 text-emerald-700 border-emerald-200";
-}
-
 function stageBadgeLabel(row: RollExplorerRow): string {
     if (String(row.roll_role || "").toUpperCase() === "REMAINDER") {
         const source = String(row.source_stage_name || "").trim();
         return source ? `REMAINDER • SRC ${source}` : "REMAINDER";
     }
     return row.stage_name || "—";
+}
+
+function originLabel(originType?: string | null): string {
+    return humanizeToken(originType, "Unknown")
+}
+
+function stockStrategyLabel(value?: string | null): string {
+    const normalized = String(value || "").toUpperCase()
+    if (normalized === "INTERMEDIATE_POOL") return "Intermediate pool"
+    if (normalized === "PACKAGING_STOCK") return "Packaging"
+    return "Final stock"
 }
 
 export default function RollExplorerPage() {
@@ -886,8 +847,8 @@ export default function RollExplorerPage() {
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">{family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg available</Badge>
-                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">{family.total_reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg reserved</Badge>
+                                                    <SemanticBadge kind="jobState" value="READY" label={`${family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg available`} />
+                                                    <SemanticBadge kind="severity" value="LOW" label={`${family.total_reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg reserved`} />
                                                     {familyOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
                                                 </div>
                                             </button>
@@ -907,9 +868,9 @@ export default function RollExplorerPage() {
                                                                     <div className="font-bold text-slate-900">{variant.variant_display_name}</div>
                                                                     <div className="mt-1 text-sm text-slate-600">{variant.size_line || "Size not set"} · {variant.stage_name} · {variant.stock_strategy_label}</div>
                                                                     <div className="mt-2 flex flex-wrap gap-2">
-                                                                        <Badge variant="outline" className="bg-white">{variant.print_status}</Badge>
-                                                                        <Badge variant="outline" className="bg-white">{variant.lamination_status}</Badge>
-                                                                        <Badge variant="outline" className={toneForStockStrategy(variant.stock_strategy)}>{variant.stock_strategy_label}</Badge>
+                                                                        <SemanticBadge kind="processState" value={variant.print_status} />
+                                                                        <SemanticBadge kind="processState" value={variant.lamination_status} />
+                                                                        <SemanticBadge kind="stockStrategy" value={variant.stock_strategy} label={variant.stock_strategy_label} />
                                                                     </div>
                                                                 </div>
                                                                 <div className="min-w-[320px] shrink-0">
@@ -955,8 +916,8 @@ export default function RollExplorerPage() {
                                                                                     <div className="mt-1 text-xs text-slate-500">{row.location_name || "No location"} · {row.plant_name || "No plant"} · {row.process_state_label || row.stage_name}</div>
                                                                                 </div>
                                                                                 <div className="flex items-center gap-2">
-                                                                                    <Badge variant="outline" className={`${toneForStatus(row.status)} shadow-sm`}>{row.status}</Badge>
-                                                                                    <Badge variant="outline" className={`${toneForOrigin(row.origin_type)} shadow-sm`}>{row.origin_label || originLabel(row.origin_type)}</Badge>
+                                                                                    <SemanticBadge value={row.status} className="shadow-none" />
+                                                                                    <SemanticBadge kind="origin" value={row.origin_type} label={row.origin_label || originLabel(row.origin_type)} className="shadow-none" />
                                                                                     <div className="font-mono text-sm font-black text-slate-900">{toNumber(row.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} kg</div>
                                                                                 </div>
                                                                             </button>
@@ -1013,11 +974,11 @@ export default function RollExplorerPage() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
-                                                <Badge variant="outline" className={`${toneForOrigin(row.origin_type)} shadow-sm`}>{originLabel(row.origin_type)}</Badge>
-                                                <Badge variant="outline" className={`${toneForStockStrategy(row.stock_strategy)} shadow-sm`}>{stockStrategyLabel(row.stock_strategy)}</Badge>
-                                                <Badge variant="outline" className={`${toneForRole(row.roll_role)} shadow-sm`}>{row.roll_role || "—"}</Badge>
-                                                <Badge variant="outline" className="border-slate-200 text-slate-600 bg-white shadow-sm">{stageBadgeLabel(row)}</Badge>
-                                                <Badge variant="outline" className={`${toneForStatus(row.status)} shadow-sm`}>{row.status}</Badge>
+                                                <SemanticBadge kind="origin" value={row.origin_type} label={originLabel(row.origin_type)} className="shadow-none" />
+                                                <SemanticBadge kind="stockStrategy" value={row.stock_strategy} label={stockStrategyLabel(row.stock_strategy)} className="shadow-none" />
+                                                <SemanticBadge kind="rollRole" value={row.roll_role} label={row.roll_role || "—"} className="shadow-none" />
+                                                <SemanticBadge kind="processState" value={stageBadgeLabel(row)} label={stageBadgeLabel(row)} className="shadow-none bg-white" />
+                                                <SemanticBadge value={row.status} className="shadow-none" />
                                                 <div className="font-black text-sm text-slate-900 min-w-[110px] text-right font-mono tracking-tighter">{toNumber(row.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-400 uppercase tracking-widest font-sans">kg</span></div>
                                                 <ChevronRight className="h-4 w-4 text-slate-400 ml-2" />
                                             </div>
@@ -1059,13 +1020,13 @@ export default function RollExplorerPage() {
                                         <td className="px-5 py-3 font-medium text-slate-600 truncate max-w-[240px]">{row.variant_summary || row.material_name || "—"}</td>
                                         <td className="px-5 py-3">
                                             <div className="flex flex-wrap gap-2">
-                                                <Badge variant="outline" className={`${toneForOrigin(row.origin_type)} shadow-sm`}>{originLabel(row.origin_type)}</Badge>
-                                                <Badge variant="outline" className={`${toneForRole(row.roll_role)} shadow-sm`}>{row.roll_role || "—"}</Badge>
+                                                <SemanticBadge kind="origin" value={row.origin_type} label={originLabel(row.origin_type)} className="shadow-none" />
+                                                <SemanticBadge kind="rollRole" value={row.roll_role} label={row.roll_role || "—"} className="shadow-none" />
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3"><Badge variant="outline" className="border-slate-200 text-slate-600 bg-white shadow-sm">{stageBadgeLabel(row)}</Badge></td>
-                                        <td className="px-5 py-3"><Badge variant="outline" className={`${toneForStatus(row.status)} shadow-sm`}>{row.status}</Badge></td>
-                                        <td className="px-5 py-3"><Badge variant="outline" className={`${toneForStockStrategy(row.stock_strategy)} shadow-sm`}>{stockStrategyLabel(row.stock_strategy)}</Badge></td>
+                                        <td className="px-5 py-3"><SemanticBadge kind="processState" value={stageBadgeLabel(row)} label={stageBadgeLabel(row)} className="shadow-none bg-white" /></td>
+                                        <td className="px-5 py-3"><SemanticBadge value={row.status} className="shadow-none" /></td>
+                                        <td className="px-5 py-3"><SemanticBadge kind="stockStrategy" value={row.stock_strategy} label={stockStrategyLabel(row.stock_strategy)} className="shadow-none" /></td>
                                         <td className="px-5 py-3 text-right font-mono font-bold tracking-tighter text-slate-900">{toNumber(row.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-slate-400 text-xs font-sans uppercase tracking-widest">kg</span></td>
                                         <td className="px-5 py-3 text-slate-500 text-xs font-medium">{row.plant_name || "—"}</td>
                                         <td className="px-5 py-3 font-medium text-slate-700 flex items-center gap-1.5"><Locate className="h-3 w-3 text-slate-400" /> {row.location_name || "—"}</td>
@@ -1108,8 +1069,8 @@ export default function RollExplorerPage() {
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                 <Card className="border-0 shadow-sm rounded-xl overflow-hidden ring-1 ring-slate-100 bg-white"><CardContent className="p-4"><div className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Readable Variant</div><div className="font-bold text-[13px] text-slate-800 mt-0.5 truncate">{selected.display_name || selected.material_name || "—"}</div><div className="text-[11px] font-medium text-slate-500 mt-1 truncate">{selected.variant_summary || selected.label_id}</div></CardContent></Card>
                                 <Card className="border-0 shadow-sm rounded-xl overflow-hidden ring-1 ring-slate-100 bg-white"><CardContent className="p-4"><div className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Mass Level</div><div className="font-black font-mono text-sm tracking-tighter text-slate-900 mt-0.5">{toNumber(selected.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-400 font-sans tracking-widest">KG</span></div></CardContent></Card>
-                                <Card className="border-0 shadow-sm rounded-xl overflow-hidden ring-1 ring-slate-100 bg-white"><CardContent className="p-4"><div className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Origin / Stage</div><div className="flex flex-wrap gap-2 mt-2"><Badge variant="outline" className={toneForOrigin(selected.origin_type)}>{originLabel(selected.origin_type)}</Badge><Badge variant="outline" className="border-slate-200 bg-white text-slate-700">{stageBadgeLabel(selected)}</Badge><Badge variant="outline" className={toneForRole(selected.roll_role)}>{selected.roll_role || "—"}</Badge></div></CardContent></Card>
-                                <Card className="border-0 shadow-sm rounded-xl overflow-hidden ring-1 ring-slate-100 bg-white"><CardContent className="p-4"><div className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Consumption / Locator</div><div className="flex flex-wrap gap-2 mt-2"><Badge variant="outline" className={toneForStockStrategy(selected.stock_strategy)}>{stockStrategyLabel(selected.stock_strategy)}</Badge><Badge variant="outline" className="border-slate-200 bg-white text-slate-700">{selected.location_name || "No location"}</Badge></div><div className="text-[11px] font-medium text-slate-500 mt-2">{selected.consumability_mode || "Planner will derive consumability from stock strategy."}</div></CardContent></Card>
+                                <Card className="border-0 shadow-sm rounded-xl overflow-hidden ring-1 ring-slate-100 bg-white"><CardContent className="p-4"><div className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Origin / Stage</div><div className="flex flex-wrap gap-2 mt-2"><SemanticBadge kind="origin" value={selected.origin_type} label={originLabel(selected.origin_type)} /><SemanticBadge kind="processState" value={stageBadgeLabel(selected)} label={stageBadgeLabel(selected)} className="bg-white" /><SemanticBadge kind="rollRole" value={selected.roll_role} label={selected.roll_role || "—"} /></div></CardContent></Card>
+                                <Card className="border-0 shadow-sm rounded-xl overflow-hidden ring-1 ring-slate-100 bg-white"><CardContent className="p-4"><div className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Consumption / Locator</div><div className="flex flex-wrap gap-2 mt-2"><SemanticBadge kind="stockStrategy" value={selected.stock_strategy} label={stockStrategyLabel(selected.stock_strategy)} /><Badge variant="outline" className="border-slate-200 bg-white text-slate-700">{selected.location_name || "No location"}</Badge></div><div className="text-[11px] font-medium text-slate-500 mt-2">{selected.consumability_mode || "Planner will derive consumability from stock strategy."}</div></CardContent></Card>
                             </div>
 
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

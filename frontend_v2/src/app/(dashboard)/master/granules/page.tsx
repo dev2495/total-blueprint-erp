@@ -2,11 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { masterDataService, Material } from "@/services/master-data"
-import { PageHeader } from "@/components/ui-custom/page-header"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2 } from "lucide-react"
+import { Loader2, Package, Plus, Tag } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -94,6 +94,7 @@ export default function GranulesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<Material | null>(null)
     const [itemToDelete, setItemToDelete] = useState<Material | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
 
     const { data: granules } = useQuery({
         queryKey: ["granules"],
@@ -129,37 +130,56 @@ export default function GranulesPage() {
         onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" })
     })
 
+    const filteredGranules = (granules || []).filter((item) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return true
+        return item.name.toLowerCase().includes(query) || item.code.toLowerCase().includes(query)
+    })
+
     return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Granules"
-                description="Manage raw material granules for extrusion processes."
-                actions={
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" /> Add Granule
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Create Granule</DialogTitle>
-                            </DialogHeader>
-                            <GranuleForm
-                                onSubmit={(data) => createMutation.mutate(data)}
-                                isLoading={createMutation.isPending}
-                            />
-                        </DialogContent>
-                    </Dialog>
-                }
-            />
+        <MasterRegistryShell
+            title="Granules"
+            description="Manage raw material granules used in extrusion recipes and bulk stock."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search granules..."
+            stats={[
+                { label: "Granules", value: (granules || []).length, subLabel: "Raw material masters", icon: Package, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Visible", value: filteredGranules.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
+                { label: "Unique codes", value: new Set((granules || []).map((item) => item.code)).size, subLabel: "Master identifiers", icon: Tag, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Recipe ready", value: (granules || []).length, subLabel: "Available for extrusion formulas", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "GRANULE" },
+                { kind: "processState", value: "EXTRUDED", label: "Extrusion feed" },
+                { kind: "approval", value: "APPROVED", label: "Recipe compatible" },
+            ]}
+            actions={
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
+                            <Plus className="mr-2 h-4 w-4" /> Add Granule
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create Granule</DialogTitle>
+                        </DialogHeader>
+                        <GranuleForm
+                            onSubmit={(data) => createMutation.mutate(data)}
+                            isLoading={createMutation.isPending}
+                        />
+                    </DialogContent>
+                </Dialog>
+            }
+        >
 
             <DataTable
                 columns={getColumns({
                     onEdit: setEditingItem,
                     onDelete: (item) => setItemToDelete(item)
                 })}
-                data={granules || []}
+                data={filteredGranules}
                 filterColumn="name"
                 filterPlaceholder="Filter granules..."
             />
@@ -204,6 +224,6 @@ export default function GranulesPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </MasterRegistryShell>
     )
 }

@@ -2,11 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { masterDataService, Material } from "@/services/master-data"
-import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2 } from "lucide-react"
+import { Droplets, Loader2, Palette, Plus, ShieldCheck } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -171,13 +171,28 @@ export default function InksPage() {
         ink.code.toLowerCase().includes(searchQuery.toLowerCase())
     ) || []
 
+    const totalInks = inks || []
+    const polyBaseCount = totalInks.filter((ink) => ink.base_type === "POLY").length
+    const petBaseCount = totalInks.filter((ink) => ink.base_type === "PET").length
+
     return (
-        <FactoryPageLayout
+        <MasterRegistryShell
             title="Printing Inks"
             description="Manage inks used in the printing process, organized by color and base."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search inks..."
+            stats={[
+                { label: "Ink masters", value: totalInks.length, subLabel: "Registered colors and bases", icon: Droplets, toneClassName: "bg-cyan-50 text-cyan-700" },
+                { label: "POLY base", value: polyBaseCount, subLabel: "Polyethylene print base", icon: Palette, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "PET base", value: petBaseCount, subLabel: "Polyester print base", icon: Palette, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Visible", value: filteredInks.length, subLabel: "Matching current search", icon: ShieldCheck, toneClassName: "bg-slate-50 text-slate-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "INK" },
+                { kind: "processState", value: "PRINTED", label: "Print process" },
+                { kind: "approval", value: "APPROVED", label: "Press-ready master" },
+            ]}
             actions={
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
@@ -251,6 +266,6 @@ export default function InksPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </FactoryPageLayout>
+        </MasterRegistryShell>
     )
 }

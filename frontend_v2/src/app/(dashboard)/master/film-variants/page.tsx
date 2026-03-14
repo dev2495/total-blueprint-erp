@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { filmVariantService, FilmVariant } from "@/services/film-variants"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { Factory, Package, Plus, Tag } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -28,8 +28,8 @@ import {
 
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
-import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Card, CardContent } from "@/components/ui/card"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 
 export default function FilmVariantsPage() {
     const { toast } = useToast()
@@ -91,12 +91,23 @@ export default function FilmVariantsPage() {
     ) || []
 
     return (
-        <FactoryPageLayout
+        <MasterRegistryShell
             title="Film Variants"
             description="Define specific variants of film families with unique properties."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search variants..."
+            stats={[
+                { label: "Variants", value: (variants || []).length, subLabel: "Distinct sellable or process variants", icon: Tag, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Visible", value: filteredVariants.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
+                { label: "Extrudable", value: (variants || []).filter((variant) => Boolean(variant.is_extrudable)).length, subLabel: "Can be made in-house", icon: Factory, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Purchasable", value: (variants || []).filter((variant) => Boolean(variant.is_purchasable)).length, subLabel: "Can be bought from vendors", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "FILM" },
+                { kind: "origin", value: "IN_HOUSE", label: "Make in-house" },
+                { kind: "origin", value: "PURCHASED", label: "Buy outside" },
+            ]}
             actions={
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
@@ -175,6 +186,6 @@ export default function FilmVariantsPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </FactoryPageLayout>
+        </MasterRegistryShell>
     )
 }

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { filmFamilyService, FilmFamily } from "@/services/film-families"
 
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { FlaskConical, Layers, Plus, Tag } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -27,7 +27,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import { PageHeader } from "@/components/ui-custom/page-header"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
 
@@ -37,6 +37,7 @@ export default function FilmFamiliesPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingFamily, setEditingFamily] = useState<FilmFamily | null>(null)
     const [familyToDelete, setFamilyToDelete] = useState<FilmFamily | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
 
     const { data: families } = useQuery({
         queryKey: ["film-families"],
@@ -79,46 +80,73 @@ export default function FilmFamiliesPage() {
         }
     })
 
+    const filteredFamilies = (families || []).filter((family) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return true
+        return (
+            family.name.toLowerCase().includes(query) ||
+            String(family.commercial_family_name || "").toLowerCase().includes(query)
+        )
+    })
+
+    const avgDensity = (families || []).length
+        ? (
+            (families || []).reduce((sum, family) => sum + Number(family.density_gcm3 || 0), 0) /
+            Math.max((families || []).length, 1)
+        ).toFixed(3)
+        : "0.000"
+
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <PageHeader
-                    title="Film Families"
-                    description="Manage foundational material families and their theoretical densities."
-                    actions={
-                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <Plus className="mr-2 h-4 w-4" /> Add Family
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Create Film Family</DialogTitle>
-                                    <DialogDescription>
-                                        Add a new foundational film family with its base density.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <FilmFamilyForm
-                                    onSubmit={(data) => createMutation.mutate({
-                                        name: data.name,
-                                        density_gcm3: data.density_gcm3,
-                                        commercial_family: !data.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
-                                    })}
-                                    isLoading={createMutation.isPending}
-                                />
-                            </DialogContent>
-                        </Dialog>
-                    }
-                />
-            </div>
+        <MasterRegistryShell
+            title="Film Families"
+            description="Manage foundational film structures and the base densities that drive weight and yield calculations."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search film families..."
+            stats={[
+                { label: "Film families", value: (families || []).length, subLabel: "Base material structures", icon: Layers, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Visible", value: filteredFamilies.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
+                { label: "Linked aliases", value: (families || []).filter((family) => Boolean((family as any).commercial_family || (family as any).commercial_family_name)).length, subLabel: "Business family naming attached", icon: Tag, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Avg density", value: `${avgDensity} g/cc`, subLabel: "Used by the physics layer", icon: FlaskConical, toneClassName: "bg-cyan-50 text-cyan-700" },
+            ]}
+            chips={[
+                { kind: "materialCategory", value: "FILM" },
+                { kind: "processState", value: "PLAIN", label: "Extrusion base" },
+                { kind: "processState", value: "LAMINATED", label: "Conversion ready" },
+            ]}
+            actions={
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
+                            <Plus className="mr-2 h-4 w-4" /> Add Family
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create Film Family</DialogTitle>
+                            <DialogDescription>
+                                Add a new foundational film family with its base density.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <FilmFamilyForm
+                            onSubmit={(data) => createMutation.mutate({
+                                name: data.name,
+                                density_gcm3: data.density_gcm3,
+                                commercial_family: !data.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
+                            })}
+                            isLoading={createMutation.isPending}
+                        />
+                    </DialogContent>
+                </Dialog>
+            }
+        >
 
             <DataTable
                 columns={getColumns({
                     onEdit: setEditingFamily,
                     onDelete: (family) => setFamilyToDelete(family)
                 })}
-                data={families || []}
+                data={filteredFamilies}
                 filterColumn="name"
                 filterPlaceholder="Filter families..."
             />
@@ -173,6 +201,6 @@ export default function FilmFamiliesPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </MasterRegistryShell>
     )
 }

@@ -162,15 +162,47 @@ export async function fetchJson<T = any>(
   const resolvedUrl = resolveFetchUrl(page, url)
   return page.evaluate(
     async ({ url, init }) => {
-      const response = await fetch(String(url || ""), {
-        method: init?.method || "GET",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...(init?.headers || {}),
-        },
-        body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-      })
+      const performRequest = async () =>
+        fetch(String(url || ""), {
+          method: init?.method || "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...(init?.headers || {}),
+          },
+          body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+        })
+
+      const backendOrigin = new URL(String(url || ""), window.location.origin).origin
+
+      const refreshAccessCookie = async () => {
+        const csrfResponse = await fetch(`${backendOrigin}/api/users/csrf/`, {
+          method: "GET",
+          credentials: "include",
+        })
+        const csrfPayload = await csrfResponse.json().catch(() => ({}))
+        const csrfToken = String((csrfPayload && (csrfPayload.csrfToken || csrfPayload.csrf_token)) || "")
+        if (!csrfResponse.ok || !csrfToken) {
+          return false
+        }
+
+        const refreshResponse = await fetch(`${backendOrigin}/api/users/token/refresh/`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: "{}",
+        })
+        return refreshResponse.ok
+      }
+
+      let response = await performRequest()
+      if (response.status === 401 && (await refreshAccessCookie())) {
+        response = await performRequest()
+      }
+
       const contentType = response.headers.get("content-type") || ""
       const data = contentType.includes("application/json") ? await response.json() : ((await response.text()) as any)
       return {

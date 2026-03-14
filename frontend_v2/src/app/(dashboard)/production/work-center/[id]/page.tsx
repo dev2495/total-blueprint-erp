@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 import {
     Table, TableHeader, TableRow, TableHead, TableBody, TableCell
 } from "@/components/ui/table"
@@ -815,6 +816,18 @@ export default function WCMTerminal() {
         return reasons
     }, [requirementRows, selectedMachineId])
     const canPushToOperator = pushBlockingReasons.length === 0
+    const wcmNextAction = !activeAssignment
+        ? "Pick a job from the left queue."
+        : !requirementsSatisfied
+            ? "Clear the blocked requirement before sending this step forward."
+            : !selectedMachineId
+                ? "Choose the machine for this step."
+                : canPushToOperator
+                    ? "Send the job to operator."
+                    : "Review the last blocker and clear it."
+    const wcmStatusSummary = requirementsSatisfied
+        ? "Material and roll checks are ready."
+        : "One or more inputs still need action."
 
     useEffect(() => {
         if (!activeAssignment || !satisfactionStatus) return
@@ -910,7 +923,7 @@ export default function WCMTerminal() {
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
 
     return (
-        <div className="min-h-screen bg-slate-50 p-6 space-y-6" data-testid="wcm-terminal-page">
+            <div className="min-h-screen bg-slate-50 p-6 space-y-6" data-testid="wcm-terminal-page">
             {/* HEADER */}
             <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                 <div>
@@ -921,8 +934,8 @@ export default function WCMTerminal() {
                     <p className="text-slate-500">Pick a job, check the step, set the machine, then push it to the operator.</p>
                 </div>
                 <div className="flex gap-4">
-                    <Badge variant="outline" className="text-lg px-4 py-1">Running: {stats.running}</Badge>
-                    <Badge variant="outline" className="text-lg px-4 py-1">Waiting: {stats.waiting}</Badge>
+                    <SemanticBadge kind="jobState" value="RUNNING" label={`Running ${stats.running}`} className="text-sm px-4 py-2" />
+                    <SemanticBadge kind="jobState" value="WC_READY" label={`Waiting ${stats.waiting}`} className="text-sm px-4 py-2" />
                 </div>
             </div>
             <div className="flex flex-col h-[calc(100vh-140px)] gap-6">
@@ -951,6 +964,25 @@ export default function WCMTerminal() {
                                         {step}
                                     </div>
                                 ))}
+                            </CardContent>
+                        </Card>
+                        <Card className="border-indigo-100 bg-indigo-50/70 shadow-sm">
+                            <CardContent className="grid gap-3 p-4 md:grid-cols-[1.5fr_1fr_1fr]">
+                                <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700">Next action now</div>
+                                    <div className="mt-2 text-lg font-black text-slate-900">{wcmNextAction}</div>
+                                    <div className="mt-1 text-sm text-slate-600">{wcmStatusSummary}</div>
+                                </div>
+                                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Step status</div>
+                                    <div className="mt-2"><SemanticBadge kind="jobState" value={requirementsSatisfied ? "READY" : "BLOCKED"} label={requirementsSatisfied ? "Ready" : "Needs action"} className="text-xs px-3 py-1.5" /></div>
+                                    <div className="mt-2 text-xs text-slate-500">Current step {currentStepNumber || "—"}</div>
+                                </div>
+                                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Machine</div>
+                                    <div className="mt-2"><SemanticBadge kind="jobState" value={selectedMachineId ? "ASSIGNED" : "PENDING"} label={selectedMachineId ? "Machine set" : "Machine needed"} className="text-xs px-3 py-1.5" /></div>
+                                    <div className="mt-2 text-xs text-slate-500">{selectedMachineId ? "This step can move forward once all checks stay green." : "Pick the production line before handoff."}</div>
+                                </div>
                             </CardContent>
                         </Card>
                         <div className="grid grid-cols-12 gap-6 h-[calc(100vh-300px)]">
@@ -1005,9 +1037,7 @@ export default function WCMTerminal() {
                                             >
                                                 <div className="flex justify-between items-start mb-1">
                                                     <span className="font-bold text-xs text-slate-900">{assignment.job_details?.job_number || "—"}</span>
-                                                    <Badge variant={displayStatus === 'ASSIGNED' ? "default" : "secondary"} className="text-[10px] h-4">
-                                                        {displayStatus}
-                                                    </Badge>
+                                                    <SemanticBadge kind="jobState" value={displayStatus} label={displayStatus === "WC_READY" ? "Ready" : displayStatus} className="text-[10px] h-auto px-2 py-1" />
                                                 </div>
                                                 <div className="text-[11px] text-slate-600 space-y-1">
                                                     <p className="font-semibold text-slate-700 truncate">{assignment.job_details?.customer_name || "—"}</p>
@@ -1038,7 +1068,7 @@ export default function WCMTerminal() {
                                         <Card className="col-span-4 h-full flex flex-col border-none shadow-md overflow-hidden bg-white">
                                             <CardHeader className="bg-slate-100 py-3 shrink-0 flex flex-row items-center justify-between border-b border-slate-200">
                                                 <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Job Specification</CardTitle>
-                                                <Badge variant="outline" className="text-[10px] font-bold bg-indigo-50 text-indigo-700">STEP {currentStepNumber}</Badge>
+                                                <SemanticBadge kind="processState" value={currentStepPolicy?.current_process_name || selectedJob?.job_details?.process_code || "STEP"} label={`Step ${currentStepNumber || "—"}`} className="text-[10px] px-3 py-1" />
                                             </CardHeader>
                                             <CardContent className="flex-1 overflow-y-auto p-4 space-y-6">
                                                 {/* Core Job Info & Prominent Qty */}
@@ -1115,9 +1145,7 @@ export default function WCMTerminal() {
                                                                                     {item.category_code} · Theory {Number(item.theoretical_qty || 0).toFixed(3)} kg · Planned {Number(item.planned_issue_qty || 0).toFixed(3)} kg
                                                                                 </div>
                                                                             </div>
-                                                                            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                                                                                {String(item.policy_source || "TEMPLATE_DEFAULT").replaceAll("_", " ")}
-                                                                            </Badge>
+                                                                            <SemanticBadge kind="approval" value={String(item.policy_source || "TEMPLATE_DEFAULT").includes("OVERRIDE") ? "PENDING" : "APPROVED"} label={String(item.policy_source || "TEMPLATE_DEFAULT").replaceAll("_", " ")} className="text-[10px]" />
                                                                         </div>
                                                                         <div className="grid gap-3 md:grid-cols-4">
                                                                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px]">
@@ -1363,9 +1391,7 @@ export default function WCMTerminal() {
                                             <Card className="border-none shadow-md overflow-hidden bg-white">
                                                 <CardHeader className="bg-slate-100 py-3 flex flex-row justify-between items-center border-b border-slate-200">
                                                     <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">1. Requirements (Current Step)</CardTitle>
-                                                    <Badge className={cn(requirementsSatisfied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
-                                                        {requirementsSatisfied ? "READY" : "BLOCKED"}
-                                                    </Badge>
+                                                    <SemanticBadge kind="jobState" value={requirementsSatisfied ? "READY" : "BLOCKED"} label={requirementsSatisfied ? "Ready" : "Blocked"} />
                                                 </CardHeader>
                                                 <CardContent className="p-0">
                                                     <div className="px-4 py-3 text-[11px] font-semibold text-slate-500 border-b border-slate-100">
@@ -1581,7 +1607,7 @@ export default function WCMTerminal() {
                                                         <div className="space-y-3 border-r border-slate-100 pr-4">
                                                             <div className="flex items-center justify-between">
                                                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Step Allocated</h3>
-                                                                <Badge variant="outline" className="text-[10px] bg-slate-50">{assignedRollsForDisplay.length} assigned</Badge>
+                                                                <SemanticBadge kind="jobState" value={assignedRollsForDisplay.length > 0 ? "ASSIGNED" : "PENDING"} label={`${assignedRollsForDisplay.length} assigned`} className="text-[10px]" />
                                                             </div>
                                                             <div className="space-y-2 min-h-[100px]">
                                                                 {assignedRollsForDisplay.map((roll: any) => (
@@ -1629,7 +1655,7 @@ export default function WCMTerminal() {
                                                         <div className="space-y-3 pl-2">
                                                             <div className="flex items-center justify-between">
                                                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">WIP Pool</h3>
-                                                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">{wipPoolRolls.length} detected</Badge>
+                                                                <SemanticBadge kind="jobState" value={wipPoolRolls.length > 0 ? "READY" : "PENDING"} label={`${wipPoolRolls.length} detected`} className="text-[10px]" />
                                                             </div>
                                                             <div className="space-y-2 max-h-[250px] overflow-y-auto">
                                                                 {wipPoolRolls.map((roll: any) => (
@@ -1661,11 +1687,7 @@ export default function WCMTerminal() {
                                             <Card className="border-none shadow-md overflow-hidden bg-white">
                                                 <CardHeader className="bg-slate-100 py-3 border-b border-slate-200 flex flex-row items-center justify-between">
                                                     <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">3. Machine Assignment</CardTitle>
-                                                    {selectedMachineId ? (
-                                                        <Badge className="bg-indigo-600 text-white font-bold h-5 px-3">CONFIRMED</Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 h-5">PENDING</Badge>
-                                                    )}
+                                                    <SemanticBadge kind="jobState" value={selectedMachineId ? "ASSIGNED" : "PENDING"} label={selectedMachineId ? "Confirmed" : "Pending"} className="h-auto px-3 py-1" />
                                                 </CardHeader>
                                                 <CardContent className="p-4 space-y-4">
                                                     <div className="flex items-end gap-3">
