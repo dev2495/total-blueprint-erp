@@ -17,6 +17,7 @@
 !/frontend_v2/
 !/frontend_v2/**
 !/manage.py
+!/README.md
 !/render.yaml
 !/requirements.txt
 !/scripts/

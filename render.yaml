@@ -1,10 +1,13 @@
 databases:
   - name: erp-postgres-prod
-    plan: standard
+    plan: pro-4gb
+    diskSizeGB: 20
+    highAvailability: true
     databaseName: total_blueprint_erp
     user: blueprint_admin
   - name: erp-postgres-staging
-    plan: starter
+    plan: basic-1gb
+    diskSizeGB: 10
     databaseName: total_blueprint_erp_staging
     user: blueprint_admin
 

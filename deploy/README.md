@@ -1,5 +1,10 @@
 # Render Deployment Guide
 
+Use this document for operator steps. For the client-shareable overview and budget pack, start with:
+
+- [Project Overview](../README.md)
+- [Client Deployment And Costing Guide](../docs/client-deployment-and-costing.md)
+
 ## 1) Repository bootstrap
 
 This project is intended to be deployed from the repository root with [`render.yaml`](../render.yaml) as the source of truth.
@@ -13,6 +18,11 @@ Use a branch flow that keeps updates simple:
 - create short-lived feature branches from `main`
 - merge back into `main`
 - let Render pick up the merged commit from GitHub
+
+Recommended governance:
+- keep the GitHub repo private
+- limit collaborators to the owner team only
+- require the `backend-quality` and `frontend-quality` checks before production promotion when GitHub plan support allows branch protection on the private repo
 
 ## 2) Blueprint deployment shape
 
@@ -44,6 +54,11 @@ Prerequisite: the repository must already be pushed to GitHub before Render can 
 3. Use the repo-root [`render.yaml`](../render.yaml).
 4. Review the resource list and create the fresh staging + production stack.
 5. Configure the required secrets in Render before validating the services.
+
+Database note:
+- production now targets a current Render PostgreSQL plan with HA enabled
+- staging now targets a current Render PostgreSQL basic plan
+- this avoids the legacy database plan names that are not suitable for a fresh Blueprint create
 
 ## 4) Configure mandatory secrets
 
