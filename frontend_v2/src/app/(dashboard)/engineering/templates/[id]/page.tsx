@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 import { templateService } from "@/services/templates"
 import { routingService } from "@/services/routing"
 import { TemplateBomEditor } from "@/components/engineering/template-bom-editor"
+import { commercialFamilyService } from "@/services/commercial-families"
 
 export default function TemplateStudioPage() {
     const params = useParams()
@@ -21,6 +22,7 @@ export default function TemplateStudioPage() {
     const { toast } = useToast()
     const queryClient = useQueryClient()
     const [routingRuleId, setRoutingRuleId] = useState("")
+    const [commercialFamilyId, setCommercialFamilyId] = useState("")
 
     const { data: template, isLoading, isError, error } = useQuery({
         queryKey: ["template", id],
@@ -29,6 +31,10 @@ export default function TemplateStudioPage() {
     const { data: routingRules } = useQuery({
         queryKey: ["routing-rules"],
         queryFn: () => routingService.getRules(),
+    })
+    const { data: commercialFamilies = [] } = useQuery({
+        queryKey: ["commercial-families"],
+        queryFn: commercialFamilyService.getAll,
     })
 
     const updateMutation = useMutation({
@@ -82,6 +88,9 @@ export default function TemplateStudioPage() {
                     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
                         Final Product Type: {template.fg_type}
                     </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
+                        Family: {template.commercial_family_name || "Unlinked"}
+                    </div>
                     <div className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] ${
                         template.status === "OBSOLETE"
                             ? "border-amber-200 bg-amber-50 text-amber-700"
@@ -109,7 +118,7 @@ export default function TemplateStudioPage() {
                 <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
                         <Workflow className="h-4 w-4" />
-                        Route Binding
+                        Route & Naming Binding
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -130,6 +139,26 @@ export default function TemplateStudioPage() {
                     >
                         Save Route
                     </Button>
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                        <Label className="text-xs">Business Family</Label>
+                        <Select value={commercialFamilyId || template.commercial_family || "__NONE__"} onValueChange={setCommercialFamilyId}>
+                            <SelectTrigger className="h-9 text-xs bg-white"><SelectValue placeholder="Select business family" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__NONE__">No linked business family</SelectItem>
+                                {commercialFamilies.map((family) => (
+                                    <SelectItem key={family.id} value={family.id}>{family.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateMutation.mutate({ commercial_family: (commercialFamilyId || template.commercial_family || "__NONE__") === "__NONE__" ? null : (commercialFamilyId || template.commercial_family) })}
+                            disabled={updateMutation.isPending || template.status === "LIVE" || template.status === "OBSOLETE"}
+                        >
+                            Save Business Family
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 

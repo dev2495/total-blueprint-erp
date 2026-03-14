@@ -3,6 +3,39 @@ from django.core.exceptions import ValidationError
 import uuid
 from decimal import Decimal
 
+
+class CommercialFamily(models.Model):
+    FORM_CHOICES = [
+        ("ROLL", "Roll"),
+        ("POUCH", "Pouch"),
+    ]
+
+    REPORTING_GROUP_CHOICES = [
+        ("FILM", "Film"),
+        ("PRINTED", "Printed"),
+        ("LAMINATED", "Laminated"),
+        ("SEMI_FG", "Semi-Finished"),
+        ("FG", "Finished Goods"),
+        ("PACKAGING", "Packaging"),
+        ("OTHER", "Other"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=50, unique=True, db_index=True)
+    name = models.CharField(max_length=120)
+    default_form = models.CharField(max_length=10, choices=FORM_CHOICES, default="ROLL")
+    default_reporting_group = models.CharField(max_length=20, choices=REPORTING_GROUP_CHOICES, default="FILM")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "commercial_families"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
 class InventoryMaterial(models.Model):
     """
     Consolidated Master for all physical materials.
@@ -61,6 +94,14 @@ class InventoryMaterial(models.Model):
     name = models.CharField(max_length=255, blank=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, db_index=True)
     base_uom = models.CharField(max_length=10, choices=UNIT_CHOICES, default='KG')
+    commercial_family = models.ForeignKey(
+        CommercialFamily,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='materials',
+        help_text="Controlled business-facing family alias used for naming, stock grouping, and reporting.",
+    )
 
     # Film Specific
     density_gcm3 = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True, help_text="Density in g/cm3 - Mandatory for FILM_FAMILY")

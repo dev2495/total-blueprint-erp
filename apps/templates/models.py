@@ -40,6 +40,14 @@ class TemplateBlueprint(models.Model):
     name = models.CharField(max_length=255)
     fg_type = models.CharField(max_length=20, choices=FG_TYPE_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    commercial_family = models.ForeignKey(
+        'materials.CommercialFamily',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='templates',
+        help_text="Controlled business-facing family alias used for naming, stock grouping, and reporting.",
+    )
 
     # Routing (Mandatory for LIVE)
     routing_rule = models.ForeignKey(RoutingRule, on_delete=models.PROTECT, null=True, blank=True)

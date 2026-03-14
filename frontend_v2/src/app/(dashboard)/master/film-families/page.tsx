@@ -102,7 +102,8 @@ export default function FilmFamiliesPage() {
                                 <FilmFamilyForm
                                     onSubmit={(data) => createMutation.mutate({
                                         name: data.name,
-                                        density_gcm3: data.density_gcm3
+                                        density_gcm3: data.density_gcm3,
+                                        commercial_family: !data.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
                                     })}
                                     isLoading={createMutation.isPending}
                                 />
@@ -137,7 +138,8 @@ export default function FilmFamiliesPage() {
                                 id: editingFamily.id,
                                 data: {
                                     name: data.name,
-                                    density_gcm3: data.density_gcm3
+                                    density_gcm3: data.density_gcm3,
+                                    commercial_family: !data.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
                                 }
                             })}
                             isLoading={updateMutation.isPending}

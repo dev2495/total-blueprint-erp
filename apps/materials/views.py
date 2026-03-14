@@ -2,7 +2,7 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import InventoryMaterial
+from .models import CommercialFamily, InventoryMaterial
 from apps.inventory.models import InkMaterial
 from .serializers import (
     FilmFamilySerializer, 
@@ -14,6 +14,7 @@ from .serializers import (
     PODSerializer,
     InventoryMaterialSerializer,
     PackagingSerializer,
+    CommercialFamilySerializer,
 )
 
 class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -22,6 +23,14 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = InventoryMaterialSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['category', 'is_extrudable']
+    search_fields = ['name', 'code']
+
+
+class CommercialFamilyViewSet(viewsets.ModelViewSet):
+    queryset = CommercialFamily.objects.all().order_by('name')
+    serializer_class = CommercialFamilySerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['default_form', 'default_reporting_group', 'active']
     search_fields = ['name', 'code']
 
 

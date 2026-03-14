@@ -15,6 +15,9 @@ export interface TemplateBlueprint {
     name: string;
     fg_type: "POUCH" | "ROLL";
     pouch_style?: "THREE_SIDE_SEAL" | "PILLOW" | "STAND_UP" | "SIDE_GUSSET" | "QUAD_SEAL" | "FLAT_BOTTOM" | "SPOUT" | "SHAPED" | "";
+    commercial_family?: string | null;
+    commercial_family_name?: string | null;
+    default_stock_strategy?: "FINAL_STOCK" | "INTERMEDIATE_POOL" | "PACKAGING_STOCK";
     status: "DRAFT" | "ENGINEERING" | "APPROVED" | "LIVE" | "OBSOLETE";
     routing_rule: string | null;
     routing_rule_name?: string;

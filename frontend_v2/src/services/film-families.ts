@@ -4,11 +4,14 @@ export interface FilmFamily {
     id: string; // or number, keeping it flexible but usually ID from standard django is number or uuid.
     name: string;
     density_gcm3: number; // Density is critical
+    commercial_family?: string | null;
+    commercial_family_name?: string | null;
 }
 
 export interface CreateFilmFamilyDto {
     name: string;
     density_gcm3: number;
+    commercial_family?: string | null;
 }
 
 export const filmFamilyService = {

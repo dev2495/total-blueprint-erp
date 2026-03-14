@@ -27,12 +27,14 @@ import { filmFamilyService } from "@/services/film-families"
 import { useQuery } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { Loader2 } from "lucide-react"
+import { commercialFamilyService } from "@/services/commercial-families"
 
 const formSchema = z.object({
     code: z.string().min(1, "Variant Code is required"),
     name: z.string().min(1, "Name is required"),
     parent_family: z.string().min(1, "Family is required"),
     grade: z.string().optional(),
+    commercial_family: z.string().optional(),
     is_extrudable: z.boolean().default(false),
     is_purchasable: z.boolean().default(true),
 }).superRefine((val, ctx) => {
@@ -59,6 +61,7 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
             name: "",
             parent_family: "",
             grade: "",
+            commercial_family: "",
             is_extrudable: false,
             is_purchasable: true,
         },
@@ -69,6 +72,10 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
     const { data: families } = useQuery({
         queryKey: ["film-families"],
         queryFn: filmFamilyService.getAll,
+    })
+    const { data: commercialFamilies = [] } = useQuery({
+        queryKey: ["commercial-families"],
+        queryFn: commercialFamilyService.getAll,
     })
 
     // Fetch Grades for Dropdown
@@ -88,6 +95,7 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                 name: initialData.name,
                 parent_family: initialData.parent_family,
                 grade: initialData.grade ?? "",
+                commercial_family: initialData.commercial_family ?? "__NONE__",
                 is_extrudable: initialData.is_extrudable,
                 is_purchasable: initialData.is_purchasable,
             })
@@ -153,6 +161,35 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                             </Select>
                             <FormDescription>
                                 Base material family for this variant.
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="commercial_family"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Business Family</FormLabel>
+                            <Select value={field.value || "__NONE__"} onValueChange={field.onChange}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Optional shared business alias" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="__NONE__">No linked business family</SelectItem>
+                                    {commercialFamilies.map((family) => (
+                                        <SelectItem key={family.id} value={family.id}>
+                                            {family.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormDescription>
+                                Shared business naming group used across stock intelligence and reports.
                             </FormDescription>
                             <FormMessage />
                         </FormItem>

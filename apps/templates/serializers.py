@@ -11,6 +11,7 @@ from .models import (
 class TemplateSummarySerializer(serializers.ModelSerializer):
     routing_rule_name = serializers.ReadOnlyField(source="routing_rule.name")
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
+    commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
 
     class Meta:
         model = TemplateBlueprint
@@ -19,6 +20,8 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
             "name",
             "fg_type",
             "pouch_style",
+            "commercial_family",
+            "commercial_family_name",
             "default_stock_strategy",
             "status",
             "version",
@@ -33,6 +36,7 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
     routing_rule_name = serializers.ReadOnlyField(source="routing_rule.name")
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
     approved_by_name = serializers.ReadOnlyField(source="approved_by.username")
+    commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
 
     class Meta:
         model = TemplateBlueprint
@@ -41,6 +45,8 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
             "name",
             "fg_type",
             "pouch_style",
+            "commercial_family",
+            "commercial_family_name",
             "default_stock_strategy",
             "status",
             "routing_rule",

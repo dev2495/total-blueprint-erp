@@ -8,6 +8,8 @@ export interface FilmVariant {
     parent_family_name: string;
     grade?: string | null;
     grade_name?: string | null;
+    commercial_family?: string | null;
+    commercial_family_name?: string | null;
     is_extrudable: boolean;
     is_purchasable: boolean;
     status: string;
@@ -19,6 +21,7 @@ export interface CreateFilmVariantDto {
     name: string;
     parent_family: string;
     grade?: string | null;
+    commercial_family?: string | null;
     is_extrudable: boolean;
     is_purchasable: boolean;
 }

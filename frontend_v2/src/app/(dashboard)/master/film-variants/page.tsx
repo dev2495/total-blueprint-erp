@@ -45,7 +45,10 @@ export default function FilmVariantsPage() {
     })
 
     const createMutation = useMutation({
-        mutationFn: filmVariantService.create,
+        mutationFn: (data: any) => filmVariantService.create({
+            ...data,
+            commercial_family: !data?.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
+        }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["film-variants"] })
             toast({ title: "Success", description: "Film Variant created successfully." })
@@ -58,7 +61,10 @@ export default function FilmVariantsPage() {
 
     const updateMutation = useMutation({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mutationFn: ({ id, data }: { id: string, data: any }) => filmVariantService.update(id, data),
+        mutationFn: ({ id, data }: { id: string, data: any }) => filmVariantService.update(id, {
+            ...data,
+            commercial_family: !data?.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
+        }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["film-variants"] })
             toast({ title: "Success", description: "Film Variant updated successfully." })

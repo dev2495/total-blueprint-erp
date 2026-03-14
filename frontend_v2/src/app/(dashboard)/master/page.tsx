@@ -6,7 +6,7 @@ import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import {
     Package, Users, Palette, FlaskConical,
     Layers, Filter, Droplets, Plus, ShieldCheck,
-    Search, ArrowRight, LayoutGrid
+    Search, ArrowRight, LayoutGrid, Tag
 } from "lucide-react"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +15,15 @@ export default function MasterDataPage() {
     const [searchQuery, setSearchQuery] = useState("")
 
     const masters = [
+        {
+            title: "Commercial Families",
+            href: "/master/commercial-families",
+            icon: Tag,
+            count: 0,
+            description: "Business-friendly naming groups used across stock explorer, planner, and reports",
+            color: "text-violet-600",
+            bg: "bg-violet-50"
+        },
         {
             title: "Film Families",
             href: "/master/film-families",
@@ -132,7 +141,7 @@ export default function MasterDataPage() {
             {/* KPI Cards */}
             <div className="grid gap-6 md:grid-cols-4 mb-8">
                 {[
-                    { label: "Total Masters", value: "10", sub: "Active Registries", icon: LayoutGrid, color: "text-indigo-600" },
+                    { label: "Total Masters", value: "11", sub: "Active Registries", icon: LayoutGrid, color: "text-indigo-600" },
                     { label: "Materials", value: "128", sub: "SKUs Managed", icon: Layers, color: "text-blue-600" },
                     { label: "Customers", value: "156", sub: "Active Clients", icon: Users, color: "text-emerald-600" },
                     { label: "Recipes", value: "28", sub: "Formulations", icon: Palette, color: "text-purple-600" },

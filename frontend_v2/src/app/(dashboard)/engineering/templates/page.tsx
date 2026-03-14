@@ -19,6 +19,7 @@ import { routingService } from "@/services/routing"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
+import { commercialFamilyService } from "@/services/commercial-families"
 
 type DraftPouchStyle = NonNullable<TemplateBlueprint["pouch_style"]>
 
@@ -33,6 +34,7 @@ export default function EngineeringTemplatesPage() {
     const [draftFgType, setDraftFgType] = useState<"POUCH" | "ROLL">("POUCH")
     const [draftPouchStyle, setDraftPouchStyle] = useState<DraftPouchStyle>("PILLOW")
     const [draftRoutingRule, setDraftRoutingRule] = useState<string>("__NONE__")
+    const [draftCommercialFamily, setDraftCommercialFamily] = useState<string>("__NONE__")
 
     const { data: templates, isLoading, isError, error } = useQuery({
         queryKey: ["templates"],
@@ -47,6 +49,10 @@ export default function EngineeringTemplatesPage() {
         queryKey: ["routing-rules"],
         queryFn: () => routingService.getRules(),
     })
+    const { data: commercialFamilies = [] } = useQuery({
+        queryKey: ["commercial-families"],
+        queryFn: commercialFamilyService.getAll,
+    })
 
     const createTemplateMutation = useMutation({
         mutationFn: () => {
@@ -56,6 +62,7 @@ export default function EngineeringTemplatesPage() {
                 name,
                 fg_type: draftFgType,
                 pouch_style: draftFgType === "POUCH" ? draftPouchStyle : "",
+                commercial_family: draftCommercialFamily === "__NONE__" ? null : draftCommercialFamily,
                 routing_rule: draftRoutingRule === "__NONE__" ? null : draftRoutingRule,
             })
         },
@@ -66,6 +73,7 @@ export default function EngineeringTemplatesPage() {
             setDraftFgType("POUCH")
             setDraftPouchStyle("PILLOW")
             setDraftRoutingRule("__NONE__")
+            setDraftCommercialFamily("__NONE__")
             toast({ title: "Template created", description: "Route template draft created successfully." })
             router.push(`/engineering/templates/${created.id}`)
         },
@@ -165,6 +173,18 @@ export default function EngineeringTemplatesPage() {
                             ) : null}
                         </div>
                         <div className="space-y-2">
+                            <p className="text-xs font-semibold uppercase text-slate-600">Business Family</p>
+                            <Select value={draftCommercialFamily} onValueChange={setDraftCommercialFamily}>
+                                <SelectTrigger><SelectValue placeholder="Optional family alias" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__NONE__">No linked business family</SelectItem>
+                                    {commercialFamilies.map((family) => (
+                                        <SelectItem key={family.id} value={family.id}>{family.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
                             <p className="text-xs font-semibold uppercase text-slate-600">Routing Rule</p>
                             <Select value={draftRoutingRule} onValueChange={setDraftRoutingRule}>
                                 <SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger>
@@ -238,6 +258,7 @@ export default function EngineeringTemplatesPage() {
                             <TableRow className="border-none hover:bg-transparent">
                                 <TableHead className="px-6 text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Blueprint Name</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Type</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Business Family</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Status</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Version</TableHead>
                                 <TableHead className="text-right px-6 text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Actions</TableHead>
@@ -246,11 +267,11 @@ export default function EngineeringTemplatesPage() {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-20">Loading...</TableCell>
+                                    <TableCell colSpan={6} className="text-center py-20">Loading...</TableCell>
                                 </TableRow>
                             ) : isError ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="py-10">
+                                    <TableCell colSpan={6} className="py-10">
                                         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
                                             <div className="font-bold">Template registry could not load.</div>
                                             <div className="mt-1 text-xs">
@@ -261,7 +282,7 @@ export default function EngineeringTemplatesPage() {
                                 </TableRow>
                             ) : filtered.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-24 text-[11px] font-black uppercase text-slate-300 italic tracking-[0.2em]">
+                                    <TableCell colSpan={6} className="text-center py-24 text-[11px] font-black uppercase text-slate-300 italic tracking-[0.2em]">
                                         No blueprints found
                                     </TableCell>
                                 </TableRow>
@@ -278,6 +299,9 @@ export default function EngineeringTemplatesPage() {
                                             <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-600">
                                                 {t.fg_type}
                                             </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="text-xs font-semibold text-slate-600">{t.commercial_family_name || "—"}</span>
                                         </TableCell>
                                         <TableCell>
                                             {getStatusBadge(t.status)}

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import InventoryMaterial
+from .models import CommercialFamily, InventoryMaterial
 from apps.inventory.models import InkMaterial
 import uuid
 
@@ -9,20 +9,42 @@ class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
         model = InventoryMaterial
         fields = ['id', 'code', 'name', 'category', 'status']
 
+
+class CommercialFamilySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommercialFamily
+        fields = [
+            'id',
+            'code',
+            'name',
+            'default_form',
+            'default_reporting_group',
+            'active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_code(self, value):
+        return str(value or '').upper().strip()
+
 class InventoryMaterialSerializer(serializers.ModelSerializer):
     category_display = serializers.CharField(source='get_category_display', read_only=True)
+    commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
     class Meta:
         model = InventoryMaterial
         fields = [
             'id', 'code', 'name', 'category', 'category_display', 
             'base_uom', 'status', 'is_extrudable', 'is_purchasable',
-            'packaging_kind', 'packaging_supply_mode', 'per_sheet_base_qty'
+            'packaging_kind', 'packaging_supply_mode', 'per_sheet_base_qty',
+            'commercial_family', 'commercial_family_name',
         ]
 
 class FilmFamilySerializer(serializers.ModelSerializer):
+    commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
     class Meta:
         model = InventoryMaterial
-        fields = ['id', 'name', 'density_gcm3', 'status', 'created_at']
+        fields = ['id', 'name', 'density_gcm3', 'status', 'created_at', 'commercial_family', 'commercial_family_name']
         read_only_fields = ['id', 'created_at']
     
     def create(self, validated_data):
@@ -38,13 +60,14 @@ class FilmFamilySerializer(serializers.ModelSerializer):
 class FilmVariantSerializer(serializers.ModelSerializer):
     parent_family_name = serializers.CharField(source='parent_family.name', read_only=True)
     grade_name = serializers.CharField(source='grade.name', read_only=True)
+    commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
 
     class Meta:
         model = InventoryMaterial
         fields = [
             'id', 'code', 'name', 'parent_family', 'parent_family_name', 
             'grade', 'grade_name', 'is_extrudable', 'is_purchasable', 
-            'status', 'created_at'
+            'status', 'created_at', 'commercial_family', 'commercial_family_name'
         ]
         read_only_fields = ['id', 'created_at']
 

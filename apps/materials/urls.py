@@ -10,6 +10,7 @@ from .views import (
     PODViewSet,
     MaterialLibraryViewSet,
     PackagingViewSet,
+    CommercialFamilyViewSet,
 )
 
 router = OptionalSlashRouter()
@@ -22,6 +23,7 @@ router.register(r'addons', AddonViewSet, basename='addon')
 router.register(r'pod', PODViewSet, basename='pod')
 router.register(r'packaging', PackagingViewSet, basename='packaging')
 router.register(r'library', MaterialLibraryViewSet, basename='material-library')
+router.register(r'commercial-families', CommercialFamilyViewSet, basename='commercial-family')
 
 urlpatterns = [
     path('', include(router.urls)),
