@@ -26,18 +26,19 @@ Recommended governance:
 
 ## 2) Blueprint deployment shape
 
-[`render.yaml`](../render.yaml) provisions a fresh multi-environment setup:
-- 2 PostgreSQL databases
-- 2 Redis Key Value instances
-- 8 services total across staging and production:
+[`render.yaml`](../render.yaml) now provisions the recommended `$150` production-only setup:
+- 1 PostgreSQL database
+- 1 Redis Key Value instance
+- 4 application services:
   - backend API
   - frontend web
   - celery worker
   - celery beat
 
 Deployment policy:
-- staging services auto-deploy from `main` after GitHub checks pass
-- production services require manual deploy approval from the latest `main`
+- CI remains the gate through `backend-quality` and `frontend-quality`
+- production deploys stay controlled with `autoDeployTrigger: off`
+- the optional always-on staging environment belongs to the `$200` plan described in the client cost guide, not the default Blueprint
 
 GitHub Actions are quality gates only:
 - `backend-quality`
@@ -52,13 +53,13 @@ Prerequisite: the repository must already be pushed to GitHub before Render can 
 1. In the Render dashboard, choose **Blueprint** deployment.
 2. Select this GitHub repository.
 3. Use the repo-root [`render.yaml`](../render.yaml).
-4. Review the resource list and create the fresh staging + production stack.
+4. Review the resource list and create the default production stack.
 5. Configure the required secrets in Render before validating the services.
 
 Database note:
-- production now targets a current Render PostgreSQL plan with HA enabled
-- staging now targets a current Render PostgreSQL basic plan
-- this avoids the legacy database plan names that are not suitable for a fresh Blueprint create
+- production targets a current Render PostgreSQL plan name with `20 GB` disk
+- the default Blueprint does not include staging or HA because it is aligned to the `$150` recommendation
+- if you later choose the `$200` option, add a separate starter-sized staging stack as described in the client cost guide
 
 ## 4) Configure mandatory secrets
 
@@ -104,5 +105,5 @@ Smoke checks:
 Normal update flow:
 1. push a feature branch
 2. merge into `main`
-3. confirm staging auto-deploy completes
-4. manually promote the production services from the same commit lineage
+3. confirm GitHub checks pass
+4. deploy production from the approved `main` commit
