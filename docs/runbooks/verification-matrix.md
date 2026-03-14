@@ -30,6 +30,7 @@ These are useful for focused debugging, but they are not standalone release gate
 - `scripts/run_semi_fg_3_sales_fixture.py`
 - `scripts/simulate_production.py`
 - `scripts/e2e_total_test.py`
+- `scripts/manual_checks/*.py`
 
 Use them only for targeted investigation or data seeding, not as proof of release readiness.
 
@@ -41,6 +42,21 @@ The following scripts were removed because they no longer match the current stoc
 - `verify_physics_e2e_pouch_flow.py`
 
 Do not recreate these root-level one-off scripts. Extend the maintained checks above instead.
+
+## Moved ad-hoc root checks
+
+The following old root-level `test_*.py` files were moved to `scripts/manual_checks/` so they no longer pollute Django test discovery:
+
+- `test_db.py`
+- `test_db_connection.py`
+- `test_django_db.py`
+- `test_http.py`
+- `test_import_routing.py`
+- `test_import_urls.py`
+- `test_mrp_po_notification.py`
+- `test_planner.py`
+
+They are diagnostic scripts only. They are not part of the supported release gate.
 
 ## Verification ownership
 

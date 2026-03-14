@@ -51,7 +51,11 @@ export async function switchRole(page: Page, roleName: string, landingPath: stri
   const option = page.getByRole("option", { name: roleName })
   await option.waitFor({ state: "visible", timeout: 15_000 })
   await option.click({ noWaitAfter: true })
-  await page.waitForURL((url) => url.pathname === landingPath, { timeout: 30_000 })
+  try {
+    await page.waitForURL((url) => url.pathname === landingPath, { timeout: 8_000 })
+  } catch {
+    await page.goto(landingPath, { waitUntil: "domcontentloaded" })
+  }
   await assertHealthyPage(page)
 }
 

@@ -264,6 +264,17 @@ class ReportDeliveryTests(TestCase):
         self.assertEqual(runs_response.status_code, 200, runs_response.content)
         self.assertEqual(runs_response.json()["runs"][0]["id"], str(run.id))
 
+    def test_capability_matrix_endpoint_exposes_registry_sections(self):
+        response = self.client.get("/api/analytics/capability-matrix/")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertIn("sections", payload)
+        self.assertEqual(
+            {section["status"] for section in payload["sections"]},
+            {"SUPPORTED_NOW", "CONFIG_ONLY", "NEW_LOGIC_REQUIRED"},
+        )
+
     @patch("apps.analytics.report_delivery.InventoryAuditService.create_snapshot")
     def test_stock_standing_snapshot_bootstrap_uses_only_official_plants(self, create_snapshot):
         plant_a = Plant.objects.create(code="PLANT_A", name="Plant A", include_in_official_reports=True)
@@ -296,35 +307,54 @@ class ReportDeliveryTests(TestCase):
             roll_entries=[
                 {
                     "label_id": "ROLL-001",
+                    "family_display_name": "PET Printed Laminate",
                     "variant_display_name": "PET/PE · 12x50",
+                    "size_line": "420 mm x 62 micron",
+                    "form_label": "Pouch",
                     "pouch_or_roll_form": "STAND_UP",
                     "stage": "Laminated",
-                    "origin_type": "IN_HOUSE",
-                    "stock_strategy": "INTERMEDIATE_POOL",
+                    "origin_label": "In-house made",
+                    "stock_strategy_label": "Intermediate pool",
                     "plant": "Plant A",
                     "location": "LAM Store",
                     "status": "AVAILABLE",
                     "weight_kg": 12.5,
                     "available_kg": 12.5,
                     "reserved_kg": 0,
+                    "blocked_kg": 0,
+                    "oldest_age_days": 8,
+                }
+            ],
+            family_rows=[
+                {
+                    "family_display_name": "PET Printed Laminate",
+                    "form_label": "Pouch",
+                    "reporting_group": "LAMINATED",
+                    "variant_count": 1,
+                    "roll_count": 1,
+                    "available_kg": 12.5,
+                    "reserved_kg": 0,
+                    "blocked_kg": 0,
                     "oldest_age_days": 8,
                 }
             ],
             variant_rows=[
                 {
+                    "family_display_name": "PET Printed Laminate",
                     "variant_display_name": "PET/PE · 12x50",
-                    "pouch_or_roll_form": "STAND_UP",
+                    "size_line": "420 mm x 62 micron",
+                    "form_label": "Pouch",
                     "stage": "Laminated",
                     "width_mm": 420,
                     "thickness_micron": 62,
                     "print_status": "Printed",
                     "lamination_status": "Laminated",
-                    "stock_strategy": "INTERMEDIATE_POOL",
-                    "plant": "Plant A",
-                    "location": "LAM Store",
+                    "stock_strategy_label": "Intermediate pool",
                     "roll_count": 1,
                     "available_kg": 12.5,
                     "reserved_kg": 0,
+                    "blocked_kg": 0,
+                    "plant_location_summary": "Plant A / LAM Store",
                     "oldest_age_days": 8,
                 }
             ],
@@ -348,12 +378,15 @@ class ReportDeliveryTests(TestCase):
         workbook = load_workbook(BytesIO(attachment.content), data_only=True)
         self.assertEqual(
             workbook.sheetnames,
-            ["Summary", "Roll Variants", "Roll Detail", "Bulk RM", "Exceptions"],
+            ["Summary", "Family Summary", "Variant Summary", "Roll Detail", "Bulk RM", "Exceptions"],
         )
         summary_headers = [cell.value for cell in workbook["Summary"][1]]
         self.assertEqual(summary_headers, ["Plant", "Bulk KG", "Roll KG", "FG KG", "WIP KG", "Reserved KG"])
-        variant_headers = [cell.value for cell in workbook["Roll Variants"][1]]
+        family_headers = [cell.value for cell in workbook["Family Summary"][1]]
+        self.assertIn("Business Family", family_headers)
+        self.assertEqual(workbook["Family Summary"]["A2"].value, "PET Printed Laminate")
+        variant_headers = [cell.value for cell in workbook["Variant Summary"][1]]
         self.assertIn("Strategy", variant_headers)
-        self.assertEqual(workbook["Roll Variants"]["A2"].value, "PET/PE · 12x50")
+        self.assertEqual(workbook["Variant Summary"]["A2"].value, "PET Printed Laminate")
         self.assertEqual(workbook["Roll Detail"]["A2"].value, "ROLL-001")
         self.assertEqual(workbook["Bulk RM"]["A2"].value, "LDPE Granule")
