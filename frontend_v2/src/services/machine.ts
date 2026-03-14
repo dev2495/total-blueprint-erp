@@ -1,0 +1,531 @@
+/**
+ * Machine Service - Machine-Centric Execution API
+ * 
+ * This service provides API interactions for the Machine Terminal.
+ * Jobs belong to machines. Operators control machines.
+ */
+import { api } from '@/lib/api';
+
+export interface MachineDetail {
+    machine: {
+        id: string;
+        code: string;
+        name: string;
+        status: string;
+        work_center_id: string;
+        work_center_name: string;
+        plant_id: string;
+        plant_name: string;
+    };
+    operator: {
+        id: string;
+        username: string;
+        name: string;
+    } | null;
+    current_job: ProductionJob | null;
+    queue_count: number;
+}
+
+export interface ProductionJob {
+    id: string;
+    job_number: string;
+    status: string;
+    job_state: string;
+    origin: string;
+    priority: number;
+    planned_date: string | null;
+    template: string;
+    template_name: string;
+    current_process: string | null;
+    process_code: string;
+    roll_behavior: string | null;
+    work_center: string | null;
+    work_center_name: string;
+    machine: string | null;
+    machine_name: string;
+    operator: string | null;
+    operator_name: string;
+    quantity: number;
+    uom: string;
+    customer_name: string;
+    order_number: string;
+    product_name: string;
+    geometry: Record<string, any>;
+    layers: Array<Record<string, any>>;
+    bom_snapshot: Record<string, any>;
+    unit_weight_g: number;
+    total_weight_kg: number;
+    produced_qty: number;
+    remaining_qty: number;
+    step_target_kg?: number;
+    step_target_pcs?: number | null;
+    step_produced_kg?: number;
+    step_remaining_kg?: number;
+    step_target_source?: string;
+    order_target_source?: string;
+    execution_model_version?: number;
+    input_form: 'NONE' | 'BULK' | 'ROLL';
+    output_form: 'BULK' | 'ROLL';
+}
+
+export interface InterPlantDCMeta {
+    id: string;
+    dc_no: string;
+    print_pdf_url: string;
+}
+
+export type MachineCompleteResponse = ProductionJob & {
+    interplant_dc?: InterPlantDCMeta;
+    completion_mode?: 'NORMAL' | 'FORCED_VARIANCE';
+    variance_kg?: number;
+    force_reason?: string | null;
+};
+
+export interface OperatorMachine {
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+    work_center_name: string;
+    plant_name: string;
+    current_job: {
+        id: string;
+        job_number: string;
+        product_name: string;
+    } | null;
+    queue_count: number;
+}
+
+export interface JobSatisfactionStatus {
+    is_satisfied: boolean;
+    roll_requirements: Array<{
+        type: string;
+        material_name: string;
+        required_qty: number;
+        reserved_qty: number;
+        satisfied: boolean;
+    }>;
+    bulk_requirements: Array<{
+        material_name: string;
+        required_qty: number;
+        available_qty: number;
+        satisfied: boolean;
+    }>;
+    bulk_consumption?: Array<any>;
+}
+
+export interface JobContext {
+    job: ProductionJob;
+    execution_model_version?: number;
+    display?: {
+        template_name?: string;
+        product_name?: string;
+        step_name?: string;
+        step_code?: string;
+        roll_behavior?: string;
+        show_pcs_secondary?: boolean;
+    };
+    execution_profile?: {
+        primary_unit?: 'KG';
+        secondary_unit?: 'PCS';
+        job_uom?: string;
+        unit_weight_g?: number | null;
+        derivation_available?: boolean;
+        max_output_kg?: number | null;
+        output_cap_source?: string;
+        progress?: {
+            weight_kg?: { target?: number | null; produced?: number | null; remaining?: number | null };
+            pcs?: { target?: number | null; produced?: number | null; remaining?: number | null };
+        };
+    };
+    progress?: {
+        weight_kg?: { target?: number | null; produced?: number | null; remaining?: number | null };
+        pcs?: { target?: number | null; produced?: number | null; remaining?: number | null };
+    };
+    roll_handling?: {
+        output_variant?: string | null;
+        output_variant_id?: string | null;
+        thickness_rule?: string | null;
+        width_rule?: string | null;
+        operator_entry_mode?: string | null;
+        behavior?: string | null;
+    };
+    current_step_roll_handling?: Record<string, any>;
+    target_roll_invariants?: Record<string, any>;
+    target_roll_invariant_list?: Array<Record<string, any>>;
+    current_step?: {
+        process_name?: string;
+        input_form?: 'NONE' | 'BULK' | 'ROLL';
+    };
+    satisfaction: JobSatisfactionStatus;
+    wip_pool: Array<{
+        id: string;
+        label_id: string;
+        material_name: string;
+        weight_kg: number;
+        thickness_micron?: number;
+        width_mm?: number;
+        grade?: string | null;
+        location_name?: string | null;
+        status: string;
+    }>;
+    wip_pool_meta?: {
+        required_for_step?: boolean;
+        eligible_count?: number;
+        eligible_weight_kg?: number;
+        lineage_roll_count?: number;
+        lineage_total_weight_kg?: number;
+        required_rolls?: number;
+        reserved_rolls?: number;
+        missing_rolls?: number;
+        blocked_reasons?: string[];
+        action_hints?: string[];
+    };
+    wip_recent_lineage?: Array<{
+        id: string;
+        label_id: string;
+        material_name?: string | null;
+        weight_kg: number;
+        status: string;
+        location_name?: string | null;
+        stage?: string;
+        width_mm?: number;
+        thickness_micron?: number;
+        grade?: string | null;
+    }>;
+    reservations?: Array<{
+        id: string;
+        roll_id: string;
+        roll_label: string;
+        material_name: string;
+        qty_reserved: number;
+    }>;
+    allocated_rolls?: Array<{
+        id: string;
+        label_id: string;
+        material_name: string;
+        weight_kg: number;
+        width_mm?: number;
+        thickness_micron?: number;
+        reservation_id?: string | null;
+        location_name?: string;
+        status?: string;
+    }>;
+    inputs?: {
+        rolls_required?: number;
+        rolls_reserved?: number;
+        reserved_rolls?: Array<{
+            id: string;
+            label_id: string;
+            weight_kg: number;
+            thickness_micron?: number;
+            variant?: string;
+            variant_id?: string;
+            grade?: string | null;
+            grade_id?: string | null;
+            location_name?: string;
+        }>;
+        bulk_preview?: Array<{
+            requirement_id?: string;
+            material_id?: string;
+            material_name?: string;
+            required_qty_kg?: number;
+            theoretical_qty_kg?: number;
+            planned_issue_qty_kg?: number;
+            actual_issued_qty_kg?: number;
+            actual_returned_qty_kg?: number;
+            actual_scrap_qty_kg?: number;
+            actual_consumed_qty_kg?: number;
+            variance_qty_kg?: number;
+            estimated_actual_qty_kg?: number;
+            capture_mode?: string;
+            strategy?: string;
+            available_qty_kg?: number;
+            current_plant_available_qty_kg?: number;
+            other_plants_available_qty_kg?: number;
+        }>;
+        bulk_preview_theoretical?: Array<{
+            requirement_id?: string;
+            material_id?: string;
+            material_name?: string;
+            required_qty_kg?: number;
+            theoretical_qty_kg?: number;
+            planned_issue_qty_kg?: number;
+            actual_issued_qty_kg?: number;
+            actual_returned_qty_kg?: number;
+            actual_scrap_qty_kg?: number;
+            actual_consumed_qty_kg?: number;
+            variance_qty_kg?: number;
+            estimated_actual_qty_kg?: number;
+            capture_mode?: string;
+            strategy?: string;
+            available_qty_kg?: number;
+            current_plant_available_qty_kg?: number;
+            other_plants_available_qty_kg?: number;
+        }>;
+    };
+    live_consumption?: {
+        total_consumed_kg?: number;
+        total_scrap_kg?: number;
+        last_events?: Array<{
+            type: string;
+            timestamp?: string | null;
+            quantity_kg?: number;
+            uom?: string;
+            reason?: string;
+        }>;
+    };
+    telemetry?: {
+        execution_health?: {
+            input_ready?: boolean;
+            roll_shortage_count?: number;
+            step_target_kg?: number;
+            step_produced_kg?: number;
+            step_remaining_kg?: number;
+            next_action_hint?: string;
+            last_transition?: {
+                type?: string;
+                timestamp?: string | null;
+                quantity_kg?: number;
+            } | null;
+        };
+        inventory_counters?: {
+            bulk_consumed_kg?: number;
+            rolls_consumed_kg?: number;
+            rolls_consumed_count?: number;
+            rolls_created_kg?: number;
+            rolls_created_count?: number;
+            scrap_kg?: number;
+            live_logs?: Array<{
+                type: string;
+                timestamp?: string | null;
+                quantity_kg?: number;
+                roll_label?: string;
+                reason?: string;
+            }>;
+        };
+        bulk_consumed_kg?: number;
+        rolls_consumed_kg?: number;
+        rolls_consumed_count?: number;
+        rolls_created_kg?: number;
+        rolls_created_count?: number;
+        scrap_kg?: number;
+        live_logs?: Array<{
+            type: string;
+            timestamp?: string | null;
+            quantity_kg?: number;
+            roll_label?: string;
+            reason?: string;
+        }>;
+    };
+    geometry_cards?: {
+        base_geometry?: Record<string, any>;
+        effective_geometry?: Record<string, any>;
+        adjustments_summary?: Array<{
+            name?: string;
+            value?: number | string | null;
+            unit?: string | null;
+            on?: string | null;
+        }>;
+        pod_summary?: Record<string, any>;
+    };
+    step_execution?: {
+        roll_target_kg?: number;
+        bulk_target_kg?: number;
+        total_target_kg?: number;
+        produced_kg?: number;
+        remaining_kg?: number;
+        max_output_kg?: number | null;
+        input_cap_kg?: number | null;
+        cap_source?: string;
+        target_pcs?: number | null;
+        produced_pcs?: number | null;
+        remaining_pcs?: number | null;
+        tolerance_kg?: number;
+        derivation_fallback?: boolean;
+        closed_with_variance?: boolean;
+        target_source?: string;
+    };
+    step_policy?: {
+        execution_model_version?: number;
+        allocation_required?: boolean;
+        allocation_mode?: string;
+        allocation_scope?: string;
+        roll_to_bulk_validation_mode?: string;
+        step_target_source?: string;
+        order_target_source?: string;
+        tolerance_kg?: number;
+    };
+    order_progress?: {
+        weight_kg?: { target?: number | null; produced?: number | null; remaining?: number | null };
+        pcs?: { target?: number | null; produced?: number | null; remaining?: number | null };
+    };
+    input_form: 'NONE' | 'BULK' | 'ROLL';
+    output_form: 'BULK' | 'ROLL';
+}
+
+export type MachineHistoryStatus = 'ALL' | 'NORMAL' | 'FORCED_VARIANCE';
+
+export interface MachineHistoryFilters {
+    date_from?: string;
+    date_to?: string;
+    status?: MachineHistoryStatus;
+}
+
+export interface MachineHistoryResponse {
+    machine: {
+        id: string;
+        name: string;
+        code: string;
+        work_center_name?: string | null;
+        plant_name?: string | null;
+    };
+    filters: {
+        date_from?: string | null;
+        date_to?: string | null;
+        status: MachineHistoryStatus;
+    };
+    summary: {
+        jobs_completed: number;
+        produced_kg: number;
+        scrap_kg: number;
+        forced_variance_count: number;
+    };
+    daily: Array<{
+        date: string;
+        produced_kg: number;
+        scrap_kg: number;
+        jobs_completed: number;
+    }>;
+    jobs: Array<{
+        job_id: string;
+        job_number: string;
+        template_name: string;
+        step_name: string;
+        completed_at: string | null;
+        completion_mode: 'NORMAL' | 'FORCED_VARIANCE';
+        variance_kg: number;
+        produced_kg: number;
+        scrap_kg: number;
+    }>;
+}
+
+export const machineService = {
+    _normalizeList<T = any>(payload: any): T[] {
+        if (Array.isArray(payload)) return payload as T[];
+        const p = payload || {};
+        const candidates = [p.queue, p.results, p.jobs, p.machines, p.data];
+        for (const candidate of candidates) {
+            if (Array.isArray(candidate)) return candidate as T[];
+        }
+        return [];
+    },
+
+    // Get machine details with operator and current job
+    getMachineDetail: async (machineId: string): Promise<MachineDetail> => {
+        const { data } = await api.get(`/api/production/machine/${machineId}/`);
+        return (data?.data || data) as MachineDetail;
+    },
+
+    // Get job queue for a machine
+    getQueue: async (machineId: string): Promise<ProductionJob[]> => {
+        const { data } = await api.get(`/api/production/machine/${machineId}/queue/`);
+        return machineService._normalizeList<ProductionJob>(data?.data || data);
+    },
+
+    // Start a job on a machine
+    startJob: async (machineId: string, jobId: string): Promise<ProductionJob> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/start/`);
+        return (data?.data || data) as ProductionJob;
+    },
+
+    // Stop/pause a job on a machine
+    stopJob: async (machineId: string, jobId: string, reason?: string): Promise<ProductionJob> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/stop/`, { reason });
+        return (data?.data || data) as ProductionJob;
+    },
+
+    // Log output (keeps step open)
+    logOutput: async (
+        machineId: string,
+        jobId: string,
+        payload: {
+            actual_qty: number;
+            output_width_mm?: number;
+            output_length_m?: number;
+            output_pcs?: number;
+            scrap_qty?: number;
+            split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
+            remainder_location_id?: string;
+        }
+    ): Promise<ProductionJob> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-output/`, payload);
+        return (data?.data || data) as ProductionJob;
+    },
+
+    // Complete/close current step
+    completeJob: async (
+        machineId: string,
+        jobId: string,
+        payload?: {
+            force_reason?: string;
+            material_confirmations?: Array<{
+                requirement_id: string;
+                material_id?: string;
+                actual_issued_qty: number;
+                actual_returned_qty: number;
+                actual_scrap_qty: number;
+                is_estimated?: boolean;
+                return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
+                target_ink_material_id?: string;
+            }>;
+        }
+    ): Promise<MachineCompleteResponse> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/complete/`, payload || {});
+        return (data?.data || data) as MachineCompleteResponse;
+    },
+
+    // Get full job execution context
+    getJobContext: async (machineId: string, jobId: string): Promise<JobContext> => {
+        const { data } = await api.get(`/api/production/machine/${machineId}/jobs/${jobId}/context/`);
+        return (data?.data || data) as JobContext;
+    },
+
+    // Get input satisfaction status
+    getJobSatisfaction: async (machineId: string, jobId: string): Promise<JobSatisfactionStatus> => {
+        const { data } = await api.get(`/api/production/machine/${machineId}/jobs/${jobId}/satisfaction/`);
+        return (data?.data || data) as JobSatisfactionStatus;
+    },
+
+    // Machine-level completion history
+    getMachineHistory: async (
+        machineId: string,
+        filters?: MachineHistoryFilters
+    ): Promise<MachineHistoryResponse> => {
+        const params = new URLSearchParams();
+        if (filters?.date_from) params.set('date_from', filters.date_from);
+        if (filters?.date_to) params.set('date_to', filters.date_to);
+        if (filters?.status) params.set('status', filters.status);
+        const query = params.toString();
+        const { data } = await api.get(
+            `/api/production/machine/${machineId}/history/${query ? `?${query}` : ''}`
+        );
+        return (data?.data || data) as MachineHistoryResponse;
+    },
+
+    // Log scrap for a job
+    logScrap: async (
+        machineId: string,
+        jobId: string,
+        payload: { quantity: number; reason: string; notes?: string }
+    ): Promise<ProductionJob> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-scrap/`, payload);
+        return (data?.data || data) as ProductionJob;
+    },
+
+    // Get operator's assigned machines (for machine selector)
+    getOperatorMachines: async (): Promise<OperatorMachine[]> => {
+        const { data } = await api.get('/api/production/operator/machines/');
+        return machineService._normalizeList<OperatorMachine>(data?.data || data);
+    },
+};

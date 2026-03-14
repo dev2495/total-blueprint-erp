@@ -1,0 +1,236 @@
+import { api } from "@/lib/api"
+import { ProductionJob } from "./production"
+
+export interface WorkCenterAssignment {
+    id: string;
+    production_job: string;
+    job_details: ProductionJob;
+    work_center: string;
+    work_center_name: string;
+    assigned_machine: string | null;
+    assigned_machine_name: string | null;
+    status: 'WC_READY' | 'ASSIGNED' | 'EXECUTION_READY';
+    plant_id?: string;
+    allocated_rolls: string[];
+    allocated_roll_details?: any[];
+    sales_order_item?: string;
+    assigned_by: string | null;
+    assigned_at: string | null;
+    created_at: string;
+}
+
+export interface RollOverridePayload {
+    manual_override?: boolean;
+    override_reason?: string;
+}
+
+export interface CurrentStepMaterialPolicyItem {
+    policy_key: string;
+    material_name: string;
+    material_code?: string;
+    category_code?: string;
+    step_sequence: number;
+    step_name?: string;
+    theoretical_qty: number;
+    planned_issue_qty: number;
+    template_issue_policy_mode: string;
+    template_issue_policy_value: number;
+    effective_issue_policy_mode: string;
+    effective_issue_policy_value: number;
+    policy_source: string;
+    override_reason?: string;
+}
+
+export interface CurrentStepMaterialPolicyResponse {
+    job_id: string;
+    current_step_sequence: number;
+    current_process_name?: string | null;
+    items: CurrentStepMaterialPolicyItem[];
+}
+
+export const wcmService = {
+    getQueue: async (wcId: string) => {
+        const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`);
+        return data;
+    },
+    getHistory: async (wcId: string) => {
+        const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/history/`);
+        return data;
+    },
+    getStats: async (wcId: string) => {
+        const { data } = await api.get<{ running: number; waiting: number; total_active: number }>(`/api/production/wc/${wcId}/stats/`);
+        return data;
+    },
+
+    getEligibleRolls: async (jobId: string) => {
+        const { data } = await api.get<any[]>(`/api/production/wc-allocation/${jobId}/eligible-rolls/`);
+        return data;
+    },
+
+    getForWCM: async (params: any) => {
+        const { data } = await api.get<any[]>(`/api/inventory/rolls/for-wcm/`, { params });
+        return data;
+    },
+
+    assignMachine: async (assignmentId: string, machineId: string, rollIds?: string[], override?: RollOverridePayload) => {
+        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/assign-machine/`, {
+            assignment_id: assignmentId,
+            machine_id: machineId,
+            roll_ids: rollIds,
+            manual_override: Boolean(override?.manual_override),
+            override_reason: override?.override_reason
+        });
+        return data;
+    },
+
+    allocateRolls: async (assignmentId: string, rollIds: string[], override?: RollOverridePayload) => {
+        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/allocate-rolls/`, {
+            assignment_id: assignmentId,
+            roll_ids: rollIds,
+            manual_override: Boolean(override?.manual_override),
+            override_reason: override?.override_reason
+        });
+        return data;
+    },
+
+    unassignRoll: async (assignmentId: string, reservationId: string) => {
+        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/unassign-roll/`, {
+            assignment_id: assignmentId,
+            reservation_id: reservationId
+        });
+        return data;
+    },
+
+    unassignRollByRoll: async (assignmentId: string, rollId: string) => {
+        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/unassign-roll-by-roll/`, {
+            assignment_id: assignmentId,
+            roll_id: rollId
+        });
+        return data;
+    },
+
+    markReady: async (assignmentId: string) => {
+        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/ready/`, {
+            assignment_id: assignmentId
+        });
+        return data;
+    },
+
+    logDowntime: async (machineId: string, reason: string, durationMinutes?: number) => {
+        const { data } = await api.post(`/api/factory/machines/${machineId}/downtime/`, {
+            reason,
+            duration_minutes: durationMinutes
+        });
+        return data;
+    },
+
+    // ========================================
+    // Phase 68: Universal Flow Engine APIs
+    // ========================================
+
+    /**
+     * Get satisfaction status for a job.
+     * Returns required/available/missing roll counts & bulk consumption preview.
+     */
+    getSatisfactionStatus: async (jobId: string) => {
+        const { data } = await api.get<SatisfactionStatus>(`/api/production/flow-engine/${jobId}/satisfaction/`);
+        return data;
+    },
+
+    /**
+     * Get WIP pool for a job (flat list).
+     */
+    getWipPool: async (jobId: string) => {
+        const { data } = await api.get<WipRoll[]>(`/api/production/flow-engine/${jobId}/wip-pool/`);
+        return data;
+    },
+
+    /**
+     * Get WIP pool grouped by material family.
+     */
+    getWipPoolGrouped: async (jobId: string) => {
+        const { data } = await api.get<Record<string, WipRoll[]>>(`/api/production/flow-engine/${jobId}/wip-pool-grouped/`);
+        return data;
+    },
+
+    /**
+     * Auto-satisfy job inputs from WIP pool.
+     */
+    autoSatisfy: async (jobId: string) => {
+        const { data } = await api.post<{ auto_assigned: number; status: SatisfactionStatus }>(`/api/production/flow-engine/${jobId}/auto-satisfy/`);
+        return data
+    },
+
+    /**
+     * Get full job execution context.
+     */
+    getJobContext: async (jobId: string) => {
+        const { data } = await api.get(`/api/production/flow-engine/${jobId}/context/`);
+        return data;
+    },
+    getCurrentStepMaterialPolicy: async (jobId: string) => {
+        const { data } = await api.get<CurrentStepMaterialPolicyResponse>(`/api/production/flow-engine/${jobId}/current-step-material-policy/`);
+        return data;
+    },
+    updateCurrentStepMaterialPolicy: async (
+        jobId: string,
+        overrides: Array<{
+            policy_key: string;
+            issue_policy_mode: 'NONE' | 'PERCENT_OVER_THEORY' | 'FIXED_EXTRA_KG' | 'MINIMUM_ISSUE_KG';
+            issue_policy_value: number;
+            reason?: string;
+        }>
+    ) => {
+        const { data } = await api.post<CurrentStepMaterialPolicyResponse>(`/api/production/flow-engine/${jobId}/current-step-material-policy/`, {
+            overrides,
+        });
+        return data;
+    },
+    // (legacy duplicate removed)
+}
+
+// Phase 68 Types
+export interface SatisfactionStatus {
+    job_id: string;
+    process_code: string;
+    input_form: 'BULK' | 'ROLL' | 'NONE';
+    roll_behavior?: 'CREATE_NEW' | 'MODIFY_EXISTING' | 'MULTI_INPUT_COMBINE' | 'SPLIT' | 'NONE';
+    rolls_required: number;
+    rolls_available: number;
+    rolls_reserved: number;
+    rolls_auto_forwarded: number;
+    rolls_pool?: number;
+    rolls_missing: number;
+    bulk_consumption: BulkConsumptionPreview[];
+    is_satisfied: boolean;
+    can_start: boolean;
+    status_message: string;
+}
+
+export interface BulkConsumptionPreview {
+    material_id?: string;
+    material_name?: string;
+    category: string;
+    category_display: string;
+    mode: string;
+    estimated_qty_kg?: number;
+    required_qty_kg?: number;
+    available_qty_kg?: number;
+    plant_available_qty_kg?: number;
+    global_available_qty_kg?: number;
+    source_location_available_qty_kg?: number;
+    current_plant_available_qty_kg?: number;
+    other_plants_available_qty_kg?: number;
+    available_qty?: number;
+    is_auto_deduct: boolean;
+}
+
+export interface WipRoll {
+    id: string;
+    label_id: string;
+    material_name: string;
+    weight_kg: number;
+    width_mm?: number;
+    status: string;
+    stage?: string;
+}

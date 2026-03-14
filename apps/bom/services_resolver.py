@@ -1,0 +1,420 @@
+from decimal import Decimal
+from typing import Dict, List, Any
+from apps.materials.models import InventoryMaterial
+from apps.inventory.models import InkMaterial
+from apps.recipes.models import ExtrusionRecipe, RecipeGrade
+from django.core.exceptions import ObjectDoesNotExist
+
+class BOMResolverService:
+    @staticmethod
+    def resolve(template_snapshot: Dict[str, Any], physics_snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Explodes materials for a given physics snapshot and technical template.
+        Zero inference, zero routing.
+        """
+        film_layers_bom = []
+        extrusion_bom = []
+        inks_bom = []
+        chemicals_bom = []
+        addons_bom = []
+        errors = []
+        has_pet_family = False
+        
+        # 1. Physics & Geometry Context (Strict Design Baseline)
+        geo_snap = physics_snapshot['geometry_snapshot']
+        
+        # Normalize dimensions to METERS immediately for unit stability.
+        # Roll orders are KG-authoritative; their usable area comes from the
+        # physics engine's derived roll preview, not from any stored height.
+        fg_type = str(geo_snap.get('finished_good_type', 'POUCH') or 'POUCH').upper()
+        w_m = Decimal(str(geo_snap.get('effective_width_mm', 0))) / Decimal('1000')
+        h_m = Decimal(str(geo_snap.get('effective_height_mm', 0))) / Decimal('1000')
+        
+        # Resolve Faces
+        faces = Decimal('1')
+        if 'faces' in geo_snap:
+            faces = Decimal(str(geo_snap['faces']))
+        elif 'multipliers' in template_snapshot.get('geometry', {}):
+             faces = Decimal(str(template_snapshot['geometry']['multipliers'].get('faces', 1)))
+
+        # Unit Area (m2)
+        if fg_type == 'ROLL':
+            roll_preview = physics_snapshot.get('roll_preview') or {}
+            area_m2_unit = Decimal(
+                str(
+                    roll_preview.get('derived_area_m2')
+                    or geo_snap.get('area_m2')
+                    or 0
+                )
+            )
+        else:
+            area_m2_unit = w_m * h_m * faces
+
+        qty_uom = str(template_snapshot.get('uom', 'PCS') or 'PCS').upper()
+        order_qty = Decimal(str(template_snapshot.get('order_qty', 1)))
+        if order_qty <= 0: order_qty = Decimal('1')
+        is_roll_kg_mode = fg_type == 'ROLL' and qty_uom == 'KG' and order_qty > 0
+        
+        # 2. Layer Resolution
+        layers_input = template_snapshot.get('film_layers', [])
+        for idx, layer in enumerate(layers_input):
+            try:
+                family_id = layer.get('family_id')
+                variant_id = layer.get('variant_id')
+                thickness = Decimal(str(layer.get('thickness_micron', 0)))
+                grade_id = layer.get('grade_id')
+                payload_density = Decimal(str(layer.get('density_g_cm3', 0)))
+                
+                # DESIGN-FIRST: Calculate per-unit weight independently of order_qty/batch
+                # m2 * micron * g/cm3 = grams. Grams / 1000 = KG.
+                weight_kg = (area_m2_unit * thickness * payload_density) / Decimal('1000')
+
+                # Case A: Variant Selected (Specific Resolution)
+                if variant_id:
+                    try:
+                        variant = InventoryMaterial.objects.get(id=uuid_to_str(variant_id), category='FILM_VARIANT')
+                    except (ObjectDoesNotExist, ValueError):
+                        raise ValueError(f"Invalid Film Variant: {variant_id}")
+
+                    v_density = variant.density_gcm3
+                    f_density = variant.parent_family.density_gcm3 if variant.parent_family else None
+                    if payload_density >= Decimal('1.4') or (v_density and v_density >= Decimal('1.4')) or (f_density and f_density >= Decimal('1.4')):
+                        has_pet_family = True
+
+                    layer_info = {
+                        "family_id": family_id,
+                        "variant_id": str(variant.id),
+                        "code": variant.code,
+                        "thickness_micron": thickness,
+                        "weight_kg": float(round(weight_kg, 6)),
+                        "name": variant.name,
+                        "_gsm": float(round((thickness * payload_density), 6)),
+                    }
+
+                    # Determine effective source based on source_mode override
+                    source_override = layer.get('source_mode', 'AUTO')
+                    is_dual_capable = variant.is_extrudable and getattr(variant, 'is_purchasable', True)
+                    
+                    if source_override == 'PURCHASE':
+                        effective_source = 'PURCHASE'
+                    elif source_override == 'EXTRUDE' or grade_id:
+                        effective_source = 'EXTRUDE'
+                    else:  # AUTO
+                        # For dual-capable variants: default to PURCHASE if no grade selected
+                        # For extrude-only variants: default to EXTRUDE
+                        # For purchase-only variants: default to PURCHASE
+                        if is_dual_capable:
+                            effective_source = 'PURCHASE'  
+                        else:
+                            effective_source = 'EXTRUDE' if variant.is_extrudable else 'PURCHASE'
+                    
+                    layer_info["source"] = effective_source
+
+                    # Only resolve granules/recipe if effective source is EXTRUDE
+                    if effective_source == 'EXTRUDE':
+                        if not grade_id:
+                            raise ValueError(f"Missing Grade for extruded layer: {variant.code}")
+                        
+                        # Match Recipe
+                        recipe = ExtrusionRecipe.objects.filter(
+                            film_variant=variant,
+                            grade_id=uuid_to_str(grade_id),
+                            thickness_min_micron__lte=thickness,
+                            thickness_max_micron__gte=thickness,
+                            is_active=True
+                        ).first()
+
+                        if not recipe:
+                            raise ValueError(
+                                f"No recipe for {variant.code} ({grade_id}, {thickness}μ)"
+                            )
+
+                        layer_info["grade"] = recipe.grade.name
+                        
+                        for comp in recipe.components.all():
+                            comp_weight_kg = weight_kg * Decimal(str(comp.percentage)) / Decimal('100')
+                            extrusion_bom.append({
+                                "granule_id": str(comp.granule.id),
+                                "code": comp.granule.code,
+                                "name": comp.granule.name,
+                                "percentage": comp.percentage,
+                                "weight_kg": float(round(comp_weight_kg, 6)),
+                                "layer_index": idx + 1
+                            })
+
+                # Case B: Family Only (Generic Resolution)
+                elif family_id:
+                    try:
+                        family = InventoryMaterial.objects.get(id=uuid_to_str(family_id), category='FILM_FAMILY')
+                    except (ObjectDoesNotExist, ValueError):
+                        raise ValueError(f"Invalid Film Family: {family_id}")
+                    
+                    # Check based on family density
+                    v_density = Decimal(str(family.density_gcm3)) if (family and family.density_gcm3) else Decimal('0')
+                    if payload_density >= Decimal('1.4') or v_density >= Decimal('1.4'):
+                        has_pet_family = True
+
+                    layer_info = {
+                        "family_id": str(family.id),
+                        "variant_id": None,
+                        "code": family.code,
+                        "thickness_micron": thickness,
+                        "weight_kg": float(round(weight_kg, 6)),
+                        "source": "PURCHASE",
+                        "_gsm": float(round((thickness * payload_density), 6)),
+                    }
+                
+                else:
+                    raise ValueError(f"Layer {idx+1} missing Family/Variant.")
+
+                film_layers_bom.append(layer_info)
+            except Exception as e:
+                errors.append(str(e))
+
+        # 3. Printing & Inks
+        printing = template_snapshot.get('printing', {})
+        if not isinstance(printing, dict):
+            printing = {}
+        
+        is_printing = printing.get('enabled', False)
+        if is_printing:
+            ink_gsm_total = Decimal(str(printing.get('ink_gsm_total') or printing.get('ink_gsm') or 0))
+            front_colors = [str(c).strip().upper() for c in (printing.get('front_colors') or []) if str(c).strip()]
+            back_colors = [str(c).strip().upper() for c in (printing.get('back_colors') or []) if str(c).strip()]
+            color_names = [str(c).strip().upper() for c in (printing.get('color_names') or []) if str(c).strip()]
+            if not color_names:
+                color_names = front_colors + back_colors
+
+            front_count = int(printing.get('front_colors_count') or 0)
+            back_count = int(printing.get('back_colors_count') or 0)
+            side_colors_count = front_count + back_count
+            colors_count = int(printing.get('colors') or len(color_names) or side_colors_count or 0)
+            if not color_names and colors_count > 0:
+                color_names = [f"FRONT-{idx + 1}" for idx in range(max(front_count, 0))]
+                color_names += [f"BACK-{idx + 1}" for idx in range(max(back_count, 0))]
+                if not color_names:
+                    color_names = [f"COLOR-{idx + 1}" for idx in range(colors_count)]
+            if colors_count <= 0 and color_names:
+                colors_count = len(color_names)
+
+            if colors_count > 0 and ink_gsm_total > 0:
+                gsm_per_color = ink_gsm_total / Decimal(str(colors_count))
+                per_color_weight = (area_m2_unit * gsm_per_color) / Decimal('1000')
+                mapping = printing.get("color_mapping") if isinstance(printing.get("color_mapping"), dict) else {}
+                normalized_mapping = {
+                    str(k).strip().upper(): str(v).strip()
+                    for k, v in mapping.items()
+                    if str(k).strip() and str(v).strip()
+                }
+                base_tag = "PET" if has_pet_family else "POLY"
+
+                for color in color_names:
+                    mapped_id = normalized_mapping.get(str(color).upper())
+                    material_id = None
+                    code = f"INK-{base_tag}-{str(color).upper()}"
+                    name = f"{base_tag} {str(color).upper()}"
+                    if mapped_id:
+                        mat = InventoryMaterial.objects.filter(id=uuid_to_str(mapped_id), category='INK').first()
+                        if mat:
+                            material_id = str(mat.id)
+                            code = mat.code
+                            name = mat.name
+                    else:
+                        ink = InkMaterial.objects.filter(
+                            base_type=base_tag,
+                            color_name__iexact=str(color).upper(),
+                        ).first()
+                        if ink:
+                            material_id = str(ink.id)
+                            code = ink.code
+                            name = ink.name
+                    inks_bom.append({
+                        "material_id": material_id,
+                        "code": code,
+                        "name": name,
+                        "color": str(color).upper(),
+                        "gsm_per_color": float(round(gsm_per_color, 6)),
+                        "weight_kg": float(round(per_color_weight, 6)),
+                        "ink_base_family": base_tag,
+                        "_gsm": float(round(gsm_per_color, 6)),
+                    })
+            elif ink_gsm_total > 0:
+                errors.append("Printing is enabled but color count is zero.")
+
+        # 4. Chemistry Resolution
+        num_layers = len(layers_input)
+        chemicals = template_snapshot.get('chemicals', {})
+        if not isinstance(chemicals, dict):
+            chemicals = {}
+            
+        print_method = str(printing.get('method') or printing.get('type') or '').upper()
+        if num_layers > 1 or (is_printing and print_method == 'ROTO'):
+            adh_gsm = Decimal(str(chemicals.get('adhesive_gsm', 0)))
+            sol_gsm = Decimal(str(chemicals.get('solvent_gsm', 0)))
+
+            if adh_gsm > 0:
+                try:
+                    adh_mat = InventoryMaterial.objects.get(code='AD-ADHESIVE', category='ADHESIVE')
+                    chemicals_bom.append({
+                        "material_id": str(adh_mat.id),
+                        "code": adh_mat.code,
+                        "name": adh_mat.name,
+                        "type": "ADHESIVE",
+                        "weight_kg": float(round((area_m2_unit * adh_gsm) / Decimal('1000'), 6)),
+                        "_gsm": float(round(adh_gsm, 6)),
+                    })
+                except ObjectDoesNotExist: pass
+
+            if sol_gsm > 0:
+                try:
+                    sol_mat = InventoryMaterial.objects.get(code='AD-SOLVENT', category='SOLVENT')
+                    chemicals_bom.append({
+                        "material_id": str(sol_mat.id),
+                        "code": sol_mat.code,
+                        "name": sol_mat.name,
+                        "type": "SOLVENT",
+                        "weight_kg": float(round((area_m2_unit * sol_gsm) / Decimal('1000'), 6)),
+                        "_gsm": float(round(sol_gsm, 6)),
+                    })
+                except ObjectDoesNotExist: pass
+
+        # 5. Add-on Resolution
+        addons_input = template_snapshot.get('addons', [])
+        # order_qty defined above
+        eff_width = Decimal(str(geo_snap.get('effective_width_mm', geo_snap.get('width_mm', 0))))
+        eff_height = Decimal(str(geo_snap.get('effective_height_mm', geo_snap.get('height_mm', 0))))
+
+        for addon_in in addons_input:
+            if not isinstance(addon_in, dict): continue
+            addon_id = addon_in.get('addon_id')
+            if not addon_id: continue
+            
+            try:
+                addon_mat = InventoryMaterial.objects.get(id=uuid_to_str(addon_id), category='ADDON')
+                weight_val = Decimal(str(addon_mat.weight_value or 0))
+                addon_item_qty = Decimal(str(addon_in.get('qty') or addon_in.get('quantity') or 1))
+                addon_weight_unit_g = Decimal('0')
+                applies_to = str(addon_in.get('applies_to') or '').upper() or 'NONE'
+                if addon_mat.weight_mode == 'PER_MM':
+                    if applies_to not in {'WIDTH', 'HEIGHT', 'BOTH'}:
+                        applies_to = 'WIDTH'
+                    if applies_to == 'WIDTH':
+                        dim = eff_width
+                    elif applies_to == 'HEIGHT':
+                        dim = eff_height
+                    elif applies_to == 'BOTH':
+                        dim = eff_width + eff_height
+                    else:
+                        dim = Decimal('0')
+                    addon_weight_unit_g = weight_val * dim * addon_item_qty
+                elif addon_mat.weight_mode == 'PER_PIECE':
+                    addon_weight_unit_g = weight_val * addon_item_qty
+                elif addon_mat.weight_mode == 'FIXED':
+                    addon_weight_unit_g = weight_val * addon_item_qty
+                else:
+                    addon_weight_unit_g = Decimal('0')
+                
+                addons_bom.append({
+                    "addon_id": str(addon_mat.id),
+                    "code": addon_mat.code,
+                    "name": addon_mat.name,
+                    "quantity": float(addon_item_qty),
+                    "weight_kg": float(round(addon_weight_unit_g / Decimal('1000'), 6))
+                })
+            except (ObjectDoesNotExist, ValueError): continue
+
+        # 5b. Roll invariant explosion:
+        # For ROLL orders provided directly in KG, geometry height/length may be absent.
+        # In that case, distribute total order KG by GSM shares so mass stays physically invariant.
+        if is_roll_kg_mode:
+            weighted_rows = []
+            total_gsm = Decimal('0')
+
+            for row_set in (film_layers_bom, inks_bom, chemicals_bom):
+                for row in row_set:
+                    gsm_val = Decimal(str(row.get('_gsm') or 0))
+                    if gsm_val <= 0:
+                        continue
+                    weighted_rows.append((row, gsm_val))
+                    total_gsm += gsm_val
+
+            if total_gsm > 0:
+                for row, gsm_val in weighted_rows:
+                    row_weight = (order_qty * gsm_val) / total_gsm
+                    row["weight_kg"] = float(round(row_weight, 6))
+
+                # Recompute extrusion component weights from distributed film layer weights.
+                layer_weights = {}
+                for idx, film in enumerate(film_layers_bom, start=1):
+                    layer_weights[idx] = Decimal(str(film.get("weight_kg") or 0))
+
+                for comp in extrusion_bom:
+                    try:
+                        layer_idx = int(comp.get("layer_index") or 0)
+                    except Exception:
+                        layer_idx = 0
+                    pct = Decimal(str(comp.get("percentage") or 0))
+                    if layer_idx <= 0 or pct <= 0:
+                        continue
+                    base_layer_weight = layer_weights.get(layer_idx, Decimal('0'))
+                    comp_weight = (base_layer_weight * pct) / Decimal('100')
+                    comp["weight_kg"] = float(round(comp_weight, 6))
+            else:
+                errors.append("ROLL KG invariant explosion failed: total GSM is zero.")
+
+        # 6. POD Resolution
+        pod_bom = []
+        pod_phy = physics_snapshot.get('breakdown', {}).get('pod')
+        if pod_phy:
+            pod_weight_total = Decimal(str(pod_phy.get('weight_kg', 0)))
+            # Physics returns POD weight at order scope; BOM theoretical line must keep
+            # that full-order quantity (not per-piece normalization).
+            pod_weight_kg = pod_weight_total if pod_weight_total > 0 else Decimal("0")
+            pod_material_id = str(pod_phy.get("material_id") or "").strip()
+            pod_code = str(pod_phy.get('material_code') or "").strip()
+            pod_mat = None
+            if pod_material_id:
+                pod_mat = InventoryMaterial.objects.filter(id=pod_material_id).first()
+            if pod_mat is None and pod_code:
+                pod_mat = InventoryMaterial.objects.filter(code=pod_code).first()
+            if pod_mat is not None:
+                pod_bom.append({
+                    "material_id": str(pod_mat.id),
+                    "code": pod_mat.code,
+                    "name": pod_mat.name,
+                    "weight_kg": float(round(pod_weight_kg, 6))
+                })
+            else:
+                if pod_material_id:
+                    errors.append(f"POD Material '{pod_material_id}' not found in Master Data.")
+                elif pod_code:
+                    errors.append(f"POD Material '{pod_code}' not found in Master Data.")
+                else:
+                    errors.append("POD Material mapping missing in physics POD breakdown.")
+
+        for rows in (film_layers_bom, inks_bom, chemicals_bom, addons_bom, pod_bom):
+            for row in rows:
+                if isinstance(row, dict):
+                    row.pop("_gsm", None)
+
+        summary_unit_weight = Decimal(str(physics_snapshot.get('total_weight_g', 0)))
+        if fg_type == 'ROLL':
+            summary_unit_weight = Decimal('0')
+
+        return {
+            "films": film_layers_bom,
+            "granules": extrusion_bom,  # Granule breakdown from extrusion recipes
+            "inks": inks_bom,
+            "chemicals": chemicals_bom,
+            "addons": addons_bom,
+            "pod": pod_bom,
+            "is_complete": len(film_layers_bom) > 0 and len(errors) == 0 and (not is_printing or len(inks_bom) > 0),
+            "errors": errors,
+            "summary": {
+                "unit_weight_g": float(round(summary_unit_weight, 2))
+            }
+        }
+
+def uuid_to_str(val):
+    if not val: return None
+    return str(val)

@@ -1,0 +1,95 @@
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+// Role Constants (matching backend codes)
+const ROLES = {
+    OWNER: 'OWNER',
+    ADMIN: 'ADMIN',
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    SALES: 'SALES',
+    ENGINEERING: 'ENGINEERING',
+    PLANNER: 'PLANNER',
+    WCM: 'WORK_CENTER_MANAGER',
+    OPERATOR: 'OPERATOR',
+    STORE: 'STORE',
+    DISPATCH: 'DISPATCH',
+    FACTORY_ADMIN: 'FACTORY_ADMIN'
+}
+
+type Role = keyof typeof ROLES;
+
+// Path Permissions Configuration
+const PATH_PERMISSIONS: { [key: string]: string[] } = {
+    '/sales': [ROLES.SALES, ROLES.ADMIN, ROLES.OWNER, ROLES.DISPATCH], // Dispatch needs sales orders?
+    '/engineering': [ROLES.ENGINEERING, ROLES.ADMIN, ROLES.OWNER],
+    '/factory': [ROLES.FACTORY_ADMIN, ROLES.ADMIN, ROLES.OWNER],
+    '/production': [ROLES.PLANNER, ROLES.WCM, ROLES.OPERATOR, ROLES.ADMIN, ROLES.OWNER],
+    '/inventory': [ROLES.STORE, ROLES.ADMIN, ROLES.OWNER, ROLES.PLANNER],
+    '/logistics': [ROLES.DISPATCH, ROLES.STORE, ROLES.ADMIN, ROLES.OWNER],
+    '/system': [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.OWNER],
+    // Dashboard routes
+    '/dashboard/owner': [ROLES.OWNER, ROLES.ADMIN],
+    '/dashboard/sales': [ROLES.SALES, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/engineering': [ROLES.ENGINEERING, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/planner': [ROLES.PLANNER, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/work-center': [ROLES.WCM, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/store': [ROLES.STORE, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/dispatch': [ROLES.DISPATCH, ROLES.ADMIN, ROLES.OWNER],
+}
+
+export function middleware(request: NextRequest) {
+    const path = request.nextUrl.pathname
+
+    // Public paths
+    if (path.startsWith('/login') || path.startsWith('/api') || path.startsWith('/_next') || path === '/favicon.ico') {
+        return NextResponse.next()
+    }
+
+    const token = request.cookies.get('access_token')?.value
+
+    if (!token) {
+        return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    // Decode Token (Client-side/Edge safe way)
+    try {
+        const base64Url = token.split('.')[1]
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        }).join(''))
+        const payload = JSON.parse(jsonPayload)
+
+        const userRole = payload.role || 'GUEST'
+        const isOwner = payload.is_owner
+
+        // Check permissions
+        // Find matching prefix
+        const protectedPrefix = Object.keys(PATH_PERMISSIONS).find(prefix => path.startsWith(prefix))
+
+        if (protectedPrefix) {
+            const allowedRoles = PATH_PERMISSIONS[protectedPrefix]
+            const hasAccess = allowedRoles.includes(userRole) || (isOwner && allowedRoles.includes(ROLES.OWNER))
+
+            if (!hasAccess) {
+                // Redirect to their landing page or 403
+                // Only redirect if "Dashboard" access is denied, otherwise hard 403?
+                // Let's redirect to / (which handles user landing logic)
+                return NextResponse.redirect(new URL('/', request.url))
+            }
+        }
+
+    } catch (e) {
+        // Check if token parse failed -> force login
+        console.error("Token parse failed", e)
+        return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    return NextResponse.next()
+}
+
+export const config = {
+    matcher: [
+        '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    ],
+}

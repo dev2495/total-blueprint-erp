@@ -1,0 +1,52 @@
+from django.urls import path
+
+from .views import AnalyticsViewSet
+
+urlpatterns = [
+    path('system-health/', AnalyticsViewSet.as_view({'get': 'system_health'}), name='analytics-system-health'),
+    path('system-debug/', AnalyticsViewSet.as_view({'get': 'system_debug'}), name='analytics-system-debug'),
+    path('kpis/', AnalyticsViewSet.as_view({'get': 'kpis'}), name='analytics-kpis'),
+    path('control-tower/', AnalyticsViewSet.as_view({'get': 'control_tower'}), name='analytics-control-tower'),
+    path('factory-tree/', AnalyticsViewSet.as_view({'get': 'factory_tree'}), name='analytics-factory-tree'),
+    path('factory-summary/', AnalyticsViewSet.as_view({'get': 'factory_summary'}), name='analytics-factory-summary'),
+    path('operational-logs/', AnalyticsViewSet.as_view({'get': 'operational_logs'}), name='analytics-operational-logs'),
+    path('daily-production/', AnalyticsViewSet.as_view({'get': 'daily_production'}), name='analytics-daily-production'),
+    path('stock-overview/', AnalyticsViewSet.as_view({'get': 'stock_overview'}), name='analytics-stock-overview'),
+    path('stock-by-sku/', AnalyticsViewSet.as_view({'get': 'stock_by_sku'}), name='analytics-stock-by-sku'),
+    path('wc-performance/', AnalyticsViewSet.as_view({'get': 'wc_performance'}), name='analytics-wc-performance'),
+    path('scrap-analysis/', AnalyticsViewSet.as_view({'get': 'scrap_analysis'}), name='analytics-scrap-analysis'),
+    path('downtime-analysis/', AnalyticsViewSet.as_view({'get': 'downtime_analysis'}), name='analytics-downtime-analysis'),
+    path('material-consumption/', AnalyticsViewSet.as_view({'get': 'material_consumption'}), name='analytics-material-consumption'),
+    path('order-tracking/', AnalyticsViewSet.as_view({'get': 'order_tracking'}), name='analytics-order-tracking'),
+    path('orders/<str:order_id>/tracking/', AnalyticsViewSet.as_view({'get': 'order_tracking_for_order'}), name='analytics-order-tracking-detail'),
+    path('sales-dashboard/', AnalyticsViewSet.as_view({'get': 'sales_dashboard'}), name='analytics-sales-dashboard'),
+    path('planner-dashboard/', AnalyticsViewSet.as_view({'get': 'planner_dashboard'}), name='analytics-planner-dashboard'),
+    path('scrap-center/', AnalyticsViewSet.as_view({'get': 'scrap_center'}), name='analytics-scrap-center'),
+    path('maintenance/', AnalyticsViewSet.as_view({'post': 'maintenance'}), name='analytics-maintenance'),
+    # Legacy Routes Removed
+    # New Dedicated Reports
+    path('reports/production', AnalyticsViewSet.as_view({'get': 'report_production'}), name='report-production'),
+    path('reports/oee', AnalyticsViewSet.as_view({'get': 'report_oee'}), name='report-oee'),
+    path('reports/downtime', AnalyticsViewSet.as_view({'get': 'report_downtime'}), name='report-downtime'),
+    path('reports/scrap', AnalyticsViewSet.as_view({'get': 'report_scrap'}), name='report-scrap'),
+    path('reports/inventory', AnalyticsViewSet.as_view({'get': 'report_inventory'}), name='report-inventory'),
+    path('reports/sales', AnalyticsViewSet.as_view({'get': 'report_sales'}), name='report-sales'),
+    path('reports/mrp', AnalyticsViewSet.as_view({'get': 'report_mrp'}), name='report-mrp'),
+    path('reports/operator', AnalyticsViewSet.as_view({'get': 'report_operator'}), name='report-operator'),
+    path('reports/costing', AnalyticsViewSet.as_view({'get': 'report_costing'}), name='report-costing'),
+    path('reports/dispatch', AnalyticsViewSet.as_view({'get': 'report_dispatch'}), name='report-dispatch'),
+    path('reports/material-variance', AnalyticsViewSet.as_view({'get': 'report_material_variance'}), name='report-material-variance'),
+    path('reports/ink-intelligence', AnalyticsViewSet.as_view({'get': 'report_ink_intelligence'}), name='report-ink-intelligence'),
+    path('reports/shift-performance', AnalyticsViewSet.as_view({'get': 'report_shift_performance'}), name='report-shift-performance'),
+    path('reports/machine/<str:machine_id>/', AnalyticsViewSet.as_view({'get': 'machine_report'}), name='analytics-machine-report'),
+    path('reports/workcenter/<str:wc_id>/', AnalyticsViewSet.as_view({'get': 'workcenter_report'}), name='analytics-workcenter-report'),
+    path('reports/<str:tab>/', AnalyticsViewSet.as_view({'get': 'report_tab'}), name='analytics-report-tab'),
+    # Report Hub aggregate endpoints
+    path('catalog/', AnalyticsViewSet.as_view({'get': 'catalog'}), name='analytics-catalog'),
+    path('dashboard-summary/', AnalyticsViewSet.as_view({'get': 'dashboard_summary'}), name='analytics-dashboard-summary'),
+    path('report-distributions/', AnalyticsViewSet.as_view({'get': 'report_distributions', 'put': 'report_distributions'}), name='analytics-report-distributions'),
+    path('report-distributions/<str:report_code>/send/', AnalyticsViewSet.as_view({'post': 'send_report_distribution'}), name='analytics-report-distribution-send'),
+    path('report-runs/', AnalyticsViewSet.as_view({'get': 'report_runs'}), name='analytics-report-runs'),
+    path('report-runs/<str:run_id>/preview-pdf/', AnalyticsViewSet.as_view({'get': 'report_run_preview_pdf'}), name='analytics-report-run-preview'),
+    path('report-runs/<str:run_id>/download-detail/', AnalyticsViewSet.as_view({'get': 'report_run_download_detail'}), name='analytics-report-run-detail'),
+]

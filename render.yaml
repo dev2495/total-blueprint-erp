@@ -1,0 +1,388 @@
+databases:
+  - name: erp-postgres-prod
+    plan: standard
+    databaseName: total_blueprint_erp
+    user: blueprint_admin
+  - name: erp-postgres-staging
+    plan: starter
+    databaseName: total_blueprint_erp_staging
+    user: blueprint_admin
+
+services:
+  - type: keyvalue
+    name: erp-redis-prod
+    plan: standard
+    maxmemoryPolicy: noeviction
+
+  - type: keyvalue
+    name: erp-redis-staging
+    plan: starter
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: backend-api-prod
+    runtime: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
+    healthCheckPath: /api/health/live/
+    autoDeploy: false
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: backend-api-prod.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://frontend-web-prod.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://frontend-web-prod.onrender.com
+      - key: SECURE_SSL_REDIRECT
+        value: "True"
+      - key: SESSION_COOKIE_SECURE
+        value: "True"
+      - key: CSRF_COOKIE_SECURE
+        value: "True"
+      - key: STRICT_RBAC
+        value: "True"
+      - key: ALLOW_ROLE_OVERRIDE
+        value: "False"
+      - key: BACKUP_RETENTION_DAYS
+        value: "30"
+      - key: DB_NAME
+        fromDatabase:
+          name: erp-postgres-prod
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: erp-postgres-prod
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: erp-postgres-prod
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: erp-postgres-prod
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: erp-postgres-prod
+          property: port
+      - key: REDIS_URL
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: celery-worker-prod
+    runtime: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config worker -l INFO --concurrency=2
+    autoDeploy: false
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: STRICT_RBAC
+        value: "True"
+      - key: ALLOW_ROLE_OVERRIDE
+        value: "False"
+      - key: DB_NAME
+        fromDatabase:
+          name: erp-postgres-prod
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: erp-postgres-prod
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: erp-postgres-prod
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: erp-postgres-prod
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: erp-postgres-prod
+          property: port
+      - key: REDIS_URL
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: celery-beat-prod
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config beat -l INFO
+    autoDeploy: false
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: DB_NAME
+        fromDatabase:
+          name: erp-postgres-prod
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: erp-postgres-prod
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: erp-postgres-prod
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: erp-postgres-prod
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: erp-postgres-prod
+          property: port
+      - key: REDIS_URL
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: erp-redis-prod
+          type: keyvalue
+          property: connectionString
+
+  - type: web
+    name: frontend-web-prod
+    runtime: node
+    rootDir: frontend_v2
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -p $PORT
+    autoDeploy: false
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://backend-api-prod.onrender.com
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+
+  - type: web
+    name: backend-api-staging
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/health/live/
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_ENV
+        value: staging
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: backend-api-staging.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://frontend-web-staging.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://frontend-web-staging.onrender.com
+      - key: SECURE_SSL_REDIRECT
+        value: "True"
+      - key: SESSION_COOKIE_SECURE
+        value: "True"
+      - key: CSRF_COOKIE_SECURE
+        value: "True"
+      - key: STRICT_RBAC
+        value: "True"
+      - key: ALLOW_ROLE_OVERRIDE
+        value: "False"
+      - key: DB_NAME
+        fromDatabase:
+          name: erp-postgres-staging
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: erp-postgres-staging
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: erp-postgres-staging
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: erp-postgres-staging
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: erp-postgres-staging
+          property: port
+      - key: REDIS_URL
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: celery-worker-staging
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config worker -l INFO --concurrency=1
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_ENV
+        value: staging
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: DB_NAME
+        fromDatabase:
+          name: erp-postgres-staging
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: erp-postgres-staging
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: erp-postgres-staging
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: erp-postgres-staging
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: erp-postgres-staging
+          property: port
+      - key: REDIS_URL
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: celery-beat-staging
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config beat -l INFO
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_ENV
+        value: staging
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: DB_NAME
+        fromDatabase:
+          name: erp-postgres-staging
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: erp-postgres-staging
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: erp-postgres-staging
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: erp-postgres-staging
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: erp-postgres-staging
+          property: port
+      - key: REDIS_URL
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: erp-redis-staging
+          type: keyvalue
+          property: connectionString
+
+  - type: web
+    name: frontend-web-staging
+    runtime: node
+    rootDir: frontend_v2
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -p $PORT
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://backend-api-staging.onrender.com
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false

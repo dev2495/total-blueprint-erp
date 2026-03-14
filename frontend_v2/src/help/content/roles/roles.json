@@ -1,0 +1,937 @@
+[
+  {
+    "roleCode": "ADMIN",
+    "title": {
+      "en": "Administrator Guide",
+      "hi": "Administrator गाइड"
+    },
+    "landingPage": "/dashboard/admin",
+    "overview": {
+      "en": "Administrator is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Administrator की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/admin, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/admin से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-admin-landing"
+    ]
+  },
+  {
+    "roleCode": "OWNER",
+    "title": {
+      "en": "System Owner Guide",
+      "hi": "System Owner गाइड"
+    },
+    "landingPage": "/dashboard/owner",
+    "overview": {
+      "en": "System Owner is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "System Owner की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/owner, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/owner से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-owner-landing"
+    ]
+  },
+  {
+    "roleCode": "SUPER_ADMIN",
+    "title": {
+      "en": "Super Administrator Guide",
+      "hi": "Super Administrator गाइड"
+    },
+    "landingPage": "/dashboard/admin",
+    "overview": {
+      "en": "Super Administrator is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Super Administrator की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/admin, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/admin से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-super_admin-landing"
+    ]
+  },
+  {
+    "roleCode": "SALES",
+    "title": {
+      "en": "Sales Team Guide",
+      "hi": "Sales Team गाइड"
+    },
+    "landingPage": "/dashboard/sales",
+    "overview": {
+      "en": "Sales Team is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Sales Team की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/sales, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/sales से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-sales-landing"
+    ]
+  },
+  {
+    "roleCode": "PLANNER",
+    "title": {
+      "en": "Production Planner Guide",
+      "hi": "Production Planner गाइड"
+    },
+    "landingPage": "/production/planner",
+    "overview": {
+      "en": "Production Planner is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Production Planner की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /production/planner, execute primary queue actions, and confirm status transitions.",
+        "hi": "/production/planner से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-planner-landing"
+    ]
+  },
+  {
+    "roleCode": "WORK_CENTER_MANAGER",
+    "title": {
+      "en": "Work Center Manager Guide",
+      "hi": "Work Center Manager गाइड"
+    },
+    "landingPage": "/production/work-center",
+    "overview": {
+      "en": "Work Center Manager is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Work Center Manager की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /production/work-center, execute primary queue actions, and confirm status transitions.",
+        "hi": "/production/work-center से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-work_center_manager-landing"
+    ]
+  },
+  {
+    "roleCode": "OPERATOR",
+    "title": {
+      "en": "Machine Operator Guide",
+      "hi": "Machine Operator गाइड"
+    },
+    "landingPage": "/production/machine-selector",
+    "overview": {
+      "en": "Machine Operator is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Machine Operator की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /production/machine-selector, execute primary queue actions, and confirm status transitions.",
+        "hi": "/production/machine-selector से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-operator-landing"
+    ]
+  },
+  {
+    "roleCode": "STORE",
+    "title": {
+      "en": "Inventory Store Guide",
+      "hi": "Inventory Store गाइड"
+    },
+    "landingPage": "/dashboard/inventory",
+    "overview": {
+      "en": "Inventory Store is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Inventory Store की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/inventory, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/inventory से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-store-landing"
+    ]
+  },
+  {
+    "roleCode": "DISPATCH",
+    "title": {
+      "en": "Logistics/Dispatch Guide",
+      "hi": "Logistics/Dispatch गाइड"
+    },
+    "landingPage": "/dashboard/logistics",
+    "overview": {
+      "en": "Logistics/Dispatch is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Logistics/Dispatch की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/logistics, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/logistics से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-dispatch-landing"
+    ]
+  },
+  {
+    "roleCode": "ENGINEERING",
+    "title": {
+      "en": "Engineering Guide",
+      "hi": "Engineering गाइड"
+    },
+    "landingPage": "/dashboard/engineering",
+    "overview": {
+      "en": "Engineering is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Engineering की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /dashboard/engineering, execute primary queue actions, and confirm status transitions.",
+        "hi": "/dashboard/engineering से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-engineering-landing"
+    ]
+  },
+  {
+    "roleCode": "PLANT_MANAGER",
+    "title": {
+      "en": "Plant Manager Guide",
+      "hi": "Plant Manager गाइड"
+    },
+    "landingPage": "/analytics",
+    "overview": {
+      "en": "Plant Manager is responsible for secure, policy-compliant execution in assigned ERP modules.",
+      "hi": "Plant Manager की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
+    },
+    "responsibilities": [
+      {
+        "en": "Execute role-specific actions only within assigned module boundaries.",
+        "hi": "केवल निर्धारित मॉड्यूल सीमाओं में भूमिका-विशिष्ट कार्य निष्पादित करें।"
+      },
+      {
+        "en": "Maintain traceable updates with complete audit notes.",
+        "hi": "पूर्ण ऑडिट नोट्स के साथ ट्रेस करने योग्य अपडेट बनाए रखें।"
+      },
+      {
+        "en": "Escalate blockers early using governance-approved escalation paths.",
+        "hi": "गवर्नेंस-स्वीकृत एस्केलेशन मार्गों से बाधाओं को समय पर बढ़ाएँ।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Review landing dashboard alerts and open high-priority queues first.",
+        "hi": "लैंडिंग डैशबोर्ड अलर्ट देखें और पहले उच्च-प्राथमिकता कतारें खोलें।"
+      },
+      {
+        "en": "Complete pending approvals/tasks and verify downstream impact.",
+        "hi": "लंबित अनुमोदन/कार्य पूरे करें और डाउनस्ट्रीम प्रभाव सत्यापित करें।"
+      },
+      {
+        "en": "Close day with unresolved exception review and handoff notes.",
+        "hi": "दिन समाप्ति पर अनसुलझे अपवाद और हैंडऑफ नोट्स की समीक्षा करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start from /analytics, execute primary queue actions, and confirm status transitions.",
+        "hi": "/analytics से शुरू करें, प्राथमिक कतार कार्य निष्पादित करें, और स्थिति परिवर्तन पुष्टि करें।"
+      },
+      {
+        "en": "Use Help decision flow before forcing overrides or exception closures.",
+        "hi": "ओवरराइड या अपवाद क्लोज़ से पहले Help decision flow का उपयोग करें।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Access issue -> System Governance / Role Matrix owner.",
+        "hi": "एक्सेस समस्या -> System Governance / Role Matrix मालिक।"
+      },
+      {
+        "en": "Data integrity issue -> Module owner + Admin on-call.",
+        "hi": "डेटा अखंडता समस्या -> मॉड्यूल मालिक + Admin on-call।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "What should I do if an action is missing?",
+          "hi": "यदि कोई कार्रवाई नहीं दिख रही हो तो क्या करें?"
+        },
+        "a": {
+          "en": "Verify active role and governance visibility. Then check Role Matrix assignment.",
+          "hi": "सक्रिय भूमिका और गवर्नेंस दृश्यता जांचें। फिर Role Matrix असाइनमेंट सत्यापित करें।"
+        }
+      },
+      {
+        "q": {
+          "en": "When should I use override actions?",
+          "hi": "ओवरराइड कार्रवाई कब उपयोग करें?"
+        },
+        "a": {
+          "en": "Only with documented reason, approval context, and follow-up audit entry.",
+          "hi": "केवल दस्तावेज़ित कारण, अनुमोदन संदर्भ और फॉलो-अप ऑडिट एंट्री के साथ।"
+        }
+      }
+    ],
+    "screenshotKeys": [
+      "role-plant_manager-landing"
+    ]
+  }
+]

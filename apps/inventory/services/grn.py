@@ -1,0 +1,194 @@
+"""
+Phase 56: GRN Service (Refactored)
+
+Unified GRN handling for both Bulk and Roll materials.
+- Bulk GRN uses BulkService.add_bulk()
+- Roll GRN creates InventoryRoll with physical specs + grade FK
+"""
+
+from django.db import transaction
+from django.core.exceptions import ValidationError
+from apps.inventory.models import InventoryRoll, InventoryLocation, RollMovement, Vendor
+from apps.inventory.services.bulk_service import BulkService
+from apps.inventory.services.roll_service import RollService
+from apps.materials.models import InventoryMaterial
+from typing import List, Dict, Any
+from decimal import Decimal
+import datetime
+import random
+import string
+
+
+class GRNService:
+    
+    # Phase 13 Governance: GRN only into these location types
+    ALLOWED_LOCATION_TYPES = ['WAREHOUSE', 'QC', 'RM', 'WIP']
+    
+    @classmethod
+    def _validate_location(cls, location: InventoryLocation, plant):
+        """Common location validation for GRN operations."""
+        if location.plant != plant:
+            raise ValidationError("Location does not belong to the specified plant.")
+        
+        if location.type not in cls.ALLOWED_LOCATION_TYPES:
+            raise ValidationError(
+                f"GRN allowed only in {cls.ALLOWED_LOCATION_TYPES} locations. Invalid type: {location.type}"
+            )
+
+    @classmethod
+    def _validate_vendor(cls, vendor: Vendor):
+        if not vendor:
+            raise ValidationError("Vendor is required for GRN inward.")
+        if str(vendor.status or "").upper() != "ACTIVE":
+            raise ValidationError("Only active vendors can be used for GRN inward.")
+        if str(vendor.type or "").upper() not in {"RM", "BOTH"}:
+            raise ValidationError("GRN vendor must be RM or BOTH type.")
+    
+    @classmethod
+    @transaction.atomic
+    def create_bulk_grn(cls, 
+                        material: InventoryMaterial, 
+                        location: InventoryLocation, 
+                        vendor: Vendor,
+                        quantity: float, 
+                        plant,
+                        cost: float = 0,
+                        reference: str = ""):
+        """
+        Phase 56: Record a Bulk Goods Receipt.
+        Uses BulkService.add_bulk() for proper inventory tracking.
+        
+        Args:
+            material: InventoryMaterial (must be bulk category)
+            location: InventoryLocation
+            quantity: Quantity in KG
+            plant: Plant instance
+            cost: Cost per KG (for average cost calculation)
+            reference: Reference number (invoice/challan)
+            
+        Returns:
+            BulkTransaction record
+        """
+        if quantity <= 0:
+            raise ValidationError("Quantity must be positive.")
+        
+        cls._validate_location(location, plant)
+        cls._validate_vendor(vendor)
+        
+        # Validate material is a bulk type
+        bulk_categories = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD']
+        if material.category not in bulk_categories:
+            raise ValidationError(
+                f"Bulk GRN requires bulk material type. Got: {material.category}"
+            )
+        
+        # Use BulkService for proper tracking
+        return BulkService.add_bulk(
+            material_id=str(material.id),
+            qty=quantity,
+            plant_id=str(plant.id),
+            location_id=str(location.id),
+            cost=cost,
+            reference=f"VENDOR:{vendor.code} | {reference or 'GRN'}"
+        )
+
+    @classmethod
+    @transaction.atomic
+    def create_roll_grn(cls, 
+                        material: InventoryMaterial, 
+                        location: InventoryLocation, 
+                        vendor: Vendor,
+                        plant,
+                        rolls_data: List[Dict[str, Any]], 
+                        reference: str = "") -> List[InventoryRoll]:
+        """
+        Phase 56: Record a Roll Goods Receipt (Multiple Rolls).
+        Creates InventoryRoll objects with full physical specs.
+        
+        Each roll in rolls_data should contain:
+        - label_id: Human readable barcode ID (required)
+        - thickness_micron: Thickness in microns (required)
+        - width_mm: Width in mm (required)
+        - weight_kg: Weight in KG (required)
+        - grade_id: UUID of RecipeGrade (optional, for extrusion tracking)
+        - batch_no: Batch number (optional, auto-generated if not provided)
+        - length_m: Length in meters (optional)
+        
+        Returns:
+            List of created InventoryRoll objects
+        """
+        if not rolls_data:
+            raise ValidationError("No rolls provided.")
+            
+        cls._validate_location(location, plant)
+        cls._validate_vendor(vendor)
+        
+        # Validate material is a film variant (physical roll currency must always be a variant).
+        if material.category != 'FILM_VARIANT':
+            raise ValidationError(
+                f"Roll GRN requires FILM_VARIANT material. Got: {material.category}"
+            )
+
+        created_rolls = []
+
+        for data in rolls_data:
+            # Validate required physical specs (Phase 56: specs on Roll)
+            required_fields = ['thickness_micron', 'width_mm', 'weight_kg']
+            for field in required_fields:
+                if field not in data or data.get(field) is None:
+                    raise ValidationError(f"Missing required field '{field}' for roll.")
+
+            # Auto-generate batch if not provided
+            batch_no = data.get('batch_no')
+            
+            # Grade is required only for extrudable variants.
+            grade_id = data.get('grade_id')
+            grade = None
+            grade_required = bool(getattr(material, "is_extrudable", False))
+            if grade_required and not grade_id:
+                raise ValidationError("Grade is required for extrudable film variants.")
+            if grade_required and grade_id:
+                from apps.recipes.models import RecipeGrade
+                try:
+                    grade = RecipeGrade.objects.get(id=grade_id)
+                except RecipeGrade.DoesNotExist:
+                    raise ValidationError(f"Grade with ID {grade_id} not found.")
+
+            # Phase 59: Use RollService for creation (strict compliance)
+            roll = RollService.create_roll(
+                material=material,
+                weight_kg=Decimal(str(data['weight_kg'])),
+                location=location,
+                width_mm=Decimal(str(data['width_mm'])),
+                thickness_micron=Decimal(str(data['thickness_micron'])),
+                batch_no=batch_no,
+                length_m=Decimal(str(data.get('length_m', 0))),
+                grade=grade,
+                is_fg=False,
+                plant=plant,
+                user=None, # System/Anonymous for now, or pass user
+                notes=f"VENDOR:{vendor.code} | {reference or 'GRN'}"
+            )
+            
+            # Label override if provided (RollService generates auto label)
+            if data.get('label_id'):
+                roll.label_id = data['label_id']
+                roll.save(update_fields=['label_id'])
+
+            meta = dict(roll.meta_json or {})
+            meta.update({
+                "grn_vendor_id": str(vendor.id),
+                "grn_vendor_code": vendor.code,
+                "grn_vendor_name": vendor.name,
+                "grn_reference": reference or "",
+                "grn_source": "GRN_INWARD",
+            })
+            roll.meta_json = meta
+            roll.save(update_fields=['meta_json'])
+
+            created_rolls.append(roll)
+            
+            # InventoryLedger removed per Phase 59 Strict Rules
+            # RollMovement is already created by RollService.create_roll
+
+        return created_rolls

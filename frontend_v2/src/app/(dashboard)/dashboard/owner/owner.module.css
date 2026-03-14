@@ -1,0 +1,1102 @@
+/* owner.module.css - Premium Clean Aesthetic */
+
+.ownerDash {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #0f172a;
+    /* deeply readable text */
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ─────────────── HERO SECTION ─────────────── */
+.heroCard {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 20px;
+    padding: 28px 36px;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+}
+
+.heroCard::before {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -10%;
+    width: 60%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    transform: rotate(25deg);
+    pointer-events: none;
+}
+
+.heroCard::after {
+    content: "";
+    position: absolute;
+    bottom: -50%;
+    right: -10%;
+    width: 50%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.heroTitle {
+    font-size: 28px;
+    font-weight: 800;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.heroSubtitle {
+    font-size: 14px;
+    color: #94a3b8;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+    font-weight: 500;
+}
+
+.heroControls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 1;
+}
+
+.countdownBadge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #f8fafc;
+    text-transform: uppercase;
+}
+
+.liveDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: pulseDot 2s infinite;
+}
+
+.timeframeTabs {
+    display: flex;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tfBtn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tfBtn:hover {
+    color: #ffffff;
+}
+
+.tfBtnActive {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.refreshBtn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #6366f1;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.refreshBtn:hover {
+    background: #4f46e5;
+    transform: translateY(-1px);
+}
+
+.refreshBtn:active {
+    transform: translateY(1px);
+}
+
+/* ─────────────── KPI GRID ─────────────── */
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.kpiCard {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+    border: 1px solid #f1f5f9;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpiCard:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.03);
+    border-color: #e2e8f0;
+}
+
+/* Soft radiant glow behind the icon */
+.kpiCard::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    filter: blur(25px);
+    z-index: 0;
+    opacity: 0.15;
+}
+
+.kpiCard:nth-child(1)::before {
+    background: #6366f1;
+}
+
+.kpiCard:nth-child(2)::before {
+    background: #8b5cf6;
+}
+
+.kpiCard:nth-child(3)::before {
+    background: #10b981;
+}
+
+.kpiCard:nth-child(4)::before {
+    background: #06b6d4;
+}
+
+.kpiCard:nth-child(5)::before {
+    background: #f59e0b;
+}
+
+.kpiCard:nth-child(6)::before {
+    background: #3b82f6;
+}
+
+.kpiCard:nth-child(7)::before {
+    background: #10b981;
+}
+
+.kpiCard:nth-child(8)::before {
+    background: #f43f5e;
+}
+
+.kpiIconWrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    z-index: 1;
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1) inset;
+}
+
+/* Gradients for KPI icons */
+.gIndigo {
+    background: linear-gradient(135deg, #6366f1, #4338ca);
+}
+
+.gViolet {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+.gEmerald {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.gCyan {
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+}
+
+.gOrange {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.gSky {
+    background: linear-gradient(135deg, #38bdf8, #0284c7);
+}
+
+.gRose {
+    background: linear-gradient(135deg, #f43f5e, #be123c);
+}
+
+.kpiContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 1;
+}
+
+.kpiLabel {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.kpiValue {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    letter-spacing: -0.5px;
+}
+
+.kpiSub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 5px;
+    font-weight: 500;
+}
+
+.kpiTrend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 8px;
+    align-self: flex-start;
+}
+
+.trendUp {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.trendDown {
+    background: #ffe4e6;
+    color: #9f1239;
+}
+
+/* ─────────────── GRIDS & CARDS ─────────────── */
+.quadGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.triGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.dualGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.chartsGrid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+}
+
+.glassCard {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    position: relative;
+}
+
+.sectionTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 12px;
+}
+
+.sectionTitle svg {
+    color: #6366f1;
+}
+
+/* ─────────────── STATUS STRIP ─────────────── */
+.statusCard {
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.statusTeal {
+    background: #f0fdfa;
+    border-color: #ccfbf1;
+}
+
+.statusRose {
+    background: #fff1f2;
+    border-color: #ffe4e6;
+}
+
+.statusAmber {
+    background: #fffbeb;
+    border-color: #fef3c7;
+}
+
+.statusIndigo {
+    background: #e0e7ff;
+    border-color: #c7d2fe;
+}
+
+.statusLabel {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.statusVal {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.statusSub {
+    font-size: 11px;
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+.statusTeal .statusVal {
+    color: #0d9488;
+}
+
+.statusTeal .statusSub {
+    color: #14b8a6;
+}
+
+.statusRose .statusVal {
+    color: #e11d48;
+}
+
+.statusRose .statusSub {
+    color: #f43f5e;
+}
+
+.statusAmber .statusVal {
+    color: #d97706;
+}
+
+.statusAmber .statusSub {
+    color: #f59e0b;
+}
+
+.statusIndigo .statusVal {
+    color: #4338ca;
+}
+
+.statusIndigo .statusSub {
+    color: #6366f1;
+}
+
+/* ─────────────── P&L ROW ─────────────── */
+.finBreakCard {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.finBreakLabel {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.finBreakVal {
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.finBreakSub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.overheadChip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 10px 16px;
+    border-radius: 10px;
+}
+
+.overheadLabel {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 600;
+}
+
+.overheadVal {
+    font-size: 14px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.divider {
+    border: none;
+    height: 1px;
+    background: #e2e8f0;
+    margin: 20px 0;
+}
+
+/* ─────────────── CHARTS & MINIBARS ─────────────── */
+.finMonthRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.finMonthLabel {
+    width: 50px;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.finBarTrack {
+    flex: 1;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.finBarFill {
+    height: 100%;
+    background: linear-gradient(90deg, #818cf8, #6366f1);
+    border-radius: 3px;
+    transition: width 1s ease;
+}
+
+.finMonthVal {
+    width: 60px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.invDistRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.invDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.invDistLabel {
+    width: 90px;
+    font-size: 12px;
+    color: #475569;
+    font-weight: 600;
+}
+
+.invDistTrack {
+    flex: 1;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.invDistFill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+}
+
+.invDistVal {
+    width: 40px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+/* ─────────────── ALERTS & LISTS ─────────────── */
+.alertRow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    transition: transform 0.2s;
+}
+
+.alertRow:hover {
+    transform: translateX(3px);
+}
+
+.alertTeal {
+    border-left: 4px solid #14b8a6;
+}
+
+.alertRose {
+    border-left: 4px solid #f43f5e;
+}
+
+.alertAmber {
+    border-left: 4px solid #f59e0b;
+}
+
+.alertCount {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.alertTeal .alertCount {
+    background: #ccfbf1;
+    color: #0d9488;
+}
+
+.alertRose .alertCount {
+    background: #ffe4e6;
+    color: #e11d48;
+}
+
+.alertAmber .alertCount {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.alertTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.alertDesc {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+/* ─────────────── HEALTH BARS ─────────────── */
+.healthBarsGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.healthBarWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.healthBarHeader {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.healthBarLabel {
+    color: #475569;
+}
+
+.healthBarValue {
+    color: #0f172a;
+    font-weight: 800;
+}
+
+.healthBarTrack {
+    width: 100%;
+    height: 8px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.healthBarFill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+}
+
+.fillEmerald {
+    background: linear-gradient(90deg, #34d399, #10b981);
+}
+
+.fillAmber {
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.fillRose {
+    background: linear-gradient(90deg, #fb7185, #f43f5e);
+}
+
+.fillIndigo {
+    background: linear-gradient(90deg, #818cf8, #6366f1);
+}
+
+/* ─────────────── TABLES & MISC ROWS ─────────────── */
+.shiftTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.shiftTable th {
+    text-align: left;
+    padding: 8px;
+    color: #64748b;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.shiftTable td {
+    padding: 10px 8px;
+    font-weight: 600;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.jobRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    background: #f8fafc;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.jobNumber {
+    font-size: 12px;
+    font-weight: 800;
+    color: #4f46e5;
+    width: 60px;
+}
+
+.jobProduct {
+    font-size: 12px;
+    color: #334155;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+
+.jobProgWrap {
+    width: 80px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.jobProgTrack {
+    flex: 1;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+}
+
+.jobProgFill {
+    height: 100%;
+    background: #10b981;
+    border-radius: 3px;
+}
+
+.jobProgPct {
+    font-size: 10px;
+    font-weight: 800;
+    color: #475569;
+    width: 26px;
+    text-align: right;
+}
+
+.jobOp {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    width: 30px;
+    text-align: right;
+}
+
+.inkRow {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.inkRowLabel {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.inkRowValue {
+    color: #0f172a;
+    font-weight: 800;
+}
+
+.inkBadge {
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.riskBadge {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+}
+
+.riskHigh {
+    border-left: 4px solid #e11d48;
+}
+
+.riskMed {
+    border-left: 4px solid #d97706;
+}
+
+.riskLow {
+    border-left: 4px solid #0d9488;
+}
+
+.riskDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 4px;
+}
+
+.riskHigh .riskDot {
+    background: #e11d48;
+}
+
+.riskMed .riskDot {
+    background: #d97706;
+}
+
+.riskLow .riskDot {
+    background: #0d9488;
+}
+
+.riskCode {
+    font-size: 12px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.riskMsg {
+    font-size: 12px;
+    color: #475569;
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.customerRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.customerRank {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #f8fafc;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.customerName {
+    width: 80px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.customerBarTrack {
+    flex: 1;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.customerBarFill {
+    height: 100%;
+    background: #38bdf8;
+    border-radius: 3px;
+}
+
+.customerWeight {
+    width: 60px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.skuRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.skuName {
+    width: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.skuBarTrack {
+    flex: 1;
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.skuBarFill {
+    height: 100%;
+    background: #6366f1;
+    border-radius: 3px;
+}
+
+.skuVal {
+    width: 60px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+/* ─────────────── UTILITIES & ANIMATIONS ─────────────── */
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.allClear {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #10b981;
+    padding: 16px;
+    background: #ecfdf5;
+    border-radius: 12px;
+    border: 1px solid #d1fae5;
+}
+
+.chartTooltip {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chartTooltipLabel {
+    color: #64748b;
+    margin-bottom: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.chartTooltipItem {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.chartTooltipItem:last-child {
+    margin-bottom: 0;
+}
+
+.loadingOverlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: inherit;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulseDot {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+
+    50% {
+        opacity: 0.6;
+        transform: scale(0.9);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animUp {
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-label="/profile - Workflow">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <rect width="1440" height="900" fill="url(#g)"/>
+  <rect x="80" y="80" width="1280" height="740" rx="20" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="120" y="170" fill="#0f172a" font-size="44" font-family="Arial, sans-serif" font-weight="700">/profile - Workflow</text>
+  <text x="120" y="230" fill="#475569" font-size="28" font-family="Arial, sans-serif">Help screenshot placeholder</text>
+  <text x="120" y="290" fill="#64748b" font-size="22" font-family="Arial, sans-serif">Replace with captured UI screenshot during UAT pass.</text>
+</svg>

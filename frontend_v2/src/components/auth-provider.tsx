@@ -1,0 +1,178 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState } from "react";
+import Cookies from "js-cookie";
+import { useRouter, usePathname } from "next/navigation";
+import { api, ensureCsrfToken } from "@/lib/api";
+import { getLandingPage, ROLE_LANDING_PAGES } from "@/lib/roles";
+import { systemUserService } from "@/services/system-users";
+
+interface User {
+    id: string; // Changed from number to string for UUID
+    username: string;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    phone_number?: string;
+    avatar_url?: string;
+    email_missing?: boolean;
+    role_info?: { id: string; code: string; name: string };
+    full_name: string;
+    is_owner: boolean;
+    entitlements?: {
+        role: string;
+        landing_page: string;
+        permissions: string[];
+        permission_map?: Record<string, string[]>;
+        module_permissions?: Array<{ module: string; actions: string[] }>;
+        context?: {
+            work_centers: string[];
+            machines: string[];
+        };
+    }
+}
+
+interface AuthContextType {
+    user: User | null;
+    loading: boolean;
+    effectiveRole: string | null;
+    login: (user: User) => void;
+    logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [effectiveRole, setEffectiveRole] = useState<string | null>(null);
+    const router = useRouter();
+    const pathname = usePathname();
+
+    // Get the effective role considering role override
+    const getEffectiveRole = (userData: User | null): string | null => {
+        if (!userData) return null;
+        
+        // Check for role override cookie
+        const roleOverride = Cookies.get("x_role_override");
+        if (roleOverride) {
+            return roleOverride;
+        }
+        
+        // Fall back to user's primary role
+        return userData.role_info?.code || null;
+    };
+
+    useEffect(() => {
+        const initAuth = async () => {
+            const initialPath = typeof window !== "undefined" ? String(window.location.pathname || "").toLowerCase() : "";
+            if (initialPath === "/login" || initialPath.startsWith("/login/")) {
+                // Avoid intentional unauthenticated /me probes on the login page.
+                setLoading(false);
+                return;
+            }
+
+            await ensureCsrfToken();
+
+            try {
+                const { data } = await api.get("/api/users/me");
+                setUser(data);
+                
+                // Set effective role considering any override
+                const role = getEffectiveRole(data);
+                setEffectiveRole(role);
+            } catch {
+                setUser(null);
+                setEffectiveRole(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        initAuth();
+    }, []);
+
+    // Watch for role override changes
+    useEffect(() => {
+        if (user) {
+            const handleRoleOverrideChange = () => {
+                const role = getEffectiveRole(user);
+                setEffectiveRole(role);
+            };
+            
+            // Check for role override changes periodically
+            const interval = setInterval(handleRoleOverrideChange, 1000);
+            return () => clearInterval(interval);
+        }
+    }, [user]);
+
+    const getLandingPageForUser = (userData: User): string => {
+        // Use backend landing_page if available, but guard against legacy/non-existent paths.
+        const entitlementLanding = userData.entitlements?.landing_page;
+        if (entitlementLanding) {
+            const landing = entitlementLanding.startsWith("/") ? entitlementLanding : `/${entitlementLanding}`;
+
+            // Legacy aliases (older backend / UI used these).
+            if (landing === "/dashboard/owner") return "/dashboard/admin";
+            if (landing === "/dashboard/super-admin") return "/dashboard/admin";
+
+            // Only allow known top-level route families.
+            const isValidRoute = Object.values(ROLE_LANDING_PAGES).includes(landing);
+            if (isValidRoute) {
+                return landing;
+            }
+        }
+
+        // Use the effective role (considering override) for landing page
+        const role = effectiveRole || userData.role_info?.code;
+        return getLandingPage(role);
+    };
+
+    const login = (userData: User) => {
+        setUser(userData);
+        
+        // Set effective role from login
+        const role = getEffectiveRole(userData);
+        setEffectiveRole(role);
+
+        const landing = getLandingPageForUser(userData);
+        router.push(landing);
+    };
+
+    const logout = async () => {
+        try {
+            await systemUserService.logout();
+        } catch {
+            // Always clear local session even if server-side logout fails.
+        }
+        Cookies.remove("x_role_override"); // Also remove role override on logout
+        setUser(null);
+        setEffectiveRole(null);
+        router.replace("/login");
+    };
+
+    // Protected route logic can be added here or in middleware
+    useEffect(() => {
+        if (!loading && !user && pathname !== "/login") {
+            router.push("/login");
+        } else if (!loading && user && pathname === "/login") {
+            const landing = getLandingPageForUser(user);
+            router.push(landing);
+        }
+    }, [user, loading, pathname, router]);
+
+
+    return (
+        <AuthContext.Provider value={{ user, loading, effectiveRole, login, logout }}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error("useAuth must be used within an AuthProvider");
+    }
+    return context;
+}

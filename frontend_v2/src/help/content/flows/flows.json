@@ -1,0 +1,684 @@
+[
+  {
+    "id": "dashboard-decision-flow",
+    "title": {
+      "en": "Dashboard Response Flow",
+      "hi": "डैशबोर्ड प्रतिक्रिया प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Identify Alert Severity",
+          "hi": "अलर्ट गंभीरता पहचानें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Critical",
+              "hi": "गंभीर"
+            },
+            "nextId": "escalate"
+          },
+          {
+            "label": {
+              "en": "Operational",
+              "hi": "संचालनात्मक"
+            },
+            "nextId": "action"
+          }
+        ]
+      },
+      {
+        "id": "action",
+        "title": {
+          "en": "Execute Assigned Action",
+          "hi": "निर्धारित कार्रवाई करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Resolved",
+              "hi": "समाधान"
+            },
+            "resolution": {
+              "en": "Log closure notes and continue queue.",
+              "hi": "क्लोज़र नोट्स दर्ज करें और कतार जारी रखें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Blocked",
+              "hi": "अवरोधित"
+            },
+            "nextId": "escalate"
+          }
+        ]
+      },
+      {
+        "id": "escalate",
+        "title": {
+          "en": "Escalate with Evidence",
+          "hi": "प्रमाण सहित एस्केलेट करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Escalated",
+              "hi": "एस्केलेटेड"
+            },
+            "resolution": {
+              "en": "Share route, payload, and timestamp in escalation note.",
+              "hi": "एस्केलेशन नोट में route, payload और timestamp साझा करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "system-governance-flow",
+    "title": {
+      "en": "System Governance Flow",
+      "hi": "सिस्टम गवर्नेंस प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Validate policy scope",
+          "hi": "नीति स्कोप सत्यापित करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Valid",
+              "hi": "वैध"
+            },
+            "nextId": "approve"
+          },
+          {
+            "label": {
+              "en": "Invalid",
+              "hi": "अवैध"
+            },
+            "nextId": "reject"
+          }
+        ]
+      },
+      {
+        "id": "approve",
+        "title": {
+          "en": "Approve with notes",
+          "hi": "नोट्स के साथ अनुमोदन"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Done",
+              "hi": "पूर्ण"
+            },
+            "resolution": {
+              "en": "Revalidate role visibility and notify stakeholders.",
+              "hi": "रोल दृश्यता पुनः सत्यापित करें और हितधारकों को सूचित करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "reject",
+        "title": {
+          "en": "Reject with action items",
+          "hi": "कार्य बिंदुओं के साथ अस्वीकृत"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Returned",
+              "hi": "वापस किया"
+            },
+            "resolution": {
+              "en": "Return to requester with mandatory fixes.",
+              "hi": "अनिवार्य सुधारों सहित अनुरोधकर्ता को लौटाएँ।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "factory-config-flow",
+    "title": {
+      "en": "Factory Configuration Flow",
+      "hi": "फैक्टरी कॉन्फ़िगरेशन प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Check dependency chain",
+          "hi": "निर्भरता श्रृंखला जांचें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Dependencies ready",
+              "hi": "निर्भरता तैयार"
+            },
+            "nextId": "save"
+          },
+          {
+            "label": {
+              "en": "Missing masters",
+              "hi": "मास्टर अनुपलब्ध"
+            },
+            "resolution": {
+              "en": "Complete master setup before config save.",
+              "hi": "कॉन्फ़िग सेव से पहले मास्टर सेटअप पूरा करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "save",
+        "title": {
+          "en": "Save and verify mappings",
+          "hi": "सेव और मैपिंग सत्यापित"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Verified",
+              "hi": "सत्यापित"
+            },
+            "resolution": {
+              "en": "Run smoke check in downstream execution screen.",
+              "hi": "डाउनस्ट्रीम निष्पादन स्क्रीन में स्मोक चेक चलाएँ।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "master-data-flow",
+    "title": {
+      "en": "Master Data Change Flow",
+      "hi": "मास्टर डेटा परिवर्तन प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Draft change",
+          "hi": "ड्राफ्ट परिवर्तन"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Review needed",
+              "hi": "समीक्षा आवश्यक"
+            },
+            "nextId": "review"
+          },
+          {
+            "label": {
+              "en": "Urgent",
+              "hi": "तत्काल"
+            },
+            "nextId": "review"
+          }
+        ]
+      },
+      {
+        "id": "review",
+        "title": {
+          "en": "Validate downstream impact",
+          "hi": "डाउनस्ट्रीम प्रभाव सत्यापित"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Approve",
+              "hi": "अनुमोदित"
+            },
+            "resolution": {
+              "en": "Publish and communicate effective date.",
+              "hi": "प्रकाशित करें और प्रभावी तिथि संप्रेषित करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Reject",
+              "hi": "अस्वीकृत"
+            },
+            "resolution": {
+              "en": "Return with correction checklist.",
+              "hi": "सुधार चेकलिस्ट के साथ वापस करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "production-execution-flow",
+    "title": {
+      "en": "Production Execution Flow",
+      "hi": "उत्पादन निष्पादन प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Queue and assign",
+          "hi": "कतार और असाइन"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Assigned",
+              "hi": "असाइन"
+            },
+            "nextId": "run"
+          },
+          {
+            "label": {
+              "en": "Capacity issue",
+              "hi": "क्षमता समस्या"
+            },
+            "resolution": {
+              "en": "Re-plan or move to alternate center.",
+              "hi": "री-प्लान करें या वैकल्पिक केंद्र में स्थानांतरित करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "run",
+        "title": {
+          "en": "Execute and monitor",
+          "hi": "निष्पादन और मॉनिटर"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Completed",
+              "hi": "पूर्ण"
+            },
+            "resolution": {
+              "en": "Close job and verify roll/FG postings.",
+              "hi": "जॉब बंद करें और रोल/FG पोस्टिंग सत्यापित करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Variance",
+              "hi": "वैरिएंस"
+            },
+            "resolution": {
+              "en": "Capture reason and initiate approval.",
+              "hi": "कारण दर्ज करें और अनुमोदन प्रारंभ करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "analytics-decision-flow",
+    "title": {
+      "en": "Analytics Decision Flow",
+      "hi": "एनालिटिक्स निर्णय प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Identify variance",
+          "hi": "वैरिएंस पहचानें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Within threshold",
+              "hi": "सीमा के भीतर"
+            },
+            "resolution": {
+              "en": "Track trend, no immediate action required.",
+              "hi": "ट्रेंड ट्रैक करें, तत्काल कार्रवाई आवश्यक नहीं।"
+            }
+          },
+          {
+            "label": {
+              "en": "Outlier",
+              "hi": "आउटलायर"
+            },
+            "nextId": "investigate"
+          }
+        ]
+      },
+      {
+        "id": "investigate",
+        "title": {
+          "en": "Investigate root cause",
+          "hi": "मूल कारण जांच"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Actionable",
+              "hi": "कार्यान्वित"
+            },
+            "resolution": {
+              "en": "Create corrective task and owner assignment.",
+              "hi": "सुधारात्मक कार्य और मालिक असाइनमेंट बनाएं।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "inventory-action-flow",
+    "title": {
+      "en": "Inventory Action Flow",
+      "hi": "इन्वेंट्री कार्रवाई प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Scan stock state",
+          "hi": "स्टॉक स्थिति स्कैन"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Healthy",
+              "hi": "स्वस्थ"
+            },
+            "resolution": {
+              "en": "Continue monitoring and cycle counts.",
+              "hi": "निगरानी और साइकिल काउंट जारी रखें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Mismatch",
+              "hi": "मिसमैच"
+            },
+            "nextId": "reconcile"
+          }
+        ]
+      },
+      {
+        "id": "reconcile",
+        "title": {
+          "en": "Reconcile movement",
+          "hi": "मूवमेंट मिलान"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Reconciled",
+              "hi": "मिलान"
+            },
+            "resolution": {
+              "en": "Post adjustment with audit reason.",
+              "hi": "ऑडिट कारण के साथ समायोजन पोस्ट करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Not reconciled",
+              "hi": "मिलान नहीं"
+            },
+            "resolution": {
+              "en": "Escalate to store/admin control tower.",
+              "hi": "स्टोर/एडमिन कंट्रोल टॉवर को एस्केलेट करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dispatch-flow",
+    "title": {
+      "en": "Dispatch Readiness Flow",
+      "hi": "डिस्पैच तैयारी प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Check packing and compliance",
+          "hi": "पैकिंग और अनुपालन जांच"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Ready",
+              "hi": "तैयार"
+            },
+            "nextId": "dispatch"
+          },
+          {
+            "label": {
+              "en": "Pending docs",
+              "hi": "दस्तावेज़ लंबित"
+            },
+            "resolution": {
+              "en": "Hold dispatch and complete DC artifacts.",
+              "hi": "डिस्पैच रोकें और DC दस्तावेज पूरे करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "dispatch",
+        "title": {
+          "en": "Dispatch and handoff",
+          "hi": "डिस्पैच और हैंडऑफ"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Completed",
+              "hi": "पूर्ण"
+            },
+            "resolution": {
+              "en": "Capture transit proof and status update.",
+              "hi": "ट्रांजिट प्रमाण और स्थिति अपडेट दर्ज करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sales-order-flow",
+    "title": {
+      "en": "Sales Order Flow",
+      "hi": "सेल्स ऑर्डर प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Create and validate order",
+          "hi": "ऑर्डर बनाएँ और सत्यापित करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Valid",
+              "hi": "वैध"
+            },
+            "nextId": "release"
+          },
+          {
+            "label": {
+              "en": "Validation error",
+              "hi": "वैलिडेशन त्रुटि"
+            },
+            "resolution": {
+              "en": "Correct commercial or technical fields before save.",
+              "hi": "सेव से पहले वाणिज्यिक/तकनीकी फ़ील्ड सुधारें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "release",
+        "title": {
+          "en": "Release to planning",
+          "hi": "प्लानिंग हेतु रिलीज"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Released",
+              "hi": "रिलीज़"
+            },
+            "resolution": {
+              "en": "Track execution from order tracking page.",
+              "hi": "ऑर्डर ट्रैकिंग पेज से निष्पादन ट्रैक करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "engineering-approval-flow",
+    "title": {
+      "en": "Engineering Approval Flow",
+      "hi": "इंजीनियरिंग अनुमोदन प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Draft technical definition",
+          "hi": "तकनीकी परिभाषा ड्राफ्ट"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Ready for review",
+              "hi": "समीक्षा हेतु तैयार"
+            },
+            "nextId": "approve"
+          },
+          {
+            "label": {
+              "en": "Incomplete",
+              "hi": "अपूर्ण"
+            },
+            "resolution": {
+              "en": "Complete artwork/cylinder/routing dependencies.",
+              "hi": "आर्टवर्क/सिलेंडर/रूटिंग निर्भरताएँ पूरी करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "approve",
+        "title": {
+          "en": "Approve with signoff",
+          "hi": "साइनऑफ सहित अनुमोदन"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Approved",
+              "hi": "अनुमोदित"
+            },
+            "resolution": {
+              "en": "Publish template to operational teams.",
+              "hi": "टेम्पलेट को संचालन टीमों के लिए प्रकाशित करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "order-tracking-flow",
+    "title": {
+      "en": "Order Tracking Decision Flow",
+      "hi": "ऑर्डर ट्रैकिंग निर्णय प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Review lifecycle stage",
+          "hi": "लाइफसायकल चरण समीक्षा"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Production",
+              "hi": "उत्पादन"
+            },
+            "resolution": {
+              "en": "Focus active/completed jobs and variance events.",
+              "hi": "सक्रिय/पूर्ण जॉब और वैरिएंस इवेंट पर ध्यान दें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Dispatch",
+              "hi": "डिस्पैच"
+            },
+            "resolution": {
+              "en": "Review challans, transit links, and final proof.",
+              "hi": "चालान, ट्रांजिट लिंक और अंतिम प्रमाण की समीक्षा करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "profile-support-flow",
+    "title": {
+      "en": "Profile and Security Flow",
+      "hi": "प्रोफाइल और सुरक्षा प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Select profile update type",
+          "hi": "प्रोफाइल अपडेट प्रकार चुनें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Profile fields",
+              "hi": "प्रोफाइल फ़ील्ड"
+            },
+            "resolution": {
+              "en": "Submit and wait for admin approval.",
+              "hi": "सबमिट करें और एडमिन अनुमोदन की प्रतीक्षा करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Password",
+              "hi": "पासवर्ड"
+            },
+            "resolution": {
+              "en": "Use current password verification and update immediately.",
+              "hi": "वर्तमान पासवर्ड सत्यापन के साथ तुरंत अपडेट करें।"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

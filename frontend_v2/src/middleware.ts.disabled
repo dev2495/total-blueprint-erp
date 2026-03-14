@@ -1,0 +1,76 @@
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+// Role Constants (matching backend codes)
+const ROLES = {
+    OWNER: 'OWNER',
+    ADMIN: 'ADMIN',
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    SALES: 'SALES',
+    ENGINEERING: 'ENGINEERING',
+    PLANNER: 'PLANNER',
+    WCM: 'WORK_CENTER_MANAGER',
+    OPERATOR: 'OPERATOR',
+    STORE: 'STORE',
+    DISPATCH: 'DISPATCH',
+    FACTORY_ADMIN: 'FACTORY_ADMIN'
+}
+
+type Role = keyof typeof ROLES;
+
+// Path Permissions Configuration
+const PATH_PERMISSIONS: { [key: string]: string[] } = {
+    '/sales': [ROLES.SALES, ROLES.ADMIN, ROLES.OWNER, ROLES.DISPATCH],
+    '/engineering': [ROLES.ENGINEERING, ROLES.ADMIN, ROLES.OWNER],
+    '/factory': [ROLES.FACTORY_ADMIN, ROLES.ADMIN, ROLES.OWNER],
+    '/production': [ROLES.PLANNER, ROLES.WCM, ROLES.OPERATOR, ROLES.ADMIN, ROLES.OWNER],
+    '/inventory': [ROLES.STORE, ROLES.ADMIN, ROLES.OWNER, ROLES.PLANNER],
+    '/logistics': [ROLES.DISPATCH, ROLES.STORE, ROLES.ADMIN, ROLES.OWNER],
+    '/system': [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.OWNER],
+    // Dashboard routes
+    '/dashboard/owner': [ROLES.OWNER, ROLES.ADMIN],
+    '/dashboard/admin': [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.OWNER],
+    '/dashboard/sales': [ROLES.SALES, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/engineering': [ROLES.ENGINEERING, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/planner': [ROLES.PLANNER, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/work-center': [ROLES.WCM, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/store': [ROLES.STORE, ROLES.ADMIN, ROLES.OWNER],
+    '/dashboard/dispatch': [ROLES.DISPATCH, ROLES.ADMIN, ROLES.OWNER],
+}
+
+export function middleware(request: NextRequest) {
+    return NextResponse.next()
+}
+
+function getLandingPage(role: string): string {
+    switch (role) {
+        case 'OWNER':
+        case 'ADMIN':
+        case 'SUPER_ADMIN':
+            return '/dashboard/admin'
+        case 'SALES':
+            return '/dashboard/sales'
+        case 'PLANNER':
+            return '/dashboard/planner'
+        case 'WORK_CENTER_MANAGER':
+            return '/production/work-center'
+        case 'OPERATOR':
+            return '/production/operator'
+        case 'STORE':
+            return '/dashboard/inventory'
+        case 'DISPATCH':
+            return '/dashboard/logistics'
+        case 'ENGINEERING':
+            return '/dashboard/engineering'
+        case 'PLANT_MANAGER':
+            return '/analytics/kpis'
+        default:
+            return '/dashboard/admin'
+    }
+}
+
+export const config = {
+    matcher: [
+        '/((?!_next/static|_next/image|favicon.ico).*)',
+    ],
+}

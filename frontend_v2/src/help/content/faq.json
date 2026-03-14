@@ -1,0 +1,35 @@
+[
+  {
+    "id": "faq-access-control",
+    "question": {
+      "en": "Why is a page visible but an action disabled?",
+      "hi": "पेज दिख रहा है लेकिन कार्रवाई निष्क्रिय क्यों है?"
+    },
+    "answer": {
+      "en": "Page visibility and action permissions are controlled separately in role matrix + governance signoff.",
+      "hi": "पेज दृश्यता और कार्रवाई अनुमतियाँ role matrix और governance signoff में अलग नियंत्रित होती हैं।"
+    }
+  },
+  {
+    "id": "faq-data-refresh",
+    "question": {
+      "en": "How often should I refresh operational pages?",
+      "hi": "संचालन पेज कितनी बार रिफ्रेश करने चाहिए?"
+    },
+    "answer": {
+      "en": "Refresh before final submit, after status transitions, and when handoff ownership changes.",
+      "hi": "अंतिम सबमिट से पहले, स्थिति परिवर्तन के बाद, और हैंडऑफ बदलाव पर रिफ्रेश करें।"
+    }
+  },
+  {
+    "id": "faq-role-override",
+    "question": {
+      "en": "Can master roles emulate another role safely?",
+      "hi": "क्या मास्टर रोल सुरक्षित रूप से दूसरी भूमिका का अनुकरण कर सकते हैं?"
+    },
+    "answer": {
+      "en": "Yes. Use role switcher for verification only; execute high-risk updates under primary role governance.",
+      "hi": "हाँ। role switcher सत्यापन हेतु उपयोग करें; उच्च-जोखिम अपडेट प्राथमिक भूमिका गवर्नेंस के अंतर्गत करें।"
+    }
+  }
+]

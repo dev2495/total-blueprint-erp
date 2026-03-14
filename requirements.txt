@@ -1,0 +1,13 @@
+Django>=5.0
+djangorestframework
+django-cors-headers
+gunicorn
+psycopg2-binary
+djangorestframework-simplejwt
+python-dotenv
+reportlab
+celery
+redis
+boto3
+requests
+sentry-sdk
