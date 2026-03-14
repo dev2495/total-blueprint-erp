@@ -1090,11 +1090,19 @@ export default function PlannerControlTowerPage() {
                                                             .map((inv) => (
                                                                 <div key={inventoryKey(inv)} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
                                                                     <div>
-                                                                        <div className="font-bold text-slate-900">{inv.label}</div>
+                                                                        <div className="font-bold text-slate-900">{inv.display_name || inv.label}</div>
                                                                         <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                                                                            {inv.display_name && <span>{inv.label}</span>}
+                                                                            {inv.display_name && <span>·</span>}
                                                                             <span>Step {inv.completed_step_index}</span>
                                                                             <span>·</span>
                                                                             <span>{inv.signature_match_mode}</span>
+                                                                            {inv.process_state_label ? (
+                                                                                <>
+                                                                                    <span>·</span>
+                                                                                    <span>{inv.process_state_label}</span>
+                                                                                </>
+                                                                            ) : null}
                                                                             <Badge variant="outline" className="h-5 bg-white text-[10px] font-bold">
                                                                                 {stockStrategyLabel(inv.stock_strategy)}
                                                                             </Badge>

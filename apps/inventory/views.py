@@ -8,9 +8,11 @@ from django.db.models import Q
 from django.http import FileResponse
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 from decimal import Decimal
 from io import BytesIO
 import uuid
+from collections import defaultdict
 
 from .models import (
     InventoryLocation,
@@ -42,10 +44,303 @@ from .services.challan_pdf import ChallanPDFService
 from .services.roll_service import RollService
 from .services.bulk_service import BulkService
 from .services.packaging_service import PackagingService
+from .services.roll_naming import (
+    build_roll_naming_payload,
+    build_variant_key,
+    stock_strategy_label,
+)
 from apps.materials.models import InventoryMaterial
 from apps.production.models import ProductionJob
 from apps.factory.models import Process, Machine
 from django_filters.rest_framework import DjangoFilterBackend
+
+
+def _inventory_roll_base_queryset():
+    return InventoryRoll.objects.select_related(
+        'material',
+        'material__parent_family',
+        'material__commercial_family',
+        'material__parent_family__commercial_family',
+        'location',
+        'location__plant',
+        'grade',
+        'plant',
+        'template',
+        'template__commercial_family',
+        'created_process',
+        'created_by_job',
+        'created_by_job__mts_order',
+        'production_job',
+        'parent_roll__created_process',
+    )
+
+
+def _roll_query_rows(params):
+    plant_id = params.get('plant')
+    stage_filter = (params.get('stage') or '').strip().lower()
+    role_filter = (params.get('roll_role') or '').strip().upper()
+    origin_type_filter = (params.get('origin_type') or '').strip().upper()
+    stock_strategy_filter = (params.get('stock_strategy') or '').strip().upper()
+    status_filter = params.get('status')
+    material_id = params.get('material')
+    grade_id = params.get('grade')
+    location_id = params.get('location')
+    family_id = params.get('family')
+    job_number = (params.get('job_number') or '').strip()
+    date_from = parse_date(params.get('date_from')) if params.get('date_from') else None
+    date_to = parse_date(params.get('date_to')) if params.get('date_to') else None
+    weight_min = Decimal(str(params.get('weight_min'))) if params.get('weight_min') else None
+    weight_max = Decimal(str(params.get('weight_max'))) if params.get('weight_max') else None
+
+    qs = _inventory_roll_base_queryset()
+    if plant_id:
+        qs = qs.filter(location__plant_id=plant_id)
+    if material_id:
+        qs = qs.filter(material_id=material_id)
+    if grade_id:
+        qs = qs.filter(grade_id=grade_id)
+    if location_id:
+        qs = qs.filter(location_id=location_id)
+    if family_id:
+        qs = qs.filter(
+            Q(template__commercial_family_id=family_id)
+            | Q(material__commercial_family_id=family_id)
+            | Q(material__parent_family__commercial_family_id=family_id)
+        )
+    if status_filter:
+        statuses = [s.strip().upper() for s in status_filter.split(',') if s.strip()]
+        if statuses:
+            qs = qs.filter(status__in=statuses)
+    if job_number:
+        qs = qs.filter(
+            Q(created_by_job__job_number__icontains=job_number) |
+            Q(production_job__job_number__icontains=job_number)
+        )
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+    if weight_min is not None:
+        qs = qs.filter(weight_kg__gte=weight_min)
+    if weight_max is not None:
+        qs = qs.filter(weight_kg__lte=weight_max)
+
+    rows = []
+    for roll in qs.order_by('-created_at')[:2000]:
+        role = resolve_roll_role(roll)
+        stage_name = resolve_roll_stage_name(roll) or 'Raw Material'
+        bucket_label = 'Remainder / Freed' if role == 'REMAINDER' else stage_name
+        parent = getattr(roll, 'parent_roll', None)
+        source_stage = resolve_roll_stage_name(parent) if parent else None
+        naming = build_roll_naming_payload(roll, role=role, stage_name=stage_name)
+        row = {
+            'id': str(roll.id),
+            'label_id': roll.label_id,
+            'roll_role': role,
+            'origin_type': naming['origin_type'],
+            'origin_label': naming['origin_label'],
+            'stock_strategy': naming['stock_strategy'],
+            'stock_strategy_label': naming['stock_strategy_label'],
+            'family_display_name': naming['family_display_name'],
+            'display_name': naming['variant_display_name'],
+            'variant_display_name': naming['variant_display_name'],
+            'size_line': naming['size_line'],
+            'form_label': naming['form_label'],
+            'process_state_label': naming['process_state_label'],
+            'availability_label': naming['availability_label'],
+            'print_status': naming['print_status'],
+            'lamination_status': naming['lamination_status'],
+            'reporting_group': naming['reporting_group'],
+            'variant_summary': " • ".join(
+                part for part in [
+                    naming['size_line'],
+                    stage_name,
+                    roll.location.name if roll.location else '',
+                ] if str(part or '').strip()
+            ),
+            'consumability_mode': (
+                'Direct consume'
+                if naming['stock_strategy'] == 'FINAL_STOCK'
+                else ('Packaging only' if naming['stock_strategy'] == 'PACKAGING_STOCK' else 'Continue from WIP')
+            ),
+            'is_quarantined': bool((roll.meta_json or {}).get('is_quarantined')),
+            'status': roll.status,
+            'stage_name': stage_name,
+            'bucket_label': bucket_label,
+            'source_stage_name': source_stage,
+            'material_id': str(roll.material_id) if roll.material_id else None,
+            'material_name': roll.material.name if roll.material else None,
+            'grade_id': str(roll.grade_id) if roll.grade_id else None,
+            'grade_name': roll.grade.name if roll.grade else None,
+            'weight_kg': float(roll.weight_kg or 0),
+            'width_mm': float(roll.width_mm or 0),
+            'thickness_micron': float(roll.thickness_micron or 0),
+            'location_id': str(roll.location_id) if roll.location_id else None,
+            'location_name': roll.location.name if roll.location else None,
+            'plant_id': str(roll.location.plant_id) if roll.location_id and roll.location and roll.location.plant_id else (str(roll.plant_id) if roll.plant_id else None),
+            'plant_name': roll.location.plant.name if roll.location_id and roll.location and roll.location.plant else (roll.plant.name if roll.plant else None),
+            'created_job_id': str(roll.created_by_job_id) if roll.created_by_job_id else None,
+            'created_job_number': roll.created_by_job.job_number if roll.created_by_job else None,
+            'production_job_id': str(roll.production_job_id) if roll.production_job_id else None,
+            'production_job_number': roll.production_job.job_number if roll.production_job else None,
+            'created_at': roll.created_at.isoformat() if roll.created_at else None,
+        }
+        rows.append(row)
+
+    if stage_filter:
+        rows = [r for r in rows if r.get('bucket_label', '').lower() == stage_filter or r.get('stage_name', '').lower() == stage_filter]
+    if role_filter:
+        rows = [r for r in rows if str(r.get('roll_role') or '').upper() == role_filter]
+    if origin_type_filter:
+        rows = [r for r in rows if str(r.get('origin_type') or '').upper() == origin_type_filter]
+    if stock_strategy_filter:
+        rows = [r for r in rows if str(r.get('stock_strategy') or '').upper() == stock_strategy_filter]
+    return rows
+
+
+def _group_rows_by_bucket(rows):
+    buckets = {}
+    totals_rolls = 0
+    totals_weight = Decimal('0')
+    remainder_rolls = 0
+    remainder_weight = Decimal('0')
+    for row in rows:
+        key = row['bucket_label']
+        if key not in buckets:
+            buckets[key] = {
+                'key': key,
+                'label': key,
+                'roll_count': 0,
+                'weight_kg': 0.0,
+                'rolls': [],
+            }
+        buckets[key]['roll_count'] += 1
+        buckets[key]['weight_kg'] = round(float(Decimal(str(buckets[key]['weight_kg'])) + Decimal(str(row['weight_kg']))), 3)
+        buckets[key]['rolls'].append(row)
+        totals_rolls += 1
+        totals_weight += Decimal(str(row['weight_kg']))
+        if row.get('roll_role') == 'REMAINDER':
+            remainder_rolls += 1
+            remainder_weight += Decimal(str(row['weight_kg']))
+
+    bucket_rows = list(buckets.values())
+    bucket_rows.sort(key=lambda b: (b['label'] != 'Remainder / Freed', b['label']))
+    return {
+        'totals': {
+            'roll_count': totals_rolls,
+            'weight_kg': round(float(totals_weight), 3),
+            'remainder_roll_count': remainder_rolls,
+            'remainder_weight_kg': round(float(remainder_weight), 3),
+        },
+        'buckets': bucket_rows,
+    }
+
+
+def _group_rows_by_variant(rows):
+    family_map: dict[tuple, dict] = {}
+    for row in rows:
+        family_key = (
+            str(row.get('family_display_name') or '').strip(),
+            str(row.get('form_label') or '').strip(),
+            str(row.get('reporting_group') or '').strip(),
+        )
+        family_bucket = family_map.setdefault(
+            family_key,
+            {
+                'family_key': "|".join(family_key),
+                'family_display_name': row.get('family_display_name') or 'Material',
+                'form_label': row.get('form_label') or 'Roll',
+                'reporting_group': row.get('reporting_group') or 'OTHER',
+                'total_roll_count': 0,
+                'total_available_kg': 0.0,
+                'total_reserved_kg': 0.0,
+                'total_blocked_kg': 0.0,
+                'oldest_age_days': 0,
+                'variants': {},
+            },
+        )
+        family_bucket['total_roll_count'] += 1
+        if str(row.get('status') or '').upper() == 'AVAILABLE':
+            family_bucket['total_available_kg'] += float(row.get('weight_kg') or 0)
+        elif str(row.get('status') or '').upper() == 'RESERVED':
+            family_bucket['total_reserved_kg'] += float(row.get('weight_kg') or 0)
+        else:
+            family_bucket['total_blocked_kg'] += float(row.get('weight_kg') or 0)
+        age_days = 0
+        try:
+            from django.utils.dateparse import parse_datetime
+            created_at = parse_datetime(str(row.get('created_at') or '')) if row.get('created_at') else None
+            if created_at:
+                age_days = max((timezone.now().date() - created_at.date()).days, 0)
+        except Exception:
+            age_days = 0
+        family_bucket['oldest_age_days'] = max(family_bucket['oldest_age_days'], age_days)
+
+        variant_payload = dict(row)
+        variant_payload['blocked_kg'] = float(row.get('weight_kg') or 0) if str(row.get('status') or '').upper() not in {'AVAILABLE', 'RESERVED'} else 0.0
+        variant_key = build_variant_key(variant_payload)
+        variant_bucket = family_bucket['variants'].setdefault(
+            variant_key,
+            {
+                'variant_key': "|".join(str(bit) for bit in variant_key),
+                'variant_display_name': row.get('variant_display_name') or row.get('display_name') or 'Variant',
+                'size_line': row.get('size_line') or '',
+                'form_label': row.get('form_label') or 'Roll',
+                'stage_name': row.get('stage_name') or '',
+                'print_status': row.get('print_status') or '',
+                'lamination_status': row.get('lamination_status') or '',
+                'stock_strategy': row.get('stock_strategy') or '',
+                'stock_strategy_label': row.get('stock_strategy_label') or stock_strategy_label(row.get('stock_strategy')),
+                'roll_count': 0,
+                'available_kg': 0.0,
+                'reserved_kg': 0.0,
+                'blocked_kg': 0.0,
+                'oldest_age_days': 0,
+                'plants': defaultdict(lambda: {'plant_name': '', 'locations': set(), 'available_kg': 0.0, 'reserved_kg': 0.0, 'blocked_kg': 0.0}),
+                'rolls': [],
+            },
+        )
+        variant_bucket['roll_count'] += 1
+        weight = float(row.get('weight_kg') or 0)
+        status = str(row.get('status') or '').upper()
+        plant_key = str(row.get('plant_id') or row.get('plant_name') or '')
+        plant_bucket = variant_bucket['plants'][plant_key]
+        plant_bucket['plant_name'] = row.get('plant_name') or '-'
+        if row.get('location_name'):
+            plant_bucket['locations'].add(row.get('location_name'))
+        if status == 'AVAILABLE':
+            variant_bucket['available_kg'] += weight
+            plant_bucket['available_kg'] += weight
+        elif status == 'RESERVED':
+            variant_bucket['reserved_kg'] += weight
+            plant_bucket['reserved_kg'] += weight
+        else:
+            variant_bucket['blocked_kg'] += weight
+            plant_bucket['blocked_kg'] += weight
+        variant_bucket['oldest_age_days'] = max(variant_bucket['oldest_age_days'], age_days)
+        variant_bucket['rolls'].append(row)
+
+    families = []
+    for family_bucket in family_map.values():
+        variants = []
+        for variant_bucket in family_bucket['variants'].values():
+            variant_bucket['plant_summary'] = [
+                {
+                    'plant_name': plant['plant_name'],
+                    'locations': sorted(location for location in plant['locations'] if location),
+                    'available_kg': round(float(plant['available_kg']), 3),
+                    'reserved_kg': round(float(plant['reserved_kg']), 3),
+                    'blocked_kg': round(float(plant['blocked_kg']), 3),
+                }
+                for plant in variant_bucket['plants'].values()
+            ]
+            variant_bucket.pop('plants', None)
+            variants.append(variant_bucket)
+        variants.sort(key=lambda row: (row['variant_display_name'], row['stage_name'], row['stock_strategy']))
+        family_bucket['variants'] = variants
+        families.append(family_bucket)
+    families.sort(key=lambda row: (row['family_display_name'], row['reporting_group']))
+    return families
 
 class LocationViewSet(viewsets.ModelViewSet):
     queryset = InventoryLocation.objects.all()
@@ -947,212 +1242,71 @@ class RollViewSet(viewsets.ModelViewSet):
         """
         try:
             params = request.query_params
-            plant_id = params.get('plant')
-            stage_filter = (params.get('stage') or '').strip().lower()
-            role_filter = (params.get('roll_role') or '').strip().upper()
-            origin_type_filter = (params.get('origin_type') or '').strip().upper()
-            stock_strategy_filter = (params.get('stock_strategy') or '').strip().upper()
-            status_filter = params.get('status')
-            material_id = params.get('material')
-            grade_id = params.get('grade')
-            location_id = params.get('location')
-            job_number = (params.get('job_number') or '').strip()
-            date_from = parse_date(params.get('date_from')) if params.get('date_from') else None
-            date_to = parse_date(params.get('date_to')) if params.get('date_to') else None
-            weight_min = Decimal(str(params.get('weight_min'))) if params.get('weight_min') else None
-            weight_max = Decimal(str(params.get('weight_max'))) if params.get('weight_max') else None
             mode = (params.get('mode') or 'grouped').strip().lower()
-
-            qs = InventoryRoll.objects.select_related(
-                'material', 'location', 'grade', 'plant',
-                'material__parent_family',
-                'created_process', 'created_by_job', 'created_by_job__mts_order', 'production_job', 'parent_roll__created_process'
-            )
-            if plant_id:
-                qs = qs.filter(location__plant_id=plant_id)
-            if material_id:
-                qs = qs.filter(material_id=material_id)
-            if grade_id:
-                qs = qs.filter(grade_id=grade_id)
-            if location_id:
-                qs = qs.filter(location_id=location_id)
-            if status_filter:
-                statuses = [s.strip().upper() for s in status_filter.split(',') if s.strip()]
-                if statuses:
-                    qs = qs.filter(status__in=statuses)
-            if job_number:
-                qs = qs.filter(
-                    Q(created_by_job__job_number__icontains=job_number) |
-                    Q(production_job__job_number__icontains=job_number)
-                )
-            if date_from:
-                qs = qs.filter(created_at__date__gte=date_from)
-            if date_to:
-                qs = qs.filter(created_at__date__lte=date_to)
-            if weight_min is not None:
-                qs = qs.filter(weight_kg__gte=weight_min)
-            if weight_max is not None:
-                qs = qs.filter(weight_kg__lte=weight_max)
-
-            rows = []
-            for roll in qs.order_by('-created_at')[:2000]:
-                meta = roll.meta_json or {}
-                role = resolve_roll_role(roll)
-                stage_name = resolve_roll_stage_name(roll) or 'Raw Material'
-                bucket_label = 'Remainder / Freed' if role == 'REMAINDER' else stage_name
-
-                parent = getattr(roll, 'parent_roll', None)
-                source_stage = resolve_roll_stage_name(parent) if parent else None
-                material_name = roll.material.name if roll.material else None
-                family_name = getattr(getattr(roll.material, 'parent_family', None), 'name', '') if roll.material_id else ''
-                width_mm = float(roll.width_mm or 0)
-                thickness_micron = float(roll.thickness_micron or 0)
-                stock_strategy = str(
-                    meta.get('stock_strategy')
-                    or getattr(getattr(roll.created_by_job, 'mts_order', None), 'stock_strategy', '')
-                    or ('PACKAGING_STOCK' if str(getattr(roll.material, 'category', '') or '').upper() == 'PACKAGING' else '')
-                    or ('FINAL_STOCK' if bool(getattr(roll, 'is_fg', False)) else 'INTERMEDIATE_POOL')
-                ).upper()
-                if stock_strategy not in {'FINAL_STOCK', 'INTERMEDIATE_POOL', 'PACKAGING_STOCK'}:
-                    stock_strategy = 'FINAL_STOCK' if bool(getattr(roll, 'is_fg', False)) else 'INTERMEDIATE_POOL'
-                if role == 'REMAINDER':
-                    stock_strategy = 'INTERMEDIATE_POOL'
-
-                if str(meta.get('origin_type') or '').upper() in {'IN_HOUSE', 'PURCHASED', 'JOBWORK_RETURN', 'INTERPLANT_IN', 'REMAINDER'}:
-                    origin_type = str(meta.get('origin_type') or '').upper()
-                elif role == 'REMAINDER':
-                    origin_type = 'REMAINDER'
-                elif str(getattr(getattr(roll, 'created_by_job', None), 'source_type', '') or '').upper() == 'JOBWORK_RETURN':
-                    origin_type = 'JOBWORK_RETURN'
-                elif meta.get('interplant_challan_id') or meta.get('from_plant_id') or meta.get('received_from_challan'):
-                    origin_type = 'INTERPLANT_IN'
-                elif roll.created_by_job_id or roll.production_job_id:
-                    origin_type = 'IN_HOUSE'
-                elif str(roll.status or '').upper() == 'SENT_JOBWORK':
-                    origin_type = 'JOBWORK_RETURN'
-                else:
-                    origin_type = 'PURCHASED'
-
-                variant_bits = [family_name or material_name or 'Material']
-                if roll.grade and roll.grade.name:
-                    variant_bits.append(roll.grade.name)
-                display_name = " · ".join(bit for bit in variant_bits if str(bit or '').strip())
-                variant_summary = " • ".join(
-                    bit
-                    for bit in [
-                        f"{width_mm:.0f} mm" if width_mm else "",
-                        f"{thickness_micron:.0f} micron" if thickness_micron else "",
-                        stage_name,
-                        roll.location.name if roll.location else "",
-                    ]
-                    if bit
-                )
-                consumability_mode = (
-                    'Direct consume'
-                    if stock_strategy == 'FINAL_STOCK'
-                    else ('Packaging only' if stock_strategy == 'PACKAGING_STOCK' else 'Continue from WIP')
-                )
-
-                row = {
-                    'id': str(roll.id),
-                    'label_id': roll.label_id,
-                    'roll_role': role,
-                    'origin_type': origin_type,
-                    'stock_strategy': stock_strategy,
-                    'display_name': display_name,
-                    'variant_summary': variant_summary,
-                    'consumability_mode': consumability_mode,
-                    'is_quarantined': bool((roll.meta_json or {}).get('is_quarantined')),
-                    'status': roll.status,
-                    'stage_name': stage_name,
-                    'bucket_label': bucket_label,
-                    'source_stage_name': source_stage,
-                    'material_id': str(roll.material_id) if roll.material_id else None,
-                    'material_name': roll.material.name if roll.material else None,
-                    'grade_id': str(roll.grade_id) if roll.grade_id else None,
-                    'grade_name': roll.grade.name if roll.grade else None,
-                    'weight_kg': float(roll.weight_kg or 0),
-                    'width_mm': float(roll.width_mm or 0),
-                    'thickness_micron': float(roll.thickness_micron or 0),
-                    'location_id': str(roll.location_id) if roll.location_id else None,
-                    'location_name': roll.location.name if roll.location else None,
-                    'plant_id': str(roll.location.plant_id) if roll.location_id and roll.location and roll.location.plant_id else (str(roll.plant_id) if roll.plant_id else None),
-                    'plant_name': roll.location.plant.name if roll.location_id and roll.location and roll.location.plant else (roll.plant.name if roll.plant else None),
-                    'created_job_id': str(roll.created_by_job_id) if roll.created_by_job_id else None,
-                    'created_job_number': roll.created_by_job.job_number if roll.created_by_job else None,
-                    'production_job_id': str(roll.production_job_id) if roll.production_job_id else None,
-                    'production_job_number': roll.production_job.job_number if roll.production_job else None,
-                    'created_at': roll.created_at.isoformat() if roll.created_at else None,
-                }
-                rows.append(row)
-
-            if stage_filter:
-                rows = [r for r in rows if r.get('bucket_label', '').lower() == stage_filter or r.get('stage_name', '').lower() == stage_filter]
-            if role_filter:
-                rows = [r for r in rows if str(r.get('roll_role') or '').upper() == role_filter]
-            if origin_type_filter:
-                rows = [r for r in rows if str(r.get('origin_type') or '').upper() == origin_type_filter]
-            if stock_strategy_filter:
-                rows = [r for r in rows if str(r.get('stock_strategy') or '').upper() == stock_strategy_filter]
-
-            buckets = {}
-            totals_rolls = 0
-            totals_weight = Decimal('0')
-            remainder_rolls = 0
-            remainder_weight = Decimal('0')
-            for row in rows:
-                key = row['bucket_label']
-                if key not in buckets:
-                    buckets[key] = {
-                        'key': key,
-                        'label': key,
-                        'roll_count': 0,
-                        'weight_kg': 0.0,
-                        'rolls': [],
-                    }
-                buckets[key]['roll_count'] += 1
-                buckets[key]['weight_kg'] = round(float(Decimal(str(buckets[key]['weight_kg'])) + Decimal(str(row['weight_kg']))), 3)
-                buckets[key]['rolls'].append(row)
-                totals_rolls += 1
-                totals_weight += Decimal(str(row['weight_kg']))
-                if row.get('roll_role') == 'REMAINDER':
-                    remainder_rolls += 1
-                    remainder_weight += Decimal(str(row['weight_kg']))
-
-            bucket_rows = list(buckets.values())
-            bucket_rows.sort(key=lambda b: (b['label'] != 'Remainder / Freed', b['label']))
+            rows = _roll_query_rows(params)
+            grouped = _group_rows_by_bucket(rows)
 
             payload = {
                 'meta': {
                     'mode': mode,
                     'filters': {
-                        'plant': plant_id,
-                        'stage': stage_filter or None,
-                        'roll_role': role_filter or None,
-                        'origin_type': origin_type_filter or None,
-                        'stock_strategy': stock_strategy_filter or None,
-                        'status': status_filter,
-                        'material': material_id,
-                        'grade': grade_id,
-                        'location': location_id,
-                        'job_number': job_number or None,
+                        'plant': params.get('plant'),
+                        'stage': (params.get('stage') or '').strip().lower() or None,
+                        'roll_role': (params.get('roll_role') or '').strip().upper() or None,
+                        'origin_type': (params.get('origin_type') or '').strip().upper() or None,
+                        'stock_strategy': (params.get('stock_strategy') or '').strip().upper() or None,
+                        'status': params.get('status'),
+                        'material': params.get('material'),
+                        'grade': params.get('grade'),
+                        'location': params.get('location'),
+                        'family': params.get('family'),
+                        'job_number': (params.get('job_number') or '').strip() or None,
                         'date_from': params.get('date_from'),
                         'date_to': params.get('date_to'),
                         'weight_min': params.get('weight_min'),
                         'weight_max': params.get('weight_max'),
                     }
                 },
-                'totals': {
-                    'roll_count': totals_rolls,
-                    'weight_kg': round(float(totals_weight), 3),
-                    'remainder_roll_count': remainder_rolls,
-                    'remainder_weight_kg': round(float(remainder_weight), 3),
-                },
-                'buckets': bucket_rows,
+                'totals': grouped['totals'],
+                'buckets': grouped['buckets'],
                 'rows': rows if mode == 'table' else [],
             }
             return Response(payload)
         except Exception as e:
+            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='by-variant')
+    def by_variant(self, request):
+        """Variant-first stock view grouped as family -> variant -> rolls."""
+        try:
+            params = request.query_params
+            rows = _roll_query_rows(params)
+            grouped = _group_rows_by_bucket(rows)
+            payload = {
+                'meta': {
+                    'filters': {
+                        'plant': params.get('plant'),
+                        'stage': (params.get('stage') or '').strip().lower() or None,
+                        'roll_role': (params.get('roll_role') or '').strip().upper() or None,
+                        'origin_type': (params.get('origin_type') or '').strip().upper() or None,
+                        'stock_strategy': (params.get('stock_strategy') or '').strip().upper() or None,
+                        'status': params.get('status'),
+                        'material': params.get('material'),
+                        'grade': params.get('grade'),
+                        'location': params.get('location'),
+                        'family': params.get('family'),
+                        'job_number': (params.get('job_number') or '').strip() or None,
+                        'date_from': params.get('date_from'),
+                        'date_to': params.get('date_to'),
+                        'weight_min': params.get('weight_min'),
+                        'weight_max': params.get('weight_max'),
+                    }
+                },
+                'totals': grouped['totals'],
+                'families': _group_rows_by_variant(rows),
+            }
+            return Response(payload)
+        except Exception:
             return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
 
 

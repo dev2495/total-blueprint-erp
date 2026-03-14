@@ -124,8 +124,19 @@ export interface RollExplorerRow {
     label_id: string;
     roll_role?: string | null;
     origin_type?: "IN_HOUSE" | "PURCHASED" | "JOBWORK_RETURN" | "INTERPLANT_IN" | "REMAINDER" | string;
+    origin_label?: string | null;
     stock_strategy?: "FINAL_STOCK" | "INTERMEDIATE_POOL" | "PACKAGING_STOCK" | string;
+    stock_strategy_label?: string | null;
+    family_display_name?: string | null;
     display_name?: string | null;
+    variant_display_name?: string | null;
+    size_line?: string | null;
+    form_label?: string | null;
+    process_state_label?: string | null;
+    availability_label?: string | null;
+    print_status?: string | null;
+    lamination_status?: string | null;
+    reporting_group?: string | null;
     variant_summary?: string | null;
     consumability_mode?: string | null;
     is_quarantined?: boolean;
@@ -172,6 +183,54 @@ export interface RollExplorerResponse {
     };
     buckets: RollExplorerBucket[];
     rows: RollExplorerRow[];
+}
+
+export interface RollVariantPlantSummary {
+    plant_name: string;
+    locations: string[];
+    available_kg: number;
+    reserved_kg: number;
+    blocked_kg: number;
+}
+
+export interface RollExplorerVariant {
+    variant_key: string;
+    variant_display_name: string;
+    size_line: string;
+    form_label: string;
+    stage_name: string;
+    print_status: string;
+    lamination_status: string;
+    stock_strategy: string;
+    stock_strategy_label: string;
+    roll_count: number;
+    available_kg: number;
+    reserved_kg: number;
+    blocked_kg: number;
+    oldest_age_days: number;
+    plant_summary: RollVariantPlantSummary[];
+    rolls: RollExplorerRow[];
+}
+
+export interface RollExplorerFamily {
+    family_key: string;
+    family_display_name: string;
+    form_label: string;
+    reporting_group: string;
+    total_roll_count: number;
+    total_available_kg: number;
+    total_reserved_kg: number;
+    total_blocked_kg: number;
+    oldest_age_days: number;
+    variants: RollExplorerVariant[];
+}
+
+export interface RollByVariantResponse {
+    meta: {
+        filters: Record<string, string | null | undefined>;
+    };
+    totals: RollExplorerResponse["totals"];
+    families: RollExplorerFamily[];
 }
 
 // API Functions
@@ -224,6 +283,7 @@ export async function getRollExplorer(params?: {
     status?: string;
     material?: string;
     grade?: string;
+    family?: string;
     location?: string;
     job_number?: string;
     date_from?: string;
@@ -233,6 +293,27 @@ export async function getRollExplorer(params?: {
     mode?: 'grouped' | 'table';
 }): Promise<RollExplorerResponse> {
     const response = await api.get('/api/inventory/rolls/explorer/', { params });
+    return response.data;
+}
+
+export async function getRollsByVariant(params?: {
+    plant?: string;
+    stage?: string;
+    roll_role?: string;
+    origin_type?: string;
+    stock_strategy?: string;
+    status?: string;
+    material?: string;
+    grade?: string;
+    family?: string;
+    location?: string;
+    job_number?: string;
+    date_from?: string;
+    date_to?: string;
+    weight_min?: number;
+    weight_max?: number;
+}): Promise<RollByVariantResponse> {
+    const response = await api.get('/api/inventory/rolls/by-variant/', { params });
     return response.data;
 }
 
@@ -378,6 +459,7 @@ const rollsApi = {
     getGenealogyTree,
     getRollsByStage,
     getRollExplorer,
+    getRollsByVariant,
     moveRoll,
     reserveRolls,
     releaseRolls,

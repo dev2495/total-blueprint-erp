@@ -36,15 +36,19 @@ import { inventoryService } from "@/services/inventory";
 import {
     getGenealogyTree,
     getRollExplorer,
+    getRollsByVariant,
     moveRoll,
     quarantineRoll,
     releaseRolls,
     reserveRolls,
+    RollByVariantResponse,
+    RollExplorerFamily,
     RollExplorerRow,
     unquarantineRoll,
 } from "@/services/rolls";
+import { commercialFamilyService } from "@/services/commercial-families";
 
-type ExplorerMode = "grouped" | "table";
+type ExplorerMode = "variant" | "grouped" | "table";
 
 function toNumber(value: unknown, fallback = 0): number {
     const n = Number(value);
@@ -114,9 +118,10 @@ function stageBadgeLabel(row: RollExplorerRow): string {
 export default function RollExplorerPage() {
     const qc = useQueryClient();
 
-    const [mode, setMode] = useState<ExplorerMode>("grouped");
+    const [mode, setMode] = useState<ExplorerMode>("variant");
     const [search, setSearch] = useState("");
     const [plantId, setPlantId] = useState("ALL");
+    const [familyId, setFamilyId] = useState("ALL");
     const [stage, setStage] = useState("ALL");
     const [role, setRole] = useState("ALL");
     const [originType, setOriginType] = useState("ALL");
@@ -131,6 +136,8 @@ export default function RollExplorerPage() {
 
     const [selected, setSelected] = useState<RollExplorerRow | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
+    const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
 
     const [moveLocationId, setMoveLocationId] = useState("ALL");
     const [moveReason, setMoveReason] = useState("WIP_TRANSFER");
@@ -141,6 +148,10 @@ export default function RollExplorerPage() {
     const { data: plants = [] } = useQuery({
         queryKey: ["roll-explorer-plants"],
         queryFn: factoryService.getPlants,
+    });
+    const { data: commercialFamilies = [] } = useQuery({
+        queryKey: ["commercial-families"],
+        queryFn: commercialFamilyService.getAll,
     });
 
     const selectedPlantId = plantId !== "ALL" ? plantId : "";
@@ -157,11 +168,14 @@ export default function RollExplorerPage() {
         enabled: Boolean(detailPlantId),
     });
 
+    const groupedMode: "grouped" | "table" = mode === "table" ? "table" : "grouped";
+
     const explorerQuery = useQuery({
         queryKey: [
             "roll-explorer",
-            mode,
+            groupedMode,
             selectedPlantId,
+            familyId,
             stage,
             role,
             originType,
@@ -176,8 +190,9 @@ export default function RollExplorerPage() {
         ],
         queryFn: () =>
             getRollExplorer({
-                mode,
+                mode: groupedMode,
                 plant: selectedPlantId || undefined,
+                family: familyId !== "ALL" ? familyId : undefined,
                 stage: stage !== "ALL" ? stage : undefined,
                 roll_role: role !== "ALL" ? role : undefined,
                 origin_type: originType !== "ALL" ? originType : undefined,
@@ -190,8 +205,45 @@ export default function RollExplorerPage() {
                 weight_min: weightMin.trim() ? toNumber(weightMin, 0) : undefined,
                 weight_max: weightMax.trim() ? toNumber(weightMax, 0) : undefined,
             }),
+        enabled: mode !== "variant",
         refetchInterval: 10000,
     });
+    const variantQuery = useQuery<RollByVariantResponse>({
+        queryKey: [
+            "roll-explorer-by-variant",
+            selectedPlantId,
+            familyId,
+            stage,
+            role,
+            originType,
+            stockStrategy,
+            status,
+            locationId,
+            jobNumber,
+            dateFrom,
+            dateTo,
+            weightMin,
+            weightMax,
+        ],
+        queryFn: () =>
+            getRollsByVariant({
+                plant: selectedPlantId || undefined,
+                family: familyId !== "ALL" ? familyId : undefined,
+                stage: stage !== "ALL" ? stage : undefined,
+                roll_role: role !== "ALL" ? role : undefined,
+                origin_type: originType !== "ALL" ? originType : undefined,
+                stock_strategy: stockStrategy !== "ALL" ? stockStrategy : undefined,
+                status: status !== "ALL" ? status : undefined,
+                location: locationId !== "ALL" ? locationId : undefined,
+                job_number: jobNumber.trim() || undefined,
+                date_from: dateFrom || undefined,
+                date_to: dateTo || undefined,
+                weight_min: weightMin.trim() ? toNumber(weightMin, 0) : undefined,
+                weight_max: weightMax.trim() ? toNumber(weightMax, 0) : undefined,
+            }),
+        enabled: mode === "variant",
+        refetchInterval: 10000,
+    })
 
     const { data: genealogy, isLoading: genealogyLoading } = useQuery({
         queryKey: ["roll-explorer-genealogy", selected?.id],
@@ -242,7 +294,118 @@ export default function RollExplorerPage() {
         return Array.from(filtered.values()).sort((a, b) => (a.label === "Remainder / Freed" ? -1 : b.label === "Remainder / Freed" ? 1 : a.label.localeCompare(b.label)));
     }, [explorerQuery.data, rows, search]);
 
-    const totals = explorerQuery.data?.totals || {
+    const variantFamilies = useMemo(() => {
+        const base = variantQuery.data?.families || []
+        if (!search.trim()) return base
+        const q = search.trim().toLowerCase()
+
+        const rollMatches = (row: RollExplorerRow) => [
+            row.label_id,
+            row.family_display_name,
+            row.variant_display_name,
+            row.size_line,
+            row.stage_name,
+            row.location_name,
+            row.plant_name,
+            row.origin_label,
+            row.stock_strategy_label,
+            row.material_name,
+        ]
+            .map((value) => String(value || "").toLowerCase())
+            .join(" ")
+            .includes(q)
+
+        return base
+            .map((family) => {
+                const familyMatches = [
+                    family.family_display_name,
+                    family.form_label,
+                    family.reporting_group,
+                ]
+                    .map((value) => String(value || "").toLowerCase())
+                    .join(" ")
+                    .includes(q)
+
+                const variants = family.variants
+                    .map((variant) => {
+                        const variantMatches = [
+                            variant.variant_display_name,
+                            variant.size_line,
+                            variant.stage_name,
+                            variant.stock_strategy_label,
+                            variant.print_status,
+                            variant.lamination_status,
+                        ]
+                            .map((value) => String(value || "").toLowerCase())
+                            .join(" ")
+                            .includes(q)
+
+                        const matchingRolls = familyMatches || variantMatches
+                            ? variant.rolls
+                            : variant.rolls.filter(rollMatches)
+                        if (!matchingRolls.length) return null
+
+                        const availableKg = matchingRolls
+                            .filter((row) => String(row.status || "").toUpperCase() === "AVAILABLE")
+                            .reduce((sum, row) => sum + toNumber(row.weight_kg, 0), 0)
+                        const reservedKg = matchingRolls
+                            .filter((row) => String(row.status || "").toUpperCase() === "RESERVED")
+                            .reduce((sum, row) => sum + toNumber(row.weight_kg, 0), 0)
+                        const blockedKg = matchingRolls
+                            .filter((row) => !["AVAILABLE", "RESERVED"].includes(String(row.status || "").toUpperCase()))
+                            .reduce((sum, row) => sum + toNumber(row.weight_kg, 0), 0)
+
+                        const plantMap = new Map<string, { plant_name: string; locations: Set<string>; available_kg: number; reserved_kg: number; blocked_kg: number }>()
+                        for (const row of matchingRolls) {
+                            const plantKey = row.plant_id || row.plant_name || "UNKNOWN"
+                            const plant = plantMap.get(plantKey) || {
+                                plant_name: row.plant_name || "-",
+                                locations: new Set<string>(),
+                                available_kg: 0,
+                                reserved_kg: 0,
+                                blocked_kg: 0,
+                            }
+                            if (row.location_name) plant.locations.add(row.location_name)
+                            const rowStatus = String(row.status || "").toUpperCase()
+                            if (rowStatus === "AVAILABLE") plant.available_kg += toNumber(row.weight_kg, 0)
+                            else if (rowStatus === "RESERVED") plant.reserved_kg += toNumber(row.weight_kg, 0)
+                            else plant.blocked_kg += toNumber(row.weight_kg, 0)
+                            plantMap.set(plantKey, plant)
+                        }
+
+                        return {
+                            ...variant,
+                            roll_count: matchingRolls.length,
+                            available_kg: availableKg,
+                            reserved_kg: reservedKg,
+                            blocked_kg: blockedKg,
+                            plant_summary: Array.from(plantMap.values()).map((plant) => ({
+                                plant_name: plant.plant_name,
+                                locations: Array.from(plant.locations).sort(),
+                                available_kg: plant.available_kg,
+                                reserved_kg: plant.reserved_kg,
+                                blocked_kg: plant.blocked_kg,
+                            })),
+                            rolls: matchingRolls,
+                        }
+                    })
+                    .filter(Boolean) as RollExplorerFamily["variants"]
+
+                if (!variants.length) return null
+                return {
+                    ...family,
+                    total_roll_count: variants.reduce((sum, variant) => sum + variant.roll_count, 0),
+                    total_available_kg: variants.reduce((sum, variant) => sum + variant.available_kg, 0),
+                    total_reserved_kg: variants.reduce((sum, variant) => sum + variant.reserved_kg, 0),
+                    total_blocked_kg: variants.reduce((sum, variant) => sum + variant.blocked_kg, 0),
+                    oldest_age_days: variants.reduce((max, variant) => Math.max(max, variant.oldest_age_days), 0),
+                    variants,
+                }
+            })
+            .filter(Boolean) as RollExplorerFamily[]
+    }, [search, variantQuery.data])
+
+    const totals = (mode === "variant" ? variantQuery.data?.totals : explorerQuery.data?.totals) || {
         roll_count: 0,
         weight_kg: 0,
         remainder_roll_count: 0,
@@ -252,6 +415,7 @@ export default function RollExplorerPage() {
     const refresh = async () => {
         await Promise.all([
             qc.invalidateQueries({ queryKey: ["roll-explorer"] }),
+            qc.invalidateQueries({ queryKey: ["roll-explorer-by-variant"] }),
             qc.invalidateQueries({ queryKey: ["roll-explorer-genealogy"] }),
         ]);
     };
@@ -331,6 +495,8 @@ export default function RollExplorerPage() {
     const canRelease = Boolean(selected && String(selected.status || "").toUpperCase() === "RESERVED");
     const canQuarantine = Boolean(selected && !selected.is_quarantined);
     const canUnquarantine = Boolean(selected && selected.is_quarantined);
+    const isLoadingData = mode === "variant" ? variantQuery.isLoading : explorerQuery.isLoading
+    const dataError = mode === "variant" ? variantQuery.error : explorerQuery.error
 
     return (
         <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
@@ -347,7 +513,8 @@ export default function RollExplorerPage() {
                 <div className="flex items-center gap-3">
                     <Tabs value={mode} onValueChange={(v) => setMode(v as ExplorerMode)} className="bg-white rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-slate-200">
                         <TabsList className="bg-transparent border-0 h-10 p-1">
-                            <TabsTrigger value="grouped" className="rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 transition-all duration-300 font-semibold tracking-tight"><ListFilter className="h-4 w-4 mr-2" strokeWidth={2.5} />Grouped</TabsTrigger>
+                            <TabsTrigger value="variant" className="rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 transition-all duration-300 font-semibold tracking-tight"><Layers className="h-4 w-4 mr-2" strokeWidth={2.5} />By Variant</TabsTrigger>
+                            <TabsTrigger value="grouped" className="rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 transition-all duration-300 font-semibold tracking-tight"><ListFilter className="h-4 w-4 mr-2" strokeWidth={2.5} />By Stage</TabsTrigger>
                             <TabsTrigger value="table" className="rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 transition-all duration-300 font-semibold tracking-tight"><TableProperties className="h-4 w-4 mr-2" strokeWidth={2.5} />Table</TabsTrigger>
                         </TabsList>
                     </Tabs>
@@ -361,7 +528,7 @@ export default function RollExplorerPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><PieChart className="w-4 h-4" /> Queried Rolls</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><PieChart className="w-4 h-4" /> Rolls In View</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-4xl font-black tracking-tighter text-slate-900">{totals.roll_count}</div>
@@ -369,7 +536,7 @@ export default function RollExplorerPage() {
                 </Card>
                 <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><Layers className="w-4 h-4" /> Global Mass</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><Layers className="w-4 h-4" /> Total KG</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-4xl font-black tracking-tighter text-slate-900 flex items-baseline gap-1.5">{toNumber(totals.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold tracking-wide text-slate-400">kg</span></div>
@@ -377,7 +544,7 @@ export default function RollExplorerPage() {
                 </Card>
                 <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden border-b-4 border-b-amber-400 group hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2"><Split className="w-4 h-4" /> Freed Remainders</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2"><Split className="w-4 h-4" /> Free Remainders</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-4xl font-black tracking-tighter text-slate-900">{totals.remainder_roll_count}</div>
@@ -385,7 +552,7 @@ export default function RollExplorerPage() {
                 </Card>
                 <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden border-b-4 border-b-amber-400 group hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2"><Tag className="w-4 h-4" /> Remainder Volume</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2"><Tag className="w-4 h-4" /> Remainder KG</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-4xl font-black tracking-tighter text-slate-900 flex items-baseline gap-1.5">{toNumber(totals.remainder_weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold tracking-wide text-amber-600/50">kg</span></div>
@@ -416,7 +583,7 @@ export default function RollExplorerPage() {
                     variant={stockStrategy === "FINAL_STOCK" ? "default" : "outline"}
                     onClick={() => setStockStrategy((current) => current === "FINAL_STOCK" ? "ALL" : "FINAL_STOCK")}
                 >
-                    Available FG
+                    Final stock
                 </Button>
                 <Button
                     type="button"
@@ -425,6 +592,22 @@ export default function RollExplorerPage() {
                     onClick={() => setOriginType((current) => current === "PURCHASED" ? "ALL" : "PURCHASED")}
                 >
                     External inbound
+                </Button>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant={stage === "Printed" ? "default" : "outline"}
+                    onClick={() => setStage((current) => current === "Printed" ? "ALL" : "Printed")}
+                >
+                    Printed
+                </Button>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant={stage === "Laminated" ? "default" : "outline"}
+                    onClick={() => setStage((current) => current === "Laminated" ? "ALL" : "Laminated")}
+                >
+                    Laminated
                 </Button>
                 <Button
                     type="button"
@@ -438,25 +621,39 @@ export default function RollExplorerPage() {
 
             <Card className="border-0 shadow-sm bg-white rounded-2xl overflow-hidden ring-1 ring-slate-100">
                 <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
-                    <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"><ListFilter className="w-4 h-4 text-emerald-500" strokeWidth={2.5} /> Telemetry Constraints</CardTitle>
+                    <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"><ListFilter className="w-4 h-4 text-emerald-500" strokeWidth={2.5} /> Stock Filters</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
                         <div className="xl:col-span-2">
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Query Pattern</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Search</Label>
                             <div className="relative mt-1.5">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input className="pl-9 bg-slate-50/50 border-slate-200 shadow-none font-medium text-slate-900 focus-visible:ring-indigo-500" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Label, job, or material..." />
+                                <Input className="pl-9 bg-slate-50/50 border-slate-200 shadow-none font-medium text-slate-900 focus-visible:ring-indigo-500" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Family, size, roll, job, or location..." />
                             </div>
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Plant Focus</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Plant</Label>
                             <div className="mt-1.5">
                                 <Select value={plantId} onValueChange={(v) => { setPlantId(v); setLocationId("ALL"); }}>
                                     <SelectTrigger className="bg-slate-50/50 border-slate-200 font-medium shadow-none focus:ring-indigo-500"><SelectValue placeholder="Global" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="ALL">Global Sector</SelectItem>
                                         {plants.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Business Family</Label>
+                            <div className="mt-1.5">
+                                <Select value={familyId} onValueChange={setFamilyId}>
+                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 font-medium shadow-none focus:ring-indigo-500"><SelectValue placeholder="All families" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ALL">All families</SelectItem>
+                                        {commercialFamilies.map((family) => (
+                                            <SelectItem key={family.id} value={family.id}>{family.name}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -476,7 +673,7 @@ export default function RollExplorerPage() {
                             </div>
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Node Stage</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Stage</Label>
                             <div className="mt-1.5">
                                 <Select value={stage} onValueChange={setStage}>
                                     <SelectTrigger className="bg-slate-50/50 border-slate-200 font-medium shadow-none focus:ring-indigo-500"><SelectValue placeholder="All Stages" /></SelectTrigger>
@@ -498,7 +695,7 @@ export default function RollExplorerPage() {
                             </div>
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Archetype</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Roll Type</Label>
                             <div className="mt-1.5">
                                 <Select value={role} onValueChange={setRole}>
                                     <SelectTrigger className="bg-slate-50/50 border-slate-200 font-medium shadow-none focus:ring-indigo-500"><SelectValue placeholder="All Archetypes" /></SelectTrigger>
@@ -532,7 +729,7 @@ export default function RollExplorerPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 border-t border-slate-100 pt-4">
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Consumption</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Stock Strategy</Label>
                             <div className="mt-1.5">
                                 <Select value={stockStrategy} onValueChange={setStockStrategy}>
                                     <SelectTrigger className="bg-slate-50/50 border-slate-200 font-medium shadow-none focus:ring-indigo-500"><SelectValue placeholder="All strategies" /></SelectTrigger>
@@ -546,7 +743,7 @@ export default function RollExplorerPage() {
                             </div>
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Network State</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Stock Status</Label>
                             <div className="mt-1.5">
                                 <Select value={status} onValueChange={setStatus}>
                                     <SelectTrigger className="bg-white border-blue-200 font-bold text-blue-800 shadow-sm focus:ring-indigo-500 ring-2 ring-transparent transition-all"><SelectValue placeholder="Status Mode" /></SelectTrigger>
@@ -561,29 +758,30 @@ export default function RollExplorerPage() {
                             </div>
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Job Trace ID</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Job Number</Label>
                             <Input className="mt-1.5 bg-slate-50/50 border-slate-200 font-mono text-sm" value={jobNumber} onChange={(e) => setJobNumber(e.target.value)} placeholder="JOB-XXXX..." />
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Date Matrix Form</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">From Date</Label>
                             <Input type="date" className="mt-1.5 bg-slate-50/50 border-slate-200 text-slate-600 font-medium font-mono text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Date Matrix Till</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">To Date</Label>
                             <Input type="date" className="mt-1.5 bg-slate-50/50 border-slate-200 text-slate-600 font-medium font-mono text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Min Mass (kg)</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Min KG</Label>
                             <Input className="mt-1.5 bg-slate-50/50 border-slate-200 font-mono font-medium text-sm" value={weightMin} onChange={(e) => setWeightMin(e.target.value)} placeholder="0.00" />
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Max Mass (kg)</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Max KG</Label>
                             <Input className="mt-1.5 bg-slate-50/50 border-slate-200 font-mono font-medium text-sm" value={weightMax} onChange={(e) => setWeightMax(e.target.value)} placeholder="Infinity" />
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
                         {[
                             plantId !== "ALL" ? `Plant: ${plants.find((row: any) => String(row.id) === plantId)?.name || plantId}` : null,
+                            familyId !== "ALL" ? `Family: ${commercialFamilies.find((row) => String(row.id) === familyId)?.name || familyId}` : null,
                             stage !== "ALL" ? `Stage: ${stage}` : null,
                             role !== "ALL" ? `Role: ${role}` : null,
                             originType !== "ALL" ? `Origin: ${originLabel(originType)}` : null,
@@ -600,6 +798,7 @@ export default function RollExplorerPage() {
                             className="ml-auto"
                             onClick={() => {
                                 setPlantId("ALL");
+                                setFamilyId("ALL");
                                 setStage("ALL");
                                 setRole("ALL");
                                 setOriginType("ALL");
@@ -620,9 +819,9 @@ export default function RollExplorerPage() {
                 </CardContent>
             </Card>
 
-            {explorerQuery.isLoading ? (
+            {isLoadingData ? (
                 <Card><CardContent className="p-10 text-center text-slate-500">Loading roll explorer...</CardContent></Card>
-            ) : explorerQuery.error ? (
+            ) : dataError ? (
                 <Card className="border-red-200">
                     <CardContent className="p-6 text-red-600 flex items-start gap-3">
                         <AlertCircle className="h-5 w-5 mt-0.5" />
@@ -632,6 +831,150 @@ export default function RollExplorerPage() {
                         </div>
                     </CardContent>
                 </Card>
+            ) : mode === "variant" ? (
+                <div className="space-y-4">
+                    {variantFamilies.length === 0 ? (
+                        <Card><CardContent className="p-8 text-center text-slate-500">No stock families found for current filters.</CardContent></Card>
+                    ) : (
+                        <>
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                {variantFamilies.map((family) => (
+                                    <Card key={`${family.family_key}-summary`} className="border-slate-200 shadow-sm">
+                                        <CardContent className="space-y-3 p-5">
+                                            <div>
+                                                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">{family.reporting_group || "Stock Family"}</div>
+                                                <div className="mt-1 text-lg font-black tracking-tight text-slate-900">{family.family_display_name}</div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                                <div className="rounded-xl bg-slate-50 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Variants</div>
+                                                    <div className="mt-1 text-xl font-black text-slate-900">{family.variants.length}</div>
+                                                </div>
+                                                <div className="rounded-xl bg-slate-50 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Rolls</div>
+                                                    <div className="mt-1 text-xl font-black text-slate-900">{family.total_roll_count}</div>
+                                                </div>
+                                                <div className="rounded-xl bg-emerald-50 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600">Available</div>
+                                                    <div className="mt-1 text-xl font-black text-emerald-700">{family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg</div>
+                                                </div>
+                                                <div className="rounded-xl bg-amber-50 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-600">Reserved</div>
+                                                    <div className="mt-1 text-xl font-black text-amber-700">{family.total_reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg</div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+
+                            {variantFamilies.map((family) => {
+                                const familyOpen = expandedFamilies[family.family_key] ?? true
+                                return (
+                                    <Card key={family.family_key} className="overflow-hidden border-slate-200 shadow-sm">
+                                        <CardHeader className="border-b border-slate-100 bg-white py-4">
+                                            <button
+                                                type="button"
+                                                className="flex w-full items-center justify-between gap-3 text-left"
+                                                onClick={() => setExpandedFamilies((current) => ({ ...current, [family.family_key]: !familyOpen }))}
+                                            >
+                                                <div className="min-w-0">
+                                                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">{family.reporting_group || "Stock Family"}</div>
+                                                    <CardTitle className="mt-1 text-xl font-black tracking-tight text-slate-900">{family.family_display_name}</CardTitle>
+                                                    <p className="mt-1 text-sm text-slate-500">
+                                                        {family.variants.length} variant sizes · {family.total_roll_count} rolls · {family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg available
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">{family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg available</Badge>
+                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">{family.total_reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg reserved</Badge>
+                                                    {familyOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                                                </div>
+                                            </button>
+                                        </CardHeader>
+                                        {familyOpen ? (
+                                            <CardContent className="space-y-3 p-4">
+                                                {family.variants.map((variant) => {
+                                                    const variantOpen = expandedVariants[variant.variant_key] ?? false
+                                                    return (
+                                                        <div key={variant.variant_key} className="rounded-2xl border border-slate-200 bg-slate-50/50">
+                                                            <button
+                                                                type="button"
+                                                                className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
+                                                                onClick={() => setExpandedVariants((current) => ({ ...current, [variant.variant_key]: !variantOpen }))}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <div className="font-bold text-slate-900">{variant.variant_display_name}</div>
+                                                                    <div className="mt-1 text-sm text-slate-600">{variant.size_line || "Size not set"} · {variant.stage_name} · {variant.stock_strategy_label}</div>
+                                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                                        <Badge variant="outline" className="bg-white">{variant.print_status}</Badge>
+                                                                        <Badge variant="outline" className="bg-white">{variant.lamination_status}</Badge>
+                                                                        <Badge variant="outline" className={toneForStockStrategy(variant.stock_strategy)}>{variant.stock_strategy_label}</Badge>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="min-w-[320px] shrink-0">
+                                                                    <div className="grid grid-cols-4 gap-2 text-center">
+                                                                        <div className="rounded-xl bg-white p-3">
+                                                                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Rolls</div>
+                                                                            <div className="mt-1 text-lg font-black text-slate-900">{variant.roll_count}</div>
+                                                                        </div>
+                                                                        <div className="rounded-xl bg-emerald-50 p-3">
+                                                                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600">Available</div>
+                                                                            <div className="mt-1 text-lg font-black text-emerald-700">{variant.available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+                                                                        </div>
+                                                                        <div className="rounded-xl bg-amber-50 p-3">
+                                                                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-600">Reserved</div>
+                                                                            <div className="mt-1 text-lg font-black text-amber-700">{variant.reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+                                                                        </div>
+                                                                        <div className="rounded-xl bg-rose-50 p-3">
+                                                                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-rose-600">Blocked</div>
+                                                                            <div className="mt-1 text-lg font-black text-rose-700">{variant.blocked_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="mt-2 text-xs text-slate-500">
+                                                                        {variant.plant_summary.map((plant) => `${plant.plant_name}: ${plant.locations.join(", ") || "No location"}`).join(" • ") || "No plant/location summary"}
+                                                                    </div>
+                                                                </div>
+                                                            </button>
+                                                            {variantOpen ? (
+                                                                <div className="border-t border-slate-200 bg-white px-4 py-3">
+                                                                    <div className="grid gap-2">
+                                                                        {variant.rolls.map((row) => (
+                                                                            <button
+                                                                                key={row.id}
+                                                                                type="button"
+                                                                                className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left hover:bg-slate-50"
+                                                                                onClick={() => {
+                                                                                    setSelected(row)
+                                                                                    setMoveLocationId("ALL")
+                                                                                    setDrawerOpen(true)
+                                                                                }}
+                                                                            >
+                                                                                <div className="min-w-0">
+                                                                                    <div className="font-bold text-slate-900">{row.label_id}</div>
+                                                                                    <div className="mt-1 text-xs text-slate-500">{row.location_name || "No location"} · {row.plant_name || "No plant"} · {row.process_state_label || row.stage_name}</div>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <Badge variant="outline" className={`${toneForStatus(row.status)} shadow-sm`}>{row.status}</Badge>
+                                                                                    <Badge variant="outline" className={`${toneForOrigin(row.origin_type)} shadow-sm`}>{row.origin_label || originLabel(row.origin_type)}</Badge>
+                                                                                    <div className="font-mono text-sm font-black text-slate-900">{toNumber(row.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} kg</div>
+                                                                                </div>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ) : null}
+                                                        </div>
+                                                    )
+                                                })}
+                                            </CardContent>
+                                        ) : null}
+                                    </Card>
+                                )
+                            })}
+                        </>
+                    )}
+                </div>
             ) : mode === "grouped" ? (
                 <div className="space-y-3">
                     {groupedBuckets.length === 0 ? (

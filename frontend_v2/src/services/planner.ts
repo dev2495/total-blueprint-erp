@@ -70,6 +70,10 @@ export interface PlannerInventoryOption {
     inventory_type: 'ROLL' | 'FG_BATCH';
     inventory_id: string;
     label: string;
+    display_name?: string;
+    family_display_name?: string;
+    size_line?: string;
+    process_state_label?: string;
     completed_step_index: number;
     quantity_kg: number;
     allocated_qty_kg: number;

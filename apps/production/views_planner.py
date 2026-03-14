@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from apps.factory.models import WorkCenter
 from apps.inventory.models import InventoryRoll
+from apps.inventory.serializers import resolve_roll_role
 from apps.physics.geometry_override import (
     normalize_geometry_override,
     sanitize_geometry_override,
@@ -35,6 +36,7 @@ from apps.materials.models import InventoryMaterial
 from apps.templates.models import TemplateBlueprint
 
 from apps.physics.services_physics import PhysicsEngine
+from apps.inventory.services.roll_naming import build_roll_naming_payload
 from .models import FinishedGoodsBatch, InventoryAllocation, PlannedStockOrder, ProductionJob, JobExecutionLog
 from .serializers import ProductionJobSerializer
 from .services.job_services import JobService
@@ -583,6 +585,19 @@ class PlannerViewSet(viewsets.ViewSet):
     def _route_last_index(self, template) -> int:
         ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
         return max(0, len(ordered) - 1)
+
+    def _route_step_label(self, template, step_index: int) -> str:
+        ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
+        try:
+            index = int(step_index or 0)
+        except Exception:
+            index = 0
+        if 0 <= index < len(ordered):
+            step = ordered[index]
+            process_name = getattr(getattr(step, "process", None), "name", "") or getattr(step, "name", "")
+            if str(process_name or "").strip():
+                return str(process_name).strip()
+        return "Raw Material" if index <= 0 else f"Step {index}"
 
     def _default_stock_strategy(self, *, template=None, stock_purpose="PRODUCT", stop_step_index=None):
         stock_purpose = str(stock_purpose or "PRODUCT").upper()
@@ -1305,6 +1320,8 @@ class PlannerViewSet(viewsets.ViewSet):
             inv_inv_sig = self._roll_invariant_signature(roll)
             completed_step_index = int(roll.completed_step_index or 0)
             is_final_step = completed_step_index == route_last_index
+            stage_name = self._route_step_label(roll.template, completed_step_index) if getattr(roll, "template", None) else None
+            naming = build_roll_naming_payload(roll, role=resolve_roll_role(roll), stage_name=stage_name or "Raw Material")
             matches_sig = False
             signature_match_mode = None
             stock_strategy = "FINAL_STOCK" if is_final_step else "INTERMEDIATE_POOL"
@@ -1335,6 +1352,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     "inventory_type": "ROLL",
                     "inventory_id": str(roll.id),
                     "label": roll.label_id,
+                    "display_name": naming["variant_display_name"],
+                    "family_display_name": naming["family_display_name"],
+                    "size_line": naming["size_line"],
+                    "process_state_label": naming["process_state_label"],
                     "completed_step_index": completed_step_index,
                     "quantity_kg": float(physical),
                     "allocated_qty_kg": float(max(Decimal("0"), allocated)),
@@ -1371,6 +1392,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     "inventory_type": "FG_BATCH",
                     "inventory_id": str(batch.id),
                     "label": batch.batch_number,
+                    "display_name": str(getattr(getattr(batch, "template", None), "commercial_family", None) and batch.template.commercial_family.name or getattr(getattr(batch, "template", None), "name", "") or batch.batch_number),
+                    "family_display_name": str(getattr(getattr(batch, "template", None), "commercial_family", None) and batch.template.commercial_family.name or getattr(getattr(batch, "template", None), "name", "") or "Finished Goods"),
+                    "size_line": "",
+                    "process_state_label": "Finished good · Final stock",
                     "completed_step_index": int(batch.completed_step_index or 0),
                     "quantity_kg": float(physical),
                     "allocated_qty_kg": float(max(Decimal("0"), allocated)),
