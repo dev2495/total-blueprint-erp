@@ -19,6 +19,7 @@ from apps.factory.models import Plant
 from apps.inventory.models import InventoryBulk, InventoryRoll, InventorySnapshot, PackagingStock
 from apps.inventory.serializers import resolve_roll_role, resolve_roll_stage_name
 from apps.inventory.services.inventory_audit_service import InventoryAuditService
+from apps.inventory.services.roll_naming import build_roll_naming_payload, build_variant_key
 from apps.platformops.models import OperationalAlert
 from apps.users.models import User
 from apps.users.services.email_service import EmailDeliveryService
@@ -696,11 +697,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         for roll in qs:
             role = resolve_roll_role(roll) or ""
             stage_name = resolve_roll_stage_name(roll) or "Raw Material"
-            stock_strategy = cls._stock_strategy(roll)
-            origin_type = cls._origin_type(roll, role)
-            family_name = getattr(getattr(roll.material, "parent_family", None), "name", "") if roll.material_id else ""
-            material_name = getattr(roll.material, "name", "") or ""
-            grade_name = getattr(roll.grade, "name", "") or ""
+            naming = build_roll_naming_payload(roll, role=role, stage_name=stage_name)
             width_mm = _safe_number(roll.width_mm)
             thickness_micron = _safe_number(roll.thickness_micron)
             plant_name = (
@@ -709,31 +706,37 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 or "-"
             )
             location_name = getattr(getattr(roll, "location", None), "name", "") or "-"
-            variant_name = " · ".join([part for part in [family_name or material_name, grade_name] if str(part).strip()]) or (material_name or roll.label_id)
             age_days = max((report_date - roll.created_at.date()).days, 0) if roll.created_at else 0
             available_kg = _safe_number(roll.weight_kg if roll.status == "AVAILABLE" else 0)
             reserved_kg = _safe_number(roll.weight_kg if roll.status == "RESERVED" else 0)
             pouch_style = str(getattr(getattr(roll, "template", None), "pouch_style", "") or "")
-            roll_form = str((roll.geometry_override or {}).get("roll_form") or "").upper()
             rows.append(
                 {
                     "roll_id": str(roll.id),
                     "label_id": roll.label_id,
-                    "variant_display_name": variant_name,
-                    "pouch_or_roll_form": pouch_style or roll_form or (getattr(getattr(roll, "template", None), "fg_type", "") or "ROLL"),
+                    "family_display_name": naming["family_display_name"],
+                    "variant_display_name": naming["variant_display_name"],
+                    "size_line": naming["size_line"],
+                    "form_label": naming["form_label"],
+                    "process_state_label": naming["process_state_label"],
+                    "pouch_or_roll_form": pouch_style or naming["form_label"] or (getattr(getattr(roll, "template", None), "fg_type", "") or "ROLL"),
                     "stage": stage_name,
                     "width_mm": width_mm,
                     "thickness_micron": thickness_micron,
-                    "print_status": cls._print_status(stage_name),
-                    "lamination_status": cls._lamination_status(stage_name),
-                    "stock_strategy": stock_strategy,
+                    "print_status": naming["print_status"],
+                    "lamination_status": naming["lamination_status"],
+                    "stock_strategy": naming["stock_strategy"],
+                    "stock_strategy_label": naming["stock_strategy_label"],
                     "plant": plant_name,
                     "location": location_name,
                     "status": str(roll.status or "").upper(),
-                    "origin_type": origin_type,
+                    "origin_type": naming["origin_type"],
+                    "origin_label": naming["origin_label"],
+                    "reporting_group": naming["reporting_group"],
                     "roll_count": 1,
                     "available_kg": available_kg,
                     "reserved_kg": reserved_kg,
+                    "blocked_kg": _safe_number(roll.weight_kg if str(roll.status or "").upper() not in {"AVAILABLE", "RESERVED"} else 0),
                     "weight_kg": _safe_number(roll.weight_kg),
                     "oldest_age_days": age_days,
                     "is_exception": bool((roll.meta_json or {}).get("is_quarantined")) or str(roll.status or "").upper() not in {"AVAILABLE", "RESERVED"},
@@ -745,22 +748,15 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
     def _variant_rows(cls, roll_entries: list[dict]) -> list[dict]:
         grouped: dict[tuple, dict] = {}
         for row in roll_entries:
-            key = (
-                row["variant_display_name"],
-                row["pouch_or_roll_form"],
-                row["stage"],
-                row["width_mm"],
-                row["thickness_micron"],
-                row["print_status"],
-                row["lamination_status"],
-                row["stock_strategy"],
-                row["plant"],
-                row["location"],
-            )
+            key = build_variant_key(row)
             bucket = grouped.setdefault(
                 key,
                 {
+                    "family_display_name": row["family_display_name"],
                     "variant_display_name": row["variant_display_name"],
+                    "size_line": row["size_line"],
+                    "form_label": row["form_label"],
+                    "process_state_label": row["process_state_label"],
                     "pouch_or_roll_form": row["pouch_or_roll_form"],
                     "stage": row["stage"],
                     "width_mm": row["width_mm"],
@@ -768,19 +764,81 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                     "print_status": row["print_status"],
                     "lamination_status": row["lamination_status"],
                     "stock_strategy": row["stock_strategy"],
-                    "plant": row["plant"],
-                    "location": row["location"],
+                    "stock_strategy_label": row["stock_strategy_label"],
+                    "reporting_group": row["reporting_group"],
                     "roll_count": 0,
                     "available_kg": 0.0,
                     "reserved_kg": 0.0,
+                    "blocked_kg": 0.0,
                     "oldest_age_days": 0,
+                    "plant_summary": defaultdict(lambda: {"plant": "", "locations": set(), "available_kg": 0.0, "reserved_kg": 0.0, "blocked_kg": 0.0}),
                 },
             )
             bucket["roll_count"] += 1
             bucket["available_kg"] += row["available_kg"]
             bucket["reserved_kg"] += row["reserved_kg"]
+            bucket["blocked_kg"] += row.get("blocked_kg", 0)
             bucket["oldest_age_days"] = max(bucket["oldest_age_days"], row["oldest_age_days"])
-        return sorted(grouped.values(), key=lambda row: (row["plant"], row["variant_display_name"], row["stage"], row["location"]))
+            plant_bucket = bucket["plant_summary"][row["plant"]]
+            plant_bucket["plant"] = row["plant"]
+            if row["location"]:
+                plant_bucket["locations"].add(row["location"])
+            plant_bucket["available_kg"] += row["available_kg"]
+            plant_bucket["reserved_kg"] += row["reserved_kg"]
+            plant_bucket["blocked_kg"] += row.get("blocked_kg", 0)
+
+        variant_rows = []
+        for bucket in grouped.values():
+            plant_summary = []
+            for plant in bucket["plant_summary"].values():
+                plant_summary.append(
+                    {
+                        "plant": plant["plant"],
+                        "locations": sorted(plant["locations"]),
+                        "available_kg": round(plant["available_kg"], 3),
+                        "reserved_kg": round(plant["reserved_kg"], 3),
+                        "blocked_kg": round(plant["blocked_kg"], 3),
+                    }
+                )
+            bucket["plant_summary"] = plant_summary
+            bucket["plant_location_summary"] = " • ".join(
+                f"{plant['plant']}: {', '.join(plant['locations']) if plant['locations'] else '-'}"
+                for plant in plant_summary
+            )
+            variant_rows.append(bucket)
+
+        return sorted(variant_rows, key=lambda row: (row["family_display_name"], row["variant_display_name"], row["stage"], row["stock_strategy"]))
+
+    @classmethod
+    def _family_rows(cls, variant_rows: list[dict]) -> list[dict]:
+        grouped: dict[tuple, dict] = {}
+        for row in variant_rows:
+            key = (
+                row["family_display_name"],
+                row["form_label"],
+                row["reporting_group"],
+            )
+            bucket = grouped.setdefault(
+                key,
+                {
+                    "family_display_name": row["family_display_name"],
+                    "form_label": row["form_label"],
+                    "reporting_group": row["reporting_group"],
+                    "variant_count": 0,
+                    "roll_count": 0,
+                    "available_kg": 0.0,
+                    "reserved_kg": 0.0,
+                    "blocked_kg": 0.0,
+                    "oldest_age_days": 0,
+                },
+            )
+            bucket["variant_count"] += 1
+            bucket["roll_count"] += row["roll_count"]
+            bucket["available_kg"] += row["available_kg"]
+            bucket["reserved_kg"] += row["reserved_kg"]
+            bucket["blocked_kg"] += row["blocked_kg"]
+            bucket["oldest_age_days"] = max(bucket["oldest_age_days"], row["oldest_age_days"])
+        return sorted(grouped.values(), key=lambda row: (row["family_display_name"], row["reporting_group"]))
 
     @classmethod
     def _stage_rows(cls, roll_entries: list[dict]) -> list[dict]:
@@ -879,7 +937,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         return callouts or ["No material stock risks exceeded the configured operational thresholds."]
 
     @classmethod
-    def _build_detail_workbook(cls, report_date, snapshots, roll_entries, variant_rows, bulk_rows, packaging_rows, exception_rows) -> RenderedAttachment | None:
+    def _build_detail_workbook(cls, report_date, snapshots, family_rows, roll_entries, variant_rows, bulk_rows, packaging_rows, exception_rows) -> RenderedAttachment | None:
         if Workbook is None:
             return None
 
@@ -913,29 +971,51 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         ]
         add_sheet_rows(summary_ws, summary_rows, ["Plant", "Bulk KG", "Roll KG", "FG KG", "WIP KG", "Reserved KG"])
 
-        variants_ws = workbook.create_sheet("Roll Variants")
+        family_ws = workbook.create_sheet("Family Summary")
+        add_sheet_rows(
+            family_ws,
+            [
+                {
+                    "Business Family": row["family_display_name"],
+                    "Form": row["form_label"],
+                    "Reporting Group": row["reporting_group"],
+                    "Variant Count": row["variant_count"],
+                    "Roll Count": row["roll_count"],
+                    "Available KG": round(row["available_kg"], 3),
+                    "Reserved KG": round(row["reserved_kg"], 3),
+                    "Blocked KG": round(row["blocked_kg"], 3),
+                    "Oldest Age Days": row["oldest_age_days"],
+                }
+                for row in family_rows
+            ],
+            ["Business Family", "Form", "Reporting Group", "Variant Count", "Roll Count", "Available KG", "Reserved KG", "Blocked KG", "Oldest Age Days"],
+        )
+
+        variants_ws = workbook.create_sheet("Variant Summary")
         add_sheet_rows(
             variants_ws,
             [
                 {
+                    "Business Family": row["family_display_name"],
                     "Variant": row["variant_display_name"],
-                    "Form": row["pouch_or_roll_form"],
+                    "Size": row["size_line"],
+                    "Form": row["form_label"],
                     "Stage": row["stage"],
                     "Width MM": round(row["width_mm"], 2),
                     "Thickness Micron": round(row["thickness_micron"], 2),
                     "Print": row["print_status"],
                     "Lamination": row["lamination_status"],
-                    "Strategy": row["stock_strategy"],
-                    "Plant": row["plant"],
-                    "Location": row["location"],
+                    "Strategy": row["stock_strategy_label"],
                     "Roll Count": row["roll_count"],
                     "Available KG": round(row["available_kg"], 3),
                     "Reserved KG": round(row["reserved_kg"], 3),
+                    "Blocked KG": round(row["blocked_kg"], 3),
+                    "Where": row["plant_location_summary"],
                     "Oldest Age Days": row["oldest_age_days"],
                 }
                 for row in variant_rows
             ],
-            ["Variant", "Form", "Stage", "Width MM", "Thickness Micron", "Print", "Lamination", "Strategy", "Plant", "Location", "Roll Count", "Available KG", "Reserved KG", "Oldest Age Days"],
+            ["Business Family", "Variant", "Size", "Form", "Stage", "Width MM", "Thickness Micron", "Print", "Lamination", "Strategy", "Roll Count", "Available KG", "Reserved KG", "Blocked KG", "Where", "Oldest Age Days"],
         )
 
         detail_ws = workbook.create_sheet("Roll Detail")
@@ -944,22 +1024,25 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             [
                 {
                     "Label ID": row["label_id"],
+                    "Business Family": row["family_display_name"],
                     "Variant": row["variant_display_name"],
-                    "Form": row["pouch_or_roll_form"],
+                    "Size": row["size_line"],
+                    "Form": row["form_label"],
                     "Stage": row["stage"],
-                    "Origin": row["origin_type"],
-                    "Strategy": row["stock_strategy"],
+                    "Origin": row["origin_label"],
+                    "Strategy": row["stock_strategy_label"],
                     "Plant": row["plant"],
                     "Location": row["location"],
                     "Status": row["status"],
                     "Weight KG": round(row["weight_kg"], 3),
                     "Available KG": round(row["available_kg"], 3),
                     "Reserved KG": round(row["reserved_kg"], 3),
+                    "Blocked KG": round(row["blocked_kg"], 3),
                     "Age Days": row["oldest_age_days"],
                 }
                 for row in roll_entries
             ],
-            ["Label ID", "Variant", "Form", "Stage", "Origin", "Strategy", "Plant", "Location", "Status", "Weight KG", "Available KG", "Reserved KG", "Age Days"],
+            ["Label ID", "Business Family", "Variant", "Size", "Form", "Stage", "Origin", "Strategy", "Plant", "Location", "Status", "Weight KG", "Available KG", "Reserved KG", "Blocked KG", "Age Days"],
         )
 
         bulk_ws = workbook.create_sheet("Bulk RM")
@@ -988,6 +1071,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 {
                     "Label ID": row["label_id"],
                     "Variant": row["variant_display_name"],
+                    "Business Family": row["family_display_name"],
                     "Stage": row["stage"],
                     "Plant": row["plant"],
                     "Location": row["location"],
@@ -997,7 +1081,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 }
                 for row in exception_rows
             ],
-            ["Label ID", "Variant", "Stage", "Plant", "Location", "Status", "Weight KG", "Age Days"],
+            ["Label ID", "Business Family", "Variant", "Stage", "Plant", "Location", "Status", "Weight KG", "Age Days"],
         )
 
         buffer = BytesIO()
@@ -1011,7 +1095,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         )
 
     @classmethod
-    def _build_pdf(cls, report_date, snapshots, stage_rows, strategy_rows, variant_sections, location_rows, summary_cards, risk_callouts):
+    def _build_pdf(cls, report_date, snapshots, stage_rows, strategy_rows, family_rows, variant_rows, location_rows, summary_cards, risk_callouts):
         if SimpleDocTemplate is None:
             raise RuntimeError("PDF engine unavailable: reportlab platypus is not installed.")
         buffer = BytesIO()
@@ -1107,6 +1191,24 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 [70 * mm, 45 * mm, 45 * mm],
             ),
             Spacer(1, 4 * mm),
+            Paragraph("Family Summary", section_style),
+            styled_table(
+                [["Business Family", "Group", "Variants", "Rolls", "Available KG", "Reserved KG", "Blocked KG"]]
+                + [
+                    [
+                        row["family_display_name"],
+                        row["reporting_group"],
+                        str(int(row["variant_count"])),
+                        str(int(row["roll_count"])),
+                        f"{row['available_kg']:,.1f}",
+                        f"{row['reserved_kg']:,.1f}",
+                        f"{row['blocked_kg']:,.1f}",
+                    ]
+                    for row in family_rows
+                ],
+                [52 * mm, 24 * mm, 18 * mm, 18 * mm, 24 * mm, 24 * mm, 24 * mm],
+            ),
+            Spacer(1, 4 * mm),
             Paragraph("Top Locations", section_style),
             styled_table(
                 [["Plant", "Location", "Weight KG", "Roll Count"]]
@@ -1115,50 +1217,57 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             ),
         ]
 
-        for section_name in cls.SECTION_ORDER:
-            rows = variant_sections.get(section_name) or []
+        for family in family_rows:
+            rows = [
+                row for row in variant_rows
+                if row["family_display_name"] == family["family_display_name"]
+                and row["reporting_group"] == family["reporting_group"]
+            ]
             if not rows:
                 continue
             elements.append(PageBreak())
-            elements.append(Paragraph(section_name, section_style))
-            elements.append(Paragraph("Variant summary grouped by stage, strategy, plant, and location.", small_style))
+            elements.append(Paragraph(family["family_display_name"], section_style))
+            elements.append(
+                Paragraph(
+                    f"{family['variant_count']} variants • {family['roll_count']} rolls • {family['available_kg']:,.1f} kg available • {family['reserved_kg']:,.1f} kg reserved",
+                    small_style,
+                )
+            )
             table_rows = [[
                 "Variant",
-                "Form",
+                "Size",
                 "Stage",
-                "Width",
-                "Thk",
                 "Print",
                 "Lam",
                 "Strategy",
-                "Plant / Location",
                 "Rolls",
                 "Avail KG",
                 "Res KG",
+                "Blocked KG",
+                "Where",
                 "Oldest",
             ]]
             for row in rows:
                 table_rows.append(
                     [
                         row["variant_display_name"],
-                        row["pouch_or_roll_form"],
+                        row["size_line"],
                         row["stage"],
-                        f"{row['width_mm']:.0f}",
-                        f"{row['thickness_micron']:.0f}",
                         row["print_status"],
                         row["lamination_status"],
-                        row["stock_strategy"],
-                        f"{row['plant']} / {row['location']}",
+                        row["stock_strategy_label"],
                         str(int(row["roll_count"])),
                         f"{row['available_kg']:.1f}",
                         f"{row['reserved_kg']:.1f}",
+                        f"{row['blocked_kg']:.1f}",
+                        row["plant_location_summary"][:48],
                         f"{int(row['oldest_age_days'])}d",
                     ]
                 )
             elements.append(
                 styled_table(
                     table_rows,
-                    [28 * mm, 16 * mm, 16 * mm, 11 * mm, 10 * mm, 12 * mm, 14 * mm, 18 * mm, 32 * mm, 10 * mm, 12 * mm, 12 * mm, 10 * mm],
+                    [36 * mm, 24 * mm, 16 * mm, 12 * mm, 14 * mm, 18 * mm, 10 * mm, 12 * mm, 12 * mm, 12 * mm, 34 * mm, 10 * mm],
                     body_font_size=6.4,
                 )
             )
@@ -1171,9 +1280,9 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         snapshots = cls._latest_snapshots(report_date)
         roll_entries = cls._roll_entries(report_date)
         variant_rows = cls._variant_rows(roll_entries)
+        family_rows = cls._family_rows(variant_rows)
         stage_rows = cls._stage_rows(roll_entries)
         strategy_rows = cls._strategy_rows(roll_entries)
-        variant_sections = cls._section_rows(roll_entries)
         location_rows = cls._location_rows(roll_entries)
         bulk_rows = cls._bulk_rows(InventoryBulk)
         packaging_rows = cls._bulk_rows(PackagingStock)
@@ -1198,7 +1307,8 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
             snapshots,
             stage_rows,
             strategy_rows,
-            variant_sections,
+            family_rows,
+            variant_rows,
             location_rows,
             summary_cards,
             cls._risk_callouts(roll_entries, snapshots),
@@ -1207,6 +1317,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         detail_attachment = cls._build_detail_workbook(
             report_date,
             snapshots,
+            family_rows,
             roll_entries,
             variant_rows,
             bulk_rows,

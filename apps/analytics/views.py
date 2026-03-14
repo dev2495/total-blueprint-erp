@@ -1,6 +1,9 @@
 from io import BytesIO
+import json
+from pathlib import Path
 
 from django.http import FileResponse
+from django.conf import settings
 from rest_framework import viewsets
 from rest_framework import status
 from rest_framework.decorators import action
@@ -60,6 +63,12 @@ def _error_response(
         },
         status=http_status,
     )
+
+
+def _load_capability_registry():
+    registry_path = Path(getattr(settings, "BASE_DIR", ".")) / "docs" / "runbooks" / "capability-registry.json"
+    with registry_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
 
 class AnalyticsViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -143,6 +152,16 @@ class AnalyticsViewSet(viewsets.ViewSet):
             filename=attachment.file_name,
             content_type=attachment.content_type,
         )
+
+    @action(detail=False, methods=['get'], url_path='capability-matrix')
+    def capability_matrix(self, request):
+        try:
+            return Response(_load_capability_registry())
+        except FileNotFoundError:
+            return _error_response(code="ANALYTICS_CAPABILITY_MATRIX_MISSING", http_status=status.HTTP_404_NOT_FOUND, message="Capability registry file not found.")
+        except Exception as exc:
+            logger.error("Capability matrix load failed: %s", str(exc), exc_info=True)
+            return _error_response(code="ANALYTICS_CAPABILITY_MATRIX_FAILED")
 
     @action(detail=False, methods=['get'], url_path='system-debug')
     def system_debug(self, request):

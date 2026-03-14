@@ -10,6 +10,7 @@ const PARENT_ROUTE_FALLBACKS: Record<string, string> = {
 const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/",
   "/analytics",
+  "/analytics/capability-matrix",
   "/analytics/costing",
   "/analytics/inventory-health",
   "/analytics/kpis",

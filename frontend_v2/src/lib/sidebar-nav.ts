@@ -155,6 +155,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "OWNER", "PLANNER", "PLANT_MANAGER", "SALES"],
     children: [
       { title: "Reports Hub", href: "/analytics", icon: Activity, roles: ["ADMIN", "OWNER", "PLANT_MANAGER"] },
+      { title: "Capability Matrix", href: "/analytics/capability-matrix", icon: Layers, roles: ["ADMIN", "OWNER", "PLANNER", "PLANT_MANAGER", "ENGINEERING"] },
       {
         title: "KPI Dashboard",
         href: "/analytics/kpis",

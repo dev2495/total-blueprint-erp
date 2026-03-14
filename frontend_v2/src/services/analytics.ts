@@ -255,6 +255,28 @@ export interface ReportDispatchRun {
     sent_at?: string | null;
 }
 
+export interface CapabilityMatrixEntry {
+    capability_family: string;
+    examples: string[];
+    what_it_means: string;
+    why: string;
+    config_needed: string[];
+    code_needed: string[];
+    limits: string[];
+}
+
+export interface CapabilityMatrixSection {
+    status: "SUPPORTED_NOW" | "CONFIG_ONLY" | "NEW_LOGIC_REQUIRED" | string;
+    label: string;
+    entries: CapabilityMatrixEntry[];
+}
+
+export interface CapabilityMatrixResponse {
+    version: string;
+    source_of_truth: string;
+    sections: CapabilityMatrixSection[];
+}
+
 export const analyticsApi = {
     performMaintenance: async (action: 'clear_cache' | 'vacuum_db'): Promise<{ success: boolean; message: string }> => {
         const { data } = await api.post("/api/analytics/maintenance/", { action });
@@ -392,6 +414,10 @@ export const analyticsApi = {
     getReportRuns: async (limit: number = 30): Promise<ReportDispatchRun[]> => {
         const { data } = await api.get("/api/analytics/report-runs/", { params: { limit } });
         return Array.isArray(data?.runs) ? data.runs : [];
+    },
+    getCapabilityMatrix: async (): Promise<CapabilityMatrixResponse> => {
+        const { data } = await api.get("/api/analytics/capability-matrix/");
+        return data;
     },
     getReportRunPreviewUrl: (runId: string): string => `/api/analytics/report-runs/${runId}/preview-pdf/`,
     getReportRunDetailUrl: (runId: string): string => `/api/analytics/report-runs/${runId}/download-detail/`,

@@ -1,0 +1,115 @@
+{
+  "version": "2026-03-14",
+  "source_of_truth": "Repo owned capability registry for ERP naming, stock intelligence, and extensibility.",
+  "sections": [
+    {
+      "status": "SUPPORTED_NOW",
+      "label": "Supported Today",
+      "entries": [
+        {
+          "capability_family": "In-house finished roll stock",
+          "examples": ["Final roll stock kept for allocate-direct", "Ready FG rolls created from stock orders"],
+          "what_it_means": "The system can keep finished rolls in stock and planner can use them directly when the final spec matches.",
+          "why": "Final-spec matching, stock strategy, route completion, and planner direct-consume flow already exist.",
+          "config_needed": ["Commercial family naming", "Template stock strategy", "Readable business alias"],
+          "code_needed": [],
+          "limits": ["Final spec must match. It is not a substitute for semi-finished reuse."]
+        },
+        {
+          "capability_family": "Intermediate pool / semi-FG reuse",
+          "examples": ["Pre-made printed roll consumed later", "Laminated semi-finished stock resumed downstream"],
+          "what_it_means": "The system can stop production at a route step and later continue from that stage when the invariant roll properties match.",
+          "why": "Invariant signature, stop-step compatibility, and continue-from-WIP logic already exist.",
+          "config_needed": ["Correct stock strategy", "Correct routing stop-step", "Business family for reporting"],
+          "code_needed": [],
+          "limits": ["Only physically compatible stock can merge into the same reusable pool."]
+        },
+        {
+          "capability_family": "Standard pouch manufacturing families",
+          "examples": ["Pillow pouch", "Stand up pouch", "Side gusset", "Flat bottom", "Spout pouch"],
+          "what_it_means": "The ERP can classify and report mainstream pouch families while keeping geometry, POD, and material math authoritative.",
+          "why": "Pouch style taxonomy now sits above the existing geometry and POD model without replacing it.",
+          "config_needed": ["Template pouch style", "Commercial family alias", "Report grouping"],
+          "code_needed": [],
+          "limits": ["Classification does not automatically add new physical process behavior."]
+        },
+        {
+          "capability_family": "Business-friendly stock naming and variant views",
+          "examples": ["Family -> Variant/Size -> Actual rolls", "Stock by variant pages in explorer and report pack"],
+          "what_it_means": "Users can see stock by business family first, then variant/size, then exact roll labels.",
+          "why": "Commercial family taxonomy and shared naming builder now drive explorer, planner labels, PDF, and workbook outputs.",
+          "config_needed": ["Commercial family setup", "Template/material linking"],
+          "code_needed": [],
+          "limits": ["Wrong taxonomy setup will still create bad names. The naming engine cannot fix bad masters automatically."]
+        }
+      ]
+    },
+    {
+      "status": "CONFIG_ONLY",
+      "label": "Possible With Config / Taxonomy Only",
+      "entries": [
+        {
+          "capability_family": "New commercial families and customer-facing naming",
+          "examples": ["New laminate family aliases", "Retail-facing family names", "Regional naming conventions"],
+          "what_it_means": "You can add new readable business groupings without touching the core math engine.",
+          "why": "CommercialFamily is a controlled alias layer, not a hardcoded enum.",
+          "config_needed": ["Create commercial families", "Link templates and materials", "Update report group defaults"],
+          "code_needed": [],
+          "limits": ["This changes naming and grouping only, not manufacturing behavior."]
+        },
+        {
+          "capability_family": "New reporting views for stock",
+          "examples": ["Grouped by family", "Grouped by size", "Grouped by print state"],
+          "what_it_means": "You can change how already-supported stock is presented by changing grouping or taxonomy, not physics.",
+          "why": "Variant-first reporting now sits on top of the physical inventory model.",
+          "config_needed": ["Reporting group mappings", "Family aliases", "Official report plant scope"],
+          "code_needed": [],
+          "limits": ["The same stock cannot be merged if it is not physically interchangeable."]
+        },
+        {
+          "capability_family": "Additional mainstream pouch classifications",
+          "examples": ["Three side seal", "Quad seal", "Shaped pouch family labels"],
+          "what_it_means": "You can add or refine classification and naming for mainstream pouch styles already covered by the current geometry model.",
+          "why": "Pouch style is now controlled taxonomy rather than free text or hidden logic.",
+          "config_needed": ["Template pouch style setup", "Commercial family alignment", "Report aliases"],
+          "code_needed": [],
+          "limits": ["If the style needs a new execution formula or machine behavior, this moves into new-logic territory."]
+        }
+      ]
+    },
+    {
+      "status": "NEW_LOGIC_REQUIRED",
+      "label": "Needs New Physical Logic / Module",
+      "entries": [
+        {
+          "capability_family": "New manufacturing process with different execution states",
+          "examples": ["A new converting process with extra approval gates", "A machine flow with different input/output object rules"],
+          "what_it_means": "If the factory starts making products through a process the ERP does not model today, code is required.",
+          "why": "Routing, execution logging, operator actions, and inventory reconciliation depend on physical process rules.",
+          "config_needed": [],
+          "code_needed": ["New process behavior", "New execution states", "Updated operator/WCM flows"],
+          "limits": ["Naming or taxonomy cannot simulate missing process behavior."]
+        },
+        {
+          "capability_family": "New reconciliation or physics formula family",
+          "examples": ["Product where weight is not driven by current roll/pouch area logic", "Specialty conversion needing different yield math"],
+          "what_it_means": "If the math itself changes, the ERP needs new formulas and tests.",
+          "why": "Current support is built around flexible film roll/pouch material mass and route-step reconciliation.",
+          "config_needed": [],
+          "code_needed": ["Physics formulas", "Acceptance fixtures", "Analytics reconciliation updates"],
+          "limits": ["Business aliases cannot make unsupported math correct."]
+        },
+        {
+          "capability_family": "New inventory object type",
+          "examples": ["Rigid components", "Preforms", "Discrete assemblies not covered by roll/bulk/packaging objects"],
+          "what_it_means": "If stock is not a roll, bulk material, packaging stock, or current pouch output, new inventory modeling is required.",
+          "why": "Planner, warehouse, genealogy, and reports all depend on the object model.",
+          "config_needed": [],
+          "code_needed": ["New inventory model", "Ledger support", "Planner and report support"],
+          "limits": ["This is a real domain extension, not just a naming change."]
+        }
+      ]
+    }
+  ]
+}
+

@@ -49,4 +49,5 @@ urlpatterns = [
     path('report-runs/', AnalyticsViewSet.as_view({'get': 'report_runs'}), name='analytics-report-runs'),
     path('report-runs/<str:run_id>/preview-pdf/', AnalyticsViewSet.as_view({'get': 'report_run_preview_pdf'}), name='analytics-report-run-preview'),
     path('report-runs/<str:run_id>/download-detail/', AnalyticsViewSet.as_view({'get': 'report_run_download_detail'}), name='analytics-report-run-detail'),
+    path('capability-matrix/', AnalyticsViewSet.as_view({'get': 'capability_matrix'}), name='analytics-capability-matrix'),
 ]

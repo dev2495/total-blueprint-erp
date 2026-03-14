@@ -19,6 +19,7 @@ import {
     ShoppingCart,
     Timer,
 } from "lucide-react";
+import Link from "next/link";
 
 import { analyticsApi, type ReportDispatchRun, type ReportDistributionProfile, type ReportTabResponse } from "@/services/analytics";
 import { factoryService } from "@/services/factory";
@@ -199,6 +200,9 @@ export default function ReportsHubPage() {
                     <Button variant="outline" onClick={() => reportQuery.refetch()} disabled={reportQuery.isFetching}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${reportQuery.isFetching ? "animate-spin" : ""}`} />
                         Refresh
+                    </Button>
+                    <Button asChild variant="outline">
+                        <Link href="/analytics/capability-matrix">Capability Matrix</Link>
                     </Button>
                 </div>
             </div>
