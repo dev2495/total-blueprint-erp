@@ -26,6 +26,16 @@ The intended sharing model is simple:
 | Administration | Manage users, role visibility, governance, and system health | Owner, super admin, admin |
 | System Masters | Maintain plants, locations, work centers, machines, and commercial families | Owner, admin |
 
+## Sales Quotation Workspace
+
+The sales module now includes a first-class quotation workspace for flexible packaging commercial teams.
+
+- build multi-line quotations mixing pouch and roll products in one document
+- use the existing geometry, physics, and BOM engine for live quantity and material breakdown
+- add process-cost rows plus commercial overrides for margin, freight, packing, discount, and tax
+- tag the customer and plant, save the quotation lifecycle, duplicate it, and generate a branded PDF
+- convert a quotation into a sales order only after each line is mapped to a LIVE template
+
 ## Deployment Cost Options
 
 All three options below use the same private GitHub repo. The difference is only how much managed Render infrastructure is kept live by default.

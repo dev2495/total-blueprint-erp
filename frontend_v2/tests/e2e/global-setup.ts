@@ -48,6 +48,7 @@ export default async function globalSetup(config: FullConfig) {
         FRONTEND_MODE: frontendMode,
       })
     run(path.join(repoRoot, "venv_311/bin/python"), [path.join(repoRoot, "scripts/seed_ui_e2e.py")], repoRoot)
+    run(path.join(repoRoot, "venv_311/bin/python"), [path.join(repoRoot, "scripts/seed_ui_e2e_quotations.py")], repoRoot)
     run(path.join(repoRoot, "venv_311/bin/python"), [path.join(repoRoot, "manage.py"), "seed_notification_baseline"], repoRoot)
     run(
       path.join(repoRoot, "venv_311/bin/python"),
@@ -71,7 +72,11 @@ export default async function globalSetup(config: FullConfig) {
   await page.getByTestId("login-identifier").fill(process.env.UI_E2E_ADMIN_USER || "admin")
   await page.getByTestId("login-password").fill(process.env.UI_E2E_ADMIN_PASSWORD || "admin123")
   await page.getByTestId("login-submit").click()
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
+  try {
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
+  } catch {
+    await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
+  }
   await page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout: 30_000 })
   await context.storageState({ path: storagePath })
   await browser.close()

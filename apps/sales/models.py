@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Q
 from django.core.validators import MaxValueValidator, MinValueValidator
 import uuid
+from apps.factory.models import Plant
 from apps.templates.models import TemplateBlueprint
 
 class Customer(models.Model):
@@ -206,3 +207,132 @@ class SalesOrderItem(models.Model):
 
     class Meta:
         db_table = 'sales_order_items'
+
+
+class Quotation(models.Model):
+    STATUS_CHOICES = [
+        ("DRAFT", "Draft"),
+        ("SENT", "Sent"),
+        ("APPROVED", "Approved"),
+        ("REJECTED", "Rejected"),
+        ("EXPIRED", "Expired"),
+        ("CONVERTED", "Converted"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quote_number = models.CharField(max_length=50, unique=True, blank=True)
+    customer = models.ForeignKey(
+        "Customer",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotations",
+    )
+    customer_name = models.CharField(max_length=255)
+    plant = models.ForeignKey(
+        Plant,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotations",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="DRAFT")
+    valid_until = models.DateField(null=True, blank=True)
+    currency = models.CharField(max_length=10, default="INR")
+    terms = models.TextField(blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    totals_snapshot = models.JSONField(default=dict, blank=True)
+    converted_sales_order = models.ForeignKey(
+        "SalesOrder",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="source_quotations",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sales_quotations"
+        ordering = ["-updated_at", "-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.quote_number:
+            last_quote = Quotation.objects.filter(quote_number__startswith="QT").order_by("-created_at").first()
+            next_seq = 1
+            if last_quote:
+                import re
+
+                match = re.search(r"QT(\d+)", last_quote.quote_number or "")
+                if match:
+                    try:
+                        next_seq = int(match.group(1)) + 1
+                    except ValueError:
+                        next_seq = 1
+            self.quote_number = f"QT{next_seq:05d}"
+            while Quotation.objects.filter(quote_number=self.quote_number).exists():
+                next_seq += 1
+                self.quote_number = f"QT{next_seq:05d}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.quote_number} - {self.customer_name}"
+
+
+class QuotationItem(models.Model):
+    FG_TYPE_CHOICES = [
+        ("POUCH", "Pouch"),
+        ("ROLL", "Roll"),
+    ]
+    UOM_CHOICES = [
+        ("PCS", "Pieces"),
+        ("KG", "Kilograms"),
+    ]
+    PRICE_BASIS_CHOICES = [
+        ("KG", "Per KG"),
+        ("PCS", "Per PCS"),
+    ]
+    ROLL_FORM_CHOICES = [
+        ("", "Not Applicable"),
+        ("FLAT", "Flat"),
+        ("FOLDED", "Folded"),
+        ("TUBING", "Tubing"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name="items")
+    template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, null=True, blank=True)
+    line_name = models.CharField(max_length=255, blank=True, default="")
+    finished_good_type = models.CharField(max_length=20, choices=FG_TYPE_CHOICES, default="POUCH")
+    roll_form = models.CharField(max_length=20, choices=ROLL_FORM_CHOICES, blank=True, default="")
+    qty_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    qty_uom = models.CharField(max_length=10, choices=UOM_CHOICES, default="PCS")
+    price_basis = models.CharField(max_length=10, choices=PRICE_BASIS_CHOICES, default="KG")
+
+    geometry_snapshot = models.JSONField(default=dict, blank=True)
+    layer_snapshot = models.JSONField(default=list, blank=True)
+    printing_snapshot = models.JSONField(default=dict, blank=True)
+    chemicals_snapshot = models.JSONField(default=dict, blank=True)
+    addons_snapshot = models.JSONField(default=list, blank=True)
+    packaging_snapshot = models.JSONField(default=dict, blank=True)
+
+    physics_snapshot = models.JSONField(default=dict, blank=True)
+    bom_snapshot = models.JSONField(default=dict, blank=True)
+    process_cost_rows = models.JSONField(default=list, blank=True)
+    commercial_snapshot = models.JSONField(default=dict, blank=True)
+    costing_snapshot = models.JSONField(default=dict, blank=True)
+
+    unit_weight_g = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    total_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    quoted_unit_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    quoted_line_total = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sales_quotation_items"
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.quotation.quote_number} - {self.line_name or self.finished_good_type}"
