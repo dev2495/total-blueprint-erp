@@ -165,10 +165,17 @@ class Command(BaseCommand):
         )[0]
 
         inner_pouch = self._upsert_packaging_material(
-            code="TEST_INNER_POUCH_PCS",
-            name="TEST Inner Pouch",
+            code="PACK_INNER_100_INHOUSE",
+            name="Acceptance Inner Pouch 100",
             base_uom="PCS",
             packaging_kind="INNER_POUCH",
+            packaging_supply_mode="IN_HOUSE",
+            production_template=pouch_template,
+            packaging_defaults_json={
+                "pcs_per_pack": 100,
+                "brand_label": "Acceptance 100 Pack",
+            },
+            tare_weight_kg=Decimal("0.0500"),
         )
         gonny_mat = self._upsert_packaging_material(
             code="TEST_GONNY_PCS",
@@ -183,11 +190,16 @@ class Command(BaseCommand):
             packaging_kind="TAPE",
         )
         sheet_mat = self._upsert_packaging_material(
-            code="TEST_SHEET_KG",
-            name="TEST Sheet",
+            code="PACK_ROLL_SHEET_INHOUSE",
+            name="Acceptance Roll Wrap Sheet",
             base_uom="KG",
             packaging_kind="SHEET",
-            per_sheet_base_qty=Decimal("0.250000"),
+            packaging_supply_mode="IN_HOUSE",
+            production_template=pouch_template,
+            packaging_defaults_json={
+                "roll_pack_mode": "WRAP_SHEET",
+                "usage_hint": "KG based wrap for acceptance proof",
+            },
         )
         pod_profile_single = self._upsert_pod_profile(
             code="TEST_POD_SINGLE_200",
@@ -204,16 +216,7 @@ class Command(BaseCommand):
         PackagingTransaction.objects.filter(material__in=test_materials).delete()
         PackagingStock.objects.filter(material__in=test_materials).delete()
 
-        self.stdout.write("Acceptance: inward packaging stock")
-        PackagingService.add_packaging_stock(
-            material_id=inner_pouch.id,
-            qty=20,
-            location_id=fg_location.id,
-            vendor_id=test_vendor.id,
-            cost=Decimal("2.50"),
-            reference=f"TEST_INNER_{tag}",
-            input_uom="PCS",
-        )
+        self.stdout.write("Acceptance: inward purchased packaging stock")
         PackagingService.add_packaging_stock(
             material_id=gonny_mat.id,
             qty=10,
@@ -232,26 +235,8 @@ class Command(BaseCommand):
             reference=f"TEST_TAPE_{tag}",
             input_uom="PCS",
         )
-        PackagingService.add_packaging_stock(
-            material_id=sheet_mat.id,
-            qty=10,
-            location_id=fg_location.id,
-            vendor_id=test_vendor.id,
-            cost=Decimal("4.00"),
-            reference=f"TEST_SHEET_{tag}",
-            input_uom="KG",
-        )
         # Seed second plant with different starting balances for source-gating validation.
         if secondary_fg_location.id != fg_location.id:
-            PackagingService.add_packaging_stock(
-                material_id=inner_pouch.id,
-                qty=8,
-                location_id=secondary_fg_location.id,
-                vendor_id=test_vendor.id,
-                cost=Decimal("2.75"),
-                reference=f"TEST_INNER_B_{tag}",
-                input_uom="PCS",
-            )
             PackagingService.add_packaging_stock(
                 material_id=gonny_mat.id,
                 qty=4,
@@ -457,7 +442,7 @@ class Command(BaseCommand):
             "roll_dispatch_pack": {
                 "enabled": True,
                 "lines": [
-                    {"material_id": str(sheet_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_ROLL"},
+                    {"material_id": str(sheet_mat.id), "qty": 0.25, "uom": "KG", "basis": "PER_ROLL"},
                     {"material_id": str(tape_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_ROLL"},
                 ],
             }
@@ -895,12 +880,85 @@ class Command(BaseCommand):
             "initial_partial_claim_error": partial_claim_response.data.get("error"),
         }
 
+        mts_packaging_inner = PlannedStockOrder.objects.create(
+            internal_name=f"E2E_MTS_PACK_INNER_{tag}",
+            template=pouch_template,
+            plant=fg_location.plant,
+            target_qty=Decimal("4"),
+            quantity_uom="PCS",
+            produced_qty=Decimal("0"),
+            geometry_snapshot=pouch_geometry,
+            layer_snapshot=layer_snapshot,
+            printing_snapshot=printing_snapshot,
+            addons_snapshot=addons_snapshot,
+            packaging_snapshot=pouch_pack_snapshot,
+            bom_snapshot=self._json_ready(pouch_preview["bom"]),
+            unit_weight_g=Decimal("50.0000"),
+            total_weight_kg=Decimal("0.2000"),
+            stock_purpose="PACKAGING",
+            packaging_material=inner_pouch,
+            output_type="PACKAGING",
+            status="PLANNED",
+            created_by=admin,
+            start_step_index=0,
+            stop_step_index=0,
+            target_step_index=0,
+        )
+        mts_packaging_sheet = PlannedStockOrder.objects.create(
+            internal_name=f"E2E_MTS_PACK_SHEET_{tag}",
+            template=pouch_template,
+            plant=fg_location.plant,
+            target_qty=Decimal("2.0000"),
+            quantity_uom="KG",
+            produced_qty=Decimal("0"),
+            geometry_snapshot=pouch_geometry,
+            layer_snapshot=layer_snapshot,
+            printing_snapshot=printing_snapshot,
+            addons_snapshot=addons_snapshot,
+            packaging_snapshot=roll_pack_snapshot,
+            bom_snapshot=self._json_ready(pouch_preview["bom"]),
+            total_weight_kg=Decimal("2.0000"),
+            stock_purpose="PACKAGING",
+            packaging_material=sheet_mat,
+            output_type="PACKAGING",
+            status="PLANNED",
+            created_by=admin,
+            start_step_index=0,
+            stop_step_index=0,
+            target_step_index=0,
+        )
+
+        self.stdout.write("Acceptance: produce in-house packaging stock")
+        packaging_before = {
+            "inner_pouch_pcs": float(self._packaging_stock_qty(inner_pouch, fg_location)),
+            "sheet_kg": float(self._packaging_stock_qty(sheet_mat, fg_location)),
+        }
+        inner_pack_order_summary = self._produce_packaging_stock_for_acceptance(
+            mts_order=mts_packaging_inner,
+            admin=admin,
+            route_index=0,
+            actual_qty=Decimal("0.2000"),
+            output_pcs=4,
+            target_location=fg_location,
+        )
+        sheet_pack_order_summary = self._produce_packaging_stock_for_acceptance(
+            mts_order=mts_packaging_sheet,
+            admin=admin,
+            route_index=0,
+            actual_qty=Decimal("2.0000"),
+            target_location=fg_location,
+        )
+        packaging_after_production = {
+            "inner_pouch_pcs": float(self._packaging_stock_qty(inner_pouch, fg_location)),
+            "sheet_kg": float(self._packaging_stock_qty(sheet_mat, fg_location)),
+        }
+
         # Roll pack + challan with two rolls on one SO
         self.stdout.write("Acceptance: execute roll dispatch pack + challan")
         roll_pack_record_a1 = FGDispatchService.pack_roll(
             str(roll_a1.id),
             [
-                {"material_id": str(sheet_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_ROLL"},
+                {"material_id": str(sheet_mat.id), "qty": 0.25, "uom": "KG", "basis": "PER_ROLL"},
                 {"material_id": str(tape_mat.id), "qty": 2, "uom": "PCS", "basis": "PER_ROLL"},
             ],
             user=admin,
@@ -908,7 +966,7 @@ class Command(BaseCommand):
         roll_pack_record_a2 = FGDispatchService.pack_roll(
             str(roll_a2.id),
             [
-                {"material_id": str(sheet_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_ROLL"},
+                {"material_id": str(sheet_mat.id), "qty": 0.25, "uom": "KG", "basis": "PER_ROLL"},
                 {"material_id": str(tape_mat.id), "qty": 2, "uom": "PCS", "basis": "PER_ROLL"},
             ],
             user=admin,
@@ -923,7 +981,10 @@ class Command(BaseCommand):
             roll_ids=[str(roll_a1.id), str(roll_a2.id)],
             user=admin,
         )
-        roll_pdf_bytes = len(DispatchListPDFService.render(roll_challan).getvalue())
+        roll_pdf = DispatchListPDFService.render(roll_challan)
+        roll_pdf_path = report_dir / f"roll-challan-{tag}.pdf"
+        roll_pdf_path.write_bytes(roll_pdf.getvalue())
+        roll_pdf_bytes = len(roll_pdf.getvalue())
         roll_detail_items = [
             {
                 "label": item.roll.label_id if item.roll else None,
@@ -934,10 +995,11 @@ class Command(BaseCommand):
         report["roll_dispatch"] = {
             "claim_responses": [claim_response_a1.status_code, claim_response_a2.status_code, claim_response_b.status_code],
             "pack_lines": roll_pack_record_a1.lines,
-            "sheet_conversion_kg": 0.5,
+            "sheet_qty_kg_per_roll": 0.25,
             "tape_pcs_consumed": 4.0,
             "challan_no": roll_challan.dc_no,
             "pdf_bytes": roll_pdf_bytes,
+            "pdf_path": str(roll_pdf_path),
             "dispatch_items": roll_detail_items,
         }
 
@@ -988,18 +1050,6 @@ class Command(BaseCommand):
             location=fg_location,
             status="AVAILABLE",
         )
-        packs_needed = (240 + 100 - 1) // 100
-        PackagingService.consume_packaging_stock(
-            material_id=inner_pouch.id,
-            qty=packs_needed,
-            input_uom="PCS",
-            location_id=fg_location.id,
-            job_id=pouch_job.id,
-            sales_order_item_id=pouch_item.id,
-            reference=f"TEST_POUCH_FINAL_{tag}",
-            basis="PER_PACK",
-            meta_json={"fg_batch_id": str(pouch_batch.id)},
-        )
         gonny_primary = PackingService.create_gonny(
             str(pouch_batch.id),
             140,
@@ -1035,17 +1085,29 @@ class Command(BaseCommand):
             gonny_ids=[str(gonny_primary.id), str(gonny_loose.id)],
             user=admin,
         )
-        pouch_pdf_bytes = len(DispatchListPDFService.render(pouch_challan).getvalue())
+        pouch_pdf = DispatchListPDFService.render(pouch_challan)
+        pouch_pdf_path = report_dir / f"pouch-challan-{tag}.pdf"
+        pouch_pdf_path.write_bytes(pouch_pdf.getvalue())
+        pouch_pdf_bytes = len(pouch_pdf.getvalue())
+        packaging_after_consumption = {
+            "inner_pouch_pcs": float(self._packaging_stock_qty(inner_pouch, fg_location)),
+            "sheet_kg": float(self._packaging_stock_qty(sheet_mat, fg_location)),
+        }
         report["pouch_flow"] = {
             "output_pcs": 240,
             "pcs_per_pack": 100,
-            "packs_needed": packs_needed,
+            "inner_packs_consumed": gonny_primary.primary_pack_count,
             "gonnies": [
                 {
                     "label": gonny_primary.label_id,
                     "qty_pcs": gonny_primary.qty_pcs,
                     "content_mode": gonny_primary.content_mode,
                     "primary_pack_count": gonny_primary.primary_pack_count,
+                    "net_product_weight_kg": float(gonny_primary.net_product_weight_kg or 0),
+                    "inner_pack_tare_kg": float(gonny_primary.inner_pack_tare_kg or 0),
+                    "secondary_pack_tare_kg": float(gonny_primary.secondary_pack_tare_kg or 0),
+                    "extras_tare_kg": float(gonny_primary.extras_tare_kg or 0),
+                    "gross_weight_kg": float(gonny_primary.gross_weight_kg or 0),
                     "sealed_weight_kg": float(gonny_primary.weight_kg or 0),
                 },
                 {
@@ -1053,12 +1115,57 @@ class Command(BaseCommand):
                     "qty_pcs": gonny_loose.qty_pcs,
                     "content_mode": gonny_loose.content_mode,
                     "primary_pack_count": gonny_loose.primary_pack_count,
+                    "net_product_weight_kg": float(gonny_loose.net_product_weight_kg or 0),
+                    "inner_pack_tare_kg": float(gonny_loose.inner_pack_tare_kg or 0),
+                    "secondary_pack_tare_kg": float(gonny_loose.secondary_pack_tare_kg or 0),
+                    "extras_tare_kg": float(gonny_loose.extras_tare_kg or 0),
+                    "gross_weight_kg": float(gonny_loose.gross_weight_kg or 0),
                     "sealed_weight_kg": float(gonny_loose.weight_kg or 0),
                 },
             ],
             "challan_no": pouch_challan.dc_no,
             "pdf_bytes": pouch_pdf_bytes,
+            "pdf_path": str(pouch_pdf_path),
             "pod_theoretical_kg": float(observed_pod_kg),
+        }
+        report["inhouse_packaging_proof"] = {
+            "skus": [
+                {
+                    "code": inner_pouch.code,
+                    "base_uom": inner_pouch.base_uom,
+                    "kind": inner_pouch.packaging_kind,
+                    "supply_mode": inner_pouch.packaging_supply_mode,
+                    "template": getattr(inner_pouch.production_template, "name", None),
+                    "tare_weight_kg": float(inner_pouch.tare_weight_kg or 0),
+                },
+                {
+                    "code": sheet_mat.code,
+                    "base_uom": sheet_mat.base_uom,
+                    "kind": sheet_mat.packaging_kind,
+                    "supply_mode": sheet_mat.packaging_supply_mode,
+                    "template": getattr(sheet_mat.production_template, "name", None),
+                    "tare_weight_kg": float(sheet_mat.tare_weight_kg or 0),
+                },
+            ],
+            "orders": {
+                "inner_pouch": inner_pack_order_summary,
+                "sheet": sheet_pack_order_summary,
+            },
+            "stock": {
+                "before_production": packaging_before,
+                "after_production": packaging_after_production,
+                "after_consumption": packaging_after_consumption,
+                "expected_remaining": {
+                    "inner_pouch_pcs": float(Decimal("4") - Decimal(str(gonny_primary.primary_pack_count or 0))),
+                    "sheet_kg": float(Decimal("2.0000") - Decimal("0.5000")),
+                },
+            },
+            "pouch_breakdown": report["pouch_flow"],
+            "roll_pack_lines": report["roll_dispatch"]["pack_lines"],
+            "artifacts": {
+                "roll_challan_pdf": str(roll_pdf_path),
+                "pouch_challan_pdf": str(pouch_pdf_path),
+            },
         }
 
         # Jobwork flow checks (planned-step and emergency pause-to-jobwork path)
@@ -1262,22 +1369,6 @@ class Command(BaseCommand):
             status="PLANNED",
             created_by=admin,
         )
-        mts_packaging = PlannedStockOrder.objects.create(
-            internal_name=f"E2E_MTS_PACK_{tag}",
-            template=pouch_template,
-            plant=fg_location.plant,
-            target_qty=Decimal("1000"),
-            quantity_uom="PCS",
-            produced_qty=Decimal("0"),
-            stock_purpose="PACKAGING",
-            packaging_material=inner_pouch,
-            output_type="PACKAGING",
-            status="PLANNED",
-            created_by=admin,
-            start_step_index=0,
-            stop_step_index=route_last_pouch,
-            target_step_index=route_last_pouch,
-        )
         report["dataset_seed"] = {
             "sales_orders_created_total": 12,
             "sales_orders_roll_total": 6,
@@ -1289,7 +1380,8 @@ class Command(BaseCommand):
                 {"order_no": mts_roll_fg.order_number, "output_type": mts_roll_fg.output_type, "purpose": mts_roll_fg.stock_purpose},
                 {"order_no": mts_roll_wip.order_number, "output_type": mts_roll_wip.output_type, "purpose": mts_roll_wip.stock_purpose},
                 {"order_no": mts_pouch_fg.order_number, "output_type": mts_pouch_fg.output_type, "purpose": mts_pouch_fg.stock_purpose},
-                {"order_no": mts_packaging.order_number, "output_type": mts_packaging.output_type, "purpose": mts_packaging.stock_purpose},
+                {"order_no": mts_packaging_inner.order_number, "output_type": mts_packaging_inner.output_type, "purpose": mts_packaging_inner.stock_purpose},
+                {"order_no": mts_packaging_sheet.order_number, "output_type": mts_packaging_sheet.output_type, "purpose": mts_packaging_sheet.stock_purpose},
             ],
         }
 
@@ -1501,6 +1593,30 @@ class Command(BaseCommand):
                     "evidence": f"rows={len(report['packaging_transactions'])}",
                 },
                 {
+                    "scenario_id": "INHOUSE_PACKAGING_PRODUCED",
+                    "status": "PASS"
+                    if report["inhouse_packaging_proof"]["orders"]["inner_pouch"]["produced_tx_type"] == "PRODUCE"
+                    and report["inhouse_packaging_proof"]["orders"]["sheet"]["produced_tx_type"] == "PRODUCE"
+                    else "FAIL",
+                    "evidence": json.dumps(report["inhouse_packaging_proof"]["orders"], default=str),
+                },
+                {
+                    "scenario_id": "INHOUSE_PACKAGING_CONSUMED_IN_POUCH",
+                    "status": "PASS"
+                    if Decimal(str(report["inhouse_packaging_proof"]["stock"]["after_consumption"]["inner_pouch_pcs"]))
+                    == Decimal(str(report["inhouse_packaging_proof"]["stock"]["expected_remaining"]["inner_pouch_pcs"]))
+                    else "FAIL",
+                    "evidence": json.dumps(report["inhouse_packaging_proof"]["stock"], default=str),
+                },
+                {
+                    "scenario_id": "INHOUSE_PACKAGING_CONSUMED_IN_ROLL",
+                    "status": "PASS"
+                    if Decimal(str(report["inhouse_packaging_proof"]["stock"]["after_consumption"]["sheet_kg"]))
+                    == Decimal(str(report["inhouse_packaging_proof"]["stock"]["expected_remaining"]["sheet_kg"]))
+                    else "FAIL",
+                    "evidence": json.dumps(report["inhouse_packaging_proof"]["stock"], default=str),
+                },
+                {
                     "scenario_id": "TWO_PLANT_SEED",
                     "status": "PASS"
                     if report["plant_inventory_seed"]["plant_a_packaging_rows"] > 0
@@ -1608,7 +1724,19 @@ class Command(BaseCommand):
         if options.get("cleanup_after"):
             self._cleanup_prior_test_rows()
 
-    def _upsert_packaging_material(self, *, code, name, base_uom, packaging_kind, per_sheet_base_qty=None):
+    def _upsert_packaging_material(
+        self,
+        *,
+        code,
+        name,
+        base_uom,
+        packaging_kind,
+        packaging_supply_mode="PURCHASED",
+        production_template=None,
+        packaging_defaults_json=None,
+        tare_weight_kg=None,
+        per_sheet_base_qty=None,
+    ):
         material, _ = InventoryMaterial.objects.update_or_create(
             code=code,
             defaults={
@@ -1616,13 +1744,132 @@ class Command(BaseCommand):
                 "category": "PACKAGING",
                 "base_uom": base_uom,
                 "packaging_kind": packaging_kind,
-                "packaging_supply_mode": "PURCHASED",
+                "packaging_supply_mode": packaging_supply_mode,
+                "production_template": production_template,
+                "packaging_defaults_json": packaging_defaults_json or {},
+                "tare_weight_kg": tare_weight_kg,
                 "per_sheet_base_qty": per_sheet_base_qty,
                 "status": "ACTIVE",
-                "is_purchasable": True,
+                "is_purchasable": packaging_supply_mode in {"PURCHASED", "BOTH"},
             },
         )
         return material
+
+    def _packaging_stock_qty(self, material, location):
+        row = PackagingStock.objects.filter(material=material, location=location).first()
+        return Decimal(str(getattr(row, "qty", 0) or 0))
+
+    def _produce_packaging_stock_for_acceptance(
+        self,
+        *,
+        mts_order,
+        admin,
+        route_index,
+        actual_qty,
+        actual_uom="KG",
+        output_pcs=None,
+        target_location=None,
+    ):
+        jobs = JobService.create_jobs_for_planned_order(
+            mts_order,
+            start_index=route_index,
+            stop_index=route_index,
+        )
+        if not jobs:
+            raise CommandError(f"Could not create packaging job for {mts_order.order_number}.")
+
+        job = jobs[0]
+        fg_location = (
+            InventoryLocation.objects.filter(plant=mts_order.plant, type="FG", is_active=True)
+            .order_by("-is_system", "name")
+            .first()
+        )
+        if fg_location and job.to_location_id != fg_location.id:
+            job.to_location = fg_location
+        now = timezone.now()
+        job.status = "RUNNING"
+        job.job_state = "EXECUTING"
+        job.start_date = now
+        update_fields = ["status", "job_state", "start_date", "updated_at"]
+        if fg_location:
+            update_fields.append("to_location")
+        job.save(update_fields=update_fields)
+
+        completion_meta = {}
+        if actual_uom and str(actual_uom).upper() != "KG":
+            completion_meta["actual_uom"] = str(actual_uom).upper()
+        if output_pcs is not None:
+            completion_meta["output_pcs"] = int(output_pcs)
+        process = job.current_process or job.process
+        if (
+            process
+            and str(getattr(process, "roll_behavior", "") or "").upper() == "CREATE_NEW"
+            and str(getattr(process, "output_form", "") or "").upper() == "ROLL"
+        ):
+            geometry_base = (
+                dict(getattr(mts_order, "geometry_snapshot", {}) or {}).get("base", {})
+                if isinstance(getattr(mts_order, "geometry_snapshot", {}), dict)
+                else {}
+            )
+            layer0 = (
+                (getattr(mts_order, "layer_snapshot", None) or [None])[0]
+                if isinstance(getattr(mts_order, "layer_snapshot", None), list)
+                else None
+            )
+            inferred_width = (
+                geometry_base.get("width_mm")
+                or (layer0.get("width_mm") if isinstance(layer0, dict) else None)
+                or 1000
+            )
+            completion_meta["output_width_mm"] = inferred_width
+
+        JobService.log_output_event(job, Decimal(str(actual_qty)), completion_meta=completion_meta, user=admin)
+        job.refresh_from_db()
+        JobService.complete_step(job, user=admin, force_reason="Acceptance in-house packaging proof")
+        job.refresh_from_db()
+
+        mts_order.refresh_from_db()
+        mts_order.produced_qty = mts_order.target_qty
+        mts_order.status = "STOCK_READY"
+        mts_order.save(update_fields=["produced_qty", "status", "updated_at"])
+
+        produced_tx = (
+            PackagingTransaction.objects.filter(mts_order=mts_order, type="PRODUCE")
+            .order_by("-created_at")
+            .first()
+        )
+        transfer_tx = None
+        produced_qty = Decimal(str(getattr(produced_tx, "qty", 0) or 0))
+        if (
+            produced_tx
+            and target_location
+            and getattr(produced_tx, "location_id", None)
+            and str(produced_tx.location_id) != str(target_location.id)
+            and produced_qty > 0
+        ):
+            transfer_tx = PackagingService.transfer_packaging_stock(
+                material_id=mts_order.packaging_material_id,
+                qty=abs(produced_qty),
+                from_location_id=produced_tx.location_id,
+                to_location_id=target_location.id,
+                reference=f"ACCEPTANCE_PROOF:{mts_order.order_number}",
+            )
+        return {
+            "order_number": mts_order.order_number,
+            "order_status": mts_order.status,
+            "job_number": job.job_number,
+            "job_status": job.status,
+            "job_state": job.job_state,
+            "closed_with_variance": bool(getattr(job, "closed_with_variance", False)),
+            "completion_force_reason": getattr(job, "completion_force_reason", None),
+            "produced_tx_type": produced_tx.type if produced_tx else None,
+            "produced_tx_qty": float(abs(produced_qty)) if produced_tx else 0.0,
+            "produced_tx_reference": produced_tx.reference if produced_tx else None,
+            "location": getattr(getattr(produced_tx, "location", None), "name", None),
+            "transfer_tx_type": transfer_tx.type if transfer_tx else None,
+            "transfer_tx_reference": transfer_tx.reference if transfer_tx else None,
+            "target_location": getattr(target_location, "name", None) if target_location else None,
+        }
 
     def _upsert_pod_profile(
         self,
@@ -1889,13 +2136,19 @@ class Command(BaseCommand):
             | Q(order_name__startswith="TEST_SO_")
         ).delete()
         Customer.objects.filter(code__in=["TEST_CUSTOMER_ROLL", "TEST_CUSTOMER_POUCH"]).delete()
-        PackagingTransaction.objects.filter(material__code__startswith="TEST_").delete()
-        PackagingStock.objects.filter(material__code__startswith="TEST_").delete()
+        PackagingTransaction.objects.filter(
+            Q(material__code__startswith="TEST_")
+            | Q(material__code__in=["PACK_INNER_100_INHOUSE", "PACK_ROLL_SHEET_INHOUSE"])
+        ).delete()
+        PackagingStock.objects.filter(
+            Q(material__code__startswith="TEST_")
+            | Q(material__code__in=["PACK_INNER_100_INHOUSE", "PACK_ROLL_SHEET_INHOUSE"])
+        ).delete()
         InventoryMaterial.objects.filter(code__in=[
-            "TEST_INNER_POUCH_PCS",
+            "PACK_INNER_100_INHOUSE",
             "TEST_GONNY_PCS",
             "TEST_TAPE_PCS",
-            "TEST_SHEET_KG",
+            "PACK_ROLL_SHEET_INHOUSE",
             "TEST_POD_SINGLE_200",
         ]).delete()
         Vendor.objects.filter(code="TEST_VENDOR_ACCEPTANCE").delete()
@@ -1921,6 +2174,12 @@ class Command(BaseCommand):
             writer.writeheader()
             for row in scenario_rows:
                 writer.writerow(row)
+
+        proof_json = report_dir / "inhouse_packaging_proof.json"
+        proof_md = report_dir / "inhouse_packaging_proof.md"
+        proof_payload = report.get("inhouse_packaging_proof", {})
+        proof_json.write_text(json.dumps(proof_payload, indent=2, default=str), encoding="utf-8")
+        proof_md.write_text(self._render_inhouse_packaging_markdown(proof_payload), encoding="utf-8")
 
     def _render_report_markdown(self, report: dict, scenario_rows: list[dict]) -> str:
         lines = [
@@ -1950,6 +2209,14 @@ class Command(BaseCommand):
             f"- Pouch Sales: `{report.get('dataset_seed', {}).get('sales_orders_pouch_total')}`",
             f"- MTS Orders: `{len(report.get('dataset_seed', {}).get('mts_orders', []))}`",
             "",
+            "## In-House Packaging Proof",
+            f"- Inner Pouch Order: `{report.get('inhouse_packaging_proof', {}).get('orders', {}).get('inner_pouch', {}).get('order_number')}`",
+            f"- Inner Pouch Produced Tx: `{report.get('inhouse_packaging_proof', {}).get('orders', {}).get('inner_pouch', {}).get('produced_tx_type')}`",
+            f"- Sheet Order: `{report.get('inhouse_packaging_proof', {}).get('orders', {}).get('sheet', {}).get('order_number')}`",
+            f"- Sheet Produced Tx: `{report.get('inhouse_packaging_proof', {}).get('orders', {}).get('sheet', {}).get('produced_tx_type')}`",
+            f"- Inner Pouch After Consumption (PCS): `{report.get('inhouse_packaging_proof', {}).get('stock', {}).get('after_consumption', {}).get('inner_pouch_pcs')}`",
+            f"- Sheet After Consumption (KG): `{report.get('inhouse_packaging_proof', {}).get('stock', {}).get('after_consumption', {}).get('sheet_kg')}`",
+            "",
             "## Two-Plant Seed",
             f"- Plant A Packaging Rows: `{report.get('plant_inventory_seed', {}).get('plant_a_packaging_rows')}`",
             f"- Plant B Packaging Rows: `{report.get('plant_inventory_seed', {}).get('plant_b_packaging_rows')}`",
@@ -1970,4 +2237,38 @@ class Command(BaseCommand):
         for row in scenario_rows:
             lines.append(f"- `{row['scenario_id']}`: **{row['status']}**")
         lines.append("")
+        return "\n".join(lines)
+
+    def _render_inhouse_packaging_markdown(self, proof: dict) -> str:
+        stock = proof.get("stock", {}) if isinstance(proof, dict) else {}
+        orders = proof.get("orders", {}) if isinstance(proof, dict) else {}
+        artifacts = proof.get("artifacts", {}) if isinstance(proof, dict) else {}
+        lines = [
+            "# In-House Packaging Proof",
+            "",
+            "## SKUs",
+        ]
+        for sku in proof.get("skus", []) if isinstance(proof.get("skus", []), list) else []:
+            lines.append(
+                f"- `{sku.get('code')}` | kind=`{sku.get('kind')}` | supply=`{sku.get('supply_mode')}` | template=`{sku.get('template')}`"
+            )
+        lines.extend(
+            [
+                "",
+                "## Orders",
+                f"- Inner Pouch Order: `{orders.get('inner_pouch', {}).get('order_number')}` -> `{orders.get('inner_pouch', {}).get('order_status')}`",
+                f"- Sheet Order: `{orders.get('sheet', {}).get('order_number')}` -> `{orders.get('sheet', {}).get('order_status')}`",
+                "",
+                "## Stock",
+                f"- Before Production: `{json.dumps(stock.get('before_production', {}), default=str)}`",
+                f"- After Production: `{json.dumps(stock.get('after_production', {}), default=str)}`",
+                f"- After Consumption: `{json.dumps(stock.get('after_consumption', {}), default=str)}`",
+                f"- Expected Remaining: `{json.dumps(stock.get('expected_remaining', {}), default=str)}`",
+                "",
+                "## Artifacts",
+                f"- Roll Challan PDF: `{artifacts.get('roll_challan_pdf')}`",
+                f"- Pouch Challan PDF: `{artifacts.get('pouch_challan_pdf')}`",
+                "",
+            ]
+        )
         return "\n".join(lines)
