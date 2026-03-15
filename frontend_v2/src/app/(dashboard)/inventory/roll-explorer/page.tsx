@@ -12,7 +12,7 @@ import {
     Locate,
     Package,
     PackageSearch,
-    PieChart,
+    PieChart as PieChartIcon,
     RefreshCw,
     Search,
     ShieldAlert,
@@ -20,6 +20,17 @@ import {
     TableProperties,
     Tag,
 } from "lucide-react";
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Pie,
+    PieChart,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChartSurface } from "@/components/ui-custom/chart-surface";
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge";
 import { humanizeToken } from "@/lib/visual-semantics";
 import { toast } from "sonner";
@@ -51,6 +63,8 @@ import {
 import { commercialFamilyService } from "@/services/commercial-families";
 
 type ExplorerMode = "variant" | "grouped" | "table";
+
+const ROLL_CHART_COLORS = ["#4f46e5", "#0f766e", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#65a30d"]
 
 function toNumber(value: unknown, fallback = 0): number {
     const n = Number(value);
@@ -373,6 +387,39 @@ export default function RollExplorerPage() {
         remainder_weight_kg: 0,
     };
 
+    const variantSummaryCharts = useMemo(() => {
+        const familyContribution = variantFamilies
+            .map((family) => ({
+                name: family.family_display_name,
+                value: family.total_available_kg + family.total_reserved_kg + family.total_blocked_kg,
+            }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 6)
+
+        const stageMap = new Map<string, number>()
+        const strategyMap = new Map<string, number>()
+        const originMap = new Map<string, number>()
+
+        for (const family of variantFamilies) {
+            for (const variant of family.variants) {
+                const variantWeight = toNumber(variant.available_kg, 0) + toNumber(variant.reserved_kg, 0) + toNumber(variant.blocked_kg, 0)
+                stageMap.set(variant.stage_name || "Unknown", (stageMap.get(variant.stage_name || "Unknown") || 0) + variantWeight)
+                strategyMap.set(variant.stock_strategy_label || stockStrategyLabel(variant.stock_strategy), (strategyMap.get(variant.stock_strategy_label || stockStrategyLabel(variant.stock_strategy)) || 0) + variantWeight)
+                for (const row of variant.rolls) {
+                    const origin = row.origin_label || originLabel(row.origin_type)
+                    originMap.set(origin, (originMap.get(origin) || 0) + toNumber(row.weight_kg, 0))
+                }
+            }
+        }
+
+        return {
+            familyContribution,
+            stageMix: Array.from(stageMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
+            strategyMix: Array.from(strategyMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
+            originMix: Array.from(originMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
+        }
+    }, [variantFamilies])
+
     const refresh = async () => {
         await Promise.all([
             qc.invalidateQueries({ queryKey: ["roll-explorer"] }),
@@ -487,9 +534,9 @@ export default function RollExplorerPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
+                        <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><PieChart className="w-4 h-4" /> Rolls In View</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><PieChartIcon className="w-4 h-4" /> Rolls In View</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-4xl font-black tracking-tighter text-slate-900">{totals.roll_count}</div>
@@ -520,6 +567,82 @@ export default function RollExplorerPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {mode === "variant" && variantFamilies.length > 0 ? (
+                <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr_0.8fr]">
+                    <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-500">Family Contribution</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-[280px]">
+                            <ChartSurface loadingLabel="Preparing family chart…">
+                                {({ width, height }) => (
+                                    <BarChart width={width} height={height} data={variantSummaryCharts.familyContribution} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
+                                        <Tooltip formatter={(value: number | string | undefined) => [`${toNumber(value, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`, "Weight"]} />
+                                        <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                                            {variantSummaryCharts.familyContribution.map((row, index) => (
+                                                <Cell key={row.name} fill={ROLL_CHART_COLORS[index % ROLL_CHART_COLORS.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                )}
+                            </ChartSurface>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-500">Stage Mix</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-[280px]">
+                            <ChartSurface loadingLabel="Preparing stage mix…">
+                                {({ width, height }) => (
+                                    <PieChart width={width} height={height}>
+                                        <Pie data={variantSummaryCharts.stageMix} dataKey="value" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={4}>
+                                            {variantSummaryCharts.stageMix.map((row, index) => (
+                                                <Cell key={row.name} fill={ROLL_CHART_COLORS[index % ROLL_CHART_COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value: number | string | undefined) => [`${toNumber(value, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`, "Weight"]} />
+                                    </PieChart>
+                                )}
+                            </ChartSurface>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-500">Source Mix</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {variantSummaryCharts.strategyMix.map((row, index) => (
+                                <div key={row.name} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{row.name}</div>
+                                            <div className="mt-1 text-lg font-black tracking-tight text-slate-900">
+                                                {row.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
+                                            </div>
+                                        </div>
+                                        <div className="h-11 w-11 rounded-2xl" style={{ backgroundColor: `${ROLL_CHART_COLORS[index % ROLL_CHART_COLORS.length]}22` }} />
+                                    </div>
+                                </div>
+                            ))}
+                            {variantSummaryCharts.originMix.slice(0, 3).map((row) => (
+                                <div key={row.name} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3">
+                                    <SemanticBadge kind="origin" value={row.name} label={row.name} />
+                                    <div className="font-black text-slate-900">
+                                        {row.value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                </div>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -832,23 +955,36 @@ export default function RollExplorerPage() {
                             {variantFamilies.map((family) => {
                                 const familyOpen = expandedFamilies[family.family_key] ?? true
                                 return (
-                                    <Card key={family.family_key} className="overflow-hidden border-slate-200 shadow-sm">
-                                        <CardHeader className="border-b border-slate-100 bg-white py-4">
+                                    <Card key={family.family_key} className="overflow-hidden border-slate-200 shadow-sm bg-gradient-to-br from-white via-white to-slate-50">
+                                        <CardHeader className="border-b border-slate-100 bg-white/90 py-5">
                                             <button
                                                 type="button"
                                                 className="flex w-full items-center justify-between gap-3 text-left"
                                                 onClick={() => setExpandedFamilies((current) => ({ ...current, [family.family_key]: !familyOpen }))}
                                             >
-                                                <div className="min-w-0">
+                                                <div className="min-w-0 flex-1">
                                                     <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">{family.reporting_group || "Stock Family"}</div>
-                                                    <CardTitle className="mt-1 text-xl font-black tracking-tight text-slate-900">{family.family_display_name}</CardTitle>
+                                                    <CardTitle className="mt-1 text-2xl font-black tracking-tight text-slate-900">{family.family_display_name}</CardTitle>
                                                     <p className="mt-1 text-sm text-slate-500">
-                                                        {family.variants.length} variant sizes · {family.total_roll_count} rolls · {family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg available
+                                                        {family.variants.length} usable sizes • {family.total_roll_count} rolls • oldest stock {family.oldest_age_days || 0}d
                                                     </p>
                                                 </div>
+                                                <div className="hidden shrink-0 gap-3 lg:grid lg:grid-cols-3">
+                                                    <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-right">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">Available</div>
+                                                        <div className="mt-1 text-xl font-black tracking-tight text-emerald-700">{family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-amber-50 px-4 py-3 text-right">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">Reserved</div>
+                                                        <div className="mt-1 text-xl font-black tracking-tight text-amber-700">{family.total_reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-rose-50 px-4 py-3 text-right">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-600">Blocked</div>
+                                                        <div className="mt-1 text-xl font-black tracking-tight text-rose-700">{family.total_blocked_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+                                                    </div>
+                                                </div>
                                                 <div className="flex items-center gap-2">
-                                                    <SemanticBadge kind="jobState" value="READY" label={`${family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg available`} />
-                                                    <SemanticBadge kind="severity" value="LOW" label={`${family.total_reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg reserved`} />
+                                                    <SemanticBadge kind="jobState" value="READY" label={`${family.total_available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`} />
                                                     {familyOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
                                                 </div>
                                             </button>
@@ -858,44 +994,46 @@ export default function RollExplorerPage() {
                                                 {family.variants.map((variant) => {
                                                     const variantOpen = expandedVariants[variant.variant_key] ?? false
                                                     return (
-                                                        <div key={variant.variant_key} className="rounded-2xl border border-slate-200 bg-slate-50/50">
+                                                        <div key={variant.variant_key} className="rounded-[1.5rem] border border-slate-200 bg-white shadow-sm">
                                                             <button
                                                                 type="button"
-                                                                className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
+                                                                className="flex w-full flex-col gap-4 px-5 py-5 text-left xl:flex-row xl:items-start xl:justify-between"
                                                                 onClick={() => setExpandedVariants((current) => ({ ...current, [variant.variant_key]: !variantOpen }))}
                                                             >
-                                                                <div className="min-w-0">
-                                                                    <div className="font-bold text-slate-900">{variant.variant_display_name}</div>
-                                                                    <div className="mt-1 text-sm text-slate-600">{variant.size_line || "Size not set"} · {variant.stage_name} · {variant.stock_strategy_label}</div>
-                                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="font-black tracking-tight text-slate-900 text-lg break-words">{variant.variant_display_name}</div>
+                                                                    <div className="mt-1 text-sm font-medium text-slate-600 break-words">{variant.size_line || "Size not set"} • {variant.stage_name} • {variant.stock_strategy_label}</div>
+                                                                    <div className="mt-3 flex flex-wrap gap-2">
                                                                         <SemanticBadge kind="processState" value={variant.print_status} />
                                                                         <SemanticBadge kind="processState" value={variant.lamination_status} />
                                                                         <SemanticBadge kind="stockStrategy" value={variant.stock_strategy} label={variant.stock_strategy_label} />
                                                                     </div>
+                                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                                        {variant.plant_summary.map((plant) => (
+                                                                            <div key={`${variant.variant_key}-${plant.plant_name}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                                                                                {plant.plant_name} • {plant.locations.length} node{plant.locations.length === 1 ? "" : "s"}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="min-w-[320px] shrink-0">
-                                                                    <div className="grid grid-cols-4 gap-2 text-center">
-                                                                        <div className="rounded-xl bg-white p-3">
+                                                                <div className="grid min-w-0 shrink-0 grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[420px]">
+                                                                        <div className="rounded-2xl bg-slate-50 p-3 text-center">
                                                                             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Rolls</div>
                                                                             <div className="mt-1 text-lg font-black text-slate-900">{variant.roll_count}</div>
                                                                         </div>
-                                                                        <div className="rounded-xl bg-emerald-50 p-3">
+                                                                        <div className="rounded-2xl bg-emerald-50 p-3 text-center">
                                                                             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600">Available</div>
                                                                             <div className="mt-1 text-lg font-black text-emerald-700">{variant.available_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
                                                                         </div>
-                                                                        <div className="rounded-xl bg-amber-50 p-3">
+                                                                        <div className="rounded-2xl bg-amber-50 p-3 text-center">
                                                                             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-600">Reserved</div>
                                                                             <div className="mt-1 text-lg font-black text-amber-700">{variant.reserved_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
                                                                         </div>
-                                                                        <div className="rounded-xl bg-rose-50 p-3">
+                                                                        <div className="rounded-2xl bg-rose-50 p-3 text-center">
                                                                             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-rose-600">Blocked</div>
                                                                             <div className="mt-1 text-lg font-black text-rose-700">{variant.blocked_kg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="mt-2 text-xs text-slate-500">
-                                                                        {variant.plant_summary.map((plant) => `${plant.plant_name}: ${plant.locations.join(", ") || "No location"}`).join(" • ") || "No plant/location summary"}
-                                                                    </div>
-                                                                </div>
                                                             </button>
                                                             {variantOpen ? (
                                                                 <div className="border-t border-slate-200 bg-white px-4 py-3">

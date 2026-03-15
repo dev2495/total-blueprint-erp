@@ -179,6 +179,8 @@ class PODSerializer(serializers.ModelSerializer):
 
 
 class PackagingSerializer(serializers.ModelSerializer):
+    production_template_name = serializers.CharField(source="production_template.name", read_only=True, allow_null=True)
+
     class Meta:
         model = InventoryMaterial
         fields = [
@@ -188,6 +190,10 @@ class PackagingSerializer(serializers.ModelSerializer):
             'base_uom',
             'packaging_kind',
             'packaging_supply_mode',
+            'production_template',
+            'production_template_name',
+            'packaging_defaults_json',
+            'tare_weight_kg',
             'per_sheet_base_qty',
             'status',
             'created_at',
@@ -201,8 +207,11 @@ class PackagingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'packaging_kind': 'packaging_kind is required for packaging materials.'})
         if not supply_mode:
             raise serializers.ValidationError({'packaging_supply_mode': 'packaging_supply_mode is required for packaging materials.'})
-        if kind == 'GONNY' and supply_mode == 'IN_HOUSE':
-            raise serializers.ValidationError({'packaging_supply_mode': 'GONNY cannot be IN_HOUSE.'})
+        in_house_kinds = {"INNER_POUCH", "SHEET", "FILM"}
+        if supply_mode in {'IN_HOUSE', 'BOTH'} and kind not in in_house_kinds:
+            raise serializers.ValidationError({'packaging_supply_mode': f'{kind} cannot be IN_HOUSE in this phase.'})
+        if supply_mode in {'IN_HOUSE', 'BOTH'} and not attrs.get('production_template', getattr(self.instance, 'production_template', None)):
+            raise serializers.ValidationError({'production_template': 'In-house packaging materials require a linked production template.'})
         return attrs
 
     def create(self, validated_data):

@@ -142,6 +142,26 @@ class InventoryMaterial(models.Model):
         null=True,
         blank=True,
     )
+    production_template = models.ForeignKey(
+        "templates.TemplateBlueprint",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="packaging_materials",
+        help_text="Linked in-house template/blueprint used when this packaging SKU is manufactured as PACKAGING_STOCK.",
+    )
+    packaging_defaults_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Optional branded packaging defaults and tare settings used by packing-yard flows.",
+    )
+    tare_weight_kg = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Default tare weight per packaging unit used for packing and dispatch gross-weight math.",
+    )
     per_sheet_base_qty = models.DecimalField(
         max_digits=12,
         decimal_places=6,
@@ -192,14 +212,28 @@ class InventoryMaterial(models.Model):
                 raise ValidationError({'packaging_kind': "Packaging material must have a packaging kind."})
             if not self.packaging_supply_mode:
                 raise ValidationError({'packaging_supply_mode': "Packaging material must have a packaging supply mode."})
-            if self.packaging_kind == 'GONNY' and self.packaging_supply_mode == 'IN_HOUSE':
-                raise ValidationError({'packaging_supply_mode': "GONNY cannot be IN_HOUSE."})
+            in_house_kinds = {"INNER_POUCH", "SHEET", "FILM"}
+            if self.packaging_supply_mode in {"IN_HOUSE", "BOTH"}:
+                if self.packaging_kind not in in_house_kinds:
+                    raise ValidationError(
+                        {"packaging_supply_mode": f"{self.packaging_kind} cannot be produced in house in this phase."}
+                    )
+                if not self.production_template:
+                    raise ValidationError(
+                        {"production_template": "In-house packaging materials must be linked to a production template."}
+                    )
         else:
             invalid_fields = {}
             if self.packaging_kind:
                 invalid_fields['packaging_kind'] = "packaging_kind must be null for non-PACKAGING materials."
             if self.packaging_supply_mode:
                 invalid_fields['packaging_supply_mode'] = "packaging_supply_mode must be null for non-PACKAGING materials."
+            if self.production_template_id:
+                invalid_fields['production_template'] = "production_template must be null for non-PACKAGING materials."
+            if self.packaging_defaults_json:
+                invalid_fields['packaging_defaults_json'] = "packaging_defaults_json must be empty for non-PACKAGING materials."
+            if self.tare_weight_kg is not None:
+                invalid_fields['tare_weight_kg'] = "tare_weight_kg must be null for non-PACKAGING materials."
             if self.per_sheet_base_qty is not None:
                 invalid_fields['per_sheet_base_qty'] = "per_sheet_base_qty must be null for non-PACKAGING materials."
             if invalid_fields:

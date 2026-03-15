@@ -2,256 +2,374 @@
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { inventoryService } from "@/services/inventory"
+import {
+  BarChart3,
+  Boxes,
+  Coins,
+  Database,
+  Landmark,
+  Layers3,
+  MapPin,
+  Package,
+  Scale,
+  Search,
+} from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+
+import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Package, Search, MapPin, Layers, Coins, PieChart as PieChartIcon, BarChart3, Database, ListFilter } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+import { ChartSurface } from "@/components/ui-custom/chart-surface"
+import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
+import { inventoryService, type InventoryBulk } from "@/services/inventory"
+
+const CHART_COLORS = ["#0f766e", "#1d4ed8", "#7c3aed", "#ea580c", "#dc2626", "#0891b2"]
+
+function formatKg(value: number) {
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} kg`
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value)
+}
 
 export default function BulkInventoryPage() {
-    const [searchTerm, setSearchTerm] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
 
-    const { data: bulkStock, isLoading } = useQuery({
-        queryKey: ["bulk-stock"],
-        queryFn: () => inventoryService.getBulkStock()
+  const { data: bulkStock = [], isLoading } = useQuery({
+    queryKey: ["bulk-stock"],
+    queryFn: () => inventoryService.getBulkStock(),
+  })
+
+  const filteredStock = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return bulkStock
+    return bulkStock.filter((item) => {
+      const blob = [item.material_name, item.material_code, item.material_category, item.plant_name, item.location_name]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+      return blob.includes(q)
     })
+  }, [bulkStock, searchQuery])
 
-    const filteredStock = useMemo(() => {
-        if (!bulkStock) return [];
-        const q = searchTerm.toLowerCase();
-        return bulkStock.filter(item =>
-            item.material_name.toLowerCase().includes(q) ||
-            item.material_code.toLowerCase().includes(q) ||
-            item.location_name.toLowerCase().includes(q)
-        )
-    }, [bulkStock, searchTerm]);
-
-    const totals = useMemo(() => {
-        if (!bulkStock) return { weight: 0, value: 0, items: 0 };
-        return bulkStock.reduce((acc, item) => ({
-            weight: acc.weight + item.qty_kg,
-            value: acc.value + (item.qty_kg * item.avg_cost),
-            items: acc.items + 1
-        }), { weight: 0, value: 0, items: 0 });
-    }, [bulkStock]);
-
-    const locationData = useMemo(() => {
-        if (!bulkStock) return [];
-        const locMap: Record<string, number> = {};
-        bulkStock.forEach(item => {
-            locMap[item.location_name] = (locMap[item.location_name] || 0) + item.qty_kg;
-        });
-        return Object.entries(locMap)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 5); // top 5 locations
-    }, [bulkStock]);
-
-    const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6'];
-
-    return (
-        <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-100 shadow-sm">
-                            <Database className="h-5 w-5 text-indigo-600" strokeWidth={2.5} />
-                        </div>
-                        Bulk Inventory
-                    </h1>
-                    <p className="text-slate-500 mt-1.5 font-medium tracking-tight">Unified view of pooled materials across all plants and locations.</p>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors">
-                            <Package className="w-4 h-4" /> Material Nodes
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900">{totals.items}</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-amber-500 transition-colors">
-                            <Layers className="w-4 h-4" /> Global Mass Matrix
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900 flex items-baseline gap-1.5">
-                            {totals.weight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            <span className="text-sm font-semibold tracking-wide text-slate-400">kg</span>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow border-b-4 border-b-emerald-400">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 flex items-center gap-2">
-                            <Coins className="w-4 h-4" /> Capital Valuation
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900 flex items-baseline gap-1.5">
-                            <span className="text-2xl text-slate-400">₹</span>
-                            {totals.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl lg:col-span-2">
-                    <CardHeader className="border-b border-slate-50 pb-4">
-                        <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                            <BarChart3 className="w-4 h-4 text-indigo-500" strokeWidth={2.5} /> Stock Volume By Location
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[280px] p-6">
-                        {isLoading ? (
-                            <div className="h-full w-full flex items-center justify-center text-slate-400 font-medium animate-pulse">Computing distribution...</div>
-                        ) : locationData.length === 0 ? (
-                            <div className="h-full w-full flex items-center justify-center text-slate-400 font-medium">No distinct locations tracked</div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={locationData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `${(val / 1000).toFixed(1)}k`} />
-                                    <Tooltip
-                                        cursor={{ fill: '#f8fafc' }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                                        formatter={(value: number | string | undefined) => [`${Number(value || 0).toLocaleString()} kg`, 'Mass']}
-                                    />
-                                    <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                        {locationData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        )}
-                    </CardContent>
-                </Card>
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl">
-                    <CardHeader className="border-b border-slate-50 pb-4">
-                        <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                            <PieChartIcon className="w-4 h-4 text-emerald-500" strokeWidth={2.5} /> Mass Allocation
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[280px] p-4">
-                        {isLoading ? (
-                            <div className="h-full w-full flex items-center justify-center text-slate-400 font-medium animate-pulse">Aggregating...</div>
-                        ) : locationData.length === 0 ? (
-                            <div className="h-full w-full flex items-center justify-center text-slate-400 font-medium">No data</div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={locationData}
-                                        cx="50%"
-                                        cy="45%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        stroke="none"
-                                    >
-                                        {locationData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                                        formatter={(value: number | string | undefined) => [`${Number(value || 0).toLocaleString()} kg`, 'Mass']}
-                                    />
-                                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Card className="border-0 shadow-sm bg-white rounded-2xl overflow-hidden ring-1 ring-slate-100">
-                <CardHeader className="bg-slate-50/80 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 pb-4">
-                    <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"><ListFilter className="w-4 h-4 text-indigo-500" strokeWidth={2.5} /> Stock Ledger</CardTitle>
-                    <div className="relative w-full sm:w-72">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                            placeholder="Locate material or location..."
-                            className="pl-9 bg-white border-slate-200 shadow-sm font-medium focus-visible:ring-indigo-500"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0 overflow-auto">
-                    <table className="w-full text-sm min-w-[900px]">
-                        <thead className="bg-slate-50/40 border-b border-slate-100">
-                            <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                                <th className="px-5 py-3">Material Identity</th>
-                                <th className="px-5 py-3">Vector / Location</th>
-                                <th className="px-5 py-3 text-right">Net Quantity</th>
-                                <th className="px-5 py-3 text-right">Moving Avg Cost</th>
-                                <th className="px-5 py-3 text-right">Last Polled</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
-                            {isLoading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
-                                    <tr key={i}>
-                                        <td className="px-5 py-4"><Skeleton className="h-4 w-40" /></td>
-                                        <td className="px-5 py-4"><Skeleton className="h-4 w-24" /></td>
-                                        <td className="px-5 py-4"><Skeleton className="h-4 w-16 ml-auto" /></td>
-                                        <td className="px-5 py-4"><Skeleton className="h-4 w-16 ml-auto" /></td>
-                                        <td className="px-5 py-4"><Skeleton className="h-4 w-24 ml-auto" /></td>
-                                    </tr>
-                                ))
-                            ) : filteredStock?.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-5 py-10 text-center text-slate-500 font-medium">
-                                        No materials align with the target query vector.
-                                    </td>
-                                </tr>
-                            ) : (
-                                filteredStock?.map((item) => (
-                                    <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                                        <td className="px-5 py-3">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-[14px] text-slate-900 tracking-tight">{item.material_name}</span>
-                                                <span className="text-[11px] font-mono tracking-widest font-bold text-slate-400 mt-0.5">{item.material_code}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-3">
-                                            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
-                                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                                                <span>{item.location_name}</span>
-                                                <Badge variant="outline" className="ml-1.5 text-[10px] py-0 h-4 bg-slate-50 border-slate-200">
-                                                    {item.plant_name}
-                                                </Badge>
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-3 text-right font-mono tracking-tighter text-[15px] font-black text-slate-900">
-                                            {item.qty_kg.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-400 font-sans tracking-widest uppercase">kg</span>
-                                        </td>
-                                        <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600">
-                                            <span className="text-emerald-400 mr-1 text-[11px]">₹</span>{item.avg_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </td>
-                                        <td className="px-5 py-3 text-right text-[11px] tracking-wide font-medium text-slate-400">
-                                            {new Date(item.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </CardContent>
-            </Card>
-        </div>
+  const totals = useMemo(() => {
+    return filteredStock.reduce(
+      (acc, item) => {
+        const qty = Number(item.qty_kg || 0)
+        const avgCost = Number(item.avg_cost || 0)
+        acc.weightKg += qty
+        acc.value += qty * avgCost
+        acc.nodes += 1
+        acc.plants.add(item.plant_name || "Unknown")
+        return acc
+      },
+      { weightKg: 0, value: 0, nodes: 0, plants: new Set<string>() },
     )
+  }, [filteredStock])
+
+  const categoryData = useMemo(() => {
+    const bucket = new Map<string, { name: string; value: number }>()
+    for (const row of filteredStock) {
+      const key = String(row.material_category || "OTHER").toUpperCase()
+      const current = bucket.get(key) || { name: key.replaceAll("_", " "), value: 0 }
+      current.value += Number(row.qty_kg || 0)
+      bucket.set(key, current)
+    }
+    return Array.from(bucket.values()).sort((a, b) => b.value - a.value)
+  }, [filteredStock])
+
+  const plantData = useMemo(() => {
+    const bucket = new Map<string, { name: string; value: number }>()
+    for (const row of filteredStock) {
+      const key = String(row.plant_name || "Unknown")
+      const current = bucket.get(key) || { name: key, value: 0 }
+      current.value += Number(row.qty_kg || 0)
+      bucket.set(key, current)
+    }
+    return Array.from(bucket.values()).sort((a, b) => b.value - a.value).slice(0, 6)
+  }, [filteredStock])
+
+  const locationData = useMemo(() => {
+    const bucket = new Map<string, { name: string; value: number }>()
+    for (const row of filteredStock) {
+      const key = `${row.plant_name || "Unknown"} • ${row.location_name || "No location"}`
+      const current = bucket.get(key) || { name: key, value: 0 }
+      current.value += Number(row.qty_kg || 0)
+      bucket.set(key, current)
+    }
+    return Array.from(bucket.values()).sort((a, b) => b.value - a.value).slice(0, 8)
+  }, [filteredStock])
+
+  const ageBands = useMemo(() => {
+    const now = Date.now()
+    const bands = {
+      Fresh: 0,
+      Watch: 0,
+      Aged: 0,
+    }
+    for (const row of filteredStock) {
+      const updatedAt = new Date(row.updated_at).getTime()
+      const days = Number.isFinite(updatedAt) ? (now - updatedAt) / (1000 * 60 * 60 * 24) : 0
+      const qty = Number(row.qty_kg || 0)
+      if (days <= 7) bands.Fresh += qty
+      else if (days <= 30) bands.Watch += qty
+      else bands.Aged += qty
+    }
+    return Object.entries(bands).map(([name, value]) => ({ name, value }))
+  }, [filteredStock])
+
+  const heroHighlights = useMemo(() => {
+    return filteredStock
+      .slice()
+      .sort((a, b) => Number(b.qty_kg || 0) - Number(a.qty_kg || 0))
+      .slice(0, 4)
+  }, [filteredStock])
+
+  return (
+    <FactoryPageLayout
+      title="Bulk Inventory"
+      description="Visual control room for pooled raw materials, value, freshness, and plant allocation."
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search material, code, category, plant, or location"
+    >
+      <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryStatCard
+            label="Material Nodes"
+            value={totals.nodes}
+            subLabel={`${totals.plants.size} plants in current view`}
+            icon={Database}
+            toneClassName="bg-indigo-50 text-indigo-600"
+          />
+          <SummaryStatCard
+            label="Stock On Hand"
+            value={formatKg(totals.weightKg)}
+            subLabel="Actual pooled material mass"
+            icon={Scale}
+            toneClassName="bg-emerald-50 text-emerald-600"
+          />
+          <SummaryStatCard
+            label="Inventory Value"
+            value={formatCurrency(totals.value)}
+            subLabel="Weighted by moving average cost"
+            icon={Coins}
+            toneClassName="bg-amber-50 text-amber-600"
+          />
+          <SummaryStatCard
+            label="Coverage Mix"
+            value={`${categoryData.length} categories`}
+            subLabel={categoryData[0] ? `${categoryData[0].name} is the largest bucket` : "No category distribution yet"}
+            icon={Layers3}
+            toneClassName="bg-violet-50 text-violet-600"
+          />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+          <Card className="border-0 shadow-sm ring-1 ring-slate-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                <BarChart3 className="h-4 w-4 text-indigo-500" /> Category Mass Split
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[320px]">
+              {isLoading ? (
+                <div className="grid h-full place-items-center text-sm text-slate-400">Loading category mix...</div>
+              ) : categoryData.length === 0 ? (
+                <div className="grid h-full place-items-center text-sm text-slate-400">No stock in the current filter set.</div>
+              ) : (
+                <ChartSurface>
+                  {({ width, height }) => (
+                      <BarChart width={width} height={height} data={categoryData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={(value) => `${Math.round(Number(value || 0))}`} />
+                        <Tooltip formatter={(value: number | string | undefined) => [formatKg(Number(value || 0)), "Mass"]} />
+                        <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                          {categoryData.map((entry, index) => (
+                            <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    )
+                  }
+                </ChartSurface>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm ring-1 ring-slate-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                <MapPin className="h-4 w-4 text-emerald-500" /> Plant Allocation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[320px]">
+              {isLoading ? (
+                <div className="grid h-full place-items-center text-sm text-slate-400">Loading plant mix...</div>
+              ) : plantData.length === 0 ? (
+                <div className="grid h-full place-items-center text-sm text-slate-400">No plant allocation data.</div>
+              ) : (
+                <ChartSurface>
+                  {({ width, height }) => (
+                    <PieChart width={width} height={height}>
+                      <Pie data={plantData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={105} paddingAngle={4}>
+                        {plantData.map((entry, index) => (
+                          <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number | string | undefined) => [formatKg(Number(value || 0)), "Mass"]} />
+                    </PieChart>
+                  )}
+                </ChartSurface>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
+          <Card className="border-0 shadow-sm ring-1 ring-slate-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                <Landmark className="h-4 w-4 text-sky-500" /> Top Storage Nodes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {locationData.length === 0 ? (
+                <div className="text-sm text-slate-400">No location split available.</div>
+              ) : locationData.map((item, index) => (
+                <div key={item.name} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 text-sm font-bold text-slate-800">{item.name}</div>
+                    <SemanticBadge kind="severity" value={index === 0 ? "LOW" : "INFO"} label={formatKg(item.value)} />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm ring-1 ring-slate-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                <Boxes className="h-4 w-4 text-violet-500" /> Freshness Bands
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {ageBands.map((band, index) => (
+                <div key={band.name} className="rounded-2xl border border-slate-100 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{band.name}</div>
+                      <div className="mt-1 text-lg font-black tracking-tight text-slate-900">{formatKg(band.value)}</div>
+                    </div>
+                    <div className="h-12 w-12 rounded-2xl" style={{ backgroundColor: `${CHART_COLORS[index % CHART_COLORS.length]}22` }} />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm ring-1 ring-slate-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                <Package className="h-4 w-4 text-amber-500" /> Largest Material Positions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {heroHighlights.length === 0 ? (
+                <div className="text-sm text-slate-400">No material positions found.</div>
+              ) : heroHighlights.map((row) => (
+                <div key={row.id} className="rounded-2xl border border-slate-100 bg-white p-4">
+                  <div className="text-sm font-black tracking-tight text-slate-900">{row.material_name}</div>
+                  <div className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{row.material_code}</div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <SemanticBadge kind="materialCategory" value={row.material_category} />
+                    <div className="text-right">
+                      <div className="text-lg font-black tracking-tight text-slate-900">{formatKg(Number(row.qty_kg || 0))}</div>
+                      <div className="text-xs text-slate-500">{row.plant_name} • {row.location_name}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-0 shadow-sm ring-1 ring-slate-100">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <CardTitle className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+              <span className="flex items-center gap-2"><Search className="h-4 w-4 text-indigo-500" /> Bulk Ledger</span>
+              <span className="text-[11px] text-slate-400">Material identity, plant node, quantity, cost, and last refresh.</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 overflow-auto">
+            <table className="min-w-[1080px] w-full text-sm">
+              <thead className="bg-slate-50/70 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Material</th>
+                  <th className="px-5 py-3">Category</th>
+                  <th className="px-5 py-3">Plant / Location</th>
+                  <th className="px-5 py-3 text-right">Quantity</th>
+                  <th className="px-5 py-3 text-right">Moving Avg Cost</th>
+                  <th className="px-5 py-3 text-right">Inventory Value</th>
+                  <th className="px-5 py-3 text-right">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {isLoading ? (
+                  Array.from({ length: 6 }).map((_, index) => (
+                    <tr key={index}>
+                      <td className="px-5 py-4" colSpan={7}><Skeleton className="h-10 w-full" /></td>
+                    </tr>
+                  ))
+                ) : filteredStock.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-10 text-center text-slate-400">No bulk material matches the current search.</td>
+                  </tr>
+                ) : (
+                  filteredStock.map((row: InventoryBulk) => {
+                    const qty = Number(row.qty_kg || 0)
+                    const avgCost = Number(row.avg_cost || 0)
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50/60">
+                        <td className="px-5 py-4">
+                          <div className="font-black tracking-tight text-slate-900">{row.material_name}</div>
+                          <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.material_code}</div>
+                        </td>
+                        <td className="px-5 py-4"><SemanticBadge kind="materialCategory" value={row.material_category} /></td>
+                        <td className="px-5 py-4 text-slate-600">
+                          <div className="font-semibold text-slate-800">{row.plant_name}</div>
+                          <div className="text-xs text-slate-500">{row.location_name}</div>
+                        </td>
+                        <td className="px-5 py-4 text-right font-black tracking-tight text-slate-900">{formatKg(qty)}</td>
+                        <td className="px-5 py-4 text-right font-semibold text-slate-700">{formatCurrency(avgCost)}</td>
+                        <td className="px-5 py-4 text-right font-black text-emerald-700">{formatCurrency(qty * avgCost)}</td>
+                        <td className="px-5 py-4 text-right text-xs text-slate-500">{new Date(row.updated_at).toLocaleString()}</td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
+    </FactoryPageLayout>
+  )
 }

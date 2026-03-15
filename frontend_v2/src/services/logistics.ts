@@ -35,6 +35,12 @@ export interface Gonny {
     content_mode?: 'LOOSE_POUCHES' | 'PRIMARY_PACKS' | string;
     primary_pack_count?: number | null;
     weight_kg: number | null;
+    net_product_weight_kg?: number | null;
+    inner_pack_tare_kg?: number | null;
+    secondary_pack_tare_kg?: number | null;
+    extras_tare_kg?: number | null;
+    gross_weight_kg?: number | null;
+    tare_breakdown_json?: Record<string, any> | null;
     status: string;
     fg_batch__batch_number?: string;
     batch_no?: string;
@@ -257,9 +263,21 @@ export const logisticsService = {
         driver_name: string;
         driver_phone: string;
         dispatch_date: string | null;
-        items: { id: string; type: string; label: string; weight_kg: number; qty_pcs: number | null }[];
+        items: {
+            id: string;
+            type: string;
+            label: string;
+            weight_kg: number;
+            qty_pcs: number | null;
+            net_product_weight_kg?: number | null;
+            gross_weight_kg?: number | null;
+            content_mode?: string | null;
+            primary_pack_count?: number | null;
+        }[];
         total_weight_kg: number;
         total_pcs: number;
+        total_net_product_weight_kg?: number;
+        total_gross_weight_kg?: number;
     }> {
         const response = await api.get(`/api/production/challans/${challanId}/detail/`);
         return response.data;

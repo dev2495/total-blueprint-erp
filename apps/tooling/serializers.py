@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
-from .models import Cylinder
+from .models import Cylinder, ToolAsset
 
 class CylinderSerializer(serializers.ModelSerializer):
     artwork_name = serializers.CharField(source='artwork.name', read_only=True)
+    artwork_image = serializers.ImageField(source='artwork.image', read_only=True)
     vendor_name = serializers.CharField(source='engraving_vendor.name', read_only=True)
     location_name = serializers.CharField(source='storage_location.name', read_only=True)
     
@@ -71,4 +72,25 @@ class CylinderSerializer(serializers.ModelSerializer):
             if lifecycle_status == "DRAFT":
                 attrs["lifecycle_status"] = "READY"
 
+        return attrs
+
+
+class ToolAssetSerializer(serializers.ModelSerializer):
+    plant_name = serializers.CharField(source="plant.name", read_only=True)
+    vendor_name = serializers.CharField(source="vendor.name", read_only=True)
+    location_name = serializers.CharField(source="storage_location.name", read_only=True)
+
+    class Meta:
+        model = ToolAsset
+        fields = "__all__"
+
+    def validate(self, attrs):
+        instance = self.instance
+        plant = attrs.get("plant", getattr(instance, "plant", None))
+        storage_location = attrs.get("storage_location", getattr(instance, "storage_location", None))
+        if storage_location:
+            if plant and storage_location.plant_id != plant.id:
+                raise serializers.ValidationError({"storage_location": "Storage location must belong to the same plant."})
+            if str(storage_location.type or "").upper() != "TOOLING":
+                raise serializers.ValidationError({"storage_location": "Storage location must be a TOOLING location."})
         return attrs

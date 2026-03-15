@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Plus, Package } from "lucide-react"
+import { AlertTriangle, Factory, Package, PackageOpen, Plus, ShoppingBag, Ticket } from "lucide-react"
 
-import { masterDataService, PackagingMaterial } from "@/services/master-data"
+import { masterDataService, type PackagingMaterial } from "@/services/master-data"
+import { templateService, type TemplateBlueprint } from "@/services/templates"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -12,6 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 
 const kinds = ["INNER_POUCH", "GONNY", "TAPE", "SHEET", "FILM", "BOX", "LABEL", "TAG", "OTHER"] as const
 const supplyModes = ["PURCHASED", "IN_HOUSE", "BOTH"] as const
@@ -22,21 +25,17 @@ type PackagingSupplyMode = typeof supplyModes[number]
 type PackagingUom = typeof uoms[number]
 
 function describeError(err: any) {
-  return (
-    err?.response?.data?.detail ||
-    err?.response?.data?.error ||
-    err?.response?.data?.message ||
-    err?.message ||
-    "Error"
-  )
+  return err?.response?.data?.detail || err?.response?.data?.error || err?.response?.data?.message || err?.message || "Error"
 }
 
 function PackagingForm({
   initial,
+  templates,
   onSubmit,
   busy,
 }: {
   initial?: PackagingMaterial | null
+  templates: TemplateBlueprint[]
   onSubmit: (payload: any) => void
   busy: boolean
 }) {
@@ -47,6 +46,16 @@ function PackagingForm({
   const [supplyMode, setSupplyMode] = useState<PackagingSupplyMode>((initial?.packaging_supply_mode as PackagingSupplyMode) || "PURCHASED")
   const [perSheet, setPerSheet] = useState(initial?.per_sheet_base_qty ? String(initial.per_sheet_base_qty) : "")
   const [status, setStatus] = useState(initial?.status || "ACTIVE")
+  const [productionTemplate, setProductionTemplate] = useState(initial?.production_template || "__NONE__")
+  const [tareWeightKg, setTareWeightKg] = useState(initial?.tare_weight_kg != null ? String(initial.tare_weight_kg) : "")
+  const [brandName, setBrandName] = useState(String(initial?.packaging_defaults_json?.brand_name || ""))
+  const [defaultPcsPerPack, setDefaultPcsPerPack] = useState(initial?.packaging_defaults_json?.pcs_per_pack != null ? String(initial.packaging_defaults_json?.pcs_per_pack) : "")
+
+  const allowInHouse = ["INNER_POUCH", "SHEET", "FILM"].includes(kind)
+  const visibleTemplates = templates.filter((template) => {
+    if (kind === "INNER_POUCH") return template.fg_type === "POUCH"
+    return true
+  })
 
   return (
     <form
@@ -59,6 +68,12 @@ function PackagingForm({
           base_uom: baseUom,
           packaging_kind: kind,
           packaging_supply_mode: supplyMode,
+          production_template: supplyMode === "PURCHASED" || productionTemplate === "__NONE__" ? null : productionTemplate,
+          tare_weight_kg: tareWeightKg ? Number(tareWeightKg) : null,
+          packaging_defaults_json: {
+            brand_name: brandName || undefined,
+            pcs_per_pack: defaultPcsPerPack ? Number(defaultPcsPerPack) : undefined,
+          },
           per_sheet_base_qty: perSheet ? Number(perSheet) : null,
           status,
         })
@@ -75,14 +90,7 @@ function PackagingForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>Base UOM</Label>
-          <Select value={baseUom} onValueChange={(value) => setBaseUom(value as PackagingUom)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{uoms.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <Label>Kind</Label>
           <Select value={kind} onValueChange={(value) => setKind(value as PackagingKind)}>
@@ -90,9 +98,6 @@ function PackagingForm({
             <SelectContent>{kinds.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Supply Mode</Label>
           <Select value={supplyMode} onValueChange={(value) => setSupplyMode(value as PackagingSupplyMode)}>
@@ -101,20 +106,60 @@ function PackagingForm({
           </Select>
         </div>
         <div>
-          <Label>Per Sheet Base Qty (optional)</Label>
+          <Label>Base UOM</Label>
+          <Select value={baseUom} onValueChange={(value) => setBaseUom(value as PackagingUom)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{uoms.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <Label>Tare Weight (kg)</Label>
+          <Input type="number" step="0.0001" value={tareWeightKg} onChange={(e) => setTareWeightKg(e.target.value)} />
+        </div>
+        <div>
+          <Label>Per Sheet Qty</Label>
           <Input type="number" step="0.000001" value={perSheet} onChange={(e) => setPerSheet(e.target.value)} />
+        </div>
+        <div>
+          <Label>Status</Label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+              <SelectItem value="INACTIVE">INACTIVE</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Linked Production Template</Label>
+          <Select value={productionTemplate || "__NONE__"} onValueChange={setProductionTemplate}>
+            <SelectTrigger><SelectValue placeholder="No template" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__NONE__">No template</SelectItem>
+              {visibleTemplates.map((template) => (
+                <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="mt-1 text-xs text-slate-500">
+            {allowInHouse ? "This kind can be produced in-house if supply mode is IN_HOUSE or BOTH." : "This kind is purchased-only in this phase."}
+          </div>
+        </div>
+        <div>
+          <Label>Brand / Pack Label</Label>
+          <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Optional branded pack name" />
         </div>
       </div>
 
       <div>
-        <Label>Status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-            <SelectItem value="INACTIVE">INACTIVE</SelectItem>
-          </SelectContent>
-        </Select>
+        <Label>Default PCS per Inner Pack</Label>
+        <Input type="number" value={defaultPcsPerPack} onChange={(e) => setDefaultPcsPerPack(e.target.value)} placeholder="Optional default for packing yard" />
       </div>
 
       <div className="flex justify-end">
@@ -129,11 +174,24 @@ export default function PackagingMasterPage() {
   const queryClient = useQueryClient()
   const [openCreate, setOpenCreate] = useState(false)
   const [editing, setEditing] = useState<PackagingMaterial | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const { data = [], isError, error } = useQuery({
-    queryKey: ["master-packaging"],
-    queryFn: masterDataService.getPackaging,
-  })
+  const { data = [], isError, error } = useQuery({ queryKey: ["master-packaging"], queryFn: masterDataService.getPackaging })
+  const { data: templates = [] } = useQuery({ queryKey: ["template-options"], queryFn: () => templateService.getTemplates() })
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return data
+    return data.filter((row: PackagingMaterial) => [row.code, row.name, row.packaging_kind, row.packaging_supply_mode].map((value) => String(value || "").toLowerCase()).join(" ").includes(q))
+  }, [data, searchQuery])
+
+  const stats = useMemo(() => {
+    const total = filtered.length
+    const inHouse = filtered.filter((row) => row.packaging_supply_mode === "IN_HOUSE").length
+    const both = filtered.filter((row) => row.packaging_supply_mode === "BOTH").length
+    const purchased = filtered.filter((row) => row.packaging_supply_mode === "PURCHASED").length
+    return { total, inHouse, both, purchased }
+  }, [filtered])
 
   const createMutation = useMutation({
     mutationFn: masterDataService.createPackaging,
@@ -165,82 +223,98 @@ export default function PackagingMasterPage() {
   })
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-          <Package className="h-6 w-6 text-indigo-600" /> Packaging Master
-        </h1>
+    <MasterRegistryShell
+      title="Packaging Master"
+      description="Control purchased versus in-house packaging SKUs, default tare math, and linked production templates."
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search packaging code, name, kind, or supply mode"
+      actions={
         <Dialog open={openCreate} onOpenChange={setOpenCreate}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Add Packaging</Button>
+            <Button><Plus className="mr-2 h-4 w-4" /> Add Packaging</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-3xl">
             <DialogHeader><DialogTitle>Create Packaging Material</DialogTitle></DialogHeader>
-            <PackagingForm onSubmit={(payload) => createMutation.mutate(payload)} busy={createMutation.isPending} />
+            <PackagingForm templates={templates} onSubmit={(payload) => createMutation.mutate(payload)} busy={createMutation.isPending} />
           </DialogContent>
         </Dialog>
+      }
+      stats={[
+        { label: "Total SKUs", value: stats.total, icon: Package, toneClassName: "bg-indigo-50 text-indigo-600" },
+        { label: "Purchased", value: stats.purchased, icon: ShoppingBag, toneClassName: "bg-amber-50 text-amber-600" },
+        { label: "In-House", value: stats.inHouse, icon: Factory, toneClassName: "bg-emerald-50 text-emerald-600" },
+        { label: "Dual Supply", value: stats.both, icon: PackageOpen, toneClassName: "bg-violet-50 text-violet-600" },
+      ]}
+      chips={[
+        { kind: "packagingKind", value: "INNER_POUCH" },
+        { kind: "packagingKind", value: "GONNY" },
+        { kind: "packagingKind", value: "SHEET" },
+        { kind: "packagingKind", value: "FILM" },
+      ]}
+    >
+      {isError ? (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="flex items-start gap-3 p-4 text-sm text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4" />
+            <span>{describeError(error)}</span>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {filtered.map((row) => (
+          <Card key={row.id} className="border-0 shadow-sm ring-1 ring-slate-100">
+            <CardContent className="space-y-4 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black tracking-tight text-slate-900">{row.name}</div>
+                  <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.code}</div>
+                </div>
+                <SemanticBadge kind="packagingKind" value={row.packaging_kind} />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <SemanticBadge kind="jobState" value={row.packaging_supply_mode === "IN_HOUSE" ? "READY" : row.packaging_supply_mode === "BOTH" ? "ASSIGNED" : "PENDING"} label={row.packaging_supply_mode.replaceAll("_", " ")} />
+                <SemanticBadge kind="approval" value={row.status === "ACTIVE" ? "APPROVED" : "REJECTED"} label={row.status} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Base UOM</div>
+                  <div className="mt-1 font-bold text-slate-900">{row.base_uom}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Tare / Unit</div>
+                  <div className="mt-1 font-bold text-slate-900">{row.tare_weight_kg != null ? `${row.tare_weight_kg} kg` : "Not set"}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Linked Production Template</div>
+                  <div className="mt-1 font-bold text-slate-900">{row.production_template_name || "Purchased-only / no template"}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Default Brand / Pack Config</div>
+                  <div className="mt-1 text-sm text-slate-700">{row.packaging_defaults_json?.brand_name || "No branded default"}{row.packaging_defaults_json?.pcs_per_pack ? ` • ${row.packaging_defaults_json.pcs_per_pack} pcs/pack` : ""}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <Button size="sm" variant="outline" onClick={() => setEditing(row)}>Edit</Button>
+                <Button size="sm" variant="destructive" onClick={() => deleteMutation.mutate(row.id)}>Delete</Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Packaging SKUs</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-auto">
-          {isError && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 mt-0.5" />
-              <span>{describeError(error)}</span>
-            </div>
-          )}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="py-2">Code</th>
-                <th className="py-2">Name</th>
-                <th className="py-2">Kind</th>
-                <th className="py-2">Supply</th>
-                <th className="py-2">UOM</th>
-                <th className="py-2">Status</th>
-                <th className="py-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((row: PackagingMaterial) => (
-                <tr key={row.id} className="border-b">
-                  <td className="py-2 font-mono">{row.code}</td>
-                  <td className="py-2">{row.name}</td>
-                  <td className="py-2">{row.packaging_kind}</td>
-                  <td className="py-2">{row.packaging_supply_mode}</td>
-                  <td className="py-2">{row.base_uom}</td>
-                  <td className="py-2">{row.status}</td>
-                  <td className="py-2 text-right space-x-2">
-                    <Button size="sm" variant="outline" onClick={() => setEditing(row)}>Edit</Button>
-                    <Button size="sm" variant="destructive" onClick={() => deleteMutation.mutate(row.id)}>Delete</Button>
-                  </td>
-                </tr>
-              ))}
-              {data.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">No packaging materials yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
-
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>Edit Packaging Material</DialogTitle></DialogHeader>
-          {editing && (
-            <PackagingForm
-              initial={editing}
-              busy={updateMutation.isPending}
-              onSubmit={(payload) => updateMutation.mutate({ id: editing.id, payload })}
-            />
-          )}
+          {editing ? (
+            <PackagingForm initial={editing} templates={templates} busy={updateMutation.isPending} onSubmit={(payload) => updateMutation.mutate({ id: editing.id, payload })} />
+          ) : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </MasterRegistryShell>
   )
 }

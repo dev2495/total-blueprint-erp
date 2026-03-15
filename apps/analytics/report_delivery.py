@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+
+from django.db.models import Count, Q, Sum
 from io import BytesIO
 from pathlib import Path
 from typing import Iterable
@@ -16,11 +18,12 @@ from django.utils import timezone
 from apps.analytics.models import ReportDispatchRun, ReportDistributionProfile
 from apps.analytics.reports_service import ReportService
 from apps.factory.models import Plant
-from apps.inventory.models import InventoryBulk, InventoryRoll, InventorySnapshot, PackagingStock
+from apps.inventory.models import InventoryBulk, InventoryRoll, InventorySnapshot, PackagingStock, PackagingTransaction
 from apps.inventory.serializers import resolve_roll_role, resolve_roll_stage_name
 from apps.inventory.services.inventory_audit_service import InventoryAuditService
 from apps.inventory.services.roll_naming import build_roll_naming_payload, build_variant_key
 from apps.platformops.models import OperationalAlert
+from apps.production.models import DeliveryChallan, DeliveryChallanItem, PackingUnit
 from apps.users.models import User
 from apps.users.services.email_service import EmailDeliveryService
 
@@ -60,6 +63,13 @@ except Exception:  # pragma: no cover
 
 
 DEFAULT_REPORT_PROFILES = {
+    ReportDistributionProfile.ReportCode.OWNER_EXECUTIVE_DAILY: {
+        "target_roles": ["OWNER", "ADMIN"],
+        "schedule_hour": 7,
+        "schedule_minute": 30,
+        "email_subject_template": "Owner Executive Daily - {report_date}",
+        "email_body_template": "Attached is the owner executive daily pack for {report_date}.",
+    },
     ReportDistributionProfile.ReportCode.PRODUCTION_DAILY: {
         "target_roles": ["OWNER", "ADMIN", "PLANNER", "PLANT_MANAGER", "WORK_CENTER_MANAGER"],
         "schedule_hour": 8,
@@ -67,10 +77,24 @@ DEFAULT_REPORT_PROFILES = {
         "email_subject_template": "Daily Production Report - {report_date}",
         "email_body_template": "Attached is the daily production report for {report_date}.",
     },
+    ReportDistributionProfile.ReportCode.DISPATCH_DAILY: {
+        "target_roles": ["OWNER", "ADMIN", "DISPATCH", "PLANT_MANAGER"],
+        "schedule_hour": 8,
+        "schedule_minute": 10,
+        "email_subject_template": "Dispatch Daily - {report_date}",
+        "email_body_template": "Attached is the daily dispatch report for {report_date}.",
+    },
+    ReportDistributionProfile.ReportCode.PACKING_DISPATCH_SUMMARY_DAILY: {
+        "target_roles": ["OWNER", "ADMIN", "DISPATCH", "STORE", "PLANT_MANAGER"],
+        "schedule_hour": 8,
+        "schedule_minute": 15,
+        "email_subject_template": "Packing Dispatch Summary - {report_date}",
+        "email_body_template": "Attached is the packing dispatch summary for {report_date}.",
+    },
     ReportDistributionProfile.ReportCode.STOCK_STANDING_DAILY: {
         "target_roles": ["OWNER", "ADMIN", "STORE", "PLANT_MANAGER"],
         "schedule_hour": 8,
-        "schedule_minute": 0,
+        "schedule_minute": 20,
         "email_subject_template": "Daily Stock Standing Report - {report_date}",
         "email_body_template": "Attached is the daily stock standing report for {report_date}.",
     },
@@ -301,8 +325,14 @@ class ReportDistributionService:
         if canvas is None:
             raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
         report_date = ReportDistributionService.report_date_for_run(report_date)
+        if report_code == ReportDistributionProfile.ReportCode.OWNER_EXECUTIVE_DAILY:
+            return _OwnerExecutivePDFRenderer.render(report_date)
         if report_code == ReportDistributionProfile.ReportCode.PRODUCTION_DAILY:
             return _DailyProductionPDFRenderer.render(report_date)
+        if report_code == ReportDistributionProfile.ReportCode.DISPATCH_DAILY:
+            return _DispatchDailyPDFRenderer.render(report_date)
+        if report_code == ReportDistributionProfile.ReportCode.PACKING_DISPATCH_SUMMARY_DAILY:
+            return _PackingDispatchSummaryPDFRenderer.render(report_date)
         if report_code == ReportDistributionProfile.ReportCode.STOCK_STANDING_DAILY:
             return _StockStandingPDFRenderer.render(report_date)
         raise ValueError("Unsupported report_code.")
@@ -512,6 +542,344 @@ class _BaseDailyPDFRenderer:
                 pdf.drawString(positions[index], y, str(value)[:30])
             y -= 4.5 * mm
         return y - 2 * mm
+
+    @classmethod
+    def _draw_bar_panel(cls, pdf, y, title, rows, *, label_key, value_key, color_hex="#4F46E5", suffix="", max_rows=5):
+        width, height = A4
+        pdf.setFillColor(colors.HexColor("#0F172A"))
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(12 * mm, y, title)
+        y -= 4 * mm
+        rows = list(rows or [])[:max_rows]
+        max_value = max((_safe_number(row.get(value_key)) for row in rows), default=0) or 1
+        panel_height = max(18 * mm, (len(rows) * 7 + 8) * mm)
+        pdf.setFillColor(colors.white)
+        pdf.setStrokeColor(colors.HexColor("#CBD5E1"))
+        pdf.roundRect(10 * mm, y - panel_height, 190 * mm, panel_height, 2 * mm, fill=1, stroke=1)
+        row_y = y - 6 * mm
+        for row in rows:
+            label = str(row.get(label_key, "-"))[:28]
+            value = _safe_number(row.get(value_key))
+            bar_width = 72 * mm * (value / max_value)
+            pdf.setFillColor(colors.HexColor("#334155"))
+            pdf.setFont("Helvetica-Bold", 7.2)
+            pdf.drawString(14 * mm, row_y, label)
+            pdf.setFillColor(colors.HexColor("#E2E8F0"))
+            pdf.roundRect(76 * mm, row_y - 2 * mm, 72 * mm, 3 * mm, 1 * mm, fill=1, stroke=0)
+            pdf.setFillColor(colors.HexColor(color_hex))
+            pdf.roundRect(76 * mm, row_y - 2 * mm, max(2 * mm, bar_width), 3 * mm, 1 * mm, fill=1, stroke=0)
+            pdf.setFillColor(colors.HexColor("#0F172A"))
+            pdf.drawRightString(195 * mm, row_y, f"{value:,.1f}{suffix}")
+            row_y -= 6.5 * mm
+        return y - panel_height - 4 * mm
+
+
+class _OwnerExecutivePDFRenderer(_BaseDailyPDFRenderer):
+    report_title = "OWNER EXECUTIVE DAILY"
+    report_code = ReportDistributionProfile.ReportCode.OWNER_EXECUTIVE_DAILY
+
+    @classmethod
+    def render(cls, report_date):
+        filters = {"date_from": report_date.isoformat(), "date_to": report_date.isoformat()}
+        production = ReportService.get_report_tab("production", filters)
+        dispatch = ReportService.get_report_tab("dispatch", filters)
+        stock_snapshots = _StockStandingPDFRenderer._latest_snapshots(report_date)
+        roll_entries = _StockStandingPDFRenderer._roll_entries(report_date)
+        family_rows = _StockStandingPDFRenderer._family_rows(_StockStandingPDFRenderer._variant_rows(roll_entries))
+        risk_callouts = _StockStandingPDFRenderer._risk_callouts(roll_entries, stock_snapshots)
+
+        prod_summary = production.get("summary") or {}
+        dispatch_summary = dispatch.get("summary") or {}
+        blocked_kg = sum(row["blocked_kg"] for row in family_rows)
+        reserved_kg = sum(_safe_number(snapshot.reserved_roll_kg) for snapshot in stock_snapshots)
+        top_customers = dispatch.get("by_customer") or []
+        top_families = family_rows[:5]
+
+        window_start = _start_of_day(report_date)
+        window_end = _end_of_day(report_date)
+        buffer, pdf = cls._new_pdf()
+        y = cls._draw_title(
+            pdf,
+            report_date,
+            "One-page operating view of output, shipment readiness, stock risk, and top exceptions.",
+        )
+        y = cls._draw_summary_cards(
+            pdf,
+            y,
+            [
+                ("Output", f"{_safe_number(prod_summary.get('total_output_kg')):,.1f} kg"),
+                ("Yield", f"{_safe_number(prod_summary.get('yield_pct')):,.1f}%"),
+                ("Challans", f"{int(dispatch_summary.get('total_challans') or 0)}"),
+                ("Blocked stock", f"{blocked_kg:,.1f} kg"),
+            ],
+        )
+        y = cls._draw_table(
+            pdf,
+            y,
+            "Executive Snapshot",
+            ["Area", "Today", "Signal", "", ""],
+            [
+                ["Production completion", f"{_safe_number(prod_summary.get('completion_rate')):,.1f}%", "Healthy" if _safe_number(prod_summary.get('completion_rate')) >= 85 else "Watch", "", ""],
+                ["Dispatch readiness", f"{int(dispatch_summary.get('dispatched') or 0)} / {int(dispatch_summary.get('total_challans') or 0)}", "Healthy" if int(dispatch_summary.get('pending') or 0) == 0 else "Pending", "", ""],
+                ["Reserved stock", f"{reserved_kg:,.1f} kg", "Watch" if reserved_kg > 0 else "Clear", "", ""],
+                ["Open risks", str(len(risk_callouts)), "Blocked" if any("Blocked" in item or "Aged" in item for item in risk_callouts) else "Clear", "", ""],
+            ],
+        )
+        y = cls._draw_bar_panel(
+            pdf,
+            y,
+            "Top Stock Families",
+            top_families,
+            label_key="family_display_name",
+            value_key="available_kg",
+            color_hex="#4F46E5",
+            suffix=" kg",
+        )
+        y = cls._draw_bar_panel(
+            pdf,
+            y,
+            "Top Dispatch Customers",
+            top_customers,
+            label_key="customer",
+            value_key="weight_kg",
+            color_hex="#10B981",
+            suffix=" kg",
+        )
+        risk_rows = [[f"{index + 1}. {text}", "", "", "", ""] for index, text in enumerate(risk_callouts[:6])]
+        cls._draw_table(pdf, y, "Top Exceptions", ["Signal", "", "", "", ""], risk_rows or [["No open exceptions", "", "", "", ""]])
+        pdf.showPage()
+        pdf.save()
+        payload_bytes = buffer.getvalue()
+        return RenderedReport(
+            report_code=cls.report_code,
+            report_date=report_date,
+            pdf=payload_bytes,
+            file_name=f"owner-executive-daily-{report_date.isoformat()}.pdf",
+            checksum_sha1=_sha1(payload_bytes),
+            summary_text=(
+                f"Output: {_safe_number(prod_summary.get('total_output_kg')):,.1f} kg\n"
+                f"Yield: {_safe_number(prod_summary.get('yield_pct')):,.1f}%\n"
+                f"Dispatch challans: {int(dispatch_summary.get('total_challans') or 0)}\n"
+                f"Blocked stock: {blocked_kg:,.1f} kg"
+            ),
+            warning_text="",
+            window_start=window_start,
+            window_end=window_end,
+            detail_attachments=[],
+        )
+
+
+class _DispatchDailyPDFRenderer(_BaseDailyPDFRenderer):
+    report_title = "DISPATCH DAILY"
+    report_code = ReportDistributionProfile.ReportCode.DISPATCH_DAILY
+
+    @classmethod
+    def render(cls, report_date):
+        filters = {"date_from": report_date.isoformat(), "date_to": report_date.isoformat()}
+        payload = ReportService.get_report_tab("dispatch", filters)
+        summary = payload.get("summary") or {}
+        pipeline = payload.get("pipeline") or []
+        recent = payload.get("recent_challans") or []
+        customer_rows = payload.get("by_customer") or []
+
+        challans = DeliveryChallan.objects.filter(created_at__date=report_date)
+        items = DeliveryChallanItem.objects.filter(challan__in=challans).select_related("packing_unit")
+        roll_lines = items.filter(roll__isnull=False).count()
+        gonny_lines = items.filter(packing_unit__isnull=False).count()
+        gross_weight_kg = sum(
+            _to_decimal(getattr(item.packing_unit, "gross_weight_kg", None) or item.weight_kg or 0)
+            if item.packing_unit_id
+            else _to_decimal(item.weight_kg or 0)
+            for item in items
+        )
+        net_weight_kg = sum(
+            _to_decimal(getattr(item.packing_unit, "net_product_weight_kg", None) or 0)
+            if item.packing_unit_id
+            else _to_decimal(item.weight_kg or 0)
+            for item in items
+        )
+        open_gonnies = PackingUnit.objects.filter(status="OPEN").count()
+        unpacked_rolls = InventoryRoll.objects.filter(is_fg=True, status="AVAILABLE", sales_order_item__isnull=False, dispatch_pack_records__isnull=True).count()
+
+        buffer, pdf = cls._new_pdf()
+        window_start = _start_of_day(report_date)
+        window_end = _end_of_day(report_date)
+        y = cls._draw_title(
+            pdf,
+            report_date,
+            "Challan creation, shipment split, in-transit load, and dispatch blockers.",
+        )
+        y = cls._draw_summary_cards(
+            pdf,
+            y,
+            [
+                ("Challans", f"{int(summary.get('total_challans') or 0)}"),
+                ("Dispatch load", f"{float(gross_weight_kg):,.1f} kg"),
+                ("Roll lines", str(roll_lines)),
+                ("Gonny lines", str(gonny_lines)),
+            ],
+        )
+        y = cls._draw_table(
+            pdf,
+            y,
+            "Dispatch Blockers",
+            ["Blocker", "Count", "", "", ""],
+            [
+                ["Open gonnies", open_gonnies, "", "", ""],
+                ["Unpacked rolls", unpacked_rolls, "", "", ""],
+                ["Pending challans", int(summary.get("pending") or 0), "", "", ""],
+                ["In transit / delivered", int(summary.get("dispatched") or 0), "", "", ""],
+            ],
+        )
+        y = cls._draw_bar_panel(pdf, y, "Pipeline by Status", pipeline, label_key="status", value_key="count", color_hex="#2563EB", suffix="")
+        y = cls._draw_bar_panel(pdf, y, "Top Dispatch Customers", customer_rows, label_key="customer", value_key="weight_kg", color_hex="#10B981", suffix=" kg")
+        cls._draw_table(
+            pdf,
+            y,
+            "Recent Challans",
+            ["DC No", "Customer", "Status", "Vehicle", "Date"],
+            [[row.get("dc_no", "-"), row.get("customer", "-"), row.get("status", "-"), row.get("vehicle", "-"), row.get("date", "-")] for row in recent[:10]] or [["No challans", "-", "-", "-", "-"]],
+        )
+        pdf.showPage()
+        pdf.save()
+        payload_bytes = buffer.getvalue()
+        return RenderedReport(
+            report_code=cls.report_code,
+            report_date=report_date,
+            pdf=payload_bytes,
+            file_name=f"dispatch-daily-{report_date.isoformat()}.pdf",
+            checksum_sha1=_sha1(payload_bytes),
+            summary_text=(
+                f"Challans: {int(summary.get('total_challans') or 0)}\n"
+                f"Gross shipment weight: {float(gross_weight_kg):,.1f} kg\n"
+                f"Net product weight: {float(net_weight_kg):,.1f} kg\n"
+                f"Open gonnies: {open_gonnies}"
+            ),
+            warning_text="",
+            window_start=window_start,
+            window_end=window_end,
+            detail_attachments=[],
+        )
+
+
+class _PackingDispatchSummaryPDFRenderer(_BaseDailyPDFRenderer):
+    report_title = "PACKING DISPATCH SUMMARY"
+    report_code = ReportDistributionProfile.ReportCode.PACKING_DISPATCH_SUMMARY_DAILY
+
+    @classmethod
+    def render(cls, report_date):
+        day_start = _start_of_day(report_date)
+        day_end = _end_of_day(report_date)
+        units = (
+            PackingUnit.objects.select_related("location", "sales_order_item", "fg_batch")
+            .filter(
+                Q(created_at__date=report_date)
+                | Q(sealed_at__date=report_date)
+                | Q(challan_items__challan__created_at__date=report_date)
+            )
+            .distinct()
+            .order_by("-created_at")
+        )
+        loose_units = [unit for unit in units if str(unit.content_mode or "").upper() == "LOOSE_POUCHES"]
+        primary_units = [unit for unit in units if str(unit.content_mode or "").upper() == "PRIMARY_PACKS"]
+        sealed_units = [unit for unit in units if str(unit.status or "").upper() in {"SEALED", "DISPATCHED"}]
+        dispatched_units = [unit for unit in units if str(unit.status or "").upper() == "DISPATCHED"]
+        net_kg = sum(_to_decimal(getattr(unit, "net_product_weight_kg", 0)) for unit in units)
+        inner_tare_kg = sum(_to_decimal(getattr(unit, "inner_pack_tare_kg", 0)) for unit in units)
+        gonny_tare_kg = sum(_to_decimal(getattr(unit, "secondary_pack_tare_kg", 0)) for unit in units)
+        extras_tare_kg = sum(_to_decimal(getattr(unit, "extras_tare_kg", 0)) for unit in units)
+        gross_kg = sum(_to_decimal(getattr(unit, "gross_weight_kg", 0) or getattr(unit, "weight_kg", 0)) for unit in units)
+        primary_pack_count = sum(int(getattr(unit, "primary_pack_count", 0) or 0) for unit in primary_units)
+
+        packaging_tx = PackagingTransaction.objects.filter(created_at__date=report_date, type="CONSUME").select_related("material")
+        inner_pack_consumed = packaging_tx.filter(material__packaging_kind="INNER_POUCH")
+        gonny_consumed = packaging_tx.filter(material__packaging_kind="GONNY")
+        extras_consumed = packaging_tx.exclude(material__packaging_kind__in=["INNER_POUCH", "GONNY"])
+
+        by_mode = [
+            {"mode": "Loose pouch to gonny", "units": len(loose_units), "pcs": sum(int(unit.qty_pcs or 0) for unit in loose_units), "weight_kg": float(sum(_to_decimal(getattr(unit, "gross_weight_kg", 0) or getattr(unit, "weight_kg", 0)) for unit in loose_units))},
+            {"mode": "Primary packs to gonny", "units": len(primary_units), "pcs": sum(int(unit.qty_pcs or 0) for unit in primary_units), "weight_kg": float(sum(_to_decimal(getattr(unit, "gross_weight_kg", 0) or getattr(unit, "weight_kg", 0)) for unit in primary_units))},
+        ]
+
+        buffer, pdf = cls._new_pdf()
+        y = cls._draw_title(
+            pdf,
+            report_date,
+            "Packing-yard output, inner-pack consumption, gonny creation, and dispatch-ready packed stock.",
+        )
+        y = cls._draw_summary_cards(
+            pdf,
+            y,
+            [
+                ("Packed units", str(len(units))),
+                ("Net product", f"{float(net_kg):,.1f} kg"),
+                ("Gross shipment", f"{float(gross_kg):,.1f} kg"),
+                ("Primary packs", str(primary_pack_count)),
+            ],
+        )
+        y = cls._draw_table(
+            pdf,
+            y,
+            "Weight Breakdown",
+            ["Layer", "KG", "", "", ""],
+            [
+                ["Net product", f"{float(net_kg):,.3f}", "", "", ""],
+                ["Inner-pack tare", f"{float(inner_tare_kg):,.3f}", "", "", ""],
+                ["Gonny tare", f"{float(gonny_tare_kg):,.3f}", "", "", ""],
+                ["Seal extras tare", f"{float(extras_tare_kg):,.3f}", "", "", ""],
+            ],
+        )
+        y = cls._draw_bar_panel(pdf, y, "Packing Mode Split", by_mode, label_key="mode", value_key="pcs", color_hex="#7C3AED", suffix=" pcs")
+        y = cls._draw_table(
+            pdf,
+            y,
+            "Packaging Consumption",
+            ["Material", "Qty", "UOM", "Reference", ""],
+            (
+                [
+                    [row.material.name, f"{abs(_safe_number(row.qty)):,.3f}", getattr(row.material, "base_uom", "-"), row.reference or "-", ""]
+                    for row in list(inner_pack_consumed[:4]) + list(gonny_consumed[:4]) + list(extras_consumed[:4])
+                ]
+                or [["No packaging consumption", "-", "-", "-", ""]]
+            ),
+        )
+        cls._draw_table(
+            pdf,
+            y,
+            "Recent Packed Units",
+            ["Label", "Mode", "PCS", "Net / Gross", "Status"],
+            [
+                [
+                    unit.label_id,
+                    "Primary" if str(unit.content_mode or "").upper() == "PRIMARY_PACKS" else "Loose",
+                    int(unit.qty_pcs or 0),
+                    f"{float(_to_decimal(getattr(unit, 'net_product_weight_kg', 0))):,.2f} / {float(_to_decimal(getattr(unit, 'gross_weight_kg', 0) or getattr(unit, 'weight_kg', 0))):,.2f}",
+                    unit.status,
+                ]
+                for unit in list(units[:10])
+            ] or [["No packed units", "-", "-", "-", "-"]],
+        )
+        pdf.showPage()
+        pdf.save()
+        payload_bytes = buffer.getvalue()
+        return RenderedReport(
+            report_code=cls.report_code,
+            report_date=report_date,
+            pdf=payload_bytes,
+            file_name=f"packing-dispatch-summary-daily-{report_date.isoformat()}.pdf",
+            checksum_sha1=_sha1(payload_bytes),
+            summary_text=(
+                f"Packed units: {len(units)}\n"
+                f"Net product: {float(net_kg):,.1f} kg\n"
+                f"Gross shipment: {float(gross_kg):,.1f} kg\n"
+                f"Dispatch-ready units: {len(sealed_units)}\n"
+                f"Dispatched units: {len(dispatched_units)}"
+            ),
+            warning_text="",
+            window_start=day_start,
+            window_end=day_end,
+            detail_attachments=[],
+        )
 
 
 class _DailyProductionPDFRenderer(_BaseDailyPDFRenderer):

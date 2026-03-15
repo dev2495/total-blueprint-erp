@@ -65,13 +65,20 @@ class DispatchListPDFService:
                     pu.label_id AS gonny_label,
                     pu.content_mode AS gonny_content_mode,
                     pu.primary_pack_count AS gonny_primary_pack_count,
+                    pu.net_product_weight_kg AS gonny_net_product_weight_kg,
+                    pu.inner_pack_tare_kg AS gonny_inner_pack_tare_kg,
+                    pu.secondary_pack_tare_kg AS gonny_secondary_pack_tare_kg,
+                    pu.extras_tare_kg AS gonny_extras_tare_kg,
+                    pu.gross_weight_kg AS gonny_gross_weight_kg,
                     pl.name AS gonny_location,
                     pfg.batch_number AS gonny_batch_number,
-                    fg.batch_number AS batch_number
+                    fg.batch_number AS batch_number,
+                    CASE WHEN rdp.id IS NULL THEN FALSE ELSE TRUE END AS roll_packed_for_dispatch
                 FROM production_delivery_challan_items i
                 LEFT JOIN inventory_rolls r ON r.id = i.roll_id
                 LEFT JOIN inventory_materials m ON m.id = r.material_id
                 LEFT JOIN inventory_locations rl ON rl.id = r.location_id
+                LEFT JOIN production_roll_dispatch_pack_records rdp ON rdp.roll_id = r.id AND rdp.sales_order_item_id = i.sales_order_item_id
                 LEFT JOIN production_packing_units pu ON pu.id = i.packing_unit_id
                 LEFT JOIN inventory_locations pl ON pl.id = pu.location_id
                 LEFT JOIN production_fg_batches pfg ON pfg.id = pu.fg_batch_id
@@ -175,7 +182,11 @@ class DispatchListPDFService:
             gonny_pack_count = item.get("gonny_primary_pack_count")
             ref = (
                 (
-                    (f"{item.get('roll_batch_no') or '-'} | {item.get('material_name') or '-'}")
+                    (
+                        f"{item.get('roll_batch_no') or '-'} | "
+                        f"{item.get('material_name') or '-'}"
+                        f"{' | PACKED' if item.get('roll_packed_for_dispatch') else ''}"
+                    )
                     if is_roll
                     else "-"
                 )
@@ -185,6 +196,8 @@ class DispatchListPDFService:
                         f"{item.get('gonny_batch_number') or '-'} | "
                         f"{'PRIMARY' if gonny_mode == 'PRIMARY_PACKS' else 'LOOSE'}"
                         f"{f' x{gonny_pack_count}' if gonny_mode == 'PRIMARY_PACKS' and gonny_pack_count else ''}"
+                        f" | NET {Decimal(str(item.get('gonny_net_product_weight_kg') or 0)):.3f}"
+                        f" | GROSS {Decimal(str(item.get('gonny_gross_weight_kg') or item.get('weight_kg') or 0)):.3f}"
                     )
                     if is_gonny
                     else (item.get("batch_number") if item.get("fg_batch_id") else "-")

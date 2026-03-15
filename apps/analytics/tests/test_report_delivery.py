@@ -55,6 +55,19 @@ class ReportDeliveryTests(TestCase):
             if profile.report_code == "production_daily"
         )
 
+    def test_list_profiles_exposes_all_five_daily_packs(self):
+        profiles = ReportDistributionService.list_profiles()
+        self.assertEqual(
+            {profile.report_code for profile in profiles},
+            {
+                "owner_executive_daily",
+                "production_daily",
+                "dispatch_daily",
+                "packing_dispatch_summary_daily",
+                "stock_standing_daily",
+            },
+        )
+
     def _rendered(self, report_code: str = "production_daily") -> RenderedReport:
         window_end = timezone.now()
         window_start = window_end - timezone.timedelta(days=1)

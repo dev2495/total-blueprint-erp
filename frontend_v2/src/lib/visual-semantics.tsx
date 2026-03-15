@@ -14,6 +14,7 @@ import {
   Layers,
   Package,
   PackageCheck,
+  PackageOpen,
   Palette,
   PauseCircle,
   PlayCircle,
@@ -21,6 +22,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Truck,
+  Wrench,
   Workflow,
 } from "lucide-react"
 
@@ -30,6 +32,10 @@ export type SemanticKind =
   | "rollRole"
   | "processState"
   | "materialCategory"
+  | "packagingKind"
+  | "packingMode"
+  | "toolingStatus"
+  | "dispatchStatus"
   | "jobState"
   | "severity"
   | "approval"
@@ -255,6 +261,144 @@ const materialCategoryRegistry: Record<string, SemanticMeta> = {
   },
 }
 
+const packagingKindRegistry: Record<string, SemanticMeta> = {
+  INNER_POUCH: {
+    label: "Inner pouch",
+    icon: PackageOpen,
+    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
+    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    chartColor: "#7C3AED",
+  },
+  GONNY: {
+    label: "Gonny",
+    icon: Package,
+    badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    softSurfaceClassName: "border-amber-100 bg-amber-50/70 text-amber-900",
+    chartColor: "#D97706",
+  },
+  SHEET: {
+    label: "Sheet",
+    icon: Layers,
+    badgeClassName: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    softSurfaceClassName: "border-cyan-100 bg-cyan-50/70 text-cyan-900",
+    chartColor: "#0891B2",
+  },
+  FILM: {
+    label: "Film",
+    icon: Layers,
+    badgeClassName: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    softSurfaceClassName: "border-indigo-100 bg-indigo-50/70 text-indigo-900",
+    chartColor: "#4F46E5",
+  },
+  BOX: {
+    label: "Box",
+    icon: Box,
+    badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
+    softSurfaceClassName: "border-slate-200 bg-slate-100 text-slate-900",
+    chartColor: "#64748B",
+  },
+  TAPE: {
+    label: "Tape",
+    icon: PackageCheck,
+    badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+    softSurfaceClassName: "border-rose-100 bg-rose-50/70 text-rose-900",
+    chartColor: "#E11D48",
+  },
+}
+
+const packingModeRegistry: Record<string, SemanticMeta> = {
+  LOOSE_POUCHES: {
+    label: "Loose pouch to gonny",
+    icon: PackageOpen,
+    badgeClassName: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    softSurfaceClassName: "border-cyan-100 bg-cyan-50/70 text-cyan-900",
+    chartColor: "#0891B2",
+  },
+  PRIMARY_PACKS: {
+    label: "Primary packs to gonny",
+    icon: PackageCheck,
+    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
+    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    chartColor: "#7C3AED",
+  },
+}
+
+const toolingStatusRegistry: Record<string, SemanticMeta> = {
+  READY: {
+    label: "Ready",
+    icon: Wrench,
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    softSurfaceClassName: "border-emerald-100 bg-emerald-50/70 text-emerald-900",
+    chartColor: "#10B981",
+  },
+  IN_USE: {
+    label: "In use",
+    icon: Activity,
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
+    chartColor: "#2563EB",
+  },
+  SERVICE_DUE: {
+    label: "Service due",
+    icon: AlertCircle,
+    badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    softSurfaceClassName: "border-amber-100 bg-amber-50/70 text-amber-900",
+    chartColor: "#D97706",
+  },
+  MAINTENANCE: {
+    label: "Maintenance",
+    icon: Wrench,
+    badgeClassName: "border-orange-200 bg-orange-50 text-orange-700",
+    softSurfaceClassName: "border-orange-100 bg-orange-50/70 text-orange-900",
+    chartColor: "#F97316",
+  },
+  RETIRED: {
+    label: "Retired",
+    icon: ShieldAlert,
+    badgeClassName: "border-slate-200 bg-slate-100 text-slate-600",
+    softSurfaceClassName: "border-slate-200 bg-slate-100 text-slate-800",
+    chartColor: "#94A3B8",
+  },
+}
+
+const dispatchStatusRegistry: Record<string, SemanticMeta> = {
+  DRAFT: {
+    label: "Draft",
+    icon: CircleHelp,
+    badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
+    softSurfaceClassName: "border-slate-200 bg-slate-100 text-slate-900",
+    chartColor: "#94A3B8",
+  },
+  DISPATCHED: {
+    label: "Dispatched",
+    icon: Truck,
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
+    chartColor: "#2563EB",
+  },
+  IN_TRANSIT: {
+    label: "In transit",
+    icon: Truck,
+    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
+    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    chartColor: "#7C3AED",
+  },
+  DELIVERED: {
+    label: "Delivered",
+    icon: CheckCircle2,
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    softSurfaceClassName: "border-emerald-100 bg-emerald-50/70 text-emerald-900",
+    chartColor: "#10B981",
+  },
+  RECEIVED: {
+    label: "Received",
+    icon: CheckCircle2,
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    softSurfaceClassName: "border-emerald-100 bg-emerald-50/70 text-emerald-900",
+    chartColor: "#10B981",
+  },
+}
+
 const jobStateRegistry: Record<string, SemanticMeta> = {
   READY: {
     label: "Ready",
@@ -420,6 +564,10 @@ function registryFor(kind: SemanticKind) {
   if (kind === "rollRole") return rollRoleRegistry
   if (kind === "processState") return processStateRegistry
   if (kind === "materialCategory") return materialCategoryRegistry
+  if (kind === "packagingKind") return packagingKindRegistry
+  if (kind === "packingMode") return packingModeRegistry
+  if (kind === "toolingStatus") return toolingStatusRegistry
+  if (kind === "dispatchStatus") return dispatchStatusRegistry
   if (kind === "jobState") return jobStateRegistry
   if (kind === "severity") return severityRegistry
   if (kind === "approval") return approvalRegistry

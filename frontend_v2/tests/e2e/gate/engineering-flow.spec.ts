@@ -32,8 +32,8 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
   await page.getByTestId("artwork-save-draft").click()
 
   await expect(page.getByTestId("artwork-dialog")).toBeHidden({ timeout: 30_000 })
-  await page.getByPlaceholder("Search artwork...").fill(artworkCode)
-  await page.getByRole("row", { name: new RegExp(artworkCode) }).click()
+  await page.getByPlaceholder(/Search design code, artwork name, print type, or status/i).fill(artworkCode)
+  await page.locator("button").filter({ hasText: artworkCode }).first().click()
   await page.getByTestId("artwork-dialog").waitFor({ state: "visible" })
   await page.getByTestId("artwork-generate-cylinders").click()
   await expect(page.getByTestId("artwork-approval-blockers")).toContainText(/Missing finalized|Finalize technical data/i, { timeout: 30_000 })
@@ -42,9 +42,8 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
 
   await page.goto("/engineering/cylinders")
   await assertHealthyPage(page)
-  await page.getByTestId("cylinders-search").fill(artworkName)
-  const row = page.getByRole("row", { name: new RegExp(artworkName) }).first()
-  await row.locator("button").first().click()
+  await page.getByPlaceholder(/Search cylinder code, artwork, color, lifecycle, or storage/i).fill(artworkName)
+  await page.getByRole("button", { name: /edit/i }).first().click()
   await page.getByTestId("cylinder-dialog").waitFor({ state: "visible" })
   await selectRadixOption(page, "cylinder-lifecycle-mode", "PRODUCTION")
   await page.getByTestId("cylinder-submit").click()

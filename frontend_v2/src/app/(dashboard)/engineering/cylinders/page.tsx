@@ -1,212 +1,164 @@
 "use client"
 
+import Image from "next/image"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Disc, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { Disc, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
-import { engineeringService, Cylinder } from "@/services/engineering"
+import { engineeringService, type Cylinder } from "@/services/engineering"
 import { CylinderDialog } from "@/components/engineering/cylinder-dialog"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 
 export default function CylinderManagementPage() {
-    const queryClient = useQueryClient()
-    const { toast } = useToast()
-    const [search, setSearch] = useState("")
-    const [dialogOpen, setDialogOpen] = useState(false)
-    const [editing, setEditing] = useState<Cylinder | null>(null)
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<Cylinder | null>(null)
 
-    const { data: cylinders = [], isLoading } = useQuery({
-        queryKey: ["cylinders"],
-        queryFn: () => engineeringService.getCylinders(),
-    })
+  const { data: cylinders = [], isLoading } = useQuery({ queryKey: ["cylinders"], queryFn: () => engineeringService.getCylinders() })
 
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => engineeringService.deleteCylinder(id),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["cylinders"] })
-            toast({ title: "Cylinder deleted" })
-        },
-        onError: (err: any) => {
-            toast({
-                title: "Delete failed",
-                description: err?.response?.data?.detail || err?.message || "Could not delete cylinder.",
-                variant: "destructive",
-            })
-        },
-    })
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => engineeringService.deleteCylinder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cylinders"] })
+      toast({ title: "Cylinder deleted" })
+    },
+    onError: (err: any) => {
+      toast({ title: "Delete failed", description: err?.response?.data?.detail || err?.message || "Could not delete cylinder.", variant: "destructive" })
+    },
+  })
 
-    const filtered = useMemo(() => {
-        const key = search.trim().toLowerCase()
-        if (!key) return cylinders
-        return cylinders.filter((row) => {
-            const blob = [
-                row.code,
-                row.name,
-                row.color_name,
-                row.artwork_name,
-                row.lifecycle_status,
-            ]
-                .map((v) => String(v || "").toLowerCase())
-                .join(" ")
-            return blob.includes(key)
-        })
-    }, [cylinders, search])
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return cylinders
+    return cylinders.filter((row) => [row.code, row.name, row.color_name, row.artwork_name, row.lifecycle_status, row.location_name].map((value) => String(value || "").toLowerCase()).join(" ").includes(q))
+  }, [cylinders, searchQuery])
 
-    const total = filtered.length
-    const draftCount = filtered.filter((r) => Boolean(r.is_draft)).length
-    const productionCount = filtered.filter((r) => !Boolean(r.is_draft)).length
+  const stats = useMemo(() => ({
+    total: filtered.length,
+    draft: filtered.filter((row) => Boolean(row.is_draft)).length,
+    ready: filtered.filter((row) => !Boolean(row.is_draft)).length,
+    service: filtered.filter((row) => ["MAINTENANCE", "RE_CHROME"].includes(String(row.status || "").toUpperCase())).length,
+  }), [filtered])
 
-    return (
-        <div className="p-6 lg:p-8 space-y-6 bg-slate-50/50 min-h-screen">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        <Disc className="h-6 w-6 text-indigo-600" />
-                        Cylinder Catalog
-                    </h1>
-                    <p className="text-slate-500 font-medium">
-                        Manage artwork-linked side slots and draft-to-production lifecycle.
-                    </p>
-                </div>
-                <Button
-                    onClick={() => {
-                        setEditing(null)
-                        setDialogOpen(true)
-                    }}
-                    data-testid="cylinder-new-button"
-                >
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Cylinder
-                </Button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] uppercase text-slate-500">Total</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-black">{total}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] uppercase text-slate-500">Draft Cylinders</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-black text-amber-600">{draftCount}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] uppercase text-slate-500">Production Ready</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-black text-emerald-600">{productionCount}</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Card className="overflow-hidden">
-                <CardHeader className="border-b bg-slate-50/60">
-                    <div className="relative max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search code, artwork, color..."
-                            className="pl-9 bg-white"
-                            data-testid="cylinders-search"
-                        />
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    {isLoading ? (
-                        <div className="p-12 text-center text-slate-500">
-                            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                            Loading cylinders...
-                        </div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Code</TableHead>
-                                    <TableHead>Name</TableHead>
-                                    <TableHead>Artwork</TableHead>
-                                    <TableHead>Color</TableHead>
-                                    <TableHead>Side</TableHead>
-                                    <TableHead>Lifecycle</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filtered.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={8} className="text-center py-12 text-slate-400">
-                                            No cylinders found.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    filtered.map((row) => (
-                                        <TableRow key={row.id}>
-                                            <TableCell className="font-mono text-xs font-bold">{row.code}</TableCell>
-                                            <TableCell className="font-medium">{row.name}</TableCell>
-                                            <TableCell>{row.artwork_name || "-"}</TableCell>
-                                            <TableCell>{row.color_name || "-"}</TableCell>
-                                            <TableCell>
-                                                {row.side || "FRONT"} #{row.side_slot_index || 1}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={row.is_draft ? "secondary" : "outline"}>
-                                                    {row.is_draft ? "DRAFT" : (row.lifecycle_status || "PRODUCTION")}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline">{row.status}</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="inline-flex items-center gap-1">
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        onClick={() => {
-                                                            setEditing(row)
-                                                            setDialogOpen(true)
-                                                        }}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => deleteMutation.mutate(row.id)}
-                                                        disabled={deleteMutation.isPending}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    )}
-                </CardContent>
-            </Card>
-
-            <CylinderDialog
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                cylinder={editing}
-            />
+  return (
+    <MasterRegistryShell
+      title="Cylinder Catalog"
+      description="Artwork-linked print tooling with side-slot mapping, lifecycle, vendor, and storage visibility."
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search cylinder code, artwork, color, lifecycle, or storage"
+      actions={
+        <Button
+          onClick={() => {
+            setEditing(null)
+            setDialogOpen(true)
+          }}
+          data-testid="cylinder-new-button"
+        >
+          <Plus className="mr-2 h-4 w-4" /> New Cylinder
+        </Button>
+      }
+      stats={[
+        { label: "Total Cylinders", value: stats.total, icon: Disc, toneClassName: "bg-indigo-50 text-indigo-600" },
+        { label: "Draft", value: stats.draft, icon: Pencil, toneClassName: "bg-amber-50 text-amber-600" },
+        { label: "Production Ready", value: stats.ready, icon: Disc, toneClassName: "bg-emerald-50 text-emerald-600" },
+        { label: "Service Focus", value: stats.service, icon: Wrench, toneClassName: "bg-rose-50 text-rose-600" },
+      ]}
+      chips={[
+        { kind: "toolingStatus", value: "READY" },
+        { kind: "toolingStatus", value: "MAINTENANCE" },
+        { kind: "toolingStatus", value: "SERVICE_DUE" },
+      ]}
+    >
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => <Card key={index} className="h-[320px] border-0 shadow-sm ring-1 ring-slate-100" />)}
         </div>
-    )
+      ) : filtered.length === 0 ? (
+        <Card className="border-0 shadow-sm ring-1 ring-slate-100"><CardContent className="p-10 text-center text-slate-400">No cylinders found.</CardContent></Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((row) => (
+            <Card key={row.id} className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
+              <div className="relative h-40 overflow-hidden bg-slate-100">
+                {row.artwork_image ? (
+                  <Image src={row.artwork_image} alt={row.artwork_name || row.name} fill className="object-cover" unoptimized />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-indigo-50 text-slate-400">
+                    <Disc className="h-12 w-12" />
+                  </div>
+                )}
+              </div>
+              <CardContent className="space-y-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black tracking-tight text-slate-900">{row.name}</div>
+                    <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.code}</div>
+                  </div>
+                  <SemanticBadge kind="toolingStatus" value={row.status === "ACTIVE" ? "READY" : row.status} label={row.lifecycle_status || row.status} />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <SemanticBadge kind="approval" value={row.is_draft ? "PENDING" : "APPROVED"} label={row.is_draft ? "Draft" : "Production"} />
+                  <SemanticBadge kind="severity" value="INFO" label={`${row.side || "FRONT"} #${row.side_slot_index || 1}`} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Artwork</div>
+                    <div className="mt-1 font-bold text-slate-900">{row.artwork_name || "Not linked"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Color</div>
+                    <div className="mt-1 font-bold text-slate-900">{row.color_name || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Vendor</div>
+                    <div className="mt-1 font-bold text-slate-900">{row.engraving_vendor_name || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Storage</div>
+                    <div className="mt-1 font-bold text-slate-900">{row.location_name || "Tool room not assigned"}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-xl border border-slate-100 bg-white p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Width</div>
+                    <div className="mt-1 font-black text-slate-900">{row.width_mm} mm</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-white p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Repeat</div>
+                    <div className="mt-1 font-black text-slate-900">{row.circumference} mm</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-white p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Cell Depth</div>
+                    <div className="mt-1 font-black text-slate-900">{row.cell_depth_microns} μ</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <Button size="sm" variant="outline" onClick={() => { setEditing(row); setDialogOpen(true) }}>
+                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => deleteMutation.mutate(row.id)} disabled={deleteMutation.isPending}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <CylinderDialog open={dialogOpen} onOpenChange={setDialogOpen} cylinder={editing} />
+    </MasterRegistryShell>
+  )
 }

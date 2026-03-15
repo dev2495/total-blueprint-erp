@@ -6,6 +6,7 @@ import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Card, CardContent } from "@/components/ui/card"
 import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
+import type { SemanticKind } from "@/lib/visual-semantics"
 
 interface RegistryStat {
   label: string
@@ -23,7 +24,7 @@ interface MasterRegistryShellProps {
   searchPlaceholder?: string
   actions?: React.ReactNode
   stats?: RegistryStat[]
-  chips?: Array<{ kind?: "materialCategory" | "processState" | "stockStrategy" | "origin" | "jobState" | "approval" | "severity" | "notification"; value: string; label?: string }>
+  chips?: Array<{ kind?: SemanticKind; value: string; label?: string }>
   children: React.ReactNode
 }
 

@@ -179,6 +179,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Artwork Master", href: "/engineering/artworks", icon: Palette, roles: ["ADMIN", "OWNER", "ENGINEERING"] },
       { title: "Cylinder Catalog", href: "/engineering/cylinders", icon: Disc, roles: ["ADMIN", "OWNER", "ENGINEERING"] },
+      { title: "Tool Room", href: "/engineering/tooling", icon: Settings, roles: ["ADMIN", "OWNER", "ENGINEERING"] },
       { title: "Routing Studio", href: "/engineering/routing", icon: Workflow, roles: ["ADMIN", "OWNER", "ENGINEERING"] },
       { title: "Helper Processes", href: "/factory/processes", icon: Layers, roles: ["ADMIN", "OWNER", "ENGINEERING"] },
       { title: "Template Studio", href: "/engineering/templates", icon: FileText, roles: ["ADMIN", "OWNER", "ENGINEERING"] },

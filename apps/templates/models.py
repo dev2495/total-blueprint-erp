@@ -34,6 +34,8 @@ class TemplateBlueprint(models.Model):
         ("FLAT_BOTTOM", "Flat Bottom"),
         ("SPOUT", "Spout"),
         ("SHAPED", "Shaped"),
+        ("SACHET", "Sachet"),
+        ("STICK_PACK", "Stick Pack"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

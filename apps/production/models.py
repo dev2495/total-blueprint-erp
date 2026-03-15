@@ -534,6 +534,12 @@ class PackingUnit(models.Model):
     content_mode = models.CharField(max_length=30, choices=CONTENT_MODE_CHOICES, default='LOOSE_POUCHES')
     primary_pack_count = models.IntegerField(null=True, blank=True)
     weight_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Weight after sealing")
+    net_product_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Net product content weight excluding packaging tare.")
+    inner_pack_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Primary inner-pack tare weight.")
+    secondary_pack_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Gonny / secondary pack tare weight.")
+    extras_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Seal extras / tape / tags tare weight.")
+    gross_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Gross shipment weight after sealing.")
+    tare_breakdown_json = models.JSONField(default=dict, blank=True)
     meta_json = models.JSONField(default=dict, blank=True)
     
     # Location & Status

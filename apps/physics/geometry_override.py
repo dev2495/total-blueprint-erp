@@ -22,6 +22,8 @@ POUCH_STYLE_VALUES = {
     "FLAT_BOTTOM",
     "SPOUT",
     "SHAPED",
+    "SACHET",
+    "STICK_PACK",
 }
 
 

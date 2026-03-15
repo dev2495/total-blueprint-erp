@@ -439,6 +439,11 @@ class PackingViewSet(viewsets.ViewSet):
                 "qty_pcs": gonny.qty_pcs,
                 "content_mode": gonny.content_mode,
                 "primary_pack_count": gonny.primary_pack_count,
+                "net_product_weight_kg": float(gonny.net_product_weight_kg or 0),
+                "inner_pack_tare_kg": float(gonny.inner_pack_tare_kg or 0),
+                "secondary_pack_tare_kg": float(gonny.secondary_pack_tare_kg or 0),
+                "gross_weight_kg": float(gonny.gross_weight_kg or 0) if gonny.gross_weight_kg is not None else None,
+                "tare_breakdown_json": gonny.tare_breakdown_json or {},
                 "status": gonny.status,
                 "message": f"Gonny {gonny.label_id} created with {gonny.qty_pcs} pcs"
             }, status=status.HTTP_201_CREATED)
@@ -470,6 +475,12 @@ class PackingViewSet(viewsets.ViewSet):
                 "id": str(gonny.id),
                 "label_id": gonny.label_id,
                 "weight_kg": float(gonny.weight_kg),
+                "net_product_weight_kg": float(gonny.net_product_weight_kg or 0),
+                "inner_pack_tare_kg": float(gonny.inner_pack_tare_kg or 0),
+                "secondary_pack_tare_kg": float(gonny.secondary_pack_tare_kg or 0),
+                "extras_tare_kg": float(gonny.extras_tare_kg or 0),
+                "gross_weight_kg": float(gonny.gross_weight_kg or 0),
+                "tare_breakdown_json": gonny.tare_breakdown_json or {},
                 "content_mode": gonny.content_mode,
                 "primary_pack_count": gonny.primary_pack_count,
                 "status": gonny.status,
@@ -503,6 +514,12 @@ class PackingViewSet(viewsets.ViewSet):
                     'label_id': gonny.label_id,
                     'qty_pcs': gonny.qty_pcs,
                     'weight_kg': float(gonny.weight_kg) if gonny.weight_kg is not None else None,
+                    'net_product_weight_kg': float(gonny.net_product_weight_kg or 0),
+                    'inner_pack_tare_kg': float(gonny.inner_pack_tare_kg or 0),
+                    'secondary_pack_tare_kg': float(gonny.secondary_pack_tare_kg or 0),
+                    'extras_tare_kg': float(gonny.extras_tare_kg or 0),
+                    'gross_weight_kg': float(gonny.gross_weight_kg or 0) if gonny.gross_weight_kg is not None else None,
+                    'tare_breakdown_json': gonny.tare_breakdown_json or {},
                     'status': gonny.status,
                     'content_mode': gonny.content_mode,
                     'primary_pack_count': gonny.primary_pack_count,
@@ -743,6 +760,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 "qty_pcs": item.qty_pcs,
                 "content_mode": packing_unit.content_mode if packing_unit else None,
                 "primary_pack_count": packing_unit.primary_pack_count if packing_unit else None,
+                "net_product_weight_kg": float(getattr(packing_unit, "net_product_weight_kg", 0) or 0) if packing_unit else None,
+                "inner_pack_tare_kg": float(getattr(packing_unit, "inner_pack_tare_kg", 0) or 0) if packing_unit else None,
+                "secondary_pack_tare_kg": float(getattr(packing_unit, "secondary_pack_tare_kg", 0) or 0) if packing_unit else None,
+                "extras_tare_kg": float(getattr(packing_unit, "extras_tare_kg", 0) or 0) if packing_unit else None,
+                "gross_weight_kg": float(getattr(packing_unit, "gross_weight_kg", 0) or 0) if packing_unit else None,
             })
         
         return Response({
@@ -759,6 +781,8 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             "sales_order": _safe_sales_order_number(challan.sales_order_id),
             "items": items,
             "total_weight_kg": sum(i['weight_kg'] for i in items),
+            "total_net_weight_kg": sum(float(i.get('net_product_weight_kg') or 0) for i in items if i.get("type") == "gonny") + sum(float(i['weight_kg']) for i in items if i.get("type") == "roll"),
+            "total_gross_weight_kg": sum(float(i.get('gross_weight_kg') or i['weight_kg'] or 0) for i in items),
             "total_pcs": sum(i['qty_pcs'] or 0 for i in items)
         })
 

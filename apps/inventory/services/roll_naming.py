@@ -12,6 +12,8 @@ POUCH_STYLE_LABELS = {
     "FLAT_BOTTOM": "Flat Bottom",
     "SPOUT": "Spout",
     "SHAPED": "Shaped",
+    "SACHET": "Sachet",
+    "STICK_PACK": "Stick Pack",
 }
 
 ROLL_FORM_LABELS = {

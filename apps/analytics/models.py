@@ -4,7 +4,10 @@ from django.db import models
 
 class ReportDistributionProfile(models.Model):
     class ReportCode(models.TextChoices):
+        OWNER_EXECUTIVE_DAILY = "owner_executive_daily", "Owner Executive Daily"
         PRODUCTION_DAILY = "production_daily", "Production Daily"
+        DISPATCH_DAILY = "dispatch_daily", "Dispatch Daily"
+        PACKING_DISPATCH_SUMMARY_DAILY = "packing_dispatch_summary_daily", "Packing Dispatch Summary Daily"
         STOCK_STANDING_DAILY = "stock_standing_daily", "Stock Standing Daily"
 
     report_code = models.CharField(max_length=64, choices=ReportCode.choices, unique=True)

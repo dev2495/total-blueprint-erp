@@ -391,6 +391,11 @@ class FGDispatchService:
             'content_mode': g.content_mode,
             'primary_pack_count': g.primary_pack_count,
             'weight_kg': float(g.weight_kg or 0),
+            'net_product_weight_kg': float(g.net_product_weight_kg or 0),
+            'inner_pack_tare_kg': float(g.inner_pack_tare_kg or 0),
+            'secondary_pack_tare_kg': float(g.secondary_pack_tare_kg or 0),
+            'extras_tare_kg': float(g.extras_tare_kg or 0),
+            'gross_weight_kg': float(g.gross_weight_kg or g.weight_kg or 0),
             'location': {
                 'id': str(g.location.id),
                 'name': g.location.name,
@@ -437,6 +442,8 @@ class FGDispatchService:
                 'rolls_kg': float(available_rolls.aggregate(total=Sum('weight_kg'))['total'] or 0),
                 'gonnies_count': available_gonnies.count(),
                 'gonnies_pcs': available_gonnies.aggregate(total=Sum('qty_pcs'))['total'] or 0,
+                'gonnies_net_kg': float(available_gonnies.aggregate(total=Sum('net_product_weight_kg'))['total'] or 0),
+                'gonnies_gross_kg': float(available_gonnies.aggregate(total=Sum('gross_weight_kg'))['total'] or 0),
             },
             'packing_pending': {
                 'open_gonnies_count': open_gonnies.count(),

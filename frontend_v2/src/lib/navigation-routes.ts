@@ -23,6 +23,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/dashboard/work-center",
   "/engineering/artworks",
   "/engineering/cylinders",
+  "/engineering/tooling",
   "/engineering/routing",
   "/engineering/templates",
   "/factory/locations",

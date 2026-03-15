@@ -440,7 +440,7 @@ export default function DispatchPage() {
                                                     <TableHead className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Label ID</TableHead>
                                                     <TableHead className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Content</TableHead>
                                                     <TableHead className="text-[10px] uppercase tracking-widest font-bold text-slate-500">PCS Count</TableHead>
-                                                    <TableHead className="text-right px-4 text-[10px] uppercase tracking-widest font-bold text-slate-500">Weight</TableHead>
+                                                    <TableHead className="text-right px-4 text-[10px] uppercase tracking-widest font-bold text-slate-500">Net / Gross</TableHead>
                                                 </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -478,8 +478,18 @@ export default function DispatchPage() {
                                                         </TableCell>
                                                         <TableCell className="text-xs font-medium text-slate-600">{gonny.qty_pcs} pcs</TableCell>
                                                         <TableCell className="text-right px-4">
-                                                            <span className="font-bold text-slate-800">{gonny.weight_kg}</span>
-                                                            <span className="text-[10px] text-slate-500 font-medium ml-1">KG</span>
+                                                            <div className="space-y-1 text-right">
+                                                                <div>
+                                                                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Net</span>
+                                                                    <span className="ml-2 font-bold text-slate-800">{Number(gonny.net_product_weight_kg || 0).toFixed(3)}</span>
+                                                                    <span className="text-[10px] text-slate-500 font-medium ml-1">KG</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Gross</span>
+                                                                    <span className="ml-2 font-bold text-emerald-700">{Number(gonny.gross_weight_kg || gonny.weight_kg || 0).toFixed(3)}</span>
+                                                                    <span className="text-[10px] text-slate-500 font-medium ml-1">KG</span>
+                                                                </div>
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))

@@ -33,6 +33,7 @@ export interface Cylinder {
 
     artwork: string | null; // ID
     artwork_name?: string;
+    artwork_image?: string | null;
 
     engraving_vendor?: string | null; // ID
     engraving_vendor_name?: string;
@@ -51,6 +52,27 @@ export interface Cylinder {
 
     status: "ACTIVE" | "MAINTENANCE" | "RE_CHROME" | "SCRAP";
     created_at: string;
+}
+
+export interface ToolAsset {
+    id: string;
+    plant: string;
+    plant_name?: string;
+    asset_type: "ANILOX" | "SLEEVE" | "CUTTING_DIE" | "SEALING_JAW" | "CORE_SHAFT" | "MOUNTING_ADAPTER" | "TOOLING_OTHER";
+    code: string;
+    name: string;
+    status: "READY" | "IN_USE" | "SERVICE_DUE" | "MAINTENANCE" | "RETIRED";
+    storage_location?: string | null;
+    location_name?: string | null;
+    rack_code?: string;
+    slot_code?: string;
+    vendor?: string | null;
+    vendor_name?: string | null;
+    service_due_at?: string | null;
+    notes?: string;
+    meta_json?: Record<string, any>;
+    created_at?: string;
+    updated_at?: string;
 }
 
 // --- Service ---
@@ -108,5 +130,22 @@ export const engineeringService = {
     },
     deleteCylinder: async (id: string) => {
         await api.delete(`/api/tooling/cylinders/${id}/`);
+    },
+
+    // Tool assets
+    getToolAssets: async (params?: any) => {
+        const { data } = await api.get<ToolAsset[]>("/api/tooling/assets/", { params });
+        return data;
+    },
+    createToolAsset: async (data: Partial<ToolAsset>) => {
+        const { data: res } = await api.post<ToolAsset>("/api/tooling/assets/", data);
+        return res;
+    },
+    updateToolAsset: async (id: string, data: Partial<ToolAsset>) => {
+        const { data: res } = await api.patch<ToolAsset>(`/api/tooling/assets/${id}/`, data);
+        return res;
+    },
+    deleteToolAsset: async (id: string) => {
+        await api.delete(`/api/tooling/assets/${id}/`);
     },
 };

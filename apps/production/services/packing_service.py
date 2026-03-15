@@ -1,9 +1,11 @@
 from decimal import Decimal
 from math import ceil
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 from apps.production.models import PackingUnit, FinishedGoodsBatch
 from apps.inventory.services.packaging_service import PackagingService
+from apps.materials.models import InventoryMaterial
 
 
 class PackingService:
@@ -31,6 +33,70 @@ class PackingService:
         payload = snapshot if isinstance(snapshot, dict) else {}
         cfg = payload.get("primary_inner_pack") if isinstance(payload.get("primary_inner_pack"), dict) else {}
         return cfg or {}
+
+    @staticmethod
+    def _packing_qty_totals(fg_batch: FinishedGoodsBatch) -> int:
+        try:
+            packed_qty = sum(int(getattr(unit, "qty_pcs", 0) or 0) for unit in fg_batch.packing_units.all())
+        except Exception:
+            try:
+                packed_qty = int(fg_batch.packing_units.aggregate(total=Sum("qty_pcs")).get("total") or 0)
+            except Exception:
+                packed_qty = 0
+        return int(getattr(fg_batch, "qty_pcs", 0) or 0) + packed_qty
+
+    @staticmethod
+    def _net_product_weight_kg(fg_batch: FinishedGoodsBatch, qty_pcs: int) -> Decimal:
+        total_weight = Decimal(str(getattr(fg_batch, "qty_kg", 0) or 0))
+        total_qty_pcs = PackingService._packing_qty_totals(fg_batch)
+        if total_weight <= 0 or total_qty_pcs <= 0 or qty_pcs <= 0:
+            return Decimal("0")
+        return (total_weight / Decimal(str(total_qty_pcs))) * Decimal(str(qty_pcs))
+
+    @staticmethod
+    def _packaging_mass_kg(material_id, qty, input_uom="PCS") -> Decimal:
+        if not material_id:
+            return Decimal("0")
+        try:
+            material = InventoryMaterial.objects.get(id=material_id)
+        except Exception:
+            return Decimal("0")
+        try:
+            base_qty, _ = PackagingService._resolve_base_qty(material, qty, input_uom=input_uom)
+        except Exception:
+            base_qty = Decimal("0")
+
+        base_uom = str(getattr(material, "base_uom", "") or "").upper()
+        if base_uom == "KG":
+            return Decimal(str(base_qty or 0))
+
+        tare_per_unit = Decimal(str(getattr(material, "tare_weight_kg", 0) or 0))
+        if tare_per_unit > 0:
+            return tare_per_unit * Decimal(str(qty or 0))
+
+        defaults = dict(getattr(material, "packaging_defaults_json", {}) or {})
+        per_meter = Decimal(str(defaults.get("tare_kg_per_meter") or 0))
+        if base_uom == "METER" and per_meter > 0:
+            return per_meter * Decimal(str(qty or 0))
+        return Decimal("0")
+
+    @staticmethod
+    def _tare_breakdown(*, net_product_weight_kg, inner_pack_tare_kg, secondary_pack_tare_kg, extras_tare_kg, content_mode, primary_pack_count):
+        gross_weight_kg = (
+            Decimal(str(net_product_weight_kg or 0))
+            + Decimal(str(inner_pack_tare_kg or 0))
+            + Decimal(str(secondary_pack_tare_kg or 0))
+            + Decimal(str(extras_tare_kg or 0))
+        )
+        return {
+            "content_mode": str(content_mode or "LOOSE_POUCHES").upper(),
+            "primary_pack_count": int(primary_pack_count or 0) if primary_pack_count else None,
+            "net_product_weight_kg": float(Decimal(str(net_product_weight_kg or 0))),
+            "inner_pack_tare_kg": float(Decimal(str(inner_pack_tare_kg or 0))),
+            "secondary_pack_tare_kg": float(Decimal(str(secondary_pack_tare_kg or 0))),
+            "extras_tare_kg": float(Decimal(str(extras_tare_kg or 0))),
+            "gross_weight_kg": float(gross_weight_kg),
+        }
 
     @staticmethod
     @transaction.atomic
@@ -98,6 +164,24 @@ class PackingService:
                 resolved_primary_pack_count = int(ceil(effective_qty_pcs / pcs_per_pack))
             else:
                 raise ValueError("primary_pack_count is required when content_mode is PRIMARY_PACKS and no sales primary pack default exists.")
+            if not primary_cfg.get("material_id"):
+                raise ValueError("primary_inner_pack.material_id is required when content_mode is PRIMARY_PACKS.")
+
+        net_product_weight_kg = PackingService._net_product_weight_kg(fg_batch, effective_qty_pcs)
+        inner_pack_tare_kg = (
+            PackingService._packaging_mass_kg(primary_cfg.get("material_id"), resolved_primary_pack_count or 0, input_uom="PCS")
+            if resolved_content_mode == "PRIMARY_PACKS"
+            else Decimal("0")
+        )
+        secondary_pack_tare_kg = PackingService._packaging_mass_kg(selected_gonny_material_id, 1, input_uom="PCS")
+        tare_breakdown = PackingService._tare_breakdown(
+            net_product_weight_kg=net_product_weight_kg,
+            inner_pack_tare_kg=inner_pack_tare_kg,
+            secondary_pack_tare_kg=secondary_pack_tare_kg,
+            extras_tare_kg=Decimal("0"),
+            content_mode=resolved_content_mode,
+            primary_pack_count=resolved_primary_pack_count,
+        )
 
         location = fg_batch.location
         if location_id:
@@ -120,6 +204,19 @@ class PackingService:
             basis="PER_GONNY",
             meta_json={"fg_batch_id": str(fg_batch.id)},
         )
+
+        if resolved_content_mode == "PRIMARY_PACKS" and resolved_primary_pack_count:
+            PackagingService.consume_packaging_stock(
+                material_id=primary_cfg.get("material_id"),
+                qty=resolved_primary_pack_count,
+                input_uom="PCS",
+                location_id=location.id,
+                job_id=getattr(fg_batch, "production_job_id", None),
+                sales_order_item_id=getattr(fg_batch, "sales_order_item_id", None),
+                reference=f"PRIMARY_PACK_CREATE:{fg_batch.batch_number}",
+                basis="PER_PRIMARY_PACK",
+                meta_json={"fg_batch_id": str(fg_batch.id)},
+            )
         
         # Generate unique label - include count of existing packing units
         existing_count = fg_batch.packing_units.count() + 1
@@ -133,6 +230,12 @@ class PackingService:
             qty_pcs=effective_qty_pcs,
             content_mode=resolved_content_mode,
             primary_pack_count=resolved_primary_pack_count,
+            net_product_weight_kg=net_product_weight_kg,
+            inner_pack_tare_kg=inner_pack_tare_kg,
+            secondary_pack_tare_kg=secondary_pack_tare_kg,
+            extras_tare_kg=Decimal("0"),
+            gross_weight_kg=Decimal(str(tare_breakdown["gross_weight_kg"])),
+            tare_breakdown_json=tare_breakdown,
             location=location,
             status='OPEN',
             created_by=user,
@@ -142,6 +245,7 @@ class PackingService:
                 "default_content_mode": "PRIMARY_PACKS" if inner_pack_enabled else "LOOSE_POUCHES",
                 "sales_primary_pack_enabled": inner_pack_enabled,
                 "sales_pcs_per_pack": pcs_per_pack or None,
+                "weight_breakdown": tare_breakdown,
             },
         )
         
@@ -175,11 +279,10 @@ class PackingService:
         if gonny.status != 'OPEN':
             raise ValueError(f"Packing unit {gonny.label_id} is already {gonny.status}")
         
-        gonny.weight_kg = Decimal(str(weight_kg))
+        gross_weight_kg = Decimal(str(weight_kg))
         gonny.status = 'SEALED'
         gonny.sealed_at = timezone.now()
         gonny.meta_json = dict(getattr(gonny, "meta_json", {}) or {})
-        gonny.save()
 
         packaging_snapshot = {}
         if getattr(gonny, "sales_order_item", None):
@@ -190,6 +293,7 @@ class PackingService:
         secondary_cfg = PackingService._legacy_secondary_cfg(packaging_snapshot)
         source_lines = extras if extras is not None else (secondary_cfg.get("extras") or [])
         consumed_extras = []
+        extras_tare_kg = Decimal("0")
         for line in source_lines:
             if not isinstance(line, dict):
                 continue
@@ -213,6 +317,7 @@ class PackingService:
                 basis="PER_GONNY",
                 meta_json={"gonny_id": str(gonny.id), "fg_batch_id": str(gonny.fg_batch_id)},
             )
+            extras_tare_kg += PackingService._packaging_mass_kg(material_id, qty, input_uom=uom)
             consumed_extras.append(
                 {
                     "material_id": str(material_id),
@@ -222,13 +327,47 @@ class PackingService:
                 }
             )
 
+        net_product_weight_kg = Decimal(str(getattr(gonny, "net_product_weight_kg", 0) or 0))
+        inner_pack_tare_kg = Decimal(str(getattr(gonny, "inner_pack_tare_kg", 0) or 0))
+        secondary_pack_tare_kg = Decimal(str(getattr(gonny, "secondary_pack_tare_kg", 0) or 0))
+        minimum_expected = net_product_weight_kg + inner_pack_tare_kg + secondary_pack_tare_kg + extras_tare_kg
+        if gross_weight_kg < minimum_expected:
+            raise ValueError(
+                f"Gross weight {gross_weight_kg} kg is below calculated minimum {minimum_expected:.4f} kg."
+            )
+
+        tare_breakdown = PackingService._tare_breakdown(
+            net_product_weight_kg=net_product_weight_kg,
+            inner_pack_tare_kg=inner_pack_tare_kg,
+            secondary_pack_tare_kg=secondary_pack_tare_kg,
+            extras_tare_kg=extras_tare_kg,
+            content_mode=gonny.content_mode,
+            primary_pack_count=gonny.primary_pack_count,
+        )
+        tare_breakdown["gross_weight_kg"] = float(gross_weight_kg)
+
+        gonny.weight_kg = gross_weight_kg
+        gonny.gross_weight_kg = gross_weight_kg
+        gonny.extras_tare_kg = extras_tare_kg
+        gonny.tare_breakdown_json = tare_breakdown
         gonny.meta_json.update(
             {
                 "sealed_weight_kg": float(gonny.weight_kg or 0),
                 "seal_extras": consumed_extras,
+                "weight_breakdown": tare_breakdown,
             }
         )
-        gonny.save(update_fields=["weight_kg", "status", "sealed_at", "meta_json"])
+        gonny.save(
+            update_fields=[
+                "weight_kg",
+                "gross_weight_kg",
+                "extras_tare_kg",
+                "tare_breakdown_json",
+                "status",
+                "sealed_at",
+                "meta_json",
+            ]
+        )
 
         return gonny
 
