@@ -22,23 +22,30 @@ export function PageHeader({
     showHelpInline,
 }: PageHeaderProps) {
     return (
-        <div className={cn("space-y-3 pb-4", className)}>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1.5">
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
-                    {description && (
-                        <p className="text-sm text-muted-foreground">
-                            {description}
-                        </p>
+        <div className={cn("space-y-4 pb-4", className)}>
+            <div className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/78 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.45)] backdrop-blur-xl sm:px-6 sm:py-6 lg:px-7">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="max-w-4xl space-y-2">
+                        <div className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/85 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 shadow-sm">
+                            Premium Workspace
+                        </div>
+                        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl lg:text-[2rem]">{title}</h1>
+                        {description && (
+                            <p className="max-w-3xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                                {description}
+                            </p>
+                        )}
+                    </div>
+                    {actions && (
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                            {actions}
+                        </div>
                     )}
                 </div>
-                {actions && (
-                    <div className="flex items-center gap-2">
-                        {actions}
-                    </div>
-                )}
             </div>
-            {showHelpInline ? <PageHelpInline routePattern={helpRoute} helpSummary={helpSummary} compact /> : null}
+            <div className="px-1">
+                {showHelpInline ? <PageHelpInline routePattern={helpRoute} helpSummary={helpSummary} compact /> : null}
+            </div>
         </div>
     )
 }

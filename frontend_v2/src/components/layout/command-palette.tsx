@@ -258,7 +258,7 @@ export function CommandPalette() {
             <button
                 onClick={() => setOpen(true)}
                 data-testid="command-palette-trigger"
-                className="relative inline-flex h-10 w-full min-w-[220px] items-center justify-start rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 sm:pr-12 md:w-52 lg:w-72"
+                className="relative inline-flex h-10 w-full min-w-0 max-w-full items-center justify-start rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 sm:pr-12"
             >
                 <Search className="mr-2 h-4 w-4 opacity-60" />
                 <span className="hidden lg:inline-flex">Search commands, routes, records...</span>

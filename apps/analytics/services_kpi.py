@@ -2,7 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Max, Q, Sum
 from django.utils import timezone
 
 from apps.analytics.decorators import safe_service
@@ -121,11 +121,21 @@ class KPIService:
         quality = max(0.0, 100.0 - scrap_rate)
         oee_proxy = round((avg_utilization * quality) / 100.0, 1)
 
-        # OTIF proxy from delivered sales orders against delivery date.
-        delivered = SalesOrder.objects.filter(status__in=["DELIVERED", "DISPATCHED"], **sales_scope)
+        # OTIF proxy from dispatch evidence against requested delivery date.
+        # Historical order statuses are inconsistent, so use the latest dispatch
+        # timestamp when available and fall back to completed/dispatched-like statuses
+        # only for the delivered population.
+        delivered = SalesOrder.objects.filter(**sales_scope).annotate(
+            last_dispatch_at=Max("challans__dispatch_date")
+        ).filter(
+            Q(last_dispatch_at__isnull=False)
+            | Q(status__in=["DELIVERED", "DISPATCHED", "DISPATCH_READY", "COMPLETED"])
+        )
         delivered_count = delivered.count()
-        on_time_count = delivered.filter(delivery_date__isnull=False).filter(
-            updated_at__date__lte=models.F("delivery_date")
+        on_time_count = delivered.filter(
+            delivery_date__isnull=False,
+            last_dispatch_at__isnull=False,
+            last_dispatch_at__date__lte=models.F("delivery_date"),
         ).count()
         on_time_delivery = round((on_time_count / delivered_count * 100.0), 1) if delivered_count else 0.0
 

@@ -263,6 +263,7 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
     process_input_form = serializers.ReadOnlyField(source="process.input_form")
     process_output_form = serializers.ReadOnlyField(source="process.output_form")
     process_roll_behavior = serializers.ReadOnlyField(source="process.roll_behavior")
+    cost_absorption_group_code = serializers.ReadOnlyField(source="cost_absorption_group.code")
     materials = TemplateProcessStepMaterialSerializer(many=True, read_only=True)
     roll_handling = TemplateProcessStepRollHandlingSerializer(source="roll_spec", read_only=True)
 
@@ -278,6 +279,8 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
             "process_input_form",
             "process_output_form",
             "process_roll_behavior",
+            "cost_absorption_group",
+            "cost_absorption_group_code",
             "notes",
             "materials",
             "roll_handling",

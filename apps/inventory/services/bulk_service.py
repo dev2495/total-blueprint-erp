@@ -7,7 +7,7 @@ from apps.materials.models import InventoryMaterial
 class BulkService:
     @classmethod
     @transaction.atomic
-    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference=""):
+    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None):
         """
         Increase bulk quantity and update average cost.
         Used by GRN and manual adjustments.
@@ -41,10 +41,11 @@ class BulkService:
         return BulkTransaction.objects.create(
             material_id=material_id,
             location_id=location_id,
-            type='INWARD',
+            type=tx_type,
             qty_kg=qty,
             avg_cost=cost if cost > 0 else bulk.avg_cost,
-            reference=reference
+            reference=reference,
+            job_id=job_id,
         )
 
     @classmethod

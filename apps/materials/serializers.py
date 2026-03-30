@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, InventoryMaterial
+from .models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
 from apps.inventory.models import InkMaterial
 import uuid
 
@@ -217,3 +217,67 @@ class PackagingSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['category'] = 'PACKAGING'
         return super().create(validated_data)
+
+
+class PodSkuVariantSerializer(serializers.ModelSerializer):
+    pod_sku_code = serializers.CharField(source='pod_sku.code', read_only=True)
+    pod_sku_name = serializers.CharField(source='pod_sku.name', read_only=True)
+    material_code = serializers.CharField(source='material.code', read_only=True)
+    material_name = serializers.CharField(source='material.name', read_only=True)
+    material_status = serializers.CharField(source='material.status', read_only=True)
+    pod_type = serializers.CharField(source='material.pod_type', read_only=True, allow_null=True)
+    pod_fixed_height_mm = serializers.DecimalField(source='material.pod_fixed_height_mm', max_digits=10, decimal_places=2, read_only=True)
+    pod_thickness_micron = serializers.DecimalField(source='material.pod_thickness_micron', max_digits=10, decimal_places=3, read_only=True)
+    pod_panel_count = serializers.IntegerField(source='material.pod_panel_count', read_only=True)
+    pod_is_inhouse_produced = serializers.BooleanField(source='material.pod_is_inhouse_produced', read_only=True)
+    density_gcm3 = serializers.DecimalField(source='material.density_gcm3', max_digits=6, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = PodSkuVariant
+        fields = [
+            'id',
+            'pod_sku',
+            'pod_sku_code',
+            'pod_sku_name',
+            'material',
+            'material_code',
+            'material_name',
+            'material_status',
+            'code',
+            'name',
+            'active',
+            'production_defaults_json',
+            'reporting_attributes_json',
+            'pod_type',
+            'pod_fixed_height_mm',
+            'pod_thickness_micron',
+            'pod_panel_count',
+            'pod_is_inhouse_produced',
+            'density_gcm3',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class PodSkuSerializer(serializers.ModelSerializer):
+    variants = PodSkuVariantSerializer(many=True, read_only=True)
+    active_variant_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PodSku
+        fields = [
+            'id',
+            'code',
+            'name',
+            'family',
+            'active',
+            'variants',
+            'active_variant_count',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_active_variant_count(self, obj):
+        return obj.variants.filter(active=True).count()

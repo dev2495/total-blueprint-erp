@@ -75,6 +75,10 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 order_reference_target_kg = 0.0
             step_target_kg = float(profile.get("step_target_total_kg") or 0)
             step_target_pcs = profile.get("step_target_pcs")
+            step_target_primary = profile.get("step_target_primary")
+            step_produced_primary = profile.get("step_produced_primary")
+            step_remaining_primary = profile.get("step_remaining_primary")
+            primary_uom = profile.get("primary_uom") or "KG"
             step_target_source = str(profile.get("target_source") or "V2_STEP_PROFILE")
             raw_total_kg = float(job_details.get("total_weight_kg") or 0)
             job_details["execution_model_version"] = 2
@@ -83,6 +87,10 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             job_details["step_adjusted_total_kg"] = step_target_kg if step_target_kg > 0 else 0.0
             job_details["step_target_kg"] = step_target_kg
             job_details["step_target_pcs"] = step_target_pcs
+            job_details["primary_uom"] = primary_uom
+            job_details["step_target_primary"] = step_target_primary
+            job_details["step_produced_primary"] = step_produced_primary
+            job_details["step_remaining_primary"] = step_remaining_primary
             job_details["step_target_source"] = step_target_source
             job_details["order_reference_target_kg"] = normalized_order_reference
             row["execution_model_version"] = 2
@@ -226,8 +234,14 @@ class JobAllocationViewSet(viewsets.ViewSet):
         for i, film in enumerate(films[:5]):
             logger.debug(f"[DEBUG] BOM film {i}: {film}")
         
-        # Hard-cut runtime disables broad non-lineage fallback.
-        rolls = RollAllocationService.get_eligible_rolls(job, include_non_lineage_fallback=False, include_remainder=True)
+        rolls = RollAllocationService.get_eligible_rolls(
+            job,
+            include_non_lineage_fallback=ExecutionService._allow_non_lineage_roll_discovery(
+                job,
+                job.current_process or job.process,
+            ),
+            include_remainder=True,
+        )
         logger.debug(f"[DEBUG] Eligible rolls count (with remainder): {rolls.count()}")
         
         serializer = InventoryRollSerializer(rolls, many=True)

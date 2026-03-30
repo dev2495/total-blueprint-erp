@@ -92,10 +92,17 @@ class ReportDeliveryTests(TestCase):
                 self.assertTrue(str(artifact_path).endswith(rendered.file_name))
                 self.assertEqual(artifact_path.read_bytes(), rendered.pdf)
 
+    @patch("apps.users.tasks.deliver_notification_email_task.delay")
     @patch("apps.analytics.report_delivery.EmailDeliveryService.send_email")
     @patch("apps.analytics.report_delivery.EmailDeliveryService.configuration_status")
     @patch("apps.analytics.report_delivery.ReportDistributionService.render_report")
-    def test_send_profile_creates_audited_run_and_emails_pdf_attachment(self, render_report, configuration_status, send_email):
+    def test_send_profile_creates_audited_run_and_emails_pdf_attachment(
+        self,
+        render_report,
+        configuration_status,
+        send_email,
+        _deliver_notification_email_task,
+    ):
         render_report.return_value = self._rendered()
         configuration_status.return_value = (True, "")
         send_email.return_value = {

@@ -34,7 +34,12 @@ from apps.production.models import (
     DeliveryChallanItem,
 )
 from apps.factory.models import Plant, WorkCenter, Machine, Process, PlantShiftDefinition
-from apps.inventory.models import InventoryRoll, InventoryBulk
+from apps.inventory.models import (
+    DeliveryChallan as InterPlantDeliveryChallan,
+    InterPlantChallanItem,
+    InventoryRoll,
+    InventoryBulk,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -733,7 +738,7 @@ class ReportService:
     @staticmethod
     def get_sales_fulfillment(filters=None):
         filters = ReportService._default_date_range(filters or {})
-        from apps.sales.models import SalesOrder, SalesOrderItem
+        from apps.sales.models import SalesOrder, SalesOrderItem, Quotation
 
         orders = SalesOrder.objects.exclude(status='CANCELLED')
         orders = ReportService._apply_filters(orders, filters, date_field='created_at')
@@ -745,9 +750,17 @@ class ReportService:
         overdue = active.filter(delivery_date__lt=now).count()
 
         # OTIF
-        completed = orders.filter(status='COMPLETED')
+        # SalesOrder does not carry an updated_at field; use the latest dispatch timestamp
+        # when available, then fall back to commercial confirmation / creation time.
+        completed = orders.filter(status='COMPLETED').annotate(
+            completion_ts=Coalesce(
+                Max('challans__dispatch_date'),
+                F('commercial_confirmed_at'),
+                F('created_at'),
+            )
+        )
         completed_count = completed.count()
-        on_time = completed.filter(updated_at__date__lte=F('delivery_date')).count() if completed_count > 0 else 0
+        on_time = completed.filter(completion_ts__date__lte=F('delivery_date')).count() if completed_count > 0 else 0
         otif_rate = ReportService._pct(on_time, completed_count)
 
         # Total weight ordered
@@ -816,6 +829,54 @@ class ReportService:
                 o['days_overdue'] = (now - o['delivery_date']).days
                 o['delivery_date'] = o['delivery_date'].isoformat()
 
+        sku_breakdown = item_qs.values(
+            'sku_variant__sku__code',
+            'sku_variant__code',
+            'sku_variant__name',
+            'template__name',
+        ).annotate(
+            weight_kg=Sum('total_weight_kg'),
+            orders=Count('id'),
+            value=Sum(
+                Case(
+                    When(
+                        price_basis='PCS',
+                        then=ExpressionWrapper(
+                            F('qty_value') * F('unit_price'),
+                            output_field=DecimalField(max_digits=18, decimal_places=4),
+                        ),
+                    ),
+                    default=ExpressionWrapper(
+                        F('total_weight_kg') * F('unit_price'),
+                        output_field=DecimalField(max_digits=18, decimal_places=4),
+                    ),
+                    output_field=DecimalField(max_digits=18, decimal_places=4),
+                )
+            ),
+            repeat_orders=Count('id', filter=Q(mode='REPEAT')),
+        ).order_by('-weight_kg')[:10]
+        sku_breakdown = [
+            {
+                "sku": " · ".join([
+                    part for part in [row.get('sku_variant__sku__code'), row.get('sku_variant__code')] if part
+                ]) or (row.get('sku_variant__name') or row.get('template__name') or "Unmapped SKU"),
+                "weight_kg": round(float(row['weight_kg'] or 0), 2),
+                "orders": row['orders'],
+                "value": round(float(row['value'] or 0), 2),
+                "repeat_orders": row['repeat_orders'],
+            }
+            for row in sku_breakdown
+        ]
+
+        repeat_mix = item_qs.aggregate(
+            repeat_orders=Count('id', filter=Q(mode='REPEAT')),
+            custom_orders=Count('id', filter=Q(mode='CUSTOM')),
+            template_orders=Count('id', filter=Q(mode='TEMPLATE')),
+        )
+        filtered_quotes = ReportService._apply_filters(Quotation.objects.all(), filters, date_field='created_at')
+        total_quotes = filtered_quotes.count()
+        converted_quotes = filtered_quotes.exclude(converted_sales_order__isnull=True).count()
+
         return {
             "summary": {
                 "backlog_count": backlog,
@@ -824,11 +885,24 @@ class ReportService:
                 "completed_count": completed_count,
                 "total_weight_ordered_kg": round(total_weight, 2),
                 "total_revenue": round(total_revenue, 2),
+                "repeat_share_pct": round(ReportService._pct(repeat_mix.get('repeat_orders') or 0, item_qs.count()), 2),
+                "quote_conversion_pct": round(ReportService._pct(converted_quotes, total_quotes), 2),
             },
             "pipeline": pipeline_data,
             "top_customers": customer_data,
             "trend": trend,
             "overdue_orders": overdue_orders,
+            "sku_breakdown": sku_breakdown,
+            "repeat_mix": {
+                "repeat": repeat_mix.get('repeat_orders') or 0,
+                "custom": repeat_mix.get('custom_orders') or 0,
+                "template": repeat_mix.get('template_orders') or 0,
+            },
+            "quote_conversion": {
+                "total_quotes": total_quotes,
+                "converted_quotes": converted_quotes,
+                "conversion_pct": round(ReportService._pct(converted_quotes, total_quotes), 2),
+            },
             "benchmarks": {"target_otif": TARGET_OTIF},
         }
 
@@ -1056,7 +1130,7 @@ class ReportService:
         filters = ReportService._default_date_range(filters or {})
 
         try:
-            from apps.costing.models import JobCost, OrderCost, MonthlyOverhead
+            from apps.costing.models import JobCost, OrderCost, PlantCostPoolLine, PlantCostPoolMonth
         except ImportError:
             return {"summary": {}, "error": "Costing module not available"}
 
@@ -1068,17 +1142,21 @@ class ReportService:
             job_costs = job_costs.filter(created_at__date__lte=filters['end_date'])
 
         jc_agg = job_costs.aggregate(
-            total_material=Sum('material_cost'),
-            total_process=Sum('process_cost'),
+            total_material=Sum('material_cost_actual'),
+            total_process=Sum('conversion_cost_actual'),
+            total_overhead=Sum('overhead_cost_absorbed'),
             total_cost=Sum('total_cost'),
             avg_cost_per_kg=Avg('cost_per_kg'),
             job_count=Count('id'),
+            avg_coverage=Avg('actual_cost_coverage_pct'),
         )
 
         total_material_cost = round(float(jc_agg['total_material'] or 0), 2)
         total_process_cost = round(float(jc_agg['total_process'] or 0), 2)
+        total_overhead_cost = round(float(jc_agg['total_overhead'] or 0), 2)
         total_production_cost = round(float(jc_agg['total_cost'] or 0), 2)
         avg_ckg = round(float(jc_agg['avg_cost_per_kg'] or 0), 2)
+        avg_coverage = round(float(jc_agg['avg_coverage'] or 0), 1)
 
         # Order Costs (margin analysis)
         order_costs = OrderCost.objects.select_related('sales_order_item', 'sales_order_item__sales_order')
@@ -1090,19 +1168,29 @@ class ReportService:
         oc_agg = order_costs.aggregate(
             total_selling=Sum('selling_price'),
             total_cost=Sum('total_cost'),
-            total_margin=Sum('margin_value'),
-            avg_margin_pct=Avg('margin_percent'),
+            total_margin=Sum('absorbed_margin'),
+            total_contribution=Sum('contribution_margin'),
+            avg_margin_pct=Avg('absorbed_margin_percent'),
+            avg_contribution_margin_pct=Avg('contribution_margin_percent'),
+            avg_coverage=Avg('actual_cost_coverage_pct'),
+            actual_count=Count('id', filter=Q(costing_mode='ACTUAL')),
+            hybrid_count=Count('id', filter=Q(costing_mode='HYBRID')),
+            estimated_count=Count('id', filter=Q(costing_mode='ESTIMATED')),
         )
 
         total_revenue = round(float(oc_agg['total_selling'] or 0), 2)
         total_order_cost = round(float(oc_agg['total_cost'] or 0), 2)
         total_margin = round(float(oc_agg['total_margin'] or 0), 2)
+        total_contribution = round(float(oc_agg['total_contribution'] or 0), 2)
         avg_margin = round(float(oc_agg['avg_margin_pct'] or 0), 1)
+        avg_contribution_margin = round(float(oc_agg['avg_contribution_margin_pct'] or 0), 1)
+        order_coverage = round(float(oc_agg['avg_coverage'] or 0), 1)
 
         # Cost breakdown for donut chart
         cost_split = [
             {"name": "Material Cost", "value": total_material_cost},
             {"name": "Conversion Cost", "value": total_process_cost},
+            {"name": "Absorbed Overhead", "value": total_overhead_cost},
         ]
 
         # Margin by customer (top 10)
@@ -1111,8 +1199,10 @@ class ReportService:
         ).annotate(
             revenue=Sum('selling_price'),
             cost=Sum('total_cost'),
-            margin=Sum('margin_value'),
-            avg_margin=Avg('margin_percent'),
+            margin=Sum('absorbed_margin'),
+            contribution_margin=Sum('contribution_margin'),
+            avg_margin=Avg('absorbed_margin_percent'),
+            avg_coverage=Avg('actual_cost_coverage_pct'),
             orders=Count('id'),
         ).order_by('-revenue')[:10]
 
@@ -1121,7 +1211,9 @@ class ReportService:
             "revenue": round(float(c['revenue'] or 0), 2),
             "cost": round(float(c['cost'] or 0), 2),
             "margin": round(float(c['margin'] or 0), 2),
+            "contribution_margin": round(float(c['contribution_margin'] or 0), 2),
             "margin_pct": round(float(c['avg_margin'] or 0), 1),
+            "coverage_pct": round(float(c['avg_coverage'] or 0), 1),
             "orders": c['orders'],
         } for c in by_customer]
 
@@ -1131,24 +1223,44 @@ class ReportService:
         ).values('month').annotate(
             revenue=Sum('selling_price'),
             cost=Sum('total_cost'),
-            margin=Sum('margin_value'),
+            contribution_margin=Sum('contribution_margin'),
+            margin=Sum('absorbed_margin'),
+            coverage=Avg('actual_cost_coverage_pct'),
         ).order_by('month')
 
         monthly_trend = [{
             "date": m['month'].strftime('%Y-%m'),
             "revenue": round(float(m['revenue'] or 0), 2),
             "cost": round(float(m['cost'] or 0), 2),
+            "contribution_margin": round(float(m['contribution_margin'] or 0), 2),
             "margin": round(float(m['margin'] or 0), 2),
+            "coverage_pct": round(float(m['coverage'] or 0), 1),
         } for m in monthly if m['month']]
 
-        # Monthly Overheads
-        overheads = MonthlyOverhead.objects.order_by('-year', '-month')[:12]
+        # Monthly pools / unabsorbed overhead
+        overhead_months = PlantCostPoolMonth.objects.order_by('-year', '-month')[:12]
+        overhead_pairs = {(m.year, m.month): m for m in overhead_months}
+        lines = PlantCostPoolLine.objects.filter(month_record__in=overhead_months).select_related('month_record')
+        pools_by_month = {}
+        for line in lines:
+            key = (line.month_record.year, line.month_record.month)
+            pools_by_month.setdefault(key, {"electricity": 0.0, "labor": 0.0, "other": 0.0})
+            pools_by_month[key]["electricity"] += float(line.electricity_cost or 0)
+            pools_by_month[key]["labor"] += float(line.labor_cost or 0)
+            pools_by_month[key]["other"] += float((line.overhead_cost or 0) + (line.maintenance_cost or 0) + (line.service_burden_cost or 0))
+
+        overheads = sorted(overhead_pairs.values(), key=lambda row: (row.year, row.month), reverse=True)
         overhead_trend = [{
             "date": f"{o.year}-{o.month:02d}",
-            "electricity": float(o.electricity_cost),
-            "labor": float(o.labor_cost),
-            "other": float(o.other_overheads),
-            "total": float(o.electricity_cost + o.labor_cost + o.other_overheads),
+            "electricity": pools_by_month.get((o.year, o.month), {}).get("electricity", 0),
+            "labor": pools_by_month.get((o.year, o.month), {}).get("labor", 0),
+            "other": pools_by_month.get((o.year, o.month), {}).get("other", 0),
+            "total": (
+                pools_by_month.get((o.year, o.month), {}).get("electricity", 0)
+                + pools_by_month.get((o.year, o.month), {}).get("labor", 0)
+                + pools_by_month.get((o.year, o.month), {}).get("other", 0)
+            ),
+            "status": o.status,
         } for o in overheads]
 
         # Cost per kg trend (monthly)
@@ -1166,11 +1278,19 @@ class ReportService:
             "summary": {
                 "total_material_cost": total_material_cost,
                 "total_process_cost": total_process_cost,
+                "total_overhead_cost": total_overhead_cost,
                 "total_production_cost": total_production_cost,
                 "avg_cost_per_kg": avg_ckg,
                 "total_revenue": total_revenue,
+                "total_contribution": total_contribution,
                 "total_margin": total_margin,
                 "avg_margin_pct": avg_margin,
+                "avg_contribution_margin_pct": avg_contribution_margin,
+                "avg_actual_cost_coverage_pct": avg_coverage,
+                "avg_order_coverage_pct": order_coverage,
+                "actual_count": oc_agg['actual_count'] or 0,
+                "hybrid_count": oc_agg['hybrid_count'] or 0,
+                "estimated_count": oc_agg['estimated_count'] or 0,
                 "total_jobs_costed": jc_agg['job_count'] or 0,
             },
             "cost_split": cost_split,
@@ -1259,6 +1379,89 @@ class ReportService:
             "by_customer": customer_data,
             "daily_trend": daily_trend,
             "recent_challans": recent_list,
+        }
+
+    @staticmethod
+    def get_interplant_logistics(filters=None):
+        filters = ReportService._default_date_range(filters or {})
+
+        challans = InterPlantDeliveryChallan.objects.select_related("from_plant", "to_plant")
+        if filters.get("plant_id"):
+            challans = challans.filter(Q(from_plant_id=filters["plant_id"]) | Q(to_plant_id=filters["plant_id"]))
+        if filters.get("start_date"):
+            challans = challans.filter(created_at__date__gte=filters["start_date"])
+        if filters.get("end_date"):
+            challans = challans.filter(created_at__date__lte=filters["end_date"])
+
+        challan_ids = list(challans.values_list("id", flat=True))
+        items = InterPlantChallanItem.objects.filter(challan_id__in=challan_ids)
+        by_status = challans.values("status").annotate(count=Count("id"))
+        status_map = {row["status"]: int(row["count"] or 0) for row in by_status}
+
+        dispatched_total = Decimal(str(items.aggregate(total=Sum("dispatched_qty_kg"))["total"] or 0))
+        received_total = Decimal(str(items.aggregate(total=Sum("received_qty_kg"))["total"] or 0))
+        output_in_transit = Decimal("0")
+        remainder_in_transit = Decimal("0")
+
+        rows = []
+        for challan in challans.order_by("-created_at")[:25]:
+            line_rows = list(items.filter(challan=challan))
+            dispatched_kg = sum(Decimal(str(line.dispatched_qty_kg or 0)) for line in line_rows)
+            received_kg = sum(Decimal(str(line.received_qty_kg or 0)) for line in line_rows)
+            remainder_dispatched_kg = sum(
+                Decimal(str(line.dispatched_qty_kg or 0))
+                for line in line_rows
+                if str(getattr(getattr(line, "roll", None), "meta_json", {}).get("roll_role") or "").upper() == "REMAINDER"
+            )
+            output_dispatched_kg = dispatched_kg - remainder_dispatched_kg
+            if str(challan.status or "").upper() == "IN_TRANSIT":
+                output_in_transit += output_dispatched_kg - min(output_dispatched_kg, received_kg)
+                remainder_in_transit += max(Decimal("0"), remainder_dispatched_kg - max(Decimal("0"), received_kg - output_dispatched_kg))
+
+            rows.append(
+                {
+                    "challan_id": str(challan.id),
+                    "dc_no": challan.dc_no or str(challan.id),
+                    "status": challan.status,
+                    "from_plant": challan.from_plant.name if challan.from_plant else None,
+                    "to_plant": challan.to_plant.name if challan.to_plant else None,
+                    "dispatched_at": challan.dispatched_at.isoformat() if challan.dispatched_at else None,
+                    "received_at": challan.received_at.isoformat() if challan.received_at else None,
+                    "dispatched_kg": round(float(dispatched_kg), 3),
+                    "received_kg": round(float(received_kg), 3),
+                    "output_dispatched_kg": round(float(output_dispatched_kg), 3),
+                    "remainder_dispatched_kg": round(float(remainder_dispatched_kg), 3),
+                }
+            )
+
+        trend = []
+        for row in (
+            challans.annotate(date=TruncDate("created_at"))
+            .values("date")
+            .annotate(dispatched_kg=Sum("items__dispatched_qty_kg"), challans=Count("id"))
+            .order_by("date")
+        ):
+            trend.append(
+                {
+                    "date": row["date"].strftime("%Y-%m-%d"),
+                    "challans": int(row["challans"] or 0),
+                    "weight_kg": round(float(row["dispatched_kg"] or 0), 3),
+                }
+            )
+
+        return {
+            "summary": {
+                "total_challans": challans.count(),
+                "draft": status_map.get("DRAFT", 0),
+                "in_transit": status_map.get("IN_TRANSIT", 0),
+                "received": status_map.get("RECEIVED", 0),
+                "dispatched_total_kg": round(float(dispatched_total), 3),
+                "received_total_kg": round(float(received_total), 3),
+                "output_in_transit_kg": round(float(output_in_transit), 3),
+                "remainder_in_transit_kg": round(float(remainder_in_transit), 3),
+            },
+            "daily_trend": trend,
+            "recent_challans": rows,
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -1509,7 +1712,7 @@ class ReportService:
             "scrap": ReportService.get_scrap_yield,
             "inventory": ReportService.get_inventory_health,
             "inventory-lineage": ReportService.get_inventory_health,
-            "interplant": ReportService.get_dispatch_logistics,
+            "interplant": ReportService.get_interplant_logistics,
             "sales": ReportService.get_sales_fulfillment,
             "mrp": ReportService.get_mrp_consumption,
             "operator": ReportService.get_operator_performance,

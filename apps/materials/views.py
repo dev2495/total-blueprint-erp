@@ -2,7 +2,7 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import CommercialFamily, InventoryMaterial
+from .models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
 from apps.inventory.models import InkMaterial
 from .serializers import (
     FilmFamilySerializer, 
@@ -12,6 +12,8 @@ from .serializers import (
     AdhesiveSolventSerializer,
     AddonSerializer,
     PODSerializer,
+    PodSkuSerializer,
+    PodSkuVariantSerializer,
     InventoryMaterialSerializer,
     PackagingSerializer,
     CommercialFamilySerializer,
@@ -60,6 +62,7 @@ class PODViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import ValidationError
             raise ValidationError("Core POD materials cannot be deleted.")
         instance.delete()
+
 
 class FilmFamilyViewSet(viewsets.ModelViewSet):
     queryset = InventoryMaterial.objects.filter(category='FILM_FAMILY').order_by('name')
@@ -126,3 +129,29 @@ class PackagingViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['packaging_kind', 'packaging_supply_mode', 'base_uom', 'status']
     search_fields = ['name', 'code']
+
+
+class PodSkuViewSet(viewsets.ModelViewSet):
+    queryset = PodSku.objects.prefetch_related('variants__material').order_by('name', 'code')
+    serializer_class = PodSkuSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['active', 'family']
+    search_fields = ['name', 'code', 'family']
+
+
+class PodSkuVariantViewSet(viewsets.ModelViewSet):
+    serializer_class = PodSkuVariantSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['active', 'pod_sku', 'material']
+    search_fields = ['name', 'code', 'pod_sku__name', 'pod_sku__code', 'material__name', 'material__code']
+
+    def get_queryset(self):
+        queryset = PodSkuVariant.objects.select_related('pod_sku', 'material').order_by('pod_sku__name', 'name', 'code')
+        pod_sku_id = str(
+            self.request.query_params.get('pod_sku')
+            or self.request.query_params.get('pod_sku_id')
+            or ''
+        ).strip()
+        if pod_sku_id:
+            queryset = queryset.filter(pod_sku_id=pod_sku_id)
+        return queryset

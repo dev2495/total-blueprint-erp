@@ -7,9 +7,9 @@ from django.db import connection
 from .models import ProductionJob, WorkCenterAssignment
 from .serializers import (
     ProductionJobSerializer, JobAssignmentSerializer, JobCompletionSerializer,
-    WorkCenterAssignmentSerializer, PlannedStockOrderSerializer
+    WorkCenterAssignmentSerializer, PlannedStockOrderSerializer, PlannedBulkStockOrderSerializer
 )
-from .models import PlannedStockOrder
+from .models import PlannedStockOrder, PlannedBulkStockOrder
 from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
 
@@ -848,6 +848,15 @@ class PlannedStockOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='create_job')
     def create_job(self, request, pk=None):
         return self.release(request, pk=pk)
+
+
+class PlannedBulkStockOrderViewSet(viewsets.ModelViewSet):
+    queryset = PlannedBulkStockOrder.objects.all().order_by('-created_at')
+    serializer_class = PlannedBulkStockOrderSerializer
+    filterset_fields = ['status', 'plant', 'bulk_class', 'material']
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 class ExecutionViewSet(viewsets.ViewSet):

@@ -4,9 +4,9 @@ import { spawnSync } from "node:child_process"
 
 const frontendRoot = process.cwd()
 const runtimeRoot = path.resolve(frontendRoot, "../.runtime/ui-e2e")
-const playwrightBin = path.join(frontendRoot, "node_modules", ".bin", process.platform === "win32" ? "playwright.cmd" : "playwright")
 const observationDir = path.join(frontendRoot, "tests", "e2e", "observation")
 const mutationDir = path.join(frontendRoot, "tests", "e2e", "mutations")
+const npmBin = process.platform === "win32" ? "npm.cmd" : "npm"
 
 fs.mkdirSync(runtimeRoot, { recursive: true })
 
@@ -20,11 +20,11 @@ function hasMutationSpecs() {
   return fs.readdirSync(mutationDir).some((file) => file.endsWith(".spec.ts"))
 }
 
-function runProject(project, extraEnv = {}) {
-  const result = spawnSync(playwrightBin, ["test", "--project", project], {
+function runScript(scriptName, extraEnv = {}) {
+  const result = spawnSync(npmBin, ["run", scriptName], {
     cwd: frontendRoot,
     stdio: "inherit",
-    env: { ...process.env, UI_E2E_REPORT_SUFFIX: project, ...extraEnv },
+    env: { ...process.env, ...extraEnv },
   })
   return typeof result.status === "number" ? result.status : 1
 }
@@ -106,14 +106,14 @@ function writeAggregateSummary(summaries, exitCodes) {
   fs.writeFileSync(markdownPath, lines.join("\n"))
 }
 
-const gateExitCode = runProject("gate")
+const gateExitCode = runScript("e2e:ui:gate")
 let mutationsExitCode = null
 if (hasMutationSpecs()) {
-  mutationsExitCode = runProject("mutations", { UI_E2E_SKIP_BOOTSTRAP: "1" })
+  mutationsExitCode = runScript("e2e:ui:mutations", { UI_E2E_SKIP_BOOTSTRAP: "1" })
 }
 let observationsExitCode = null
 if (hasObservationSpecs()) {
-  observationsExitCode = runProject("observations", { UI_E2E_SKIP_BOOTSTRAP: "1" })
+  observationsExitCode = runScript("e2e:ui:observations", { UI_E2E_SKIP_BOOTSTRAP: "1" })
 }
 
 fs.writeFileSync(

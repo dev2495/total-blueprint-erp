@@ -12,3 +12,4 @@ redis
 boto3
 requests
 sentry-sdk
+whitenoise

@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Q
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 import uuid
 from apps.factory.models import Plant
@@ -147,6 +148,20 @@ class SalesOrderItem(models.Model):
     sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name='items')
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT)
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='TEMPLATE')
+    sku_variant = models.ForeignKey(
+        'SalesSkuVariant',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_order_items',
+    )
+    repeat_source_item = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='repeat_children',
+    )
     line_name = models.CharField(max_length=255, blank=True, default="")
 
     # Snapshot (IMMUTABLE once confirmed)
@@ -207,6 +222,78 @@ class SalesOrderItem(models.Model):
 
     class Meta:
         db_table = 'sales_order_items'
+
+
+class SalesSku(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=80, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    template = models.ForeignKey(
+        TemplateBlueprint,
+        on_delete=models.PROTECT,
+        related_name='sales_skus',
+    )
+    commercial_family = models.ForeignKey(
+        'materials.CommercialFamily',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_skus',
+    )
+    default_line_name = models.CharField(max_length=255, blank=True, default="")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sales_skus'
+        ordering = ['name', 'code']
+
+    def clean(self):
+        if self.template_id and str(getattr(self.template, 'status', '') or '').upper() != 'LIVE':
+            raise ValidationError({'template': 'Sales SKU must link to a LIVE template.'})
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class SalesSkuVariant(models.Model):
+    FG_TYPE_CHOICES = [
+        ('POUCH', 'Pouch'),
+        ('ROLL', 'Roll'),
+    ]
+    ROLL_FORM_CHOICES = [
+        ('', 'Not Applicable'),
+        ('FLAT', 'Flat'),
+        ('FOLDED', 'Folded'),
+        ('TUBING', 'Tubing'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sku = models.ForeignKey(SalesSku, on_delete=models.CASCADE, related_name='variants')
+    code = models.CharField(max_length=80)
+    name = models.CharField(max_length=255)
+    active = models.BooleanField(default=True)
+    finished_good_type = models.CharField(max_length=20, choices=FG_TYPE_CHOICES, default='POUCH')
+    roll_form = models.CharField(max_length=20, choices=ROLL_FORM_CHOICES, blank=True, default="")
+    geometry_snapshot = models.JSONField(default=dict, blank=True)
+    layer_snapshot = models.JSONField(default=list, blank=True)
+    printing_snapshot = models.JSONField(default=dict, blank=True)
+    chemicals_snapshot = models.JSONField(default=dict, blank=True)
+    addons_snapshot = models.JSONField(default=list, blank=True)
+    packaging_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sales_sku_variants'
+        ordering = ['sku__name', 'name', 'code']
+        constraints = [
+            models.UniqueConstraint(fields=['sku', 'code'], name='sales_sku_variant_code_unique_per_sku'),
+        ]
+
+    def __str__(self):
+        return f"{self.sku.code} - {self.code}"
 
 
 class Quotation(models.Model):
@@ -302,6 +389,13 @@ class QuotationItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name="items")
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, null=True, blank=True)
+    sku_variant = models.ForeignKey(
+        "SalesSkuVariant",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_items",
+    )
     line_name = models.CharField(max_length=255, blank=True, default="")
     finished_good_type = models.CharField(max_length=20, choices=FG_TYPE_CHOICES, default="POUCH")
     roll_form = models.CharField(max_length=20, choices=ROLL_FORM_CHOICES, blank=True, default="")

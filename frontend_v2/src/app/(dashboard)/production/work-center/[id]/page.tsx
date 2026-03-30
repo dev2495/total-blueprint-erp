@@ -45,6 +45,20 @@ function policyModeLabel(mode?: string | null, value?: number | null) {
     return "Template default"
 }
 
+function toNullableNumber(value: unknown): number | null {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : null
+}
+
+function formatSmartValue(value: number | null, uom: "KG" | "PCS", digits?: number) {
+    if (value === null) return "—"
+    const precision = digits ?? (uom === "PCS" ? 0 : 3)
+    return value.toLocaleString(undefined, {
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+    })
+}
+
 export default function WCMTerminal() {
     const params = useParams()
     const wcId = params?.id as string
@@ -310,6 +324,27 @@ export default function WCMTerminal() {
         (selectedJob as any)?.output_form ??
         ""
     ).toUpperCase()
+    const selectedInputForm = String(
+        (executionContext as any)?.job?.input_form ??
+        (selectedJob as any)?.input_form ??
+        ""
+    ).toUpperCase()
+    const selectedPrimaryUom = String(
+        (selectedJob as any)?.primary_uom ||
+        ((String((selectedJob as any)?.uom || "").toUpperCase() === "PCS" &&
+            selectedOutputForm === "BULK" &&
+            selectedInputForm === "ROLL")
+            ? "PCS"
+            : "KG")
+    ).toUpperCase() as "KG" | "PCS"
+    const selectedPrimaryDecimals = selectedPrimaryUom === "PCS" ? 0 : 3
+    const stepTargetPrimary = toNullableNumber((selectedJob as any)?.step_target_primary) ?? (
+        selectedPrimaryUom === "PCS"
+            ? (String((selectedJob as any)?.uom || "").toUpperCase() === "PCS" ? Number((selectedJob as any)?.quantity || 0) : null)
+            : Number(stepTargetKg || 0)
+    )
+    const stepRemainingPrimary = toNullableNumber((selectedJob as any)?.step_remaining_primary)
+    const showPrimarySupportKg = selectedPrimaryUom === "PCS" && stepTargetKg > 0
     const showPcsSecondary = selectedOutputForm === "BULK"
     const displayPcsSecondary =
         showPcsSecondary && (selectedJob as any)?.uom === "PCS"
@@ -521,25 +556,7 @@ export default function WCMTerminal() {
         (selectedJob as any)?.roll_behavior ||
         "NONE"
     const rollBehavior = typeof rollBehaviorRaw === "string" ? rollBehaviorRaw : "NONE"
-    const assignedRollsForDisplay = useMemo(() => {
-        return assignedRolls.filter((roll: any) => {
-            const role = String(roll?.roll_role || "").toUpperCase()
-            const isRemainder = Boolean(roll?.is_remainder) || role === "REMAINDER"
-            if (currentStepIndex > 0 && isRemainder) return false
-
-            const rollStepIdx = Number(roll?.current_step_index ?? -1)
-            if (
-                currentStepIndex > 0 &&
-                rollBehavior !== "MULTI_INPUT_COMBINE" &&
-                Number.isFinite(rollStepIdx) &&
-                rollStepIdx >= 0 &&
-                rollStepIdx < currentStepIndex
-            ) {
-                return false
-            }
-            return true
-        })
-    }, [assignedRolls, currentStepIndex, rollBehavior])
+    const assignedRollsForDisplay = useMemo(() => assignedRolls, [assignedRolls])
     const rollBehaviorLabel = rollBehavior.replace(/_/g, " ")
     const rollBehaviorGuidance: Record<string, string> = {
         CREATE_NEW: "Create new output roll from produced size + weight.",
@@ -550,13 +567,44 @@ export default function WCMTerminal() {
     }
     const rollsRequired = satisfactionStatus?.rolls_required ?? 0
     const rollsReserved = satisfactionStatus?.rolls_reserved ?? 0
+    const lineageRollsAvailable = Number(
+        (executionContext as any)?.wip_pool_meta?.lineage_roll_count ??
+        satisfactionStatus?.rolls_available ??
+        0
+    )
     const rollsPool = (satisfactionStatus as any)?.rolls_pool ?? satisfactionStatus?.rolls_available ?? 0
+    const fallbackRollsAvailable = Number(
+        (executionContext as any)?.wip_pool_meta?.fallback_roll_count ??
+        (satisfactionStatus as any)?.rolls_fallback_available ??
+        0
+    )
     const rollsMissingPool = Math.max(
         0,
         Number((satisfactionStatus as any)?.rolls_missing_pool ?? (rollsRequired - rollsPool))
     )
+    const missingLineageRolls = Math.max(
+        0,
+        Number(
+            (executionContext as any)?.wip_pool_meta?.missing_lineage_rolls ??
+            (satisfactionStatus as any)?.rolls_missing_lineage ??
+            (rollsRequired - lineageRollsAvailable)
+        )
+    )
+    const rollAssignmentValidation = (executionContext as any)?.roll_assignment_validation || {}
+    const matchedSlotCount = Number((rollAssignmentValidation as any)?.matched_target_slots?.length || 0)
+    const unmatchedSlotCount = Number((rollAssignmentValidation as any)?.unmatched_target_slots?.length || 0)
     const manualEligibleRolls = useMemo(() => {
         return [...baseManualEligibleRolls].sort((a: any, b: any) => {
+            const sourceRank = (row: any) => {
+                const value = String(row?.roll_source || "").toUpperCase()
+                if (value === "LINEAGE") return 3
+                if (value === "PURCHASED_FALLBACK") return 2
+                if (value === "COMPATIBLE_FALLBACK") return 1
+                return 0
+            }
+            const aSource = sourceRank(a)
+            const bSource = sourceRank(b)
+            if (aSource !== bSource) return bSource - aSource
             const aExact = a?.spec_exact ? 1 : 0
             const bExact = b?.spec_exact ? 1 : 0
             if (aExact !== bExact) return bExact - aExact
@@ -923,9 +971,9 @@ export default function WCMTerminal() {
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
 
     return (
-            <div className="min-h-screen bg-slate-50 p-6 space-y-6" data-testid="wcm-terminal-page">
+            <div className="space-y-6 bg-slate-50" data-testid="wcm-terminal-page">
             {/* HEADER */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">
                         Work Center Terminal - {workCenter?.name || (activeAssignment as any)?.work_center_name || wcId}
@@ -933,12 +981,12 @@ export default function WCMTerminal() {
                     </h1>
                     <p className="text-slate-500">Pick a job, check the step, set the machine, then push it to the operator.</p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-3">
                     <SemanticBadge kind="jobState" value="RUNNING" label={`Running ${stats.running}`} className="text-sm px-4 py-2" />
                     <SemanticBadge kind="jobState" value="WC_READY" label={`Waiting ${stats.waiting}`} className="text-sm px-4 py-2" />
                 </div>
             </div>
-            <div className="flex flex-col h-[calc(100vh-140px)] gap-6">
+            <div className="flex min-h-0 flex-col gap-6">
                 <Tabs value={activeMainTab} onValueChange={(v: any) => setActiveMainTab(v)} className="w-full">
                     <TabsList className="bg-white border p-1 h-12 rounded-xl shadow-sm">
                         <TabsTrigger value="terminal" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
@@ -985,9 +1033,9 @@ export default function WCMTerminal() {
                                 </div>
                             </CardContent>
                         </Card>
-                        <div className="grid grid-cols-12 gap-6 h-[calc(100vh-300px)]">
+                        <div className="grid gap-6 xl:grid-cols-12 xl:min-h-[680px]">
                             {/* COLUMN 1: SCHEDULED QUEUE */}
-                            <Card className="col-span-2 h-full flex flex-col border-none shadow-md overflow-hidden">
+                            <Card className="flex max-h-[60vh] flex-col overflow-hidden border-none shadow-md xl:col-span-2 xl:max-h-none xl:h-full">
                                 <CardHeader className="bg-slate-100 py-3 shrink-0">
                                     <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Queue</CardTitle>
                                 </CardHeader>
@@ -1021,6 +1069,15 @@ export default function WCMTerminal() {
                                         )
                                         const queueOutputForm = String(assignment.job_details?.output_form || "").toUpperCase()
                                         const queuePcs = (queueUom === "PCS" && queueOutputForm === "BULK") ? queueQty : null
+                                        const queuePrimaryUom = String(
+                                            assignment.job_details?.primary_uom ||
+                                            ((queueUom === "PCS" && queueOutputForm === "BULK" && String(assignment.job_details?.input_form || "").toUpperCase() === "ROLL")
+                                                ? "PCS"
+                                                : "KG")
+                                        ).toUpperCase() as "KG" | "PCS"
+                                        const queuePrimaryTarget = toNullableNumber(assignment.job_details?.step_target_primary) ?? (
+                                            queuePrimaryUom === "PCS" ? queuePcs : queueStepTargetKg
+                                        )
                                         return (
                                             <div
                                                 key={assignment.id}
@@ -1042,12 +1099,12 @@ export default function WCMTerminal() {
                                                 <div className="text-[11px] text-slate-600 space-y-1">
                                                     <p className="font-semibold text-slate-700 truncate">{assignment.job_details?.customer_name || "—"}</p>
                                                     <p className="font-bold text-slate-800">
-                                                        {Number.isFinite(queueTotalKg) ? queueTotalKg.toFixed(2) : "0.00"} KG
+                                                        {formatSmartValue(queuePrimaryTarget, queuePrimaryUom, queuePrimaryUom === "PCS" ? 0 : 2)} {queuePrimaryUom}
                                                         {assignment.job_details?.process_code ? ` • ${assignment.job_details.process_code}` : ""}
                                                     </p>
-                                                    {queuePcs != null && (
+                                                    {queuePrimaryUom === "PCS" && Number.isFinite(queueTotalKg) && (
                                                         <p className="text-[10px] text-slate-500 font-semibold">
-                                                            {queuePcs.toLocaleString()} PCS
+                                                            Support weight {queueTotalKg.toFixed(3)} KG
                                                         </p>
                                                     )}
                                                 </div>
@@ -1061,16 +1118,16 @@ export default function WCMTerminal() {
                             </Card>
 
                             {/* MAIN CONTENT AREA: COLUMN 2 & 3 */}
-                            <div className="col-span-10 grid grid-cols-10 gap-6 h-full overflow-hidden">
+                            <div className="grid min-h-0 gap-6 overflow-hidden xl:col-span-10 xl:grid-cols-10 xl:h-full">
                                 {activeAssignment ? (
                                     <>
                                         {/* COLUMN 2: JOB SPECIFICATION & BOM */}
-                                        <Card className="col-span-4 h-full flex flex-col border-none shadow-md overflow-hidden bg-white">
+                                        <Card className="flex min-h-0 flex-col overflow-hidden border-none bg-white shadow-md xl:col-span-4 xl:h-full">
                                             <CardHeader className="bg-slate-100 py-3 shrink-0 flex flex-row items-center justify-between border-b border-slate-200">
                                                 <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Job Specification</CardTitle>
                                                 <SemanticBadge kind="processState" value={currentStepPolicy?.current_process_name || selectedJob?.job_details?.process_code || "STEP"} label={`Step ${currentStepNumber || "—"}`} className="text-[10px] px-3 py-1" />
                                             </CardHeader>
-                                            <CardContent className="flex-1 overflow-y-auto p-4 space-y-6">
+                                            <CardContent className="flex-1 space-y-6 overflow-y-auto p-4">
                                                 {/* Core Job Info & Prominent Qty */}
                                                 <div className="flex justify-between items-start border-b border-slate-100 pb-4">
                                                     <div className="space-y-1">
@@ -1085,15 +1142,26 @@ export default function WCMTerminal() {
                                                     <div className="text-right">
                                                         <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Step Target</div>
                                                         <div className="text-4xl font-black text-indigo-600 leading-none">
-                                                            {Number(stepTargetKg || 0).toFixed(3)}
-                                                            <span className="text-sm ml-1 text-slate-400 uppercase">KG</span>
+                                                            {formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)}
+                                                            <span className="text-sm ml-1 text-slate-400 uppercase">{selectedPrimaryUom}</span>
                                                         </div>
                                                         <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">
                                                             Order Total: {Number(orderTotalKg || 0).toFixed(3)} kg
                                                         </div>
-                                                        <div className="text-[10px] font-semibold text-slate-500 mt-1">
-                                                            Roll {Number(stepRollTargetKg || 0).toFixed(3)} kg + Bulk {Number(stepBulkTargetKg || 0).toFixed(3)} kg
-                                                        </div>
+                                                        {showPrimarySupportKg ? (
+                                                            <div className="text-[10px] font-semibold text-slate-500 mt-1">
+                                                                Support weight {Number(stepTargetKg || 0).toFixed(3)} kg
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-[10px] font-semibold text-slate-500 mt-1">
+                                                                Roll {Number(stepRollTargetKg || 0).toFixed(3)} kg + Bulk {Number(stepBulkTargetKg || 0).toFixed(3)} kg
+                                                            </div>
+                                                        )}
+                                                        {stepRemainingPrimary !== null && (
+                                                            <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase">
+                                                                Remaining: {formatSmartValue(stepRemainingPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}
+                                                            </div>
+                                                        )}
                                                         {displayPcsSecondary != null && (
                                                             <div className="text-[10px] font-bold text-slate-400 uppercase">
                                                                 PCS: {Number(displayPcsSecondary).toLocaleString()}
@@ -1386,7 +1454,7 @@ export default function WCMTerminal() {
                                         </Card>
 
                                         {/* COLUMN 3: REQUIREMENTS, WIP & ASSIGNMENT */}
-                                        <div className="col-span-6 h-full overflow-y-auto space-y-6 pr-2">
+                                        <div className="space-y-6 overflow-y-auto pr-2 xl:col-span-6 xl:h-full">
                                             {/* 1. REQUIREMENTS (Current Step) */}
                                             <Card className="border-none shadow-md overflow-hidden bg-white">
                                                 <CardHeader className="bg-slate-100 py-3 flex flex-row justify-between items-center border-b border-slate-200">
@@ -1515,9 +1583,11 @@ export default function WCMTerminal() {
                                                                             (selectedJob as any)?.from_location_display
                                                                         }
                                                                         manualEligibleRolls={rollAllocationCandidates}
+                                                                        wipPoolMeta={(executionContext as any)?.wip_pool_meta || {}}
+                                                                        rollAssignmentValidation={rollAssignmentValidation}
                                                                         strictSpecMatch={!manualOverrideEnabled}
                                                                         disabled={!canManualAssign}
-                                                                        required={requiresManualRollAssign}
+                                                                        required={rollsRequired}
                                                                         manualOverride={manualOverrideEnabled}
                                                                         overrideReason={overrideReason}
                                                                         onAssigned={() => {
@@ -1602,6 +1672,47 @@ export default function WCMTerminal() {
                                                             )}
                                                         </div>
                                                     )}
+                                                    {satisfactionStatus?.input_form === "ROLL" && (
+                                                        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                                                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">True WIP</div>
+                                                                <div className="mt-2 text-2xl font-black text-slate-900">{lineageRollsAvailable}</div>
+                                                                <div className="text-[11px] text-slate-500">Strict downstream lineage rolls</div>
+                                                            </div>
+                                                            <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-3">
+                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Fallback</div>
+                                                                <div className="mt-2 text-2xl font-black text-amber-900">{fallbackRollsAvailable}</div>
+                                                                <div className="text-[11px] text-amber-700">Compatible manual-only candidates</div>
+                                                            </div>
+                                                            <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 px-3 py-3">
+                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Reserved</div>
+                                                                <div className="mt-2 text-2xl font-black text-indigo-900">{effectiveRollsReserved}/{rollsRequired}</div>
+                                                                <div className="text-[11px] text-indigo-700">Current-step assignment truth</div>
+                                                            </div>
+                                                            <div className="rounded-xl border border-slate-200 bg-slate-900 px-3 py-3 text-white">
+                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Slot Coverage</div>
+                                                                <div className="mt-2 text-2xl font-black">{matchedSlotCount}/{Math.max(rollsRequired, Number((rollAssignmentValidation as any)?.required_rolls || 0))}</div>
+                                                                <div className="text-[11px] text-slate-300">
+                                                                    {unmatchedSlotCount > 0 ? `${unmatchedSlotCount} slot(s) still unmatched` : "All current slots map cleanly"}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {satisfactionStatus?.input_form === "ROLL" && (
+                                                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                                                            <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
+                                                                Missing lineage {missingLineageRolls}
+                                                            </Badge>
+                                                            <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                                                                Missing assignment {rollsMissing}
+                                                            </Badge>
+                                                            {fallbackRollsAvailable > 0 && (
+                                                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                                                    Fallback is manual only
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                     <div className="grid grid-cols-2 gap-4">
                                                         {/* Left Sub-Column: Reserved for current step */}
                                                         <div className="space-y-3 border-r border-slate-100 pr-4">
@@ -1611,7 +1722,11 @@ export default function WCMTerminal() {
                                                             </div>
                                                             <div className="space-y-2 min-h-[100px]">
                                                                 {assignedRollsForDisplay.map((roll: any) => (
-                                                                    <div key={roll.id} className="flex items-center gap-3 p-2 bg-indigo-50/50 border border-indigo-100 rounded-lg group">
+                                                                    <div
+                                                                        key={roll.id}
+                                                                        data-testid={`wcm-assigned-roll-${String(roll.id)}`}
+                                                                        className="flex items-center gap-3 p-2 bg-indigo-50/50 border border-indigo-100 rounded-lg group"
+                                                                    >
                                                                         <div className="h-2 w-2 rounded-full bg-indigo-500" />
                                                                         <div className="flex-1 min-w-0">
                                                                             <p className="text-[11px] font-bold text-slate-900 truncate uppercase">{roll.label_id}</p>
@@ -1626,6 +1741,7 @@ export default function WCMTerminal() {
                                                                                 variant="ghost"
                                                                                 size="icon"
                                                                                 className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                                                                data-testid={`wcm-unassign-roll-${String(roll.reservation_id)}`}
                                                                                 onClick={() => handleUnassignRoll(roll.reservation_id)}
                                                                             >
                                                                                 <Trash2 className="h-3 w-3" />
@@ -1635,6 +1751,7 @@ export default function WCMTerminal() {
                                                                                 variant="ghost"
                                                                                 size="icon"
                                                                                 className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                                                                data-testid={`wcm-unassign-roll-by-roll-${String(roll.id)}`}
                                                                                 onClick={() => handleUnassignRollByRoll(roll.id)}
                                                                             >
                                                                                 <Trash2 className="h-3 w-3" />
@@ -1766,7 +1883,7 @@ export default function WCMTerminal() {
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="col-span-10 h-full space-y-4">
+                                    <div className="space-y-4 xl:col-span-10 xl:h-full">
                                         <div className="flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-300 h-full p-12 text-slate-400">
                                             <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                                                 <Activity className="h-8 w-8 text-slate-300" />
@@ -1831,7 +1948,7 @@ export default function WCMTerminal() {
                                                             <div className="flex items-center justify-between text-[11px] font-bold">
                                                                 <span className="text-slate-400 uppercase tracking-wider">Produced</span>
                                                                 <span className="text-slate-900">
-                                                                    {Number(job.produced_qty || 0).toFixed(1)} / {Number(job.quantity || 0).toFixed(1)} {job.uom || "KG"}
+                                                                    {formatSmartValue(Number(job.produced_qty || 0), String(job.uom || "KG").toUpperCase() as "KG" | "PCS", String(job.uom || "KG").toUpperCase() === "PCS" ? 0 : 1)} / {formatSmartValue(Number(job.quantity || 0), String(job.uom || "KG").toUpperCase() as "KG" | "PCS", String(job.uom || "KG").toUpperCase() === "PCS" ? 0 : 1)} {job.uom || "KG"}
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -1905,7 +2022,7 @@ export default function WCMTerminal() {
                                                             <TableCell>
                                                                 <div className="space-y-1">
                                                                     <div className="text-[11px] font-black text-slate-800">
-                                                                        {Number(job.produced_qty || 0).toFixed(2)} {job.uom || "KG"}
+                                                                        {formatSmartValue(Number(job.produced_qty || 0), String(job.uom || "KG").toUpperCase() as "KG" | "PCS", String(job.uom || "KG").toUpperCase() === "PCS" ? 0 : 2)} {job.uom || "KG"}
                                                                     </div>
                                                                     <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
                                                                         <div
@@ -1962,6 +2079,8 @@ function RollAssignmentModal({
     targetLocationId,
     targetLocationName,
     manualEligibleRolls,
+    wipPoolMeta = {},
+    rollAssignmentValidation = {},
     onAssigned,
     disabled,
     required,
@@ -2021,6 +2140,16 @@ function RollAssignmentModal({
         const set = new Set(manualEligibleRolls.map((r: any) => String(r.material_name || r.material_code || "")))
         return (["ALL", ...Array.from(set).filter(Boolean).sort()] as string[])
     }, [manualEligibleRolls])
+    const lineageCandidateCount = useMemo(
+        () => manualEligibleRolls.filter((r: any) => String(r?.roll_source || '').toUpperCase() === 'LINEAGE').length,
+        [manualEligibleRolls]
+    )
+    const fallbackCandidateCount = Math.max(
+        0,
+        manualEligibleRolls.length - lineageCandidateCount
+    )
+    const matchedSlotCount = Number((rollAssignmentValidation as any)?.matched_target_slots?.length || 0)
+    const unmatchedSlotCount = Number((rollAssignmentValidation as any)?.unmatched_target_slots?.length || 0)
 
     const thicknesses = useMemo<string[]>(() => {
         const set = new Set(manualEligibleRolls.map((r: any) => String(r.thickness_micron || "")))
@@ -2273,7 +2402,17 @@ function RollAssignmentModal({
         }
         setSelectedRollIds([])
         setSelectedExternalRollIds([])
-    }, [open, filtered.length, externalEligibleCount])
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        if (selectedRollIds.length > 0 || selectedExternalRollIds.length > 0) return
+        if (filtered.length === 0 && externalEligibleCount > 0) {
+            setActiveTab("external")
+        } else {
+            setActiveTab("local")
+        }
+    }, [open, filtered.length, externalEligibleCount, selectedRollIds.length, selectedExternalRollIds.length])
 
     useEffect(() => {
         if (!open) return
@@ -2318,7 +2457,7 @@ function RollAssignmentModal({
             >
                 {disabled ? "ROLLS ASSIGNED" : "ALLOCATE ROLLS"}
             </Button>
-            <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
+                <DialogContent data-testid="wcm-allocation-dialog" className="flex h-[min(85vh,900px)] max-h-[85vh] max-w-5xl flex-col overflow-hidden p-0">
                 <DialogHeader className="p-6 bg-slate-50 border-b shrink-0">
                     <DialogTitle className="flex items-center gap-2">
                         Resource Discovery & Allocation
@@ -2346,6 +2485,30 @@ function RollAssignmentModal({
                             No eligible roll in current plant. Open <span className="font-bold">Other Plants / Transfer</span> tab to raise transfer request.
                         </div>
                     )}
+                    <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">True WIP</div>
+                            <div className="mt-2 text-2xl font-black text-slate-900">{Number((wipPoolMeta as any)?.lineage_roll_count || lineageCandidateCount || 0)}</div>
+                            <div className="text-[11px] text-slate-500">Strict lineage choices</div>
+                        </div>
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-3">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Fallback</div>
+                            <div className="mt-2 text-2xl font-black text-amber-900">{Number((wipPoolMeta as any)?.fallback_roll_count || fallbackCandidateCount || 0)}</div>
+                            <div className="text-[11px] text-amber-700">Manual assignment only</div>
+                        </div>
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-3">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Required</div>
+                            <div className="mt-2 text-2xl font-black text-indigo-900">{Number(required || 0)}</div>
+                            <div className="text-[11px] text-indigo-700">Rolls needed for this step</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-3 text-white">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Slot Coverage</div>
+                            <div className="mt-2 text-2xl font-black">{matchedSlotCount}/{Math.max(Number(required || 0), Number((rollAssignmentValidation as any)?.required_rolls || 0))}</div>
+                            <div className="text-[11px] text-slate-300">
+                                {unmatchedSlotCount > 0 ? `${unmatchedSlotCount} target slot(s) still open` : "Current set maps cleanly"}
+                            </div>
+                        </div>
+                    </div>
                     <div className="mt-4 grid grid-cols-5 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-500 uppercase">Search</label>
@@ -2385,7 +2548,7 @@ function RollAssignmentModal({
                     </div>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto p-6 bg-white">
+                <div className="flex-1 overflow-y-auto bg-white p-6 pb-28">
                     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "local" | "external")} className="space-y-4">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="local" className="text-xs font-bold">
@@ -2403,6 +2566,8 @@ function RollAssignmentModal({
                                     return (
                                         <div
                                             key={rollId}
+                                            data-testid={`wcm-local-roll-select-${rollId}`}
+                                            data-roll-id={rollId}
                                             onClick={() => toggleRoll(rollId)}
                                             className={cn(
                                                 "flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer group",
@@ -2423,6 +2588,15 @@ function RollAssignmentModal({
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <span className="text-sm font-black text-slate-900 uppercase">{roll.label_id}</span>
                                                     {roll.spec_exact && <Badge className="bg-emerald-100 text-emerald-700 text-[10px] font-bold">EXACT MATCH</Badge>}
+                                                    {String(roll.roll_source || "").toUpperCase() === "LINEAGE" && (
+                                                        <Badge className="bg-slate-900 text-white text-[10px] font-bold">TRUE WIP</Badge>
+                                                    )}
+                                                    {String(roll.roll_source || "").toUpperCase() === "PURCHASED_FALLBACK" && (
+                                                        <Badge className="bg-amber-100 text-amber-800 text-[10px] font-bold">PURCHASED FALLBACK</Badge>
+                                                    )}
+                                                    {String(roll.roll_source || "").toUpperCase() === "COMPATIBLE_FALLBACK" && (
+                                                        <Badge className="bg-indigo-100 text-indigo-700 text-[10px] font-bold">COMPATIBLE FALLBACK</Badge>
+                                                    )}
                                                 </div>
                                                 <div className="text-[11px] font-medium text-slate-600">
                                                     {roll.material_name} • {roll.thickness_micron}μ • {roll.width_mm}mm • Grade: {roll.grade_name || "—"}
@@ -2431,14 +2605,14 @@ function RollAssignmentModal({
                                                     Loc: {roll.location || roll.location_name} {roll.location_type ? `(${roll.location_type})` : ""}
                                                 </div>
                                             </div>
-                                            <div className="text-right flex flex-col items-end gap-2">
+                                            <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                                                 <div className="text-lg font-black text-slate-900 leading-none">{roll.weight_kg} <span className="text-[10px] text-slate-500">KG</span></div>
                                                 <div className="text-xs font-bold text-slate-500">{roll.width_mm} <span className="text-[10px]">MM</span></div>
                                                 <Button
                                                     size="sm"
                                                     variant={selectedRollIds.includes(rollId) ? "default" : "outline"}
                                                     className={cn(
-                                                        "h-7 px-4 text-[10px] font-black uppercase tracking-tighter",
+                                                        "relative z-10 h-7 shrink-0 px-4 text-[10px] font-black uppercase tracking-tighter",
                                                         selectedRollIds.includes(rollId) ? "bg-indigo-600" : "text-indigo-600 border-indigo-200"
                                                     )}
                                                     onClick={(e) => {

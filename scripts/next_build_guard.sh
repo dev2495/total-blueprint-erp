@@ -3,24 +3,29 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRONTEND_DIR="${ROOT_DIR}/frontend_v2"
+STALE_ROOT="${ROOT_DIR}/.runtime/frontend-next-stale"
 MAX_BUILD_ATTEMPTS="${MAX_BUILD_ATTEMPTS:-3}"
-MAX_BUILD_SECONDS="${MAX_BUILD_SECONDS:-240}"
+MAX_BUILD_SECONDS="${MAX_BUILD_SECONDS:-480}"
 
 cd "${FRONTEND_DIR}"
 
 clean_build_artifacts() {
-  # Move heavy `.next` tree out of the way quickly.
-  # Avoid recursive stale cleanup because problematic stale dirs can block.
+  mkdir -p "${STALE_ROOT}"
+  # Move heavy `.next` tree out of the way quickly into a dedicated runtime bucket.
+  # Avoid leaving `.next_stale_*` siblings inside frontend_v2 because Next can
+  # accidentally pick up stale manifests/chunks from those artifact sets.
   if [ -d ".next" ]; then
     local stale_dir
-    stale_dir=".next_stale_$(date +%s)"
+    stale_dir="${STALE_ROOT}/.next_stale_$(date +%s)"
     if mv ".next" "${stale_dir}" 2>/dev/null; then
       echo "Moved stale .next to ${stale_dir}"
     else
       echo "WARN: could not move .next quickly; keeping existing tree."
     fi
   fi
-  rm -rf node_modules/.cache
+  # Never prune historical .next_stale_* directories inside the hot build path.
+  # Some local worktrees accumulate many large hidden artifact sets and deleting
+  # them here can block startup for minutes.
   rm -f tsconfig.tsbuildinfo
 }
 

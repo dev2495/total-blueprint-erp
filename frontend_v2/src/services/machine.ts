@@ -57,6 +57,11 @@ export interface ProductionJob {
     total_weight_kg: number;
     produced_qty: number;
     remaining_qty: number;
+    primary_uom?: 'KG' | 'PCS';
+    step_target_primary?: number | null;
+    step_produced_primary?: number | null;
+    step_remaining_primary?: number | null;
+    tolerance_primary?: number | null;
     step_target_kg?: number;
     step_target_pcs?: number | null;
     step_produced_kg?: number;
@@ -116,6 +121,15 @@ export interface JobSatisfactionStatus {
 
 export interface JobContext {
     job: ProductionJob;
+    continuation_banner?: {
+        title: string;
+        body: string;
+        source_order_number?: string | null;
+        planner_stock_class?: string | null;
+        start_step_index?: number | null;
+        stop_step_index?: number | null;
+        tone?: string | null;
+    } | null;
     execution_model_version?: number;
     display?: {
         template_name?: string;
@@ -126,21 +140,39 @@ export interface JobContext {
         show_pcs_secondary?: boolean;
     };
     execution_profile?: {
-        primary_unit?: 'KG';
-        secondary_unit?: 'PCS';
+        primary_unit?: 'KG' | 'PCS';
+        secondary_unit?: 'KG' | 'PCS';
         job_uom?: string;
         unit_weight_g?: number | null;
         derivation_available?: boolean;
+        step_target_primary?: number | null;
+        step_produced_primary?: number | null;
+        step_remaining_primary?: number | null;
+        tolerance_primary?: number | null;
         max_output_kg?: number | null;
         output_cap_source?: string;
         progress?: {
             weight_kg?: { target?: number | null; produced?: number | null; remaining?: number | null };
             pcs?: { target?: number | null; produced?: number | null; remaining?: number | null };
+            primary?: {
+                uom?: 'KG' | 'PCS';
+                target?: number | null;
+                produced?: number | null;
+                remaining?: number | null;
+                tolerance?: number | null;
+            };
         };
     };
     progress?: {
         weight_kg?: { target?: number | null; produced?: number | null; remaining?: number | null };
         pcs?: { target?: number | null; produced?: number | null; remaining?: number | null };
+        primary?: {
+            uom?: 'KG' | 'PCS';
+            target?: number | null;
+            produced?: number | null;
+            remaining?: number | null;
+            tolerance?: number | null;
+        };
     };
     roll_handling?: {
         output_variant?: string | null;
@@ -156,6 +188,7 @@ export interface JobContext {
     current_step?: {
         process_name?: string;
         input_form?: 'NONE' | 'BULK' | 'ROLL';
+        output_form?: 'BULK' | 'ROLL';
     };
     satisfaction: JobSatisfactionStatus;
     wip_pool: Array<{
@@ -175,11 +208,53 @@ export interface JobContext {
         eligible_weight_kg?: number;
         lineage_roll_count?: number;
         lineage_total_weight_kg?: number;
+        discoverable_roll_count?: number;
+        discoverable_total_weight_kg?: number;
+        fallback_roll_count?: number;
+        fallback_total_weight_kg?: number;
         required_rolls?: number;
         reserved_rolls?: number;
         missing_rolls?: number;
+        missing_lineage_rolls?: number;
+        missing_assignment_rolls?: number;
+        missing_discoverable_rolls?: number;
         blocked_reasons?: string[];
         action_hints?: string[];
+    };
+    discoverable_pool?: Array<{
+        id: string;
+        label_id: string;
+        material_name?: string | null;
+        weight_kg: number;
+        thickness_micron?: number;
+        width_mm?: number;
+        grade?: string | null;
+        location_name?: string | null;
+        status: string;
+        roll_source?: string | null;
+    }>;
+    fallback_pool?: Array<{
+        id: string;
+        label_id: string;
+        material_name?: string | null;
+        weight_kg: number;
+        thickness_micron?: number;
+        width_mm?: number;
+        grade?: string | null;
+        location_name?: string | null;
+        status: string;
+        roll_source?: string | null;
+    }>;
+    roll_assignment_validation?: {
+        required_rolls?: number;
+        required_target_specs?: Array<Record<string, any>>;
+        matched_target_slots?: Array<Record<string, any>>;
+        unmatched_target_slots?: Array<Record<string, any>>;
+        matched_roll_ids?: string[];
+        unmatched_roll_ids?: string[];
+        assigned_roll_count?: number;
+        slot_satisfied?: boolean;
+        is_complete?: boolean;
     };
     wip_recent_lineage?: Array<{
         id: string;
@@ -277,6 +352,10 @@ export interface JobContext {
     };
     telemetry?: {
         execution_health?: {
+            primary_uom?: 'KG' | 'PCS';
+            step_target_primary?: number | null;
+            step_produced_primary?: number | null;
+            step_remaining_primary?: number | null;
             input_ready?: boolean;
             roll_shortage_count?: number;
             step_target_kg?: number;
@@ -330,6 +409,8 @@ export interface JobContext {
         pod_summary?: Record<string, any>;
     };
     step_execution?: {
+        primary_uom?: 'KG' | 'PCS';
+        secondary_uom?: 'KG' | 'PCS';
         roll_target_kg?: number;
         bulk_target_kg?: number;
         total_target_kg?: number;
@@ -341,7 +422,11 @@ export interface JobContext {
         target_pcs?: number | null;
         produced_pcs?: number | null;
         remaining_pcs?: number | null;
+        target_primary?: number | null;
+        produced_primary?: number | null;
+        remaining_primary?: number | null;
         tolerance_kg?: number;
+        tolerance_primary?: number | null;
         derivation_fallback?: boolean;
         closed_with_variance?: boolean;
         target_source?: string;
@@ -455,6 +540,7 @@ export const machineService = {
             output_length_m?: number;
             output_pcs?: number;
             scrap_qty?: number;
+            roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
             split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
             remainder_location_id?: string;
         }

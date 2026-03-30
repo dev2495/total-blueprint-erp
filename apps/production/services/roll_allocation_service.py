@@ -16,8 +16,6 @@ class RollAllocationService:
         import logging
         logger = logging.getLogger(__name__)
         
-        # Hard-cut runtime: disable broad non-lineage fallback.
-        include_non_lineage_fallback = False
         logger.warning(f"[DEBUG RollAllocationService] Job {job.id} - get_eligible_rolls called with include_non_lineage_fallback={include_non_lineage_fallback}, include_remainder={include_remainder}")
         process = getattr(job, 'current_process', None) or getattr(job, 'process', None)
         from apps.production.services.services_execution import ExecutionService
@@ -79,7 +77,7 @@ class RollAllocationService:
             .values_list('roll_id', flat=True)
         )
 
-        def collect_compatible_ids(rows):
+        def collect_compatible_ids(rows, *, allow_input_stock_fallback: bool = False):
             for roll in rows:
                 if roll.id in seen_ids:
                     continue
@@ -122,13 +120,19 @@ class RollAllocationService:
                         continue
                     if purchasable_variant_ids and str(getattr(roll, "material_id", "") or "") not in purchasable_variant_ids:
                         continue
-                if not ExecutionService._is_roll_step_compatible(job, process, roll, target_specs):
+                if not ExecutionService._is_roll_step_compatible(
+                    job,
+                    process,
+                    roll,
+                    target_specs,
+                    allow_input_stock_fallback=allow_input_stock_fallback,
+                ):
                     continue
                 seen_ids.add(roll.id)
                 eligible_ids.append(roll.id)
 
         # Primary pool: lineage-matched rolls.
-        collect_compatible_ids(lineage_qs)
+        collect_compatible_ids(lineage_qs, allow_input_stock_fallback=False)
         
         logger.warning(f"[DEBUG RollAllocationService] Job {job.id} - After lineage filter, eligible_ids count: {len(eligible_ids)}")
 
@@ -145,8 +149,8 @@ class RollAllocationService:
                 if lineage_filter is not None:
                     fallback_qs = qs_all.exclude(lineage_filter)
                 else:
-                    fallback_qs = qs_all.none()
-                collect_compatible_ids(fallback_qs)
+                    fallback_qs = qs_all
+                collect_compatible_ids(fallback_qs, allow_input_stock_fallback=True)
         
         logger.warning(f"[DEBUG RollAllocationService] Job {job.id} - After fallback, eligible_ids count: {len(eligible_ids)}")
 
@@ -165,8 +169,8 @@ class RollAllocationService:
                     default=Value(2),
                     output_field=IntegerField(),
                 )
-            ).order_by('priority', '-weight_kg', 'created_at', 'id')
+            ).order_by('priority', '-weight_kg', '-created_at', 'id')
         else:
-            filtered = filtered.order_by('-weight_kg', 'created_at', 'id')
+            filtered = filtered.order_by('-weight_kg', '-created_at', 'id')
 
         return filtered

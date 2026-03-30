@@ -35,7 +35,7 @@ class QuotationPDFService:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=A4,
-            topMargin=16 * mm,
+            topMargin=14 * mm,
             bottomMargin=14 * mm,
             leftMargin=14 * mm,
             rightMargin=14 * mm,
@@ -45,136 +45,99 @@ class QuotationPDFService:
         story = []
 
         legal = getattr(getattr(quotation.plant, "legal_profile", None), "__dict__", {}) if quotation.plant_id else {}
-        header_lines = [cls.COMPANY_NAME]
-        if legal.get("legal_name"):
-            header_lines.append(str(legal["legal_name"]))
-        if legal.get("gstin"):
-            header_lines.append(f"GSTIN: {legal['gstin']}")
-        if legal.get("address"):
-            header_lines.append(str(legal["address"]))
-        if legal.get("contact_phone") or legal.get("contact_email"):
-            header_lines.append(
-                f"Contact: {legal.get('contact_phone') or '-'} | {legal.get('contact_email') or '-'}"
-            )
-
-        story.append(Paragraph("Quotation", styles["hero"]))
-        for line in header_lines:
-            story.append(Paragraph(cls._escape(line), styles["muted"]))
-        story.append(Spacer(1, 6 * mm))
-
-        meta_table = Table(
-            [
-                ["Quote No", quotation.quote_number, "Status", quotation.get_status_display()],
-                ["Customer", quotation.customer_name, "Valid Until", quotation.valid_until.isoformat() if quotation.valid_until else "-"],
-                ["Plant", quotation.plant.name if quotation.plant_id else "-", "Generated", timezone.now().strftime("%d-%b-%Y %H:%M")],
-                ["Currency", quotation.currency, "Converted Order", getattr(quotation.converted_sales_order, "order_number", "-") or "-"],
-            ],
-            colWidths=[28 * mm, 62 * mm, 30 * mm, 52 * mm],
-        )
-        meta_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#CBD5E1")),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E2E8F0")),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0F172A")),
-                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-                    ("LEADING", (0, 0), (-1, -1), 10),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-                ]
+        story.append(Paragraph(cls.COMPANY_NAME, styles["eyebrow"]))
+        story.append(Paragraph("Customer Quotation", styles["hero"]))
+        story.append(
+            Paragraph(
+                "System costing remains estimated. The quoted sell price shown here is the commercial price saved by sales.",
+                styles["muted"],
             )
         )
-        story.append(meta_table)
-        story.append(Spacer(1, 6 * mm))
+        story.append(Spacer(1, 4 * mm))
 
-        line_rows = [["Line", "Product", "Qty", "Basis", "Unit Price", "Line Total"]]
+        header_rows = [
+            ["Quote Number", quotation.quote_number, "Status", quotation.get_status_display()],
+            ["Customer", quotation.customer_name or "-", "Valid Until", quotation.valid_until.isoformat() if quotation.valid_until else "-"],
+            ["Plant", quotation.plant.name if quotation.plant_id else "-", "Generated", timezone.now().strftime("%d-%b-%Y %H:%M")],
+            ["Currency", quotation.currency or "INR", "Converted Order", getattr(quotation.converted_sales_order, "order_number", "-") or "-"],
+        ]
+        header_table = Table(header_rows, colWidths=[34 * mm, 60 * mm, 34 * mm, 46 * mm])
+        header_table.setStyle(cls._table_style(striped=True))
+        story.append(header_table)
+        story.append(Spacer(1, 5 * mm))
+
+        if legal.get("legal_name") or legal.get("gstin") or legal.get("address"):
+            story.append(Paragraph("Issuing Legal Entity", styles["section"]))
+            legal_lines = [legal.get("legal_name") or cls.COMPANY_NAME]
+            if legal.get("gstin"):
+                legal_lines.append(f"GSTIN: {legal['gstin']}")
+            if legal.get("address"):
+                legal_lines.append(str(legal["address"]))
+            if legal.get("contact_phone") or legal.get("contact_email"):
+                legal_lines.append(f"Contact: {legal.get('contact_phone') or '-'} | {legal.get('contact_email') or '-'}")
+            for line in legal_lines:
+                story.append(Paragraph(cls._escape(line), styles["body"]))
+            story.append(Spacer(1, 4 * mm))
+
+        line_rows = [[
+            "Line",
+            "Product / Specification",
+            "Quantity",
+            "Unit Price",
+            "Line Total",
+        ]]
         for idx, item in enumerate(quotation.items.all(), start=1):
             costing = item.costing_snapshot or {}
-            qty = f"{item.qty_value} {item.qty_uom}"
-            product = item.line_name or (item.template.name if item.template_id else item.finished_good_type.title())
+            geometry = (item.physics_snapshot or {}).get("geometry_snapshot") or {}
+            variant_label = getattr(item.sku_variant, "name", "") if getattr(item, "sku_variant_id", None) else ""
+            product_label = variant_label or item.line_name or (item.template.name if item.template_id else item.finished_good_type.title())
+            base_geometry = item.geometry_snapshot.get("base", {}) if isinstance(item.geometry_snapshot, dict) else {}
+            effective_width = geometry.get("effective_width_mm") or base_geometry.get("width_mm")
+            effective_height = geometry.get("effective_height_mm") or base_geometry.get("height_mm")
+            variant_code = getattr(item.sku_variant, "code", "") if getattr(item, "sku_variant_id", None) else ""
+            spec_line = (
+                f"{variant_code + ' · ' if variant_code else ''}{item.finished_good_type.title()} | "
+                f"{cls._as_text(effective_width)} mm × "
+                f"{cls._as_text(effective_height)} mm"
+            )
             line_rows.append(
                 [
                     str(idx),
-                    product,
-                    qty,
-                    item.price_basis,
-                    cls._money(costing.get("unit_price"), quotation.currency),
-                    cls._money(costing.get("net_total"), quotation.currency),
+                    Paragraph(f"<b>{cls._escape(product_label)}</b><br/>{cls._escape(spec_line)}", styles["body"]),
+                    f"{item.qty_value} {item.qty_uom}",
+                    cls._money(item.quoted_unit_price or costing.get("unit_price"), quotation.currency),
+                    cls._money(item.quoted_line_total or costing.get("net_total"), quotation.currency),
                 ]
             )
+        line_table = Table(line_rows, colWidths=[12 * mm, 92 * mm, 28 * mm, 28 * mm, 28 * mm], repeatRows=1)
+        line_table.setStyle(cls._table_style(header=True))
+        story.append(Paragraph("Commercial Lines", styles["section"]))
+        story.append(line_table)
+        story.append(Spacer(1, 4 * mm))
 
-        line_table = Table(line_rows, colWidths=[12 * mm, 67 * mm, 26 * mm, 18 * mm, 28 * mm, 28 * mm])
-        line_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F172A")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-                    ("LEADING", (0, 0), (-1, -1), 10),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#CBD5E1")),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#E2E8F0")),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
-                ]
+        story.append(
+            Paragraph(
+                "Pricing guidance inside the ERP remains estimated. The commercial prices shown in this document are the values saved by sales.",
+                styles["muted"],
             )
         )
-        story.append(line_table)
-        story.append(Spacer(1, 5 * mm))
-
-        for idx, item in enumerate(quotation.items.all(), start=1):
-            costing = item.costing_snapshot or {}
-            preview = item.physics_snapshot or {}
-            bom = item.bom_snapshot or {}
-            components = (bom.get("planning_lines") or [])[:4]
-            component_label = ", ".join(
-                f"{row.get('material_name') or row.get('material_code')}: {row.get('planned_issue_qty') or row.get('theoretical_qty')} {row.get('uom') or 'KG'}"
-                for row in components
-            ) or "No BOM lines resolved"
-            line_title = item.line_name or (item.template.name if item.template_id else f"{item.finished_good_type.title()} line {idx}")
-            detail_text = (
-                f"<b>{cls._escape(line_title)}</b><br/>"
-                f"{item.finished_good_type} | Qty {item.qty_value} {item.qty_uom} | "
-                f"Weight {item.total_weight_kg} KG | Unit {cls._money(costing.get('unit_price'), quotation.currency)} | "
-                f"Margin {round(float(costing.get('margin_percent') or 0), 2)}%<br/>"
-                f"Physics: area {round(float(((preview.get('geometry_snapshot') or {}).get('area_m2') or 0)), 4)} m2 | "
-                f"width {round(float(((preview.get('geometry_snapshot') or {}).get('effective_width_mm') or 0)), 2)} mm<br/>"
-                f"Top materials: {cls._escape(component_label)}"
-            )
-            story.append(Paragraph(detail_text, styles["body"]))
-            story.append(Spacer(1, 3 * mm))
+        story.append(Spacer(1, 4 * mm))
 
         totals = quotation.totals_snapshot or {}
-        totals_table = Table(
+        summary_table = Table(
             [
                 ["Subtotal", cls._money(totals.get("subtotal"), quotation.currency)],
                 ["Tax", cls._money(totals.get("tax_total"), quotation.currency)],
                 ["Grand Total", cls._money(totals.get("grand_total"), quotation.currency)],
-                ["Margin", f"{round(float(totals.get('margin_percent') or 0), 2)}%"],
+                ["Estimated Margin", f"{round(float(totals.get('margin_percent') or 0), 2)}%"],
             ],
-            colWidths=[42 * mm, 38 * mm],
+            colWidths=[48 * mm, 36 * mm],
         )
-        totals_table.hAlign = "RIGHT"
-        totals_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
-                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#CBD5E1")),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#E2E8F0")),
-                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-                ]
-            )
-        )
-        story.append(Spacer(1, 2 * mm))
-        story.append(totals_table)
-        story.append(Spacer(1, 5 * mm))
+        summary_table.hAlign = "RIGHT"
+        summary_table.setStyle(cls._table_style(striped=True))
+        story.append(Paragraph("Commercial Summary", styles["section"]))
+        story.append(summary_table)
+        story.append(Spacer(1, 4 * mm))
 
         if quotation.terms:
             story.append(Paragraph("Terms", styles["section"]))
@@ -188,9 +151,20 @@ class QuotationPDFService:
         doc.build(story)
         return buffer.getvalue()
 
-    @staticmethod
-    def _styles():
+    @classmethod
+    def _styles(cls):
         base = getSampleStyleSheet()
+        base.add(
+            ParagraphStyle(
+                name="eyebrow",
+                parent=base["BodyText"],
+                fontName="Helvetica-Bold",
+                fontSize=8,
+                leading=10,
+                textColor=colors.HexColor("#4F46E5"),
+                spaceAfter=2,
+            )
+        )
         base.add(
             ParagraphStyle(
                 name="hero",
@@ -199,7 +173,7 @@ class QuotationPDFService:
                 fontSize=22,
                 leading=26,
                 textColor=colors.HexColor("#0F172A"),
-                spaceAfter=4,
+                spaceAfter=2,
             )
         )
         base.add(
@@ -209,8 +183,8 @@ class QuotationPDFService:
                 fontName="Helvetica-Bold",
                 fontSize=11,
                 leading=14,
-                textColor=colors.HexColor("#1E293B"),
-                spaceAfter=3,
+                textColor=colors.HexColor("#0F172A"),
+                spaceAfter=4,
             )
         )
         base.add(
@@ -228,26 +202,60 @@ class QuotationPDFService:
                 name="muted",
                 parent=base["BodyText"],
                 fontName="Helvetica",
-                fontSize=8,
-                leading=10,
+                fontSize=8.5,
+                leading=10.5,
                 textColor=colors.HexColor("#64748B"),
             )
         )
         return base
 
+    @classmethod
+    def _table_style(cls, *, header: bool = False, striped: bool = False) -> TableStyle:
+        commands = [
+            ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#CBD5E1")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#E2E8F0")),
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("LEADING", (0, 0), (-1, -1), 10),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        if header:
+            commands.extend(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F172A")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ]
+            )
+        elif striped:
+            commands.extend(
+                [
+                    ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                ]
+            )
+        return TableStyle(commands)
+
     @staticmethod
-    def _money(value, currency: str) -> str:
-        prefix = "₹" if str(currency or "INR").upper() == "INR" else f"{currency} "
-        try:
-            amount = float(value or 0)
-        except Exception:
-            amount = 0.0
+    def _money(value, currency="INR"):
+        amount = float(value or 0)
+        prefix = "₹" if (currency or "INR").upper() == "INR" else f"{currency} "
         return f"{prefix}{amount:,.2f}"
+
+    @staticmethod
+    def _as_text(value) -> str:
+        if value in (None, ""):
+            return "-"
+        if isinstance(value, float):
+            return f"{value:,.3f}"
+        return str(value)
 
     @staticmethod
     def _escape(value: str) -> str:
         return (
-            str(value or "")
+            str(value)
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")

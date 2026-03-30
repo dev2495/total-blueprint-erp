@@ -58,22 +58,22 @@ export function DataTable<TData, TValue>({
     return (
         <div className="space-y-4">
             {filterColumn && (
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="relative">
+                        <div className="relative flex-1 sm:flex-none">
                             <Input
                                 placeholder={filterPlaceholder}
                                 value={(table.getColumn(filterColumn)?.getFilterValue() as string) ?? ""}
                                 onChange={(event) =>
                                     table.getColumn(filterColumn)?.setFilterValue(event.target.value)
                                 }
-                                className="h-9 w-[250px] lg:w-[350px]"
+                                className="h-9 w-full sm:w-[250px] lg:w-[350px]"
                             />
                         </div>
                         {/* Future: Add Filter faceted lists here */}
-                        <Button variant="outline" size="sm" className="h-9 border-dashed">
+                        <Button variant="outline" size="sm" className="h-9 shrink-0 border-dashed">
                             <SlidersHorizontal className="mr-2 h-4 w-4" />
-                            Filters
+                            <span className="hidden sm:inline">Filters</span>
                         </Button>
                     </div>
                 </div>

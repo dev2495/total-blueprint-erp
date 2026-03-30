@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import Script from "next/script";
 import "./globals.css";
 import Providers from "@/components/providers";
 import { installServerConsoleFilters } from "@/lib/server-console-filters";
@@ -17,17 +15,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const nonce = (await headers()).get("x-nonce") || undefined;
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Script
-          id="tbp-chunk-pre-hydration-recovery"
-          src="/chunk-load-recovery.js"
-          strategy="beforeInteractive"
-          nonce={nonce}
-        />
         <Providers>
           {children}
         </Providers>

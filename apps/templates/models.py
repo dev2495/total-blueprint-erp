@@ -126,6 +126,13 @@ class TemplateProcessStep(models.Model):
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.CASCADE, related_name='process_steps')
     sequence_number = models.IntegerField(help_text="Execution order (1, 2, 3...)")
     process = models.ForeignKey('factory.Process', on_delete=models.PROTECT, related_name='template_steps')
+    cost_absorption_group = models.ForeignKey(
+        'costing.CostAbsorptionGroup',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_steps',
+    )
     
     # Optional notes for this step
     notes = models.TextField(blank=True)

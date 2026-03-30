@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.factory.models import WorkCenter
-from apps.inventory.models import InventoryRoll
+from apps.inventory.models import InventoryBulk, InventoryRoll, PackagingStock
 from apps.inventory.serializers import resolve_roll_role
 from apps.physics.geometry_override import (
     normalize_geometry_override,
@@ -37,7 +37,7 @@ from apps.templates.models import TemplateBlueprint
 
 from apps.physics.services_physics import PhysicsEngine
 from apps.inventory.services.roll_naming import build_roll_naming_payload
-from .models import FinishedGoodsBatch, InventoryAllocation, PlannedStockOrder, ProductionJob, JobExecutionLog
+from .models import FinishedGoodsBatch, InventoryAllocation, PlannedStockOrder, PlannedBulkStockOrder, ProductionJob, JobExecutionLog
 from .serializers import ProductionJobSerializer
 from .services.job_services import JobService
 
@@ -215,6 +215,7 @@ class PlannerViewSet(viewsets.ViewSet):
         quantity_uom = str(request.data.get("quantity_uom", "KG")).upper()
         stock_purpose = str(request.data.get("stock_purpose", "PRODUCT") or "PRODUCT").upper()
         requested_stock_strategy = request.data.get("stock_strategy")
+        requested_planner_stock_class = request.data.get("planner_stock_class")
         packaging_material_id = request.data.get("packaging_material_id") or request.data.get("packaging_material")
         start_step_index = request.data.get("start_step_index")
         stop_step_index = request.data.get("stop_step_index")
@@ -400,6 +401,12 @@ class PlannerViewSet(viewsets.ViewSet):
             stock_purpose=stock_purpose,
             stop_step_index=stop_step_index,
         )
+        planner_stock_class = self._derive_planner_stock_class(
+            template=template,
+            stock_purpose=stock_purpose,
+            stop_step_index=stop_step_index,
+            planner_stock_class=requested_planner_stock_class,
+        )
         bom_snapshot = _jsonify(preview.get("bom") or {})
         mts_order = PlannedStockOrder.objects.create(
             internal_name=internal_name or f"{template.name} Stock",
@@ -421,6 +428,7 @@ class PlannerViewSet(viewsets.ViewSet):
             output_type=output_type,
             stock_purpose=stock_purpose,
             stock_strategy=stock_strategy,
+            planner_stock_class=planner_stock_class,
             packaging_material=packaging_material,
             artwork_assignment_required=bool(artwork_required),
             assigned_artwork_id=assigned_artwork_id,
@@ -444,6 +452,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "final_product_type": str(template.fg_type or "").upper() if stock_purpose == "PRODUCT" else None,
                 "planned_output_type": "PACKAGING_STOCK" if stock_purpose == "PACKAGING" else mts_order.output_type,
                 "stock_strategy": mts_order.stock_strategy,
+                "planner_stock_class": mts_order.planner_stock_class,
                 "start_step_index": mts_order.start_step_index,
                 "stop_step_index": mts_order.stop_step_index,
                 "spec_signature": mts_order.spec_signature,
@@ -494,6 +503,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 stock_purpose=stock_purpose,
                 stop_step_index=route_last,
             )
+            planner_stock_class = self._derive_planner_stock_class(
+                template=template,
+                stock_purpose=stock_purpose,
+                stop_step_index=route_last,
+            )
         else:
             geometry_snapshot = _jsonify(source_order.geometry_snapshot or {})
             layer_snapshot = _jsonify(source_order.layer_snapshot or [])
@@ -517,6 +531,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 template=template,
                 stock_purpose=stock_purpose,
                 stop_step_index=source_stop,
+            )
+            planner_stock_class = self._derive_planner_stock_class(
+                template=template,
+                stock_purpose=stock_purpose,
+                stop_step_index=source_stop,
+                planner_stock_class=getattr(source_order, "planner_stock_class", ""),
             )
 
         if target_qty_kg <= 0:
@@ -559,6 +579,7 @@ class PlannerViewSet(viewsets.ViewSet):
             quantity_uom=quantity_uom,
             stock_purpose=stock_purpose,
             stock_strategy=stock_strategy,
+            planner_stock_class=planner_stock_class,
             packaging_material=packaging_material,
             output_type=str(default_output_type or "WIP_ROLL").upper(),
             start_step_index=0,
@@ -630,6 +651,62 @@ class PlannerViewSet(viewsets.ViewSet):
             return "FINAL_STOCK"
         return normalized
 
+    def _derive_planner_stock_class(self, *, template=None, stock_purpose="PRODUCT", stop_step_index=None, planner_stock_class=None):
+        requested = str(planner_stock_class or "").strip().upper()
+        allowed = {"FINAL_PRODUCT", "FINAL_PLAIN_ROLL", "EXTRUDED_BASE_ROLL", "SHARED_INVARIANT_ROLL", "PACKAGING_STOCK"}
+        if requested and requested not in allowed:
+            requested = ""
+        if requested:
+            return requested
+        stock_purpose = str(stock_purpose or "PRODUCT").upper()
+        if stock_purpose == "PACKAGING":
+            return "PACKAGING_STOCK"
+        route_last = self._route_last_index(template)
+        stop_idx = route_last if stop_step_index is None else int(stop_step_index)
+        fg_type = str(getattr(template, "fg_type", "") or "").upper()
+        if stop_idx < route_last:
+            return "EXTRUDED_BASE_ROLL" if stop_idx <= 0 else "SHARED_INVARIANT_ROLL"
+        if fg_type == "ROLL":
+            return "FINAL_PLAIN_ROLL"
+        return "FINAL_PRODUCT"
+
+    def _is_same_order_lineage_roll(self, roll, order_kind: str, order_obj) -> bool:
+        if order_kind == "sales":
+            sales_order_id = str(getattr(order_obj, "id", "") or "")
+            if not sales_order_id:
+                return False
+            direct_item = getattr(roll, "sales_order_item", None)
+            if direct_item and str(getattr(direct_item, "sales_order_id", "") or "") == sales_order_id:
+                return True
+            origin_job = getattr(roll, "created_by_job", None) or getattr(roll, "production_job", None)
+            source_item = getattr(origin_job, "sales_order_item", None) if origin_job else None
+            return bool(source_item and str(getattr(source_item, "sales_order_id", "") or "") == sales_order_id)
+        origin_stock_order = self._origin_stock_order_for_roll(roll)
+        return bool(origin_stock_order and str(getattr(origin_stock_order, "id", "") or "") == str(getattr(order_obj, "id", "") or ""))
+
+    def _planner_stock_class_for_order(self, order_obj, template=None) -> str:
+        return str(
+            getattr(order_obj, "planner_stock_class", "") or self._derive_planner_stock_class(
+                template=template or getattr(order_obj, "template", None),
+                stock_purpose=getattr(order_obj, "stock_purpose", "PRODUCT"),
+                stop_step_index=getattr(order_obj, "stop_step_index", None),
+            )
+        )
+
+    def _planner_stock_class_for_roll(self, roll) -> str:
+        origin_stock_order = self._origin_stock_order_for_roll(roll)
+        if origin_stock_order:
+            return self._planner_stock_class_for_order(origin_stock_order, getattr(origin_stock_order, "template", None))
+        if int(getattr(roll, "completed_step_index", 0) or 0) <= 0:
+            return "EXTRUDED_BASE_ROLL"
+        return ""
+
+    def _planner_stock_class_for_batch(self, batch) -> str:
+        origin_stock_order = self._origin_stock_order_for_batch(batch)
+        if origin_stock_order:
+            return self._planner_stock_class_for_order(origin_stock_order, getattr(origin_stock_order, "template", None))
+        return "FINAL_PRODUCT"
+
     def _sales_primary_template(self, sales_order):
         first_item = sales_order.items.select_related("template", "template__routing_rule").first()
         return first_item.template if first_item else None
@@ -651,21 +728,24 @@ class PlannerViewSet(viewsets.ViewSet):
                 or 0
             )
         )
-        shortfall_kg = target_kg - produced_kg
-        if shortfall_kg < 0:
-            shortfall_kg = Decimal("0")
+        has_started_final_output = produced_kg > 0
+        shortfall_kg = Decimal("0")
         shortfall_pct = Decimal("0")
-        if target_kg > 0:
-            shortfall_pct = (shortfall_kg * Decimal("100")) / target_kg
-        requires_replan = bool(
-            shortfall_kg > 0 and shortfall_pct > Decimal("5.0")
-        )
+        requires_replan = False
+        if has_started_final_output:
+            shortfall_kg = target_kg - produced_kg
+            if shortfall_kg < 0:
+                shortfall_kg = Decimal("0")
+            if target_kg > 0:
+                shortfall_pct = (shortfall_kg * Decimal("100")) / target_kg
+            requires_replan = bool(shortfall_kg > 0 and shortfall_pct > Decimal("5.0"))
         return {
             "target_kg": target_kg,
             "produced_kg": produced_kg,
             "shortfall_kg": shortfall_kg,
             "shortfall_pct": shortfall_pct,
             "requires_replan": requires_replan,
+            "has_started_final_output": has_started_final_output,
         }
 
     def _sales_partial_metrics(self, sales_order, route_last_index: int):
@@ -855,6 +935,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
     def _matching_stock_orders_for_sales(self, template, order_signature: str, order_invariant_signature: str, required_start_step: int):
         matches = []
+        route_last = self._route_last_index(template)
         stock_orders = (
             PlannedStockOrder.objects.filter(template=template, status__in=["PLANNED", "RELEASED"])
             .order_by("-updated_at")
@@ -880,20 +961,22 @@ class PlannerViewSet(viewsets.ViewSet):
                 continue
 
             matches_sig = False
+            match_mode = ""
             stock_strategy = self._normalize_stock_strategy(
                 stock_strategy=getattr(stock, "stock_strategy", ""),
                 template=template,
                 stock_purpose=getattr(stock, "stock_purpose", "PRODUCT"),
                 stop_step_index=stock_stop,
             )
+            is_stopped_route_candidate = stock_strategy == "INTERMEDIATE_POOL" or stock_stop < route_last
             if stock_strategy == "PACKAGING_STOCK":
                 continue
-            if stock_strategy == "FINAL_STOCK":
-                if order_signature and stock_sig == order_signature:
-                    matches_sig = True
-            else:
-                if order_invariant_signature and stock_inv_sig == order_invariant_signature:
-                    matches_sig = True
+            if order_signature and stock_sig == order_signature:
+                matches_sig = True
+                match_mode = "EXACT_SPEC"
+            elif is_stopped_route_candidate and order_invariant_signature and stock_inv_sig == order_invariant_signature:
+                matches_sig = True
+                match_mode = "SEMI_INVARIANT"
             
             if not matches_sig:
                 continue
@@ -916,6 +999,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     "start_step_index": int(stock.start_step_index or 0),
                     "stop_step_index": stock_stop,
                     "stock_strategy": stock_strategy,
+                    "planner_stock_class": self._planner_stock_class_for_order(stock, template),
+                    "match_mode": match_mode,
                     "remaining_qty_kg": float(max(Decimal("0"), remaining_qty)),
                     "produced_qty_kg": float(stock.produced_qty or 0),
                 }
@@ -1035,8 +1120,12 @@ class PlannerViewSet(viewsets.ViewSet):
         source = row.get("source_availability") if isinstance(row.get("source_availability"), dict) else {}
         if bool(source.get("has_fg")):
             return "FG"
-        if bool(source.get("has_wip")):
+        if bool(source.get("has_carry_forward_wip")):
             return "WIP_CONTINUE"
+        if bool(source.get("has_shared_invariant_roll_stock")):
+            return "SHARED_INVARIANT"
+        if bool(source.get("has_compatible_upstream_roll")):
+            return "UPSTREAM_STOCK"
         return "FRESH"
 
     def _row_source_summary(self, row: dict):
@@ -1044,19 +1133,321 @@ class PlannerViewSet(viewsets.ViewSet):
         matching_stock_orders = row.get("matching_stock_orders") if isinstance(row.get("matching_stock_orders"), list) else []
         recommendation = self._recommended_source_option(row)
         recommendation_label = {
-            "FG": "Use existing finished goods first.",
-            "WIP_CONTINUE": "Continue from compatible WIP before scheduling fresh conversion.",
-            "FRESH": "No compatible stock is available. Fresh production is required.",
+            "FG": "Use finished stock",
+            "WIP_CONTINUE": "Carry forward WIP",
+            "SHARED_INVARIANT": "Use shared invariant roll stock",
+            "UPSTREAM_STOCK": "Use compatible upstream roll stock",
+            "FRESH": "Plan fresh conversion",
         }.get(recommendation, "Review source options.")
         return {
             "fg_match_count": int(source.get("fg_match_count") or 0),
             "wip_match_count": int(source.get("wip_match_count") or 0),
+            "carry_forward_wip_count": int(source.get("carry_forward_wip_count") or 0),
+            "shared_invariant_roll_count": int(source.get("shared_invariant_roll_count") or 0),
+            "compatible_upstream_roll_match_count": int(source.get("compatible_upstream_roll_match_count") or 0),
+            "fresh_raw_input_count": int(source.get("fresh_raw_input_count") or 0),
+            "pod_bulk_material_count": int(source.get("pod_bulk_material_count") or 0),
+            "pod_bulk_qty_kg": float(source.get("pod_bulk_qty_kg") or 0),
+            "pod_inhouse_producible_count": int(source.get("pod_inhouse_producible_count") or 0),
+            "packaging_stock_material_count": int(source.get("packaging_stock_material_count") or 0),
+            "packaging_inhouse_producible_count": int(source.get("packaging_inhouse_producible_count") or 0),
             "matching_stock_order_count": len(matching_stock_orders),
             "recommended_option": recommendation,
             "recommended_label": recommendation_label,
         }
 
+    def _continuation_label_for_mode(self, mode: str) -> str:
+        normalized = str(mode or "").upper()
+        return {
+            "EXACT_FG": "Use exact finished stock",
+            "EXACT_STOCK_ROUTE": "Continue exact stock order route",
+            "CARRY_FORWARD_WIP": "Continue carry-forward WIP",
+            "SHARED_INVARIANT_ROUTE": "Use shared invariant continuation",
+            "UPSTREAM_ROUTE": "Use upstream / base roll path",
+            "POD_BULK": "Create POD replenishment",
+            "PACKAGING_STOCK": "Create packaging replenishment",
+            "FRESH": "Plan fresh conversion",
+        }.get(normalized, "Review continuation path")
+
+    def _continuation_reason_for_mode(self, mode: str) -> str:
+        normalized = str(mode or "").upper()
+        return {
+            "EXACT_FG": "A matching final FG candidate is already available.",
+            "EXACT_STOCK_ROUTE": "A planner stock order already carries the same final spec and can be continued instead of starting fresh.",
+            "CARRY_FORWARD_WIP": "The same order lineage already has downstream-eligible WIP.",
+            "SHARED_INVARIANT_ROUTE": "A compatible semi-finished invariant route can satisfy the remaining process span.",
+            "UPSTREAM_ROUTE": "A compatible upstream/base roll can feed the remaining route safely.",
+            "POD_BULK": "Planner-owned POD replenishment is required for this row.",
+            "PACKAGING_STOCK": "Planner-owned packaging replenishment is required for this row.",
+            "FRESH": "No direct reuse path is ready, so this row needs a fresh production run.",
+        }.get(normalized, "Review the source path before release.")
+
+    def _continuation_candidate_label(self, *, stock_strategy=None, planner_stock_class=None, source_bucket=None, is_stock_order=False, match_mode=None) -> str:
+        strategy = str(stock_strategy or "").upper()
+        planner_class = str(planner_stock_class or "").upper()
+        bucket = str(source_bucket or "").upper()
+        mode = str(match_mode or "").upper()
+
+        if is_stock_order:
+            if mode == "EXACT_SPEC":
+                return "Stopped exact route"
+            if strategy == "FINAL_STOCK":
+                return "Exact stock order route"
+            if planner_class == "SHARED_INVARIANT_ROLL":
+                return "Stopped invariant route"
+            if planner_class == "EXTRUDED_BASE_ROLL":
+                return "Stopped upstream route"
+            return "Stopped continuation route"
+
+        if bucket == "FINISHED_STOCK" or strategy == "FINAL_STOCK":
+            return "Final FG"
+        if bucket == "CARRY_FORWARD_WIP":
+            return "Carry-forward WIP"
+        if bucket == "SHARED_INVARIANT_ROLL_STOCK" or planner_class == "SHARED_INVARIANT_ROLL":
+            return "Shared invariant roll"
+        if bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK" or planner_class == "EXTRUDED_BASE_ROLL":
+            return "Upstream / base roll"
+        if strategy == "PACKAGING_STOCK" or planner_class == "PACKAGING_STOCK":
+            return "Packaging stock"
+        return "Fresh route input"
+
+    def _row_continuation(self, row: dict):
+        inventory_options = row.get("inventory_options") if isinstance(row.get("inventory_options"), list) else []
+        matching_stock_orders = row.get("matching_stock_orders") if isinstance(row.get("matching_stock_orders"), list) else []
+        route_last = int(row.get("route_last_step_index") or 0)
+        required_start = int(row.get("required_start_step") or 0)
+
+        exact_fg_candidates = []
+        carry_forward_candidates = []
+        shared_invariant_candidates = []
+        upstream_candidates = []
+
+        for option in inventory_options:
+            if not isinstance(option, dict):
+                continue
+            source_bucket = str(option.get("source_bucket") or "").upper()
+            payload = {
+                "candidate_type": "INVENTORY",
+                "candidate_kind": "inventory",
+                "inventory_type": str(option.get("inventory_type") or ""),
+                "inventory_id": str(option.get("inventory_id") or ""),
+                "label": str(option.get("label") or option.get("display_name") or option.get("family_display_name") or ""),
+                "display_name": str(option.get("display_name") or option.get("family_display_name") or option.get("label") or ""),
+                "planner_stock_class": str(option.get("planner_stock_class") or "").upper(),
+                "stock_strategy": str(option.get("stock_strategy") or "").upper(),
+                "source_bucket": source_bucket,
+                "source_label": str(option.get("source_label") or ""),
+                "completed_step_index": int(option.get("completed_step_index") or 0),
+                "allocatable_qty_kg": float(option.get("allocatable_qty_kg") or 0),
+                "candidate_label": self._continuation_candidate_label(
+                    stock_strategy=option.get("stock_strategy"),
+                    planner_stock_class=option.get("planner_stock_class"),
+                    source_bucket=source_bucket,
+                ),
+                "reason_label": str(option.get("source_label") or "Compatible route input"),
+                "resume_action_allowed": False,
+                "claim_action_allowed": source_bucket == "FINISHED_STOCK",
+                "recommended_action": "CLAIM_STOCK" if source_bucket == "FINISHED_STOCK" else "PLAN_WIP",
+                "route_span_label": f"Step {required_start} -> {route_last}",
+            }
+            if source_bucket == "FINISHED_STOCK":
+                exact_fg_candidates.append(payload)
+            elif source_bucket == "CARRY_FORWARD_WIP":
+                carry_forward_candidates.append(payload)
+            elif source_bucket == "SHARED_INVARIANT_ROLL_STOCK":
+                shared_invariant_candidates.append(payload)
+            elif source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK":
+                upstream_candidates.append(payload)
+
+        exact_stock_route_candidates = []
+        stopped_invariant_route_candidates = []
+        stopped_upstream_route_candidates = []
+        for match in matching_stock_orders:
+            if not isinstance(match, dict):
+                continue
+            stock_strategy = str(match.get("stock_strategy") or "").upper()
+            planner_stock_class = str(match.get("planner_stock_class") or "").upper()
+            match_mode = str(match.get("match_mode") or "").upper()
+            is_exact_spec_route = match_mode == "EXACT_SPEC"
+            is_stopped_route = int(match.get("stop_step_index") or 0) < route_last
+            payload = {
+                "candidate_type": "STOCK_ORDER",
+                "candidate_kind": "stock_order",
+                "order_id": str(match.get("order_id") or ""),
+                "order_number": str(match.get("order_number") or ""),
+                "status": str(match.get("status") or "").upper(),
+                "start_step_index": int(match.get("start_step_index") or 0),
+                "stop_step_index": int(match.get("stop_step_index") or 0),
+                "remaining_qty_kg": float(match.get("remaining_qty_kg") or 0),
+                "produced_qty_kg": float(match.get("produced_qty_kg") or 0),
+                "planner_stock_class": planner_stock_class,
+                "stock_strategy": stock_strategy,
+                "match_mode": match_mode,
+                "candidate_label": self._continuation_candidate_label(
+                    stock_strategy=stock_strategy,
+                    planner_stock_class=planner_stock_class,
+                    is_stock_order=True,
+                    match_mode=match_mode,
+                ),
+                "reason_label": (
+                    "Exact final spec is already staged on a stopped planner route."
+                    if is_exact_spec_route and is_stopped_route
+                    else "Compatible semi-finished route can continue from this step."
+                ),
+                "resume_action_allowed": is_exact_spec_route and is_stopped_route,
+                "claim_action_allowed": False,
+                "recommended_action": "RESUME_STOCK_ROUTE" if is_exact_spec_route and is_stopped_route else "PLAN_WIP",
+                "route_span_label": f"Step {required_start} -> {route_last}",
+            }
+            if is_exact_spec_route and is_stopped_route:
+                exact_stock_route_candidates.append(payload)
+            elif planner_stock_class == "SHARED_INVARIANT_ROLL":
+                stopped_invariant_route_candidates.append(payload)
+            else:
+                stopped_upstream_route_candidates.append(payload)
+
+        source_summary = self._row_source_summary(row)
+        if str(source_summary.get("recommended_option") or "").upper() == "POD_BULK":
+            recommended_mode = "POD_BULK"
+        elif str(source_summary.get("recommended_option") or "").upper() == "PACKAGING_STOCK":
+            recommended_mode = "PACKAGING_STOCK"
+        elif exact_fg_candidates:
+            recommended_mode = "EXACT_FG"
+        elif exact_stock_route_candidates:
+            recommended_mode = "EXACT_STOCK_ROUTE"
+        elif carry_forward_candidates:
+            recommended_mode = "CARRY_FORWARD_WIP"
+        elif shared_invariant_candidates or stopped_invariant_route_candidates:
+            recommended_mode = "SHARED_INVARIANT_ROUTE"
+        elif upstream_candidates or stopped_upstream_route_candidates:
+            recommended_mode = "UPSTREAM_ROUTE"
+        else:
+            recommended_mode = "FRESH"
+
+        return {
+            "recommended_mode": recommended_mode,
+            "recommended_label": self._continuation_label_for_mode(recommended_mode),
+            "recommended_reason": self._continuation_reason_for_mode(recommended_mode),
+            "exact_fg_count": len(exact_fg_candidates),
+            "exact_stock_route_count": len(exact_stock_route_candidates),
+            "carry_forward_wip_count": len(carry_forward_candidates),
+            "shared_invariant_count": len(shared_invariant_candidates) + len(stopped_invariant_route_candidates),
+            "upstream_route_count": len(upstream_candidates) + len(stopped_upstream_route_candidates),
+            "exact_fg_candidates": exact_fg_candidates,
+            "exact_stock_route_candidates": exact_stock_route_candidates,
+            "carry_forward_wip_candidates": carry_forward_candidates,
+            "shared_invariant_candidates": shared_invariant_candidates,
+            "stopped_invariant_route_candidates": stopped_invariant_route_candidates,
+            "upstream_candidates": upstream_candidates,
+            "stopped_upstream_route_candidates": stopped_upstream_route_candidates,
+        }
+
+    def _resume_allocations_for_sales_from_stock_route(
+        self,
+        *,
+        sales_item: SalesOrderItem,
+        stock_order: PlannedStockOrder,
+        route_last: int,
+        required_route_id,
+        order_invariant_signature: str,
+        created_by,
+    ):
+        stop_step_index = int(stock_order.stop_step_index if stock_order.stop_step_index is not None else route_last)
+        if stop_step_index >= route_last:
+            raise ValueError(
+                f"{stock_order.order_number} is not a stopped route candidate. Claim exact final stock instead."
+            )
+
+        remaining_qty = self._sales_item_remaining_qty_kg(sales_item)
+        if remaining_qty <= 0:
+            raise ValueError("Sales order item has no remaining KG to resume.")
+
+        roll_alloc_map, _fg_alloc_map = self._inventory_active_allocation_maps()
+        local_consumption = {}
+        candidate_rows = []
+
+        rolls = (
+            InventoryRoll.objects.filter(
+                status="AVAILABLE",
+                sales_order_item__isnull=True,
+                completed_step_index=stop_step_index,
+            )
+            .filter(Q(created_by_job__mts_order=stock_order) | Q(production_job__mts_order=stock_order))
+            .select_related("template", "created_by_job__mts_order", "production_job__mts_order")
+            .order_by("created_at")
+        )
+
+        for roll in rolls:
+            roll_route_id = getattr(getattr(roll, "template", None), "routing_rule_id", None)
+            if required_route_id and roll.template_id and roll_route_id != required_route_id:
+                continue
+            if order_invariant_signature and self._roll_invariant_signature(roll) != order_invariant_signature:
+                continue
+            physical = Decimal(str(roll.weight_kg or 0))
+            allocated = roll_alloc_map.get(str(roll.id), Decimal("0"))
+            consumed_here = local_consumption.get(str(roll.id), Decimal("0"))
+            allocatable = physical - allocated - consumed_here
+            if allocatable <= 0:
+                continue
+            candidate_rows.append({"roll": roll, "allocatable": allocatable})
+
+        if not candidate_rows:
+            raise ValueError(
+                f"{stock_order.order_number} does not have allocatable stopped-route inventory ready for continuation."
+            )
+
+        allocations = []
+        qty_remaining = remaining_qty
+        for row in candidate_rows:
+            if qty_remaining <= Decimal("0"):
+                break
+            take = min(qty_remaining, Decimal(str(row["allocatable"] or 0)))
+            if take <= 0:
+                continue
+            roll = row["roll"]
+            allocations.append(
+                InventoryAllocation.objects.create(
+                    sales_order=sales_item.sales_order,
+                    mts_order=stock_order,
+                    inventory_roll=roll,
+                    allocated_qty_kg=take,
+                    status="ACTIVE",
+                    created_by=created_by,
+                )
+            )
+            qty_remaining -= take
+
+        if qty_remaining > Decimal("0.0001"):
+            raise ValueError(
+                f"{stock_order.order_number} has stopped-route inventory, but only "
+                f"{float(remaining_qty - qty_remaining):.3f} KG is allocatable for this sales item."
+            )
+
+        return allocations, stop_step_index
+
     def _row_order_fact_sheet(self, row: dict):
+        layer_summary = row.get("layer_summary") if isinstance(row.get("layer_summary"), list) else []
+        geometry = row.get("effective_dims") if isinstance(row.get("effective_dims"), dict) else {}
+        width_mm = Decimal(str(geometry.get("width_mm") or 0))
+        height_mm = Decimal(str(geometry.get("height_mm") or 0))
+        geometry_label = ""
+        if width_mm > 0 and height_mm > 0:
+            geometry_label = f"{width_mm.quantize(Decimal('0.01'))} × {height_mm.quantize(Decimal('0.01'))} mm"
+        roll_form = str(row.get("roll_form") or geometry.get("roll_form") or "").upper()
+        fg_type = str(row.get("final_product_type") or row.get("fg_type") or "").upper()
+        planned_output_type = str(row.get("planned_output_type") or "").upper()
+        is_roll_context = fg_type == "ROLL" or planned_output_type in {"ROLL", "FINAL_PLAIN_ROLL", "SHARED_INVARIANT_ROLL", "EXTRUDED_BASE_ROLL"}
+        roll_width_label = f"{width_mm.quantize(Decimal('0.01'))} mm" if width_mm > 0 else ""
+        roll_form_label = roll_form.replace("_", " ").title() if roll_form else ""
+        profile_label = geometry_label
+        profile_kind = "POUCH"
+        if is_roll_context:
+            roll_bits = [bit for bit in [roll_width_label, roll_form_label] if bit]
+            profile_label = " · ".join(roll_bits) or "Roll profile pending"
+            profile_kind = "ROLL"
+        print_type = str(row.get("print_type") or "").upper()
+        front_colors = int(row.get("front_colors_count") or 0)
+        back_colors = int(row.get("back_colors_count") or 0)
         return {
             "order_number": str(row.get("order_number") or ""),
             "order_kind": str(row.get("order_kind") or "").upper(),
@@ -1065,17 +1456,30 @@ class PlannerViewSet(viewsets.ViewSet):
             "delivery_date": row.get("delivery_date"),
             "template_name": str(row.get("template_name") or "").strip(),
             "status": str(row.get("status") or "").upper(),
-            "fg_type": str(row.get("final_product_type") or row.get("fg_type") or "").upper(),
-            "planned_output_type": str(row.get("planned_output_type") or "").upper(),
+            "fg_type": fg_type,
+            "planned_output_type": planned_output_type,
             "stock_strategy": str(row.get("stock_strategy") or "").upper(),
             "required_qty_kg": float(row.get("required_qty_kg") or 0),
             "required_qty_pcs": float(row.get("required_qty_pcs") or 0) if row.get("required_qty_pcs") is not None else None,
             "qty_uom": str(row.get("qty_uom") or "KG").upper(),
-            "print_type": str(row.get("print_type") or "").upper(),
-            "front_colors_count": int(row.get("front_colors_count") or 0),
-            "back_colors_count": int(row.get("back_colors_count") or 0),
+            "profile_kind": profile_kind,
+            "profile_label": profile_label or "Geometry pending",
+            "roll_form": roll_form or None,
+            "print_type": print_type,
+            "front_colors_count": front_colors,
+            "back_colors_count": back_colors,
+            "print_profile_label": (
+                f"{print_type or 'NO PRINT'} · F{front_colors} / B{back_colors}"
+                if print_type or front_colors or back_colors
+                else "No printing"
+            ),
             "partial_shortfall_kg": float(row.get("partial_shortfall_kg") or 0),
             "partial_replan_required": bool(row.get("partial_replan_required")),
+            "has_started_final_output": bool(row.get("has_started_final_output")),
+            "geometry_label": geometry_label,
+            "route_span_label": f"Step {int(row.get('required_start_step') or 0)} → {int(row.get('route_last_step_index') or 0)}",
+            "layer_count": len(layer_summary),
+            "layer_summary": layer_summary,
             "release_risk": "HIGH" if any(
                 str((blocker or {}).get("severity") or "").upper() == "HIGH"
                 for blocker in (row.get("blockers") or [])
@@ -1162,11 +1566,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 "description": "Resolve row-health or math issues before releasing.",
                 "tone": "critical",
             }
-        source = self._row_source_summary(row)
+        continuation = row.get("continuation") if isinstance(row.get("continuation"), dict) else self._row_continuation(row)
         return {
-            "key": str(source.get("recommended_option") or "FRESH"),
-            "label": str(source.get("recommended_label") or "Review source selection"),
-            "description": "Follow the recommended source path, then release when the checklist is green."
+            "key": str(continuation.get("recommended_mode") or "FRESH"),
+            "label": str(continuation.get("recommended_label") or "Review continuation path"),
+            "description": "Follow the recommended continuation path, then release when the checklist is green."
             if checklist.get("release_ready")
             else "Clear remaining checklist blockers, then release.",
             "tone": "info",
@@ -1178,32 +1582,173 @@ class PlannerViewSet(viewsets.ViewSet):
         row["summary"] = self._row_summary(row)
         row["workspace"] = self._row_workspace(row)
         row["source_summary"] = self._row_source_summary(row)
+        row["continuation"] = self._row_continuation(row)
         row["artwork_gate"] = self._row_artwork_gate(row)
         row["release_checklist"] = self._row_release_checklist(row)
         row["action_recommendation"] = self._row_action_recommendation(row)
         row["order_fact_sheet"] = self._row_order_fact_sheet(row)
         return row
 
+    def _inventory_source_bucket(self, option: dict, row: dict | None = None):
+        if not isinstance(option, dict):
+            return "UNKNOWN"
+        explicit_bucket = str(option.get("source_bucket") or "").upper()
+        if explicit_bucket:
+            return explicit_bucket
+        if bool(option.get("is_final_step")):
+            return "FINISHED_STOCK"
+        if str(option.get("signature_match_mode") or "").upper() == "STEP0_RAW":
+            return "COMPATIBLE_UPSTREAM_ROLL_STOCK"
+        completed_step_index = int(option.get("completed_step_index") or 0)
+        required_start_step = int((row or {}).get("required_start_step") or 0)
+        if completed_step_index <= 0:
+            return "COMPATIBLE_UPSTREAM_ROLL_STOCK"
+        if required_start_step > 0 and completed_step_index < required_start_step:
+            return "COMPATIBLE_UPSTREAM_ROLL_STOCK"
+        return "CARRY_FORWARD_WIP"
+
+    def _pod_source_availability(self, row: dict):
+        lines = row.get("material_plan_lines") if isinstance(row.get("material_plan_lines"), list) else []
+        pod_material_ids = []
+        for line in lines:
+            if not isinstance(line, dict):
+                continue
+            if str(line.get("category_code") or "").upper() != "POD":
+                continue
+            material_id = str(line.get("material_id") or "").strip()
+            if material_id:
+                pod_material_ids.append(material_id)
+        if not pod_material_ids:
+            return {
+                "pod_bulk_material_count": 0,
+                "pod_bulk_qty_kg": Decimal("0"),
+                "pod_inhouse_producible_count": 0,
+                "has_pod_bulk_stock": False,
+                "has_pod_inhouse_production": False,
+            }
+        pod_bulk_qty = (
+            InventoryBulk.objects.filter(material_id__in=pod_material_ids)
+            .aggregate(total=Sum("qty_kg"))
+            .get("total")
+            or Decimal("0")
+        )
+        pod_qs = InventoryMaterial.objects.filter(id__in=pod_material_ids, category="POD")
+        inhouse_count = pod_qs.filter(pod_is_inhouse_produced=True).count()
+        return {
+            "pod_bulk_material_count": len(set(pod_material_ids)),
+            "pod_bulk_qty_kg": Decimal(str(pod_bulk_qty or 0)),
+            "pod_inhouse_producible_count": int(inhouse_count),
+            "has_pod_bulk_stock": Decimal(str(pod_bulk_qty or 0)) > 0,
+            "has_pod_inhouse_production": inhouse_count > 0,
+        }
+
+    def _packaging_source_availability(self, row: dict):
+        packaging_snapshot = row.get("packaging_snapshot") if isinstance(row.get("packaging_snapshot"), dict) else {}
+        primary_cfg = packaging_snapshot.get("primary_inner_pack") if isinstance(packaging_snapshot.get("primary_inner_pack"), dict) else {}
+        roll_pack_cfg = packaging_snapshot.get("roll_dispatch_pack") if isinstance(packaging_snapshot.get("roll_dispatch_pack"), dict) else {}
+
+        material_ids = set()
+        primary_material_id = str(primary_cfg.get("material_id") or "").strip()
+        if primary_material_id:
+            material_ids.add(primary_material_id)
+        for line in roll_pack_cfg.get("lines") if isinstance(roll_pack_cfg.get("lines"), list) else []:
+            if not isinstance(line, dict):
+                continue
+            material_id = str(line.get("material_id") or "").strip()
+            if material_id:
+                material_ids.add(material_id)
+
+        if not material_ids:
+            return {
+                "packaging_stock_material_count": 0,
+                "packaging_stock_row_count": 0,
+                "packaging_inhouse_producible_count": 0,
+                "has_packaging_stock": False,
+                "has_packaging_inhouse_production": False,
+            }
+
+        stock_row_count = PackagingStock.objects.filter(material_id__in=list(material_ids), qty__gt=0).count()
+        material_qs = InventoryMaterial.objects.filter(id__in=list(material_ids), category="PACKAGING")
+        inhouse_count = material_qs.filter(packaging_supply_mode__in=["IN_HOUSE", "BOTH"]).count()
+        return {
+            "packaging_stock_material_count": len(material_ids),
+            "packaging_stock_row_count": int(stock_row_count),
+            "packaging_inhouse_producible_count": int(inhouse_count),
+            "has_packaging_stock": stock_row_count > 0,
+            "has_packaging_inhouse_production": inhouse_count > 0,
+        }
+
     def _source_availability(self, row: dict):
         inventory_options = row.get("inventory_options") if isinstance(row.get("inventory_options"), list) else []
-        required_start_step = int(row.get("required_start_step") or 0)
         fg_match_count = 0
-        wip_match_count = 0
+        carry_forward_wip_count = 0
+        shared_invariant_roll_count = 0
+        compatible_upstream_roll_match_count = 0
         for option in inventory_options:
             if not isinstance(option, dict):
                 continue
-            is_final = bool(option.get("is_final_step"))
-            completed = int(option.get("completed_step_index") or 0)
-            if is_final:
+            bucket = self._inventory_source_bucket(option, row=row)
+            if bucket == "FINISHED_STOCK":
                 fg_match_count += 1
-            if not is_final and completed >= required_start_step:
-                wip_match_count += 1
-        return {
+            elif bucket == "CARRY_FORWARD_WIP":
+                carry_forward_wip_count += 1
+            elif bucket == "SHARED_INVARIANT_ROLL_STOCK":
+                shared_invariant_roll_count += 1
+            elif bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK":
+                compatible_upstream_roll_match_count += 1
+        pod_source = self._pod_source_availability(row)
+        packaging_source = self._packaging_source_availability(row)
+        availability = {
             "fg_match_count": fg_match_count,
-            "wip_match_count": wip_match_count,
+            "wip_match_count": carry_forward_wip_count,
+            "carry_forward_wip_count": carry_forward_wip_count,
+            "shared_invariant_roll_count": shared_invariant_roll_count,
+            "compatible_upstream_roll_match_count": compatible_upstream_roll_match_count,
+            "fresh_raw_input_count": compatible_upstream_roll_match_count,
             "has_fg": fg_match_count > 0,
-            "has_wip": wip_match_count > 0,
+            "has_wip": carry_forward_wip_count > 0,
+            "has_carry_forward_wip": carry_forward_wip_count > 0,
+            "has_shared_invariant_roll_stock": shared_invariant_roll_count > 0,
+            "has_compatible_upstream_roll": compatible_upstream_roll_match_count > 0,
+            "has_fresh_raw_input": True,
         }
+        availability.update(
+            {
+                "pod_bulk_material_count": int(pod_source["pod_bulk_material_count"]),
+                "pod_bulk_qty_kg": float(pod_source["pod_bulk_qty_kg"]),
+                "pod_inhouse_producible_count": int(pod_source["pod_inhouse_producible_count"]),
+                "has_pod_bulk_stock": bool(pod_source["has_pod_bulk_stock"]),
+                "has_pod_inhouse_production": bool(pod_source["has_pod_inhouse_production"]),
+                "packaging_stock_material_count": int(packaging_source["packaging_stock_material_count"]),
+                "packaging_stock_row_count": int(packaging_source["packaging_stock_row_count"]),
+                "packaging_inhouse_producible_count": int(packaging_source["packaging_inhouse_producible_count"]),
+                "has_packaging_stock": bool(packaging_source["has_packaging_stock"]),
+                "has_packaging_inhouse_production": bool(packaging_source["has_packaging_inhouse_production"]),
+            }
+        )
+        return availability
+
+    def _layer_stack_summary(self, layer_snapshot):
+        layers = layer_snapshot if isinstance(layer_snapshot, list) else []
+        summary = []
+        for index, layer in enumerate(layers):
+            if not isinstance(layer, dict):
+                continue
+            material = (
+                str(layer.get("material_code") or "").strip()
+                or str(layer.get("material_name") or "").strip()
+                or str(layer.get("name") or "").strip()
+                or f"Layer {index + 1}"
+            )
+            grade = str(layer.get("grade_code") or layer.get("grade_name") or "").strip()
+            thickness = Decimal(str(layer.get("thickness_micron") or 0))
+            parts = [material]
+            if grade:
+                parts.append(grade)
+            if thickness > 0:
+                parts.append(f"{thickness.quantize(Decimal('0.01'))}μ")
+            summary.append(" · ".join(parts))
+        return summary
 
     def _apply_issue_policy_overrides_to_bom(self, bom_snapshot, issue_policy_overrides):
         payload = dict(bom_snapshot or {})
@@ -1270,6 +1815,8 @@ class PlannerViewSet(viewsets.ViewSet):
 
     def _eligible_inventory_for_order(
         self,
+        order_kind: str,
+        order_obj,
         template,
         order_signature: str,
         order_invariant_signature: str,
@@ -1326,6 +1873,9 @@ class PlannerViewSet(viewsets.ViewSet):
             signature_match_mode = None
             stock_strategy = "FINAL_STOCK" if is_final_step else "INTERMEDIATE_POOL"
 
+            same_lineage = self._is_same_order_lineage_roll(roll, order_kind, order_obj)
+            source_planner_class = self._planner_stock_class_for_roll(roll)
+
             if required_start_step == 0 and completed_step_index == 0:
                 # Stage-0 raw/purchasable rolls can be used as fresh input without historical signature.
                 matches_sig = True
@@ -1347,6 +1897,20 @@ class PlannerViewSet(viewsets.ViewSet):
             allocatable = physical - allocated
             if allocatable <= 0:
                 continue
+            source_bucket = "COMPATIBLE_UPSTREAM_ROLL_STOCK"
+            source_label = "Compatible upstream roll stock"
+            if is_final_step:
+                source_bucket = "FINISHED_STOCK"
+                source_label = "Finished stock"
+            elif same_lineage:
+                source_bucket = "CARRY_FORWARD_WIP"
+                source_label = "Carry-forward WIP"
+            elif source_planner_class == "SHARED_INVARIANT_ROLL" and completed_step_index == int(required_start_step or 0):
+                source_bucket = "SHARED_INVARIANT_ROLL_STOCK"
+                source_label = "Shared invariant roll stock"
+            elif source_planner_class == "EXTRUDED_BASE_ROLL" or str(signature_match_mode or "").upper() == "STEP0_RAW":
+                source_bucket = "COMPATIBLE_UPSTREAM_ROLL_STOCK"
+                source_label = "Compatible upstream roll stock"
             options.append(
                 {
                     "inventory_type": "ROLL",
@@ -1362,7 +1926,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     "allocatable_qty_kg": float(allocatable),
                     "is_final_step": is_final_step,
                     "stock_strategy": stock_strategy,
+                    "planner_stock_class": source_planner_class,
                     "signature_match_mode": signature_match_mode or ("FINAL_SPEC" if is_final_step else "SEMI_INVARIANT"),
+                    "source_bucket": source_bucket,
+                    "source_label": source_label,
+                    "same_order_lineage": bool(same_lineage),
                 }
             )
 
@@ -1402,7 +1970,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     "allocatable_qty_kg": float(allocatable),
                     "is_final_step": int(batch.completed_step_index or 0) == route_last_index,
                     "stock_strategy": "FINAL_STOCK",
+                    "planner_stock_class": self._planner_stock_class_for_batch(batch),
                     "signature_match_mode": "FINAL_SPEC",
+                    "source_bucket": "FINISHED_STOCK",
+                    "source_label": "Finished stock",
                 }
             )
         options.sort(
@@ -1501,6 +2072,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "fg_type": template.fg_type,
                     "final_product_type": str(template.fg_type or "").upper(),
                     "planned_output_type": str(template.fg_type or "").upper(),
+                    "planner_stock_class": None,
                     "required_qty_kg": float(row_required_qty_kg),
                     "required_qty_pcs": None if str(template.fg_type or "").upper() == "ROLL" else qty_pcs,
                     "qty_uom": qty_uom,
@@ -1512,6 +2084,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     "spec_signature": spec_signature,
                     "effective_dims": eff_dims,
                     "roll_invariants": roll_invariants,
+                    "layer_summary": self._layer_stack_summary(order_layer_snapshot),
+                    "packaging_snapshot": _jsonify(_normalize_packaging_snapshot(so_item.packaging_snapshot or {})) if so_item else {},
                     "created_at": order.created_at.isoformat() if order.created_at else None,
                     "artwork_assignment_required": bool(pending_print_items),
                     "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
@@ -1525,6 +2099,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "partial_shortfall_pct": float(partial_metrics["shortfall_pct"]),
                     "partial_produced_kg": float(partial_metrics["produced_kg"]),
                     "partial_target_kg": float(partial_metrics["target_kg"]),
+                    "has_started_final_output": bool(partial_metrics.get("has_started_final_output")),
                 }
                 if so_item:
                     material_plan_lines, material_plan_summary = self._material_plan_payload(so_item.bom_snapshot or {})
@@ -1540,6 +2115,8 @@ class PlannerViewSet(viewsets.ViewSet):
 
                 if needs_planning_queue:
                     options = self._eligible_inventory_for_order(
+                        order_kind="sales",
+                        order_obj=order,
                         template=template,
                         order_signature=sig,
                         order_invariant_signature=inv_sig,
@@ -1685,6 +2262,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "final_product_type": None if stock_purpose == "PACKAGING" else str(template.fg_type or "").upper(),
                     "planned_output_type": "PACKAGING_STOCK" if stock_purpose == "PACKAGING" else str(getattr(order, "output_type", "") or ""),
                     "stock_strategy": stock_strategy,
+                    "planner_stock_class": self._planner_stock_class_for_order(order, template),
                     "required_qty_kg": float(required_qty_kg),
                     "required_qty_pcs": required_qty_pcs if required_qty_pcs and required_qty_pcs > 0 else None,
                     "qty_uom": quantity_uom,
@@ -1696,6 +2274,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "spec_signature": getattr(order, "spec_signature", ""),
                     "effective_dims": eff_dims,
                     "roll_invariants": roll_invariants,
+                    "packaging_snapshot": _jsonify(_normalize_packaging_snapshot(getattr(order, "packaging_snapshot", {}) or {})),
                     "created_at": order.created_at.isoformat() if hasattr(order, 'created_at') and order.created_at else None,
                     "artwork_assignment_required": bool(order.artwork_assignment_required),
                     "assigned_artwork_id": str(getattr(order, "assigned_artwork_id", "") or ""),
@@ -1711,6 +2290,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     options = []
                     try:
                         options = self._eligible_inventory_for_order(
+                            order_kind="stock",
+                            order_obj=order,
                             template=template,
                             order_signature=sig,
                             order_invariant_signature=inv_sig,
@@ -1753,6 +2334,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         stock_purpose=getattr(order, "stock_purpose", "PRODUCT"),
                         stop_step_index=getattr(order, "stop_step_index", None),
                     ),
+                    "planner_stock_class": self._planner_stock_class_for_order(order, template) if template else None,
                     "required_qty_kg": 0.0,
                     "required_qty_pcs": None,
                     "qty_uom": str(getattr(order, "quantity_uom", "KG") or "KG").upper(),
@@ -2194,6 +2776,126 @@ class PlannerViewSet(viewsets.ViewSet):
                 status=status.HTTP_201_CREATED,
             )
 
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path=r"control-hub/sales-items/(?P<sales_order_item_id>[^/.]+)/resume-stock-route",
+    )
+    def resume_stock_route(self, request, sales_order_item_id=None):
+        try:
+            so_item = SalesOrderItem.objects.select_related("sales_order", "template", "template__routing_rule").get(id=sales_order_item_id)
+        except SalesOrderItem.DoesNotExist:
+            return Response({"error": "Sales order item not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        stock_order_id = request.data.get("stock_order_id")
+        if not stock_order_id:
+            return Response({"error": "stock_order_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            stock_order = PlannedStockOrder.objects.select_related("template", "template__routing_rule").get(id=stock_order_id)
+        except PlannedStockOrder.DoesNotExist:
+            return Response({"error": "Stock order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not so_item.template_id or not getattr(so_item.template, "routing_rule", None):
+            return Response({"error": "Sales order item has no routable template."}, status=status.HTTP_400_BAD_REQUEST)
+
+        route_last = self._route_last_index(so_item.template)
+        order_sig = self._order_signature(
+            spec_signature=getattr(so_item, "spec_signature", ""),
+            geometry_snapshot=so_item.geometry_snapshot or {},
+            layer_snapshot=so_item.layer_snapshot or [],
+            printing_snapshot=so_item.printing_snapshot or {},
+            addons_snapshot=so_item.addons_snapshot or [],
+            template=so_item.template,
+        )
+        order_inv_sig = self._order_invariant_signature(
+            invariant_signature=getattr(so_item, "invariant_signature", ""),
+            layer_snapshot=so_item.layer_snapshot or [],
+            printing_snapshot=so_item.printing_snapshot or {},
+        )
+        matches = self._matching_stock_orders_for_sales(
+            template=so_item.template,
+            order_signature=order_sig,
+            order_invariant_signature=order_inv_sig,
+            required_start_step=0,
+        )
+        exact_match = next(
+            (
+                row for row in matches
+                if str(row.get("order_id") or "") == str(stock_order.id)
+                and str(row.get("match_mode") or "").upper() == "EXACT_SPEC"
+            ),
+            None,
+        )
+        if not exact_match:
+            return Response(
+                {"error": "Stock order is not an eligible exact stopped-route continuation for this sales item."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        stop_step_index = int(exact_match.get("stop_step_index") or 0)
+        if stop_step_index >= route_last:
+            return Response(
+                {"error": "This stock order is already at the final route span. Use exact FG claim instead of route continuation."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if str(getattr(stock_order, "stock_purpose", "PRODUCT") or "PRODUCT").upper() != "PRODUCT":
+            return Response({"error": "Only product stock orders can resume into sales demand."}, status=status.HTTP_400_BAD_REQUEST)
+        if str(getattr(stock_order, "template_id", "") or "") != str(getattr(so_item, "template_id", "") or ""):
+            return Response({"error": "Stock order template does not match the sales item template."}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing_jobs = self._order_job_queryset("sales", so_item.sales_order).exclude(job_state="CANCELLED")
+        if existing_jobs.exists():
+            return Response({"error": "Sales order already has production jobs. Resume route can only seed a fresh remaining route."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                created_allocations, start_step_index = self._resume_allocations_for_sales_from_stock_route(
+                    sales_item=so_item,
+                    stock_order=stock_order,
+                    route_last=route_last,
+                    required_route_id=getattr(so_item.template, "routing_rule_id", None),
+                    order_invariant_signature=order_inv_sig,
+                    created_by=request.user if request.user.is_authenticated else None,
+                )
+                planner_note = (
+                    f"RESUME_STOCK_ROUTE source_stock_order={stock_order.order_number} "
+                    f"source_stock_order_id={stock_order.id} start_step={start_step_index}"
+                )
+                jobs_created = JobService.create_jobs_for_so_item(
+                    so_item,
+                    start_index=start_step_index,
+                    stop_index=route_last,
+                    planner_note_prefix=planner_note,
+                )
+                if not jobs_created:
+                    raise ValueError("Could not create remaining production jobs for the resumed route.")
+
+                so_item.sales_order.status = "PLANNED"
+                so_item.sales_order.save(update_fields=["status"])
+
+            return Response(
+                {
+                    "status": "planned",
+                    "order_kind": "sales",
+                    "order_status": so_item.sales_order.status,
+                    "sales_order_item_id": str(so_item.id),
+                    "sales_order_no": str(so_item.sales_order.order_number),
+                    "stock_order_id": str(stock_order.id),
+                    "stock_order_no": str(stock_order.order_number),
+                    "resume_mode": "EXACT_STOPPED_ROUTE",
+                    "start_step_index": start_step_index,
+                    "stop_step_index": stop_step_index,
+                    "allocations_created": len(created_allocations),
+                    "created_job_ids": [str(job.id) for job in jobs_created],
+                    "created_job_numbers": [str(job.job_number) for job in jobs_created],
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
     def _get_order_for_kind(self, order_kind: str, order_id: str):
         order_kind = str(order_kind or "").lower()
         if order_kind == "sales":
@@ -2211,6 +2913,232 @@ class PlannerViewSet(viewsets.ViewSet):
             route_last = self._route_last_index(template)
             return order_kind, order, template, route_last
         raise ValueError("order_kind must be sales or stock")
+
+    def _order_items_for_planner(self, order_kind: str, order_obj):
+        if order_kind == "sales":
+            return list(order_obj.items.select_related("template").all())
+        return [order_obj]
+
+    def _aggregate_material_plan_lines(self, order_kind: str, order_obj):
+        rows = []
+        for item in self._order_items_for_planner(order_kind, order_obj):
+            bom_snapshot = getattr(item, "bom_snapshot", {}) or {}
+            material_plan_lines, _summary = self._material_plan_payload(bom_snapshot)
+            rows.extend(material_plan_lines)
+        return rows
+
+    def _aggregate_packaging_requirements(self, order_kind: str, order_obj):
+        requirements = {}
+        warnings = []
+        for item in self._order_items_for_planner(order_kind, order_obj):
+            snapshot = _normalize_packaging_snapshot(getattr(item, "packaging_snapshot", {}) or {})
+            primary_cfg = snapshot.get("primary_inner_pack") if isinstance(snapshot.get("primary_inner_pack"), dict) else {}
+            roll_pack_cfg = snapshot.get("roll_dispatch_pack") if isinstance(snapshot.get("roll_dispatch_pack"), dict) else {}
+
+            material_id = str(primary_cfg.get("material_id") or "").strip()
+            pcs_per_pack = int(primary_cfg.get("pcs_per_pack") or 0)
+            if material_id and bool(primary_cfg.get("enabled")) and pcs_per_pack > 0:
+                qty_pcs = Decimal("0")
+                qty_uom = str(getattr(item, "qty_uom", "KG") or "KG").upper()
+                if qty_uom == "PCS":
+                    qty_pcs = Decimal(str(getattr(item, "qty_value", 0) or 0))
+                else:
+                    unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+                    total_weight_kg = Decimal(str(getattr(item, "total_weight_kg", 0) or 0))
+                    if unit_weight_g > 0 and total_weight_kg > 0:
+                        qty_pcs = (total_weight_kg * Decimal("1000")) / unit_weight_g
+                if qty_pcs > 0:
+                    packs_needed = int((qty_pcs + Decimal(str(pcs_per_pack)) - 1) // Decimal(str(pcs_per_pack)))
+                    key = (material_id, "PCS")
+                    requirements[key] = requirements.get(key, Decimal("0")) + Decimal(str(packs_needed))
+
+            for line in roll_pack_cfg.get("lines") if isinstance(roll_pack_cfg.get("lines"), list) else []:
+                if not isinstance(line, dict):
+                    continue
+                material_id = str(line.get("material_id") or "").strip()
+                qty = Decimal(str(line.get("qty") or 0))
+                uom = str(line.get("uom") or "PCS").upper()
+                basis = str(line.get("basis") or "PER_ROLL").upper()
+                if not material_id or qty <= 0:
+                    continue
+                if basis != "PER_ORDER":
+                    warnings.append(f"Packaging material {material_id} uses unsupported auto-planning basis {basis}.")
+                    continue
+                key = (material_id, uom)
+                requirements[key] = requirements.get(key, Decimal("0")) + qty
+        return requirements, warnings
+
+    def _create_pod_bulk_orders(self, *, order_kind: str, order_obj, created_by):
+        lines = self._aggregate_material_plan_lines(order_kind, order_obj)
+        created_orders = []
+        skipped = []
+        grouped = {}
+        for row in lines:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("category_code") or "").upper() != "POD":
+                continue
+            material_id = str(row.get("material_id") or "").strip()
+            if not material_id:
+                continue
+            grouped[material_id] = grouped.get(material_id, Decimal("0")) + Decimal(str(row.get("planned_issue_qty") or 0))
+
+        for material_id, required_qty in grouped.items():
+            try:
+                material = InventoryMaterial.objects.get(id=material_id, category="POD")
+            except InventoryMaterial.DoesNotExist:
+                skipped.append({"material_id": material_id, "reason": "POD material not found."})
+                continue
+            if not bool(getattr(material, "pod_is_inhouse_produced", False)):
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": "POD material is not enabled for in-house production."})
+                continue
+            available = Decimal(str(
+                InventoryBulk.objects.filter(material_id=material_id).aggregate(total=Sum("qty_kg")).get("total") or 0
+            ))
+            planned = Decimal(str(
+                PlannedBulkStockOrder.objects.filter(
+                    material_id=material_id,
+                    status__in=["DRAFT", "PLANNING_REQUIRED", "PLANNED", "RELEASED", "STOCK_READY"],
+                ).aggregate(total=Sum("target_qty_kg")).get("total") or 0
+            ))
+            shortage = required_qty - available - planned
+            if shortage <= 0:
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": "Existing POD stock and planned POD orders already cover the requirement."})
+                continue
+            profile_snapshot = {
+                "pod_type": getattr(material, "pod_type", ""),
+                "pod_fixed_height_mm": float(getattr(material, "pod_fixed_height_mm", 0) or 0),
+                "pod_thickness_micron": float(getattr(material, "pod_thickness_micron", 0) or 0),
+                "pod_panel_count": int(getattr(material, "pod_panel_count", 0) or 0),
+            }
+            order = PlannedBulkStockOrder.objects.create(
+                internal_name=f"{material.name} POD Stock",
+                material=material,
+                plant=getattr(order_obj, "plant", None),
+                target_qty_kg=shortage.quantize(Decimal("0.0001")),
+                pod_profile_snapshot=profile_snapshot,
+                planner_origin_meta={
+                    "origin_kind": order_kind,
+                    "origin_order_id": str(getattr(order_obj, "id", "")),
+                    "origin_order_number": str(getattr(order_obj, "order_number", "")),
+                },
+                status="PLANNING_REQUIRED",
+                created_by=created_by,
+            )
+            created_orders.append(order)
+        return created_orders, skipped
+
+    def _create_packaging_stock_orders(self, *, order_kind: str, order_obj, created_by):
+        from apps.inventory.services.packaging_service import PackagingService
+
+        requirements, warnings = self._aggregate_packaging_requirements(order_kind, order_obj)
+        created_orders = []
+        skipped = []
+        for (material_id, requested_uom), required_qty in requirements.items():
+            try:
+                material = InventoryMaterial.objects.select_related("production_template", "production_template__routing_rule").get(
+                    id=material_id,
+                    category="PACKAGING",
+                )
+            except InventoryMaterial.DoesNotExist:
+                skipped.append({"material_id": material_id, "reason": "Packaging material not found."})
+                continue
+            if str(getattr(material, "packaging_supply_mode", "") or "").upper() not in {"IN_HOUSE", "BOTH"}:
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": "Packaging material is not enabled for in-house production."})
+                continue
+            if not getattr(material, "production_template", None):
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": "Packaging material has no linked production template."})
+                continue
+            try:
+                required_base_qty, _conversion = PackagingService._resolve_base_qty(material, required_qty, input_uom=requested_uom)
+            except Exception as exc:
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": str(exc)})
+                continue
+            available = Decimal(str(
+                PackagingStock.objects.filter(material_id=material_id).aggregate(total=Sum("qty")).get("total") or 0
+            ))
+            planned = Decimal(str(
+                PlannedStockOrder.objects.filter(
+                    stock_purpose="PACKAGING",
+                    packaging_material_id=material_id,
+                    status__in=["DRAFT", "PLANNING_REQUIRED", "PLANNED", "RELEASED", "STOCK_READY"],
+                ).aggregate(total=Sum("target_qty")).get("total") or 0
+            ))
+            shortage = required_base_qty - available - planned
+            if shortage <= 0:
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": "Existing packaging stock and planned packaging orders already cover the requirement."})
+                continue
+
+            defaults = dict(getattr(material, "packaging_defaults_json", {}) or {})
+            geometry_snapshot = _jsonify(defaults.get("geometry") or {})
+            layer_snapshot = _jsonify(defaults.get("film_layers") or [])
+            printing_snapshot = _jsonify(defaults.get("printing") or {"enabled": False})
+            addons_snapshot = _jsonify(defaults.get("addons") or [])
+            packaging_snapshot = _jsonify(_normalize_packaging_snapshot(defaults.get("packaging_snapshot") or {}))
+            if not geometry_snapshot or not isinstance(layer_snapshot, list):
+                skipped.append({"material_id": material_id, "material_code": material.code, "reason": "packaging_defaults_json must include geometry and film_layers to auto-plan packaging stock."})
+                continue
+
+            template = material.production_template
+            route_last = self._route_last_index(template)
+            start_step_index = int(defaults.get("start_step_index", 0) or 0)
+            stop_step_index = int(defaults.get("stop_step_index", route_last) or route_last)
+            normalized_geometry = normalize_geometry_override({}, geometry_snapshot or {})
+            preview = SalesOrderService.preview_sales_item(
+                {
+                    "finished_good_type": str(geometry_snapshot.get("finished_good_type") or template.fg_type or "POUCH").upper(),
+                    "geometry": normalized_geometry,
+                    "film_layers": layer_snapshot,
+                    "printing": printing_snapshot,
+                    "chemicals": (printing_snapshot or {}).get("chemicals") or {},
+                    "addons": addons_snapshot,
+                    "roll_form": geometry_snapshot.get("roll_form"),
+                    "order_qty": float(shortage),
+                    "uom": str(material.base_uom or requested_uom).upper(),
+                }
+            )
+            spec_payload = build_spec_payload(
+                fg_type=str(geometry_snapshot.get("finished_good_type") or template.fg_type or "POUCH").upper(),
+                roll_form=geometry_snapshot.get("roll_form"),
+                geometry=normalized_geometry,
+                film_layers=layer_snapshot,
+                printing=printing_snapshot,
+                addons=addons_snapshot,
+            )
+            invariant_payload = build_invariant_payload(
+                film_layers=layer_snapshot,
+                printing=printing_snapshot,
+            )
+            order = PlannedStockOrder.objects.create(
+                internal_name=f"{material.name} Packaging Stock",
+                template=template,
+                plant=getattr(order_obj, "plant", None),
+                target_qty=shortage.quantize(Decimal("0.0001")),
+                quantity_uom=str(material.base_uom or requested_uom).upper(),
+                geometry_override=sanitize_geometry_override(normalized_geometry),
+                geometry_snapshot=normalized_geometry,
+                layer_snapshot=layer_snapshot,
+                printing_snapshot=printing_snapshot,
+                addons_snapshot=addons_snapshot,
+                packaging_snapshot=packaging_snapshot,
+                bom_snapshot=_jsonify(preview.get("bom") or {}),
+                spec_signature=build_spec_signature(spec_payload),
+                invariant_signature=build_invariant_signature(invariant_payload),
+                unit_weight_g=Decimal(str(preview.get("unit_weight_g") or 0)),
+                total_weight_kg=Decimal(str(preview.get("total_weight_kg") or 0)),
+                output_type="PACKAGING_STOCK",
+                stock_purpose="PACKAGING",
+                stock_strategy="PACKAGING_STOCK",
+                planner_stock_class="PACKAGING_STOCK",
+                packaging_material=material,
+                start_step_index=start_step_index,
+                stop_step_index=stop_step_index,
+                target_step_index=stop_step_index,
+                status="PLANNING_REQUIRED",
+                created_by=created_by,
+            )
+            created_orders.append(order)
+        return created_orders, skipped, warnings
 
     def _order_job_queryset(self, order_kind: str, order_obj):
         if order_kind == "sales":
@@ -2366,6 +3294,29 @@ class PlannerViewSet(viewsets.ViewSet):
             ]
         )
         return stock_order
+
+    def _validate_order_printing_for_release(self, order_kind: str, order_obj):
+        if order_kind == "sales":
+            for item in order_obj.items.all():
+                printing = item.printing_snapshot or {}
+                if bool(printing.get("enabled", False)):
+                    _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False)
+            return
+
+        printing = order_obj.printing_snapshot or {}
+        if not bool(printing.get("enabled", False)):
+            return
+
+        class _StockOrderItem:
+            template = None
+            layer_snapshot = None
+            printing_snapshot = None
+
+        validator_item = _StockOrderItem()
+        validator_item.template = order_obj.template
+        validator_item.layer_snapshot = order_obj.layer_snapshot or []
+        validator_item.printing_snapshot = printing
+        _validate_printing_snapshot_for_confirm(validator_item, allow_missing_artwork=False)
 
     def _create_inventory_allocations(
         self,
@@ -2561,13 +3512,79 @@ class PlannerViewSet(viewsets.ViewSet):
     )
     def control_hub_plan(self, request, order_kind=None, order_id=None):
         option = str(request.data.get("option") or "").upper()
-        if option not in {"FG", "WIP_CONTINUE", "FRESH"}:
-            return Response({"error": "option must be FG, WIP_CONTINUE, or FRESH"}, status=status.HTTP_400_BAD_REQUEST)
+        valid_options = {"FG", "WIP_CONTINUE", "SHARED_INVARIANT", "UPSTREAM_STOCK", "POD_BULK", "PACKAGING_STOCK", "FRESH"}
+        if option not in valid_options:
+            return Response({"error": "option must be FG, WIP_CONTINUE, SHARED_INVARIANT, UPSTREAM_STOCK, POD_BULK, PACKAGING_STOCK, or FRESH"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             order_kind, order_obj, template, route_last = self._get_order_for_kind(order_kind, order_id)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if option == "POD_BULK":
+            created_orders, skipped = self._create_pod_bulk_orders(
+                order_kind=order_kind,
+                order_obj=order_obj,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+            return Response(
+                {
+                    "status": "replenishment_created",
+                    "option": "POD_BULK",
+                    "created_count": len(created_orders),
+                    "created_orders": [
+                        {
+                            "order_id": str(order.id),
+                            "order_number": order.order_number,
+                            "bulk_class": order.bulk_class,
+                            "material_id": str(order.material_id),
+                            "material_code": str(order.material.code),
+                            "target_qty_kg": float(order.target_qty_kg),
+                        }
+                        for order in created_orders
+                    ],
+                    "skipped": skipped,
+                },
+                status=status.HTTP_201_CREATED if created_orders else status.HTTP_200_OK,
+            )
+
+        if option == "PACKAGING_STOCK" and not (
+            order_kind == "stock" and str(getattr(order_obj, "stock_purpose", "PRODUCT") or "PRODUCT").upper() == "PACKAGING"
+        ):
+            created_orders, skipped, warnings = self._create_packaging_stock_orders(
+                order_kind=order_kind,
+                order_obj=order_obj,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+            return Response(
+                {
+                    "status": "replenishment_created",
+                    "option": "PACKAGING_STOCK",
+                    "created_count": len(created_orders),
+                    "created_orders": [
+                        {
+                            "order_id": str(order.id),
+                            "order_number": order.order_number,
+                            "planner_stock_class": order.planner_stock_class,
+                            "packaging_material_id": str(order.packaging_material_id),
+                            "packaging_material_code": str(order.packaging_material.code),
+                            "target_qty": float(order.target_qty),
+                            "quantity_uom": order.quantity_uom,
+                        }
+                        for order in created_orders
+                    ],
+                    "skipped": skipped,
+                    "warnings": warnings,
+                },
+                status=status.HTTP_201_CREATED if created_orders else status.HTTP_200_OK,
+            )
+
+        if option == "PACKAGING_STOCK":
+            option_semantic = "FRESH"
+        elif option in {"UPSTREAM_STOCK", "SHARED_INVARIANT"}:
+            option_semantic = "WIP_CONTINUE"
+        else:
+            option_semantic = option
 
         if order_obj.status != "PLANNING_REQUIRED":
             return Response(
@@ -2582,7 +3599,7 @@ class PlannerViewSet(viewsets.ViewSet):
             partial_replan_required = bool(partial_metrics.get("requires_replan"))
             partial_remaining_kg = Decimal(str(partial_metrics.get("shortfall_kg") or 0))
 
-        if partial_replan_required and option == "FG":
+        if partial_replan_required and option_semantic == "FG":
             return Response(
                 {"error": "Order has >5% production shortfall. Use WIP_CONTINUE/FRESH for remaining run, or planner short-close."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -2590,16 +3607,16 @@ class PlannerViewSet(viewsets.ViewSet):
 
         existing_jobs = self._order_job_queryset(order_kind, order_obj).exclude(job_state="CANCELLED")
         active_existing_jobs = existing_jobs.exclude(job_state__in=["COMPLETED", "CANCELLED"])
-        if active_existing_jobs.exists() and option in {"WIP_CONTINUE", "FRESH"}:
+        if active_existing_jobs.exists() and option_semantic in {"WIP_CONTINUE", "FRESH"}:
             return Response({"error": "Production jobs already exist for this order."}, status=status.HTTP_400_BAD_REQUEST)
 
         start_step = request.data.get("start_step_index")
         stop_step = request.data.get("stop_step_index")
 
-        if option == "FG":
+        if option_semantic == "FG":
             start_step = route_last
             stop_step = route_last
-        elif option == "FRESH":
+        elif option_semantic == "FRESH":
             start_step = 0 if start_step is None else start_step
             stop_step = route_last if stop_step is None else stop_step
         else:  # WIP_CONTINUE
@@ -2624,14 +3641,14 @@ class PlannerViewSet(viewsets.ViewSet):
         try:
             with transaction.atomic():
                 created_allocations = []
-                if option in {"FG", "WIP_CONTINUE"}:
+                if option_semantic in {"FG", "WIP_CONTINUE"}:
                     created_allocations = self._create_inventory_allocations(
                         order_kind=order_kind,
                         order_obj=order_obj,
                         template=template,
                         route_last=route_last,
                         start_step=start_step,
-                        option=option,
+                        option=option_semantic,
                         allocation_rows=allocation_rows,
                         created_by=request.user if request.user.is_authenticated else None,
                     )
@@ -2642,7 +3659,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     )
 
                 jobs_created = []
-                if option in {"WIP_CONTINUE", "FRESH"}:
+                if option_semantic in {"WIP_CONTINUE", "FRESH"}:
                     if order_kind == "sales":
                         for item in order_obj.items.select_related("template", "template__routing_rule").all():
                             if not item.template or not item.template.routing_rule:
@@ -2873,6 +3890,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 {"error": "Artwork assignment is required before release for printing-enabled order."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        try:
+            self._validate_order_printing_for_release(order_kind, order_obj)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         if order_obj.status != "PLANNED":
             return Response(

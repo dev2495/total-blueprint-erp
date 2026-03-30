@@ -34,6 +34,7 @@ class PlantSerializer(serializers.ModelSerializer):
     work_center_count = serializers.IntegerField(source='work_centers.count', read_only=True)
     machine_count = serializers.SerializerMethodField()
     legal_profile = PlantLegalProfileSerializer(required=False)
+    default_cost_absorption_group_code = serializers.CharField(source='default_cost_absorption_group.code', read_only=True, allow_null=True)
 
     class Meta:
         model = Plant
@@ -41,6 +42,8 @@ class PlantSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'code',
+            'default_cost_absorption_group',
+            'default_cost_absorption_group_code',
             'include_in_official_reports',
             'location_count',
             'work_center_count',
@@ -104,11 +107,13 @@ class WorkCenterSerializer(serializers.ModelSerializer):
     )
     # WIP Location details can be helpful in the list
     wip_location_name = serializers.ReadOnlyField(source='default_wip_location.name')
+    default_cost_absorption_group_code = serializers.CharField(source='default_cost_absorption_group.code', read_only=True, allow_null=True)
 
     class Meta:
         model = WorkCenter
         fields = [
             'id', 'plant', 'name', 'code', 
+            'default_cost_absorption_group', 'default_cost_absorption_group_code',
             'default_wip_location', 'wip_location_name', 
             'process_codes', 'processes', 'process_ids_input'
         ]
@@ -136,10 +141,11 @@ class WorkCenterSerializer(serializers.ModelSerializer):
 
 class MachineSerializer(serializers.ModelSerializer):
     work_center_name = serializers.ReadOnlyField(source='work_center.name')
+    cost_absorption_group_code = serializers.CharField(source='cost_absorption_group.code', read_only=True, allow_null=True)
 
     class Meta:
         model = Machine
-        fields = ['id', 'work_center', 'work_center_name', 'name', 'code', 'status']
+        fields = ['id', 'work_center', 'work_center_name', 'name', 'code', 'status', 'cost_absorption_group', 'cost_absorption_group_code']
 
 
 class PlantShiftDefinitionSerializer(serializers.ModelSerializer):

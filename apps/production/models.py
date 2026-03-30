@@ -1,4 +1,7 @@
-from django.db import models
+from decimal import Decimal
+import re
+
+from django.db import IntegrityError, models
 from django.db.models import Q
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
@@ -8,6 +11,24 @@ from apps.sales.models import SalesOrderItem, SalesOrder
 from apps.routing.models import RoutingRule
 from apps.factory.models import Process, WorkCenter, Machine, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll
+
+
+def _next_year_scoped_sequence(model_cls, field_name: str, prefix: str, year: int) -> str:
+    base_prefix = f"{prefix}-{year}-"
+    values = model_cls.objects.filter(**{f"{field_name}__startswith": base_prefix}).values_list(field_name, flat=True)
+    max_suffix = 0
+    pattern = re.compile(rf"^{re.escape(base_prefix)}(\d+)$")
+    for value in values:
+        match = pattern.match(str(value or ""))
+        if not match:
+            continue
+        try:
+            suffix = int(match.group(1))
+        except (TypeError, ValueError):
+            continue
+        if suffix > max_suffix:
+            max_suffix = suffix
+    return f"{base_prefix}{max_suffix + 1:04d}"
 
 class ProductionJob(models.Model):
     ORIGIN_CHOICES = [
@@ -191,15 +212,26 @@ class PlannedOrder(models.Model):
     class Meta:
         db_table = 'production_planned_orders'
 
+    @classmethod
+    def _next_reference_code(cls, now=None) -> str:
+        from django.utils import timezone
+
+        current_time = now or timezone.now()
+        return _next_year_scoped_sequence(cls, "reference_code", "MTS", current_time.year)
+
     def save(self, *args, **kwargs):
         if not self.reference_code:
-            from django.utils import timezone
-            now = timezone.now()
-            year = now.year
-            # Simple serial for verification focus
-            count = PlannedOrder.objects.filter(created_at__year=year).count() + 1
-            self.reference_code = f"MTS-{year}-{count:04d}"
-        super().save(*args, **kwargs)
+            self.reference_code = self._next_reference_code()
+        for attempt in range(3):
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError as exc:
+                if self.pk or not self.reference_code or "reference_code" not in str(exc):
+                    raise
+                if attempt == 2:
+                    raise
+                self.reference_code = self._next_reference_code()
 
     def __str__(self):
         return f"{self.reference_code} | {self.template.name} ({self.status})"
@@ -224,6 +256,13 @@ class PlannedStockOrder(models.Model):
     STOCK_STRATEGY_CHOICES = [
         ('FINAL_STOCK', 'Final Stock'),
         ('INTERMEDIATE_POOL', 'Intermediate Pool'),
+        ('PACKAGING_STOCK', 'Packaging Stock'),
+    ]
+    PLANNER_STOCK_CLASS_CHOICES = [
+        ('FINAL_PRODUCT', 'Final Product'),
+        ('FINAL_PLAIN_ROLL', 'Final Plain Roll'),
+        ('EXTRUDED_BASE_ROLL', 'Extruded/Base Roll'),
+        ('SHARED_INVARIANT_ROLL', 'Shared Invariant Roll'),
         ('PACKAGING_STOCK', 'Packaging Stock'),
     ]
     QUANTITY_UOM_CHOICES = [
@@ -256,6 +295,12 @@ class PlannedStockOrder(models.Model):
     output_type = models.CharField(max_length=20, default='WIP_ROLL')
     stock_purpose = models.CharField(max_length=20, choices=STOCK_PURPOSE_CHOICES, default='PRODUCT')
     stock_strategy = models.CharField(max_length=30, choices=STOCK_STRATEGY_CHOICES, default='FINAL_STOCK')
+    planner_stock_class = models.CharField(
+        max_length=30,
+        choices=PLANNER_STOCK_CLASS_CHOICES,
+        blank=True,
+        default='',
+    )
     packaging_material = models.ForeignKey(
         'materials.InventoryMaterial',
         on_delete=models.PROTECT,
@@ -285,13 +330,28 @@ class PlannedStockOrder(models.Model):
         db_table = 'production_mts_orders'
         ordering = ['-created_at']
 
+    @classmethod
+    def _next_order_number(cls, now=None) -> str:
+        from django.utils import timezone
+
+        current_time = now or timezone.now()
+        return _next_year_scoped_sequence(cls, "order_number", "STK", current_time.year)
+
     def save(self, *args, **kwargs):
         if not self.order_number:
-            from django.utils import timezone
-            now = timezone.now()
-            count = PlannedStockOrder.objects.filter(created_at__year=now.year).count() + 1
-            self.order_number = f"STK-{now.year}-{count:04d}"
-        super().save(*args, **kwargs)
+            self.order_number = self._next_order_number()
+        if not self.planner_stock_class:
+            self.planner_stock_class = self.derive_planner_stock_class()
+        for attempt in range(3):
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError as exc:
+                if self.pk or not self.order_number or "order_number" not in str(exc):
+                    raise
+                if attempt == 2:
+                    raise
+                self.order_number = self._next_order_number()
 
     def __str__(self):
         return f"{self.order_number} | {self.internal_name or self.template.name}"
@@ -309,10 +369,107 @@ class PlannedStockOrder(models.Model):
                 raise ValidationError({'quantity_uom': f'quantity_uom must match packaging material base_uom ({material_uom}).'})
             if self.stock_strategy != 'PACKAGING_STOCK':
                 raise ValidationError({'stock_strategy': 'PACKAGING purpose orders must use stock_strategy=PACKAGING_STOCK.'})
+            if self.planner_stock_class and self.planner_stock_class != 'PACKAGING_STOCK':
+                raise ValidationError({'planner_stock_class': 'PACKAGING purpose orders must use planner_stock_class=PACKAGING_STOCK.'})
         elif self.packaging_material_id:
             raise ValidationError({'packaging_material': 'packaging_material must be null when stock_purpose is PRODUCT.'})
         elif self.stock_strategy == 'PACKAGING_STOCK':
             raise ValidationError({'stock_strategy': 'PACKAGING_STOCK is only valid when stock_purpose=PACKAGING.'})
+
+    def derive_planner_stock_class(self):
+        stock_purpose = str(self.stock_purpose or 'PRODUCT').upper()
+        if stock_purpose == 'PACKAGING':
+            return 'PACKAGING_STOCK'
+        template = getattr(self, 'template', None)
+        route_steps = (getattr(getattr(template, 'routing_rule', None), 'ordered_processes', None) or []) if template else []
+        route_last = max(0, len(route_steps) - 1)
+        stop_idx = self.stop_step_index if self.stop_step_index is not None else route_last
+        try:
+            stop_idx = int(stop_idx)
+        except Exception:
+            stop_idx = route_last
+        fg_type = str(getattr(template, 'fg_type', '') or '').upper()
+        if stop_idx < route_last:
+            if stop_idx <= 0:
+                return 'EXTRUDED_BASE_ROLL'
+            return 'SHARED_INVARIANT_ROLL'
+        if fg_type == 'ROLL':
+            return 'FINAL_PLAIN_ROLL'
+        return 'FINAL_PRODUCT'
+
+
+class PlannedBulkStockOrder(models.Model):
+    STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('PLANNING_REQUIRED', 'Planning Required'),
+        ('PLANNED', 'Planned'),
+        ('RELEASED', 'Released'),
+        ('STOCK_READY', 'Stock Ready'),
+        ('COMPLETED', 'Completed'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    BULK_CLASS_CHOICES = [
+        ('POD_BULK', 'POD Bulk'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order_number = models.CharField(max_length=50, unique=True, blank=True)
+    internal_name = models.CharField(max_length=255, blank=True, default='')
+    bulk_class = models.CharField(max_length=20, choices=BULK_CLASS_CHOICES, default='POD_BULK')
+    material = models.ForeignKey(
+        'materials.InventoryMaterial',
+        on_delete=models.PROTECT,
+        related_name='planned_bulk_stock_orders',
+    )
+    plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, null=True, blank=True)
+    target_qty_kg = models.DecimalField(max_digits=12, decimal_places=4)
+    produced_qty_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    pod_profile_snapshot = models.JSONField(default=dict, blank=True)
+    planner_origin_meta = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PLANNING_REQUIRED')
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planned_bulk_stock_orders',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'production_mts_bulk_orders'
+        ordering = ['-created_at']
+
+    @classmethod
+    def _next_order_number(cls, now=None) -> str:
+        from django.utils import timezone
+
+        current_time = now or timezone.now()
+        return _next_year_scoped_sequence(cls, "order_number", "PBK", current_time.year)
+
+    def save(self, *args, **kwargs):
+        if not self.order_number:
+            self.order_number = self._next_order_number()
+        for attempt in range(3):
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError as exc:
+                if self.pk or not self.order_number or "order_number" not in str(exc):
+                    raise
+                if attempt == 2:
+                    raise
+                self.order_number = self._next_order_number()
+
+    def clean(self):
+        if str(getattr(self.material, 'category', '') or '').upper() != 'POD':
+            raise ValidationError({'material': 'PlannedBulkStockOrder currently supports only POD materials.'})
+        if Decimal(str(self.target_qty_kg or 0)) <= 0:
+            raise ValidationError({'target_qty_kg': 'target_qty_kg must be > 0.'})
+
+    def __str__(self):
+        return f"{self.order_number} | {self.material.code} ({self.status})"
 
 class WorkCenterAssignment(models.Model):
     STATUS_CHOICES = [

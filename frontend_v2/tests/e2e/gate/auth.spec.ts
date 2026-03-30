@@ -1,5 +1,5 @@
 import { test, expect } from "../support/base"
-import { annotate, loginViaUi, logoutViaUi } from "../support/test-helpers"
+import { annotate, assertAuthenticatedShell, loginViaUi, logoutViaUi } from "../support/test-helpers"
 
 test.describe("Auth UI", () => {
   test.use({ storageState: { cookies: [], origins: [] } })
@@ -12,8 +12,9 @@ test.describe("Auth UI", () => {
     })
 
     await loginViaUi(page)
-    await expect(page.getByTestId("sidebar-nav")).toBeVisible()
+    await assertAuthenticatedShell(page, { requireRoleSwitcher: true })
     await logoutViaUi(page)
     await expect(page.getByTestId("login-form")).toBeVisible()
+    await expect(page.getByTestId("login-form")).toHaveAttribute("data-client-ready", "true")
   })
 })

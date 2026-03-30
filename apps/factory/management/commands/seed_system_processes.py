@@ -5,18 +5,17 @@ class Command(BaseCommand):
     help = 'Seeds mandatory system processes'
 
     def handle(self, *args, **options):
-        job_work, created = Process.objects.get_or_create(
+        job_work, created = Process.objects.update_or_create(
             code='JOB_WORK',
             defaults={
                 'name': 'Job Work',
-                'category': 'JOB_WORK',
-                'input_mode': 'QTY',
-                'output_mode': 'QTY',
-                'is_terminal': False,
-                'is_system': True
+                'description': 'External or vendor-managed processing step tracked as a system process.',
+                'input_form': 'ROLL',
+                'output_form': 'ROLL',
+                'roll_behavior': 'MODIFY_EXISTING',
             }
         )
         if created:
             self.stdout.write(self.style.SUCCESS('Created process: Job Work'))
         else:
-            self.stdout.write(self.style.WARNING('Process: Job Work already exists'))
+            self.stdout.write(self.style.WARNING('Updated process: Job Work'))

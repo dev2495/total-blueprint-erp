@@ -114,74 +114,84 @@ export function NotificationBell() {
                     )}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-96 p-0" align="end" data-testid="notification-bell-popover">
-                <div className="flex items-center justify-between border-b px-4 py-3">
-                    <h3 className="font-semibold text-slate-900">Notifications</h3>
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[420px] p-0 rounded-2xl border-slate-200 shadow-2xl" align="end" sideOffset={8} data-testid="notification-bell-popover">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
+                        {unreadCount > 0 && (
+                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">{unreadCount} unread</p>
+                        )}
+                    </div>
                     {unreadCount > 0 && (
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleMarkAllAsRead}
-                            className="text-xs text-blue-600 hover:text-blue-700"
+                            className="h-8 rounded-lg text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
                         >
-                            <CheckCheck className="mr-1 h-3 w-3" />
+                            <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
                             Mark all read
                         </Button>
                     )}
                 </div>
-                <ScrollArea className="h-[400px]">
+                <ScrollArea className="max-h-[420px]">
                     {loading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <span className="text-sm text-slate-500">Loading...</span>
+                        <div className="flex flex-col items-center justify-center py-12">
+                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" />
+                            <span className="text-xs text-slate-400 font-medium mt-3">Loading notifications...</span>
                         </div>
                     ) : notifications.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-                            <Bell className="mb-2 h-8 w-8 opacity-50" />
-                            <span className="text-sm">No notifications yet</span>
+                        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                            <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                                <Bell className="h-5 w-5 text-slate-300" />
+                            </div>
+                            <span className="text-sm font-medium">All caught up</span>
+                            <span className="text-[11px] mt-1">No notifications to show</span>
                         </div>
                     ) : (
-                        <div className="divide-y">
-                            {notifications.map((notification) => {
+                        <div>
+                            {notifications.map((notification, idx) => {
                                 const Icon = TYPE_ICONS[notification.type] || Bell
                                 return (
                                     <div
                                         key={notification.id}
                                         data-testid={`notification-item-${notification.id}`}
                                         className={cn(
-                                            "flex gap-3 px-4 py-3 transition-colors hover:bg-slate-50",
-                                            !notification.is_read && "bg-blue-50/50"
+                                            "flex gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/80 border-b border-slate-50 last:border-b-0",
+                                            !notification.is_read && "bg-indigo-50/30"
                                         )}
                                     >
                                         <div className={cn(
-                                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                                             PRIORITY_COLORS[notification.priority] || 'bg-slate-100'
                                         )}>
                                             <Icon className="h-4 w-4" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-2">
-                                                <p className="text-sm font-medium text-slate-900 truncate">
+                                                <p className="text-[13px] font-semibold text-slate-900 leading-snug break-words">
                                                     {notification.title}
                                                 </p>
                                                 {!notification.is_read && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-5 w-5 shrink-0"
+                                                        className="h-6 w-6 shrink-0 rounded-lg hover:bg-slate-200"
                                                         onClick={() => handleMarkAsRead(notification.id)}
                                                     >
-                                                        <X className="h-3 w-3" />
+                                                        <X className="h-3 w-3 text-slate-400" />
                                                     </Button>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-slate-600 line-clamp-2 mt-0.5">
+                                            <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2 mt-1">
                                                 {notification.message}
                                             </p>
-                                            <div className="flex items-center gap-2 mt-1.5">
-                                                <span className="text-[10px] text-slate-400">
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <span className="text-[10px] text-slate-400 font-medium">
                                                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                                                 </span>
-                                                <Badge variant="outline" className="h-4 text-[9px] px-1.5">
+                                                <span className="text-slate-200">·</span>
+                                                <Badge variant="outline" className="h-[18px] text-[9px] font-semibold px-1.5 rounded-md border-slate-200 text-slate-500">
                                                     {notification.type.replace(/_/g, ' ')}
                                                 </Badge>
                                             </div>

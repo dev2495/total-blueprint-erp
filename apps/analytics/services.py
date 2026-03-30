@@ -1,4 +1,6 @@
-from django.db import models
+import uuid
+
+from django.db import DatabaseError, models, transaction
 from django.db.models import Sum, Count, F, Avg, Q, ExpressionWrapper, DecimalField, DurationField, Case, When
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -6,7 +8,7 @@ from django.utils.dateparse import parse_date
 from datetime import timedelta
 from decimal import Decimal
 from collections import defaultdict
-from apps.sales.models import SalesOrder, Customer, SalesOrderItem
+from apps.sales.models import SalesOrder, Customer, SalesOrderItem, Quotation
 from apps.production.models import (
     ProductionJob, 
     JobMaterialRequirement,
@@ -17,6 +19,9 @@ from apps.production.models import (
     InkBlendTransaction,
     FinishedGoodsBatch,
     PackingUnit,
+    PlannedStockOrder,
+    PlannedBulkStockOrder,
+    InventoryAllocation,
     DeliveryChallan as ProductionDeliveryChallan,
     DeliveryChallanItem as ProductionDeliveryChallanItem,
 )
@@ -26,14 +31,208 @@ from apps.inventory.models import (
     DeliveryChallan as InterPlantDeliveryChallan,
     InventoryBulk,
     BulkTransaction,
+    PackagingTransaction,
     RollMovement,
 )
 from apps.mrp.models import MRPPlan, MRPSuggestion
+from apps.users.models import PermissionAuditLog
 from apps.analytics.decorators import safe_service
+from apps.analytics.models import ReportDispatchRun
 from apps.analytics.services_kpi import KPIService
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _actor_name(actor):
+    if not actor:
+        return None
+    try:
+        full_name = str(actor.get_full_name() or "").strip()
+        if full_name:
+            return full_name
+    except Exception:
+        pass
+    username = str(getattr(actor, "username", "") or "").strip()
+    return username or None
+
+
+def _event_row(
+    *,
+    timestamp,
+    entity_type,
+    event_type,
+    message,
+    actor=None,
+    entity_id=None,
+    reference=None,
+    delta_qty_kg=None,
+    meta=None,
+):
+    if not timestamp:
+        return None
+    return {
+        "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp),
+        "actor": _actor_name(actor) if actor is not None else None,
+        "entity_type": entity_type,
+        "entity_id": str(entity_id) if entity_id else None,
+        "event_type": event_type,
+        "message": message,
+        "reference": reference,
+        "delta_qty_kg": float(delta_qty_kg) if delta_qty_kg is not None else None,
+        "meta": meta or {},
+    }
+
+
+def _audit_log_type(action: str) -> str:
+    if action in {"USER_LOGIN", "USER_LOGOUT", "PASSWORD_CHANGED", "PROFILE_CHANGE_REQUESTED", "PROFILE_CHANGE_REVIEWED"}:
+        return "USERS"
+    return "SYSTEM"
+
+
+def _audit_log_description(action: str, details: dict | None = None) -> str:
+    details = details or {}
+    decision = str(details.get("decision") or "").upper()
+    status = str(details.get("status") or "").strip()
+    if action == "USER_LOGIN":
+        return "User login"
+    if action == "USER_LOGOUT":
+        return "User logout"
+    if action == "DENIED":
+        return "Permission denied"
+    if action == "ROLE_OVERRIDE":
+        return "Role override"
+    if action == "ROLE_CHANGED":
+        return "Role or user access updated"
+    if action == "SIGNOFF_UPDATED":
+        return "Governance signoff updated"
+    if action == "PASSWORD_CHANGED":
+        return "Password changed"
+    if action == "PROFILE_CHANGE_REQUESTED":
+        return "Profile change requested"
+    if action == "PROFILE_CHANGE_REVIEWED":
+        if decision == "APPROVE":
+            return "Profile change approved"
+        if decision == "REJECT":
+            return "Profile change rejected"
+        return "Profile change reviewed"
+    if status:
+        return status.replace("_", " ").title()
+    return action.replace("_", " ").title()
+
+
+def _audit_log_value(audit: PermissionAuditLog) -> str:
+    details = getattr(audit, "details", {}) or {}
+    action = str(getattr(audit, "action", "") or "").upper()
+    required_permission = str(getattr(audit, "required_permission", "") or "").strip()
+    if action == "DENIED":
+        return required_permission or str(details.get("reason") or "access blocked")
+    if action == "ROLE_OVERRIDE":
+        allowed = details.get("allowed")
+        override_role = details.get("override_role")
+        verdict = "allowed" if allowed else "blocked"
+        if override_role:
+            return f"{override_role} · {verdict}"
+        return verdict
+    if action == "ROLE_CHANGED":
+        return (
+            str(details.get("updated_user") or "").strip()
+            or str(details.get("created_role") or "").strip()
+            or str(details.get("updated_role") or "").strip()
+            or "governance update"
+        )
+    if action == "SIGNOFF_UPDATED":
+        return (
+            str(details.get("role_code") or "").strip()
+            or str(details.get("module_key") or "").strip()
+            or "signoff update"
+        )
+    if action in {"USER_LOGIN", "USER_LOGOUT", "PASSWORD_CHANGED"}:
+        return str(details.get("status") or "").strip() or action.replace("_", " ").lower()
+    if action == "PROFILE_CHANGE_REQUESTED":
+        fields = details.get("fields") or []
+        if isinstance(fields, (list, tuple)) and fields:
+            return ", ".join(str(field) for field in fields)
+        return "pending review"
+    if action == "PROFILE_CHANGE_REVIEWED":
+        return str(details.get("decision") or "").strip() or "review complete"
+    return str(details.get("status") or "").strip() or str(getattr(audit, "path", "") or "").strip()
+
+
+def _audit_log_reference(audit: PermissionAuditLog) -> str | None:
+    details = getattr(audit, "details", {}) or {}
+    for key in ("request_id", "updated_user", "created_role", "updated_role", "override_role", "module_key"):
+        value = str(details.get(key) or "").strip()
+        if value:
+            return value
+    return str(getattr(audit, "action", "") or "").strip() or None
+
+
+def _audit_log_effective_role(audit: PermissionAuditLog) -> str:
+    explicit = str(getattr(audit, "effective_role", "") or "").strip()
+    if explicit:
+        return explicit
+    return str(getattr(getattr(getattr(audit, "user", None), "role", None), "code", "") or "").upper()
+
+
+def _bulk_order_queryset(*, start_date=None, end_date=None):
+    queryset = PlannedBulkStockOrder.objects.all()
+    if start_date:
+        queryset = queryset.filter(created_at__date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(created_at__date__lte=end_date)
+    return queryset
+
+
+def _safe_bulk_order_metrics(*, start_date=None, end_date=None):
+    payload = {
+        "bulk_orders": 0,
+        "bulk_target_kg": 0.0,
+        "top_variants": [],
+    }
+    try:
+        with transaction.atomic():
+            queryset = _bulk_order_queryset(start_date=start_date, end_date=end_date)
+            payload["bulk_orders"] = queryset.count()
+            payload["bulk_target_kg"] = float(queryset.aggregate(total=Sum("target_qty_kg"))["total"] or 0)
+            pod_variant_rollup = defaultdict(lambda: {"orders": 0, "target_kg": 0.0})
+            for order in queryset.only("target_qty_kg", "planner_origin_meta", "pod_profile_snapshot"):
+                origin_meta = getattr(order, "planner_origin_meta", {}) or {}
+                pod_snapshot = getattr(order, "pod_profile_snapshot", {}) or {}
+                label = " · ".join(
+                    [
+                        part
+                        for part in [
+                            origin_meta.get("pod_sku_code"),
+                            pod_snapshot.get("pod_sku_variant_code") or origin_meta.get("pod_variant_code"),
+                        ]
+                        if part
+                    ]
+                ) or origin_meta.get("pod_sku_name") or "POD"
+                pod_variant_rollup[label]["orders"] += 1
+                pod_variant_rollup[label]["target_kg"] += float(order.target_qty_kg or 0)
+            payload["top_variants"] = [
+                {"label": label, "orders": row["orders"], "target_kg": round(row["target_kg"], 3)}
+                for label, row in sorted(pod_variant_rollup.items(), key=lambda item: item[1]["target_kg"], reverse=True)[:5]
+            ]
+    except Exception as exc:
+        logger.warning("Bulk-order analytics degraded: %s", exc, exc_info=True)
+    return payload
+
+
+def _safe_pod_catalog_counts():
+    payload = {
+        "active_pod_skus": 0,
+        "active_pod_variants": 0,
+    }
+    try:
+        from apps.materials.models import PodSku, PodSkuVariant
+
+        payload["active_pod_skus"] = PodSku.objects.filter(active=True).count()
+        payload["active_pod_variants"] = PodSkuVariant.objects.filter(active=True).count()
+    except Exception as exc:
+        logger.warning("POD catalog analytics degraded: %s", exc, exc_info=True)
+    return payload
 
 class AnalyticsService:
     @staticmethod
@@ -102,17 +301,28 @@ class AnalyticsService:
         # --- 3B. SKU Performance (Top Selling FG Items) ---
         sku_performance = SalesOrderItem.objects.filter(
             sales_order__created_at__date__gte=last_30_days,
-            template__isnull=False
-        ).values('template__name').annotate(
+        ).values(
+            'sku_variant__sku__code',
+            'sku_variant__code',
+            'sku_variant__name',
+            'template__name',
+        ).annotate(
             total_weight=Sum('total_weight_kg'),
-            order_count=Count('id')
+            order_count=Count('id'),
+            repeat_count=Count('id', filter=Q(mode='REPEAT')),
         ).order_by('-total_weight')[:8]
         sku_perf_list = []
         for sku in sku_performance:
+            sku_label = (
+                f"{sku['sku_variant__sku__code']} · {sku['sku_variant__code']}"
+                if sku.get('sku_variant__sku__code') and sku.get('sku_variant__code')
+                else (sku.get('sku_variant__name') or sku.get('template__name') or "Unmapped SKU")
+            )
             sku_perf_list.append({
-                "sku_name": sku['template__name'],
+                "sku_name": sku_label,
                 "weight_kg": float(sku['total_weight'] or 0),
-                "orders": sku['order_count']
+                "orders": sku['order_count'],
+                "repeat_orders": sku['repeat_count'],
             })
 
         # --- 4. Job Distribution ---
@@ -329,6 +539,46 @@ class AnalyticsService:
                 "message": f"Ink remix return ratio is {remix_ratio:.1f}%."
             })
 
+        available_rolls = InventoryRoll.objects.filter(status='AVAILABLE')
+        route_reuse_mix = {
+            "final_roll_kg": float(available_rolls.filter(created_by_job__mts_order__planner_stock_class='FINAL_PLAIN_ROLL').aggregate(total=Sum('weight_kg'))['total'] or 0),
+            "invariant_roll_kg": float(available_rolls.filter(created_by_job__mts_order__planner_stock_class='SHARED_INVARIANT_ROLL').aggregate(total=Sum('weight_kg'))['total'] or 0),
+            "upstream_roll_kg": float(available_rolls.filter(created_by_job__mts_order__planner_stock_class='EXTRUDED_BASE_ROLL').aggregate(total=Sum('weight_kg'))['total'] or 0),
+            "fg_batch_count": FinishedGoodsBatch.objects.filter(status__in=['AVAILABLE', 'RESERVED']).count(),
+        }
+
+        pod_kpis = {
+            **_safe_pod_catalog_counts(),
+            **_safe_bulk_order_metrics(start_date=start_date, end_date=today),
+        }
+
+        order_health = {
+            "dispatch_ready_count": SalesOrder.objects.filter(status='DISPATCH_READY').count(),
+            "overdue_count": SalesOrder.objects.filter(
+                delivery_date__lt=today
+            ).exclude(status__in=['COMPLETED', 'CANCELLED', 'SHORT_CLOSED']).count(),
+            "draft_count": SalesOrder.objects.filter(status='DRAFT').count(),
+            "planning_required_count": SalesOrder.objects.filter(status='PLANNING_REQUIRED').count(),
+            "confirmed_count": SalesOrder.objects.filter(status='CONFIRMED').count(),
+        }
+
+        top_execution_users = JobExecutionLog.objects.filter(
+            logged_at__date__gte=start_date,
+            logged_at__date__lte=today,
+            logged_by__isnull=False,
+        ).values('logged_by__username').annotate(
+            events=Count('id'),
+            output_kg=Sum('quantity'),
+        ).order_by('-output_kg')[:5]
+        top_planner_users = InventoryAllocation.objects.filter(
+            created_at__date__gte=start_date,
+            created_at__date__lte=today,
+            created_by__isnull=False,
+        ).values('created_by__username').annotate(
+            allocations=Count('id'),
+            allocated_kg=Sum('allocated_qty_kg'),
+        ).order_by('-allocated_kg')[:5]
+
         metrics = [
             {
                 "id": "revenue",
@@ -340,11 +590,27 @@ class AnalyticsService:
             },
             {
                 "id": "net_profit",
-                "label": "Net Profit",
+                "label": "Absorbed Margin",
                 "value": financial_summary['net_profit'],
                 "unit": "INR",
                 "trend": financial_summary['net_margin_pct'], 
                 "trend_label": "NM %"
+            },
+            {
+                "id": "actual_cost_coverage",
+                "label": "Actual Cost Coverage",
+                "value": float((financial_summary.get('coverage') or {}).get('avg_actual_cost_coverage_pct') or 0),
+                "unit": "%",
+                "sub_value": f"{(financial_summary.get('coverage') or {}).get('actual_count', 0)} actual / {(financial_summary.get('coverage') or {}).get('hybrid_count', 0)} hybrid",
+                "status": "normal" if float((financial_summary.get('coverage') or {}).get('avg_actual_cost_coverage_pct') or 0) >= 80 else "warning",
+            },
+            {
+                "id": "unabsorbed_pool",
+                "label": "Unabsorbed Pool",
+                "value": float((financial_summary.get('overheads') or {}).get('unabsorbed_pool_value') or 0),
+                "unit": "INR",
+                "sub_value": "Monthly pool still not absorbed into productive runtime",
+                "status": "warning" if float((financial_summary.get('overheads') or {}).get('unabsorbed_pool_value') or 0) > 0 else "normal",
             },
             {
                 "id": "production",
@@ -416,6 +682,27 @@ class AnalyticsService:
             },
             "shift_oee": shift_oee,
             "risk_signals": risk_signals,
+            "route_reuse_mix": route_reuse_mix,
+            "pod_kpis": pod_kpis,
+            "order_health": order_health,
+            "user_activity": {
+                "planner": [
+                    {
+                        "username": row['created_by__username'] or "Unknown",
+                        "allocations": row['allocations'],
+                        "allocated_kg": float(row['allocated_kg'] or 0),
+                    }
+                    for row in top_planner_users
+                ],
+                "execution": [
+                    {
+                        "username": row['logged_by__username'] or "Unknown",
+                        "events": row['events'],
+                        "output_kg": float(row['output_kg'] or 0),
+                    }
+                    for row in top_execution_users
+                ],
+            },
             "generated_at": timezone.now().isoformat()
         }
 
@@ -1003,6 +1290,35 @@ class AnalyticsService:
                 "created_at": job.created_at.isoformat() if job.created_at else None,
             })
 
+        source_mix = {
+            "final_roll_kg": float(InventoryRoll.objects.filter(status='AVAILABLE', created_by_job__mts_order__planner_stock_class='FINAL_PLAIN_ROLL').aggregate(total=Sum('weight_kg'))['total'] or 0),
+            "invariant_roll_kg": float(InventoryRoll.objects.filter(status='AVAILABLE', created_by_job__mts_order__planner_stock_class='SHARED_INVARIANT_ROLL').aggregate(total=Sum('weight_kg'))['total'] or 0),
+            "upstream_roll_kg": float(InventoryRoll.objects.filter(status='AVAILABLE', created_by_job__mts_order__planner_stock_class='EXTRUDED_BASE_ROLL').aggregate(total=Sum('weight_kg'))['total'] or 0),
+            "fg_batch_count": FinishedGoodsBatch.objects.filter(status__in=['AVAILABLE', 'RESERVED']).count(),
+        }
+        replenishment_mix = {
+            "packaging_open": PlannedStockOrder.objects.filter(planner_stock_class='PACKAGING_STOCK').exclude(status__in=['COMPLETED', 'CANCELLED']).count(),
+            "pod_bulk_open": 0,
+        }
+        try:
+            with transaction.atomic():
+                replenishment_mix["pod_bulk_open"] = PlannedBulkStockOrder.objects.exclude(status__in=['COMPLETED', 'CANCELLED']).count()
+        except Exception as exc:
+            logger.warning("Planner replenishment POD rollup degraded: %s", exc, exc_info=True)
+
+        from apps.costing.models import OrderCost
+        order_cost_scope = OrderCost.objects.filter(
+            sales_order_item__sales_order__status__in=['CONFIRMED', 'PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'DISPATCH_READY']
+        )
+        costing_summary = order_cost_scope.aggregate(
+            avg_coverage=Avg('actual_cost_coverage_pct'),
+            actual_count=Count('id', filter=Q(costing_mode='ACTUAL')),
+            hybrid_count=Count('id', filter=Q(costing_mode='HYBRID')),
+            estimated_count=Count('id', filter=Q(costing_mode='ESTIMATED')),
+            absorbed_margin=Sum('absorbed_margin'),
+            material_actual=Sum('material_cost_actual'),
+        )
+
         return {
             "queue_kpis": queue_kpis,
             "status_strip": {
@@ -1019,6 +1335,216 @@ class AnalyticsService:
             "production_trend": production_trend,
             "demand_pipeline": demand_pipeline,
             "alerts": alerts,
+            "recent_activity": recent_activity,
+            "source_mix": source_mix,
+            "replenishment_mix": replenishment_mix,
+            "costing_summary": {
+                "avg_actual_cost_coverage_pct": float(costing_summary['avg_coverage'] or 0),
+                "actual_count": costing_summary['actual_count'] or 0,
+                "hybrid_count": costing_summary['hybrid_count'] or 0,
+                "estimated_count": costing_summary['estimated_count'] or 0,
+                "absorbed_margin": float(costing_summary['absorbed_margin'] or 0),
+                "material_cost_actual": float(costing_summary['material_actual'] or 0),
+            },
+            "generated_at": timezone.now().isoformat(),
+        }
+
+    @staticmethod
+    @safe_service(default_value={
+        "hero": {},
+        "summary": {},
+        "machine_clusters": [],
+        "work_centers": [],
+        "needs_action": [],
+        "discipline": {},
+        "recent_activity": [],
+        "generated_at": None,
+    })
+    def get_wcm_dashboard_stats(work_center_ids=None):
+        today = timezone.now().date()
+        last_30_days = today - timedelta(days=30)
+        last_7_days = today - timedelta(days=7)
+
+        wc_qs = WorkCenter.objects.select_related("plant").all()
+        if work_center_ids:
+            wc_qs = wc_qs.filter(id__in=work_center_ids)
+        work_centers = list(wc_qs)
+        wc_ids = [wc.id for wc in work_centers]
+
+        machine_qs = Machine.objects.select_related("work_center", "assigned_operator")
+        if wc_ids:
+            machine_qs = machine_qs.filter(work_center_id__in=wc_ids)
+        machines = list(machine_qs)
+
+        job_qs = ProductionJob.objects.select_related("machine", "work_center", "template", "operator", "sales_order_item__sales_order")
+        if wc_ids:
+            job_qs = job_qs.filter(work_center_id__in=wc_ids)
+        active_jobs = list(job_qs.filter(job_state__in=["PLANNED", "RELEASED", "EXECUTING", "ON_HOLD"]).order_by("-updated_at")[:20])
+
+        production_scope = JobExecutionLog.objects.filter(logged_at__date__gte=last_7_days)
+        scrap_scope = ScrapLog.objects.filter(logged_at__date__gte=last_30_days)
+        downtime_scope = DowntimeLog.objects.filter(start_time__date__gte=last_30_days)
+        requirement_scope = JobMaterialRequirement.objects.filter(production_job__created_at__date__gte=last_30_days)
+        if wc_ids:
+            production_scope = production_scope.filter(production_job__work_center_id__in=wc_ids)
+            scrap_scope = scrap_scope.filter(production_job__work_center_id__in=wc_ids)
+            downtime_scope = downtime_scope.filter(production_job__work_center_id__in=wc_ids)
+            requirement_scope = requirement_scope.filter(production_job__work_center_id__in=wc_ids)
+
+        running_jobs = [job for job in active_jobs if str(job.job_state or "").upper() == "EXECUTING"]
+        blocked_jobs = [job for job in active_jobs if str(job.job_state or "").upper() == "ON_HOLD"]
+        ready_jobs = [job for job in active_jobs if str(job.job_state or "").upper() in {"PLANNED", "RELEASED"}]
+
+        running_machine_ids = {job.machine_id for job in running_jobs if job.machine_id}
+        ready_machine_ids = {job.machine_id for job in ready_jobs if job.machine_id}
+        blocked_machine_ids = {job.machine_id for job in blocked_jobs if job.machine_id}
+        no_operator_jobs = [job for job in active_jobs if not job.operator_id and job.job_state in {"PLANNED", "RELEASED", "EXECUTING"}]
+        no_machine_jobs = [job for job in active_jobs if not job.machine_id and job.job_state in {"PLANNED", "RELEASED"}]
+        idle_machine_count = sum(1 for machine in machines if machine.id not in running_machine_ids and machine.id not in blocked_machine_ids and str(machine.status or "").upper() == "ACTIVE")
+        down_machine_count = sum(1 for machine in machines if str(machine.status or "").upper() in {"DOWN", "MAINTENANCE"})
+        no_operator_machine_count = sum(1 for machine in machines if str(machine.status or "").upper() == "ACTIVE" and not machine.assigned_operator_id)
+
+        total_output_kg = float(production_scope.aggregate(total=Sum("quantity"))["total"] or 0)
+        total_scrap_kg = float(scrap_scope.aggregate(total=Sum("quantity"))["total"] or 0)
+        total_downtime_minutes = int(sum((log.duration_minutes or 0) for log in downtime_scope))
+        issue_totals = requirement_scope.aggregate(
+            theoretical=Sum("theoretical_qty"),
+            issued=Sum("actual_issued_qty"),
+            returned=Sum("actual_returned_qty"),
+            variance=Sum("variance_qty"),
+        )
+        theoretical = Decimal(str(issue_totals.get("theoretical") or 0))
+        issued = Decimal(str(issue_totals.get("issued") or 0))
+        returned = Decimal(str(issue_totals.get("returned") or 0))
+        variance = Decimal(str(issue_totals.get("variance") or 0))
+        ink_qs = InkBlendTransaction.objects.filter(
+            created_at__date__gte=last_30_days,
+            return_mode="REMIXED_RETURN",
+        )
+        if wc_ids:
+            ink_qs = ink_qs.filter(production_job__work_center_id__in=wc_ids)
+        ink_remix_kg = Decimal(str(ink_qs.aggregate(total=Sum("returned_qty_kg"))["total"] or 0))
+        scrap_rate_pct = round((total_scrap_kg / (total_output_kg + total_scrap_kg) * 100) if (total_output_kg + total_scrap_kg) > 0 else 0, 2)
+        variance_pct = round((float(variance) / float(theoretical) * 100) if theoretical > 0 else 0, 2)
+        remix_ratio_pct = round((float(ink_remix_kg) / float(returned) * 100) if returned > 0 else 0, 2)
+        from apps.costing.models import JobCost
+        cost_scope = JobCost.objects.filter(job__work_center_id__in=wc_ids) if wc_ids else JobCost.objects.all()
+        cost_summary = cost_scope.aggregate(
+            avg_coverage=Avg('actual_cost_coverage_pct'),
+            scrap_cost=Sum('material_cost_actual'),
+            hybrid_count=Count('id', filter=Q(costing_mode='HYBRID')),
+            unmapped_count=Count('id', filter=Q(coverage_flags__contains=['COST_GROUP_UNMAPPED'])),
+        )
+
+        recent_activity = []
+        for row in ReportingService.get_operational_logs("production", 8, start_date=last_7_days, end_date=today):
+            recent_activity.append({**row, "family": "PRODUCTION"})
+        for row in ReportingService.get_operational_logs("scrap", 8, start_date=last_7_days, end_date=today):
+            recent_activity.append({**row, "family": "SCRAP"})
+        recent_activity = sorted(recent_activity, key=lambda row: row.get("date", ""), reverse=True)[:12]
+
+        needs_action = []
+        for job in blocked_jobs[:6]:
+            needs_action.append({
+                "id": str(job.id),
+                "priority": "HIGH",
+                "title": f"{job.job_number} is blocked",
+                "subtitle": getattr(job, "hold_reason", "") or "Release blocker needs WCM action.",
+                "href": f"/production/jobs/{job.id}",
+                "action_label": "Open job timeline",
+            })
+        for job in no_machine_jobs[:4]:
+            needs_action.append({
+                "id": f"nomachine-{job.id}",
+                "priority": "MEDIUM",
+                "title": f"{job.job_number} needs a machine",
+                "subtitle": f"{getattr(job.template, 'name', 'Job')} is released without a machine assignment.",
+                "href": "/production/machine-selector",
+                "action_label": "Assign machine",
+            })
+        for job in no_operator_jobs[:4]:
+            needs_action.append({
+                "id": f"nooperator-{job.id}",
+                "priority": "MEDIUM",
+                "title": f"{job.job_number} needs an operator",
+                "subtitle": f"{getattr(job.machine, 'name', 'Machine')} is active but has no operator assigned.",
+                "href": "/production/work-center",
+                "action_label": "Open WCM terminal",
+            })
+
+        work_center_rows = []
+        wc_perf_rows = {str(row["work_center"]["id"]): row for row in ReportingService.get_wc_performance(work_center_ids=wc_ids)}
+        for wc in work_centers:
+            report = wc_perf_rows.get(str(wc.id), {})
+            wc_kpis = report.get("kpis", {})
+            pending_jobs = sum(1 for job in active_jobs if job.work_center_id == wc.id and job.job_state in {"PLANNED", "RELEASED"})
+            work_center_rows.append({
+                "id": str(wc.id),
+                "name": wc.name,
+                "plant": getattr(wc.plant, "name", ""),
+                "machine_count": sum(1 for machine in machines if machine.work_center_id == wc.id),
+                "running_machines": sum(1 for machine in machines if machine.work_center_id == wc.id and machine.id in running_machine_ids),
+                "blocked_jobs": sum(1 for job in blocked_jobs if job.work_center_id == wc.id),
+                "pending_jobs": pending_jobs,
+                "oee_avg": float(wc_kpis.get("oee_avg") or 0),
+                "output_kg": float(wc_kpis.get("total_output_kg") or 0),
+                "scrap_kg": float(wc_kpis.get("total_scrap_kg") or 0),
+            })
+
+        shift_rows = (
+            production_scope.values("shift_code")
+            .annotate(output_kg=Sum("quantity"))
+            .order_by("-output_kg")
+        )
+        top_shift = shift_rows[0] if shift_rows else None
+        hero = {
+            "current_shift": str((top_shift or {}).get("shift_code") or "UNASSIGNED").upper(),
+            "active_work_centers": len(work_centers),
+            "blocked_jobs": len(blocked_jobs),
+            "scrap_alerts": 1 if scrap_rate_pct > 4 else 0,
+            "ink_alerts": 1 if remix_ratio_pct > 20 or abs(variance_pct) > 10 else 0,
+            "active_jobs": len(running_jobs),
+        }
+
+        return {
+            "hero": hero,
+            "summary": {
+                "executing_jobs": len(running_jobs),
+                "ready_jobs": len(ready_jobs),
+                "blocked_jobs": len(blocked_jobs),
+                "machines_running": len(running_machine_ids),
+                "machines_ready": len(ready_machine_ids),
+                "machines_down": down_machine_count,
+                "machines_without_operator": no_operator_machine_count,
+                "machines_idle": idle_machine_count,
+                "jobs_without_machine": len(no_machine_jobs),
+                "jobs_without_operator": len(no_operator_jobs),
+            },
+            "machine_clusters": [
+                {"key": "running", "label": "Running", "count": len(running_machine_ids), "hint": "Machines executing live jobs"},
+                {"key": "ready", "label": "Ready", "count": len(ready_machine_ids), "hint": "Machines holding released work"},
+                {"key": "blocked", "label": "Blocked", "count": len(blocked_machine_ids), "hint": "Machines attached to on-hold jobs"},
+                {"key": "idle", "label": "Idle", "count": idle_machine_count, "hint": "Active machines with no live execution"},
+                {"key": "no_operator", "label": "No operator", "count": no_operator_machine_count, "hint": "Machines missing an assigned operator"},
+                {"key": "no_machine", "label": "No machine", "count": len(no_machine_jobs), "hint": "Released jobs not yet assigned"},
+            ],
+            "work_centers": work_center_rows,
+            "needs_action": needs_action[:8],
+            "discipline": {
+                "shift_output_kg": round(float((top_shift or {}).get("output_kg") or 0), 3),
+                "scrap_mtd_kg": round(total_scrap_kg, 3),
+                "scrap_cost_inr": round(float(cost_summary.get('scrap_cost') or 0), 2),
+                "scrap_rate_pct": scrap_rate_pct,
+                "ink_remix_ratio_pct": remix_ratio_pct,
+                "variance_pct": variance_pct,
+                "downtime_minutes": total_downtime_minutes,
+                "runtime_coverage_pct": round(float(cost_summary.get('avg_coverage') or 0), 2),
+            },
+            "costing": {
+                "avg_actual_cost_coverage_pct": round(float(cost_summary.get('avg_coverage') or 0), 2),
+                "hybrid_jobs": cost_summary.get('hybrid_count') or 0,
+                "unmapped_jobs": cost_summary.get('unmapped_count') or 0,
+            },
             "recent_activity": recent_activity,
             "generated_at": timezone.now().isoformat(),
         }
@@ -1985,6 +2511,883 @@ class AnalyticsService:
         }
 
     @staticmethod
+    def _trace_matches(query: str, *, pk_value=None, ref_value=None):
+        normalized = str(query or "").strip()
+        if not normalized:
+            return False
+        if pk_value and str(pk_value) == normalized:
+            return True
+        if ref_value and str(ref_value).strip().upper() == normalized.upper():
+            return True
+        return False
+
+    @staticmethod
+    def _sort_trace_events(events):
+        def _key(row):
+            value = row.get("timestamp") if isinstance(row, dict) else None
+            try:
+                return str(value or "")
+            except Exception:
+                return ""
+
+        return sorted([row for row in events if row], key=_key, reverse=True)
+
+    @staticmethod
+    def _build_related_links(entries):
+        payload = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            ref = str(entry.get("reference") or "").strip()
+            if not ref:
+                continue
+            payload.append(
+                {
+                    "type": str(entry.get("type") or "").upper(),
+                    "reference": ref,
+                    "label": str(entry.get("label") or ref),
+                    "href": entry.get("href"),
+                }
+            )
+        return payload
+
+    @staticmethod
+    def _build_sales_order_trace_payload(order_id):
+        tracking = AnalyticsService.get_order_tracking(order_id)
+        if tracking.get("error"):
+            return tracking
+        order_header = tracking.get("order_header") or {}
+        entity_id = order_header.get("order_id")
+        order_number = order_header.get("order_number") or tracking.get("order_number")
+        order = SalesOrder.objects.filter(id=entity_id).select_related("customer").first() if entity_id else None
+        related = []
+        if order is not None:
+            for quote in order.source_quotations.all()[:5]:
+                related.append(
+                    {
+                        "type": "QUOTATION",
+                        "reference": quote.quote_number,
+                        "label": f"Quotation {quote.quote_number}",
+                        "href": f"/sales/quotations?quote={quote.quote_number}",
+                    }
+                )
+        return {
+            "query": str(order_id),
+            "matched_by": "sales_order",
+            "entity": {
+                "type": "SALES_ORDER",
+                "id": entity_id,
+                "reference": order_number,
+                "title": order_number,
+                "subtitle": tracking.get("customer"),
+                "status": tracking.get("status"),
+                "created_at": order_header.get("created_at"),
+            },
+            "summary": {
+                "customer_name": tracking.get("customer"),
+                "delivery_date": tracking.get("delivery_date"),
+                "ordered_kg": (order_header.get("totals") or {}).get("ordered_kg_sales"),
+                "ordered_pcs": (order_header.get("totals") or {}).get("ordered_pcs"),
+                "line_count": (order_header.get("totals") or {}).get("line_count"),
+                "progress": tracking.get("progress") or {},
+                "kpi_snapshot": tracking.get("kpi_snapshot") or {},
+            },
+            "timeline": AnalyticsService._sort_trace_events(tracking.get("audit_timeline") or []),
+            "related": AnalyticsService._build_related_links(
+                related
+                + [
+                    {
+                        "type": "JOB",
+                        "reference": job.get("job_number"),
+                        "label": f"Job {job.get('job_number')}",
+                        "href": None,
+                    }
+                    for job in tracking.get("job_steps") or []
+                    if job.get("job_number")
+                ][:25]
+            ),
+            "specialized": {
+                "kind": "SALES_ORDER",
+                "tracking": tracking,
+            },
+        }
+
+    @staticmethod
+    def _build_quotation_trace_payload(quotation: Quotation, query: str):
+        events = [
+            _event_row(
+                timestamp=quotation.created_at,
+                actor=None,
+                entity_type="QUOTATION",
+                entity_id=quotation.id,
+                event_type="CREATED",
+                message=f"Quotation {quotation.quote_number} created for {quotation.customer_name}.",
+                reference=quotation.quote_number,
+            )
+        ]
+        if quotation.updated_at and quotation.updated_at != quotation.created_at:
+            events.append(
+                _event_row(
+                    timestamp=quotation.updated_at,
+                    actor=None,
+                    entity_type="QUOTATION",
+                    entity_id=quotation.id,
+                    event_type="UPDATED",
+                    message="Quotation details were updated.",
+                    reference=quotation.quote_number,
+                )
+            )
+        related = []
+        if quotation.converted_sales_order_id and quotation.converted_sales_order:
+            events.append(
+                _event_row(
+                    timestamp=quotation.updated_at or quotation.created_at,
+                    actor=None,
+                    entity_type="QUOTATION",
+                    entity_id=quotation.id,
+                    event_type="CONVERTED",
+                    message=f"Converted into sales order {quotation.converted_sales_order.order_number}.",
+                    reference=quotation.converted_sales_order.order_number,
+                )
+            )
+            related.append(
+                {
+                    "type": "SALES_ORDER",
+                    "reference": quotation.converted_sales_order.order_number,
+                    "label": f"Sales order {quotation.converted_sales_order.order_number}",
+                    "href": f"/sales/orders/{quotation.converted_sales_order.id}",
+                }
+            )
+        return {
+            "query": query,
+            "matched_by": "quotation",
+            "entity": {
+                "type": "QUOTATION",
+                "id": str(quotation.id),
+                "reference": quotation.quote_number,
+                "title": quotation.quote_number,
+                "subtitle": quotation.customer_name,
+                "status": quotation.status,
+                "created_at": quotation.created_at.isoformat() if quotation.created_at else None,
+            },
+            "summary": {
+                "customer_name": quotation.customer_name,
+                "valid_until": quotation.valid_until.isoformat() if quotation.valid_until else None,
+                "currency": quotation.currency,
+                "line_count": quotation.items.count(),
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(related),
+            "specialized": {
+                "kind": "QUOTATION",
+            },
+        }
+
+    @staticmethod
+    def _build_stock_order_trace_payload(order: PlannedStockOrder, query: str):
+        jobs = list(
+            ProductionJob.objects.filter(mts_order=order)
+            .select_related("machine", "current_process", "work_center", "operator", "closed_by")
+            .order_by("created_at")
+        )
+        job_ids = [job.id for job in jobs]
+        allocations = list(
+            InventoryAllocation.objects.filter(mts_order=order)
+            .select_related("inventory_roll", "fg_batch", "created_by")
+            .order_by("created_at")
+        )
+        execution_logs = list(JobExecutionLog.objects.filter(production_job_id__in=job_ids).select_related("logged_by", "production_job").order_by("logged_at")) if job_ids else []
+        scrap_logs = list(ScrapLog.objects.filter(production_job_id__in=job_ids).select_related("logged_by", "production_job").order_by("logged_at")) if job_ids else []
+        rolls = list(
+            InventoryRoll.objects.filter(Q(created_by_job__mts_order=order) | Q(production_job__mts_order=order))
+            .select_related("created_by_job", "location")
+            .order_by("-created_at")
+            .distinct()
+        )
+        batches = list(
+            FinishedGoodsBatch.objects.filter(production_job__mts_order=order)
+            .select_related("production_job", "location")
+            .order_by("-created_at")
+        )
+        packaging_tx = list(
+            PackagingTransaction.objects.filter(mts_order=order)
+            .select_related("material", "location", "job")
+            .order_by("-created_at")
+        )
+        interplant = list(
+            InterPlantDeliveryChallan.objects.filter(Q(source_job__mts_order=order) | Q(target_job__mts_order=order))
+            .select_related("from_plant", "to_plant", "source_job", "target_job")
+            .order_by("-created_at")
+            .distinct()
+        )
+
+        events = [
+            _event_row(
+                timestamp=order.created_at,
+                actor=order.created_by,
+                entity_type="STOCK_ORDER",
+                entity_id=order.id,
+                event_type="CREATED",
+                message=f"Stock order {order.order_number} created as {order.planner_stock_class or order.stock_strategy}.",
+                reference=order.order_number,
+                delta_qty_kg=order.total_weight_kg or order.target_qty,
+                meta={
+                    "stock_strategy": order.stock_strategy,
+                    "planner_stock_class": order.planner_stock_class,
+                    "start_step_index": order.start_step_index,
+                    "stop_step_index": order.stop_step_index,
+                },
+            )
+        ]
+        for allocation in allocations:
+            inventory_ref = allocation.inventory_roll.label_id if allocation.inventory_roll_id else allocation.fg_batch.batch_number
+            events.append(
+                _event_row(
+                    timestamp=allocation.created_at,
+                    actor=allocation.created_by,
+                    entity_type="ALLOCATION",
+                    entity_id=allocation.id,
+                    event_type="ALLOCATED",
+                    message=f"Allocated {inventory_ref} to stock order {order.order_number}.",
+                    reference=inventory_ref,
+                    delta_qty_kg=allocation.allocated_qty_kg,
+                    meta={"status": allocation.status},
+                )
+            )
+        for job in jobs:
+            events.append(
+                _event_row(
+                    timestamp=job.created_at,
+                    actor=None,
+                    entity_type="PRODUCTION_JOB",
+                    entity_id=job.id,
+                    event_type="JOB_CREATED",
+                    message=f"Planner created job {job.job_number}.",
+                    reference=job.job_number,
+                    delta_qty_kg=job.quantity,
+                    meta={"job_state": job.job_state, "process": getattr(job.current_process, "name", None)},
+                )
+            )
+            if job.closed_at:
+                events.append(
+                    _event_row(
+                        timestamp=job.closed_at,
+                        actor=job.closed_by,
+                        entity_type="PRODUCTION_JOB",
+                        entity_id=job.id,
+                        event_type="JOB_CLOSED",
+                        message=f"Job {job.job_number} closed.",
+                        reference=job.job_number,
+                        delta_qty_kg=job.produced_qty,
+                    )
+                )
+        for log in execution_logs:
+            events.append(
+                _event_row(
+                    timestamp=log.logged_at,
+                    actor=log.logged_by,
+                    entity_type="PRODUCTION_JOB",
+                    entity_id=log.production_job_id,
+                    event_type="OUTPUT_LOGGED",
+                    message=f"{log.production_job.job_number} logged production output.",
+                    reference=log.production_job.job_number,
+                    delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None,
+                )
+            )
+        for log in scrap_logs:
+            events.append(
+                _event_row(
+                    timestamp=log.logged_at,
+                    actor=log.logged_by,
+                    entity_type="PRODUCTION_JOB",
+                    entity_id=log.production_job_id,
+                    event_type="SCRAP_LOGGED",
+                    message=f"{log.production_job.job_number} logged scrap ({log.reason}).",
+                    reference=log.production_job.job_number,
+                    delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None,
+                )
+            )
+        for roll in rolls:
+            events.append(
+                _event_row(
+                    timestamp=roll.created_at,
+                    actor=None,
+                    entity_type="ROLL",
+                    entity_id=roll.id,
+                    event_type="ROLL_CREATED",
+                    message=f"Roll {roll.label_id} created for {order.order_number}.",
+                    reference=roll.label_id,
+                    delta_qty_kg=roll.weight_kg,
+                    meta={"status": roll.status, "location": getattr(roll.location, "name", None)},
+                )
+            )
+        for batch in batches:
+            events.append(
+                _event_row(
+                    timestamp=batch.created_at,
+                    actor=None,
+                    entity_type="FG_BATCH",
+                    entity_id=batch.id,
+                    event_type="FG_BATCH_CREATED",
+                    message=f"Finished batch {batch.batch_number} created.",
+                    reference=batch.batch_number,
+                    delta_qty_kg=batch.qty_kg,
+                )
+            )
+        for tx in packaging_tx:
+            events.append(
+                _event_row(
+                    timestamp=tx.created_at,
+                    actor=None,
+                    entity_type="PACKAGING",
+                    entity_id=tx.id,
+                    event_type=tx.type,
+                    message=f"Packaging transaction {tx.type} for {tx.material.code}.",
+                    reference=tx.reference or tx.material.code,
+                    meta={"qty": float(tx.qty), "uom": getattr(tx.material, "base_uom", None)},
+                )
+            )
+        for challan in interplant:
+            events.append(
+                _event_row(
+                    timestamp=challan.created_at,
+                    actor=None,
+                    entity_type="INTER_PLANT_CHALLAN",
+                    entity_id=challan.id,
+                    event_type="INTER_PLANT",
+                    message=f"Inter-plant challan {challan.dc_no or challan.id} linked to stock order flow.",
+                    reference=challan.dc_no or str(challan.id),
+                )
+            )
+
+        related = []
+        for job in jobs[:10]:
+            related.append({"type": "JOB", "reference": job.job_number, "label": f"Job {job.job_number}", "href": f"/production/jobs/{job.id}"})
+        for roll in rolls[:10]:
+            related.append({"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/roll-explorer"})
+        for batch in batches[:10]:
+            related.append({"type": "FG_BATCH", "reference": batch.batch_number, "label": f"FG batch {batch.batch_number}", "href": "/inventory/roll-explorer"})
+
+        return {
+            "query": query,
+            "matched_by": "stock_order",
+            "entity": {
+                "type": "STOCK_ORDER",
+                "id": str(order.id),
+                "reference": order.order_number,
+                "title": order.order_number,
+                "subtitle": order.internal_name or order.template.name,
+                "status": order.status,
+                "created_at": order.created_at.isoformat() if order.created_at else None,
+            },
+            "summary": {
+                "template_name": order.template.name if order.template else None,
+                "plant_name": order.plant.name if order.plant else None,
+                "target_qty": float(order.target_qty or 0),
+                "quantity_uom": order.quantity_uom,
+                "produced_qty": float(order.produced_qty or 0),
+                "total_weight_kg": float(order.total_weight_kg or 0),
+                "stock_strategy": order.stock_strategy,
+                "planner_stock_class": order.planner_stock_class,
+                "output_type": order.output_type,
+                "route_span": {
+                    "start_step_index": order.start_step_index,
+                    "stop_step_index": order.stop_step_index,
+                },
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(related),
+            "specialized": {
+                "kind": "STOCK_ORDER",
+            },
+        }
+
+    @staticmethod
+    def _build_bulk_order_trace_payload(order: PlannedBulkStockOrder, query: str):
+        bulk_tx = list(
+            BulkTransaction.objects.filter(material=order.material, created_at__gte=order.created_at)
+            .select_related("job", "location")
+            .order_by("-created_at")[:25]
+        )
+        events = [
+            _event_row(
+                timestamp=order.created_at,
+                actor=order.created_by,
+                entity_type="POD_BULK",
+                entity_id=order.id,
+                event_type="CREATED",
+                message=f"POD bulk order {order.order_number} created for {order.material.code}.",
+                reference=order.order_number,
+                delta_qty_kg=order.target_qty_kg,
+            )
+        ]
+        for tx in bulk_tx:
+            events.append(
+                _event_row(
+                    timestamp=tx.created_at,
+                    actor=None,
+                    entity_type="BULK_TRANSACTION",
+                    entity_id=tx.id,
+                    event_type=tx.type,
+                    message=f"Bulk transaction {tx.type} for {tx.material.code}.",
+                    reference=tx.reference or tx.material.code,
+                    delta_qty_kg=tx.qty_kg,
+                    meta={"pooled_material": True, "job_number": getattr(tx.job, "job_number", None)},
+                )
+            )
+        return {
+            "query": query,
+            "matched_by": "pod_bulk",
+            "entity": {
+                "type": "POD_BULK",
+                "id": str(order.id),
+                "reference": order.order_number,
+                "title": order.order_number,
+                "subtitle": order.internal_name or order.material.name,
+                "status": order.status,
+                "created_at": order.created_at.isoformat() if order.created_at else None,
+            },
+            "summary": {
+                "material_code": order.material.code,
+                "material_name": order.material.name,
+                "plant_name": order.plant.name if order.plant else None,
+                "target_qty_kg": float(order.target_qty_kg or 0),
+                "produced_qty_kg": float(order.produced_qty_kg or 0),
+                "pooling_note": "Bulk material consumption is pooled by material/location. Downstream usage is shown as pooled transactions after this order was created.",
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(
+                [
+                    {
+                        "type": "JOB",
+                        "reference": tx.job.job_number,
+                        "label": f"Job {tx.job.job_number}",
+                        "href": f"/production/jobs/{tx.job.id}",
+                    }
+                    for tx in bulk_tx
+                    if getattr(tx, "job", None) and getattr(tx.job, "job_number", None)
+                ]
+            ),
+            "specialized": {
+                "kind": "POD_BULK",
+            },
+        }
+
+    @staticmethod
+    def _build_job_trace_payload(job: ProductionJob, query: str):
+        execution_logs = list(job.execution_logs.select_related("logged_by").order_by("logged_at"))
+        scrap_logs = list(job.scrap_logs.select_related("logged_by").order_by("logged_at"))
+        consumption_logs = list(job.consumption_logs.select_related("material", "roll").order_by("logged_at"))
+        ink_transactions = list(
+            job.ink_blend_transactions.select_related("created_by", "process_step", "source_material", "target_material").order_by("created_at")
+        )
+        output_rolls = list(
+            InventoryRoll.objects.filter(Q(created_by_job=job) | Q(production_job=job))
+            .select_related("location")
+            .order_by("-created_at")
+            .distinct()
+        )
+        fg_batches = list(FinishedGoodsBatch.objects.filter(production_job=job).order_by("-created_at"))
+        events = [
+            _event_row(
+                timestamp=job.created_at,
+                actor=None,
+                entity_type="PRODUCTION_JOB",
+                entity_id=job.id,
+                event_type="CREATED",
+                message=f"Job {job.job_number} created.",
+                reference=job.job_number,
+                delta_qty_kg=job.quantity,
+            )
+        ]
+        for log in execution_logs:
+            events.append(_event_row(timestamp=log.logged_at, actor=log.logged_by, entity_type="PRODUCTION_JOB", entity_id=job.id, event_type="OUTPUT_LOGGED", message="Output logged.", reference=job.job_number, delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None))
+        for log in scrap_logs:
+            events.append(_event_row(timestamp=log.logged_at, actor=log.logged_by, entity_type="PRODUCTION_JOB", entity_id=job.id, event_type="SCRAP_LOGGED", message=f"Scrap logged ({log.reason}).", reference=job.job_number, delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None))
+        for log in consumption_logs:
+            events.append(_event_row(timestamp=log.logged_at, actor=None, entity_type="MATERIAL_CONSUMPTION", entity_id=log.id, event_type="CONSUMED", message=f"Consumed {log.material.code}.", reference=(log.roll.label_id if log.roll else log.material.code), delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None))
+        for tx in ink_transactions:
+            target_code = getattr(getattr(tx, "target_material", None), "code", None)
+            mode = str(getattr(tx, "return_mode", "") or "EXACT_COLOR_RETURN").upper()
+            message = (
+                f"Ink returned to {tx.source_material.code}."
+                if mode == "EXACT_COLOR_RETURN" or not target_code
+                else f"Ink remixed from {tx.source_material.code} to {target_code}."
+            )
+            events.append(
+                _event_row(
+                    timestamp=tx.created_at,
+                    actor=tx.created_by,
+                    entity_type="INK_BLEND",
+                    entity_id=tx.id,
+                    event_type=mode,
+                    message=message,
+                    reference=target_code or tx.source_material.code,
+                    delta_qty_kg=tx.returned_qty_kg,
+                    meta={
+                        "process_step": getattr(getattr(tx, "process_step", None), "sequence_number", None),
+                        "source_material_code": getattr(getattr(tx, "source_material", None), "code", None),
+                        "target_material_code": target_code,
+                    },
+                )
+            )
+        for roll in output_rolls:
+            events.append(_event_row(timestamp=roll.created_at, actor=None, entity_type="ROLL", entity_id=roll.id, event_type="ROLL_CREATED", message=f"Created roll {roll.label_id}.", reference=roll.label_id, delta_qty_kg=roll.weight_kg))
+        for batch in fg_batches:
+            events.append(_event_row(timestamp=batch.created_at, actor=None, entity_type="FG_BATCH", entity_id=batch.id, event_type="FG_BATCH_CREATED", message=f"Created FG batch {batch.batch_number}.", reference=batch.batch_number, delta_qty_kg=batch.qty_kg))
+        if job.closed_at:
+            events.append(_event_row(timestamp=job.closed_at, actor=job.closed_by, entity_type="PRODUCTION_JOB", entity_id=job.id, event_type="JOB_CLOSED", message="Job closed.", reference=job.job_number, delta_qty_kg=job.produced_qty))
+        order_ref = None
+        if job.sales_order_item_id and getattr(job.sales_order_item, "sales_order_id", None):
+            order_ref = job.sales_order_item.sales_order.order_number
+        elif job.mts_order_id:
+            order_ref = job.mts_order.order_number
+        return {
+            "query": query,
+            "matched_by": "production_job",
+            "entity": {
+                "type": "PRODUCTION_JOB",
+                "id": str(job.id),
+                "reference": job.job_number,
+                "title": job.job_number,
+                "subtitle": getattr(job.template, "name", None) or "Production job",
+                "status": job.job_state,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+            },
+            "summary": {
+                "source_order": order_ref,
+                "quantity_kg": float(job.quantity or 0),
+                "produced_qty": float(job.produced_qty or 0),
+                "process": getattr(job.current_process, "name", None),
+                "machine": getattr(job.machine, "name", None),
+                "work_center": getattr(job.work_center, "name", None),
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(
+                ([{"type": "SALES_ORDER", "reference": order_ref, "label": f"Order {order_ref}", "href": f"/sales/orders/{job.sales_order_item.sales_order.id}"}] if order_ref and job.sales_order_item_id and getattr(job.sales_order_item, "sales_order_id", None) else [])
+                + [{"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/roll-explorer"} for roll in output_rolls[:10]]
+            ),
+            "specialized": {
+                "kind": "PRODUCTION_JOB",
+            },
+        }
+
+    @staticmethod
+    def _build_roll_trace_payload(roll: InventoryRoll, query: str, matched_by: str):
+        from apps.inventory.services.inventory_audit_service import InventoryAuditService
+
+        genealogy = InventoryAuditService.get_roll_genealogy(str(roll.id))
+        recent_movements = list(
+            RollMovement.objects.filter(roll=roll).select_related("from_location", "to_location", "moved_by", "job").order_by("-timestamp")[:20]
+        )
+        events = []
+        timeline_rows = genealogy.get("timeline") if isinstance(genealogy, dict) else []
+        for row in timeline_rows if isinstance(timeline_rows, list) else []:
+            timestamp = row.get("timestamp")
+            events.append(
+                {
+                    "timestamp": timestamp,
+                    "actor": None,
+                    "entity_type": "ROLL",
+                    "entity_id": str(roll.id),
+                    "event_type": row.get("type"),
+                    "message": f"{row.get('type', 'TRACE').title()} event for roll {roll.label_id}.",
+                    "reference": roll.label_id,
+                    "delta_qty_kg": row.get("consumed_kg"),
+                    "meta": row,
+                }
+            )
+        for movement in recent_movements:
+            events.append(
+                _event_row(
+                    timestamp=movement.timestamp,
+                    actor=movement.moved_by,
+                    entity_type="ROLL_MOVEMENT",
+                    entity_id=movement.id,
+                    event_type=movement.reason,
+                    message=f"Roll moved from {movement.from_location.name if movement.from_location else 'NEW'} to {movement.to_location.name}.",
+                    reference=roll.label_id,
+                    delta_qty_kg=roll.weight_kg,
+                )
+            )
+        related = []
+        if roll.sales_order_item_id and getattr(roll.sales_order_item, "sales_order_id", None):
+            order = roll.sales_order_item.sales_order
+            related.append({"type": "SALES_ORDER", "reference": order.order_number, "label": f"Sales order {order.order_number}", "href": f"/sales/orders/{order.id}"})
+        origin_stock = getattr(getattr(roll, "created_by_job", None), "mts_order", None) or getattr(getattr(roll, "production_job", None), "mts_order", None)
+        if origin_stock is not None:
+            related.append({"type": "STOCK_ORDER", "reference": origin_stock.order_number, "label": f"Stock order {origin_stock.order_number}", "href": f"/production/planner/stock-orders/{origin_stock.id}"})
+        return {
+            "query": query,
+            "matched_by": matched_by,
+            "entity": {
+                "type": "ROLL",
+                "id": str(roll.id),
+                "reference": roll.label_id,
+                "title": roll.label_id,
+                "subtitle": getattr(roll.material, "name", None),
+                "status": roll.status,
+                "created_at": roll.created_at.isoformat() if roll.created_at else None,
+            },
+            "summary": {
+                "material_code": getattr(roll.material, "code", None),
+                "weight_kg": float(roll.weight_kg or 0),
+                "original_weight_kg": float(roll.original_weight_kg or 0),
+                "width_mm": float(roll.width_mm or 0),
+                "thickness_micron": float(roll.thickness_micron or 0),
+                "location_name": getattr(getattr(roll, "location", None), "name", None),
+                "plant_name": getattr(getattr(getattr(roll, "location", None), "plant", None), "name", None),
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(related),
+            "specialized": {
+                "kind": "ROLL",
+                "roll_trace": {
+                    "query": query,
+                    "matched_by": matched_by,
+                    "roll": {
+                        "id": str(roll.id),
+                        "label_id": roll.label_id,
+                        "material_name": roll.material.name if roll.material else None,
+                        "material_code": roll.material.code if roll.material else None,
+                        "grade_name": roll.grade.name if roll.grade else None,
+                        "weight_kg": float(roll.weight_kg or 0),
+                        "original_weight_kg": float(roll.original_weight_kg or 0),
+                        "width_mm": float(roll.width_mm or 0),
+                        "thickness_micron": float(roll.thickness_micron or 0),
+                        "status": roll.status,
+                        "stage_name": None,
+                        "roll_role": None,
+                        "location_name": roll.location.name if roll.location else None,
+                        "plant_name": roll.location.plant.name if roll.location and roll.location.plant else None,
+                        "job_number": getattr(getattr(roll, "created_by_job", None), "job_number", None) or getattr(getattr(roll, "production_job", None), "job_number", None),
+                        "created_at": roll.created_at.isoformat() if roll.created_at else None,
+                    },
+                    "genealogy": genealogy,
+                    "recent_movements": [
+                        {
+                            "timestamp": movement.timestamp.isoformat() if movement.timestamp else None,
+                            "from_location_name": movement.from_location.name if movement.from_location else None,
+                            "to_location_name": movement.to_location.name if movement.to_location else None,
+                            "reason": movement.reason,
+                            "reason_note": movement.reason_note,
+                        }
+                        for movement in recent_movements
+                    ],
+                },
+            },
+        }
+
+    @staticmethod
+    def _build_dispatch_trace_payload(challan: ProductionDeliveryChallan, query: str):
+        items = list(challan.items.select_related("roll", "packing_unit", "fg_batch", "sales_order_item").all())
+        events = [
+            _event_row(
+                timestamp=challan.created_at,
+                actor=challan.created_by,
+                entity_type="DELIVERY_CHALLAN",
+                entity_id=challan.id,
+                event_type="CREATED",
+                message=f"Dispatch challan {challan.dc_no} created.",
+                reference=challan.dc_no,
+            )
+        ]
+        if challan.dispatch_date:
+            events.append(_event_row(timestamp=challan.dispatch_date, actor=None, entity_type="DELIVERY_CHALLAN", entity_id=challan.id, event_type="DISPATCHED", message="Challan dispatched.", reference=challan.dc_no))
+        if challan.received_date:
+            events.append(_event_row(timestamp=challan.received_date, actor=None, entity_type="DELIVERY_CHALLAN", entity_id=challan.id, event_type="DELIVERED", message="Challan delivered.", reference=challan.dc_no))
+        related = []
+        if challan.sales_order_id:
+            related.append({"type": "SALES_ORDER", "reference": challan.sales_order.order_number, "label": f"Sales order {challan.sales_order.order_number}", "href": f"/sales/orders/{challan.sales_order.id}"})
+        for item in items[:20]:
+            if item.roll_id and item.roll:
+                related.append({"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/roll-explorer"})
+            elif item.packing_unit_id and item.packing_unit:
+                related.append({"type": "PACKING_UNIT", "reference": item.packing_unit.label_id, "label": f"Packing unit {item.packing_unit.label_id}", "href": None})
+            elif item.fg_batch_id and item.fg_batch:
+                related.append({"type": "FG_BATCH", "reference": item.fg_batch.batch_number, "label": f"FG batch {item.fg_batch.batch_number}", "href": "/inventory/roll-explorer"})
+        return {
+            "query": query,
+            "matched_by": "dispatch_challan",
+            "entity": {
+                "type": "DELIVERY_CHALLAN",
+                "id": str(challan.id),
+                "reference": challan.dc_no,
+                "title": challan.dc_no,
+                "subtitle": challan.customer_name,
+                "status": challan.status,
+                "created_at": challan.created_at.isoformat() if challan.created_at else None,
+            },
+            "summary": {
+                "customer_name": challan.customer_name,
+                "sales_order": challan.sales_order.order_number if challan.sales_order_id else None,
+                "plant_name": challan.plant.name if challan.plant else None,
+                "vehicle_no": challan.vehicle_no,
+                "item_count": len(items),
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(related),
+            "specialized": {"kind": "DELIVERY_CHALLAN"},
+        }
+
+    @staticmethod
+    def _build_interplant_trace_payload(challan: InterPlantDeliveryChallan, query: str):
+        items = list(challan.items.select_related("roll", "material").all())
+        events = [
+            _event_row(timestamp=challan.created_at, actor=None, entity_type="INTER_PLANT_CHALLAN", entity_id=challan.id, event_type="CREATED", message=f"Inter-plant challan {challan.dc_no or challan.id} created.", reference=challan.dc_no or str(challan.id))
+        ]
+        if challan.dispatched_at:
+            events.append(_event_row(timestamp=challan.dispatched_at, actor=None, entity_type="INTER_PLANT_CHALLAN", entity_id=challan.id, event_type="DISPATCHED", message="Inter-plant challan dispatched.", reference=challan.dc_no or str(challan.id)))
+        if challan.received_at:
+            events.append(_event_row(timestamp=challan.received_at, actor=None, entity_type="INTER_PLANT_CHALLAN", entity_id=challan.id, event_type="RECEIVED", message="Inter-plant challan received.", reference=challan.dc_no or str(challan.id)))
+        return {
+            "query": query,
+            "matched_by": "interplant_challan",
+            "entity": {
+                "type": "INTER_PLANT_CHALLAN",
+                "id": str(challan.id),
+                "reference": challan.dc_no or str(challan.id),
+                "title": challan.dc_no or str(challan.id),
+                "subtitle": f"{challan.from_plant.name} → {challan.to_plant.name}",
+                "status": challan.status,
+                "created_at": challan.created_at.isoformat() if challan.created_at else None,
+            },
+            "summary": {
+                "from_plant": challan.from_plant.name if challan.from_plant else None,
+                "to_plant": challan.to_plant.name if challan.to_plant else None,
+                "item_count": len(items),
+            },
+            "timeline": AnalyticsService._sort_trace_events(events),
+            "related": AnalyticsService._build_related_links(
+                [
+                    {"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/roll-explorer"}
+                    for item in items[:20]
+                    if item.roll_id and item.roll
+                ]
+            ),
+            "specialized": {"kind": "INTER_PLANT_CHALLAN"},
+        }
+
+    @staticmethod
+    @safe_service(default_value={"error": "Trace target not found"})
+    def get_trace_lookup(query):
+        normalized = str(query or "").strip()
+        if not normalized:
+            return {"error": "q query param is required"}
+
+        parsed_uuid = None
+        try:
+            parsed_uuid = uuid.UUID(normalized)
+        except Exception:
+            parsed_uuid = None
+
+        sales_order = None
+        if parsed_uuid is not None:
+            sales_order = SalesOrder.objects.filter(id=parsed_uuid).first()
+        if sales_order is None and normalized.upper().startswith("SO"):
+            sales_order = SalesOrder.objects.filter(order_number__iexact=normalized).first()
+        if sales_order is not None:
+            return AnalyticsService._build_sales_order_trace_payload(str(sales_order.id))
+
+        quotation = None
+        if parsed_uuid is not None:
+            quotation = Quotation.objects.select_related("converted_sales_order").filter(id=parsed_uuid).first()
+        if quotation is None and normalized.upper().startswith("QT"):
+            quotation = Quotation.objects.select_related("converted_sales_order").filter(quote_number__iexact=normalized).first()
+        if quotation is not None:
+            return AnalyticsService._build_quotation_trace_payload(quotation, normalized)
+
+        stock_order = None
+        if parsed_uuid is not None:
+            stock_order = PlannedStockOrder.objects.select_related("template", "plant", "created_by").filter(id=parsed_uuid).first()
+        if stock_order is None and normalized.upper().startswith("STK-"):
+            stock_order = PlannedStockOrder.objects.select_related("template", "plant", "created_by").filter(order_number__iexact=normalized).first()
+        if stock_order is not None:
+            return AnalyticsService._build_stock_order_trace_payload(stock_order, normalized)
+
+        bulk_order = None
+        if parsed_uuid is not None:
+            bulk_order = PlannedBulkStockOrder.objects.select_related("material", "plant", "created_by").filter(id=parsed_uuid).first()
+        if bulk_order is None and normalized.upper().startswith("PBK-"):
+            bulk_order = PlannedBulkStockOrder.objects.select_related("material", "plant", "created_by").filter(order_number__iexact=normalized).first()
+        if bulk_order is not None:
+            return AnalyticsService._build_bulk_order_trace_payload(bulk_order, normalized)
+
+        job = None
+        if parsed_uuid is not None:
+            job = ProductionJob.objects.select_related("template", "current_process", "machine", "work_center", "sales_order_item__sales_order", "mts_order").filter(id=parsed_uuid).first()
+        if job is None:
+            job = ProductionJob.objects.select_related("template", "current_process", "machine", "work_center", "sales_order_item__sales_order", "mts_order").filter(job_number__iexact=normalized).first()
+        if job is not None:
+            return AnalyticsService._build_job_trace_payload(job, normalized)
+
+        dispatch = None
+        if parsed_uuid is not None:
+            dispatch = ProductionDeliveryChallan.objects.select_related("sales_order", "plant", "created_by").filter(id=parsed_uuid).first()
+        if dispatch is None:
+            dispatch = ProductionDeliveryChallan.objects.select_related("sales_order", "plant", "created_by").filter(dc_no__iexact=normalized).first()
+        if dispatch is not None:
+            return AnalyticsService._build_dispatch_trace_payload(dispatch, normalized)
+
+        interplant = None
+        if parsed_uuid is not None:
+            interplant = InterPlantDeliveryChallan.objects.select_related("from_plant", "to_plant").filter(id=parsed_uuid).first()
+        if interplant is None:
+            interplant = InterPlantDeliveryChallan.objects.select_related("from_plant", "to_plant").filter(dc_no__iexact=normalized).first()
+        if interplant is not None:
+            return AnalyticsService._build_interplant_trace_payload(interplant, normalized)
+
+        roll = None
+        matched_by = "roll_label"
+        if parsed_uuid is not None:
+            roll = InventoryRoll.objects.select_related("material", "grade", "location", "location__plant", "sales_order_item__sales_order", "created_by_job__mts_order", "production_job__mts_order").filter(id=parsed_uuid).first()
+            matched_by = "roll_id" if roll else matched_by
+        if roll is None:
+            roll = InventoryRoll.objects.select_related("material", "grade", "location", "location__plant", "sales_order_item__sales_order", "created_by_job__mts_order", "production_job__mts_order").filter(label_id__iexact=normalized).first()
+        if roll is None:
+            roll = InventoryRoll.objects.select_related("material", "grade", "location", "location__plant", "sales_order_item__sales_order", "created_by_job__mts_order", "production_job__mts_order").filter(label_id__icontains=normalized).order_by("-created_at").first()
+            matched_by = "roll_label_contains" if roll else matched_by
+        if roll is not None:
+            return AnalyticsService._build_roll_trace_payload(roll, normalized, matched_by)
+
+        batch = None
+        if parsed_uuid is not None:
+            batch = FinishedGoodsBatch.objects.filter(id=parsed_uuid).first()
+        if batch is None:
+            batch = FinishedGoodsBatch.objects.filter(batch_number__iexact=normalized).first()
+        if batch is not None:
+            return {
+                "query": normalized,
+                "matched_by": "fg_batch",
+                "entity": {
+                    "type": "FG_BATCH",
+                    "id": str(batch.id),
+                    "reference": batch.batch_number,
+                    "title": batch.batch_number,
+                    "subtitle": batch.template.name if batch.template else "FG batch",
+                    "status": batch.status,
+                    "created_at": batch.created_at.isoformat() if batch.created_at else None,
+                },
+                "summary": {
+                    "qty_pcs": batch.qty_pcs,
+                    "qty_kg": float(batch.qty_kg or 0),
+                    "sales_order": batch.sales_order_item.sales_order.order_number if batch.sales_order_item_id and batch.sales_order_item and batch.sales_order_item.sales_order_id else None,
+                },
+                "timeline": AnalyticsService._sort_trace_events(
+                    [
+                        _event_row(timestamp=batch.created_at, actor=None, entity_type="FG_BATCH", entity_id=batch.id, event_type="CREATED", message=f"FG batch {batch.batch_number} created.", reference=batch.batch_number, delta_qty_kg=batch.qty_kg),
+                        _event_row(timestamp=batch.updated_at, actor=None, entity_type="FG_BATCH", entity_id=batch.id, event_type="UPDATED", message=f"FG batch status is {batch.status}.", reference=batch.batch_number),
+                    ]
+                ),
+                "related": AnalyticsService._build_related_links(
+                    ([{"type": "SALES_ORDER", "reference": batch.sales_order_item.sales_order.order_number, "label": f"Sales order {batch.sales_order_item.sales_order.order_number}", "href": f"/sales/orders/{batch.sales_order_item.sales_order.id}"}] if batch.sales_order_item_id and batch.sales_order_item and batch.sales_order_item.sales_order_id else [])
+                ),
+                "specialized": {"kind": "FG_BATCH"},
+            }
+
+        return {"error": f"Trace target {normalized} not found."}
+
+    @staticmethod
     @safe_service(default_value=[])
     def get_inventory_health():
         """Stock breakdown and health indicators"""
@@ -2135,6 +3538,12 @@ class ReportingService:
         Timeline of all measurable factory events.
         """
         logs = []
+
+        def sales_order_total_value(order):
+            try:
+                return Decimal(str(order.items.aggregate(total=Sum("line_amount"))["total"] or 0))
+            except Exception:
+                return Decimal("0")
         
         # Date Filter Construction
         date_filter = {}
@@ -2152,7 +3561,9 @@ class ReportingService:
                     "type": "PRODUCTION",
                     "desc": f"Produced FG on {p.production_job.process.name if p.production_job.process else 'Machine'}",
                     "val": f"{p.quantity} {p.uom}",
-                    "user": p.logged_by.username if p.logged_by else "system"
+                    "user": p.logged_by.username if p.logged_by else "system",
+                    "reference": getattr(p.production_job, "job_number", None),
+                    "href": f"/production/jobs/{p.production_job_id}" if getattr(p, "production_job_id", None) else None,
                 })
             
         # 2. Scrap Logs
@@ -2164,19 +3575,69 @@ class ReportingService:
                     "type": "SCRAP",
                     "desc": f"Material Loss: {s.reason} at {s.production_job.process.name if s.production_job.process else 'Machine'}",
                     "val": f"{s.quantity} {s.uom}",
-                    "user": s.logged_by.username if s.logged_by else "system"
+                    "user": s.logged_by.username if s.logged_by else "system",
+                    "reference": getattr(s.production_job, "job_number", None),
+                    "href": f"/production/jobs/{s.production_job_id}" if getattr(s, "production_job_id", None) else None,
                 })
                 
         # 3. Sales Logs (New)
         if filter_type in ['all', 'sales']:
-            sales = SalesOrder.objects.filter(created_at__date__gte=start_date or (timezone.now() - timedelta(days=30)).date()).order_by('-created_at')[:limit]
+            sales_filters = {
+                'created_at__date__gte': start_date or (timezone.now() - timedelta(days=30)).date(),
+            }
+            if end_date:
+                sales_filters['created_at__date__lte'] = end_date
+            sales = SalesOrder.objects.prefetch_related('items').filter(**sales_filters).order_by('-created_at')[:limit]
             for s in sales:
+                total_value = sales_order_total_value(s)
                 logs.append({
                     "date": s.created_at.strftime("%Y-%m-%d %H:%M"),
                     "type": "SALES",
                     "desc": f"New Order {s.order_number} from {s.customer_name}",
-                    "val": f"{s.total_amount}",
-                    "user": s.created_by.username if s.created_by else "system"
+                    "val": f"₹{float(total_value):.2f}" if total_value > 0 else f"{float(getattr(s, 'total_weight_kg', 0) or 0):.3f} KG",
+                    "user": getattr(getattr(s, 'created_by', None), 'username', None) or "system",
+                    "reference": s.order_number,
+                    "href": f"/sales/orders/{s.id}",
+                })
+
+        # 4. User / System Audit Logs
+        if filter_type in ['all', 'users', 'system']:
+            audit_filters = {}
+            if start_date:
+                audit_filters['created_at__date__gte'] = start_date
+            if end_date:
+                audit_filters['created_at__date__lte'] = end_date
+
+            audit_rows = (
+                PermissionAuditLog.objects.select_related('user')
+                .filter(**audit_filters)
+                .order_by('-created_at')[:limit]
+            )
+            for audit in audit_rows:
+                audit_type = _audit_log_type(audit.action)
+                if filter_type == 'users' and audit_type != 'USERS':
+                    continue
+                if filter_type == 'system' and audit_type != 'SYSTEM':
+                    continue
+                logs.append({
+                    "date": audit.created_at.strftime("%Y-%m-%d %H:%M"),
+                    "type": audit_type,
+                    "desc": _audit_log_description(audit.action, audit.details),
+                    "val": _audit_log_value(audit),
+                    "user": getattr(getattr(audit, 'user', None), 'username', None) or "system",
+                    "reference": _audit_log_reference(audit),
+                    "href": "/system/audit",
+                    "timestamp": audit.created_at.isoformat(),
+                    "entity_type": "PERMISSION_AUDIT_LOG",
+                    "entity_id": str(audit.id),
+                    "event_type": audit.action,
+                    "meta": {
+                        "method": audit.method,
+                        "path": audit.path,
+                        "required_permission": audit.required_permission,
+                        "effective_role": _audit_log_effective_role(audit),
+                        "details": audit.details or {},
+                    },
                 })
 
         logs.sort(key=lambda x: x['date'], reverse=True)
@@ -2620,34 +4081,54 @@ class ReportingService:
         Combines metrics from all major domains.
         """
         filters = ReportingService._normalize_filters(filters)
-        today = timezone.now().date()
-        
-        # 1. Global KPIs (Reusing KPIService logic where possible)
+        control_tower = AnalyticsService.get_control_tower_stats("month")
+        planner = AnalyticsService.get_planner_dashboard_stats()
         kpis = KPIService.get_real_metrics()
-        
-        # 2. Production Trend (Last 7 Days)
+        if not isinstance(kpis, dict):
+            kpis = {}
         prod_trend = ReportingService.get_daily_production(days=7)
-        
-        # 3. Scrap by Reason (Last 30 Days)
         scrap_reasons = ReportingService.get_scrap_analysis(days=30)
-        
-        # 4. Active Orders Status
         status_counts = SalesOrder.objects.values('status').annotate(count=Count('id'))
-        
+        report_runs = ReportDispatchRun.objects.order_by("-created_at")[:5]
+
         return {
             "metrics": {
-                "oee": kpis["oee"],
-                "scrap_rate": kpis["scrap_rate"],
-                "utilization": kpis["utilization"],
-                "efficiency": kpis["efficiency_score"]
+                "oee": kpis.get("oee", 0),
+                "scrap_rate": kpis.get("scrap_rate", 0),
+                "utilization": kpis.get("utilization", 0),
+                "efficiency": kpis.get("efficiency_score", 0),
+                "revenue": next((metric.get("value", 0) for metric in control_tower.get("metrics", []) if metric.get("id") == "revenue"), 0),
+                "production_output_kg": next((metric.get("value", 0) for metric in control_tower.get("metrics", []) if metric.get("id") == "production"), 0),
             },
             "trends": {
                 "production": prod_trend,
-                "scrap_reasons": scrap_reasons
+                "scrap_reasons": scrap_reasons,
+                "sales": control_tower.get("sales_trend", []),
             },
             "snapshots": {
                 "orders": list(status_counts),
-                "active_jobs": ProductionJob.objects.filter(job_state='EXECUTING').count()
+                "active_jobs": ProductionJob.objects.filter(job_state='EXECUTING').count(),
+                "costing": {
+                    "avg_actual_cost_coverage_pct": (control_tower.get("financial_summary", {}).get("coverage", {}) or {}).get("avg_actual_cost_coverage_pct", 0),
+                    "unabsorbed_pool_value": (control_tower.get("financial_summary", {}).get("overheads", {}) or {}).get("unabsorbed_pool_value", 0),
+                },
+                "route_reuse_mix": control_tower.get("route_reuse_mix", {}),
+                "pod_kpis": control_tower.get("pod_kpis", {}),
+                "user_activity": control_tower.get("user_activity", {}),
+                "top_skus": list(control_tower.get("sku_performance", [])[:6]),
+                "top_customers": list(control_tower.get("top_customers", [])[:6]),
+                "risk_signals": list(control_tower.get("risk_signals", [])[:8]),
+                "planner_source_mix": planner.get("source_mix", {}),
+                "planner_replenishment_mix": planner.get("replenishment_mix", {}),
+                "recent_reports": [
+                    {
+                        "report_code": run.report_code,
+                        "status": run.status,
+                        "report_date": run.report_date.isoformat(),
+                        "created_at": run.created_at.isoformat(),
+                    }
+                    for run in report_runs
+                ],
             },
             "generated_at": timezone.now().isoformat()
         }
@@ -3326,7 +4807,7 @@ class ReportingService:
         """
         OEE Deep Dive: Detailed breakdown by Work Center and Machine.
         """
-        from django.db.models import Sum, Avg, F
+        from django.db.models import Sum, F, ExpressionWrapper, DurationField
         from apps.production.models import JobExecutionLog, ScrapLog, DowntimeLog
         
         machines = Machine.objects.all()
@@ -3398,23 +4879,59 @@ class ReportingService:
         trend_data = []
         date_cursor = filters.get("date_from") or (timezone.now() - timedelta(days=7)).date()
         date_end = filters.get("date_to") or timezone.now().date()
-        
+        machine_ids = list(machines.values_list("id", flat=True))
+
         while date_cursor <= date_end:
-            day_avail = []
-            day_qual = []
-            for m in machines:
-                # Re-calculate per day (simplified for speed, ideally aggregated in DB)
-                # For now, just use global average as placeholder if complex calculation is too heavy
-                pass 
-            
-            # Placeholder for OEE trend - requires daily aggregation which is expensive on the fly
-            # We will return empty for now or simple mock if needed. 
-            # Let's stick to real data:
+            day_output = Decimal(
+                str(
+                    JobExecutionLog.objects.filter(
+                        production_job__machine_id__in=machine_ids,
+                        logged_at__date=date_cursor,
+                    ).aggregate(total=Sum("quantity"))["total"]
+                    or 0
+                )
+            )
+            day_scrap = Decimal(
+                str(
+                    ScrapLog.objects.filter(
+                        production_job__machine_id__in=machine_ids,
+                        logged_at__date=date_cursor,
+                    ).aggregate(total=Sum("quantity"))["total"]
+                    or 0
+                )
+            )
+            day_downtime = DowntimeLog.objects.filter(
+                production_job__machine_id__in=machine_ids,
+                start_time__date=date_cursor,
+            ).aggregate(
+                total=Sum(ExpressionWrapper(F("end_time") - F("start_time"), output_field=DurationField()))
+            )["total"]
+            day_downtime_hours = Decimal(str(day_downtime.total_seconds() / 3600.0 if day_downtime else 0))
+            total_machine_hours = Decimal(str(max(len(machine_ids), 1) * 24))
+            available_hours = max(Decimal("0"), total_machine_hours - day_downtime_hours)
+            std_rate_total = Decimal(
+                str(
+                    sum(Decimal(str(m.standard_rate_kg_per_hour or 0)) for m in machines)
+                )
+            )
+            earned_hours = (day_output / std_rate_total) if std_rate_total > 0 else Decimal("0")
+            availability = (available_hours / total_machine_hours) if total_machine_hours > 0 else Decimal("0")
+            performance = (earned_hours / available_hours) if available_hours > 0 else Decimal("0")
+            total_processed = day_output + day_scrap
+            quality = (day_output / total_processed) if total_processed > 0 else Decimal("0")
+            day_oee = availability * performance * quality * Decimal("100")
             trend_data.append({
                 "date": date_cursor.strftime("%Y-%m-%d"),
-                "value": 0 # TODO: Implement efficient daily OEE aggregation
+                "value": float(round(day_oee, 2)),
+                "output_kg": float(round(day_output, 3)),
+                "scrap_kg": float(round(day_scrap, 3)),
+                "downtime_hours": float(round(day_downtime_hours, 3)),
             })
             date_cursor += timedelta(days=1)
+
+        distribution_data = [
+            {"name": r["machine_name"], "value": r["oee"]} for r in rows
+        ]
 
         return {
             "tab": "oee",
@@ -3430,8 +4947,8 @@ class ReportingService:
                 "global_availability": round(sum(global_availability)/len(global_availability)*100, 1) if global_availability else 100,
             },
             "charts": {
-                "trend": [], # OEE trend is complex, leaving empty for now
-                "distribution": []
+                "trend": trend_data,
+                "distribution": distribution_data,
             },
             "series": [
                 {"name": r["machine_name"], "value": r["oee"]} for r in rows

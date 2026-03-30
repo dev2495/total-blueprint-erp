@@ -1,8 +1,10 @@
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
+from apps.artwork.print_contract import validate_frozen_printing_snapshot
 from apps.production.models import ProductionJob, MaterialConsumptionLog, WorkCenterAssignment
 from apps.inventory.models import InventoryRoll
+from apps.inventory.services.roll_service import RollService
 from apps.bom.services_resolver import BOMResolverService
 from apps.physics.services_physics import PhysicsEngine
 
@@ -35,6 +37,14 @@ class MaterialConsumptionService:
             or (job.mts_order.addons_snapshot if getattr(job, "mts_order", None) else None)
             or []
         )
+
+        if isinstance(printing_snapshot, dict) and bool(printing_snapshot.get("enabled", False)):
+            printing_snapshot = validate_frozen_printing_snapshot(
+                printing_snapshot,
+                layer_snapshot=layer_snapshot,
+                require_artwork=True,
+                strict_inks=True,
+            )
 
         payload = {
             "finished_good_type": (job.template.fg_type if job.template else "POUCH"),
@@ -87,14 +97,18 @@ class MaterialConsumptionService:
         # New Ink Logic (Phase 50)
         ink_consumptions = PhysicsEngine.calculate_ink_consumption(payload, Decimal(str(output_qty)))
         for ink_data in ink_consumptions:
-            if ink_data['material_id']:
-                consumption_plan.append({
-                    "type": "BULK",
-                    "material_id": ink_data['material_id'],
-                    "quantity": Decimal(str(ink_data['weight_kg'])),
-                    "uom": "KG",
-                    "source": f"Ink ({ink_data['color']})"
-                })
+            if not ink_data['material_id']:
+                raise ValueError(
+                    f"Projected ink consumption is unresolved for color {ink_data['color']}. "
+                    "Printing cannot proceed until artwork ink mapping is valid."
+                )
+            consumption_plan.append({
+                "type": "BULK",
+                "material_id": ink_data['material_id'],
+                "quantity": Decimal(str(ink_data['weight_kg'])),
+                "uom": "KG",
+                "source": f"Ink ({ink_data['color']})"
+            })
 
         process_section(bom.get('chemicals', []), 'Chemicals')
         process_section(bom.get('addons', []), 'Addons')
@@ -182,18 +196,20 @@ class MaterialConsumptionService:
             # 2. Update Inventory (Ledger + Stock/Roll model)
             if item['type'] == 'ROLL' and item.get('roll_id'):
                 roll = InventoryRoll.objects.get(id=item['roll_id'])
-                
-                # Ledger removed per Phase 59 Strict Rules
-                # MaterialConsumptionLog is the source of truth
-                
-                # Update Roll directly (TODO: Move to RollService.consume_material for strictness?)
-                # For now, this is acceptable as it's the core consumption logic
-                roll.weight_kg -= item['quantity']
-                if roll.weight_kg <= 0.1: # Tolerance for declaring empty
-                    roll.weight_kg = 0
-                    roll.status = 'CONSUMED'
-                roll.save()
-                
+
+                # Strict compliance: do not mutate roll balance directly.
+                # Route all roll depletion through RollService so genealogy
+                # and consumption audit stay consistent with the rest of the ERP.
+                RollService.consume_input_only(
+                    input_roll=roll,
+                    used_kg=item['quantity'],
+                    job=job,
+                    process=job.current_process,
+                    machine=None,
+                    user=None,
+                    notes=f"Projected BOM issue for Job {job.job_number}",
+                )
+
             elif item['type'] == 'BULK':
                 # Deduct from Pooled Stock at Job's From Location
                 location = job.from_location

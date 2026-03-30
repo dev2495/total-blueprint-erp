@@ -71,7 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
       },
       {
-        title: "WCM Dashboard",
+        title: "WCM Command Deck",
         href: "/dashboard/work-center",
         icon: LayoutDashboard,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
@@ -102,6 +102,12 @@ export const NAV_ITEMS: NavItem[] = [
         icon: Activity,
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
       },
+      {
+        title: "Roll Genealogy",
+        href: "/inventory/traceability",
+        icon: Workflow,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+      },
       { title: "Roll Explorer", href: "/inventory/roll-explorer", icon: Archive },
       { title: "Bulk Inventory", href: "/inventory/bulk", icon: Package, roles: ["ADMIN", "OWNER", "STORE"] },
       {
@@ -113,7 +119,6 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "GRN Desk", href: "/inventory/grn", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"] },
       { title: "Job Work", href: "/inventory/job-work", icon: Layers, roles: ["ADMIN", "OWNER", "STORE", "PLANNER"] },
       { title: "Inter-Plant", href: "/inventory/inter-plant", icon: Plane },
-      { title: "Traceability", href: "/inventory/traceability", icon: Workflow },
     ],
   },
   {
@@ -144,6 +149,7 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "SALES"],
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList },
+      { title: "SKU Catalog", href: "/sales/sku-catalog", icon: Package },
       { title: "Customers", href: "/sales/customers", icon: Users },
       { title: "Quotations", href: "/sales/quotations", icon: FileText },
     ],
@@ -206,6 +212,19 @@ export const NAV_ITEMS: NavItem[] = [
         icon: ShieldCheck,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN"],
       },
+      {
+        title: "Report Center",
+        href: "/system/report-center",
+        icon: FileText,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN"],
+      },
+      {
+        title: "Audit Center",
+        href: "/system/audit",
+        icon: ShieldCheck,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN"],
+        badge: "Audit",
+      },
     ],
   },
   {
@@ -254,7 +273,8 @@ export function getSidebarRoutesForRole(
   for (const item of NAV_ITEMS) {
     if (!canAccess(item.roles)) continue
     for (const child of item.children || []) {
-      if (!canAccess(child.roles || item.roles)) continue
+      if (child.href === "/dashboard/sales" && currentRole === "SALES") continue
+      if (!canAccess(child.roles)) continue
       const resolved = resolveNavigableRoute(child.href)
       if (resolved) routes.push(resolved)
     }

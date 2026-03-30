@@ -271,6 +271,60 @@ class InventoryMaterial(models.Model):
             if invalid_pod:
                 raise ValidationError(invalid_pod)
 
+
+class PodSku(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=80, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    family = models.CharField(max_length=120, blank=True, default="")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pod_skus"
+        ordering = ["name", "code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class PodSkuVariant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pod_sku = models.ForeignKey(PodSku, on_delete=models.CASCADE, related_name="variants")
+    material = models.ForeignKey(
+        InventoryMaterial,
+        on_delete=models.PROTECT,
+        related_name="pod_sku_variants",
+        limit_choices_to={"category": "POD"},
+    )
+    code = models.CharField(max_length=80)
+    name = models.CharField(max_length=255)
+    active = models.BooleanField(default=True)
+    production_defaults_json = models.JSONField(default=dict, blank=True)
+    reporting_attributes_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pod_sku_variants"
+        ordering = ["pod_sku__name", "name", "code"]
+        constraints = [
+            models.UniqueConstraint(fields=["pod_sku", "code"], name="pod_sku_variant_code_unique_per_sku"),
+        ]
+
+    def clean(self):
+        errors = {}
+        if self.material_id and str(getattr(self.material, "category", "") or "").upper() != "POD":
+            errors["material"] = "POD SKU variants must link to a POD material."
+        if self.material_id and str(getattr(self.material, "status", "") or "").upper() != "ACTIVE":
+            errors["material"] = "POD SKU variants must link to an ACTIVE POD material."
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f"{self.pod_sku.code} - {self.code}"
+
 class ConsumableMaterial(models.Model):
     """
     Phase 67.2: Unified Bulk Consumption Engine.

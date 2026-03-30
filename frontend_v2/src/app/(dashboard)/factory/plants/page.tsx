@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { factoryService, Plant } from "@/services/factory"
+import { costingService } from "@/services/costing"
 import { AxiosError } from "axios"
 import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // --- Form Component ---
 const formSchema = z.object({
@@ -47,9 +49,10 @@ const formSchema = z.object({
     contact_email: z.string().optional(),
     authorized_signatory_name: z.string().optional(),
     authorized_signatory_designation: z.string().optional(),
+    default_cost_absorption_group: z.string().optional(),
 })
 
-function PlantForm({ initialData, onSubmit, isLoading }: { initialData?: Plant, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
+function PlantForm({ initialData, costGroups, onSubmit, isLoading }: { initialData?: Plant, costGroups: Array<{ id: string; code: string; label: string }>, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -63,6 +66,7 @@ function PlantForm({ initialData, onSubmit, isLoading }: { initialData?: Plant, 
             contact_email: initialData?.legal_profile?.contact_email || "",
             authorized_signatory_name: initialData?.legal_profile?.authorized_signatory_name || "",
             authorized_signatory_designation: initialData?.legal_profile?.authorized_signatory_designation || "",
+            default_cost_absorption_group: initialData?.default_cost_absorption_group || "NONE",
         },
     })
 
@@ -92,6 +96,32 @@ function PlantForm({ initialData, onSubmit, isLoading }: { initialData?: Plant, 
                                 <FormControl>
                                     <Input placeholder="e.g. Main Plant" {...field} />
                                 </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="default_cost_absorption_group"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Default Cost Group</FormLabel>
+                                <FormControl>
+                                    <Select value={field.value || "NONE"} onValueChange={field.onChange}>
+                                        <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-white">
+                                            <SelectValue placeholder="Assign plant default group" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="NONE">No default group</SelectItem>
+                                            {costGroups.map((group) => (
+                                                <SelectItem key={group.id} value={group.id}>
+                                                    {group.code} · {group.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormControl>
+                                <div className="text-xs text-slate-500">Fallback group used only when work center, machine, and template-step assignments do not override it.</div>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -229,10 +259,15 @@ export default function PlantsPage() {
         queryKey: ["plants"],
         queryFn: factoryService.getPlants,
     })
+    const { data: costGroups } = useQuery({
+        queryKey: ["cost-groups"],
+        queryFn: costingService.getCostGroups,
+    })
 
     const buildPlantPayload = (data: z.infer<typeof formSchema>) => ({
         code: data.code,
         name: data.name,
+        default_cost_absorption_group: data.default_cost_absorption_group === "NONE" ? null : data.default_cost_absorption_group || null,
         include_in_official_reports: data.include_in_official_reports,
         legal_profile: {
             legal_name: data.legal_name || data.name,
@@ -247,8 +282,13 @@ export default function PlantsPage() {
 
     const createMutation = useMutation({
         mutationFn: factoryService.createPlant,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["plants"] })
+        onSuccess: async (createdPlant) => {
+            queryClient.setQueryData<Plant[]>(["plants"], (current = []) => {
+                const withoutExisting = current.filter((plant) => plant.id !== createdPlant.id)
+                return [createdPlant, ...withoutExisting]
+            })
+            await queryClient.invalidateQueries({ queryKey: ["plants"] })
+            await queryClient.refetchQueries({ queryKey: ["plants"], type: "active" })
             toast({ title: "Success", description: "Plant created." })
             setIsCreateOpen(false)
         },
@@ -298,6 +338,7 @@ export default function PlantsPage() {
                             <DialogTitle>Create Plant</DialogTitle>
                         </DialogHeader>
                         <PlantForm
+                            costGroups={costGroups || []}
                             onSubmit={(data) => createMutation.mutate(buildPlantPayload(data))}
                             isLoading={createMutation.isPending}
                         />
@@ -356,6 +397,9 @@ export default function PlantsPage() {
                                                     Legal Profile Pending
                                                 </Badge>
                                             )}
+                                            <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700">
+                                                {plant.default_cost_absorption_group_code || "No cost group"}
+                                            </Badge>
                                         </div>
                                     </div>
                                 </div>
@@ -388,6 +432,7 @@ export default function PlantsPage() {
                     {editingItem && (
                         <PlantForm
                             initialData={editingItem}
+                            costGroups={costGroups || []}
                             onSubmit={(data) => updateMutation.mutate({ id: editingItem.id, data: buildPlantPayload(data) })}
                             isLoading={updateMutation.isPending}
                         />

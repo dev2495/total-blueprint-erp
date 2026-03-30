@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { factoryService, WorkCenter, Plant, Process } from "@/services/factory"
+import { costingService } from "@/services/costing"
 import { AxiosError } from "axios"
 import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Button } from "@/components/ui/button"
@@ -42,9 +43,10 @@ const formSchema = z.object({
     name: z.string().min(1, "Name is required"),
     plant: z.string().min(1, "Plant is required"),
     processes: z.array(z.string()).default([]),
+    default_cost_absorption_group: z.string().optional(),
 })
 
-function WorkCenterForm({ initialData, plants, allProcesses, onSubmit, isLoading }: { initialData?: WorkCenter, plants: Plant[], allProcesses: Process[], onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
+function WorkCenterForm({ initialData, plants, allProcesses, costGroups, onSubmit, isLoading }: { initialData?: WorkCenter, plants: Plant[], allProcesses: Process[], costGroups: Array<{ id: string; code: string; label: string }>, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -52,6 +54,7 @@ function WorkCenterForm({ initialData, plants, allProcesses, onSubmit, isLoading
             name: initialData?.name || "",
             plant: initialData?.plant || "",
             processes: initialData?.processes || [],
+            default_cost_absorption_group: initialData?.default_cost_absorption_group || "NONE",
         },
     })
 
@@ -110,6 +113,34 @@ function WorkCenterForm({ initialData, plants, allProcesses, onSubmit, isLoading
                             <FormControl>
                                 <Input placeholder="e.g. Extrusion Floor 1" {...field} />
                             </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="default_cost_absorption_group"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Default Cost Group</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || "NONE"}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select cost group" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="NONE">No default group</SelectItem>
+                                    {costGroups.map((group) => (
+                                        <SelectItem key={group.id} value={group.id}>
+                                            {group.code} · {group.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <div className="text-[0.8rem] text-muted-foreground">
+                                Used when machines in this work center do not override the costing group directly.
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -203,6 +234,10 @@ export default function WorkCentersPage() {
         queryKey: ["processes"],
         queryFn: factoryService.getProcesses,
     })
+    const { data: costGroups } = useQuery({
+        queryKey: ["cost-groups"],
+        queryFn: costingService.getCostGroups,
+    })
 
     const createMutation = useMutation({
         mutationFn: (data: z.infer<typeof formSchema>) => factoryService.createWorkCenter(data),
@@ -279,6 +314,7 @@ export default function WorkCentersPage() {
                             <WorkCenterForm
                                 plants={plants || []}
                                 allProcesses={processes || []}
+                                costGroups={costGroups || []}
                                 onSubmit={(data) => createMutation.mutate(data)}
                                 isLoading={createMutation.isPending}
                             />
@@ -394,6 +430,10 @@ export default function WorkCentersPage() {
                                                     )}
                                                 </div>
                                             </div>
+                                            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Default cost group</div>
+                                                <div className="mt-1 text-sm font-semibold text-slate-800">{wc.default_cost_absorption_group_code || "Inherited from plant"}</div>
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 )
@@ -407,6 +447,7 @@ export default function WorkCentersPage() {
                                         <th className="p-4">Code</th>
                                         <th className="p-4">Name</th>
                                         <th className="p-4">Plant</th>
+                                        <th className="p-4">Cost Group</th>
                                         <th className="p-4">Processes</th>
                                         <th className="p-4 text-right">Actions</th>
                                     </tr>
@@ -420,6 +461,7 @@ export default function WorkCentersPage() {
                                                 <td className="p-4 font-mono text-slate-600">{wc.code}</td>
                                                 <td className="p-4 font-medium text-slate-900">{wc.name}</td>
                                                 <td className="p-4 text-slate-600">{plant?.name}</td>
+                                                <td className="p-4 text-slate-600">{wc.default_cost_absorption_group_code || "Plant default"}</td>
                                                 <td className="p-4">
                                                     <div className="flex flex-wrap gap-1">
                                                         {wcProcesses.slice(0, 2).map(p => (
@@ -456,6 +498,7 @@ export default function WorkCentersPage() {
                         <WorkCenterForm
                             plants={plants || []}
                             allProcesses={processes || []}
+                            costGroups={costGroups || []}
                             initialData={editingItem}
                             onSubmit={(data) => updateMutation.mutate({ id: editingItem.id, data })}
                             isLoading={updateMutation.isPending}

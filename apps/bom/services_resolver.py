@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Dict, List, Any
+from apps.artwork.print_contract import resolve_ink_contract
 from apps.materials.models import InventoryMaterial
-from apps.inventory.models import InkMaterial
 from apps.recipes.models import ExtrusionRecipe, RecipeGrade
 from django.core.exceptions import ObjectDoesNotExist
 
@@ -18,7 +18,6 @@ class BOMResolverService:
         chemicals_bom = []
         addons_bom = []
         errors = []
-        has_pet_family = False
         
         # 1. Physics & Geometry Context (Strict Design Baseline)
         geo_snap = physics_snapshot['geometry_snapshot']
@@ -75,11 +74,6 @@ class BOMResolverService:
                         variant = InventoryMaterial.objects.get(id=uuid_to_str(variant_id), category='FILM_VARIANT')
                     except (ObjectDoesNotExist, ValueError):
                         raise ValueError(f"Invalid Film Variant: {variant_id}")
-
-                    v_density = variant.density_gcm3
-                    f_density = variant.parent_family.density_gcm3 if variant.parent_family else None
-                    if payload_density >= Decimal('1.4') or (v_density and v_density >= Decimal('1.4')) or (f_density and f_density >= Decimal('1.4')):
-                        has_pet_family = True
 
                     layer_info = {
                         "family_id": family_id,
@@ -149,11 +143,6 @@ class BOMResolverService:
                     except (ObjectDoesNotExist, ValueError):
                         raise ValueError(f"Invalid Film Family: {family_id}")
                     
-                    # Check based on family density
-                    v_density = Decimal(str(family.density_gcm3)) if (family and family.density_gcm3) else Decimal('0')
-                    if payload_density >= Decimal('1.4') or v_density >= Decimal('1.4'):
-                        has_pet_family = True
-
                     layer_info = {
                         "family_id": str(family.id),
                         "variant_id": None,
@@ -200,13 +189,15 @@ class BOMResolverService:
             if colors_count > 0 and ink_gsm_total > 0:
                 gsm_per_color = ink_gsm_total / Decimal(str(colors_count))
                 per_color_weight = (area_m2_unit * gsm_per_color) / Decimal('1000')
-                mapping = printing.get("color_mapping") if isinstance(printing.get("color_mapping"), dict) else {}
-                normalized_mapping = {
-                    str(k).strip().upper(): str(v).strip()
-                    for k, v in mapping.items()
-                    if str(k).strip() and str(v).strip()
-                }
-                base_tag = "PET" if has_pet_family else "POLY"
+                ink_contract = resolve_ink_contract(
+                    color_names=color_names,
+                    layer_snapshot=layers_input,
+                    existing_mapping=printing.get("color_mapping") or {},
+                    strict=False,
+                )
+                color_names = ink_contract["color_names"]
+                normalized_mapping = ink_contract["color_mapping"]
+                base_tag = ink_contract["ink_base_family"]
 
                 for color in color_names:
                     mapped_id = normalized_mapping.get(str(color).upper())
@@ -219,15 +210,6 @@ class BOMResolverService:
                             material_id = str(mat.id)
                             code = mat.code
                             name = mat.name
-                    else:
-                        ink = InkMaterial.objects.filter(
-                            base_type=base_tag,
-                            color_name__iexact=str(color).upper(),
-                        ).first()
-                        if ink:
-                            material_id = str(ink.id)
-                            code = ink.code
-                            name = ink.name
                     inks_bom.append({
                         "material_id": material_id,
                         "code": code,

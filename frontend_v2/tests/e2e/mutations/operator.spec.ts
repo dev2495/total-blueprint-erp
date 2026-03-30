@@ -28,22 +28,76 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   }
 
   await expect(page.locator("body")).toContainText(seed.operator.job_number)
-  await expect(page.getByTestId("machine-start-step")).toBeEnabled()
-  await page.getByTestId("machine-start-step").click()
+  const startButton = page.getByTestId("machine-start-step")
+  const stopButton = page.getByTestId("machine-stop-step")
 
-  await expect(page.getByTestId("machine-stop-step")).toBeEnabled({ timeout: 20_000 })
-  await page.getByTestId("machine-stop-step").click()
-  await expect(page.getByTestId("machine-start-step")).toBeEnabled({ timeout: 20_000 })
-  await page.getByTestId("machine-start-step").click()
+  if (await startButton.isVisible().catch(() => false)) {
+    await expect(startButton).toBeEnabled()
+    await startButton.click()
+  }
 
-  if (await page.getByTestId("machine-output-width").isVisible().catch(() => false)) {
-    await page.getByTestId("machine-output-width").fill("1120")
+  await expect(stopButton).toBeEnabled({ timeout: 20_000 })
+  await stopButton.click()
+  await expect(startButton).toBeEnabled({ timeout: 20_000 })
+  await startButton.click()
+
+  const outputPanel = page.getByTestId("machine-output-panel")
+  if (!(await outputPanel.isVisible().catch(() => false))) {
+    await page.getByTestId("machine-stage-output").click()
   }
-  if (await page.getByTestId("machine-output-length").isVisible().catch(() => false)) {
-    await page.getByTestId("machine-output-length").fill("0")
+  await outputPanel.waitFor({ state: "visible", timeout: 20_000 })
+  await expect(outputPanel).toContainText("Enter only the fields this step needs.")
+
+  const outputWidth = outputPanel.getByTestId("machine-output-width")
+  const outputLength = outputPanel.getByTestId("machine-output-length")
+  const outputWeight = outputPanel.getByTestId("machine-output-weight")
+  const outputPcs = outputPanel.getByTestId("machine-output-pcs")
+  const createRowWidth = outputPanel.getByTestId("machine-create-row-width-0")
+  const createRowWeight = outputPanel.getByTestId("machine-create-row-weight-0")
+  const splitRowWidth = outputPanel.getByTestId("machine-split-row-width-0")
+  const splitRowWeight = outputPanel.getByTestId("machine-split-row-weight-0")
+  const scrapInput = outputPanel.getByTestId("machine-scrap-input")
+
+  if (await outputWidth.isVisible().catch(() => false)) {
+    await outputWidth.fill("1120")
   }
-  await page.getByTestId("machine-output-weight").fill("8.750")
-  await page.getByTestId("machine-scrap-input").fill("0.250")
+  if (await outputLength.isVisible().catch(() => false)) {
+    await outputLength.fill("0")
+  }
+  if (await outputWeight.isVisible().catch(() => false)) {
+    await outputWeight.fill("8.750")
+  } else if (await createRowWidth.isVisible().catch(() => false)) {
+    await createRowWidth.fill("1120")
+    await createRowWeight.fill("8.750")
+  } else if (await splitRowWidth.isVisible().catch(() => false)) {
+    await splitRowWidth.fill("1120")
+    await splitRowWeight.fill("8.750")
+  } else {
+    const visibleInputs = outputPanel.locator("input:visible")
+    const visibleCount = await visibleInputs.count()
+    if (visibleCount >= 3) {
+      const panelText = await outputPanel.textContent()
+      if (panelText?.includes("Create new roll rows") || panelText?.includes("Split rows")) {
+        await visibleInputs.nth(0).fill("1120")
+        await visibleInputs.nth(1).fill("8.750")
+      } else {
+        await visibleInputs.nth(0).fill("8.750")
+      }
+    } else if (visibleCount >= 1) {
+      await visibleInputs.first().fill("8.750")
+    } else {
+      throw new Error("No output-entry fields were visible on the machine terminal")
+    }
+  }
+  if (await outputPcs.isVisible().catch(() => false)) {
+    await outputPcs.fill("25")
+  }
+  if (await scrapInput.isVisible().catch(() => false)) {
+    await scrapInput.fill("0.250")
+  } else {
+    const visibleInputs = outputPanel.locator("input:visible")
+    await visibleInputs.last().fill("0.250")
+  }
   await page.getByTestId("machine-log-output").click()
 
   await expect(page.getByTestId("machine-finalize-step")).toBeEnabled({ timeout: 20_000 })

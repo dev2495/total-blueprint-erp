@@ -2,27 +2,42 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_LOG="${ROOT_DIR}/backend.log"
-FRONTEND_LOG="${ROOT_DIR}/frontend.log"
-FRONTEND_BUILD_LOG="${ROOT_DIR}/frontend_build.log"
-BACKEND_PID_FILE="${ROOT_DIR}/.backend_pid"
-FRONTEND_PID_FILE="${ROOT_DIR}/.frontend_pid"
+BACKEND_PYTHON="${BACKEND_PYTHON:-}"
+RUNTIME_DIR="${ROOT_DIR}/.runtime/service-runtime"
+LOG_DIR="${RUNTIME_DIR}/logs"
+STATE_DIR="${RUNTIME_DIR}/state"
+BACKEND_LOG="${LOG_DIR}/backend.log"
+FRONTEND_LOG="${LOG_DIR}/frontend.log"
+FRONTEND_BUILD_LOG="${LOG_DIR}/frontend_build.log"
+BACKEND_PID_FILE="${STATE_DIR}/backend.pid"
+FRONTEND_PID_FILE="${STATE_DIR}/frontend.pid"
+FRONTEND_MODE_FILE="${STATE_DIR}/frontend.mode"
 MAX_RESTARTS="${MAX_RESTARTS:-3}"
 FRONTEND_MODE="${FRONTEND_MODE:-prod}" # prod|dev
-ALLOW_DEV_FALLBACK="${ALLOW_DEV_FALLBACK:-1}" # 1 => fallback to dev if prod build is unstable
-BUILD_MAX_ATTEMPTS="${BUILD_MAX_ATTEMPTS:-1}" # keep startup fast; fallback handles instability
-BUILD_TIMEOUT_SECONDS="${BUILD_TIMEOUT_SECONDS:-240}"
+ALLOW_DEV_FALLBACK="${ALLOW_DEV_FALLBACK:-0}" # 1 => fallback to dev if prod build is unstable
+ALLOW_SCHEMA_SKIP_ON_TIMEOUT="${ALLOW_SCHEMA_SKIP_ON_TIMEOUT:-0}"
+BUILD_MAX_ATTEMPTS="${BUILD_MAX_ATTEMPTS:-2}"
+BUILD_TIMEOUT_SECONDS="${BUILD_TIMEOUT_SECONDS:-480}"
 CMD="${1:-start}"
 NODE18_BIN_DIR=""
+BACKEND_SERVER_MODE="${BACKEND_SERVER_MODE:-}"
+
+export SKIP_DOTENV_IMPORT="${SKIP_DOTENV_IMPORT:-1}"
+export SKIP_CELERY_IMPORT="${SKIP_CELERY_IMPORT:-1}"
+
+mkdir -p "${LOG_DIR}"
+mkdir -p "${STATE_DIR}"
 
 usage() {
   cat <<EOF
-Usage: ./start_all.sh [start|stop|restart|clean-restart|status]
+Usage: ./start_all.sh [start|verify|stop|restart|clean-restart|status]
 Environment:
   FRONTEND_MODE=prod|dev    (default: prod)
-  ALLOW_DEV_FALLBACK=1      (default: 1, auto-fallback to dev when prod build fails/hangs)
-  BUILD_MAX_ATTEMPTS=1      (default: 1, prod build attempts before fallback)
-  BUILD_TIMEOUT_SECONDS=240  (default: 240, timeout per prod build attempt)
+  ALLOW_DEV_FALLBACK=1      (default: 0, auto-fallback is disabled unless explicitly enabled)
+  ALLOW_SCHEMA_SKIP_ON_TIMEOUT=1 (default: 0, schema skip is disabled unless explicitly enabled)
+  BACKEND_SERVER_MODE=runserver|gunicorn (default: runserver on macOS, gunicorn elsewhere)
+  BUILD_MAX_ATTEMPTS=2      (default: 2, prod build attempts before failure)
+  BUILD_TIMEOUT_SECONDS=480  (default: 480, timeout per prod build attempt)
   MAX_RESTARTS=3            (default: 3)
   GUNICORN_WORKERS=3        (default: 3)
 EOF
@@ -40,27 +55,63 @@ detect_lan_ip() {
 
 rotate_log() {
   local file="$1"
+  mkdir -p "$(dirname "${file}")"
   if [ -f "$file" ]; then
     local ts
     ts="$(date +%Y%m%d_%H%M%S)"
-    mv "$file" "${file}.${ts}"
-  fi
-}
-
-read_pid() {
-  local file="$1"
-  if [ -f "$file" ]; then
-    local pid
-    pid="$(tr -d '[:space:]' < "$file")"
-    if [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ]; then
-      echo "$pid"
-    fi
+    mv "$file" "${file}.${ts}" 2>/dev/null || true
   fi
 }
 
 pid_running() {
   local pid="$1"
   [[ "${pid}" =~ ^[0-9]+$ ]] && [ "${pid}" -gt 1 ] && kill -0 "${pid}" 2>/dev/null
+}
+
+read_pid() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  local pid
+  pid="$(LC_ALL=C awk 'NR==1 {gsub(/[^0-9]/,"",$0); print $0; exit}' "$file" 2>/dev/null || true)"
+  if [[ "${pid}" =~ ^[0-9]+$ ]] && [ "${pid}" -gt 1 ]; then
+    echo "${pid}"
+  fi
+}
+
+write_runtime_mode() {
+  local file="$1"
+  local mode="$2"
+  printf '%s\n' "${mode}" > "${file}"
+}
+
+read_runtime_mode() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  head -n 1 "$file" 2>/dev/null || true
+}
+
+detect_frontend_mode() {
+  local pid="$1"
+  local mode_from_state
+  mode_from_state="$(read_runtime_mode "${FRONTEND_MODE_FILE}" || true)"
+  if pid_running "${pid}"; then
+    local cmdline
+    cmdline="$(ps -o command= -p "${pid}" 2>/dev/null || true)"
+    if echo "${cmdline}" | grep -q "next start -H 0.0.0.0 -p 3000"; then
+      echo "prod"
+      return 0
+    fi
+    if echo "${cmdline}" | grep -Eq "next dev -H 0.0.0.0 -p 3000|npm run dev"; then
+      echo "dev"
+      return 0
+    fi
+  fi
+  echo "${mode_from_state:-unknown}"
+}
+
+port_pid() {
+  local port="$1"
+  lsof -ti:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
 kill_pid_tree() {
@@ -79,14 +130,42 @@ spawn_detached() {
   local cmd="$1"
   local log_file="$2"
   local pid_file="$3"
+  local launcher
+  launcher="$(host_python)" || {
+    echo "Unable to find a host Python runtime for detached process launch."
+    return 1
+  }
 
-  # Prefer a new session to survive parent-shell/process-group teardown.
-  if command -v setsid >/dev/null 2>&1; then
-    setsid bash -lc "${cmd}" >> "${log_file}" 2>&1 < /dev/null &
-  else
-    nohup bash -lc "${cmd}" >> "${log_file}" 2>&1 < /dev/null &
+  local pid
+  pid="$(
+    DETACH_CMD="${cmd}" DETACH_LOG="${log_file}" "${launcher}" - <<'PY'
+import os
+import subprocess
+import sys
+
+cmd = os.environ["DETACH_CMD"]
+log_path = os.environ["DETACH_LOG"]
+
+with open(log_path, "ab", buffering=0) as log_file, open(os.devnull, "rb", buffering=0) as devnull:
+    proc = subprocess.Popen(
+        ["bash", "-lc", cmd],
+        stdin=devnull,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        preexec_fn=os.setsid,
+        close_fds=True,
+    )
+
+print(proc.pid)
+PY
+  )"
+
+  if ! [[ "${pid}" =~ ^[0-9]+$ ]]; then
+    echo "Detached process launch failed for ${log_file}"
+    return 1
   fi
-  echo $! > "${pid_file}"
+
+  echo "${pid}" > "${pid_file}"
 }
 
 ensure_node18() {
@@ -106,47 +185,142 @@ ensure_node18() {
   echo "Frontend toolchain: node=${node_v} npm=$(npm -v)"
 }
 
+host_python() {
+  command -v python3 >/dev/null 2>&1 && command -v python3 && return 0
+  command -v python >/dev/null 2>&1 && command -v python && return 0
+  return 1
+}
+
+probe_backend_python() {
+  local candidate="$1"
+  [ -x "${candidate}" ] || return 1
+  local probe
+  probe="$(host_python)" || return 1
+  "${probe}" - "${candidate}" <<'PY'
+import subprocess
+import sys
+
+candidate = sys.argv[1]
+code = """
+import django
+import reportlab
+import whitenoise
+try:
+    import psycopg  # noqa: F401
+except Exception:
+    import psycopg2  # noqa: F401
+"""
+try:
+    completed = subprocess.run(
+        [candidate, "-c", code],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=8,
+        text=True,
+    )
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if completed.returncode == 0 else completed.returncode)
+PY
+}
+
+resolve_backend_python() {
+  local candidates=()
+  if [ -n "${BACKEND_PYTHON}" ]; then
+    candidates+=("${BACKEND_PYTHON}")
+  fi
+  candidates+=(
+    "${ROOT_DIR}/venv_311/bin/python"
+    "${ROOT_DIR}/.venv-validate/bin/python"
+  )
+  for candidate in "${candidates[@]}"; do
+    if probe_backend_python "${candidate}"; then
+      BACKEND_PYTHON="${candidate}"
+      export BACKEND_PYTHON
+      echo "Backend runtime: ${BACKEND_PYTHON}"
+      return 0
+    fi
+  done
+  echo "No healthy backend Python runtime found."
+  echo "Tried: ${candidates[*]}"
+  return 1
+}
+
 frontend_runtime_prefix() {
   local prefix=""
   if [ -n "${NODE18_BIN_DIR}" ]; then
     prefix="export PATH='${NODE18_BIN_DIR}':\$PATH; hash -r; "
   fi
-  printf "%sexport DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1; export NEXT_DISABLE_CACHE=1; " "${prefix}"
+  printf "%sexport DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1; export NEXT_DISABLE_CACHE=1; export MAX_BUILD_SECONDS='${BUILD_TIMEOUT_SECONDS}'; export MAX_BUILD_ATTEMPTS='${BUILD_MAX_ATTEMPTS}'; " "${prefix}"
 }
 
 ensure_reportlab() {
-  if ! "${ROOT_DIR}/venv_311/bin/python" - <<'PY'
+  if ! "${BACKEND_PYTHON}" - <<'PY'
 import importlib.util
 import sys
-ok = bool(importlib.util.find_spec("reportlab"))
+ok = bool(importlib.util.find_spec("reportlab")) and bool(importlib.util.find_spec("whitenoise"))
 sys.exit(0 if ok else 1)
 PY
   then
-    echo "reportlab is missing in venv_311. Install requirements before starting."
+    echo "Required backend packages are missing. Install requirements before starting."
     exit 1
   fi
 }
 
 ensure_backend_schema() {
   echo "Applying database migrations..."
-  "${ROOT_DIR}/venv_311/bin/python" "${ROOT_DIR}/manage.py" migrate --noinput
+  local migrate_log
+  migrate_log="$(mktemp)"
+  if "${BACKEND_PYTHON}" "${ROOT_DIR}/manage.py" migrate --noinput >"${migrate_log}" 2>&1; then
+    cat "${migrate_log}"
+    rm -f "${migrate_log}"
+    return 0
+  fi
+  cat "${migrate_log}"
+  if [ "${ALLOW_SCHEMA_SKIP_ON_TIMEOUT}" = "1" ] && grep -q "TimeoutError: \[Errno 60\]" "${migrate_log}"; then
+    echo "WARN: migrate hit a local filesystem timeout. Continuing startup without forced migrations."
+    rm -f "${migrate_log}"
+    return 0
+  fi
+  rm -f "${migrate_log}"
+  return 1
+}
+
+ensure_backend_static() {
+  echo "Collecting backend static assets..."
+  local static_log
+  static_log="$(mktemp)"
+  if "${BACKEND_PYTHON}" "${ROOT_DIR}/manage.py" collectstatic --noinput >"${static_log}" 2>&1; then
+    cat "${static_log}"
+    rm -f "${static_log}"
+    return 0
+  fi
+  cat "${static_log}"
+  rm -f "${static_log}"
+  return 1
 }
 
 clean_next_artifacts() {
   cd "${ROOT_DIR}/frontend_v2"
-  # Keep cleanup deterministic and fast. Move heavy `.next` aside instantly.
-  # Avoid recursive stale cleanup here because some local stale trees can stall
-  # filesystem operations and block startup.
+  local stale_root
+  stale_root="${ROOT_DIR}/.runtime/frontend-next-stale"
+  mkdir -p "${stale_root}"
+
+  # Keep cleanup deterministic and fast. Move heavy `.next` aside instantly into
+  # a dedicated runtime bucket. Avoid synchronous recursive pruning here because
+  # it can stall startup for minutes on large local worktrees.
   if [ -d .next ]; then
     local stale_dir
-    stale_dir=".next_stale_$(date +%s)"
+    stale_dir="${stale_root}/.next_stale_$(date +%s)"
     if mv .next "${stale_dir}" 2>/dev/null; then
       echo "Moved stale .next to ${stale_dir}"
     else
       echo "WARN: could not move .next quickly; leaving existing tree in place."
     fi
   fi
-  rm -rf node_modules/.cache
+  # Never prune historical .next_stale_* directories inside the hot startup
+  # path. On long-lived local worktrees, deleting those hidden artifact sets can
+  # stall startup for minutes.
   # Reset TS incremental cache so editor/typecheck does not keep stale `.next/types` entries.
   rm -f tsconfig.tsbuildinfo
   cd "${ROOT_DIR}"
@@ -164,10 +338,66 @@ clean_python_artifacts() {
   find apps config -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 }
 
+curl_status() {
+  local url="$1"
+  local code
+  code="$(curl --connect-timeout 2 --max-time 8 -s -o /dev/null -w '%{http_code}' "${url}" || true)"
+  echo "${code:-000}"
+}
+
+curl_body() {
+  local url="$1"
+  curl --connect-timeout 2 --max-time 8 -s "${url}" || true
+}
+
+curl_headers() {
+  local url="$1"
+  curl --connect-timeout 2 --max-time 12 -s -D - -o /dev/null "${url}" || true
+}
+
+curl_headers_retry() {
+  local url="$1"
+  local attempts="${2:-5}"
+  local headers=""
+  local attempt
+  for attempt in $(seq 1 "${attempts}"); do
+    headers="$(curl_headers "${url}")"
+    if [ -n "${headers}" ] && echo "${headers}" | awk 'NR==1 {exit ($2 == "" ? 1 : 0)}'; then
+      echo "${headers}"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "${headers}"
+}
+
+route_status_retry() {
+  local url="$1"
+  local attempts="${2:-5}"
+  local code=""
+  local attempt
+  for attempt in $(seq 1 "${attempts}"); do
+    code="$(curl_status "${url}")"
+    if [ -n "${code}" ] && [ "${code}" != "000" ]; then
+      echo "${code}"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "${code:-000}"
+}
+
 probe_route_assets() {
   local route="$1"
   local html
-  html="$(curl -s "http://127.0.0.1:3000${route}" || true)"
+  local attempt
+  for attempt in $(seq 1 5); do
+    html="$(curl_body "http://127.0.0.1:3000${route}")"
+    if [ -n "${html}" ]; then
+      break
+    fi
+    sleep 1
+  done
   if [ -z "${html}" ]; then
     echo "Frontend route returned empty response: ${route}"
     return 1
@@ -190,7 +420,7 @@ probe_route_assets() {
     asset="${asset%/}"
     [ -z "${asset}" ] && continue
     local asset_code
-    asset_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${asset}" || true)"
+    asset_code="$(route_status_retry "http://127.0.0.1:3000${asset}")"
     if [ "${asset_code}" -lt 200 ] || [ "${asset_code}" -ge 400 ]; then
       echo "Frontend asset invalid on ${route}: ${asset} (${asset_code})"
       return 1
@@ -200,8 +430,9 @@ probe_route_assets() {
 }
 
 resolve_tracking_probe_id() {
-  "${ROOT_DIR}/venv_311/bin/python" - <<'PY'
+  "${BACKEND_PYTHON}" - <<'PY'
 import os
+os.environ.setdefault("SKIP_CELERY_IMPORT", "1")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 import django
 django.setup()
@@ -212,29 +443,55 @@ PY
 }
 
 start_backend() {
+  echo "[1/3] Booting backend..."
   rotate_log "${BACKEND_LOG}"
   ensure_backend_schema
-  local workers="${GUNICORN_WORKERS:-3}"
+  local server_mode="${BACKEND_SERVER_MODE}"
+  if [ -z "${server_mode}" ]; then
+    if [ "$(uname -s)" = "Darwin" ]; then
+      server_mode="runserver"
+    else
+      server_mode="gunicorn"
+    fi
+  fi
   local cmd
-  cmd="cd '${ROOT_DIR}'; retries=0; while true; do \
-${ROOT_DIR}/venv_311/bin/gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${workers} --timeout 120 --access-logfile - --error-logfile -; \
+  if [ "${server_mode}" = "runserver" ]; then
+    cmd="cd '${ROOT_DIR}'; export SKIP_DOTENV_IMPORT='${SKIP_DOTENV_IMPORT}'; export SKIP_CELERY_IMPORT='${SKIP_CELERY_IMPORT}'; retries=0; while true; do \
+${BACKEND_PYTHON} ${ROOT_DIR}/manage.py runserver 0.0.0.0:8000 --noreload; \
 code=\$?; \
 if [ \$code -eq 0 ]; then exit 0; fi; \
 retries=\$((retries+1)); \
 if [ \$retries -gt ${MAX_RESTARTS} ]; then echo \"backend restart limit reached\"; exit \$code; fi; \
 echo \"backend crashed (\$code), restarting \$retries/${MAX_RESTARTS}\"; sleep 2; \
 done"
+  else
+    local workers="${GUNICORN_WORKERS:-3}"
+    cmd="cd '${ROOT_DIR}'; export SKIP_DOTENV_IMPORT='${SKIP_DOTENV_IMPORT}'; export SKIP_CELERY_IMPORT='${SKIP_CELERY_IMPORT}'; retries=0; while true; do \
+${BACKEND_PYTHON} -m gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${workers} --timeout 120 --access-logfile - --error-logfile -; \
+code=\$?; \
+if [ \$code -eq 0 ]; then exit 0; fi; \
+retries=\$((retries+1)); \
+if [ \$retries -gt ${MAX_RESTARTS} ]; then echo \"backend restart limit reached\"; exit \$code; fi; \
+echo \"backend crashed (\$code), restarting \$retries/${MAX_RESTARTS}\"; sleep 2; \
+done"
+  fi
   spawn_detached "${cmd}" "${BACKEND_LOG}" "${BACKEND_PID_FILE}"
 }
 
 start_frontend() {
+  echo "[2/3] Booting frontend (${FRONTEND_MODE})..."
   rotate_log "${FRONTEND_LOG}"
   rotate_log "${FRONTEND_BUILD_LOG}"
+  rm -f "${FRONTEND_MODE_FILE}"
   ensure_node18
 
   if [ "${FRONTEND_MODE}" = "prod" ]; then
-    clean_next_artifacts
-    if MAX_BUILD_ATTEMPTS="${BUILD_MAX_ATTEMPTS}" MAX_BUILD_SECONDS="${BUILD_TIMEOUT_SECONDS}" bash "${ROOT_DIR}/scripts/next_build_guard.sh" > "${FRONTEND_BUILD_LOG}" 2>&1; then
+    echo "Building frontend production bundle..."
+    if (
+      cd "${ROOT_DIR}" && \
+      eval "$(frontend_runtime_prefix)" && \
+      ./scripts/next_build_guard.sh
+    ) > "${FRONTEND_BUILD_LOG}" 2>&1 && [ -f "${ROOT_DIR}/frontend_v2/.next/BUILD_ID" ]; then
       local cmd
       cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) retries=0; while true; do \
 ./node_modules/.bin/next start -H 0.0.0.0 -p 3000; \
@@ -245,12 +502,14 @@ if [ \$retries -gt ${MAX_RESTARTS} ]; then echo \"frontend restart limit reached
 echo \"frontend crashed (\$code), restarting \$retries/${MAX_RESTARTS}\"; sleep 2; \
 done"
       spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
+      write_runtime_mode "${FRONTEND_MODE_FILE}" "prod"
     else
       if [ "${ALLOW_DEV_FALLBACK}" = "1" ]; then
-        echo "WARN: prod build failed/hung. Falling back to FRONTEND_MODE=dev for fast local startup."
+        echo "WARN: prod frontend build did not produce a usable .next/BUILD_ID. Falling back to FRONTEND_MODE=dev for fast local startup."
         local cmd
         cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) npm run dev"
         spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
+        write_runtime_mode "${FRONTEND_MODE_FILE}" "dev-fallback"
       else
         echo "ERROR: prod frontend build failed and fallback is disabled."
         return 1
@@ -261,18 +520,48 @@ done"
     local cmd
     cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) npm run dev"
     spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
+    write_runtime_mode "${FRONTEND_MODE_FILE}" "dev"
   fi
 }
 
-wait_for_services() {
-  local tracking_id="$1"
+wait_for_basic_services() {
   for _ in $(seq 1 60); do
-    if curl -s http://127.0.0.1:8000/api/health >/dev/null \
-      && curl -s http://127.0.0.1:8000/api/health/ >/dev/null \
-      && curl -s http://127.0.0.1:8000/admin/login/ >/dev/null; then
+    local backend_code frontend_code
+    backend_code="$(curl_status http://127.0.0.1:8000/api/health/)"
+    frontend_code="$(curl_status http://127.0.0.1:3000/login)"
+    backend_code="${backend_code:-000}"
+    frontend_code="${frontend_code:-000}"
+    if [ "${backend_code}" -ge 200 ] && [ "${backend_code}" -lt 400 ] \
+      && [ "${frontend_code}" -ge 200 ] && [ "${frontend_code}" -lt 500 ]; then
+      echo "Basic service health: backend=${backend_code} frontend=${frontend_code}"
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+verify_services() {
+  local tracking_id="$1"
+  wait_for_basic_services || return 1
+  local requested_frontend_mode="${FRONTEND_MODE}"
+  for _ in $(seq 1 60); do
+    if curl_body http://127.0.0.1:8000/api/health >/dev/null \
+      && curl_body http://127.0.0.1:8000/api/health/ >/dev/null \
+      && curl_body http://127.0.0.1:8000/admin/login/ >/dev/null; then
+      local frontend_pid actual_frontend_mode
+      frontend_pid="$(read_pid "${FRONTEND_PID_FILE}" || true)"
+      if ! pid_running "${frontend_pid}"; then
+        frontend_pid="$(port_pid 3000)"
+      fi
+      actual_frontend_mode="$(detect_frontend_mode "${frontend_pid}")"
+      if [ "${requested_frontend_mode}" = "prod" ] && [ "${actual_frontend_mode}" != "prod" ]; then
+        echo "Frontend mode mismatch: requested prod but running ${actual_frontend_mode}."
+        return 1
+      fi
 
       local login_html
-      login_html="$(curl -s http://127.0.0.1:3000/login || true)"
+      login_html="$(curl_body http://127.0.0.1:3000/login)"
       if [ -z "${login_html}" ]; then
         sleep 2
         continue
@@ -284,39 +573,84 @@ wait_for_services() {
         return 1
       fi
       local asset_code
-      asset_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${asset_path}" || true)"
+      asset_code="$(curl_status "http://127.0.0.1:3000${asset_path}")"
       if [ "${asset_code}" -lt 200 ] || [ "${asset_code}" -ge 400 ]; then
         echo "Frontend static asset failed: ${asset_path} (${asset_code})"
         return 1
       fi
 
-      local owner_code admin_code interplant_code machine_selector_code planner_code sales_create_code templates_code artworks_code traceability_code
-      owner_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard/owner || true)"
-      admin_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard/admin || true)"
-      interplant_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/inventory/inter-plant || true)"
-      machine_selector_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/production/machine-selector || true)"
-      planner_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/production/planner || true)"
-      sales_create_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/sales/orders/create || true)"
-      templates_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/engineering/templates || true)"
-      artworks_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/engineering/artworks || true)"
-      traceability_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/inventory/traceability || true)"
-      echo "Route probes: owner=${owner_code}, admin=${admin_code}, inter-plant=${interplant_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}"
-      if [ "${owner_code}" -ge 500 ] || [ "${admin_code}" -ge 500 ] || [ "${interplant_code}" -ge 500 ] || [ "${machine_selector_code}" -ge 500 ] || [ "${planner_code}" -ge 500 ] || [ "${sales_create_code}" -ge 500 ] || [ "${templates_code}" -ge 500 ] || [ "${artworks_code}" -ge 500 ] || [ "${traceability_code}" -ge 500 ]; then
-        echo "Dynamic route failure (owner=${owner_code}, admin=${admin_code}, inter-plant=${interplant_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code})"
+      local owner_code admin_code interplant_code machine_selector_code planner_code sales_create_code templates_code artworks_code traceability_code audit_center_code roll_explorer_code settings_code sku_catalog_code inventory_root_code inventory_bulk_code inventory_bulk_transactions_code inventory_grn_code inventory_job_work_code inventory_ledger_code system_users_code orders_root_code login_route_code sales_root_code engineering_root_code system_root_code dashboard_root_code
+      login_route_code="$(route_status_retry http://127.0.0.1:3000/login)"
+      owner_code="$(route_status_retry http://127.0.0.1:3000/dashboard/owner)"
+      admin_code="$(route_status_retry http://127.0.0.1:3000/dashboard/admin)"
+      dashboard_root_code="$(route_status_retry http://127.0.0.1:3000/dashboard)"
+      sales_root_code="$(route_status_retry http://127.0.0.1:3000/sales)"
+      engineering_root_code="$(route_status_retry http://127.0.0.1:3000/engineering)"
+      system_root_code="$(route_status_retry http://127.0.0.1:3000/system)"
+      inventory_bulk_code="$(route_status_retry http://127.0.0.1:3000/inventory/bulk)"
+      inventory_bulk_transactions_code="$(route_status_retry http://127.0.0.1:3000/inventory/bulk-transactions)"
+      inventory_grn_code="$(route_status_retry http://127.0.0.1:3000/inventory/grn)"
+      interplant_code="$(route_status_retry http://127.0.0.1:3000/inventory/inter-plant)"
+      inventory_job_work_code="$(route_status_retry http://127.0.0.1:3000/inventory/job-work)"
+      inventory_ledger_code="$(route_status_retry http://127.0.0.1:3000/inventory/ledger)"
+      machine_selector_code="$(route_status_retry http://127.0.0.1:3000/production/machine-selector)"
+      planner_code="$(route_status_retry http://127.0.0.1:3000/production/planner)"
+      sales_create_code="$(route_status_retry http://127.0.0.1:3000/sales/orders/create)"
+      templates_code="$(route_status_retry http://127.0.0.1:3000/engineering/templates)"
+      artworks_code="$(route_status_retry http://127.0.0.1:3000/engineering/artworks)"
+      traceability_code="$(route_status_retry http://127.0.0.1:3000/inventory/traceability)"
+      audit_center_code="$(route_status_retry http://127.0.0.1:3000/system/audit)"
+      roll_explorer_code="$(route_status_retry http://127.0.0.1:3000/inventory/roll-explorer)"
+      settings_code="$(route_status_retry http://127.0.0.1:3000/system/settings)"
+      system_users_code="$(route_status_retry http://127.0.0.1:3000/system/users)"
+      sku_catalog_code="$(route_status_retry http://127.0.0.1:3000/sales/sku-catalog)"
+      inventory_root_code="$(route_status_retry http://127.0.0.1:3000/inventory)"
+      orders_root_code="$(route_status_retry http://127.0.0.1:3000/orders)"
+      echo "Route probes: login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, roll-explorer=${roll_explorer_code}, settings=${settings_code}, system-users=${system_users_code}, sku-catalog=${sku_catalog_code}, inventory=${inventory_root_code}, orders=${orders_root_code}"
+      if [ "${login_route_code}" -ge 500 ] || [ "${owner_code}" -ge 500 ] || [ "${admin_code}" -ge 500 ] || [ "${dashboard_root_code}" -ge 500 ] || [ "${sales_root_code}" -ge 500 ] || [ "${engineering_root_code}" -ge 500 ] || [ "${system_root_code}" -ge 500 ] || [ "${inventory_bulk_code}" -ge 500 ] || [ "${inventory_bulk_transactions_code}" -ge 500 ] || [ "${inventory_grn_code}" -ge 500 ] || [ "${interplant_code}" -ge 500 ] || [ "${inventory_job_work_code}" -ge 500 ] || [ "${inventory_ledger_code}" -ge 500 ] || [ "${machine_selector_code}" -ge 500 ] || [ "${planner_code}" -ge 500 ] || [ "${sales_create_code}" -ge 500 ] || [ "${templates_code}" -ge 500 ] || [ "${artworks_code}" -ge 500 ] || [ "${traceability_code}" -ge 500 ] || [ "${audit_center_code}" -ge 500 ] || [ "${roll_explorer_code}" -ge 500 ] || [ "${settings_code}" -ge 500 ] || [ "${system_users_code}" -ge 500 ] || [ "${sku_catalog_code}" -ge 500 ] || [ "${inventory_root_code}" -ge 500 ] || [ "${orders_root_code}" -ge 500 ]; then
+        echo "Dynamic route failure (login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, roll-explorer=${roll_explorer_code}, settings=${settings_code}, system-users=${system_users_code}, sku-catalog=${sku_catalog_code}, inventory=${inventory_root_code}, orders=${orders_root_code})"
         return 1
       fi
 
+      probe_route_assets "/login" || return 1
+      probe_route_assets "/dashboard" || return 1
       probe_route_assets "/dashboard/owner" || return 1
+      probe_route_assets "/sales" || return 1
+      probe_route_assets "/engineering" || return 1
+      probe_route_assets "/system" || return 1
+      probe_route_assets "/inventory" || return 1
+      probe_route_assets "/inventory/alerts" || return 1
+      probe_route_assets "/inventory/bulk" || return 1
+      probe_route_assets "/inventory/bulk-transactions" || return 1
+      probe_route_assets "/inventory/grn" || return 1
+      probe_route_assets "/inventory/inter-plant" || return 1
+      probe_route_assets "/inventory/job-work" || return 1
+      probe_route_assets "/inventory/ledger" || return 1
       probe_route_assets "/sales/orders/create" || return 1
+      probe_route_assets "/sales/sku-catalog" || return 1
       probe_route_assets "/engineering/templates" || return 1
       probe_route_assets "/engineering/artworks" || return 1
+      probe_route_assets "/master/granules" || return 1
+      probe_route_assets "/master/inks" || return 1
+      probe_route_assets "/master/packaging" || return 1
+      probe_route_assets "/master/pod" || return 1
+      probe_route_assets "/master/recipes" || return 1
+      probe_route_assets "/master/vendors" || return 1
+      probe_route_assets "/orders" || return 1
+      probe_route_assets "/orders/create" || return 1
       probe_route_assets "/production/planner" || return 1
       probe_route_assets "/production/machine-selector" || return 1
       probe_route_assets "/inventory/traceability" || return 1
+      probe_route_assets "/system/audit" || return 1
+      probe_route_assets "/system/governance" || return 1
+      probe_route_assets "/system/role-matrix" || return 1
+      probe_route_assets "/system/settings" || return 1
+      probe_route_assets "/system/users" || return 1
+      probe_route_assets "/inventory/roll-explorer" || return 1
 
       if [ -n "${tracking_id}" ]; then
         local tracking_code
-        tracking_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000/sales/orders/${tracking_id}/tracking" || true)"
+        tracking_code="$(curl_status "http://127.0.0.1:3000/sales/orders/${tracking_id}/tracking")"
         if [ "${tracking_code}" -ge 500 ]; then
           echo "Tracking route failed (${tracking_code}) for order ${tracking_id}"
           return 1
@@ -324,7 +658,7 @@ wait_for_services() {
       fi
 
       local me_headers
-      me_headers="$(curl -s -D - -o /dev/null http://127.0.0.1:3000/api/users/me || true)"
+      me_headers="$(curl_headers_retry http://127.0.0.1:3000/api/users/me)"
       if echo "${me_headers}" | grep -qi "^Location:"; then
         echo "Redirect loop detected on /api/users/me"
         return 1
@@ -339,7 +673,7 @@ wait_for_services() {
         "/api/templates" \
         "/api/templates/"; do
         local api_headers api_code
-        api_headers="$(curl -s -D - -o /dev/null "http://127.0.0.1:3000${api_path}" || true)"
+        api_headers="$(curl_headers_retry "http://127.0.0.1:3000${api_path}")"
         api_code="$(echo "${api_headers}" | awk 'NR==1 {print $2}')"
         if echo "${api_headers}" | grep -qi "^Location:"; then
           echo "Redirect loop detected on ${api_path}"
@@ -369,14 +703,27 @@ stop_services() {
     kill_pid_tree "${fpid}"
     rm -f "${FRONTEND_PID_FILE}"
   fi
+  pgrep -f "${ROOT_DIR}/manage.py runserver 0.0.0.0:8000 --noreload" 2>/dev/null | xargs kill -9 2>/dev/null || true
+  pgrep -f "gunicorn config.wsgi:application --bind 0.0.0.0:8000" 2>/dev/null | xargs kill -9 2>/dev/null || true
+  pgrep -f "next start -H 0.0.0.0 -p 3000" 2>/dev/null | xargs kill -9 2>/dev/null || true
+  pgrep -f "npm run dev" 2>/dev/null | xargs kill -9 2>/dev/null || true
+  pgrep -f "${ROOT_DIR}/frontend_v2" 2>/dev/null | xargs kill -9 2>/dev/null || true
   lsof -ti:8000 | xargs kill -9 2>/dev/null || true
   lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+  rm -f "${BACKEND_PID_FILE}" "${FRONTEND_PID_FILE}"
+  rm -f "${FRONTEND_MODE_FILE}"
 }
 
 status_services() {
   local bpid fpid
   bpid="$(read_pid "${BACKEND_PID_FILE}" || true)"
   fpid="$(read_pid "${FRONTEND_PID_FILE}" || true)"
+  if ! pid_running "${bpid}"; then
+    bpid="$(port_pid 8000)"
+  fi
+  if ! pid_running "${fpid}"; then
+    fpid="$(port_pid 3000)"
+  fi
 
   if pid_running "${bpid}"; then
     echo "Backend: running (PID ${bpid})"
@@ -385,42 +732,61 @@ status_services() {
   fi
 
   if pid_running "${fpid}"; then
-    echo "Frontend: running (PID ${fpid}) mode=${FRONTEND_MODE}"
+    local actual_frontend_mode
+    actual_frontend_mode="$(detect_frontend_mode "${fpid}")"
+    echo "Frontend: running (PID ${fpid}) mode=${actual_frontend_mode} requested=${FRONTEND_MODE}"
   else
     echo "Frontend: stopped"
   fi
 }
 
 start_services() {
+  resolve_backend_python
   ensure_reportlab
+  ensure_backend_static
   stop_services
   clean_python_artifacts
   start_backend
   start_frontend
+  echo "[3/3] Waiting for basic service health..."
+  if ! wait_for_basic_services; then
+    echo "Basic startup health checks failed. See logs."
+    exit 1
+  fi
+
+  sleep 2
+  if ! lsof -ti:8000 >/dev/null 2>&1 || ! lsof -ti:3000 >/dev/null 2>&1; then
+    echo "Basic health passed but one or more services exited during stability hold."
+    exit 1
+  fi
+
+  echo "Servers started successfully."
+  echo "Runtime logs: ${LOG_DIR}"
+  echo "Backend log: ${BACKEND_LOG}"
+  echo "Frontend log: ${FRONTEND_LOG}"
+  echo "Frontend build log: ${FRONTEND_BUILD_LOG}"
+  echo "Run './start_all.sh verify' for deep route/auth/API validation."
+  echo "Manual QA: frontend=http://127.0.0.1:3000/login backend-health=http://127.0.0.1:8000/api/health/"
+  local lan_ip
+  lan_ip="$(detect_lan_ip | tr -d '[:space:]')"
+  if [ -n "${lan_ip}" ]; then
+    echo "LAN access: frontend=http://${lan_ip}:3000 backend=http://${lan_ip}:8000"
+    echo "LAN QA: login=http://${lan_ip}:3000/login health=http://${lan_ip}:8000/api/health/"
+  else
+    echo "LAN access: could not auto-detect host IP, run 'ipconfig getifaddr en0' and use :3000/:8000."
+  fi
+}
+
+run_verification() {
+  resolve_backend_python
+  echo "Running deep verification..."
   local tracking_id
   tracking_id="$(resolve_tracking_probe_id || true)"
-  if wait_for_services "${tracking_id}"; then
-    # Quick stability hold to catch immediate supervisor exits after health turns green.
-    sleep 2
-    if ! lsof -ti:8000 >/dev/null 2>&1 || ! lsof -ti:3000 >/dev/null 2>&1; then
-      echo "Startup health checks passed but one or more services exited during stability hold."
-      exit 1
-    fi
-    echo "Servers started successfully."
-    echo "Backend log: ${BACKEND_LOG}"
-    echo "Frontend log: ${FRONTEND_LOG}"
-    echo "Frontend build log: ${FRONTEND_BUILD_LOG}"
-    echo "Manual QA: frontend=http://127.0.0.1:3000/login backend-health=http://127.0.0.1:8000/api/health/"
-    local lan_ip
-    lan_ip="$(detect_lan_ip | tr -d '[:space:]')"
-    if [ -n "${lan_ip}" ]; then
-      echo "LAN access: frontend=http://${lan_ip}:3000 backend=http://${lan_ip}:8000"
-      echo "LAN QA: login=http://${lan_ip}:3000/login health=http://${lan_ip}:8000/api/health/"
-    else
-      echo "LAN access: could not auto-detect host IP, run 'ipconfig getifaddr en0' and use :3000/:8000."
-    fi
+  if verify_services "${tracking_id}"; then
+    echo "Deep verification passed."
+    echo "Runtime logs: ${LOG_DIR}"
   else
-    echo "Startup health checks failed. See logs."
+    echo "Deep verification failed. See logs."
     exit 1
   fi
 }
@@ -428,6 +794,9 @@ start_services() {
 case "${CMD}" in
   start)
     start_services
+    ;;
+  verify)
+    run_verification
     ;;
   stop)
     stop_services
@@ -443,6 +812,7 @@ case "${CMD}" in
     rm -f "${BACKEND_PID_FILE}" "${FRONTEND_PID_FILE}"
     clean_next_artifacts
     start_services
+    run_verification
     ;;
   status)
     status_services

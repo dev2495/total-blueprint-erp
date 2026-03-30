@@ -25,7 +25,26 @@ def _build_cylinder(*, side, slot, is_draft=False, cell_depth=28, lifecycle_stat
 
 class RotoApprovalGateTests(SimpleTestCase):
     @patch("apps.artwork.services.Artwork.objects.get")
-    @patch("apps.artwork.services.Cylinder.objects.filter")
+    def test_approval_fails_when_artwork_asset_is_missing(self, mock_get):
+        artwork = SimpleNamespace(
+            id="art-missing-asset",
+            file_path="",
+            image=None,
+            front_colors_count=1,
+            back_colors_count=0,
+            front_colors=["CYAN"],
+            back_colors=[],
+            print_type="FLEXO",
+        )
+        mock_get.return_value = artwork
+
+        with self.assertRaises(ValidationError) as exc:
+            ArtworkService.approve_artwork("art-missing-asset", user=SimpleNamespace())
+
+        self.assertIn("uploaded file/image asset", str(exc.exception))
+
+    @patch("apps.artwork.services.Artwork.objects.get")
+    @patch("apps.artwork.print_contract.Cylinder.objects.filter")
     def test_approval_fails_when_front_slots_are_missing(self, mock_filter, mock_get):
         artwork = SimpleNamespace(
             id="art-1",
@@ -38,10 +57,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             print_type="ROTO",
         )
         mock_get.return_value = artwork
-        mock_filter.side_effect = [
-            [_build_cylinder(side="FRONT", slot=1)],
-            [],
-        ]
+        mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1)]
 
         with self.assertRaises(ValidationError) as exc:
             ArtworkService.approve_artwork("art-1", user=SimpleNamespace())
@@ -49,7 +65,7 @@ class RotoApprovalGateTests(SimpleTestCase):
         self.assertIn("missing for slots [2]", str(exc.exception))
 
     @patch("apps.artwork.services.Artwork.objects.get")
-    @patch("apps.artwork.services.Cylinder.objects.filter")
+    @patch("apps.artwork.print_contract.Cylinder.objects.filter")
     def test_approval_fails_when_finalized_cylinder_is_technically_incomplete(self, mock_filter, mock_get):
         artwork = SimpleNamespace(
             id="art-2",
@@ -62,10 +78,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             print_type="ROTO",
         )
         mock_get.return_value = artwork
-        mock_filter.side_effect = [
-            [_build_cylinder(side="FRONT", slot=1, cell_depth=0)],
-            [],
-        ]
+        mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1, cell_depth=0)]
 
         with self.assertRaises(ValidationError) as exc:
             ArtworkService.approve_artwork("art-2", user=SimpleNamespace())
@@ -73,7 +86,7 @@ class RotoApprovalGateTests(SimpleTestCase):
         self.assertIn("finalize cylinder technical details", str(exc.exception).lower())
 
     @patch("apps.artwork.services.Artwork.objects.get")
-    @patch("apps.artwork.services.Cylinder.objects.filter")
+    @patch("apps.artwork.print_contract.Cylinder.objects.filter")
     def test_approval_succeeds_when_roto_slots_are_finalized(self, mock_filter, mock_get):
         artwork = SimpleNamespace(
             id="art-3",
@@ -90,12 +103,57 @@ class RotoApprovalGateTests(SimpleTestCase):
             save=lambda: None,
         )
         mock_get.return_value = artwork
-        mock_filter.side_effect = [
-            [_build_cylinder(side="FRONT", slot=1)],
-            [_build_cylinder(side="BACK", slot=1)],
+        mock_filter.return_value.order_by.return_value = [
+            _build_cylinder(side="FRONT", slot=1),
+            _build_cylinder(side="BACK", slot=1),
         ]
 
         result = ArtworkService.approve_artwork("art-3", user=SimpleNamespace(username="qa"))
 
         self.assertEqual(result.status, "APPROVED")
         self.assertEqual(result.colors_count, 2)
+
+    @patch("apps.artwork.services.Artwork.objects.get")
+    @patch("apps.artwork.print_contract.Cylinder.objects.filter")
+    def test_approval_fails_when_duplicate_finalized_slots_exist(self, mock_filter, mock_get):
+        artwork = SimpleNamespace(
+            id="art-4",
+            file_path="/tmp/art.png",
+            image=None,
+            front_colors_count=1,
+            back_colors_count=0,
+            front_colors=["YELLOW"],
+            back_colors=[],
+            print_type="ROTO",
+        )
+        mock_get.return_value = artwork
+        mock_filter.return_value.order_by.return_value = [
+            _build_cylinder(side="FRONT", slot=1),
+            _build_cylinder(side="FRONT", slot=1),
+        ]
+
+        with self.assertRaises(ValidationError) as exc:
+            ArtworkService.approve_artwork("art-4", user=SimpleNamespace())
+
+        self.assertIn("duplicate finalized cylinder coverage", str(exc.exception).lower())
+
+    @patch("apps.artwork.services.Artwork.objects.get")
+    @patch("apps.artwork.print_contract.Cylinder.objects.filter")
+    def test_approval_fails_when_finalized_slot_is_out_of_range(self, mock_filter, mock_get):
+        artwork = SimpleNamespace(
+            id="art-5",
+            file_path="/tmp/art.png",
+            image=None,
+            front_colors_count=1,
+            back_colors_count=0,
+            front_colors=["YELLOW"],
+            back_colors=[],
+            print_type="ROTO",
+        )
+        mock_get.return_value = artwork
+        mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=2)]
+
+        with self.assertRaises(ValidationError) as exc:
+            ArtworkService.approve_artwork("art-5", user=SimpleNamespace())
+
+        self.assertIn("exceed the approved artwork slot range", str(exc.exception).lower())

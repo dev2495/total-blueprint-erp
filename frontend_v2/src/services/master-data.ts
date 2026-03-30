@@ -48,6 +48,42 @@ export interface PackagingMaterial extends Material {
     per_sheet_base_qty?: number | null;
 }
 
+export interface PodSkuVariant {
+    id: string;
+    pod_sku: string;
+    pod_sku_code: string;
+    pod_sku_name: string;
+    code: string;
+    name: string;
+    material: string;
+    material_code: string;
+    material_name: string;
+    material_status?: string;
+    pod_type?: "SINGLE" | "DOUBLE" | null;
+    pod_fixed_height_mm?: number | null;
+    pod_thickness_micron?: number | null;
+    pod_panel_count?: number | null;
+    density_gcm3?: number | null;
+    pod_is_inhouse_produced?: boolean;
+    production_defaults_json?: Record<string, any>;
+    reporting_attributes_json?: Record<string, any>;
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PodSku {
+    id: string;
+    code: string;
+    name: string;
+    family?: string;
+    active: boolean;
+    active_variant_count?: number;
+    variants?: PodSkuVariant[];
+    created_at: string;
+    updated_at: string;
+}
+
 export interface Customer {
     id: string;
     name: string;
@@ -233,6 +269,36 @@ export const masterDataService = {
     },
     deletePODMaterial: async (id: string) => {
         await api.delete(`/api/master/pod/${id}/`);
+    },
+    getPodSkus: async () => {
+        const { data } = await api.get<MaybePaginated<PodSku>>("/api/master/pod-skus/");
+        return unwrapList<PodSku>(data);
+    },
+    createPodSku: async (payload: Partial<PodSku>) => {
+        const { data } = await api.post<PodSku>("/api/master/pod-skus/", payload);
+        return data;
+    },
+    updatePodSku: async (id: string, payload: Partial<PodSku>) => {
+        const { data } = await api.patch<PodSku>(`/api/master/pod-skus/${id}/`, payload);
+        return data;
+    },
+    deletePodSku: async (id: string) => {
+        await api.delete(`/api/master/pod-skus/${id}/`);
+    },
+    getPodSkuVariants: async (params?: { pod_sku?: string; active?: boolean; material?: string }) => {
+        const { data } = await api.get<MaybePaginated<PodSkuVariant>>("/api/master/pod-sku-variants/", { params });
+        return unwrapList<PodSkuVariant>(data);
+    },
+    createPodSkuVariant: async (payload: Partial<PodSkuVariant>) => {
+        const { data } = await api.post<PodSkuVariant>("/api/master/pod-sku-variants/", payload);
+        return data;
+    },
+    updatePodSkuVariant: async (id: string, payload: Partial<PodSkuVariant>) => {
+        const { data } = await api.patch<PodSkuVariant>(`/api/master/pod-sku-variants/${id}/`, payload);
+        return data;
+    },
+    deletePodSkuVariant: async (id: string) => {
+        await api.delete(`/api/master/pod-sku-variants/${id}/`);
     },
 
     // Vendors

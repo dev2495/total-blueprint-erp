@@ -95,6 +95,8 @@ def seed_roll_specs(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
+        ("materials", "0001_initial"),
+        ("recipes", "0001_initial"),
         ("templates", "0011_alter_templateprocessstepmaterial_value"),
     ]
 
@@ -187,4 +189,3 @@ class Migration(migrations.Migration):
         ),
         migrations.RunPython(seed_roll_specs, migrations.RunPython.noop),
     ]
-

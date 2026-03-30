@@ -72,6 +72,43 @@ class CylinderSerializer(serializers.ModelSerializer):
             if lifecycle_status == "DRAFT":
                 attrs["lifecycle_status"] = "READY"
 
+        artwork = _value("artwork", None)
+        side = str(_value("side", "FRONT") or "FRONT").upper()
+        side_slot_index = int(float(_value("side_slot_index", 0) or 0))
+        if side not in {"FRONT", "BACK"}:
+            raise serializers.ValidationError({"side": "Cylinder side must be FRONT or BACK."})
+        if side_slot_index <= 0:
+            raise serializers.ValidationError({"side_slot_index": "Cylinder side_slot_index must be greater than zero."})
+        if artwork:
+            max_slots = int(
+                getattr(artwork, "front_colors_count", 0) if side == "FRONT" else getattr(artwork, "back_colors_count", 0)
+            )
+            if side_slot_index > max_slots:
+                raise serializers.ValidationError(
+                    {
+                        "side_slot_index": (
+                            f"Cylinder slot {side_slot_index} exceeds approved artwork {side.lower()} color slots ({max_slots})."
+                        )
+                    }
+                )
+        if artwork and side_slot_index > 0 and (not bool(attrs.get("is_draft", is_draft))):
+            duplicate_qs = Cylinder.objects.filter(
+                artwork=artwork,
+                side=side,
+                side_slot_index=side_slot_index,
+                is_draft=False,
+            )
+            if instance is not None:
+                duplicate_qs = duplicate_qs.exclude(pk=instance.pk)
+            if duplicate_qs.exists():
+                raise serializers.ValidationError(
+                    {
+                        "detail": (
+                            f"Finalize cylinder blocked: artwork already has a finalized cylinder for {side}-{side_slot_index}."
+                        )
+                    }
+                )
+
         return attrs
 
 

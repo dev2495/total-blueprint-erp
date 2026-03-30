@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+PROJECT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
 prepend_bin_dir() {
   if [ -d "$1" ]; then
     PATH="$1:$PATH"
@@ -8,6 +11,8 @@ prepend_bin_dir() {
   fi
 }
 
+prepend_bin_dir "$PROJECT_DIR/node_modules/.bin"
+prepend_bin_dir "$PWD/node_modules/.bin"
 prepend_bin_dir "/opt/homebrew/opt/node@20/bin"
 prepend_bin_dir "/opt/homebrew/opt/node@18/bin"
 

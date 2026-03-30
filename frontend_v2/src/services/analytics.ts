@@ -357,6 +357,10 @@ export const analyticsApi = {
         const { data } = await api.get("/api/analytics/planner-dashboard/");
         return data;
     },
+    getWcmDashboard: async (): Promise<any> => {
+        const { data } = await api.get("/api/analytics/wcm-dashboard/");
+        return data;
+    },
     // ── Dedicated Report APIs ──
     getReportProduction: async (filters: AnalyticsFilterParams = {}): Promise<any> => {
         const { data } = await api.get("/api/analytics/reports/production", { params: filters });
@@ -411,8 +415,10 @@ export const analyticsApi = {
         const { data } = await api.post(`/api/analytics/report-distributions/${reportCode}/send/`, payload);
         return data?.run ?? null;
     },
-    getReportRuns: async (limit: number = 30): Promise<ReportDispatchRun[]> => {
-        const { data } = await api.get("/api/analytics/report-runs/", { params: { limit } });
+    getReportRuns: async (limit: number = 30, days?: number): Promise<ReportDispatchRun[]> => {
+        const params: Record<string, number> = { limit };
+        if (typeof days === "number" && Number.isFinite(days)) params.days = days;
+        const { data } = await api.get("/api/analytics/report-runs/", { params });
         return Array.isArray(data?.runs) ? data.runs : [];
     },
     getCapabilityMatrix: async (): Promise<CapabilityMatrixResponse> => {
@@ -420,6 +426,7 @@ export const analyticsApi = {
         return data;
     },
     getReportRunPreviewUrl: (runId: string): string => `/api/analytics/report-runs/${runId}/preview-pdf/`,
+    getReportRunPdfDownloadUrl: (runId: string): string => `/api/analytics/report-runs/${runId}/download-pdf/`,
     getReportRunDetailUrl: (runId: string): string => `/api/analytics/report-runs/${runId}/download-detail/`,
 };
 

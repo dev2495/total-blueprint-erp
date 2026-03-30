@@ -9,13 +9,12 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.costing.models import ProcessCostRate
 from apps.costing.services import CostingService
 from apps.factory.models import Plant, Process
 from apps.materials.models import InventoryMaterial
-from apps.templates.models import TemplateBlueprint
+from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 
-from ..models import Customer, Quotation, QuotationItem
+from ..models import Customer, Quotation, QuotationItem, SalesSkuVariant
 from .order_service import SalesOrderService, _make_json_serializable
 
 
@@ -45,6 +44,18 @@ def _date_value(value: Any):
         raise ValidationError({"valid_until": "valid_until must be an ISO date."})
 
 
+def _merge_nested(base: Any, override: Any):
+    if not isinstance(base, dict) or not isinstance(override, dict):
+        return deepcopy(override if override is not None else base)
+    merged = deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_nested(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
+
+
 class QuotationService:
     DEFAULT_MARGIN_PERCENT = Decimal("15")
     DEFAULT_PROCESS_THROUGHPUT_KG_PER_HOUR = Decimal("150")
@@ -66,6 +77,10 @@ class QuotationService:
         preview["process_cost_rows"] = _make_json_serializable(line_payload["process_cost_rows"])
         preview["commercial_snapshot"] = _make_json_serializable(line_payload["commercial_snapshot"])
         preview["template_id"] = line_payload.get("template_id")
+        preview["sku_variant_id"] = line_payload.get("sku_variant_id")
+        preview["sku_variant_code"] = getattr(line_payload.get("sku_variant"), "code", None)
+        preview["sku_variant_name"] = getattr(line_payload.get("sku_variant"), "name", None)
+        preview["source_mode"] = "SKU" if line_payload.get("sku_variant_id") else "CUSTOM"
         preview["line_name"] = line_payload.get("line_name")
         preview["qty_value"] = float(line_payload["qty_value"])
         preview["qty_uom"] = line_payload["qty_uom"]
@@ -101,6 +116,7 @@ class QuotationService:
             QuotationItem.objects.create(
                 quotation=duplicate,
                 template=item.template,
+                sku_variant=item.sku_variant,
                 line_name=item.line_name,
                 finished_good_type=item.finished_good_type,
                 roll_form=item.roll_form,
@@ -135,7 +151,7 @@ class QuotationService:
         item_errors: list[str] = []
         items_payload: list[dict[str, Any]] = []
 
-        for item in quotation.items.select_related("template").all():
+        for item in quotation.items.select_related("template", "sku_variant").all():
             if not item.template_id:
                 item_errors.append(f"{item.line_name or item.id}: attach a LIVE template before conversion.")
                 continue
@@ -155,6 +171,7 @@ class QuotationService:
                 {
                     "template_id": str(item.template_id),
                     "mode": "TEMPLATE",
+                    "sku_variant": str(item.sku_variant_id) if item.sku_variant_id else None,
                     "line_name": item.line_name,
                     "qty_value": float(item.qty_value),
                     "qty_uom": item.qty_uom,
@@ -231,7 +248,10 @@ class QuotationService:
 
     @classmethod
     def _persist_item(cls, quotation: Quotation, raw_item: dict[str, Any]) -> QuotationItem:
-        line_payload = cls._build_line_payload(raw_item)
+        item_payload = deepcopy(raw_item or {})
+        if quotation.plant_id and not item_payload.get("plant") and not item_payload.get("plant_id"):
+            item_payload["plant"] = str(quotation.plant_id)
+        line_payload = cls._build_line_payload(item_payload)
         preview = cls._preview_line_core(line_payload)
         costing = cls._calculate_line_costing(
             bom_snapshot=preview.get("bom", {}),
@@ -246,6 +266,7 @@ class QuotationService:
         return QuotationItem.objects.create(
             quotation=quotation,
             template_id=line_payload.get("template_id"),
+            sku_variant_id=line_payload.get("sku_variant_id"),
             line_name=line_payload["line_name"],
             finished_good_type=line_payload["finished_good_type"],
             roll_form=line_payload["roll_form"],
@@ -271,12 +292,28 @@ class QuotationService:
 
     @classmethod
     def _build_line_payload(cls, raw_item: dict[str, Any]) -> dict[str, Any]:
+        sku_variant_id = _uuid_str(raw_item.get("sku_variant") or raw_item.get("sku_variant_id"))
+        sku_variant = (
+            SalesSkuVariant.objects.select_related("sku", "sku__template").filter(id=sku_variant_id).first()
+            if sku_variant_id
+            else None
+        )
+        if sku_variant and (not sku_variant.active or not sku_variant.sku.active):
+            raise ValidationError({"sku_variant": f"SKU variant {sku_variant.code} is inactive."})
+        if sku_variant and str(getattr(sku_variant.sku.template, "status", "") or "").upper() != "LIVE":
+            raise ValidationError({"sku_variant": f"SKU {sku_variant.sku.code} must link to a LIVE template."})
+
         template_id = _uuid_str(raw_item.get("template") or raw_item.get("template_id"))
+        if sku_variant and not template_id:
+            template_id = str(sku_variant.sku.template_id)
         template = TemplateBlueprint.objects.filter(id=template_id).only("id", "name", "fg_type", "routing_rule_id").first() if template_id else None
+        plant_id = _uuid_str(raw_item.get("plant") or raw_item.get("plant_id"))
+        plant = Plant.objects.filter(id=plant_id).only("id", "name", "code", "default_cost_absorption_group_id").first() if plant_id else None
 
         finished_good_type = str(
             raw_item.get("finished_good_type")
             or raw_item.get("fg_type")
+            or (sku_variant.finished_good_type if sku_variant else "")
             or getattr(template, "fg_type", "POUCH")
             or "POUCH"
         ).upper()
@@ -305,16 +342,31 @@ class QuotationService:
         elif price_basis not in {"KG", "PCS"}:
             price_basis = "PCS"
 
-        geometry_snapshot = deepcopy(raw_item.get("geometry_snapshot") or raw_item.get("geometry") or {})
-        layer_snapshot = deepcopy(raw_item.get("layer_snapshot") or raw_item.get("film_layers") or [])
-        printing_snapshot = deepcopy(raw_item.get("printing_snapshot") or raw_item.get("printing") or {})
-        chemicals_snapshot = deepcopy(raw_item.get("chemicals_snapshot") or raw_item.get("chemicals") or {})
-        addons_snapshot = deepcopy(raw_item.get("addons_snapshot") or raw_item.get("addons") or [])
-        packaging_snapshot = deepcopy(raw_item.get("packaging_snapshot") or raw_item.get("packaging") or {})
+        raw_geometry = deepcopy(raw_item.get("geometry_snapshot") or raw_item.get("geometry") or {})
+        raw_layers = deepcopy(raw_item.get("layer_snapshot") or raw_item.get("film_layers") or [])
+        raw_printing = deepcopy(raw_item.get("printing_snapshot") or raw_item.get("printing") or {})
+        raw_chemicals = deepcopy(raw_item.get("chemicals_snapshot") or raw_item.get("chemicals") or {})
+        raw_addons = deepcopy(raw_item.get("addons_snapshot") or raw_item.get("addons") or [])
+        raw_packaging = deepcopy(raw_item.get("packaging_snapshot") or raw_item.get("packaging") or {})
+        if sku_variant:
+            geometry_snapshot = _merge_nested(deepcopy(sku_variant.geometry_snapshot or {}), raw_geometry)
+            layer_snapshot = raw_layers or deepcopy(sku_variant.layer_snapshot or [])
+            printing_snapshot = _merge_nested(deepcopy(sku_variant.printing_snapshot or {}), raw_printing)
+            chemicals_snapshot = raw_chemicals or deepcopy(sku_variant.chemicals_snapshot or {})
+            addons_snapshot = raw_addons or deepcopy(sku_variant.addons_snapshot or [])
+            packaging_snapshot = _merge_nested(deepcopy(sku_variant.packaging_snapshot or {}), raw_packaging)
+        else:
+            geometry_snapshot = raw_geometry
+            layer_snapshot = raw_layers
+            printing_snapshot = raw_printing
+            chemicals_snapshot = raw_chemicals
+            addons_snapshot = raw_addons
+            packaging_snapshot = raw_packaging
         commercial_snapshot = cls._normalize_commercial_snapshot(raw_item.get("commercial_snapshot") or raw_item.get("commercial") or {})
 
         preview_payload = {
             "template_id": template_id,
+            "sku_variant_id": sku_variant_id,
             "finished_good_type": finished_good_type,
             "roll_form": roll_form or None,
             "geometry": deepcopy(geometry_snapshot),
@@ -330,12 +382,21 @@ class QuotationService:
 
         process_cost_rows = cls._normalize_process_rows(raw_item.get("process_cost_rows") or raw_item.get("process_rows") or [])
         if not process_cost_rows and template:
-            process_cost_rows = cls._seed_process_rows(template, _dec(preview.get("total_weight_kg")))
+            process_cost_rows = cls._seed_process_rows(template, _dec(preview.get("total_weight_kg")), plant=plant)
 
-        line_name = str(raw_item.get("line_name") or getattr(template, "name", "") or finished_good_type.title()).strip()
+        line_name = str(
+            raw_item.get("line_name")
+            or (sku_variant.name if sku_variant else "")
+            or (sku_variant.sku.default_line_name if sku_variant and sku_variant.sku else "")
+            or (sku_variant.sku.name if sku_variant and sku_variant.sku else "")
+            or getattr(template, "name", "")
+            or finished_good_type.title()
+        ).strip()
         return {
             "template_id": template_id,
             "template": template,
+            "sku_variant_id": sku_variant_id,
+            "sku_variant": sku_variant,
             "line_name": line_name,
             "finished_good_type": finished_good_type,
             "roll_form": roll_form,
@@ -370,34 +431,83 @@ class QuotationService:
         return SalesOrderService.preview_sales_item(preview_payload)
 
     @classmethod
-    def _seed_process_rows(cls, template: TemplateBlueprint, total_weight_kg: Decimal) -> list[dict[str, Any]]:
+    def _estimate_run_hours(cls, total_weight_kg: Decimal) -> Decimal:
+        if total_weight_kg <= 0:
+            return Decimal("0")
+        return (total_weight_kg / cls.DEFAULT_PROCESS_THROUGHPUT_KG_PER_HOUR).quantize(Decimal("0.0001"))
+
+    @classmethod
+    def _seed_process_rows(
+        cls,
+        template: TemplateBlueprint,
+        total_weight_kg: Decimal,
+        *,
+        plant: Plant | None = None,
+    ) -> list[dict[str, Any]]:
+        route_steps = list(
+            template.process_steps.select_related("process", "cost_absorption_group").order_by("sequence_number")
+        )
+        estimated_hours = cls._estimate_run_hours(total_weight_kg)
+        rows: list[dict[str, Any]] = []
+
+        def _hourly_rate_for_step(step: TemplateProcessStep | None = None) -> tuple[Decimal, str]:
+            cost_group = CostingService.resolve_cost_absorption_group(template_step=step, plant=plant)
+            if not plant:
+                return Decimal("0"), "Select a plant to load current cost-pool estimate."
+            if not cost_group:
+                return Decimal("0"), "Cost group is not mapped for this route step yet."
+            pool_rates = CostingService.get_pool_rates_for_timestamp(plant=plant, cost_group=cost_group)
+            if pool_rates.pool_line and pool_rates.productive_hours > 0:
+                hourly_rate = (pool_rates.conversion_rate_per_hour + pool_rates.overhead_rate_per_hour).quantize(Decimal("0.0001"))
+                return hourly_rate, f"Estimated from {cost_group.code} absorbed pool."
+            if pool_rates.pool_line and pool_rates.productive_hours <= 0:
+                return Decimal("0"), f"{cost_group.code} pool exists but has zero productive hours this month."
+            return Decimal("0"), f"No current monthly pool line found for {cost_group.code}."
+
+        if route_steps:
+            for step in route_steps:
+                hourly_rate, notes = _hourly_rate_for_step(step)
+                rows.append(
+                    {
+                        "sequence": step.sequence_number,
+                        "process_id": str(step.process_id),
+                        "process_code": step.process.code,
+                        "process_name": step.process.name,
+                        "machine_id": None,
+                        "machine_name": "",
+                        "rate_id": None,
+                        "hourly_rate": float(hourly_rate),
+                        "setup_hours": 0.0,
+                        "run_hours": float(estimated_hours),
+                        "notes": notes,
+                    }
+                )
+            return rows
+
         if not getattr(template, "routing_rule_id", None):
             return []
         codes = list(getattr(template.routing_rule, "ordered_processes", []) or [])
         if not codes:
             return []
         process_map = {proc.code: proc for proc in Process.objects.filter(code__in=codes)}
-        rows: list[dict[str, Any]] = []
         for sequence, code in enumerate(codes, start=1):
             process = process_map.get(str(code))
             if process is None:
                 continue
-            rate = ProcessCostRate.objects.filter(process=process, is_active=True).order_by("machine_id", "created_at").first()
+            hourly_rate, notes = _hourly_rate_for_step(None)
             rows.append(
                 {
                     "sequence": sequence,
                     "process_id": str(process.id),
                     "process_code": process.code,
                     "process_name": process.name,
-                    "machine_id": str(rate.machine_id) if rate and rate.machine_id else None,
-                    "machine_name": rate.machine.name if rate and rate.machine_id else None,
-                    "rate_id": str(rate.id) if rate else None,
-                    "hourly_rate": float(rate.cost_per_hour) if rate else 0.0,
+                    "machine_id": None,
+                    "machine_name": "",
+                    "rate_id": None,
+                    "hourly_rate": float(hourly_rate),
                     "setup_hours": 0.0,
-                    "run_hours": float(
-                        (total_weight_kg / cls.DEFAULT_PROCESS_THROUGHPUT_KG_PER_HOUR).quantize(Decimal("0.0001"))
-                    ) if total_weight_kg > 0 else 0.0,
-                    "notes": "Seeded from template route",
+                    "run_hours": float(estimated_hours),
+                    "notes": notes,
                 }
             )
         return rows
@@ -410,24 +520,16 @@ class QuotationService:
                 continue
             process_id = _uuid_str(raw.get("process_id"))
             process = Process.objects.filter(id=process_id).first() if process_id else None
-            rate_id = _uuid_str(raw.get("rate_id"))
-            rate = ProcessCostRate.objects.filter(id=rate_id).first() if rate_id else None
-            if rate is None and process is not None:
-                machine_id = _uuid_str(raw.get("machine_id"))
-                qs = ProcessCostRate.objects.filter(process=process, is_active=True)
-                if machine_id:
-                    qs = qs.filter(machine_id=machine_id)
-                rate = qs.order_by("machine_id", "created_at").first()
             rows.append(
                 {
                     "sequence": int(raw.get("sequence") or index),
                     "process_id": str(process.id) if process else process_id,
                     "process_code": process.code if process else str(raw.get("process_code") or ""),
                     "process_name": process.name if process else str(raw.get("process_name") or ""),
-                    "machine_id": str(rate.machine_id) if rate and rate.machine_id else _uuid_str(raw.get("machine_id")),
-                    "machine_name": rate.machine.name if rate and rate.machine_id else str(raw.get("machine_name") or ""),
-                    "rate_id": str(rate.id) if rate else rate_id,
-                    "hourly_rate": float(_dec(raw.get("hourly_rate"), _dec(getattr(rate, "cost_per_hour", 0)))),
+                    "machine_id": _uuid_str(raw.get("machine_id")),
+                    "machine_name": str(raw.get("machine_name") or ""),
+                    "rate_id": None,
+                    "hourly_rate": float(_dec(raw.get("hourly_rate"))),
                     "setup_hours": float(_dec(raw.get("setup_hours"))),
                     "run_hours": float(_dec(raw.get("run_hours"))),
                     "notes": str(raw.get("notes") or ""),

@@ -19,6 +19,15 @@ const SECTION_TONE = {
     NEW_LOGIC_REQUIRED: "border-rose-200 bg-rose-50/60",
 } as const;
 
+function safeToken(value: unknown, fallback: string) {
+    const normalized = String(value || "").trim();
+    return normalized || fallback;
+}
+
+function toList(value: unknown): string[] {
+    return Array.isArray(value) ? value.map((item) => String(item || "").trim()).filter(Boolean) : [];
+}
+
 export default function CapabilityMatrixPage() {
     const { data, isLoading, isError } = useQuery({
         queryKey: ["analytics-capability-matrix"],
@@ -52,75 +61,84 @@ export default function CapabilityMatrixPage() {
                 </CardContent>
             </Card>
 
-            {data.sections.map((section) => {
-                const Icon = SECTION_ICON[section.status as keyof typeof SECTION_ICON] || Layers3;
-                const tone = SECTION_TONE[section.status as keyof typeof SECTION_TONE] || "border-slate-200 bg-white";
+            {(Array.isArray(data.sections) ? data.sections : []).map((section, sectionIndex) => {
+                const sectionStatus = safeToken(section?.status, section?.label || `SECTION_${sectionIndex + 1}`).toUpperCase();
+                const sectionLabel = safeToken(section?.label, sectionStatus.replaceAll("_", " "));
+                const Icon = SECTION_ICON[sectionStatus as keyof typeof SECTION_ICON] || Layers3;
+                const tone = SECTION_TONE[sectionStatus as keyof typeof SECTION_TONE] || "border-slate-200 bg-white";
                 return (
-                    <div key={section.status} className="space-y-4">
+                    <div key={`${sectionStatus}-${sectionIndex}`} className="space-y-4">
                         <div className={`rounded-2xl border px-5 py-4 ${tone}`}>
                             <div className="flex items-center gap-3">
                                 <div className="rounded-xl bg-white/80 p-2">
                                     <Icon className="h-5 w-5 text-slate-900" />
                                 </div>
                                 <div>
-                                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">{section.status.replaceAll("_", " ")}</div>
-                                    <div className="text-xl font-black tracking-tight text-slate-900">{section.label}</div>
+                                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">{sectionStatus.replaceAll("_", " ")}</div>
+                                    <div className="text-xl font-black tracking-tight text-slate-900">{sectionLabel}</div>
                                 </div>
                             </div>
                         </div>
 
                         <div className="grid gap-4 lg:grid-cols-2">
-                            {section.entries.map((entry) => (
-                                <Card key={`${section.status}-${entry.capability_family}`} className="border-slate-200 shadow-sm">
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-lg font-black text-slate-900">{entry.capability_family}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4 text-sm">
-                                        <div>
-                                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">What it means</div>
-                                            <p className="mt-1 text-slate-700">{entry.what_it_means}</p>
-                                        </div>
-                                        <div>
-                                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Why</div>
-                                            <p className="mt-1 text-slate-700">{entry.why}</p>
-                                        </div>
-                                        <div>
-                                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Examples</div>
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {entry.examples.map((example) => (
-                                                    <Badge key={example} variant="outline" className="bg-slate-50 text-slate-700">{example}</Badge>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="grid gap-4 md:grid-cols-2">
+                            {(Array.isArray(section?.entries) ? section.entries : []).map((entry, entryIndex) => {
+                                const family = safeToken(entry?.capability_family, `Capability ${entryIndex + 1}`);
+                                const examples = toList(entry?.examples);
+                                const configNeeded = toList(entry?.config_needed);
+                                const codeNeeded = toList(entry?.code_needed);
+                                const limits = toList(entry?.limits);
+                                return (
+                                    <Card key={`${sectionStatus}-${family}-${entryIndex}`} className="border-slate-200 shadow-sm">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-lg font-black text-slate-900">{family}</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4 text-sm">
                                             <div>
-                                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Needs only config</div>
+                                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">What it means</div>
+                                                <p className="mt-1 text-slate-700">{safeToken(entry?.what_it_means, "Capability summary unavailable.")}</p>
+                                            </div>
+                                            <div>
+                                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Why</div>
+                                                <p className="mt-1 text-slate-700">{safeToken(entry?.why, "Reasoning not provided.")}</p>
+                                            </div>
+                                            <div>
+                                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Examples</div>
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {(examples.length ? examples : ["No examples yet"]).map((example) => (
+                                                        <Badge key={example} variant="outline" className="bg-slate-50 text-slate-700">{example}</Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div>
+                                                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Needs only config</div>
+                                                    <ul className="mt-2 space-y-1 text-slate-700">
+                                                        {(configNeeded.length ? configNeeded : ["Nothing extra"]).map((item) => (
+                                                            <li key={item}>• {item}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Needs code / module</div>
+                                                    <ul className="mt-2 space-y-1 text-slate-700">
+                                                        {(codeNeeded.length ? codeNeeded : ["No new code needed"]).map((item) => (
+                                                            <li key={item}>• {item}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Limits</div>
                                                 <ul className="mt-2 space-y-1 text-slate-700">
-                                                    {(entry.config_needed.length ? entry.config_needed : ["Nothing extra"]).map((item) => (
+                                                    {(limits.length ? limits : ["No explicit limits recorded"]).map((item) => (
                                                         <li key={item}>• {item}</li>
                                                     ))}
                                                 </ul>
                                             </div>
-                                            <div>
-                                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Needs code / module</div>
-                                                <ul className="mt-2 space-y-1 text-slate-700">
-                                                    {(entry.code_needed.length ? entry.code_needed : ["No new code needed"]).map((item) => (
-                                                        <li key={item}>• {item}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Limits</div>
-                                            <ul className="mt-2 space-y-1 text-slate-700">
-                                                {entry.limits.map((item) => (
-                                                    <li key={item}>• {item}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })}
                         </div>
                     </div>
                 );
@@ -128,4 +146,3 @@ export default function CapabilityMatrixPage() {
         </div>
     );
 }
-

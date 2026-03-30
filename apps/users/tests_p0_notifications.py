@@ -104,3 +104,19 @@ class NotificationP0Tests(TestCase):
         attempts = NotificationDeliveryAttempt.objects.filter(channel="EMAIL").count()
         self.assertEqual(attempts, 0)
         self.assertEqual(mock_delay.call_count, 0)
+
+    @patch("apps.users.tasks.deliver_notification_email_task.delay", side_effect=RuntimeError("broker down"))
+    def test_queue_failure_does_not_abort_notification_creation(self, _mock_delay):
+        notification = NotificationService.emit_event(
+            event_key="inventory.low_stock",
+            notification_type="LOW_STOCK",
+            title="Low stock",
+            message="Reorder now",
+            idempotency_key="stock-alert-queue-failure",
+        )
+
+        self.assertEqual(Notification.objects.count(), 2)
+        email_attempts = NotificationDeliveryAttempt.objects.filter(channel="EMAIL").order_by("created_at")
+        self.assertEqual(email_attempts.count(), 2)
+        self.assertTrue(all(attempt.status == "FAILED" for attempt in email_attempts))
+        self.assertEqual(notification.delivery_state.get("EMAIL"), "QUEUE_FAILED")

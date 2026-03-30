@@ -200,7 +200,9 @@ export interface SatisfactionStatus {
     rolls_reserved: number;
     rolls_auto_forwarded: number;
     rolls_pool?: number;
+    rolls_fallback_available?: number;
     rolls_missing: number;
+    rolls_missing_lineage?: number;
     bulk_consumption: BulkConsumptionPreview[];
     is_satisfied: boolean;
     can_start: boolean;

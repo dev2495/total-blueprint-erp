@@ -155,6 +155,8 @@ export default function OwnerDashboardPage() {
     const activeJobs: any[] = data.active_jobs ?? [];
     const alerts: any[] = data.alerts ?? [];
     const invDist: any[] = data.inventory_distribution ?? [];
+    const routeReuse: any = data.route_reuse_mix ?? {};
+    const podKpis: any = data.pod_kpis ?? {};
 
     const scrapTrend = useMemo(() =>
         (data.scrap_trend ?? []).map((r: any) => ({
@@ -619,6 +621,41 @@ export default function OwnerDashboardPage() {
                             </div>
                         ));
                     })() : <div className={styles.emptyState}>No SKU data</div>}
+                </div>
+            </div>
+
+            <div className={`${styles.dualGrid} ${styles.animUp}`} style={{ animationDelay: "260ms" }}>
+                <div className={styles.glassCard}>
+                    <div className={styles.sectionTitle}><Layers size={13} /> Route Reuse Pools</div>
+                    <div style={{ display: "grid", gap: 10 }}>
+                        <div className={styles.overheadChip}>
+                            <div className={styles.overheadLabel}>Final Roll Pool</div>
+                            <div className={styles.overheadVal}>{fmt(routeReuse.final_roll_kg)} KG</div>
+                        </div>
+                        <div className={styles.overheadChip}>
+                            <div className={styles.overheadLabel}>Invariant Pool</div>
+                            <div className={styles.overheadVal}>{fmt(routeReuse.invariant_roll_kg)} KG</div>
+                        </div>
+                        <div className={styles.overheadChip}>
+                            <div className={styles.overheadLabel}>Upstream Pool</div>
+                            <div className={styles.overheadVal}>{fmt(routeReuse.upstream_roll_kg)} KG</div>
+                        </div>
+                    </div>
+                </div>
+                <div className={styles.glassCard}>
+                    <div className={styles.sectionTitle}><Shield size={13} /> POD Intelligence</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                        <div className={styles.finBreakCard}>
+                            <div className={styles.finBreakLabel}>Active POD SKUs</div>
+                            <div className={styles.finBreakVal} style={{ color: "#38bdf8" }}>{fmt(podKpis.active_pod_skus, 0)}</div>
+                            <div className={styles.finBreakSub}>{fmt(podKpis.active_pod_variants, 0)} active variants</div>
+                        </div>
+                        <div className={styles.finBreakCard}>
+                            <div className={styles.finBreakLabel}>POD Bulk Orders</div>
+                            <div className={styles.finBreakVal} style={{ color: "#a78bfa" }}>{fmt(podKpis.bulk_orders, 0)}</div>
+                            <div className={styles.finBreakSub}>{fmt(podKpis.bulk_target_kg)} KG target</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -19,8 +19,10 @@ urlpatterns = [
     path('material-consumption/', AnalyticsViewSet.as_view({'get': 'material_consumption'}), name='analytics-material-consumption'),
     path('order-tracking/', AnalyticsViewSet.as_view({'get': 'order_tracking'}), name='analytics-order-tracking'),
     path('orders/<str:order_id>/tracking/', AnalyticsViewSet.as_view({'get': 'order_tracking_for_order'}), name='analytics-order-tracking-detail'),
+    path('trace/', AnalyticsViewSet.as_view({'get': 'trace_lookup'}), name='analytics-trace-lookup'),
     path('sales-dashboard/', AnalyticsViewSet.as_view({'get': 'sales_dashboard'}), name='analytics-sales-dashboard'),
     path('planner-dashboard/', AnalyticsViewSet.as_view({'get': 'planner_dashboard'}), name='analytics-planner-dashboard'),
+    path('wcm-dashboard/', AnalyticsViewSet.as_view({'get': 'wcm_dashboard'}), name='analytics-wcm-dashboard'),
     path('scrap-center/', AnalyticsViewSet.as_view({'get': 'scrap_center'}), name='analytics-scrap-center'),
     path('maintenance/', AnalyticsViewSet.as_view({'post': 'maintenance'}), name='analytics-maintenance'),
     # Legacy Routes Removed
@@ -44,10 +46,13 @@ urlpatterns = [
     # Report Hub aggregate endpoints
     path('catalog/', AnalyticsViewSet.as_view({'get': 'catalog'}), name='analytics-catalog'),
     path('dashboard-summary/', AnalyticsViewSet.as_view({'get': 'dashboard_summary'}), name='analytics-dashboard-summary'),
+    path('dashboard-summary/export-pdf/', AnalyticsViewSet.as_view({'get': 'dashboard_summary_export_pdf'}), name='analytics-dashboard-summary-export'),
     path('report-distributions/', AnalyticsViewSet.as_view({'get': 'report_distributions', 'put': 'report_distributions'}), name='analytics-report-distributions'),
     path('report-distributions/<str:report_code>/send/', AnalyticsViewSet.as_view({'post': 'send_report_distribution'}), name='analytics-report-distribution-send'),
     path('report-runs/', AnalyticsViewSet.as_view({'get': 'report_runs'}), name='analytics-report-runs'),
     path('report-runs/<str:run_id>/preview-pdf/', AnalyticsViewSet.as_view({'get': 'report_run_preview_pdf'}), name='analytics-report-run-preview'),
+    path('report-runs/<str:run_id>/download-pdf/', AnalyticsViewSet.as_view({'get': 'report_run_download_pdf'}), name='analytics-report-run-download-pdf'),
     path('report-runs/<str:run_id>/download-detail/', AnalyticsViewSet.as_view({'get': 'report_run_download_detail'}), name='analytics-report-run-detail'),
     path('capability-matrix/', AnalyticsViewSet.as_view({'get': 'capability_matrix'}), name='analytics-capability-matrix'),
+    path('reports/<str:tab>/export-pdf/', AnalyticsViewSet.as_view({'get': 'report_tab_export_pdf'}), name='analytics-report-tab-export'),
 ]

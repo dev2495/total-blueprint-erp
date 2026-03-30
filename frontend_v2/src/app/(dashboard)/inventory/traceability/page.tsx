@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { observabilityApi, type RollTraceResponse, type GenealogyNode } from "@/services/observability";
 import { listRolls, type Roll } from "@/services/rolls";
+import Link from "next/link";
 
 function fmtKg(value: unknown): string {
     const num = Number(value);
@@ -213,10 +214,10 @@ export default function RollTraceabilityPage() {
                             <div>
                                 <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
                                     <GitBranch className="h-7 w-7 text-blue-600" />
-                                    Roll Traceability
+                                    Roll Genealogy
                                 </h1>
                                 <p className="text-sm text-slate-500 font-semibold">
-                                    Genealogy, movement trail, and role/stage audit for any roll label or id.
+                                    Genealogy, movement trail, and stage truth for any roll label or id.
                                 </p>
                             </div>
                             {result?.matched_by && (
@@ -226,7 +227,12 @@ export default function RollTraceabilityPage() {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Link href="/inventory/roll-explorer">
+                                <Button variant="outline" className="h-12 rounded-2xl font-bold">
+                                    Open Roll Explorer
+                                </Button>
+                            </Link>
                             <Select
                                 value={selectedRoll}
                                 onValueChange={(value) => {

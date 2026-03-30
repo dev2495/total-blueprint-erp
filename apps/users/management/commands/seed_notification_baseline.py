@@ -260,6 +260,22 @@ class Command(BaseCommand):
                         "meta": {"seeded": True, "event_key": row["event_key"]},
                     },
                 )
+                refresh_fields = [
+                    "event_key",
+                    "type",
+                    "title",
+                    "message",
+                    "target_role",
+                    "priority",
+                    "channels",
+                    "is_read",
+                    "read_at",
+                    "related_object_type",
+                    "delivery_state",
+                    "first_delivered_at",
+                ]
+                notification.created_at = now
+                notification.save(update_fields=refresh_fields + ["created_at"])
                 if created:
                     seeded_notifications += 1
 

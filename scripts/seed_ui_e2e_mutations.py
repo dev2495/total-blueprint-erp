@@ -4,34 +4,59 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from uuid import uuid4
 
 import django
 
 sys.path.insert(0, os.getcwd())
+os.environ.setdefault("SKIP_CELERY_IMPORT", "1")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.factory.models import Machine, Plant, Process, WorkCenter
-from apps.inventory.models import InventoryLocation, InventoryRoll
+from apps.inventory.models import (
+    DeliveryChallan as InterPlantDeliveryChallan,
+    InterPlantChallanItem,
+    InventoryLocation,
+    InventoryReservation,
+    InventoryRoll,
+    JobWorkOrder,
+    RollConsumption,
+    RollLink,
+    RollMovement,
+)
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.roll_service import RollService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.materials.models import InventoryMaterial
-from apps.production.models import JobMaterialRequirement, ProductionJob, WorkCenterAssignment as ProductionWCAssignment
+from apps.production.models import (
+    DowntimeLog,
+    JobMaterialRequirement,
+    JobExecutionLog,
+    MaterialConsumptionLog,
+    ProductionJob,
+    RollDispatchPackRecord,
+    ScrapLog,
+    WorkCenterAssignment as ProductionWCAssignment,
+)
 from apps.production.services.dispatch_service import FGDispatchService
 from apps.recipes.models import RecipeGrade
 from apps.sales.models import SalesOrder
 from apps.templates.models import TemplateProcessStep
 from apps.users.models import MachineAssignment, User, WorkCenterAssignment as UserWCAssignment
 from apps.inventory.models import Vendor
+from scripts.e2e_green_utils import CODE_PREFIX, current_run_tag, label, runtime_dir
 
 
-PREFIX = "UIE2E-MUT"
+RUN_TAG = current_run_tag()
+PREFIX = f"{CODE_PREFIX}-MUT"
+OPERATOR_JOB_NUMBER = f"{PREFIX}-OP-{RUN_TAG}"
+WCM_JOB_NUMBER = f"{PREFIX}-WCM-{RUN_TAG}"
+JOBWORK_JOB_NUMBER = f"{PREFIX}-JW-{RUN_TAG}"
 
 
 @dataclass
@@ -45,14 +70,8 @@ class PlantContext:
     fg: InventoryLocation
 
 
-def _runtime_dir() -> Path:
-    runtime_dir = Path(os.environ.get("UI_E2E_RUNTIME_DIR", Path(os.getcwd()) / ".runtime" / "ui-e2e"))
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-    return runtime_dir
-
-
 def _suffix() -> str:
-    return timezone.now().strftime("%Y%m%d%H%M%S")
+    return RUN_TAG
 
 
 def _require(model, **filters):
@@ -95,6 +114,40 @@ def _ensure_user_scope(user: User, work_center: WorkCenter, machine: Machine):
 
 def _job_number(kind: str, suffix: str) -> str:
     return f"{PREFIX}-{kind}-{suffix}"
+
+
+def _cleanup_previous_seed_data():
+    seeded_roll_ids = list(
+        InventoryRoll.objects.filter(
+            Q(meta_json__ui_e2e_seed=True)
+            | Q(production_job__job_number__startswith=f"{PREFIX}-")
+            | Q(created_by_job__job_number__startswith=f"{PREFIX}-")
+            | Q(label_id__startswith=f"{PREFIX}-")
+            | Q(label_id__startswith=f"R-{PREFIX}-")
+        ).values_list("id", flat=True)
+    )
+    if seeded_roll_ids:
+        RollMovement.objects.filter(roll_id__in=seeded_roll_ids).delete()
+        RollConsumption.objects.filter(input_roll_id__in=seeded_roll_ids).delete()
+        RollConsumption.objects.filter(output_roll_id__in=seeded_roll_ids).delete()
+        RollConsumption.objects.filter(balance_roll_id__in=seeded_roll_ids).delete()
+        RollConsumption.objects.filter(scrap_roll_id__in=seeded_roll_ids).delete()
+        RollLink.objects.filter(parent_roll_id__in=seeded_roll_ids).delete()
+        RollLink.objects.filter(child_roll_id__in=seeded_roll_ids).delete()
+        InventoryReservation.objects.filter(roll_id__in=seeded_roll_ids).delete()
+        InterPlantChallanItem.objects.filter(roll_id__in=seeded_roll_ids).delete()
+        RollDispatchPackRecord.objects.filter(roll_id__in=seeded_roll_ids).delete()
+        InterPlantDeliveryChallan.objects.filter(items__roll_id__in=seeded_roll_ids).distinct().delete()
+        InventoryRoll.objects.filter(id__in=seeded_roll_ids).delete()
+
+    JobWorkOrder.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    DowntimeLog.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    JobExecutionLog.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    ScrapLog.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    MaterialConsumptionLog.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    JobMaterialRequirement.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    ProductionWCAssignment.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
+    ProductionJob.objects.filter(job_number__startswith=f"{PREFIX}-").delete()
 
 
 def _find_job_template_source() -> ProductionJob:
@@ -283,7 +336,8 @@ def _seed_extrusion_requirement(job: ProductionJob, material: InventoryMaterial,
 
 def main():
     run_suffix = _suffix()
-    runtime_path = _runtime_dir() / "mutation-seed.json"
+    runtime_path = runtime_dir() / "mutation-seed.json"
+    _cleanup_previous_seed_data()
     admin = _ensure_admin()
     plant_a = _get_plant_context("PLANT_A")
     plant_b = _get_plant_context("PLANT_B")
@@ -321,7 +375,7 @@ def main():
     _ensure_user_scope(admin, plant_b.work_center, plant_b.machine)
 
     operator_job = _clone_job(
-        job_number=_job_number("OP", run_suffix),
+        job_number=OPERATOR_JOB_NUMBER,
         source=job_source,
         process=extrusion,
         work_center=plant_b.work_center,
@@ -349,7 +403,7 @@ def main():
     )
 
     wcm_job = _clone_job(
-        job_number=_job_number("WCM", run_suffix),
+        job_number=WCM_JOB_NUMBER,
         source=job_source,
         process=extrusion,
         work_center=plant_a.work_center,
@@ -375,7 +429,7 @@ def main():
     )
 
     jobwork_source_job = _clone_job(
-        job_number=_job_number("JW", run_suffix),
+        job_number=JOBWORK_JOB_NUMBER,
         source=job_source,
         process=extrusion,
         work_center=plant_a.work_center,
@@ -399,7 +453,7 @@ def main():
         current_step_index=1,
         completed_step_index=1,
         stage_index=1,
-        meta_json={"ui_e2e_seed": True, "seed_type": "jobwork_source"},
+        meta_json={"ui_e2e_seed": True, "seed_type": "jobwork_source", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
     )
 
     interplant_roll = _create_roll(
@@ -412,7 +466,7 @@ def main():
         width_mm=Decimal("980"),
         thickness_micron=Decimal("12"),
         batch_no=f"{PREFIX}-IP-{run_suffix}",
-        meta_json={"ui_e2e_seed": True, "seed_type": "interplant_source"},
+        meta_json={"ui_e2e_seed": True, "seed_type": "interplant_source", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
     )
 
     dispatch_order, dispatch_item = _dispatch_target_sales_order()
@@ -432,7 +486,7 @@ def main():
         current_step_index=5,
         completed_step_index=5,
         stage_index=5,
-        meta_json={"ui_e2e_seed": True, "seed_type": "dispatch_roll"},
+        meta_json={"ui_e2e_seed": True, "seed_type": "dispatch_roll", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
     )
     PackagingService.add_packaging_stock(
         material_id=packaging_material.id,
@@ -445,6 +499,8 @@ def main():
     )
 
     metadata = {
+        "run_tag": RUN_TAG,
+        "label_prefix": label("").strip(),
         "seeded_at": timezone.now().isoformat(),
         "admin_username": admin.username,
         "operator": {

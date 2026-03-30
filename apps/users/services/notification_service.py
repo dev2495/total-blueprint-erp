@@ -93,6 +93,7 @@ class NotificationService:
     @classmethod
     def _create_delivery_attempts(cls, notification: Notification):
         channels = [str(c).upper() for c in (notification.channels or ["IN_APP"])]
+        email_queue_ok = True
         if "IN_APP" in channels:
             NotificationDeliveryAttempt.objects.create(
                 notification=notification,
@@ -114,16 +115,40 @@ class NotificationService:
                 idempotency_key=f"{notification.id}:email:1",
                 recipient=notification.target_role or (notification.user.email if notification.user else ""),
             )
-            from apps.users.tasks import deliver_notification_email_task
-
-            deliver_notification_email_task.delay(str(notification.id))
+            email_queue_ok = cls._queue_email_delivery(notification)
 
         state = {c: "QUEUED" for c in channels}
         if "IN_APP" in channels:
             state["IN_APP"] = "DELIVERED"
+        if "EMAIL" in channels and not email_queue_ok:
+            state["EMAIL"] = "QUEUE_FAILED"
         notification.delivery_state = state
         notification.first_delivered_at = timezone.now() if "IN_APP" in channels else None
         notification.save(update_fields=["delivery_state", "first_delivered_at"])
+
+    @classmethod
+    def _queue_email_delivery(cls, notification: Notification) -> bool:
+        from apps.users.tasks import deliver_notification_email_task
+
+        try:
+            deliver_notification_email_task.delay(str(notification.id))
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Failed to queue notification email delivery for %s; leaving primary flow intact.",
+                notification.id,
+                exc_info=True,
+            )
+            attempt = (
+                NotificationDeliveryAttempt.objects.filter(notification=notification, channel="EMAIL")
+                .order_by("-attempt_no", "-created_at")
+                .first()
+            )
+            if attempt:
+                attempt.status = "FAILED"
+                attempt.error_text = f"queue_dispatch_failed: {exc}"
+                attempt.save(update_fields=["status", "error_text"])
+            return False
 
     @classmethod
     @transaction.atomic

@@ -4,7 +4,7 @@ import { getSidebarRoutesForRole } from "../../../src/lib/sidebar-nav"
 
 const parentRouteRedirects = [
   { from: "/production", to: "/production/planner" },
-  { from: "/inventory", to: "/inventory/roll-explorer" },
+  { from: "/inventory", to: "/inventory" },
   { from: "/sales", to: "/sales/orders" },
   { from: "/engineering", to: "/engineering/artworks" },
   { from: "/system", to: "/system/users" },

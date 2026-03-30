@@ -282,6 +282,7 @@ class BulkTransaction(models.Model):
     """
     TYPE_CHOICES = [
         ('INWARD', 'Inward (GRN)'),
+        ('PRODUCE', 'In-House Production'),
         ('CONSUME', 'Production Consumption'),
         ('TRANSFER', 'Location Transfer'),
         ('ADJUST', 'Manual Adjustment'),

@@ -64,6 +64,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const queryClient = useQueryClient()
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [activeArtworkId, setActiveArtworkId] = useState<string | null>(artwork?.id || null)
+    const isCreateMode = !artwork?.id
 
     const { data: inks } = useQuery({
         queryKey: ["inks"],
@@ -146,6 +147,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             }
             queryClient.invalidateQueries({ queryKey: ["artworks"] })
             toast({ title: "Draft Saved" })
+            if (isCreateMode) {
+                onOpenChange(false)
+            }
         },
         onError: (err: any) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
     })
@@ -616,9 +620,6 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         onClick={form.handleSubmit(async (v) => {
                                             try {
                                                 await mutation.mutateAsync(v as ArtworkFormValues)
-                                                if (!artwork) {
-                                                    onOpenChange(false)
-                                                }
                                             } catch {
                                                 // handled in mutation onError
                                             }

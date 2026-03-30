@@ -1,6 +1,8 @@
 from django.db import transaction
+from django.core.exceptions import ValidationError
 from decimal import Decimal, ROUND_HALF_UP
 from django.db.models import Sum, Q, Max
+from apps.artwork.print_contract import validate_frozen_printing_snapshot
 from apps.production.models import (
     ProductionJob,
     JobMaterialRequirement,
@@ -16,6 +18,7 @@ from apps.inventory.models import (
     InventoryReservation,
     InventoryBulk,
     RollLink,
+    RollConsumption,
     RollMovement,
     InventoryLocation,
 )
@@ -194,9 +197,104 @@ class ExecutionService:
     @classmethod
     def _is_packaging_purpose_job(cls, job):
         mts_order = getattr(job, "mts_order", None)
-        if not mts_order:
+        stock_purpose = (
+            getattr(mts_order, "stock_purpose", None)
+            if mts_order is not None
+            else getattr(job, "stock_purpose", None)
+        )
+        return str(stock_purpose or "").upper() == "PACKAGING"
+
+    @classmethod
+    def _is_piece_primary_roll_to_bulk_job(cls, job, process=None):
+        process = process or getattr(job, "current_process", None) or getattr(job, "process", None)
+        if not cls._is_packaging_purpose_job(job):
             return False
-        return str(getattr(mts_order, "stock_purpose", "") or "").upper() == "PACKAGING"
+        job_uom = getattr(job, "uom", None) or getattr(job, "quantity_uom", None) or "KG"
+        if str(job_uom or "KG").upper() != "PCS":
+            return False
+        input_form = str(getattr(process, "input_form", "") or "").upper()
+        output_form = str(getattr(process, "output_form", "") or "").upper()
+        return input_form == "ROLL" and output_form == "BULK"
+
+    @classmethod
+    def _allow_non_lineage_roll_discovery(cls, job, process=None):
+        process = process or getattr(job, "current_process", None) or getattr(job, "process", None)
+        if not process:
+            return False
+        return str(getattr(process, "input_form", "") or "").upper() == "ROLL"
+
+    @classmethod
+    def _allow_non_lineage_roll_auto_pick(cls, job, process=None):
+        process = process or getattr(job, "current_process", None) or getattr(job, "process", None)
+        return cls._is_piece_primary_roll_to_bulk_job(job, process=process)
+
+    @classmethod
+    def _allow_non_lineage_roll_fallback(cls, job, process=None):
+        # Backward-compatible alias for older call sites; auto-pick fallback
+        # remains intentionally narrower than discovery.
+        return cls._allow_non_lineage_roll_auto_pick(job, process=process)
+
+    @classmethod
+    def _resolve_primary_step_metrics(
+        cls,
+        job,
+        *,
+        process=None,
+        step_target_total_kg,
+        step_produced_kg,
+        step_remaining_kg,
+        step_target_pcs,
+        step_produced_pcs,
+        step_remaining_pcs,
+        tolerance_kg,
+    ):
+        process = process or getattr(job, "current_process", None) or getattr(job, "process", None)
+        target_kg = cls._safe_decimal(step_target_total_kg)
+        produced_kg = cls._safe_decimal(step_produced_kg)
+        remaining_kg = cls._safe_decimal(step_remaining_kg)
+        target_pcs = cls._safe_decimal(step_target_pcs)
+        produced_pcs = cls._safe_decimal(step_produced_pcs)
+        remaining_pcs = cls._safe_decimal(step_remaining_pcs)
+        tolerance_kg = cls._safe_decimal(tolerance_kg)
+
+        if cls._is_piece_primary_roll_to_bulk_job(job, process=process):
+            primary_uom = "PCS"
+            secondary_uom = "KG"
+            target_primary = cls._safe_decimal(getattr(job, "quantity", 0))
+            produced_primary = cls._safe_decimal(getattr(job, "produced_qty", 0))
+            remaining_primary = cls._safe_decimal(getattr(job, "remaining_qty", 0))
+            if target_primary > 0 and produced_primary > target_primary:
+                produced_primary = target_primary
+            if remaining_primary <= 0 and target_primary > 0:
+                remaining_primary = target_primary - produced_primary
+            if remaining_primary < 0:
+                remaining_primary = Decimal("0")
+            target_pcs = target_primary
+            produced_pcs = produced_primary
+            remaining_pcs = remaining_primary
+            tolerance_primary = Decimal("0.01")
+        else:
+            primary_uom = "KG"
+            secondary_uom = "PCS" if any(
+                value is not None
+                for value in (step_target_pcs, step_produced_pcs, step_remaining_pcs)
+            ) else None
+            target_primary = target_kg
+            produced_primary = produced_kg
+            remaining_primary = remaining_kg
+            tolerance_primary = tolerance_kg
+
+        return {
+            "primary_uom": primary_uom,
+            "secondary_uom": secondary_uom,
+            "step_target_pcs": float(target_pcs) if step_target_pcs is not None or primary_uom == "PCS" else None,
+            "step_produced_pcs": float(produced_pcs) if step_produced_pcs is not None or primary_uom == "PCS" else None,
+            "step_remaining_pcs": float(remaining_pcs) if step_remaining_pcs is not None or primary_uom == "PCS" else None,
+            "step_target_primary": float(target_primary),
+            "step_produced_primary": float(produced_primary),
+            "step_remaining_primary": float(remaining_primary),
+            "tolerance_primary": float(tolerance_primary),
+        }
 
     @classmethod
     def _step0_purchasable_variant_ids(cls, job):
@@ -594,6 +692,7 @@ class ExecutionService:
         process = job.current_process or job.process
         unit_weight_g = cls._job_unit_weight_g(job)
         job_uom = str(job.uom or "KG").upper()
+        piece_primary = cls._is_piece_primary_roll_to_bulk_job(job, process=process)
         is_roll_mass_job = cls._is_roll_mass_job(job)
         supports_secondary_pcs = (
             not is_roll_mass_job
@@ -625,11 +724,15 @@ class ExecutionService:
             remaining_pcs = cls._convert_qty(remaining_kg, "KG", "PCS", unit_weight_g) if derivation_available else None
         else:
             target_pcs = target_raw
-            if derivation_available:
+            if piece_primary:
+                produced_pcs = Decimal(str(job.produced_qty or 0))
+            elif derivation_available:
                 produced_pcs = cls._convert_qty(logged_output_kg, "KG", "PCS", unit_weight_g)
             else:
                 produced_pcs = Decimal(str(job.produced_qty or 0))
-            remaining_pcs = target_pcs - produced_pcs
+            remaining_pcs = Decimal(str(job.remaining_qty or (target_pcs - produced_pcs) or 0))
+            if remaining_pcs <= 0 and target_pcs > 0:
+                remaining_pcs = target_pcs - produced_pcs
             if remaining_pcs < 0:
                 remaining_pcs = Decimal("0")
             target_kg = cls._convert_qty(target_pcs, "PCS", "KG", unit_weight_g) if derivation_available else None
@@ -649,8 +752,8 @@ class ExecutionService:
                 return None
 
         return {
-            "primary_unit": "KG",
-            "secondary_unit": "PCS" if supports_secondary_pcs else None,
+            "primary_unit": "PCS" if piece_primary else "KG",
+            "secondary_unit": "KG" if piece_primary else ("PCS" if supports_secondary_pcs else None),
             "job_uom": job_uom,
             "unit_weight_g": float(unit_weight_g) if unit_weight_g > 0 else None,
             "derivation_available": bool(derivation_available),
@@ -1103,6 +1206,17 @@ class ExecutionService:
         step_target_pcs = cls._convert_qty(step_target_total_kg, "KG", "PCS", unit_weight_g) if supports_secondary_pcs and unit_weight_g > 0 else None
         step_produced_pcs = cls._convert_qty(produced_kg, "KG", "PCS", unit_weight_g) if supports_secondary_pcs and unit_weight_g > 0 else None
         step_remaining_pcs = cls._convert_qty(remaining_kg, "KG", "PCS", unit_weight_g) if supports_secondary_pcs and unit_weight_g > 0 else None
+        primary_metrics = cls._resolve_primary_step_metrics(
+            job,
+            process=process,
+            step_target_total_kg=step_target_total_kg,
+            step_produced_kg=produced_kg,
+            step_remaining_kg=remaining_kg,
+            step_target_pcs=step_target_pcs,
+            step_produced_pcs=step_produced_pcs,
+            step_remaining_pcs=step_remaining_pcs,
+            tolerance_kg=tolerance_kg,
+        )
 
         return {
             "step_roll_target_kg": float(step_roll_target_kg),
@@ -1110,10 +1224,16 @@ class ExecutionService:
             "step_target_total_kg": float(step_target_total_kg),
             "step_produced_kg": float(produced_kg),
             "step_remaining_kg": float(remaining_kg),
-            "step_target_pcs": float(step_target_pcs) if step_target_pcs is not None else None,
-            "step_produced_pcs": float(step_produced_pcs) if step_produced_pcs is not None else None,
-            "step_remaining_pcs": float(step_remaining_pcs) if step_remaining_pcs is not None else None,
+            "step_target_pcs": primary_metrics["step_target_pcs"],
+            "step_produced_pcs": primary_metrics["step_produced_pcs"],
+            "step_remaining_pcs": primary_metrics["step_remaining_pcs"],
             "tolerance_kg": float(tolerance_kg),
+            "primary_uom": primary_metrics["primary_uom"],
+            "secondary_uom": primary_metrics["secondary_uom"],
+            "step_target_primary": primary_metrics["step_target_primary"],
+            "step_produced_primary": primary_metrics["step_produced_primary"],
+            "step_remaining_primary": primary_metrics["step_remaining_primary"],
+            "tolerance_primary": primary_metrics["tolerance_primary"],
             "derivation_fallback": bool(step_roll_target_kg <= 0 and input_form == "ROLL"),
             "target_source": target_source,
             "roll_spec_variant_id": step_roll_spec.get("output_variant_id") or None,
@@ -1341,6 +1461,17 @@ class ExecutionService:
         step_target_pcs = cls._convert_qty(step_target_total_kg, "KG", "PCS", unit_weight_g) if supports_secondary_pcs and unit_weight_g > 0 else None
         step_produced_pcs = cls._convert_qty(produced_kg, "KG", "PCS", unit_weight_g) if supports_secondary_pcs and unit_weight_g > 0 else None
         step_remaining_pcs = cls._convert_qty(remaining_kg, "KG", "PCS", unit_weight_g) if supports_secondary_pcs and unit_weight_g > 0 else None
+        primary_metrics = cls._resolve_primary_step_metrics(
+            job,
+            process=process,
+            step_target_total_kg=step_target_total_kg,
+            step_produced_kg=produced_kg,
+            step_remaining_kg=remaining_kg,
+            step_target_pcs=step_target_pcs,
+            step_produced_pcs=step_produced_pcs,
+            step_remaining_pcs=step_remaining_pcs,
+            tolerance_kg=tolerance_kg,
+        )
 
         return {
             "step_roll_target_kg": float(step_roll_target_kg),
@@ -1348,10 +1479,16 @@ class ExecutionService:
             "step_target_total_kg": float(step_target_total_kg),
             "step_produced_kg": float(produced_kg),
             "step_remaining_kg": float(remaining_kg),
-            "step_target_pcs": float(step_target_pcs) if step_target_pcs is not None else None,
-            "step_produced_pcs": float(step_produced_pcs) if step_produced_pcs is not None else None,
-            "step_remaining_pcs": float(step_remaining_pcs) if step_remaining_pcs is not None else None,
+            "step_target_pcs": primary_metrics["step_target_pcs"],
+            "step_produced_pcs": primary_metrics["step_produced_pcs"],
+            "step_remaining_pcs": primary_metrics["step_remaining_pcs"],
             "tolerance_kg": float(tolerance_kg),
+            "primary_uom": primary_metrics["primary_uom"],
+            "secondary_uom": primary_metrics["secondary_uom"],
+            "step_target_primary": primary_metrics["step_target_primary"],
+            "step_produced_primary": primary_metrics["step_produced_primary"],
+            "step_remaining_primary": primary_metrics["step_remaining_primary"],
+            "tolerance_primary": primary_metrics["tolerance_primary"],
             "derivation_fallback": bool(derivation_fallback),
             "roll_spec_variant_id": output_variant_id or None,
             "roll_spec_variant_code": output_variant_code or None,
@@ -1453,6 +1590,7 @@ class ExecutionService:
         eligible = list(
             RollAllocationService.get_eligible_rolls(
                 job,
+                include_non_lineage_fallback=cls._allow_non_lineage_roll_auto_pick(job, process),
                 include_remainder=(current_step_index == 0),
             ).select_related("material", "material__parent_family")
         )
@@ -1494,7 +1632,7 @@ class ExecutionService:
 
         # Downstream roll-input steps should consume forward lineage outputs,
         # not older/raw remainders from prior stages.
-        if current_step_index > 0:
+        if current_step_index > 0 and not cls._allow_non_lineage_roll_auto_pick(job, process):
             downstream_ranked = []
             for candidate in ranked:
                 if _is_remainder_roll(candidate):
@@ -1753,6 +1891,29 @@ class ExecutionService:
             return False
 
     @classmethod
+    def _resolve_finished_good_type(cls, job):
+        geometry_snapshot = cls._job_geometry_snapshot(job) or {}
+        fg_type = str(
+            (geometry_snapshot or {}).get("finished_good_type")
+            or (geometry_snapshot or {}).get("fg_type")
+            or getattr(job.template, "fg_type", "")
+            or "POUCH"
+        ).upper()
+        return fg_type
+
+    @classmethod
+    def _is_terminal_pouch_fg_bulk_step(cls, job, process=None):
+        process = process or job.current_process or job.process
+        output_form = str(getattr(process, "output_form", "") or "").upper()
+        if output_form != "BULK":
+            return False
+        if cls._is_packaging_purpose_job(job):
+            return False
+        if not cls._is_terminal_order_step(job):
+            return False
+        return cls._resolve_finished_good_type(job) == "POUCH"
+
+    @classmethod
     def _route_last_step_index(cls, job):
         """
         Resolve route terminal index for execution.
@@ -1788,6 +1949,73 @@ class ExecutionService:
             return template_last
 
         return 0
+
+    @classmethod
+    def _build_continuation_banner(cls, job):
+        route_last_index = cls._route_last_step_index(job)
+        current_index = int(getattr(job, "current_step_index", 0) or 0)
+        mts_order = getattr(job, "mts_order", None)
+
+        if mts_order is not None:
+            start_index = int(getattr(mts_order, "start_step_index", 0) or 0)
+            stop_index = getattr(mts_order, "stop_step_index", None)
+            stop_index = route_last_index if stop_index is None else int(stop_index)
+            planner_stock_class = str(getattr(mts_order, "planner_stock_class", "") or "").upper()
+
+            if start_index > 0:
+                return {
+                    "title": "Continuing a stopped route",
+                    "body": (
+                        f"This job resumes {mts_order.order_number} from step {start_index} "
+                        f"to step {stop_index}. Operators are continuing prior WIP, not starting fresh raw input."
+                    ),
+                    "source_order_number": str(getattr(mts_order, "order_number", "") or ""),
+                    "planner_stock_class": planner_stock_class,
+                    "start_step_index": start_index,
+                    "stop_step_index": stop_index,
+                    "tone": "indigo",
+                }
+
+            if stop_index < route_last_index:
+                return {
+                    "title": "Building reusable semi-finished stock",
+                    "body": (
+                        f"This run intentionally stops at step {stop_index} so the plant can hold reusable stock "
+                        f"before the final route is completed."
+                    ),
+                    "source_order_number": str(getattr(mts_order, "order_number", "") or ""),
+                    "planner_stock_class": planner_stock_class,
+                    "start_step_index": start_index,
+                    "stop_step_index": stop_index,
+                    "tone": "amber",
+                }
+
+            if planner_stock_class in {"SHARED_INVARIANT_ROLL", "EXTRUDED_BASE_ROLL", "FINAL_PLAIN_ROLL"}:
+                return {
+                    "title": "Planner stock route",
+                    "body": (
+                        f"This job is running against planner stock order {mts_order.order_number}. "
+                        "Keep output and scrap exact so downstream reuse stays truthful."
+                    ),
+                    "source_order_number": str(getattr(mts_order, "order_number", "") or ""),
+                    "planner_stock_class": planner_stock_class,
+                    "start_step_index": start_index,
+                    "stop_step_index": stop_index,
+                    "tone": "sky",
+                }
+
+        if current_index > 0:
+            return {
+                "title": "Continuing route from existing WIP",
+                "body": "This step starts from already-produced material. Do not treat this as fresh raw-input startup.",
+                "source_order_number": None,
+                "planner_stock_class": None,
+                "start_step_index": current_index,
+                "stop_step_index": route_last_index,
+                "tone": "slate",
+            }
+
+        return None
 
     @classmethod
     def _resolve_terminal_fg_location_id(cls, job):
@@ -1955,7 +2183,17 @@ class ExecutionService:
                 res.status = "RELEASED"
                 res.save(update_fields=["status"])
                 continue
-            if cls._is_roll_step_compatible(job, process, roll, target_specs):
+            # ACTIVE reservations are explicit assignment truth. Preserve a
+            # manually assigned fallback roll if it still satisfies current-step
+            # roll physics; lineage strictness belongs to pool visibility, not
+            # to reserved-input validity.
+            if cls._is_roll_step_compatible(
+                job,
+                process,
+                roll,
+                target_specs,
+                allow_input_stock_fallback=True,
+            ):
                 continue
             res.status = "RELEASED"
             res.save(update_fields=["status"])
@@ -1999,61 +2237,9 @@ class ExecutionService:
                 roll.save(update_fields=['status'])
             created += 1
 
-        # Downstream roll-input steps should auto-forward lineage WIP into ACTIVE
-        # reservations for the same job so assigned cards and readiness do not drift
-        # after refresh/unassign/reload cycles.
-        is_downstream_roll_input = bool(
-            process
-            and str(getattr(process, "input_form", "") or "").upper() == "ROLL"
-            and current_step_index > 0
-        )
-        if (
-            is_downstream_roll_input
-            and required_rolls > 0
-            and not (current_step_index == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"})
-        ):
-            active_roll_ids = set(
-                InventoryReservation.objects.filter(job=job, status="ACTIVE", roll__isnull=False)
-                .values_list("roll_id", flat=True)
-            )
-            missing_for_step = max(0, required_rolls - len(active_roll_ids))
-            if missing_for_step > 0:
-                try:
-                    wip_details = cls._resolve_wip_pool_details(job)
-                    lineage_rolls = list(wip_details.get("lineage_pool") or [])
-                except Exception:
-                    lineage_rolls = []
-
-                for roll in lineage_rolls:
-                    if missing_for_step <= 0:
-                        break
-                    if not roll or roll.id in active_roll_ids:
-                        continue
-                    if not cls._is_roll_step_compatible(job, process, roll, target_specs):
-                        continue
-                    if roll.status not in {"AVAILABLE", "RESERVED"}:
-                        continue
-                    if roll.status == "RESERVED":
-                        cls._unlock_roll_if_stale_reserved(roll, job=job)
-                        roll.refresh_from_db(fields=["status"])
-                        if roll.status not in {"AVAILABLE", "RESERVED"}:
-                            continue
-                    InventoryReservation.objects.create(
-                        job=job,
-                        roll=roll,
-                        material=roll.material,
-                        quantity=roll.weight_kg,
-                        status="ACTIVE",
-                        created_by=assignment.assigned_by,
-                    )
-                    if roll.status != "RESERVED":
-                        roll.status = "RESERVED"
-                        roll.save(update_fields=["status"])
-                    active_roll_ids.add(roll.id)
-                    created += 1
-                    missing_for_step -= 1
-
         # Keep assignment linkage synced back from reservation source-of-truth.
+        # Reservation truth must remain explicit: lineage pool visibility is not
+        # the same as an assigned input selection for the current step.
         synced_roll_ids = InventoryReservation.objects.filter(
             job=job, status='ACTIVE', roll__isnull=False
         ).values_list('roll_id', flat=True)
@@ -2169,7 +2355,233 @@ class ExecutionService:
         return specs
 
     @classmethod
-    def _is_roll_step_compatible(cls, job, process, roll, target_specs):
+    def _build_step_target_slots(cls, job, process=None):
+        process = process or job.current_process or job.process
+        if not process or str(getattr(process, "input_form", "") or "").upper() != "ROLL":
+            return []
+
+        req_width_mm = None
+        try:
+            geom = cls._job_geometry_snapshot(job) or {}
+            base = geom.get("base") if isinstance(geom, dict) else None
+            base = base if isinstance(base, dict) else geom
+            req_width_mm = base.get("width_mm") if isinstance(base, dict) else None
+            if req_width_mm is not None:
+                req_width_mm = float(req_width_mm)
+        except Exception:
+            req_width_mm = None
+
+        step_roll_spec = cls._resolve_step_roll_spec(job, process)
+        required_rolls = cls._required_roll_count(job, process, step_roll_spec)
+        slots = []
+
+        def _slot_payload(raw_spec, slot_index):
+            if not isinstance(raw_spec, dict):
+                return None
+            payload = {
+                "slot_index": int(slot_index),
+                "layer_index": raw_spec.get("layer_index") or int(slot_index),
+                "variant_id": str(raw_spec.get("variant_id")) if raw_spec.get("variant_id") else None,
+                "family_id": str(raw_spec.get("family_id")) if raw_spec.get("family_id") else None,
+                "grade_id": str(raw_spec.get("grade_id")) if raw_spec.get("grade_id") else None,
+                "thickness_micron": raw_spec.get("thickness_micron"),
+                "min_width_mm": raw_spec.get("min_width_mm"),
+                "max_auto_width_mm": raw_spec.get("max_auto_width_mm"),
+                "variant_name": raw_spec.get("variant_name"),
+            }
+            return {key: value for key, value in payload.items() if value not in (None, "")}
+
+        layer_snapshot = cls._job_layer_snapshot(job)
+        if isinstance(layer_snapshot, list):
+            for idx, layer in enumerate(layer_snapshot):
+                if not isinstance(layer, dict):
+                    continue
+                layer_req_width = layer.get("roll_width_mm")
+                if layer_req_width in (None, ""):
+                    layer_req_width = layer.get("width_mm")
+                try:
+                    layer_req_width = float(layer_req_width) if layer_req_width is not None else None
+                    if layer_req_width is not None and layer_req_width <= 0:
+                        layer_req_width = None
+                except Exception:
+                    layer_req_width = None
+                effective_req_width = layer_req_width if layer_req_width is not None else req_width_mm
+                slot = _slot_payload(
+                    {
+                        "layer_index": idx + 1,
+                        "variant_id": layer.get("variant_id") or layer.get("material_id"),
+                        "family_id": layer.get("family_id"),
+                        "grade_id": layer.get("grade_id"),
+                        "thickness_micron": (
+                            layer.get("thickness_micron")
+                            if layer.get("thickness_micron") is not None
+                            else layer.get("thickness")
+                        ),
+                        "min_width_mm": effective_req_width,
+                        "max_auto_width_mm": float(effective_req_width) * 1.05 if effective_req_width is not None else None,
+                        "variant_name": layer.get("variant_name") or layer.get("name"),
+                    },
+                    idx + 1,
+                )
+                if slot:
+                    slots.append(slot)
+
+        if not slots:
+            fallback_slot = _slot_payload(
+                {
+                    "variant_id": step_roll_spec.get("output_variant_id"),
+                    "grade_id": step_roll_spec.get("output_grade_id"),
+                    "thickness_micron": step_roll_spec.get("fixed_thickness_micron"),
+                    "min_width_mm": req_width_mm,
+                    "max_auto_width_mm": float(req_width_mm) * 1.05 if req_width_mm is not None else None,
+                    "variant_name": step_roll_spec.get("output_variant_name"),
+                },
+                1,
+            )
+            if fallback_slot:
+                slots.append(fallback_slot)
+
+        if not slots or required_rolls <= 0:
+            return []
+
+        if len(slots) < required_rolls:
+            template_slot = dict(slots[-1])
+            while len(slots) < required_rolls:
+                clone = dict(template_slot)
+                clone["slot_index"] = len(slots) + 1
+                clone.setdefault("layer_index", clone["slot_index"])
+                slots.append(clone)
+        elif len(slots) > required_rolls:
+            slots = slots[:required_rolls]
+
+        return slots
+
+    @classmethod
+    def _match_rolls_to_target_slots(cls, job, process, rolls, target_slots, *, enforce_auto_width_window=False, allow_input_stock_fallback=False):
+        process = process or job.current_process or job.process
+        slots = [slot for slot in (target_slots or []) if isinstance(slot, dict)]
+        roll_rows = [roll for roll in (rolls or []) if roll is not None]
+        if not slots:
+            return {
+                "matched_count": 0,
+                "matched_roll_ids": [],
+                "matched_target_slots": [],
+                "unmatched_target_slots": [],
+                "unmatched_roll_ids": [str(getattr(roll, "id", "")) for roll in roll_rows if getattr(roll, "id", None)],
+            }
+
+        adjacency = []
+        for roll in roll_rows:
+            options = []
+            for slot in slots:
+                if cls._is_roll_step_compatible(
+                    job,
+                    process,
+                    roll,
+                    [slot],
+                    allow_input_stock_fallback=allow_input_stock_fallback,
+                ) and cls._roll_matches_target_specs(
+                    roll,
+                    [slot],
+                    enforce_auto_width_window=enforce_auto_width_window,
+                ):
+                    options.append(int(slot.get("slot_index") or 0))
+            adjacency.append(options)
+
+        slot_to_roll_idx = {}
+
+        def _dfs(roll_idx, seen):
+            for slot_idx in adjacency[roll_idx]:
+                if slot_idx in seen:
+                    continue
+                seen.add(slot_idx)
+                incumbent = slot_to_roll_idx.get(slot_idx)
+                if incumbent is None or _dfs(incumbent, seen):
+                    slot_to_roll_idx[slot_idx] = roll_idx
+                    return True
+            return False
+
+        for roll_idx in range(len(roll_rows)):
+            _dfs(roll_idx, set())
+
+        roll_to_slot = {roll_idx: slot_idx for slot_idx, roll_idx in slot_to_roll_idx.items()}
+        matched_target_slots = []
+        unmatched_target_slots = []
+        matched_roll_ids = []
+        unmatched_roll_ids = []
+        for slot in slots:
+            slot_idx = int(slot.get("slot_index") or 0)
+            roll_idx = slot_to_roll_idx.get(slot_idx)
+            if roll_idx is None:
+                unmatched_target_slots.append(dict(slot))
+                continue
+            roll = roll_rows[roll_idx]
+            matched_roll_ids.append(str(getattr(roll, "id", "")))
+            matched_target_slots.append({
+                **dict(slot),
+                "roll_id": str(getattr(roll, "id", "")),
+                "roll_label": getattr(roll, "label_id", None),
+                "material_name": getattr(getattr(roll, "material", None), "name", None),
+            })
+        for idx, roll in enumerate(roll_rows):
+            if idx not in roll_to_slot:
+                unmatched_roll_ids.append(str(getattr(roll, "id", "")))
+
+        return {
+            "matched_count": len(matched_target_slots),
+            "matched_roll_ids": [row for row in matched_roll_ids if row],
+            "matched_target_slots": matched_target_slots,
+            "unmatched_target_slots": unmatched_target_slots,
+            "unmatched_roll_ids": [row for row in unmatched_roll_ids if row],
+        }
+
+    @classmethod
+    def _summarize_roll_assignment_validation(cls, job, process=None, rolls=None, *, allow_input_stock_fallback=False):
+        process = process or job.current_process or job.process
+        required_rolls = cls._required_roll_count(job, process, cls._resolve_step_roll_spec(job, process))
+        behavior = str(getattr(process, "roll_behavior", "") or "").upper()
+        assigned_rolls = [roll for roll in (rolls or []) if roll is not None]
+        if behavior != "MULTI_INPUT_COMBINE":
+            matched_roll_ids = [
+                str(getattr(roll, "id", ""))
+                for roll in assigned_rolls
+                if getattr(roll, "id", None)
+            ]
+            return {
+                "required_rolls": int(required_rolls or 0),
+                "required_target_specs": [],
+                "matched_target_slots": [],
+                "unmatched_target_slots": [],
+                "matched_roll_ids": matched_roll_ids,
+                "unmatched_roll_ids": [],
+                "assigned_roll_count": len(assigned_rolls),
+                "slot_satisfied": True,
+                "is_complete": len(assigned_rolls) >= int(required_rolls or 0) if required_rolls else True,
+            }
+
+        target_slots = cls._build_step_target_slots(job, process)
+        match = cls._match_rolls_to_target_slots(
+            job,
+            process,
+            assigned_rolls,
+            target_slots,
+            enforce_auto_width_window=False,
+            allow_input_stock_fallback=allow_input_stock_fallback,
+        )
+        return {
+            "required_rolls": int(required_rolls or 0),
+            "required_target_specs": target_slots,
+            "matched_target_slots": match.get("matched_target_slots") or [],
+            "unmatched_target_slots": match.get("unmatched_target_slots") or [],
+            "matched_roll_ids": match.get("matched_roll_ids") or [],
+            "unmatched_roll_ids": match.get("unmatched_roll_ids") or [],
+            "assigned_roll_count": len(assigned_rolls),
+            "slot_satisfied": len(match.get("matched_roll_ids") or []) == len(assigned_rolls),
+            "is_complete": len(match.get("matched_target_slots") or []) >= int(required_rolls or 0) if required_rolls else True,
+        }
+
+    @classmethod
+    def _is_roll_step_compatible(cls, job, process, roll, target_specs, allow_input_stock_fallback=False):
         if not process or (process.input_form or "").upper() != "ROLL":
             return True
 
@@ -2200,16 +2612,20 @@ class ExecutionService:
 
         # Downstream steps consume forward lineage outputs.
         # Keep stage-0 remainder/raw rolls allocatable, but only for step 0.
-        if current_step_index > 0 and is_remainder:
+        if current_step_index > 0 and is_remainder and not allow_input_stock_fallback:
             return False
-        if current_step_index > 0 and roll_role in {"RAW_MATERIAL", "RAW"}:
+        if current_step_index > 0 and roll_role in {"RAW_MATERIAL", "RAW"} and not allow_input_stock_fallback:
             return False
         if current_step_index > 0:
             try:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
                 roll_step_index = 0
-            if roll_behavior != "MULTI_INPUT_COMBINE" and roll_step_index < current_step_index:
+            if (
+                roll_behavior != "MULTI_INPUT_COMBINE"
+                and roll_step_index < current_step_index
+                and not allow_input_stock_fallback
+            ):
                 return False
 
         # Step-compatible lineage: allow upstream rolls, block only obviously downstream/future rolls.
@@ -2296,10 +2712,14 @@ class ExecutionService:
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         purchasable_variant_ids = cls._step0_purchasable_variant_ids(job)
         target_specs = cls._build_step_target_specs(job, process)
+        discovery_allowed = required_for_step and cls._allow_non_lineage_roll_discovery(job, process)
 
-        pool = []
         lineage_pool = []
+        fallback_pool = []
+        discoverable_pool = []
         seen = set()
+        lineage_ids = set()
+        fallback_ids = set()
 
         def _is_order_flow_roll(roll):
             # Downstream WIP lineage must be driven by rolls generated by prior
@@ -2354,6 +2774,45 @@ class ExecutionService:
             except Exception:
                 return False
 
+        def _roll_role(roll):
+            meta = dict(getattr(roll, "meta_json", None) or {})
+            role = str(meta.get("roll_role") or "").upper()
+            if bool(meta.get("is_remainder")) and role != "REMAINDER":
+                role = "REMAINDER"
+            return role
+
+        def _is_step0_raw_gate_allowed(roll):
+            if current_step_index != 0 or roll_behavior not in {"MODIFY_EXISTING", "SPLIT"}:
+                return True
+            if int(getattr(roll, "stage_index", 0) or 0) != 0:
+                return False
+            if purchasable_variant_ids and str(getattr(roll, "material_id", "") or "") not in purchasable_variant_ids:
+                return False
+            return True
+
+        def _fallback_source(roll):
+            role = _roll_role(roll)
+            if current_step_index == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
+                return "PURCHASED_FALLBACK"
+            if role in {"RAW_MATERIAL", "RAW", "REMAINDER"}:
+                return "PURCHASED_FALLBACK"
+            if int(getattr(roll, "stage_index", 0) or 0) == 0 and not _is_order_flow_roll(roll):
+                return "PURCHASED_FALLBACK"
+            return "COMPATIBLE_FALLBACK"
+
+        def _append_roll(roll, source):
+            rid = getattr(roll, "id", None)
+            if not rid or rid in seen:
+                return
+            discoverable_pool.append(roll)
+            seen.add(rid)
+            if source == "LINEAGE":
+                lineage_pool.append(roll)
+                lineage_ids.add(str(rid))
+            else:
+                fallback_pool.append(roll)
+                fallback_ids.add(str(rid))
+
         reservations = InventoryReservation.objects.filter(job=job, status="ACTIVE", roll__isnull=False).select_related(
             "roll", "roll__material", "roll__location", "roll__grade"
         )
@@ -2365,12 +2824,20 @@ class ExecutionService:
                 continue
             if roll.location and roll.location.code == "IN_TRANSIT":
                 continue
-            if not cls._is_roll_step_compatible(job, process, roll, target_specs):
+            if not _is_step0_raw_gate_allowed(roll):
                 continue
-            pool.append(roll)
             if _matches_lineage(roll) and _is_downstream_visible_roll(roll):
-                lineage_pool.append(roll)
-            seen.add(roll.id)
+                if cls._is_roll_step_compatible(job, process, roll, target_specs):
+                    _append_roll(roll, "LINEAGE")
+                    continue
+            if discovery_allowed and cls._is_roll_step_compatible(
+                job,
+                process,
+                roll,
+                target_specs,
+                allow_input_stock_fallback=True,
+            ):
+                _append_roll(roll, _fallback_source(roll))
 
         blocked_reasons = []
         action_hints = []
@@ -2409,29 +2876,31 @@ class ExecutionService:
                     continue
                 if not _is_downstream_visible_roll(roll):
                     continue
-                if roll_behavior in {"MODIFY_EXISTING", "SPLIT"} and current_step_index == 0:
-                    if int(getattr(roll, "stage_index", 0) or 0) != 0:
-                        continue
-                    if purchasable_variant_ids and str(getattr(roll, "material_id", "") or "") not in purchasable_variant_ids:
-                        continue
-                lineage_pool.append(roll)
-                pool.append(roll)
-                seen.add(roll.id)
+                if not _is_step0_raw_gate_allowed(roll):
+                    continue
+                _append_roll(roll, "LINEAGE")
 
-            # Broader discovery for step 0 raw/purchasable candidates.
-            if current_step_index == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
-                broad_qs = candidates_qs.filter(status="AVAILABLE", stage_index=0)
+            if discovery_allowed and len(lineage_pool) < int(required_rolls or 0):
+                if lineage_filter is not None:
+                    broad_qs = candidates_qs.exclude(lineage_filter)
+                else:
+                    broad_qs = candidates_qs
                 for roll in broad_qs:
                     if roll.id in seen or roll.id in reserved_by_other:
                         continue
                     if bool((getattr(roll, "meta_json", None) or {}).get("is_quarantined")):
                         continue
-                    if purchasable_variant_ids and str(getattr(roll, "material_id", "") or "") not in purchasable_variant_ids:
+                    if not _is_step0_raw_gate_allowed(roll):
                         continue
-                    if not cls._is_roll_step_compatible(job, process, roll, target_specs):
+                    if not cls._is_roll_step_compatible(
+                        job,
+                        process,
+                        roll,
+                        target_specs,
+                        allow_input_stock_fallback=True,
+                    ):
                         continue
-                    pool.append(roll)
-                    seen.add(roll.id)
+                    _append_roll(roll, _fallback_source(roll))
         else:
             # Preserve lineage visibility for bulk-input steps so WIP continuity
             # is visible after upstream roll-producing steps/inter-plant moves.
@@ -2444,39 +2913,53 @@ class ExecutionService:
                     continue
                 if not _is_downstream_visible_roll(roll):
                     continue
-                if roll_behavior in {"MODIFY_EXISTING", "SPLIT"} and current_step_index == 0:
-                    if int(getattr(roll, "stage_index", 0) or 0) != 0:
-                        continue
-                    if purchasable_variant_ids and str(getattr(roll, "material_id", "") or "") not in purchasable_variant_ids:
-                        continue
-                lineage_pool.append(roll)
-                seen.add(roll.id)
+                if not _is_step0_raw_gate_allowed(roll):
+                    continue
+                _append_roll(roll, "LINEAGE")
 
-        pool.sort(key=lambda r: Decimal(str(r.weight_kg or 0)), reverse=True)
+        discoverable_pool.sort(key=lambda r: Decimal(str(r.weight_kg or 0)), reverse=True)
         lineage_pool.sort(key=lambda r: Decimal(str(r.weight_kg or 0)), reverse=True)
-        pool_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in pool)
+        fallback_pool.sort(key=lambda r: Decimal(str(r.weight_kg or 0)), reverse=True)
+        pool_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in discoverable_pool)
         lineage_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in lineage_pool)
-        missing_rolls = max(0, required_rolls - len(lineage_pool)) if required_for_step else 0
-        if required_for_step and missing_rolls > 0:
-            blocked_reasons.append(f"Roll shortage: {missing_rolls} more roll(s) required.")
-            action_hints.append("Allocate compatible rolls before machine start.")
+        fallback_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in fallback_pool)
+        reserved_rolls = reservations.count()
+        missing_lineage_rolls = max(0, required_rolls - len(lineage_pool)) if required_for_step else 0
+        missing_assignment_rolls = max(0, required_rolls - reserved_rolls) if required_for_step else 0
+        missing_discoverable_rolls = max(0, required_rolls - len(discoverable_pool)) if required_for_step else 0
+        if required_for_step and missing_assignment_rolls > 0:
+            blocked_reasons.append(f"Roll assignment short: {missing_assignment_rolls} more roll(s) must be reserved.")
+            action_hints.append("Reserve required rolls before machine start.")
+        if required_for_step and missing_lineage_rolls > 0:
+            blocked_reasons.append(f"True WIP short: {missing_lineage_rolls} downstream lineage roll(s) missing.")
+            if len(fallback_pool) > 0:
+                action_hints.append("Use compatible fallback rolls manually where true WIP is short.")
         if required_for_step and current_step_index == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
             action_hints.append("Step 1 requires explicit raw/purchasable roll allocation.")
 
         return {
-            "pool": pool,
+            "pool": discoverable_pool,
+            "discoverable_pool": discoverable_pool,
             "lineage_pool": lineage_pool,
+            "fallback_pool": fallback_pool,
+            "lineage_ids": list(lineage_ids),
+            "fallback_ids": list(fallback_ids),
             "meta": {
                 "required_for_step": required_for_step,
                 "eligible_count": len(lineage_pool),
                 "eligible_weight_kg": float(lineage_weight),
                 "lineage_roll_count": len(lineage_pool),
                 "lineage_total_weight_kg": float(lineage_weight),
-                "discoverable_roll_count": len(pool),
+                "discoverable_roll_count": len(discoverable_pool),
                 "discoverable_total_weight_kg": float(pool_weight),
+                "fallback_roll_count": len(fallback_pool),
+                "fallback_total_weight_kg": float(fallback_weight),
                 "required_rolls": required_rolls if required_for_step else 0,
-                "reserved_rolls": reservations.count(),
-                "missing_rolls": missing_rolls,
+                "reserved_rolls": reserved_rolls,
+                "missing_rolls": missing_assignment_rolls,
+                "missing_lineage_rolls": missing_lineage_rolls,
+                "missing_assignment_rolls": missing_assignment_rolls,
+                "missing_discoverable_rolls": missing_discoverable_rolls,
                 "blocked_reasons": blocked_reasons,
                 "action_hints": action_hints,
                 "execution_model_version": cls._execution_model_version(job),
@@ -2990,20 +3473,22 @@ class ExecutionService:
                         # Template Studio maps only ONE ink row (INK-POLY / INK-PET),
                         # but execution must consume per-color inks from APPROVED Artwork mapping.
                         if material and material.category == 'INK' and material.code in ['INK-POLY', 'INK-PET']:
-                            try:
-                                printing_snapshot = cls._job_printing_snapshot(job) or {}
-                                color_names = printing_snapshot.get("color_names") or []
-                                if not color_names:
-                                    front = printing_snapshot.get("front_colors") or []
-                                    back = printing_snapshot.get("back_colors") or []
-                                    color_names = [str(c).strip().upper() for c in (front + back) if str(c).strip()]
-                                if not isinstance(color_names, list):
-                                    color_names = []
-                                mapping = printing_snapshot.get("color_mapping") or {}
-                                if not isinstance(mapping, dict):
-                                    mapping = {}
+                            printing_snapshot = cls._job_printing_snapshot(job) or {}
+                            if bool((printing_snapshot or {}).get("enabled", False)):
+                                try:
+                                    printing_snapshot = validate_frozen_printing_snapshot(
+                                        printing_snapshot,
+                                        layer_snapshot=cls._job_layer_snapshot(job) or [],
+                                        require_artwork=True,
+                                        strict_inks=True,
+                                    )
+                                except ValidationError as exc:
+                                    raise ValueError(f"Execution print contract is invalid for {material.code}: {exc}") from exc
 
-                                if len(color_names) > 0 and all(mapping.get(c) for c in color_names):
+                                color_names = printing_snapshot.get("color_names") or []
+                                mapping = printing_snapshot.get("color_mapping") or {}
+
+                                if len(color_names) > 0:
                                     # Compute consolidated requirement for this step, then split evenly per color.
                                     mode = str(getattr(tm, "consumption_basis", "") or tm.quantity_mode or "KG").upper()
                                     basis = {
@@ -3028,11 +3513,11 @@ class ExecutionService:
 
                                     for color in color_names:
                                         ink_id = mapping.get(color)
-                                        if not ink_id:
-                                            continue
                                         ink_mat = InventoryMaterial.objects.filter(id=str(ink_id), category='INK').first()
                                         if not ink_mat:
-                                            continue
+                                            raise ValueError(
+                                                f"Execution print contract resolved missing ink material for {material.code} color {color}."
+                                            )
 
                                         JobMaterialRequirement.objects.update_or_create(
                                             production_job=job,
@@ -3045,9 +3530,6 @@ class ExecutionService:
                                         )
                                     # Skip creating a requirement row for the consolidated pool material.
                                     continue
-                            except Exception:
-                                # If anything fails, fall back to treating this as a normal consumable.
-                                pass
                         
                         # Calculation Logic based on Mode
                         mode = str(getattr(tm, "consumption_basis", "") or tm.quantity_mode or "KG").upper()
@@ -3830,7 +4312,7 @@ class ExecutionService:
         # For Step 1, we must include Remainder rolls so they are visible in the "Allocate Rolls" list.
         eligible_qs = RollAllocationService.get_eligible_rolls(
             job, 
-            include_non_lineage_fallback=False,
+            include_non_lineage_fallback=cls._allow_non_lineage_roll_discovery(job, process),
             include_remainder=(int(getattr(job, "current_step_index", 0) or 0) == 0)
         )
         logger.debug("get_job_context job=%s target_roll_specs=%s", job_id, len(target_roll_specs))
@@ -4002,7 +4484,11 @@ class ExecutionService:
                 'grade_name': (roll.grade.name if getattr(roll, "grade", None) else grade_name_by_id.get(str(roll.grade_id))) if roll.grade_id else None,
                 'weight_kg': float(roll.weight_kg),
                 'location': roll.location.name,
+                'location_name': roll.location.name,
                 'location_type': roll.location.type,
+                'stage_index': int(getattr(roll, "stage_index", 0) or 0),
+                'current_step_index': int(getattr(roll, "current_step_index", 0) or 0),
+                'completed_step_index': int(getattr(roll, "completed_step_index", 0) or 0),
                 'spec_exact': spec_exact,
                 'spec_missing': spec_missing,
                 'matched_layer_index': matched_spec.get("layer_index") if matched_spec else None,
@@ -4313,12 +4799,45 @@ class ExecutionService:
 
         wip_details = cls._resolve_wip_pool_details(job)
         wip_rolls = wip_details.get("lineage_pool") or []
+        discoverable_rolls = wip_details.get("discoverable_pool") or wip_details.get("pool") or []
+        fallback_rolls = wip_details.get("fallback_pool") or []
         wip_pool_meta = wip_details.get("meta") or {}
         wip_recent_lineage = wip_details.get("recent_lineage") or []
-        order_profile = cls._build_execution_profile(job)
-        step_profile = cls._resolve_step_execution_profile(job)
         process_input_form = str((current_process.input_form if current_process else job.input_form) or "").upper()
         process_output_form = str((current_process.output_form if current_process else job.output_form) or "").upper()
+        lineage_roll_id_set = {str(getattr(row, "id", "")) for row in wip_rolls if getattr(row, "id", None)}
+        fallback_roll_id_set = {str(getattr(row, "id", "")) for row in fallback_rolls if getattr(row, "id", None)}
+        for row in eligible_rolls:
+            roll_id = str(row.get("id") or "")
+            raw_role = str(row.get("roll_role") or "").upper()
+            if roll_id in lineage_roll_id_set:
+                row["roll_source"] = "LINEAGE"
+            elif roll_id in fallback_roll_id_set:
+                row["roll_source"] = (
+                    "PURCHASED_FALLBACK"
+                    if raw_role in {"RAW_MATERIAL", "RAW", "REMAINDER"} or int(row.get("stage_index") or 0) == 0
+                    else "COMPATIBLE_FALLBACK"
+                )
+            else:
+                row["roll_source"] = "COMPATIBLE_FALLBACK"
+        roll_assignment_validation = cls._summarize_roll_assignment_validation(
+            job,
+            current_process,
+            active_reserved_rolls,
+            allow_input_stock_fallback=True,
+        ) if process_input_form == "ROLL" else {
+            "required_rolls": 0,
+            "required_target_specs": [],
+            "matched_target_slots": [],
+            "unmatched_target_slots": [],
+            "matched_roll_ids": [],
+            "unmatched_roll_ids": [],
+            "assigned_roll_count": 0,
+            "slot_satisfied": True,
+            "is_complete": True,
+        }
+        order_profile = cls._build_execution_profile(job)
+        step_profile = cls._resolve_step_execution_profile(job)
         runtime_output_cap = cls._resolve_runtime_output_cap_kg(
             current_process or process,
             step_profile,
@@ -4371,9 +4890,16 @@ class ExecutionService:
             "produced": step_profile.get("step_produced_pcs"),
             "remaining": step_profile.get("step_remaining_pcs"),
         }
+        progress_primary = {
+            "uom": step_profile.get("primary_uom") or "KG",
+            "target": step_profile.get("step_target_primary"),
+            "produced": step_profile.get("step_produced_primary"),
+            "remaining": step_profile.get("step_remaining_primary"),
+            "tolerance": step_profile.get("tolerance_primary"),
+        }
         execution_profile = {
-            "primary_unit": "KG",
-            "secondary_unit": order_profile.get("secondary_unit"),
+            "primary_unit": step_profile.get("primary_uom") or order_profile.get("primary_unit") or "KG",
+            "secondary_unit": step_profile.get("secondary_uom") or order_profile.get("secondary_unit"),
             "job_uom": order_profile.get("job_uom"),
             "unit_weight_g": order_profile.get("unit_weight_g"),
             "derivation_available": order_profile.get("derivation_available"),
@@ -4385,6 +4911,10 @@ class ExecutionService:
             "step_target_pcs": step_profile.get("step_target_pcs"),
             "step_produced_pcs": step_profile.get("step_produced_pcs"),
             "step_remaining_pcs": step_profile.get("step_remaining_pcs"),
+            "step_target_primary": step_profile.get("step_target_primary"),
+            "step_produced_primary": step_profile.get("step_produced_primary"),
+            "step_remaining_primary": step_profile.get("step_remaining_primary"),
+            "tolerance_primary": step_profile.get("tolerance_primary"),
             "route_target_total_kg": float(effective_order_reference_target_kg),
             "route_produced_kg": order_weight_progress.get("produced"),
             "route_remaining_kg": order_weight_progress.get("remaining"),
@@ -4395,6 +4925,7 @@ class ExecutionService:
             "progress": {
                 "weight_kg": progress_weight,
                 "pcs": progress_pcs,
+                "primary": progress_primary,
             },
         }
 
@@ -4584,6 +5115,49 @@ class ExecutionService:
             and roll_behavior_upper in {"MODIFY_EXISTING", "SPLIT"}
         )
 
+        def _serialize_context_roll(roll, source=None):
+            raw_role = (
+                roll_role_resolver(roll)
+                if roll_role_resolver
+                else (str(((getattr(roll, "meta_json", None) or {}).get("roll_role") or "")).upper() or None)
+            )
+            source_value = source
+            if not source_value:
+                if str(getattr(roll, "id", "")) in lineage_roll_id_set:
+                    source_value = "LINEAGE"
+                elif str(getattr(roll, "id", "")) in fallback_roll_id_set:
+                    source_value = (
+                        "PURCHASED_FALLBACK"
+                        if str(raw_role or "").upper() in {"RAW_MATERIAL", "RAW", "REMAINDER"}
+                        or int(getattr(roll, "stage_index", 0) or 0) == 0
+                        else "COMPATIBLE_FALLBACK"
+                    )
+            return {
+                'id': str(roll.id),
+                'label_id': roll.label_id,
+                'material_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
+                'variant_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
+                'material_name': roll.material.name if roll.material else None,
+                'width_mm': float(roll.width_mm or 0),
+                'thickness_micron': float(roll.thickness_micron or 0),
+                'weight_kg': float(roll.weight_kg),
+                'grade': roll.grade.name if getattr(roll, 'grade', None) else None,
+                'location_name': roll.location.name if getattr(roll, 'location', None) else None,
+                'status': roll.status,
+                'roll_role': raw_role,
+                'roll_source': source_value,
+                'stage': (
+                    stage_name_resolver(roll)
+                    if stage_name_resolver
+                    else (f"Stage {int(getattr(roll, 'stage_index', 0) or 0)}")
+                ),
+                'stage_index': int(getattr(roll, "stage_index", 0) or 0),
+                'current_step_index': int(getattr(roll, "current_step_index", 0) or 0),
+                'completed_step_index': int(getattr(roll, "completed_step_index", 0) or 0),
+            }
+
+        continuation_banner = cls._build_continuation_banner(job)
+
         return {
             'display': {
                 'template_name': job.template.name if job.template else "Custom",
@@ -4648,6 +5222,7 @@ class ExecutionService:
                 for row in allocated_rolls
             ],
             'eligible_rolls': eligible_rolls,
+            'roll_assignment_validation': roll_assignment_validation,
             'input_form': job.input_form,
             'output_form': job.output_form,
             'satisfaction': satisfaction_status,
@@ -4656,6 +5231,8 @@ class ExecutionService:
             'step_target_source': step_profile.get("target_source"),
             'order_target_source': "V2_ORDER_REFERENCE",
             'step_execution': {
+                'primary_uom': step_profile.get("primary_uom"),
+                'secondary_uom': step_profile.get("secondary_uom"),
                 'roll_target_kg': step_profile.get("step_roll_target_kg"),
                 'bulk_target_kg': step_profile.get("step_bulk_target_kg"),
                 'total_target_kg': step_profile.get("step_target_total_kg"),
@@ -4667,7 +5244,11 @@ class ExecutionService:
                 'target_pcs': step_profile.get("step_target_pcs"),
                 'produced_pcs': step_profile.get("step_produced_pcs"),
                 'remaining_pcs': step_profile.get("step_remaining_pcs"),
+                'target_primary': step_profile.get("step_target_primary"),
+                'produced_primary': step_profile.get("step_produced_primary"),
+                'remaining_primary': step_profile.get("step_remaining_primary"),
                 'tolerance_kg': step_profile.get("tolerance_kg"),
+                'tolerance_primary': step_profile.get("tolerance_primary"),
                 'derivation_fallback': step_profile.get("derivation_fallback"),
                 'target_source': step_profile.get("target_source"),
                 'closed_with_variance': bool(getattr(job, "closed_with_variance", False)),
@@ -4689,6 +5270,7 @@ class ExecutionService:
             'progress': {
                 'weight_kg': progress_weight,
                 'pcs': progress_pcs,
+                'primary': progress_primary,
             },
             'order_progress': order_progress,
             'inputs': {
@@ -4727,6 +5309,10 @@ class ExecutionService:
                 'execution_health': {
                     'input_ready': input_ready,
                     'roll_shortage_count': roll_shortage_count,
+                    'primary_uom': step_profile.get("primary_uom"),
+                    'step_target_primary': step_profile.get("step_target_primary"),
+                    'step_produced_primary': step_profile.get("step_produced_primary"),
+                    'step_remaining_primary': step_profile.get("step_remaining_primary"),
                     'step_target_kg': step_profile.get("step_target_total_kg"),
                     'step_produced_kg': step_profile.get("step_produced_kg"),
                     'step_remaining_kg': step_profile.get("step_remaining_kg"),
@@ -4757,31 +5343,11 @@ class ExecutionService:
             # Sidebar Widget ('wip_pool') only shows True Lineage WIP (outputs of previous steps).
             # Allocation Modal ('eligible_rolls') shows everything including broad discovery.
             'wip_pool': [
-                {
-                    'id': str(r.id),
-                    'label_id': r.label_id,
-                    'material_id': str(r.material_id) if getattr(r, 'material_id', None) else None,
-                    'variant_id': str(r.material_id) if getattr(r, 'material_id', None) else None,
-                    'material_name': r.material.name if r.material else None,
-                    'width_mm': float(r.width_mm or 0),
-                    'thickness_micron': float(r.thickness_micron or 0),
-                    'weight_kg': float(r.weight_kg),
-                    'grade': r.grade.name if getattr(r, 'grade', None) else None,
-                    'location_name': r.location.name if getattr(r, 'location', None) else None,
-                    'status': r.status,
-                    'roll_role': (
-                        roll_role_resolver(r)
-                        if roll_role_resolver
-                        else (str(((getattr(r, "meta_json", None) or {}).get("roll_role") or "")).upper() or None)
-                    ),
-                    'stage': (
-                        stage_name_resolver(r)
-                        if stage_name_resolver
-                        else (f"Stage {int(getattr(r, 'stage_index', 0) or 0)}")
-                    )
-                }
+                _serialize_context_roll(r, "LINEAGE")
                 for r in wip_details.get('lineage_pool', [])
             ],
+            'discoverable_pool': [_serialize_context_roll(r) for r in discoverable_rolls],
+            'fallback_pool': [_serialize_context_roll(r) for r in fallback_rolls],
             'wip_pool_meta': wip_pool_meta,
             'wip_recent_lineage': wip_recent_lineage,
             'missing_layers': cls.calculate_missing_layers(job, wip_rolls),
@@ -4800,6 +5366,7 @@ class ExecutionService:
                 'input_form': (job.current_process or job.process).input_form if (job.current_process or job.process) else 'BULK'
             },
             'execution_model_version': cls._execution_model_version(job),
+            'continuation_banner': continuation_banner,
         }
 
     @classmethod
@@ -4826,6 +5393,11 @@ class ExecutionService:
         )
         active_qs = InventoryReservation.objects.filter(job=job, status='ACTIVE', roll__isnull=False)
         active_count = active_qs.count()
+        active_rolls = list(
+            InventoryRoll.objects.filter(
+                id__in=active_qs.values_list("roll_id", flat=True)
+            ).select_related("material", "material__parent_family", "grade", "location")
+        ) if active_count else []
         if required_rolls == 0 and not is_roll_to_bulk:
             raise ValueError("This process does not accept roll assignments.")
         if active_qs.filter(roll=roll).exists():
@@ -4851,7 +5423,7 @@ class ExecutionService:
                 str(rid)
                 for rid in RollAllocationService.get_eligible_rolls(
                     job, 
-                    include_non_lineage_fallback=False,
+                    include_non_lineage_fallback=cls._allow_non_lineage_roll_discovery(job, process),
                     include_remainder=True
                 ).values_list("id", flat=True)
             )
@@ -4902,6 +5474,18 @@ class ExecutionService:
         if manual_override and not (override_reason or "").strip():
             raise ValueError("Override reason is required when manually overriding roll assignment.")
 
+        assignment_validation = cls._summarize_roll_assignment_validation(
+            job,
+            process,
+            active_rolls + [roll],
+            allow_input_stock_fallback=True,
+        )
+        if not assignment_validation.get("slot_satisfied"):
+            raise ValueError(
+                "Selected rolls do not satisfy distinct target slots for this step. "
+                "Assign rolls that cover the required layer/spec set."
+            )
+
         with transaction.atomic():
             # 1. Create Reservation
             InventoryReservation.objects.create(
@@ -4950,6 +5534,15 @@ class ExecutionService:
                 req.save()
                 
             res.delete()
+
+            assignment = WorkCenterAssignment.objects.filter(production_job_id=job_id).first()
+            if assignment:
+                remaining_roll_ids = InventoryReservation.objects.filter(
+                    job_id=job_id,
+                    status='ACTIVE',
+                    roll__isnull=False,
+                ).values_list('roll_id', flat=True)
+                assignment.allocated_rolls.set(InventoryRoll.objects.filter(id__in=remaining_roll_ids))
             
         # Important: do not reconcile assignment->reservation links here.
         # Reconciliation during unassign can recreate a just-removed reservation
@@ -5034,8 +5627,11 @@ class ExecutionService:
         # stale/phantom availability mismatches across WCM, machine, and queue UIs.
         wip_details = cls._resolve_wip_pool_details(job)
         wip_pool = wip_details.get("lineage_pool") or []
+        discoverable_pool = wip_details.get("discoverable_pool") or wip_details.get("pool") or []
         wip_meta = wip_details.get("meta") or {}
         wip_count = len(wip_pool)
+        discoverable_count = len(discoverable_pool)
+        fallback_count = int(wip_meta.get("fallback_roll_count") or 0)
 
         # Roll requirement derives ONLY from process physics.
         current_step_roll_spec = cls._resolve_step_roll_spec(job, process)
@@ -5057,14 +5653,15 @@ class ExecutionService:
         # Strictly aligned discoverable pool for this step.
         rolls_available = wip_count
         rolls_auto_forwarded = max(0, wip_count - reserved_count)
-        rolls_pool = wip_count
+        rolls_pool = discoverable_count
 
         # IMPORTANT:
         # - `rolls_available` is strict discoverable stock for this step (WIP pool)
         # - execution readiness must be based on explicit reservations
         #   to prevent phantom "satisfied" states in WCM.
-        rolls_missing_pool = max(0, rolls_required - rolls_available)
-        
+        rolls_missing_pool = max(0, rolls_required - rolls_pool)
+        rolls_missing_lineage = max(0, rolls_required - rolls_available)
+
         # Current-step readiness depends on active assignments only.
         rolls_missing = max(0, rolls_required - reserved_count)
         roll_satisfied = (rolls_missing == 0)
@@ -5102,8 +5699,10 @@ class ExecutionService:
             'rolls_reserved': reserved_count,
             'rolls_auto_forwarded': rolls_auto_forwarded,
             'rolls_pool': rolls_pool,
+            'rolls_fallback_available': fallback_count,
             'rolls_missing': rolls_missing,
             'rolls_missing_pool': rolls_missing_pool,
+            'rolls_missing_lineage': rolls_missing_lineage,
 
             # Bulk Consumption Preview
             'bulk_consumption': bulk_preview,
@@ -5689,7 +6288,7 @@ class ExecutionService:
             output_weight_kg = qty
 
         if process.output_form == 'ROLL' and roll_behavior == "CREATE_NEW":
-            if output_width_mm in (None, ""):
+            if output_width_mm in (None, "") and not kwargs.get("roll_outputs"):
                 raise ValueError("Output width_mm is required for CREATE_NEW roll.")
 
         order_geometry_override = {}
@@ -5930,6 +6529,37 @@ class ExecutionService:
                         "variance_qty",
                         "is_estimated",
                     ]
+                )
+
+        def _record_roll_consumption_rows(usage, *, output_roll=None, output_kg_total=Decimal("0"), scrap_qty_total=Decimal("0")):
+            if not usage:
+                return
+            total_used = sum(Decimal(str(item.get("used_qty_kg") or 0)) for item in usage)
+            for item in usage:
+                parent_roll = item.get("parent_roll")
+                if not parent_roll:
+                    continue
+                used_qty = Decimal(str(item.get("used_qty_kg") or 0))
+                remainder_roll = item.get("remainder_roll")
+                remainder_qty = Decimal(str(item.get("remainder_qty_kg") or 0))
+                proportional_output = Decimal("0")
+                proportional_scrap = Decimal("0")
+                if total_used > 0 and output_kg_total > 0:
+                    proportional_output = (Decimal(str(output_kg_total)) * used_qty / total_used).quantize(Decimal("0.001"))
+                if total_used > 0 and scrap_qty_total > 0:
+                    proportional_scrap = (Decimal(str(scrap_qty_total)) * used_qty / total_used).quantize(Decimal("0.001"))
+                RollConsumption.objects.create(
+                    job=job,
+                    process=process,
+                    input_roll=parent_roll,
+                    output_roll=output_roll,
+                    balance_roll=remainder_roll,
+                    consumed_kg=used_qty.quantize(Decimal("0.001")),
+                    scrap_kg=proportional_scrap,
+                    balance_kg=remainder_qty.quantize(Decimal("0.001")),
+                    output_kg=proportional_output,
+                    machine=getattr(job, "machine", None),
+                    operator=user,
                 )
 
         # Inventory locations:
@@ -6252,14 +6882,17 @@ class ExecutionService:
 
             # 3. Output Creation + Roll Consumption (Behavior-Driven)
             if process.output_form == 'ROLL':
-                def _find_active_output_roll():
-                    return InventoryRoll.objects.filter(
+                def _find_active_output_roll(parent_roll=None):
+                    qs = InventoryRoll.objects.filter(
                         created_by_job=job,
                         created_process=process,
                         current_step_index=job.current_step_index + 1,
                         status='AVAILABLE',
                         meta_json__roll_role="OUTPUT"
-                    ).exclude(meta_json__is_remainder=True).order_by('-created_at').first()
+                    ).exclude(meta_json__is_remainder=True)
+                    if parent_roll is not None:
+                        qs = qs.filter(parent_roll=parent_roll)
+                    return qs.order_by('-created_at').first()
 
                 def _output_grade_required(material_obj):
                     return bool(
@@ -6299,7 +6932,7 @@ class ExecutionService:
                     if width_mm is None or width_mm <= 0:
                         raise ValueError("Output width is required for MODIFY_EXISTING.")
 
-                    out_roll = _find_active_output_roll()
+                    out_roll = _find_active_output_roll(parent_roll=roll)
                     if out_roll:
                         out_roll.weight_kg += output_weight_kg
                         if internal_stock_meta:
@@ -6534,9 +7167,33 @@ class ExecutionService:
 
                 else:
                     # CREATE_NEW / fallback
+                    raw_roll_outputs = kwargs.get("roll_outputs") or []
+                    parsed_roll_outputs = []
+                    if isinstance(raw_roll_outputs, list):
+                        for idx, row in enumerate(raw_roll_outputs, start=1):
+                            if not isinstance(row, dict):
+                                continue
+                            width = _parse_decimal(row.get("width_mm"), f"roll_outputs[{idx}].width_mm")
+                            weight = _parse_decimal(row.get("weight_kg"), f"roll_outputs[{idx}].weight_kg")
+                            parsed_roll_outputs.append({
+                                "width_mm": width,
+                                "weight_kg": weight,
+                            })
+
                     width_mm = _parse_decimal(output_width_mm, "Output width_mm")
                     if output_weight_kg <= 0:
                         raise ValueError("Produced weight must be > 0.")
+                    if parsed_roll_outputs:
+                        total_output_weight = sum((row["weight_kg"] for row in parsed_roll_outputs), Decimal("0"))
+                        if abs(total_output_weight - output_weight_kg) > Decimal("0.001"):
+                            raise ValueError("roll_outputs total weight must match actual output quantity.")
+                        if max_output_kg is not None and total_output_weight > (max_output_kg + Decimal("0.001")):
+                            raise ValueError(
+                                f"Output ({total_output_weight:.3f} kg) exceeds max allowed for this step "
+                                f"({max_output_kg:.3f} kg)."
+                            )
+                    elif width_mm is None or width_mm <= 0:
+                        raise ValueError("Output width is required for CREATE_NEW.")
 
                     usage = []
                     if process.input_form == 'ROLL' and input_rolls:
@@ -6565,61 +7222,79 @@ class ExecutionService:
                     if not _output_grade_required(material_out):
                         grade_out = None
 
-                    out_roll = _find_active_output_roll()
-                    if out_roll:
-                        out_roll.weight_kg += output_weight_kg
-                        if internal_stock_meta:
-                            meta = dict(out_roll.meta_json or {})
-                            meta.update(internal_stock_meta)
-                            out_roll.meta_json = meta
-                            out_roll.save(update_fields=['weight_kg', 'meta_json'])
-                        else:
-                            out_roll.save(update_fields=['weight_kg'])
-                    else:
-                        out_roll = InventoryRoll.objects.create(
-                            label_id=_next_job_roll_label(),
-                            material=material_out,
-                            plant=job.work_center.plant if job.work_center else None,
-                            production_job=job,
-                            created_by_job=job,
-                            created_process=process,
-                            parent_roll=parent_roll,
-                            thickness_micron=thickness_out,
-                            width_mm=width_mm,
-                            density_gcm3=cls._resolve_density_gcm3(material=material_out, roll=parent_roll),
-                            grade_id=grade_out,
-                            weight_kg=output_weight_kg,
-                            original_weight_kg=output_weight_kg,
-                            status='AVAILABLE',
-                            location_id=output_location_id,
-                            stage_index=job.current_step_index + 1,
-                            current_step_index=job.current_step_index + 1,
-                            completed_step_index=job.current_step_index,
-                            template=job.template,
-                            sales_order_item=job.sales_order_item,
-                            meta_json={
-                                **out_meta,
-                                "is_remainder": False,
-                                "roll_role": "OUTPUT",
-                                "source_behavior": "CREATE_NEW",
-                                **internal_stock_meta,
-                            },
-                            is_fg=output_is_fg
-                        )
+                    output_rows = parsed_roll_outputs or [{
+                        "width_mm": width_mm,
+                        "weight_kg": output_weight_kg,
+                    }]
+                    created_rolls = []
+                    reuse_active_output = not parsed_roll_outputs
 
-                    for item in usage:
-                        parent = item["parent_roll"]
-                        used_qty = item["used_qty_kg"]
-                        link, created = RollLink.objects.get_or_create(
-                            parent_roll=parent,
-                            child_roll=out_roll,
-                            defaults={'relation_type': 'PROCESS_OUTPUT', 'qty_used_kg': used_qty}
-                        )
-                        if not created:
-                            link.qty_used_kg += used_qty
-                            link.save(update_fields=['qty_used_kg'])
+                    for row in output_rows:
+                        row_width_mm = row["width_mm"]
+                        row_weight_kg = row["weight_kg"]
+                        out_roll = _find_active_output_roll(parent_roll=parent_roll) if reuse_active_output else None
+                        if out_roll:
+                            out_roll.weight_kg += row_weight_kg
+                            if internal_stock_meta:
+                                meta = dict(out_roll.meta_json or {})
+                                meta.update(internal_stock_meta)
+                                out_roll.meta_json = meta
+                                out_roll.save(update_fields=['weight_kg', 'meta_json'])
+                            else:
+                                out_roll.save(update_fields=['weight_kg'])
+                        else:
+                            out_roll = InventoryRoll.objects.create(
+                                label_id=_next_job_roll_label(),
+                                material=material_out,
+                                plant=job.work_center.plant if job.work_center else None,
+                                production_job=job,
+                                created_by_job=job,
+                                created_process=process,
+                                parent_roll=parent_roll,
+                                thickness_micron=thickness_out,
+                                width_mm=row_width_mm,
+                                density_gcm3=cls._resolve_density_gcm3(material=material_out, roll=parent_roll),
+                                grade_id=grade_out,
+                                weight_kg=row_weight_kg,
+                                original_weight_kg=row_weight_kg,
+                                status='AVAILABLE',
+                                location_id=output_location_id,
+                                stage_index=job.current_step_index + 1,
+                                current_step_index=job.current_step_index + 1,
+                                completed_step_index=job.current_step_index,
+                                template=job.template,
+                                sales_order_item=job.sales_order_item,
+                                meta_json={
+                                    **out_meta,
+                                    "is_remainder": False,
+                                    "roll_role": "OUTPUT",
+                                    "source_behavior": "CREATE_NEW",
+                                    **internal_stock_meta,
+                                },
+                                is_fg=output_is_fg
+                            )
+                        created_rolls.append((out_roll, row_weight_kg))
+
+                    total_link_weight = sum((row_weight for _, row_weight in created_rolls), Decimal("0"))
+                    for out_roll, row_weight_kg in created_rolls:
+                        for item in usage:
+                            parent = item["parent_roll"]
+                            used_qty = item["used_qty_kg"]
+                            if total_link_weight > 0:
+                                link_qty = (used_qty * row_weight_kg) / total_link_weight
+                            else:
+                                link_qty = Decimal("0")
+                            link, created = RollLink.objects.get_or_create(
+                                parent_roll=parent,
+                                child_roll=out_roll,
+                                defaults={'relation_type': 'PROCESS_OUTPUT', 'qty_used_kg': link_qty}
+                            )
+                            if not created:
+                                link.qty_used_kg += link_qty
+                                link.save(update_fields=['qty_used_kg'])
 
             elif process.output_form == 'BULK':
+                terminal_pouch_fg_bulk = cls._is_terminal_pouch_fg_bulk_step(job, process=process)
                 if str(process.input_form or "").upper() == "ROLL":
                     g_snap = cls._job_geometry_snapshot(job) or {}
                     base = g_snap.get("base") if isinstance(g_snap, dict) else {}
@@ -6667,6 +7342,12 @@ class ExecutionService:
                     usage = _consume_input_rolls_with_remainder(input_rolls, expected_roll_consumption, "ROLL_TO_BULK")
                     consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage)
                     _record_film_usage_actuals(usage, scrap_qty)
+                    _record_roll_consumption_rows(
+                        usage,
+                        output_roll=None,
+                        output_kg_total=output_weight_kg,
+                        scrap_qty_total=scrap_qty,
+                    )
 
                 batch_count = FinishedGoodsBatch.objects.filter(production_job=job).count() + 1
                 batch_no = f"BATCH-{job.job_number}-{batch_count:03d}"
@@ -6699,39 +7380,38 @@ class ExecutionService:
 
                 # For roll->bulk execution we require operator PCS + KG entry
                 # and validate both together (no silent PCS auto-fill).
-                if str(process.input_form or "").upper() == "ROLL" and output_pcs is None:
+                if (
+                    str(process.input_form or "").upper() == "ROLL"
+                    and terminal_pouch_fg_bulk
+                    and output_pcs is None
+                ):
                     raise ValueError("output_pcs is required for roll-to-bulk output logging.")
 
                 # Legacy fallback for non roll-input bulk steps.
                 # Never coerce KG directly into PCS (that causes 1kg => 1pcs errors).
-                if output_pcs is None and theoretical_pcs is not None:
+                if output_pcs is None and theoretical_pcs is not None and terminal_pouch_fg_bulk:
                     output_pcs = int(theoretical_pcs.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-                if output_pcs is None and str(job.uom or 'KG').upper() == 'PCS':
+                if output_pcs is None and str(job.uom or 'KG').upper() == 'PCS' and terminal_pouch_fg_bulk:
                     raise ValueError("output_pcs is required for PCS-tracked bulk output when unit-weight conversion is unavailable.")
 
-                fg_batch = FinishedGoodsBatch.objects.create(
-                    batch_number=batch_no,
-                    qty_kg=output_weight_kg,  # Always capture weight
-                    qty_pcs=output_pcs or 0,  # Always capture pieces
-                    geometry_override=order_geometry_override,
-                    meta_json=internal_stock_meta if internal_stock_meta else {},
-                    completed_step_index=job.current_step_index,
-                    production_job=job,
-                    sales_order_item=job.sales_order_item,
-                    status='AVAILABLE',
-                    location_id=output_location_id,
-                    template=job.template
-                )
+                fg_batch = None
+                if terminal_pouch_fg_bulk:
+                    fg_batch = FinishedGoodsBatch.objects.create(
+                        batch_number=batch_no,
+                        qty_kg=output_weight_kg,  # Always capture weight
+                        qty_pcs=output_pcs or 0,  # Always capture pieces
+                        geometry_override=order_geometry_override,
+                        meta_json=internal_stock_meta if internal_stock_meta else {},
+                        completed_step_index=job.current_step_index,
+                        production_job=job,
+                        sales_order_item=job.sales_order_item,
+                        status='AVAILABLE',
+                        location_id=output_location_id,
+                        template=job.template
+                    )
 
-                # Primary inner-pack consumption is enforced when FG pouches are produced.
-                geometry_snapshot = cls._job_geometry_snapshot(job) or {}
-                fg_type = str(
-                    (geometry_snapshot or {}).get("finished_good_type")
-                    or (geometry_snapshot or {}).get("fg_type")
-                    or getattr(job.template, "fg_type", "")
-                    or "POUCH"
-                ).upper()
-                if fg_type == "POUCH" and int(output_pcs or 0) > 0:
+                # Primary inner-pack consumption is enforced only when terminal FG pouches are produced.
+                if terminal_pouch_fg_bulk and int(output_pcs or 0) > 0:
                     packaging_snapshot = cls._job_packaging_snapshot(job) or {}
                     primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
                     if bool(primary_pack.get("enabled")):

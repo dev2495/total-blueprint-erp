@@ -15,8 +15,8 @@ services:
     name: backend-api-prod
     runtime: python
     plan: standard
-    buildCommand: pip install -r requirements.txt
-    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
     healthCheckPath: /api/health/live/
     autoDeployTrigger: off
     envVars:
@@ -25,7 +25,7 @@ services:
       - key: DEBUG
         value: "False"
       - key: SECRET_KEY
-        generateValue: true
+        sync: false
       - key: ALLOWED_HOSTS
         value: backend-api-prod.onrender.com
       - key: CORS_ALLOWED_ORIGINS
@@ -38,6 +38,12 @@ services:
         value: "True"
       - key: CSRF_COOKIE_SECURE
         value: "True"
+      - key: JWT_COOKIE_SECURE
+        value: "True"
+      - key: JWT_COOKIE_SAMESITE
+        value: None
+      - key: JWT_COOKIE_DOMAIN
+        value: ""
       - key: STRICT_RBAC
         value: "True"
       - key: ALLOW_ROLE_OVERRIDE
@@ -193,7 +199,7 @@ services:
     startCommand: npm run start -- -p $PORT
     autoDeployTrigger: off
     envVars:
-      - key: NEXT_PUBLIC_API_BASE_URL
+      - key: UI_API_BASE_URL
         value: https://backend-api-prod.onrender.com
       - key: NEXT_PUBLIC_SENTRY_DSN
         sync: false

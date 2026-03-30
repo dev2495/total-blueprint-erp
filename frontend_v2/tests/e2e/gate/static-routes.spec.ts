@@ -13,7 +13,7 @@ for (const route of routes) {
       expected: `${route} should render a stable page shell without 404/500 content.`,
     })
 
-    await page.goto(route)
-    await assertHealthyPage(page)
+    await page.goto(route, { waitUntil: "domcontentloaded", timeout: 45_000 })
+    await assertHealthyPage(page, { requireAuth: true, requireRoleSwitcher: true })
   })
 }

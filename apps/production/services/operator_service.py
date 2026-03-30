@@ -66,7 +66,7 @@ class OperatorService:
         
         # If Paused, Resume
         if job.job_state == 'PAUSED':
-            return JobService.resume_job(job.id)
+            return JobService.resume_job(job.id, user=user)
         
         # For RELEASED/other states, check machine assignment or WCM prep
         if job.job_state != 'EXECUTING':
@@ -104,7 +104,7 @@ class OperatorService:
                     missing_lines.append(f"{row.get('material_name') or row.get('category')}: short {(req - avail):.3f} kg")
             detail = f" ({'; '.join(missing_lines[:3])})" if missing_lines else ""
             raise ValueError(f"Cannot start job: requirements not satisfied{detail}.")
-        return JobService.start_job(job)
+        return JobService.start_job(job, user=user)
 
     @staticmethod
     def pause_job(job_id: str, reason: str, user):
@@ -116,7 +116,7 @@ class OperatorService:
 
     @staticmethod
     def resume_job(job_id: str, user):
-        return JobService.resume_job(job_id)
+        return JobService.resume_job(job_id, user=user)
 
     @staticmethod
     @transaction.atomic
@@ -273,6 +273,22 @@ class OperatorService:
         updated = OperatorService.log_output_step(job_id, float(qty), user, **kwargs)
         from apps.production.services.services_execution import ExecutionService
         step_profile = ExecutionService.get_step_execution_profile(updated.id)
-        if Decimal(str(step_profile.get("step_remaining_kg") or 0)) <= Decimal(str(step_profile.get("tolerance_kg") or 0.25)):
+        remaining = Decimal(
+            str(
+                step_profile.get("step_remaining_primary")
+                if step_profile.get("step_remaining_primary") is not None
+                else step_profile.get("step_remaining_kg")
+                or 0
+            )
+        )
+        tolerance = Decimal(
+            str(
+                step_profile.get("tolerance_primary")
+                if step_profile.get("tolerance_primary") is not None
+                else step_profile.get("tolerance_kg")
+                or 0.25
+            )
+        )
+        if remaining <= tolerance:
             return JobService.complete_step(updated, user=user)
         return updated

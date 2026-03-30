@@ -59,10 +59,13 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/production/planner/stock-orders/create",
   "/production/work-center",
   "/sales/customers",
+  "/sales/sku-catalog",
   "/sales/orders",
   "/sales/orders/create",
   "/sales/quotations",
+  "/system/audit",
   "/system/governance",
+  "/system/report-center",
   "/system/role-matrix",
   "/system/users",
 ]);

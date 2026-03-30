@@ -1,11 +1,14 @@
 from django.urls import path, include
 from config.routers import OptionalSlashRouter
-from .views import SalesOrderBlockReasonView, SalesOrderViewSet
+from .views_catalog import SalesSkuVariantViewSet, SalesSkuViewSet
+from .views_customers import CustomerViewSet
+from .views_orders import SalesOrderBlockReasonView, SalesOrderViewSet
 from .views_quotations import QuotationViewSet
-from .views_masters import CustomerViewSet
 
 router = OptionalSlashRouter()
 router.register(r'orders', SalesOrderViewSet, basename='sales-order')
+router.register(r'sku-catalog', SalesSkuViewSet, basename='sales-sku')
+router.register(r'sku-variants', SalesSkuVariantViewSet, basename='sales-sku-variant')
 router.register(r'customers', CustomerViewSet, basename='customer')
 router.register(r'quotations', QuotationViewSet, basename='quotation')
 

@@ -10,7 +10,7 @@ from apps.costing.models import MaterialCostSnapshot, ProcessCostRate
 from apps.factory.models import Plant, PlantLegalProfile, Process
 from apps.materials.models import InventoryMaterial
 from apps.routing.models import RoutingRule
-from apps.sales.models import Customer
+from apps.sales.models import Customer, SalesSku, SalesSkuVariant
 from apps.sales.services.quotation_pdf import QuotationPDFService
 from apps.sales.services.quotation_service import QuotationService
 from apps.templates.models import TemplateBlueprint
@@ -64,6 +64,37 @@ class QuotationModuleTests(TestCase):
             fg_type="POUCH",
             status="LIVE",
             routing_rule=self.routing,
+        )
+        self.sku = SalesSku.objects.create(
+            code="UAT-QUOTE-SKU",
+            name="UAT Quote SKU",
+            template=self.template,
+            default_line_name="UAT Quote SKU Line",
+            active=True,
+        )
+        self.sku_variant = SalesSkuVariant.objects.create(
+            sku=self.sku,
+            code="UAT-QUOTE-SKU-120X180",
+            name="UAT Quote SKU 120 x 180",
+            active=True,
+            finished_good_type="POUCH",
+            roll_form="",
+            geometry_snapshot={
+                "base": {"width_mm": 120, "height_mm": 180},
+                "adjustments": [],
+                "multipliers": {"faces": 1},
+            },
+            layer_snapshot=[
+                {
+                    "family_id": str(self.family.id),
+                    "thickness_micron": 50,
+                    "density_g_cm3": 0.92,
+                }
+            ],
+            printing_snapshot={"enabled": False},
+            chemicals_snapshot={},
+            addons_snapshot=[],
+            packaging_snapshot={},
         )
 
     def _pouch_line(self, **overrides):
@@ -167,6 +198,33 @@ class QuotationModuleTests(TestCase):
         self.assertAlmostEqual(float(quotation.totals_snapshot["subtotal"]), line_sum, places=3)
         self.assertEqual(quotation.totals_snapshot["item_count"], 2)
 
+    def test_sku_variant_quote_line_persists_and_seeds_template_defaults(self):
+        quotation = QuotationService.create_quotation(
+            {
+                "customer": str(self.customer.id),
+                "plant": str(self.plant.id),
+                "customer_name": self.customer.name,
+                "items": [
+                    {
+                        "sku_variant_id": str(self.sku_variant.id),
+                        "qty_value": 1500,
+                        "qty_uom": "PCS",
+                        "price_basis": "PCS",
+                        "geometry": {"base": {"width_mm": 125, "height_mm": 185}},
+                        "commercial_snapshot": {"manual_unit_price": 9.25, "tax_percent": 18},
+                    }
+                ],
+            }
+        )
+
+        item = quotation.items.get()
+        self.assertEqual(item.sku_variant_id, self.sku_variant.id)
+        self.assertEqual(item.template_id, self.template.id)
+        self.assertEqual(item.line_name, self.sku_variant.name)
+        self.assertEqual(item.geometry_snapshot["base"]["width_mm"], 125)
+        self.assertEqual(item.geometry_snapshot["base"]["height_mm"], 185)
+        self.assertGreater(float(item.quoted_line_total), 0)
+
     def test_api_round_trip_supports_create_list_and_patch(self):
         create_response = self.client.post(
             "/api/sales/quotations/",
@@ -246,6 +304,30 @@ class QuotationModuleTests(TestCase):
         self.assertEqual(quotation.status, "CONVERTED")
         self.assertEqual(quotation.converted_sales_order_id, sales_order.id)
 
+    def test_convert_preserves_sku_variant_link_for_sku_quote(self):
+        quotation = QuotationService.create_quotation(
+            {
+                "customer": str(self.customer.id),
+                "plant": str(self.plant.id),
+                "customer_name": self.customer.name,
+                "items": [
+                    {
+                        "sku_variant_id": str(self.sku_variant.id),
+                        "qty_value": 1500,
+                        "qty_uom": "PCS",
+                        "price_basis": "PCS",
+                        "commercial_snapshot": {"manual_unit_price": 8.75, "tax_percent": 18},
+                    }
+                ],
+            }
+        )
+
+        sales_order = QuotationService.convert_to_sales_order(quotation)
+        order_item = sales_order.items.get()
+
+        self.assertEqual(order_item.sku_variant_id, self.sku_variant.id)
+        self.assertEqual(order_item.template_id, self.template.id)
+
     def test_duplicate_creates_new_quote_number(self):
         quotation = QuotationService.create_quotation(
             {
@@ -284,3 +366,4 @@ class QuotationModuleTests(TestCase):
         pdf_bytes = QuotationPDFService.render_pdf_bytes(quotation)
         self.assertIn(quotation.quote_number.encode(), pdf_bytes)
         self.assertIn(self.customer.name.encode(), pdf_bytes)
+        self.assertIn(b"System costing remains estimated", pdf_bytes)

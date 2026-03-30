@@ -137,9 +137,57 @@ def build_gate_order() -> SalesOrder:
     order = SalesOrderService.create_sales_order(payload)
     SalesOrderService.confirm_sales_order(str(order.id))
     order.refresh_from_db()
+    order = force_artwork_gate(order)
     item = order.items.first()
     if order.status != "PLANNING_REQUIRED" or not item or not item.artwork_assignment_required:
         raise RuntimeError("UI E2E planner artwork gate seed did not produce a pending artwork-assignment sales order.")
+    return order
+
+
+def force_artwork_gate(order: SalesOrder) -> SalesOrder:
+    item = order.items.first()
+    if not item:
+        raise RuntimeError("Planner artwork gate seed order has no items.")
+
+    printing = dict(item.printing_snapshot or {})
+    print_type = str(printing.get("type") or printing.get("method") or "FLEXO").upper()
+    front_count = int(printing.get("front_colors_count") or 1)
+    back_count = int(printing.get("back_colors_count") or 0)
+    if front_count + back_count <= 0:
+        front_count = 1
+        back_count = 0
+    front_colors = [f"FRONT-{idx + 1}" for idx in range(front_count)]
+    back_colors = [f"BACK-{idx + 1}" for idx in range(back_count)]
+    printing.update(
+        {
+            "enabled": True,
+            "type": print_type,
+            "method": print_type,
+            "substrate_mode": str(printing.get("substrate_mode") or "SHEET").upper(),
+            "front_colors_count": front_count,
+            "back_colors_count": back_count,
+            "front_colors": front_colors,
+            "back_colors": back_colors,
+            "color_names": front_colors + back_colors,
+            "color_mapping": {},
+            "ink_gsm_total": float(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 1.2),
+            "ink_gsm": float(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 1.2),
+            "cylinder_required": print_type == "ROTO",
+        }
+    )
+    printing.pop("artwork_id", None)
+    printing.pop("artwork_design_code", None)
+
+    item.printing_snapshot = printing
+    item.assigned_artwork_id = None
+    item.artwork_assignment_required = True
+    item.save(update_fields=["printing_snapshot", "assigned_artwork_id", "artwork_assignment_required"])
+
+    if hasattr(order, "artwork_assignment_required"):
+        order.artwork_assignment_required = True
+        order.save(update_fields=["artwork_assignment_required"])
+
+    order.refresh_from_db()
     return order
 
 
@@ -149,7 +197,8 @@ def main():
         raise RuntimeError("Admin user is required before seeding UI E2E planner gate fixtures.")
 
     artwork = ensure_seed_artwork(admin_user)
-    order = find_existing_gate_order() or build_gate_order()
+    existing = find_existing_gate_order()
+    order = force_artwork_gate(existing) if existing else build_gate_order()
     gate_item = order.items.filter(artwork_assignment_required=True).first()
     runtime_dir = Path(os.environ.get("UI_E2E_RUNTIME_DIR", Path(os.getcwd()) / ".runtime" / "ui-e2e"))
     runtime_dir.mkdir(parents=True, exist_ok=True)

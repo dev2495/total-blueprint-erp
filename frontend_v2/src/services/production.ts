@@ -29,6 +29,10 @@ export interface ProductionJob {
     total_weight_kg?: number;
     step_target_kg?: number;
     step_target_pcs?: number | null;
+    primary_uom?: "KG" | "PCS";
+    step_target_primary?: number | null;
+    step_produced_primary?: number | null;
+    step_remaining_primary?: number | null;
     step_adjusted_total_kg?: number;
 
     // Technical Specs
@@ -59,11 +63,60 @@ export interface StockProductionOrder {
     status: 'DRAFT' | 'PLANNING_REQUIRED' | 'PLANNED' | 'RELEASED' | 'STOCK_READY' | 'COMPLETED' | 'CANCELLED';
     created_at: string;
     created_by_name: string;
+    updated_at?: string;
+    name?: string;
+    internal_name?: string;
+    quantity?: number;
+    quantity_uom?: string;
+    stock_purpose?: string;
+    stock_strategy?: string;
+    planner_stock_class?: string;
+    derived_output_type?: string;
+    geometry?: any;
+    geometry_snapshot?: any;
+    film_layers?: any[];
+    layer_snapshot?: any[];
+    printing?: any;
+    printing_snapshot?: any;
+    addons?: any[];
+    addons_snapshot?: any[];
+    packaging_snapshot?: any;
+    bom_snapshot?: any;
+    spec_signature?: string;
+    unit_weight_g?: number;
+    total_weight_kg?: number;
+}
+
+export interface BulkStockOrder {
+    id: string;
+    order_number: string;
+    bulk_class: string;
+    material: string;
+    material_code: string;
+    material_name: string;
+    plant: string;
+    plant_name: string;
+    quantity_kg: number;
+    target_qty_kg: number;
+    produced_qty_kg: number;
+    name?: string;
+    internal_name?: string;
+    pod_profile_snapshot?: Record<string, any>;
+    planner_origin_meta?: Record<string, any>;
+    status: string;
+    created_by_name?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export const productionService = {
     getJobs: async (params?: any) => {
         const { data } = await api.get<ProductionJob[]>("/api/production/jobs/", { params });
+        return data;
+    },
+
+    getJob: async (id: string) => {
+        const { data } = await api.get<ProductionJob>(`/api/production/jobs/${id}/`);
         return data;
     },
 
@@ -108,6 +161,16 @@ export const productionService = {
     // Stock Production Orders (Stock)
     getStockOrders: async (params?: any) => {
         const { data } = await api.get<StockProductionOrder[]>("/api/production/stock-orders/", { params });
+        return data;
+    },
+
+    getStockOrder: async (id: string) => {
+        const { data } = await api.get<StockProductionOrder>(`/api/production/stock-orders/${id}/`);
+        return data;
+    },
+
+    getBulkStockOrder: async (id: string) => {
+        const { data } = await api.get<BulkStockOrder>(`/api/production/bulk-stock-orders/${id}/`);
         return data;
     },
 

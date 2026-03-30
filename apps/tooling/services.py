@@ -1,5 +1,6 @@
 from django.db import transaction
 
+from apps.artwork.print_contract import get_artwork_contract
 from apps.artwork.models import Artwork
 
 from .models import Cylinder
@@ -20,13 +21,11 @@ class CylinderService:
     @transaction.atomic
     def generate_for_artwork(artwork_id, force: bool = False):
         artwork = Artwork.objects.get(id=artwork_id)
-        front_count = int(artwork.front_colors_count or 0)
-        back_count = int(artwork.back_colors_count or 0)
-        front_colors = [str(v).strip().upper() for v in (artwork.front_colors or []) if str(v).strip()]
-        back_colors = [str(v).strip().upper() for v in (artwork.back_colors or []) if str(v).strip()]
-
-        if front_count + back_count <= 0:
-            raise ValueError("Artwork must have front/back colors configured before cylinder generation.")
+        contract = get_artwork_contract(artwork, require_asset=False)
+        front_count = int(contract["front_colors_count"] or 0)
+        back_count = int(contract["back_colors_count"] or 0)
+        front_colors = list(contract["front_colors"])
+        back_colors = list(contract["back_colors"])
 
         created = []
         existing_draft = []
@@ -47,6 +46,17 @@ class CylinderService:
                 current_rows = existing_by_slot.get(key, [])
                 finalized = [row for row in current_rows if not row.is_draft]
                 drafts = [row for row in current_rows if row.is_draft]
+
+                if len(finalized) > 1:
+                    raise ValueError(
+                        f"Duplicate finalized cylinders already exist for artwork slot {side}-{slot}. "
+                        "Resolve the duplicate slot before generating more cylinders."
+                    )
+                if len(drafts) > 1 and not force:
+                    raise ValueError(
+                        f"Duplicate draft cylinders already exist for artwork slot {side}-{slot}. "
+                        "Resolve the duplicate slot before generating more cylinders."
+                    )
 
                 if finalized:
                     existing_finalized.append(

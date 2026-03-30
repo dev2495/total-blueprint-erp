@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -163,10 +164,49 @@ def _to_decimal(value, default: str = "0") -> Decimal:
 
 
 class ReportDistributionService:
+    ARTIFACT_RETENTION_DAYS = 30
+
     @staticmethod
     def artifact_root() -> Path:
         base_dir = Path(getattr(settings, "BASE_DIR", "."))
         return base_dir / ".runtime" / "report-smoke"
+
+    @staticmethod
+    def run_artifact_root(run_or_id) -> Path:
+        run_id = str(getattr(run_or_id, "id", run_or_id))
+        return ReportDistributionService.artifact_root() / "runs" / run_id
+
+    @staticmethod
+    def stored_pdf_path(run: ReportDispatchRun) -> Path | None:
+        if not run or not run.pdf_file_name:
+            return None
+        path = ReportDistributionService.run_artifact_root(run) / run.pdf_file_name
+        return path if path.exists() else None
+
+    @staticmethod
+    def stored_detail_path(run: ReportDispatchRun) -> Path | None:
+        if not run or not run.detail_file_name:
+            return None
+        path = ReportDistributionService.run_artifact_root(run) / run.detail_file_name
+        return path if path.exists() else None
+
+    @staticmethod
+    def prune_old_artifacts(*, retention_days: int | None = None) -> int:
+        retention = retention_days or ReportDistributionService.ARTIFACT_RETENTION_DAYS
+        cutoff = timezone.localdate() - timedelta(days=retention)
+        runs_root = ReportDistributionService.artifact_root() / "runs"
+        if not runs_root.exists():
+            return 0
+        stale_ids = set(
+            ReportDispatchRun.objects.filter(report_date__lt=cutoff).values_list("id", flat=True)
+        )
+        removed = 0
+        for run_id in stale_ids:
+            path = runs_root / str(run_id)
+            if path.exists():
+                shutil.rmtree(path, ignore_errors=True)
+                removed += 1
+        return removed
 
     @staticmethod
     def persist_rendered_artifact(rendered: RenderedReport, *, folder: str | None = None) -> Path:
@@ -242,8 +282,13 @@ class ReportDistributionService:
         return updated
 
     @staticmethod
-    def list_runs(limit=30):
-        return list(ReportDispatchRun.objects.select_related("profile", "triggered_by").order_by("-created_at")[:limit])
+    def list_runs(limit=30, days: int | None = None):
+        ReportDistributionService.prune_old_artifacts()
+        queryset = ReportDispatchRun.objects.select_related("profile", "triggered_by").order_by("-created_at")
+        if days:
+            cutoff = timezone.localdate() - timedelta(days=max(1, int(days)))
+            queryset = queryset.filter(report_date__gte=cutoff)
+        return list(queryset[:limit])
 
     @staticmethod
     def get_run(run_id: str):
@@ -272,6 +317,8 @@ class ReportDistributionService:
 
     @staticmethod
     def serialize_run(run: ReportDispatchRun) -> dict:
+        stored_pdf_path = ReportDistributionService.stored_pdf_path(run)
+        stored_detail_path = ReportDistributionService.stored_detail_path(run)
         return {
             "id": str(run.id),
             "report_code": run.report_code,
@@ -295,6 +342,9 @@ class ReportDistributionService:
             "window_end": run.window_end.isoformat() if run.window_end else None,
             "created_at": run.created_at.isoformat() if run.created_at else None,
             "sent_at": run.sent_at.isoformat() if run.sent_at else None,
+            "stored_pdf_available": bool(stored_pdf_path),
+            "stored_detail_available": bool(stored_detail_path),
+            "artifact_retention_days": ReportDistributionService.ARTIFACT_RETENTION_DAYS,
         }
 
     @staticmethod
@@ -339,6 +389,7 @@ class ReportDistributionService:
 
     @staticmethod
     def send_profile(profile: ReportDistributionProfile, *, report_date=None, triggered_by=None, triggered_manually=False):
+        ReportDistributionService.prune_old_artifacts()
         rendered = ReportDistributionService.render_report(profile.report_code, report_date=report_date)
         recipients = ReportDistributionService.recipients_for_profile(profile)
         warning_text = rendered.warning_text or ""

@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.analytics.services import AnalyticsService, KPIService, FactoryOverviewService, ReportingService
 from apps.analytics.report_delivery import ReportDistributionService
+from apps.analytics.pdf_exports import AnalyticsPDFExportService
 from apps.analytics.reports_service import ReportService
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -111,7 +112,8 @@ class AnalyticsViewSet(viewsets.ViewSet):
         if not _is_reports_admin(request.user):
             return _reports_admin_forbidden_response(request.user, "report_runs.read")
         limit = _bounded_int(request.query_params.get("limit", 30), default=30, minimum=1, maximum=100)
-        runs = [ReportDistributionService.serialize_run(row) for row in ReportDistributionService.list_runs(limit=limit)]
+        days = request.query_params.get("days")
+        runs = [ReportDistributionService.serialize_run(row) for row in ReportDistributionService.list_runs(limit=limit, days=int(days) if str(days or "").isdigit() else None)]
         return Response({"runs": runs})
 
     @action(detail=False, methods=['get'], url_path=r'report-runs/(?P<run_id>[^/.]+)/preview-pdf')
@@ -121,6 +123,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
         run = ReportDistributionService.get_run(run_id)
         if not run:
             return Response({"error": "Report run not found."}, status=status.HTTP_404_NOT_FOUND)
+        stored_pdf = ReportDistributionService.stored_pdf_path(run)
+        if stored_pdf:
+            return FileResponse(
+                stored_pdf.open("rb"),
+                filename=run.pdf_file_name or stored_pdf.name,
+                content_type="application/pdf",
+            )
         try:
             rendered = ReportDistributionService.render_report(run.report_code, report_date=run.report_date)
         except Exception as exc:
@@ -132,6 +141,33 @@ class AnalyticsViewSet(viewsets.ViewSet):
             content_type="application/pdf",
         )
 
+    @action(detail=False, methods=['get'], url_path=r'report-runs/(?P<run_id>[^/.]+)/download-pdf')
+    def report_run_download_pdf(self, request, run_id=None):
+        if not _is_reports_admin(request.user):
+            return _reports_admin_forbidden_response(request.user, "report_runs.download_pdf")
+        run = ReportDistributionService.get_run(run_id)
+        if not run:
+            return Response({"error": "Report run not found."}, status=status.HTTP_404_NOT_FOUND)
+        stored_pdf = ReportDistributionService.stored_pdf_path(run)
+        if stored_pdf:
+            return FileResponse(
+                stored_pdf.open("rb"),
+                filename=run.pdf_file_name or stored_pdf.name,
+                content_type="application/pdf",
+                as_attachment=True,
+            )
+        try:
+            rendered = ReportDistributionService.render_report(run.report_code, report_date=run.report_date)
+        except Exception as exc:
+            logger.error("Report download failed (%s): %s", run_id, str(exc), exc_info=True)
+            return _error_response(code="ANALYTICS_REPORT_PREVIEW_FAILED")
+        return FileResponse(
+            BytesIO(rendered.pdf),
+            filename=rendered.file_name,
+            content_type="application/pdf",
+            as_attachment=True,
+        )
+
     @action(detail=False, methods=['get'], url_path=r'report-runs/(?P<run_id>[^/.]+)/download-detail')
     def report_run_download_detail(self, request, run_id=None):
         if not _is_reports_admin(request.user):
@@ -139,6 +175,14 @@ class AnalyticsViewSet(viewsets.ViewSet):
         run = ReportDistributionService.get_run(run_id)
         if not run:
             return Response({"error": "Report run not found."}, status=status.HTTP_404_NOT_FOUND)
+        stored_detail = ReportDistributionService.stored_detail_path(run)
+        if stored_detail:
+            return FileResponse(
+                stored_detail.open("rb"),
+                filename=run.detail_file_name or stored_detail.name,
+                content_type="application/octet-stream",
+                as_attachment=True,
+            )
         try:
             rendered = ReportDistributionService.render_report(run.report_code, report_date=run.report_date)
         except Exception as exc:
@@ -266,6 +310,8 @@ class AnalyticsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='operational-logs')
     def operational_logs(self, request):
         try:
+            if not _is_reports_admin(request.user):
+                return _reports_admin_forbidden_response(request.user, "operational_logs.read")
             filter_type = request.query_params.get('type', 'all')
             limit = _bounded_int(
                 request.query_params.get('limit', 100),
@@ -381,6 +427,22 @@ class AnalyticsViewSet(viewsets.ViewSet):
             logger.error(f"Order tracking error ({order_id}): {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_ORDER_TRACKING_FAILED")
 
+    @action(detail=False, methods=['get'], url_path='trace')
+    def trace_lookup(self, request):
+        try:
+            if not _is_reports_admin(request.user):
+                return _reports_admin_forbidden_response(request.user, "trace_lookup.read")
+            query = (request.query_params.get("q") or "").strip()
+            if not query:
+                return Response({"error": "q query param is required"}, status=status.HTTP_400_BAD_REQUEST)
+            data = AnalyticsService.get_trace_lookup(query)
+            if data.get("error"):
+                return Response(data, status=status.HTTP_404_NOT_FOUND)
+            return Response(data)
+        except Exception as e:
+            logger.error(f"Trace lookup error: {str(e)}", exc_info=True)
+            return _error_response(code="ANALYTICS_TRACE_LOOKUP_FAILED")
+
     @action(detail=False, methods=['get'], url_path='sales-dashboard')
     def sales_dashboard(self, request):
         try:
@@ -398,6 +460,25 @@ class AnalyticsViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Planner dashboard error: {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_PLANNER_DASHBOARD_FAILED")
+
+    @action(detail=False, methods=['get'], url_path='wcm-dashboard')
+    def wcm_dashboard(self, request):
+        try:
+            user = request.user
+            role_code = getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
+            is_master = role_code in ['ADMIN', 'SUPER_ADMIN', 'OWNER'] or user.is_owner or user.is_superuser
+
+            wc_ids = None
+            if not is_master and role_code == 'WORK_CENTER_MANAGER':
+                from apps.users.models import WorkCenterAssignment
+
+                wc_ids = list(WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True))
+
+            stats = AnalyticsService.get_wcm_dashboard_stats(work_center_ids=wc_ids)
+            return Response(stats)
+        except Exception as e:
+            logger.error(f"WCM dashboard error: {str(e)}", exc_info=True)
+            return _error_response(code="ANALYTICS_WCM_DASHBOARD_FAILED")
 
     @action(detail=False, methods=['get'], url_path='catalog')
     def catalog(self, request):
@@ -421,6 +502,20 @@ class AnalyticsViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Dashboard summary error: {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_DASHBOARD_SUMMARY_FAILED")
+
+    @action(detail=False, methods=['get'], url_path='dashboard-summary/export-pdf')
+    def dashboard_summary_export_pdf(self, request):
+        try:
+            filters = {
+                "plant": request.query_params.get("plant"),
+                "date_from": request.query_params.get("date_from"),
+                "date_to": request.query_params.get("date_to"),
+            }
+            rendered = AnalyticsPDFExportService.export_dashboard_summary_pdf(filters)
+            return FileResponse(BytesIO(rendered.content), filename=rendered.file_name, content_type="application/pdf", as_attachment=True)
+        except Exception as exc:
+            logger.error("Dashboard summary export failed: %s", str(exc), exc_info=True)
+            return _error_response(code="ANALYTICS_DASHBOARD_EXPORT_FAILED")
 
     @action(detail=False, methods=['get'], url_path='scrap-center')
     def scrap_center(self, request):
@@ -542,6 +637,16 @@ class AnalyticsViewSet(viewsets.ViewSet):
         filters = request.query_params.dict()
         data = ReportService.get_report_tab("shift-performance", filters)
         return Response(data)
+
+    @action(detail=False, methods=['get'], url_path=r'reports/(?P<tab>[^/.]+)/export-pdf')
+    def report_tab_export_pdf(self, request, tab=None):
+        try:
+            filters = request.query_params.dict()
+            rendered = AnalyticsPDFExportService.export_report_tab_pdf(tab or "report", filters)
+            return FileResponse(BytesIO(rendered.content), filename=rendered.file_name, content_type="application/pdf", as_attachment=True)
+        except Exception as exc:
+            logger.error("Reports tab export failed (%s): %s", tab, str(exc), exc_info=True)
+            return _error_response(code="ANALYTICS_REPORT_EXPORT_FAILED")
 
     @action(detail=False, methods=['get'], url_path=r'reports/(?P<tab>[^/.]+)')
     def report_tab(self, request, tab=None):

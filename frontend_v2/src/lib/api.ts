@@ -1,74 +1,30 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
 
-const isLocalHost = (host: string): boolean => {
-    const normalized = String(host || "").trim().toLowerCase();
-    return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "0.0.0.0" || normalized === "::1";
-};
-
 const normalizeBase = (value: string): string => value.replace(/\/+$/, "");
 
-const normalizeBrowserHost = (host: string): string => {
-    const normalized = String(host || "").trim().toLowerCase();
-    if (normalized === "0.0.0.0" || normalized === "::1") return "127.0.0.1";
-    return normalized || "127.0.0.1";
-};
-
-const resolveLanBackendBase = (): string => {
-    if (typeof window === "undefined") return "http://127.0.0.1:8000";
-    const host = normalizeBrowserHost(String(window.location.hostname || ""));
-    const protocol = String(window.location.protocol || "http:");
-    const configuredPort = String(process.env.NEXT_PUBLIC_API_PORT || "8000").trim() || "8000";
-    return `${protocol}//${host}:${configuredPort}`;
-};
-
 const resolveApiBase = (): string => {
-    const envBase = String(process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
+    if (typeof window !== "undefined") {
+        return "";
+    }
+
+    const envBase = String(
+        process.env.UI_API_BASE_URL ||
+        process.env.API_PROXY_TARGET ||
+        process.env.NEXT_PUBLIC_API_BASE_URL ||
+        ""
+    ).trim();
     if (envBase) {
         if (/^https?:\/\//i.test(envBase)) {
-            // Guard against legacy localhost env config when accessed from another device on LAN.
-            if (typeof window !== "undefined") {
-                try {
-                    const parsed = new URL(envBase);
-                    const browserHost = normalizeBrowserHost(String(window.location.hostname || ""));
-                    const parsedHost = normalizeBrowserHost(parsed.hostname);
-                    if (isLocalHost(parsedHost) && parsedHost !== browserHost) {
-                        const port = parsed.port || String(process.env.NEXT_PUBLIC_API_PORT || "8000").trim() || "8000";
-                        return normalizeBase(`${window.location.protocol}//${browserHost}:${port}${parsed.pathname || ""}`);
-                    }
-                } catch {
-                    // Fall through to default absolute base handling.
-                }
-            }
             return normalizeBase(envBase);
         }
         if (envBase.startsWith("/")) return normalizeBase(envBase);
-    }
-
-    if (typeof window !== "undefined") {
-        const host = normalizeBrowserHost(String(window.location.hostname || ""));
-        if (isLocalHost(host)) {
-            const protocol = String(window.location.protocol || "http:");
-            const port = String(process.env.NEXT_PUBLIC_API_PORT || "8000").trim() || "8000";
-            // Keep API host aligned with UI host (localhost stays localhost, 127 stays 127).
-            return normalizeBase(`${protocol}//${host}:${port}`);
-        }
-
-        // Local/LAN dev default: frontend on :3000, backend on :8000.
-        // This prevents auth/API requests from incorrectly hitting the Next.js app on other devices.
-        const port = String(window.location.port || "");
-        if (port === "3000" || port === "3001") {
-            return normalizeBase(resolveLanBackendBase());
-        }
-
-        // Fallback for proxy/same-origin deployments.
-        return normalizeBase(window.location.origin);
     }
     return "http://127.0.0.1:8000";
 };
 
 const API_BASE = resolveApiBase();
-export const RESOLVED_API_BASE = API_BASE;
+export const RESOLVED_API_BASE = API_BASE || "/";
 const RETRY_HEADER = "x-codex-retried";
 
 let refreshPromise: Promise<boolean> | null = null;

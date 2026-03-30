@@ -1,0 +1,1483 @@
+"use client"
+
+import { useEffect } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { ChevronDown, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { recipeService } from "@/services/recipes"
+
+import {
+    type OrderItemDraft,
+    type PackagingLine,
+    type AdjustmentDraft,
+    classifyAddonMaster,
+    getOrderItemContractIssues,
+    isGussetStyle,
+    isSpoutStyle,
+    makeAdjustment,
+    makeAddon,
+    makeLayer,
+    normalizePouchStyle,
+    asNumber,
+} from "./order-draft"
+import { type PodSkuVariant } from "@/services/master-data"
+
+function Section({
+    title,
+    description,
+    defaultOpen = true,
+    dataTestId,
+    children,
+}: {
+    title: string
+    description: string
+    defaultOpen?: boolean
+    dataTestId?: string
+    children: React.ReactNode
+}) {
+    return (
+        <Collapsible
+            data-testid={dataTestId}
+            defaultOpen={defaultOpen}
+            className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,250,252,0.95))] shadow-[0_22px_55px_-50px_rgba(15,23,42,0.45)] backdrop-blur"
+        >
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50/60 sm:px-6 sm:py-5">
+                <div>
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-slate-800">{title}</div>
+                    <div className="mt-1 max-w-3xl text-xs leading-5 text-slate-500 sm:text-[13px]">{description}</div>
+                </div>
+                <div className="rounded-full border border-slate-200 bg-white p-2 text-slate-400 shadow-sm">
+                    <ChevronDown className="h-4 w-4" />
+                </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                <div className="border-t border-slate-100/80 px-4 py-5 sm:px-6">{children}</div>
+            </CollapsibleContent>
+        </Collapsible>
+    )
+}
+
+function GradeSelector({
+    variantId,
+    value,
+    onChange,
+}: {
+    variantId: string
+    value?: string | null
+    onChange: (val: string) => void
+}) {
+    const { data: grades = [], isLoading } = useQuery({
+        queryKey: ["variant-grades", variantId],
+        queryFn: () => recipeService.getGrades(variantId),
+        enabled: Boolean(variantId),
+    })
+
+    if (!variantId) {
+        return <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400">Select variant first</div>
+    }
+    if (isLoading) {
+        return <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+    }
+    return (
+        <Select value={value || "__NONE__"} onValueChange={(val) => onChange(val === "__NONE__" ? "" : val)}>
+            <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Select grade" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="__NONE__">Select grade</SelectItem>
+                {grades.map((grade: any) => (
+                    <SelectItem key={grade.id} value={String(grade.id)}>
+                        {grade.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    )
+}
+
+export default function OrderItemTechnicalEditor({
+    item,
+    templates,
+    families,
+    variants,
+    addonsMaster,
+    packagingMaterials,
+    podProfiles,
+    artworks,
+    previewLoading,
+    previewError,
+    onPreviewRetry,
+    updateItem,
+}: {
+    item: OrderItemDraft
+    templates: any[]
+    families: any[]
+    variants: any[]
+    addonsMaster: any[]
+    packagingMaterials: any[]
+    podProfiles: PodSkuVariant[]
+    artworks: any[]
+    previewLoading: boolean
+    previewError: string
+    onPreviewRetry: () => void
+    updateItem: (updater: (current: OrderItemDraft) => OrderItemDraft) => void
+}) {
+    const activeTemplate = templates.find((template: any) => String(template.id) === String(item.template_id))
+    const lockedPouchStyle = normalizePouchStyle(activeTemplate?.pouch_style || item.geometry.pouch_style || "")
+    const showGussetField = item.finished_good_type === "POUCH" && isGussetStyle(lockedPouchStyle)
+    const spoutStyle = item.finished_good_type === "POUCH" && isSpoutStyle(lockedPouchStyle)
+    const hasSpoutAddon = item.addons.some((row) => {
+        const meta = addonsMaster.find((addon: any) => String(addon.id) === String(row.addon_id))
+        return classifyAddonMaster(meta).isSpoutCompatible
+    })
+    const addonOptions = [...addonsMaster].sort((left: any, right: any) => {
+        const leftMeta = classifyAddonMaster(left)
+        const rightMeta = classifyAddonMaster(right)
+        const leftRank = spoutStyle ? (leftMeta.isSpoutCompatible ? 0 : 1) : (leftMeta.isSpoutCompatible ? 1 : 0)
+        const rightRank = spoutStyle ? (rightMeta.isSpoutCompatible ? 0 : 1) : (rightMeta.isSpoutCompatible ? 1 : 0)
+        if (leftRank !== rightRank) return leftRank - rightRank
+        return String(left?.name || "").localeCompare(String(right?.name || ""))
+    })
+    const previewGeometry = item.savedPreview?.physics?.geometry_snapshot || item.savedPreview?.geometry_snapshot || {}
+    const previewAddonKg = (item.savedPreview?.bom?.addons || []).reduce((sum: number, row: any) => sum + asNumber(row?.weight_kg, 0), 0)
+    const previewPodKg = (item.savedPreview?.bom?.pod || []).reduce((sum: number, row: any) => sum + asNumber(row?.weight_kg, 0), 0)
+    const contractIssues = getOrderItemContractIssues(item, addonsMaster, lockedPouchStyle)
+
+    useEffect(() => {
+        if (item.finished_good_type !== "POUCH") return
+        if (!lockedPouchStyle) return
+        if (normalizePouchStyle(item.geometry.pouch_style) === lockedPouchStyle) return
+        updateItem((current) => ({
+            ...current,
+            geometry: {
+                ...current.geometry,
+                pouch_style: lockedPouchStyle,
+            },
+            savedPreview: null,
+        }))
+    }, [item.finished_good_type, item.geometry.pouch_style, lockedPouchStyle, updateItem])
+
+    return (
+        <div className="space-y-4">
+            {contractIssues.length ? (
+                <div className="overflow-hidden rounded-[1.75rem] border border-amber-200 bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)]">
+                    <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
+                        <div>
+                            <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-800">Contract Checks</div>
+                            <div className="mt-1 text-sm font-semibold text-amber-900">
+                                Fix these before saving or relying on preview math.
+                            </div>
+                        </div>
+                        <Badge className="border border-amber-300 bg-white/60 text-amber-900">{contractIssues.length} open</Badge>
+                    </div>
+                    <div className="border-t border-amber-200/70 px-5 py-4 sm:px-6">
+                        <div className="grid gap-2">
+                            {contractIssues.map((issue) => (
+                                <div key={issue} className="rounded-2xl border border-amber-200 bg-white/70 px-4 py-3 text-sm text-amber-900">
+                                    {issue}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-emerald-50/90 shadow-[0_18px_45px_-40px_rgba(5,150,105,0.22)]">
+                    <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
+                        <div>
+                            <div className="text-sm font-black uppercase tracking-[0.22em] text-emerald-700">Contract Ready</div>
+                            <div className="mt-1 text-sm font-semibold text-emerald-900">
+                                Geometry, add-ons, and layer inputs match the current backend contract.
+                            </div>
+                        </div>
+                        <Badge className="border border-emerald-200 bg-white/70 text-emerald-800">Ready to preview</Badge>
+                    </div>
+                </div>
+            )}
+            <Section
+                title="Product Structure"
+                description="Geometry, lamination stack, roll form, and physical adjustments."
+                dataTestId="sku-variant-section-product-structure"
+            >
+                <div className="space-y-5">
+                    <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                        <div className="space-y-2">
+                            <Label>Template Product</Label>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+                                {activeTemplate?.name || "Select template in Basics"}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Final Product Type</Label>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+                                {item.finished_good_type}
+                            </div>
+                        </div>
+                        {item.finished_good_type === "ROLL" ? (
+                            <div className="space-y-2">
+                                <Label>Roll Form</Label>
+                                <Select
+                                    value={item.roll_form || "FLAT"}
+                                    onValueChange={(value) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            roll_form: value as OrderItemDraft["roll_form"],
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="FLAT">FLAT</SelectItem>
+                                        <SelectItem value="FOLDED">FOLDED</SelectItem>
+                                        <SelectItem value="TUBING">TUBING</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-2">
+                                    <Label>Pouch Style</Label>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+                                        {lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "Template style not linked"}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">Style is locked to the LIVE template. Sales adjusts geometry inside that style.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Width (mm)</Label>
+                                    <Input
+                                        type="number"
+                                        value={String(item.geometry.base.width_mm)}
+                                        onChange={(event) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                geometry: {
+                                                    ...current.geometry,
+                                                    base: { ...current.geometry.base, width_mm: asNumber(event.target.value, 0) },
+                                                },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Height (mm)</Label>
+                                    <Input
+                                        type="number"
+                                        value={String(item.geometry.base.height_mm)}
+                                        onChange={(event) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                geometry: {
+                                                    ...current.geometry,
+                                                    base: { ...current.geometry.base, height_mm: asNumber(event.target.value, 0) },
+                                                },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                {showGussetField ? (
+                                    <div className="space-y-2">
+                                        <Label>Gusset (mm)</Label>
+                                        <Input
+                                            type="number"
+                                            value={String(item.geometry.gusset_mm || 0)}
+                                            onChange={(event) =>
+                                                updateItem((current) => ({
+                                                    ...current,
+                                                    geometry: {
+                                                        ...current.geometry,
+                                                        gusset_mm: asNumber(event.target.value, 0),
+                                                    },
+                                                    savedPreview: null,
+                                                }))
+                                            }
+                                        />
+                                        <p className="text-[11px] text-slate-500">Required for gusseted styles and used directly in effective width math.</p>
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
+                        <div className="space-y-2">
+                            <Label>Multi-up (Faces)</Label>
+                            <Input
+                                type="number"
+                                min={1}
+                                value={String(item.geometry.multipliers.faces)}
+                                onChange={(event) =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        geometry: {
+                                            ...current.geometry,
+                                            multipliers: { faces: Math.max(1, asNumber(event.target.value, 1)) },
+                                        },
+                                        savedPreview: null,
+                                    }))
+                                }
+                            />
+                        </div>
+                    </div>
+
+                    {item.finished_good_type === "POUCH" ? (
+                        <div className="grid gap-3 xl:grid-cols-3">
+                            <div className={`rounded-2xl border px-4 py-3 text-sm ${showGussetField && (item.geometry.gusset_mm || 0) <= 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em]">Rule</div>
+                                <div className="mt-1 font-semibold">
+                                    {showGussetField ? "This pouch family requires gusset." : "This pouch family does not require gusset input."}
+                                </div>
+                            </div>
+                            <div className={`rounded-2xl border px-4 py-3 text-sm ${spoutStyle && !hasSpoutAddon ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em]">Add-on Rule</div>
+                                <div className="mt-1 font-semibold">
+                                    {spoutStyle ? (hasSpoutAddon ? "Spout or fitment add-on linked." : "Spout style requires a spout or fitment add-on.") : "Approved add-ons stay optional for this style."}
+                                </div>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em]">Geometry Note</div>
+                                <div className="mt-1 font-semibold">Trim and flap change effective material width and height before BOM math runs.</div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {item.finished_good_type === "POUCH" ? (
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                            <div className="space-y-2">
+                                <Label>Trim Loss (mm)</Label>
+                                <Input
+                                    type="number"
+                                    value={String(item.geometry.trim_loss_mm || 0)}
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            geometry: {
+                                                ...current.geometry,
+                                                trim_loss_mm: asNumber(event.target.value, 0),
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Flap / Tape (mm)</Label>
+                                <Input
+                                    type="number"
+                                    value={String(item.geometry.flap_tape_mm || 0)}
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            geometry: {
+                                                ...current.geometry,
+                                                flap_tape_mm: asNumber(event.target.value, 0),
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Effective Contract</div>
+                                <div className="mt-2 font-semibold">
+                                    {lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "Template style pending"}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                    Width and height are base dimensions. Gusset, trim, flap, and named adjustments are applied before preview and BOM.
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <Label>Physical Adjustments</Label>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        geometry: {
+                                            ...current.geometry,
+                                            adjustments: [...current.geometry.adjustments, makeAdjustment()],
+                                        },
+                                        savedPreview: null,
+                                    }))
+                                }
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> Add Adjustment
+                            </Button>
+                        </div>
+                        {item.geometry.adjustments.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+                                No custom adjustments configured.
+                            </div>
+                        ) : null}
+                        {item.geometry.adjustments.map((adjustment, index) => (
+                            <div key={adjustment.localId} className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:grid-cols-[minmax(0,1fr)_120px_160px_44px]">
+                                <Input
+                                    value={adjustment.name}
+                                    placeholder="Adjustment name"
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            geometry: {
+                                                ...current.geometry,
+                                                adjustments: current.geometry.adjustments.map((row, rowIndex) =>
+                                                    rowIndex === index ? { ...row, name: event.target.value } : row
+                                                ),
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                                <Input
+                                    type="number"
+                                    value={String(adjustment.value)}
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            geometry: {
+                                                ...current.geometry,
+                                                adjustments: current.geometry.adjustments.map((row, rowIndex) =>
+                                                    rowIndex === index ? { ...row, value: asNumber(event.target.value, 0) } : row
+                                                ),
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                                <Select
+                                    value={adjustment.impact}
+                                    onValueChange={(value) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            geometry: {
+                                                ...current.geometry,
+                                                adjustments: current.geometry.adjustments.map((row, rowIndex) =>
+                                                    rowIndex === index ? { ...row, impact: value as AdjustmentDraft["impact"] } : row
+                                                ),
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="WIDTH">WIDTH</SelectItem>
+                                        <SelectItem value="HEIGHT">HEIGHT</SelectItem>
+                                        <SelectItem value="BOTH">BOTH</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-rose-600"
+                                    onClick={() =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            geometry: {
+                                                ...current.geometry,
+                                                adjustments: current.geometry.adjustments.filter((_, rowIndex) => rowIndex !== index),
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <Label>Lamination Stack</Label>
+                                <p className="text-xs text-slate-500">
+                                    Density comes from the selected film family and variant in master data. This builder only selects the source.
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        film_layers: [...current.film_layers, makeLayer()],
+                                        savedPreview: null,
+                                    }))
+                                }
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> Add Layer
+                            </Button>
+                        </div>
+                        {item.film_layers.map((layer, index) => {
+                            const familyVariants = variants.filter(
+                                (variant: any) => String(variant?.parent_family?.id || variant?.parent_family || "") === String(layer.family_id)
+                            )
+                            const selectedVariant = variants.find((variant: any) => String(variant.id) === String(layer.variant_id))
+                            return (
+                                <div key={layer.localId} className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Layer {index + 1}</div>
+                                            <div className="mt-1 text-sm font-semibold text-slate-700">
+                                                {selectedVariant?.name || "Choose family and variant"}
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            className="text-rose-600"
+                                            onClick={() =>
+                                                updateItem((current) => ({
+                                                    ...current,
+                                                    film_layers: current.film_layers.filter((_, rowIndex) => rowIndex !== index),
+                                                    savedPreview: null,
+                                                }))
+                                            }
+                                            disabled={item.film_layers.length === 1}
+                                        >
+                                            Remove Layer
+                                        </Button>
+                                    </div>
+                                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                        <div className="space-y-2">
+                                            <Label>Family</Label>
+                                            <Select
+                                                value={layer.family_id || "__NONE__"}
+                                                onValueChange={(value) =>
+                                                    updateItem((current) => ({
+                                                        ...current,
+                                                        film_layers: current.film_layers.map((row, rowIndex) =>
+                                                            rowIndex === index
+                                                                ? { ...row, family_id: value === "__NONE__" ? "" : value, variant_id: "", grade_id: null }
+                                                                : row
+                                                        ),
+                                                        savedPreview: null,
+                                                    }))
+                                                }
+                                            >
+                                                <SelectTrigger className="bg-white"><SelectValue placeholder="Select family" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__NONE__">Select family</SelectItem>
+                                                    {families.map((family: any) => (
+                                                        <SelectItem key={family.id} value={String(family.id)}>{family.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Variant</Label>
+                                            <Select
+                                                value={layer.variant_id || "__NONE__"}
+                                                onValueChange={(value) =>
+                                                    updateItem((current) => ({
+                                                        ...current,
+                                                        film_layers: current.film_layers.map((row, rowIndex) =>
+                                                            rowIndex === index
+                                                                ? { ...row, variant_id: value === "__NONE__" ? "" : value, grade_id: null }
+                                                                : row
+                                                        ),
+                                                        savedPreview: null,
+                                                    }))
+                                                }
+                                            >
+                                                <SelectTrigger className="bg-white"><SelectValue placeholder="Select variant" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__NONE__">Select variant</SelectItem>
+                                                    {familyVariants.map((variant: any) => (
+                                                        <SelectItem key={variant.id} value={String(variant.id)}>{variant.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Grade</Label>
+                                            {selectedVariant?.is_extrudable ? (
+                                                <GradeSelector
+                                                    variantId={String(layer.variant_id || "")}
+                                                    value={layer.grade_id}
+                                                    onChange={(value) =>
+                                                        updateItem((current) => ({
+                                                            ...current,
+                                                            film_layers: current.film_layers.map((row, rowIndex) =>
+                                                                rowIndex === index ? { ...row, grade_id: value || null } : row
+                                                            ),
+                                                            savedPreview: null,
+                                                        }))
+                                                    }
+                                                />
+                                            ) : (
+                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-400">Not required</div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Thickness (micron)</Label>
+                                            <Input
+                                                type="number"
+                                                value={String(layer.thickness_micron)}
+                                                onChange={(event) =>
+                                                    updateItem((current) => ({
+                                                        ...current,
+                                                        film_layers: current.film_layers.map((row, rowIndex) =>
+                                                            rowIndex === index ? { ...row, thickness_micron: asNumber(event.target.value, 0) } : row
+                                                        ),
+                                                        savedPreview: null,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Roll Width (mm)</Label>
+                                            <Input
+                                                type="number"
+                                                value={String(layer.roll_width_mm)}
+                                                onChange={(event) =>
+                                                    updateItem((current) => ({
+                                                        ...current,
+                                                        film_layers: current.film_layers.map((row, rowIndex) =>
+                                                            rowIndex === index ? { ...row, roll_width_mm: asNumber(event.target.value, 0) } : row
+                                                        ),
+                                                        savedPreview: null,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            </Section>
+
+            <Section
+                title="Print & Chemistry"
+                description="Artwork, color counts, inks, and lamination chemistry."
+                dataTestId="sku-variant-section-print-chemistry"
+            >
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                        <div>
+                            <Label>Printing Enabled</Label>
+                            <p className="text-xs text-slate-500">Commercial confirmation drives print BOM and artwork rules.</p>
+                        </div>
+                        <Switch
+                            checked={item.printing.enabled}
+                            onCheckedChange={(checked) =>
+                                updateItem((current) => ({
+                                    ...current,
+                                    printing: { ...current.printing, enabled: checked },
+                                    savedPreview: null,
+                                }))
+                            }
+                        />
+                    </div>
+                    {item.printing.enabled ? (
+                        <>
+                            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                                <div className="space-y-2">
+                                    <Label>Method</Label>
+                                    <Select
+                                        value={item.printing.type}
+                                        onValueChange={(value) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                printing: { ...current.printing, type: value as OrderItemDraft["printing"]["type"] },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    >
+                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="FLEXO">FLEXO</SelectItem>
+                                            <SelectItem value="ROTO">ROTO</SelectItem>
+                                            <SelectItem value="DIGITAL">DIGITAL</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Substrate Mode</Label>
+                                    <Select
+                                        value={item.printing.substrate_mode}
+                                        onValueChange={(value) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                printing: { ...current.printing, substrate_mode: value as OrderItemDraft["printing"]["substrate_mode"] },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    >
+                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="SHEET">SHEET</SelectItem>
+                                            <SelectItem value="TUBING">TUBING</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Total Ink GSM</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={String(item.printing.ink_gsm_total)}
+                                        onChange={(event) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                printing: { ...current.printing, ink_gsm_total: asNumber(event.target.value, 0) },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Front Colors</Label>
+                                    <Input
+                                        type="number"
+                                        value={String(item.printing.front_colors_count)}
+                                        onChange={(event) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                printing: { ...current.printing, front_colors_count: asNumber(event.target.value, 0) },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Back Colors</Label>
+                                    <Input
+                                        type="number"
+                                        value={String(item.printing.back_colors_count)}
+                                        onChange={(event) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                printing: { ...current.printing, back_colors_count: asNumber(event.target.value, 0) },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Approved Artwork</Label>
+                                    <Select
+                                        value={item.printing.artwork_id || "__NONE__"}
+                                        onValueChange={(value) =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                printing: {
+                                                    ...current.printing,
+                                                    artwork_id: value === "__NONE__" ? "" : value,
+                                                    defer_artwork_to_planner: false,
+                                                },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                        disabled={item.printing.defer_artwork_to_planner}
+                                    >
+                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Select artwork" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="__NONE__">Select artwork</SelectItem>
+                                            {artworks.map((artwork: any) => (
+                                                <SelectItem key={artwork.id} value={String(artwork.id)}>
+                                                    {artwork.design_code} - {artwork.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                                <div>
+                                    <Label>Defer Artwork To Planner</Label>
+                                    <p className="text-xs text-slate-500">Allow commercial confirmation before final artwork assignment.</p>
+                                </div>
+                                <Switch
+                                    checked={item.printing.defer_artwork_to_planner}
+                                    onCheckedChange={(checked) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: {
+                                                ...current.printing,
+                                                defer_artwork_to_planner: checked,
+                                                artwork_id: checked ? "" : current.printing.artwork_id,
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            {item.film_layers.length > 1 ? (
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Adhesive GSM</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={String(item.chemicals.adhesive_gsm)}
+                                            onChange={(event) =>
+                                                updateItem((current) => ({
+                                                    ...current,
+                                                    chemicals: { ...current.chemicals, adhesive_gsm: asNumber(event.target.value, 0) },
+                                                    savedPreview: null,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Solvent GSM</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={String(item.chemicals.solvent_gsm)}
+                                            onChange={(event) =>
+                                                updateItem((current) => ({
+                                                    ...current,
+                                                    chemicals: { ...current.chemicals, solvent_gsm: asNumber(event.target.value, 0) },
+                                                    savedPreview: null,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+                                    Chemistry applies only to multi-layer structures.
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                            Printing is not enabled for this order item.
+                        </div>
+                    )}
+                </div>
+            </Section>
+
+            <Section
+                title="Packaging & POD"
+                description="Dispatch packaging, add-ons, and POD reinforcement."
+                dataTestId="sku-variant-section-packaging-pod"
+            >
+                <div className="space-y-5">
+                    {item.finished_good_type === "POUCH" ? (
+                        <div className="rounded-2xl border border-slate-200 p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label>Primary Inner Pack</Label>
+                                    <p className="text-xs text-slate-500">This configuration travels to packing and dispatch.</p>
+                                </div>
+                                <Switch
+                                    checked={item.packaging_snapshot.primary_inner_pack.enabled}
+                                    onCheckedChange={(checked) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            packaging_snapshot: {
+                                                ...current.packaging_snapshot,
+                                                primary_inner_pack: {
+                                                    ...current.packaging_snapshot.primary_inner_pack,
+                                                    enabled: checked,
+                                                },
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            {item.packaging_snapshot.primary_inner_pack.enabled ? (
+                                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Packaging Material</Label>
+                                        <Select
+                                            value={item.packaging_snapshot.primary_inner_pack.material_id || "__NONE__"}
+                                            onValueChange={(value) =>
+                                                updateItem((current) => ({
+                                                    ...current,
+                                                    packaging_snapshot: {
+                                                        ...current.packaging_snapshot,
+                                                        primary_inner_pack: {
+                                                            ...current.packaging_snapshot.primary_inner_pack,
+                                                            material_id: value === "__NONE__" ? "" : value,
+                                                        },
+                                                    },
+                                                    savedPreview: null,
+                                                }))
+                                            }
+                                        >
+                                            <SelectTrigger className="bg-white"><SelectValue placeholder="Select packaging material" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="__NONE__">Select packaging material</SelectItem>
+                                                {packagingMaterials
+                                                    .filter((row: any) => String(row.packaging_kind || "").toUpperCase() === "INNER_POUCH")
+                                                    .map((row: any) => (
+                                                        <SelectItem key={row.id} value={String(row.id)}>
+                                                            {row.code} - {row.name}
+                                                        </SelectItem>
+                                                    ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>PCS per Pack</Label>
+                                        <Input
+                                            type="number"
+                                            value={String(item.packaging_snapshot.primary_inner_pack.pcs_per_pack)}
+                                            onChange={(event) =>
+                                                updateItem((current) => ({
+                                                    ...current,
+                                                    packaging_snapshot: {
+                                                        ...current.packaging_snapshot,
+                                                        primary_inner_pack: {
+                                                            ...current.packaging_snapshot.primary_inner_pack,
+                                                            pcs_per_pack: asNumber(event.target.value, 0),
+                                                        },
+                                                    },
+                                                    savedPreview: null,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-slate-200 p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label>Roll Dispatch Packaging</Label>
+                                    <p className="text-xs text-slate-500">Pack-roll materials only.</p>
+                                </div>
+                                <Switch
+                                    checked={item.packaging_snapshot.roll_dispatch_pack.enabled}
+                                    onCheckedChange={(checked) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            packaging_snapshot: {
+                                                ...current.packaging_snapshot,
+                                                roll_dispatch_pack: {
+                                                    ...current.packaging_snapshot.roll_dispatch_pack,
+                                                    enabled: checked,
+                                                },
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            {item.packaging_snapshot.roll_dispatch_pack.enabled ? (
+                                <div className="mt-4 space-y-3">
+                                    {item.packaging_snapshot.roll_dispatch_pack.lines.map((packLine, index) => (
+                                        <div key={`${item.localId}-pack-${index}`} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                                <div className="space-y-2 xl:col-span-2">
+                                                    <Label>Packaging Material</Label>
+                                                    <Select
+                                                        value={packLine.material_id || "__NONE__"}
+                                                        onValueChange={(value) =>
+                                                            updateItem((current) => ({
+                                                                ...current,
+                                                                packaging_snapshot: {
+                                                                    ...current.packaging_snapshot,
+                                                                    roll_dispatch_pack: {
+                                                                        ...current.packaging_snapshot.roll_dispatch_pack,
+                                                                        lines: current.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) =>
+                                                                            rowIndex === index ? { ...row, material_id: value === "__NONE__" ? "" : value } : row
+                                                                        ),
+                                                                    },
+                                                                },
+                                                                savedPreview: null,
+                                                            }))
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Packaging material" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="__NONE__">Select packaging material</SelectItem>
+                                                            {packagingMaterials.map((row: any) => (
+                                                                <SelectItem key={row.id} value={String(row.id)}>
+                                                                    {row.code} - {row.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Quantity</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={String(packLine.qty)}
+                                                        onChange={(event) =>
+                                                            updateItem((current) => ({
+                                                                ...current,
+                                                                packaging_snapshot: {
+                                                                    ...current.packaging_snapshot,
+                                                                    roll_dispatch_pack: {
+                                                                        ...current.packaging_snapshot.roll_dispatch_pack,
+                                                                        lines: current.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) =>
+                                                                            rowIndex === index ? { ...row, qty: asNumber(event.target.value, 0) } : row
+                                                                        ),
+                                                                    },
+                                                                },
+                                                                savedPreview: null,
+                                                            }))
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>UOM</Label>
+                                                    <Select
+                                                        value={packLine.uom}
+                                                        onValueChange={(value) =>
+                                                            updateItem((current) => ({
+                                                                ...current,
+                                                                packaging_snapshot: {
+                                                                    ...current.packaging_snapshot,
+                                                                    roll_dispatch_pack: {
+                                                                        ...current.packaging_snapshot.roll_dispatch_pack,
+                                                                        lines: current.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) =>
+                                                                            rowIndex === index ? { ...row, uom: value as PackagingLine["uom"] } : row
+                                                                        ),
+                                                                    },
+                                                                },
+                                                                savedPreview: null,
+                                                            }))
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="PCS">PCS</SelectItem>
+                                                            <SelectItem value="KG">KG</SelectItem>
+                                                            <SelectItem value="METER">METER</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-rose-600"
+                                                    onClick={() =>
+                                                        updateItem((current) => ({
+                                                            ...current,
+                                                            packaging_snapshot: {
+                                                                ...current.packaging_snapshot,
+                                                                roll_dispatch_pack: {
+                                                                    ...current.packaging_snapshot.roll_dispatch_pack,
+                                                                    lines: current.packaging_snapshot.roll_dispatch_pack.lines.filter((_, rowIndex) => rowIndex !== index),
+                                                                },
+                                                            },
+                                                            savedPreview: null,
+                                                        }))
+                                                    }
+                                                >
+                                                    Remove
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                            updateItem((current) => ({
+                                                ...current,
+                                                packaging_snapshot: {
+                                                    ...current.packaging_snapshot,
+                                                    roll_dispatch_pack: {
+                                                        ...current.packaging_snapshot.roll_dispatch_pack,
+                                                        lines: [
+                                                            ...current.packaging_snapshot.roll_dispatch_pack.lines,
+                                                            { material_id: "", qty: 1, uom: "PCS", basis: "PER_ROLL" },
+                                                        ],
+                                                    },
+                                                },
+                                                savedPreview: null,
+                                            }))
+                                        }
+                                    >
+                                        <Plus className="mr-2 h-4 w-4" /> Add Roll Pack Line
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </div>
+                    )}
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label>Add-ons</Label>
+                                <p className="text-xs text-slate-500">Non-packaging reinforcements and extras.</p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        addons: [...current.addons, makeAddon()],
+                                        savedPreview: null,
+                                    }))
+                                }
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> Add Add-on
+                            </Button>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                            {item.addons.length === 0 ? <div className="text-sm text-slate-500">No add-ons linked yet.</div> : null}
+                            {item.addons.map((addon, index) => {
+                                const addonMeta = addonsMaster.find((row: any) => String(row.id) === String(addon.addon_id))
+                                const mode = String(addonMeta?.weight_mode || "").toUpperCase()
+                                return (
+                                    <div key={addon.localId} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                            <div className="space-y-2 xl:col-span-2">
+                                                <Label>Add-on</Label>
+                                                <Select
+                                                    value={addon.addon_id || "__NONE__"}
+                                                    onValueChange={(value) =>
+                                                        updateItem((current) => ({
+                                                            ...current,
+                                                            addons: current.addons.map((row, rowIndex) =>
+                                                                rowIndex === index
+                                                                    ? {
+                                                                        ...row,
+                                                                        addon_id: value === "__NONE__" ? "" : value,
+                                                                        applies_to: mode === "PER_MM" ? "WIDTH" : mode === "FIXED" ? "FIXED" : "PER_PIECE",
+                                                                    }
+                                                                    : row
+                                                            ),
+                                                            savedPreview: null,
+                                                        }))
+                                                    }
+                                                >
+                                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Select add-on" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="__NONE__">Select add-on</SelectItem>
+                                                        {addonOptions.map((row: any) => (
+                                                            <SelectItem key={row.id} value={String(row.id)}>
+                                                                {row.code ? `${row.code} · ${row.name}` : row.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Quantity</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={String(addon.qty)}
+                                                    onChange={(event) =>
+                                                        updateItem((current) => ({
+                                                            ...current,
+                                                            addons: current.addons.map((row, rowIndex) =>
+                                                                rowIndex === index ? { ...row, qty: asNumber(event.target.value, 0) } : row
+                                                            ),
+                                                            savedPreview: null,
+                                                        }))
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Application</Label>
+                                                {mode === "PER_MM" ? (
+                                                    <Select
+                                                        value={addon.applies_to || "WIDTH"}
+                                                        onValueChange={(value) =>
+                                                            updateItem((current) => ({
+                                                                ...current,
+                                                                addons: current.addons.map((row, rowIndex) =>
+                                                                    rowIndex === index ? { ...row, applies_to: value as OrderItemDraft["addons"][number]["applies_to"] } : row
+                                                                ),
+                                                                savedPreview: null,
+                                                            }))
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="WIDTH">Per MM - Width</SelectItem>
+                                                            <SelectItem value="HEIGHT">Per MM - Height</SelectItem>
+                                                            <SelectItem value="BOTH">Per MM - Both</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                                                        {mode === "FIXED" ? "Fixed Weight" : "Per Piece"}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {addonMeta ? (
+                                            <div className="grid gap-2 sm:grid-cols-3">
+                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                                                    <span className="font-black uppercase tracking-[0.14em] text-slate-400">Code</span>
+                                                    <div className="mt-1 font-semibold text-slate-700">{addonMeta.code || "Uncoded"}</div>
+                                                </div>
+                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                                                    <span className="font-black uppercase tracking-[0.14em] text-slate-400">Weight Rule</span>
+                                                    <div className="mt-1 font-semibold text-slate-700">{String(addonMeta.weight_mode || "PER_PIECE").toUpperCase()}</div>
+                                                </div>
+                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                                                    <span className="font-black uppercase tracking-[0.14em] text-slate-400">Weight Value</span>
+                                                    <div className="mt-1 font-semibold text-slate-700">{asNumber(addonMeta.weight_value, 0).toFixed(4)} g</div>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                        <div className="flex justify-end">
+                                            <Button
+                                                variant="outline"
+                                                className="text-rose-600"
+                                                onClick={() =>
+                                                    updateItem((current) => ({
+                                                        ...current,
+                                                        addons: current.addons.filter((_, rowIndex) => rowIndex !== index),
+                                                        savedPreview: null,
+                                                    }))
+                                                }
+                                            >
+                                                Remove
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label>POD Reinforcement</Label>
+                                <p className="text-xs text-slate-500">Still stored in the existing POD packaging snapshot.</p>
+                            </div>
+                            <Switch
+                                checked={item.packaging_snapshot.pod.enabled}
+                                onCheckedChange={(checked) =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        packaging_snapshot: {
+                                            ...current.packaging_snapshot,
+                                            pod: { ...current.packaging_snapshot.pod, enabled: checked },
+                                        },
+                                        savedPreview: null,
+                                    }))
+                                }
+                            />
+                        </div>
+                        {item.packaging_snapshot.pod.enabled ? (
+                            <div className="mt-4 space-y-2">
+                                <Label>POD SKU Variant</Label>
+                                <Select
+                                    value={item.packaging_snapshot.pod.pod_sku_variant_id || "__NONE__"}
+                                    onValueChange={(value) => {
+                                        const selectedVariant = podProfiles.find((pod) => String(pod.id) === String(value))
+                                        updateItem((current) => ({
+                                            ...current,
+                                            packaging_snapshot: {
+                                                ...current.packaging_snapshot,
+                                                pod: {
+                                                    ...current.packaging_snapshot.pod,
+                                                    pod_profile_id: value === "__NONE__" ? "" : String(selectedVariant?.material || ""),
+                                                    pod_sku_variant_id: value === "__NONE__" ? "" : value,
+                                                    pod_sku_code: value === "__NONE__" ? "" : String(selectedVariant?.pod_sku_code || ""),
+                                                    pod_sku_name: value === "__NONE__" ? "" : String(selectedVariant?.pod_sku_name || ""),
+                                                },
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }}
+                                >
+                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Select POD SKU variant" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="__NONE__">Select POD SKU variant</SelectItem>
+                                        {podProfiles.map((pod) => (
+                                            <SelectItem key={pod.id} value={String(pod.id)}>
+                                                {pod.pod_sku_code} · {pod.code} - {pod.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
+            </Section>
+
+            <Section
+                title="Preview & Commercial"
+                description="Live weight, BOM, and validation output from the existing preview engine."
+                dataTestId="sku-variant-section-preview-commercial"
+                defaultOpen
+            >
+                <div className="space-y-4">
+                    <div className="grid gap-3 rounded-[1.45rem] border border-slate-200 bg-slate-50/80 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_160px_140px]">
+                        <div className="space-y-2">
+                            <Label>Preview Quantity</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                step={item.finished_good_type === "ROLL" ? "0.01" : "1"}
+                                value={String(item.qty_value)}
+                                onChange={(event) =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        qty_value: asNumber(event.target.value, 0),
+                                        savedPreview: null,
+                                    }))
+                                }
+                                className="h-12 rounded-2xl border-slate-300 bg-white font-black"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Preview UOM</Label>
+                            {item.finished_good_type === "ROLL" ? (
+                                <div className="flex h-12 items-center rounded-2xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700">
+                                    KG
+                                </div>
+                            ) : (
+                                <Select
+                                    value={item.qty_uom}
+                                    onValueChange={(value) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            qty_uom: value as OrderItemDraft["qty_uom"],
+                                            price_basis: value as OrderItemDraft["price_basis"],
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger className="h-12 rounded-2xl border-slate-300 bg-white font-black">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="KG">KG</SelectItem>
+                                        <SelectItem value="PCS">PCS</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+                        <div className="flex items-end">
+                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Previewing for</div>
+                                <div className="mt-1 text-sm font-black text-slate-900">
+                                    {asNumber(item.qty_value, 0).toLocaleString("en-IN", { maximumFractionDigits: item.qty_uom === "KG" ? 3 : 0 })} {item.qty_uom}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-3 rounded-[1.45rem] border border-slate-200 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="space-y-2">
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Preview context</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                                Previewing for {asNumber(item.qty_value, 0).toLocaleString("en-IN", { maximumFractionDigits: item.qty_uom === "KG" ? 3 : 0 })} {item.qty_uom}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline">{item.finished_good_type}</Badge>
+                                {item.printing.enabled ? <Badge variant="outline">{item.printing.type} PRINT</Badge> : <Badge variant="outline">NO PRINT</Badge>}
+                                {item.packaging_snapshot.pod.enabled ? <Badge variant="outline">POD ENABLED</Badge> : null}
+                            </div>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={onPreviewRetry} className="sm:self-start">
+                            Refresh Preview
+                        </Button>
+                    </div>
+                    {previewLoading ? (
+                        <div className="flex items-center gap-2 rounded-[1.35rem] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Calculating preview...
+                        </div>
+                    ) : previewError ? (
+                        <div className="rounded-[1.35rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+                            {previewError}
+                        </div>
+                    ) : item.savedPreview ? (
+                        <>
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                <Card className="border-slate-200 bg-white/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Unit Weight</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-black text-slate-900">
+                                            {item.finished_good_type === "ROLL"
+                                                ? `${asNumber(item.savedPreview.roll_preview?.weight_kg, item.savedPreview.total_weight_kg).toFixed(2)} KG`
+                                                : `${asNumber(item.savedPreview.unit_weight_g, 0).toFixed(3)} g`}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="border-slate-200 bg-white/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Total Weight</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-black text-slate-900">
+                                            {asNumber(item.savedPreview.total_weight_kg, 0).toFixed(3)} KG
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                {item.finished_good_type === "POUCH" ? (
+                                    <Card className="border-slate-200 bg-white/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Effective Geometry</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-2">
+                                            <div className="text-sm font-black text-slate-900">
+                                                {asNumber(previewGeometry?.effective_width_mm, 0).toFixed(1)} W × {asNumber(previewGeometry?.effective_height_mm, 0).toFixed(1)} H
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                                Style {lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "Template pending"} · Area {asNumber(previewGeometry?.area_m2, 0).toFixed(4)} m²
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ) : null}
+                                {item.finished_good_type === "POUCH" ? (
+                                    <Card className="border-slate-200 bg-white/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Add-on / POD Mass</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-1 text-sm text-slate-700">
+                                            <div className="flex items-center justify-between"><span>Add-ons</span><span className="font-black text-slate-900">{previewAddonKg.toFixed(4)} KG</span></div>
+                                            <div className="flex items-center justify-between"><span>POD</span><span className="font-black text-slate-900">{previewPodKg.toFixed(4)} KG</span></div>
+                                        </CardContent>
+                                    </Card>
+                                ) : null}
+                            </div>
+                            <Card className="border-slate-200 bg-white/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-black">BOM Snapshot</CardTitle>
+                                    <CardDescription>Theoretical material issue generated from the current order snapshot.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                    {(item.savedPreview.bom_preview?.components || []).length === 0 ? (
+                                        <div className="text-sm text-slate-500">No BOM components resolved yet.</div>
+                                    ) : (
+                                        item.savedPreview.bom_preview.components.map((component, index) => (
+                                            <div key={`${component.material_name}-${index}`} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm">
+                                                <span className="font-medium text-slate-700">{component.material_name}</span>
+                                                <span className="font-bold text-slate-900">{component.qty} {component.uom}</span>
+                                            </div>
+                                        ))
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                            Preview will appear once the item has enough data.
+                        </div>
+                    )}
+                </div>
+            </Section>
+        </div>
+    )
+}

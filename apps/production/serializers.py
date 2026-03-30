@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import ProductionJob, WorkCenterAssignment
 from apps.factory.models import Machine
+from apps.materials.models import PodSkuVariant
 from apps.users.models import User
 
 class ProductionJobSerializer(serializers.ModelSerializer):
@@ -209,7 +210,7 @@ class WorkCenterAssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['status', 'assigned_at']
 
-from .models import PlannedStockOrder
+from .models import PlannedStockOrder, PlannedBulkStockOrder
 
 class PlannedStockOrderSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source='template.name')
@@ -223,6 +224,7 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
     printing = serializers.JSONField(source='printing_snapshot', required=False)
     addons = serializers.JSONField(source='addons_snapshot', required=False)
     derived_output_type = serializers.SerializerMethodField()
+    planner_stock_class = serializers.SerializerMethodField()
 
     def get_derived_output_type(self, obj):
         template = getattr(obj, "template", None)
@@ -239,6 +241,9 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
         if obj.stop_step_index is not None:
             return obj.stop_step_index
         return obj.target_step_index
+
+    def get_planner_stock_class(self, obj):
+        return str(getattr(obj, 'planner_stock_class', '') or obj.derive_planner_stock_class())
 
     def validate(self, attrs):
         stock_purpose = str(attrs.get('stock_purpose', getattr(self.instance, 'stock_purpose', 'PRODUCT')) or 'PRODUCT').upper()
@@ -294,7 +299,7 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
             'addons', 'addons_snapshot', 'packaging_snapshot',
             'bom_snapshot', 'spec_signature',
             'unit_weight_g', 'total_weight_kg',
-            'stock_purpose', 'stock_strategy', 'packaging_material',
+            'stock_purpose', 'stock_strategy', 'planner_stock_class', 'packaging_material',
             'artwork_assignment_required', 'assigned_artwork',
             'derived_output_type',
             'start_step_index', 'stop_step_index', 'target_step_index',
@@ -302,3 +307,75 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['order_number', 'produced_qty', 'status', 'created_by', 'created_at', 'target_step_index', 'internal_name', 'target_qty', 'geometry_snapshot', 'layer_snapshot', 'printing_snapshot', 'addons_snapshot']
+
+
+class PlannedBulkStockOrderSerializer(serializers.ModelSerializer):
+    material_name = serializers.ReadOnlyField(source='material.name')
+    material_code = serializers.ReadOnlyField(source='material.code')
+    pod_sku_variant = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    pod_sku_variant_code = serializers.SerializerMethodField()
+    pod_sku_variant_name = serializers.SerializerMethodField()
+    plant_name = serializers.ReadOnlyField(source='plant.name')
+    created_by_name = serializers.ReadOnlyField(source='created_by.username')
+    quantity_kg = serializers.DecimalField(source='target_qty_kg', max_digits=12, decimal_places=4, required=False)
+    name = serializers.CharField(source='internal_name', required=False, allow_blank=True)
+
+    def get_pod_sku_variant_code(self, obj):
+        snapshot = getattr(obj, 'pod_profile_snapshot', {}) or {}
+        meta = getattr(obj, 'planner_origin_meta', {}) or {}
+        return snapshot.get('pod_sku_variant_code') or meta.get('pod_variant_code') or meta.get('pod_sku_code')
+
+    def get_pod_sku_variant_name(self, obj):
+        snapshot = getattr(obj, 'pod_profile_snapshot', {}) or {}
+        meta = getattr(obj, 'planner_origin_meta', {}) or {}
+        return snapshot.get('pod_sku_name') or meta.get('pod_variant_name') or meta.get('pod_sku_name')
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs) if hasattr(super(), "validate") else attrs
+        pod_sku_variant_id = attrs.pop('pod_sku_variant', None)
+        pod_sku_variant = None
+        if pod_sku_variant_id:
+            pod_sku_variant = PodSkuVariant.objects.select_related('pod_sku', 'material').get(id=pod_sku_variant_id, active=True)
+        if pod_sku_variant:
+            attrs['material'] = pod_sku_variant.material
+            planner_origin_meta = dict(attrs.get('planner_origin_meta') or getattr(self.instance, 'planner_origin_meta', {}) or {})
+            planner_origin_meta.update(
+                {
+                    "pod_sku_variant_id": str(pod_sku_variant.id),
+                    "pod_sku_code": str(pod_sku_variant.code or pod_sku_variant.pod_sku.code),
+                    "pod_sku_name": str(pod_sku_variant.name or pod_sku_variant.pod_sku.name),
+                }
+            )
+            attrs['planner_origin_meta'] = planner_origin_meta
+            attrs['pod_profile_snapshot'] = {
+                "material_id": str(pod_sku_variant.material_id),
+                "material_code": str(pod_sku_variant.material.code or ""),
+                "material_name": str(pod_sku_variant.material.name or ""),
+                "pod_type": str(getattr(pod_sku_variant.material, 'pod_type', '') or ""),
+                "pod_fixed_height_mm": float(getattr(pod_sku_variant.material, 'pod_fixed_height_mm', 0) or 0),
+                "pod_thickness_micron": float(getattr(pod_sku_variant.material, 'pod_thickness_micron', 0) or 0),
+                "pod_panel_count": int(getattr(pod_sku_variant.material, 'pod_panel_count', 0) or 0),
+                "density_gcm3": float(getattr(pod_sku_variant.material, 'density_gcm3', 0) or 0),
+                "pod_sku_variant_id": str(pod_sku_variant.id),
+                "pod_sku_code": str(pod_sku_variant.code or pod_sku_variant.pod_sku.code),
+                "pod_sku_name": str(pod_sku_variant.name or pod_sku_variant.pod_sku.name),
+            }
+        return attrs
+
+    class Meta:
+        model = PlannedBulkStockOrder
+        fields = [
+            'id', 'order_number', 'bulk_class',
+            'material', 'material_code', 'material_name',
+            'pod_sku_variant', 'pod_sku_variant_code', 'pod_sku_variant_name',
+            'plant', 'plant_name',
+            'quantity_kg', 'target_qty_kg', 'produced_qty_kg',
+            'name', 'internal_name',
+            'pod_profile_snapshot', 'planner_origin_meta',
+            'status', 'created_by', 'created_by_name',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'order_number', 'produced_qty_kg', 'created_by', 'created_by_name',
+            'created_at', 'updated_at',
+        ]

@@ -37,13 +37,14 @@ function toLabel(segment: string): string {
 
 export function LocationCapsule() {
     const pathname = usePathname()
+    const normalizedPathname = String(pathname || "").replace(/\/+$/, "") || "/"
     const segments = String(pathname || "")
         .split("/")
         .filter(Boolean)
 
     if (!segments.length) {
         return (
-            <div className="hidden lg:flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500" data-testid="location-capsule">
+            <div className="relative z-10 hidden lg:flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500" data-testid="location-capsule">
                 Home
             </div>
         )
@@ -61,14 +62,18 @@ export function LocationCapsule() {
     })
 
     return (
-        <div className="hidden lg:flex items-center rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600" data-testid="location-capsule">
+        <div className="relative z-10 hidden lg:flex items-center rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600" data-testid="location-capsule">
             {crumbs.map((crumb, index) => {
                 const isLast = index === crumbs.length - 1
+                const breadcrumbHref =
+                    crumb.target && crumb.target === normalizedPathname && crumb.href !== normalizedPathname
+                        ? crumb.href
+                        : crumb.target
                 return (
                     <div key={crumb.href} className="flex items-center">
-                        {!isLast && crumb.target ? (
+                        {!isLast && breadcrumbHref ? (
                             <Link
-                                href={crumb.target}
+                                href={breadcrumbHref}
                                 data-testid={`breadcrumb-link-${crumb.segment.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`}
                                 data-route={crumb.target}
                                 className="text-slate-500 hover:text-slate-700"

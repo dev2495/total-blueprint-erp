@@ -91,6 +91,10 @@ def _jwt_lifetime_seconds(key: str, fallback_seconds: int) -> int:
     return fallback_seconds
 
 
+def _audit_role_code(user) -> str:
+    return str(getattr(user, "effective_role_code", getattr(getattr(user, "role", None), "code", "")) or "").upper()
+
+
 def _set_auth_cookies(response: Response, refresh_token: str):
     refresh_obj = RefreshToken(refresh_token)
     access_token = str(refresh_obj.access_token)
@@ -161,6 +165,14 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
         refresh_token = str(serializer.validated_data.get("refresh") or "")
         user = serializer.user
+        PermissionAuditLog.objects.create(
+            user=user,
+            action="USER_LOGIN",
+            method="POST",
+            path="/api/users/login/",
+            effective_role=_audit_role_code(user),
+            details={"status": "authenticated"},
+        )
         payload = {
             "status": "authenticated",
             "user": UserSerializer(user, context={"request": request}).data,
@@ -217,6 +229,7 @@ class LogoutView(APIView):
             action="USER_LOGOUT",
             method="POST",
             path="/api/users/logout/",
+            effective_role=_audit_role_code(request.user) if getattr(request.user, "is_authenticated", False) else "",
             details={"status": "blacklisted" if blacklisted else "cookie_cleared"},
         )
         response = Response(status=status.HTTP_204_NO_CONTENT)

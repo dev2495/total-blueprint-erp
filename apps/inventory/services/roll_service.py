@@ -513,6 +513,83 @@ class RollService:
 
     @classmethod
     @transaction.atomic
+    def consume_input_only(
+        cls,
+        input_roll: InventoryRoll,
+        used_kg: Decimal,
+        job: ProductionJob = None,
+        process: Process = None,
+        machine: Machine = None,
+        user=None,
+        notes: str = "",
+    ) -> Dict[str, Optional[InventoryRoll]]:
+        """
+        Consume an input roll strictly through roll genealogy without creating
+        a downstream output roll. Used when BOM-driven material issue consumes
+        an assigned source roll but the process output is tracked elsewhere.
+        """
+        if input_roll.status not in ("AVAILABLE", "RESERVED", "IN_PROCESS"):
+            raise ValueError(
+                f"Roll {input_roll.label_id} is not available for consumption (status: {input_roll.status})"
+            )
+        if used_kg <= 0:
+            raise ValueError("Consumed weight must be positive")
+        if used_kg > input_roll.weight_kg:
+            raise ValueError(f"Consumption ({used_kg}kg) exceeds roll weight ({input_roll.weight_kg}kg)")
+
+        balance_kg = input_roll.weight_kg - used_kg
+        result = {"balance_roll": None}
+
+        if balance_kg > 0:
+            balance_roll = InventoryRoll.objects.create(
+                label_id=f"{input_roll.label_id}-BAL",
+                material=input_roll.material,
+                batch_no=input_roll.batch_no,
+                thickness_micron=input_roll.thickness_micron,
+                width_mm=input_roll.width_mm,
+                density_gcm3=cls._resolve_density_gcm3(roll=input_roll),
+                original_weight_kg=balance_kg,
+                weight_kg=balance_kg,
+                location=input_roll.location,
+                status="AVAILABLE",
+                stage_index=input_roll.stage_index,
+                parent_roll=input_roll,
+                template=input_roll.template,
+                sales_order_item=input_roll.sales_order_item,
+            )
+            RollLink.objects.create(
+                parent_roll=input_roll,
+                child_roll=balance_roll,
+                relation_type="SPLIT",
+                qty_used_kg=balance_kg,
+            )
+            result["balance_roll"] = balance_roll
+
+        input_roll.status = "CONSUMED"
+        input_roll.weight_kg = Decimal("0")
+        input_roll.save()
+
+        if job is not None and process is not None:
+            RollConsumption.objects.create(
+                job=job,
+                process=process,
+                input_roll=input_roll,
+                output_roll=None,
+                balance_roll=result.get("balance_roll"),
+                scrap_roll=None,
+                consumed_kg=used_kg,
+                scrap_kg=Decimal("0"),
+                balance_kg=balance_kg,
+                output_kg=Decimal("0"),
+                machine=machine,
+                operator=user,
+                notes=notes or "Direct material issue consumption",
+            )
+
+        return result
+
+    @classmethod
+    @transaction.atomic
     def move_roll(
         cls,
         roll: InventoryRoll,

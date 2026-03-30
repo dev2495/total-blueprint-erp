@@ -150,6 +150,11 @@ def machine_queue(request, machine_id):
         step_target_kg = Decimal(str(profile.get("step_target_total_kg") or 0))
         row["step_target_kg"] = float(step_target_kg)
         row["step_target_source"] = profile.get("target_source")
+        row["primary_uom"] = profile.get("primary_uom") or "KG"
+        row["step_target_primary"] = profile.get("step_target_primary")
+        row["step_produced_primary"] = profile.get("step_produced_primary")
+        row["step_remaining_primary"] = profile.get("step_remaining_primary")
+        row["tolerance_primary"] = profile.get("tolerance_primary")
         row["step_target_pcs"] = profile.get("step_target_pcs")
         row["step_produced_kg"] = float(profile.get("step_produced_kg") or 0)
         row["step_remaining_kg"] = float(profile.get("step_remaining_kg") or 0)
@@ -237,7 +242,7 @@ def machine_log_output(request, machine_id, job_id):
     Route: POST /api/production/machine/<machine_id>/jobs/<job_id>/log-output/
     
     Payload varies by roll_behavior:
-    - CREATE_NEW: { actual_qty, output_width_mm, output_length_m?, scrap_qty? }
+    - CREATE_NEW: { actual_qty, output_width_mm, output_length_m?, roll_outputs?, scrap_qty? }
     - MODIFY_EXISTING: { actual_qty, scrap_qty? }
     - MULTI_INPUT_COMBINE: { actual_qty, scrap_qty? }
     - SPLIT: { split_outputs: [{width_mm, weight_kg}], scrap_qty? }
@@ -259,6 +264,13 @@ def machine_log_output(request, machine_id, job_id):
         if isinstance(split_outputs, list) and split_outputs:
             try:
                 actual_qty = sum(float(item.get('weight_kg') or 0) for item in split_outputs)
+            except Exception:
+                actual_qty = None
+    if actual_qty is None:
+        roll_outputs = request.data.get('roll_outputs') or []
+        if isinstance(roll_outputs, list) and roll_outputs:
+            try:
+                actual_qty = sum(float(item.get('weight_kg') or 0) for item in roll_outputs)
             except Exception:
                 actual_qty = None
     if actual_qty is None:
@@ -289,6 +301,7 @@ def machine_log_output(request, machine_id, job_id):
             "output_width_mm": request.data.get('output_width_mm'),
             "output_length_m": request.data.get('output_length_m'),
             "output_pcs": request.data.get('output_pcs'),
+            "roll_outputs": request.data.get('roll_outputs'),
             "split_outputs": request.data.get('split_outputs'),
             "remainder_location_id": request.data.get('remainder_location_id'),
         }

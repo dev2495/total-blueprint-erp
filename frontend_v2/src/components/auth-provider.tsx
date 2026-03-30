@@ -49,6 +49,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
+    const hydrateSession = async () => {
+        await ensureCsrfToken();
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            try {
+                const { data } = await api.get("/api/users/me");
+                setUser(data);
+                setEffectiveRole(getEffectiveRole(data));
+                return true;
+            } catch (error) {
+                if (attempt < 4) {
+                    await ensureCsrfToken().catch(() => undefined);
+                    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+                }
+            }
+        }
+
+        setUser(null);
+        setEffectiveRole(null);
+        return false;
+    };
+
     // Get the effective role considering role override
     const getEffectiveRole = (userData: User | null): string | null => {
         if (!userData) return null;
@@ -67,23 +89,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const initAuth = async () => {
             const initialPath = typeof window !== "undefined" ? String(window.location.pathname || "").toLowerCase() : "";
             if (initialPath === "/login" || initialPath.startsWith("/login/")) {
-                // Avoid intentional unauthenticated /me probes on the login page.
+                await ensureCsrfToken();
                 setLoading(false);
                 return;
             }
 
-            await ensureCsrfToken();
-
             try {
-                const { data } = await api.get("/api/users/me");
-                setUser(data);
-                
-                // Set effective role considering any override
-                const role = getEffectiveRole(data);
-                setEffectiveRole(role);
-            } catch {
-                setUser(null);
-                setEffectiveRole(null);
+                await hydrateSession();
             } finally {
                 setLoading(false);
             }
@@ -91,6 +103,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         initAuth();
     }, []);
+
+    useEffect(() => {
+        const currentPath = String(pathname || "").toLowerCase();
+        if (loading) return;
+        if (!currentPath || currentPath === "/login" || currentPath.startsWith("/login/")) return;
+        if (user) return;
+
+        let cancelled = false;
+        const rehydrate = async () => {
+            setLoading(true);
+            const ok = await hydrateSession();
+            if (cancelled) return;
+            setLoading(false);
+            if (!ok) {
+                router.replace("/login");
+            }
+        };
+
+        rehydrate();
+        return () => {
+            cancelled = true;
+        };
+    }, [loading, pathname, router, user]);
 
     // Watch for role override changes
     useEffect(() => {
@@ -113,7 +148,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const landing = entitlementLanding.startsWith("/") ? entitlementLanding : `/${entitlementLanding}`;
 
             // Legacy aliases (older backend / UI used these).
-            if (landing === "/dashboard/owner") return "/dashboard/admin";
             if (landing === "/dashboard/super-admin") return "/dashboard/admin";
 
             // Only allow known top-level route families.
@@ -136,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setEffectiveRole(role);
 
         const landing = getLandingPageForUser(userData);
-        router.push(landing);
+        router.replace(landing);
     };
 
     const logout = async () => {
@@ -151,15 +185,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace("/login");
     };
 
-    // Protected route logic can be added here or in middleware
     useEffect(() => {
-        if (!loading && !user && pathname !== "/login") {
-            router.push("/login");
-        } else if (!loading && user && pathname === "/login") {
+        const currentPath = String(pathname || "").toLowerCase();
+        if (!loading && user && (currentPath === "/login" || currentPath.startsWith("/login/"))) {
             const landing = getLandingPageForUser(user);
-            router.push(landing);
+            router.replace(landing);
         }
-    }, [user, loading, pathname, router]);
+    }, [effectiveRole, user, loading, pathname, router]);
 
 
     return (

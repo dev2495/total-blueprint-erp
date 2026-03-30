@@ -2,6 +2,9 @@ import logging
 from typing import Dict, List, Any
 from decimal import Decimal, InvalidOperation
 
+from apps.artwork.print_contract import resolve_ink_contract
+from apps.inventory.models import InkMaterial
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +18,53 @@ def _dec(value: Any, default: Decimal = Decimal("0")) -> Decimal:
 
 
 class PhysicsEngine:
+    @staticmethod
+    def _effective_pouch_dimensions(geometry: Dict[str, Any]) -> Dict[str, Decimal]:
+        base = geometry.get("base") or {}
+        base_width = _dec(base.get("width_mm") or 0)
+        base_height = _dec(base.get("height_mm") or 0)
+
+        adjustment_list = geometry.get("adjustments") or []
+        width_adj = Decimal("0")
+        height_adj = Decimal("0")
+        for adj in adjustment_list:
+            val = _dec(adj.get("value", 0))
+            impact = str(adj.get("impact") or adj.get("affects_dimension") or "WIDTH").upper()
+            if impact == "WIDTH":
+                width_adj += val
+            elif impact == "HEIGHT":
+                height_adj += val
+            elif impact in {"BOTH", "ALL"}:
+                width_adj += val
+                height_adj += val
+
+        trim_loss = _dec(geometry.get("trim_loss_mm") or 0)
+        flap_tape = _dec(geometry.get("flap_tape_mm") or 0)
+        gusset = _dec(geometry.get("gusset_mm") or 0)
+        pouch_style = str(geometry.get("pouch_style") or "").upper().strip()
+        faces = _dec((geometry.get("multipliers") or {}).get("faces") or 1)
+
+        effective_width = base_width + width_adj + trim_loss
+        effective_height = base_height + height_adj + flap_tape
+
+        if gusset > 0:
+            if pouch_style in {"STAND_UP", "SIDE_GUSSET", "SPOUT"}:
+                effective_width += gusset
+            elif pouch_style in {"QUAD_SEAL", "FLAT_BOTTOM"}:
+                effective_width += gusset * Decimal("2")
+
+        return {
+            "base_width_mm": base_width,
+            "base_height_mm": base_height,
+            "effective_width_mm": effective_width,
+            "effective_height_mm": effective_height,
+            "trim_loss_mm": trim_loss,
+            "flap_tape_mm": flap_tape,
+            "gusset_mm": gusset,
+            "pouch_style": pouch_style,
+            "faces": faces,
+        }
+
     @staticmethod
     def roll_area_m2(weight_kg, thickness_m, density_kg_m3):
         weight = _dec(weight_kg)
@@ -83,33 +133,10 @@ class PhysicsEngine:
             return PhysicsEngine._resolve_roll_invariants(data).get("derived_area_m2", Decimal("0"))
 
         geometry = data.get("geometry") or {}
-        base = geometry.get("base") or {}
-
-        base_width = _dec(base.get("width_mm") or 0)
-        base_height = _dec(base.get("height_mm") or 0)
-
-        adjustment_list = geometry.get("adjustments", [])
-        width_adj = Decimal("0")
-        height_adj = Decimal("0")
-
-        for adj in adjustment_list:
-            val = _dec(adj.get("value", 0))
-            impact = adj.get("impact") or adj.get("affects_dimension", "WIDTH")
-            if impact == "WIDTH":
-                width_adj += val
-            elif impact == "HEIGHT":
-                height_adj += val
-            elif impact == "BOTH":
-                width_adj += val
-                height_adj += val
-
-        multipliers = geometry.get("multipliers") or {}
-        faces = _dec(multipliers.get("faces") or 1)
-
-        trim_loss = _dec(geometry.get("trim_loss_mm") or 0)
-
-        effective_width = base_width + width_adj + trim_loss
-        effective_height = base_height + height_adj
+        dims = PhysicsEngine._effective_pouch_dimensions(geometry)
+        effective_width = dims["effective_width_mm"]
+        effective_height = dims["effective_height_mm"]
+        faces = dims["faces"]
 
         if effective_width <= 0 or effective_height <= 0:
             return Decimal("0")
@@ -157,18 +184,17 @@ class PhysicsEngine:
         multiplier = Decimal("1") if area_override_m2 is not None else _dec(total_qty, Decimal("1"))
 
         film_layers = data.get("film_layers") or []
-        is_pet_structure = False
-        for layer in film_layers:
-            density = _dec(layer.get("density_g_cm3") or 0)
-            if density >= Decimal("1.4"):
-                is_pet_structure = True
-                break
-
-        base = "PET" if is_pet_structure else "POLY"
+        ink_contract = resolve_ink_contract(
+            color_names=colors,
+            layer_snapshot=film_layers,
+            existing_mapping=printing.get("color_mapping") or {},
+            strict=False,
+        )
+        colors = ink_contract["color_names"]
+        base = ink_contract["ink_base_family"]
+        mapping = ink_contract["color_mapping"]
         per_color_kg = (area * gsm * multiplier) / Decimal("1000")
         consumptions = []
-        from apps.inventory.models import InkMaterial
-        mapping = printing.get("color_mapping") or {}
 
         for color in colors:
             ink = None
@@ -227,9 +253,26 @@ class PhysicsEngine:
             or pod_cfg.get("pod_profile_id")
             or ""
         ).strip()
+        pod_sku_variant_id = str(
+            data.get("pod_sku_variant_id")
+            or pod_cfg.get("pod_sku_variant_id")
+            or ""
+        ).strip()
 
         if not pod_enabled:
             return None
+        if not pod_profile_id and pod_sku_variant_id:
+            try:
+                from apps.materials.models import PodSkuVariant
+
+                pod_variant = (
+                    PodSkuVariant.objects.select_related("material")
+                    .only("id", "code", "name", "material_id")
+                    .get(id=pod_sku_variant_id, active=True)
+                )
+                pod_profile_id = str(pod_variant.material_id)
+            except Exception:
+                return None
         if not pod_profile_id:
             return None
 
@@ -258,17 +301,8 @@ class PhysicsEngine:
             return None
 
         geometry = data.get("geometry") or {}
-        base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
-        base_width = _dec(base.get("width_mm") or geometry.get("width_mm") or 0)
-        adjustment_list = geometry.get("adjustments") or []
-        width_adj = Decimal("0")
-        for adj in adjustment_list:
-            val = _dec(adj.get("value", 0))
-            impact = adj.get("impact") or adj.get("affects_dimension", "WIDTH")
-            if impact in ["WIDTH", "BOTH"]:
-                width_adj += val
-
-        effective_width_mm = base_width + width_adj
+        dims = PhysicsEngine._effective_pouch_dimensions(geometry)
+        effective_width_mm = dims["effective_width_mm"]
         pod_type = str(getattr(profile, "pod_type", "") or "NONE").upper()
         fixed_height_mm = _dec(getattr(profile, "pod_fixed_height_mm", 0))
         thickness_micron = _dec(getattr(profile, "pod_thickness_micron", 0))
@@ -293,6 +327,9 @@ class PhysicsEngine:
             "material_code": str(profile.code),
             "profile_name": str(profile.name or profile.code),
             "profile_id": str(profile.id),
+            "pod_sku_variant_id": pod_sku_variant_id or None,
+            "pod_sku_code": str(pod_cfg.get("pod_sku_code") or "").strip() or None,
+            "pod_sku_name": str(pod_cfg.get("pod_sku_name") or "").strip() or None,
             "panel_count": float(panel_count),
             "fixed_height_mm": float(round(fixed_height_mm, 2)),
             "thickness_micron": float(round(thickness_micron, 4)),
@@ -392,26 +429,9 @@ class PhysicsEngine:
         area_m2 = PhysicsEngine.calculate_total_area(data)
 
         geometry = data.get("geometry") or {}
-        base = geometry.get("base") or {}
-        base_width = _dec(base.get("width_mm") or 0)
-        base_height = _dec(base.get("height_mm") or 0)
-        adjustment_list = geometry.get("adjustments") or []
-        width_adj = Decimal("0")
-        height_adj = Decimal("0")
-        for adj in adjustment_list:
-            val = _dec(adj.get("value") or 0)
-            impact = adj.get("impact") or adj.get("affects_dimension") or "WIDTH"
-            if impact == "WIDTH":
-                width_adj += val
-            elif impact == "HEIGHT":
-                height_adj += val
-            elif impact in ["BOTH", "ALL"]:
-                width_adj += val
-                height_adj += val
-
-        trim_loss = _dec(geometry.get("trim_loss_mm") or 0)
-        effective_width = base_width + width_adj + trim_loss
-        effective_height = base_height + height_adj
+        dims = PhysicsEngine._effective_pouch_dimensions(geometry)
+        effective_width = dims["effective_width_mm"]
+        effective_height = dims["effective_height_mm"]
 
         total_qty = _dec(data.get("order_qty") or 1, Decimal("1"))
         if total_qty <= 0:

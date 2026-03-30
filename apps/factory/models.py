@@ -5,6 +5,13 @@ class Plant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
+    default_cost_absorption_group = models.ForeignKey(
+        'costing.CostAbsorptionGroup',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='default_plants',
+    )
     include_in_official_reports = models.BooleanField(
         default=True,
         help_text="When enabled, this plant is included in official daily PDF and spreadsheet report packs.",
@@ -145,6 +152,13 @@ class WorkCenter(models.Model):
     plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name='work_centers')
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=50, unique=True)
+    default_cost_absorption_group = models.ForeignKey(
+        'costing.CostAbsorptionGroup',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='default_work_centers',
+    )
     
     default_wip_location = models.ForeignKey(
         'inventory.InventoryLocation', 
@@ -197,6 +211,13 @@ class Machine(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=50, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
+    cost_absorption_group = models.ForeignKey(
+        'costing.CostAbsorptionGroup',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='machines',
+    )
     
     # Machine-Centric Execution: One machine → max one operator
     assigned_operator = models.ForeignKey(

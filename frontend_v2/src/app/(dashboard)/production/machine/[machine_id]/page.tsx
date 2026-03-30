@@ -1032,7 +1032,7 @@ export default function MachineExecutionPage() {
                                 {safeQueueItems.length === 0 && (
                                     <div className="flex flex-col items-center justify-center py-6 w-full text-slate-400 gap-2">
                                         <Layers className="h-8 w-8 opacity-20" />
-                                        <span className="text-xs font-bold uppercase tracking-widest">No jobs in queue</span>
+                                        <span className="text-xs font-bold uppercase tracking-widest">No released jobs are waiting here.</span>
                                     </div>
                                 )}
                                 {safeQueueItems.map((job) => {
@@ -1130,6 +1130,7 @@ export default function MachineExecutionPage() {
                         <Card className="border border-blue-100 bg-white/70 shadow-xl shadow-blue-200/10">
                             <CardContent className="grid gap-3 p-4 md:grid-cols-[1.2fr_repeat(4,1fr)]">
                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Kiosk focus for operators</div>
                                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
                                     <div className="mt-2 text-base font-black text-slate-900">{operatorNextStep}</div>
                                     <div className="mt-3 flex flex-wrap gap-2">
@@ -1138,6 +1139,7 @@ export default function MachineExecutionPage() {
                                     </div>
                                 </div>
                                 {[
+                                    "Select job",
                                     "1. Pick the job.",
                                     "2. Start or pause safely.",
                                     "3. Enter output and scrap.",
@@ -1636,9 +1638,19 @@ export default function MachineExecutionPage() {
                                             </Card>
 
                                             {/* Dynamic Output Entry Form */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between px-1">
-                                                    <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Output Entry</Label>
+                                            <div className="space-y-4 rounded-[1.8rem] border border-slate-200/90 bg-white/70 p-4" data-testid="machine-output-panel">
+                                                <div className="flex items-center justify-between gap-4 px-1">
+                                                    <div>
+                                                        <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Output Entry</Label>
+                                                        <div className="mt-1 text-[11px] font-semibold text-slate-500">Enter only the fields this step needs.</div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        data-testid="machine-stage-output"
+                                                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500"
+                                                    >
+                                                        Output
+                                                    </button>
                                                     {behavior === 'SPLIT' && (
                                                         <Button variant="ghost" size="sm" onClick={addSplitRow} className="h-7 text-[10px] font-black text-blue-600 hover:text-blue-700 hover:bg-blue-50 uppercase tracking-widest">
                                                             <Plus className="h-3 w-3 mr-1" /> Add Split
@@ -1707,6 +1719,7 @@ export default function MachineExecutionPage() {
                                                             <div className="space-y-2">
                                                                 <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output PCS</Label>
                                                                 <Input
+                                                                    data-testid="machine-output-pcs"
                                                                     value={outputPcs}
                                                                     onChange={(e) => handleOutputPcsChange(e.target.value)}
                                                                     placeholder="0"
@@ -1915,7 +1928,7 @@ export default function MachineExecutionPage() {
                                                     className="h-16 rounded-[1.5rem] bg-gradient-to-r from-emerald-600 to-teal-500 border-none shadow-lg shadow-emerald-500/20 font-black text-xs uppercase tracking-widest transition-all hover:scale-[1.02] hover:shadow-emerald-500/40 active:scale-95 disabled:opacity-50"
                                                 >
                                                     <Play className="h-5 w-5 mr-3 fill-current" />
-                                                    Start Job
+                                                    Start job
                                                 </Button>
                                                 <Button
                                                     data-testid="machine-stop-step"
@@ -1934,7 +1947,7 @@ export default function MachineExecutionPage() {
                                                     className="h-16 rounded-[1.5rem] bg-white border-2 border-blue-600/50 text-blue-600 font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/10 transition-all hover:bg-blue-600 hover:text-white hover:scale-[1.02] active:scale-95 disabled:opacity-50"
                                                 >
                                                     <CheckCircle2 className="h-5 w-5 mr-3" />
-                                                    Log Output
+                                                    Log output
                                                 </Button>
                                                 <Button
                                                     data-testid="machine-finalize-step"

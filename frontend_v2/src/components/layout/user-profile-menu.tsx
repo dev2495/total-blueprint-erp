@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldCheck, KeyRound, LogOut, Monitor, UserCircle2 } from "lucide-react";
+import { History, KeyRound, LogOut, Monitor, ShieldCheck, UserCircle2 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,9 +28,8 @@ export function UserProfileMenu() {
 
     const roleCode = String(effectiveRole || user.role_info?.code || "").toUpperCase();
     const canAccessGovernance = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(roleCode);
-    const canSwitchTerminal = ["OPERATOR", "WORK_CENTER_MANAGER"].includes(roleCode);
-    const terminalHref = roleCode === "OPERATOR" ? "/production/machine-selector" : "/production/work-center";
-    const terminalLabel = roleCode === "OPERATOR" ? "Switch Machine" : "Switch Work Center";
+    const canAccessAudit = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(roleCode);
+    const canSwitchTerminal = roleCode === "OPERATOR";
     const displayName = user.full_name || user.username;
 
     return (
@@ -80,9 +79,18 @@ export function UserProfileMenu() {
 
                 {canSwitchTerminal ? (
                     <DropdownMenuItem asChild>
-                        <Link href={terminalHref}>
+                        <Link href="/production/machine-selector">
                             <Monitor className="h-4 w-4" />
-                            {terminalLabel}
+                            Switch Machine
+                        </Link>
+                    </DropdownMenuItem>
+                ) : null}
+
+                {canAccessAudit ? (
+                    <DropdownMenuItem asChild>
+                        <Link href="/system/audit">
+                            <History className="h-4 w-4" />
+                            Audit Center
                         </Link>
                     </DropdownMenuItem>
                 ) : null}

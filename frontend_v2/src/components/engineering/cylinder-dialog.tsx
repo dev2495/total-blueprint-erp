@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Resolver, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -81,6 +81,7 @@ function toNullIfNone(value?: string | null): string | null {
 export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const [submitChecklist, setSubmitChecklist] = useState<string[]>([])
 
   const { data: artworks = [] } = useQuery<Artwork[]>({
     queryKey: ["artworks"],
@@ -118,6 +119,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
 
   useEffect(() => {
     if (cylinder) {
+      setSubmitChecklist([])
       form.reset({
         code: cylinder.code,
         name: cylinder.name,
@@ -136,6 +138,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
         status: (cylinder.status || "ACTIVE") as CylinderFormValues["status"],
       })
     } else {
+      setSubmitChecklist([])
       form.reset({
         code: "",
         name: "",
@@ -268,16 +271,28 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
       return engineeringService.createCylinder(payload)
     },
     onSuccess: () => {
+      setSubmitChecklist([])
       queryClient.invalidateQueries({ queryKey: ["cylinders"] })
       toast({ title: cylinder ? "Cylinder Updated" : "Cylinder Created" })
       onOpenChange(false)
     },
-    onError: (err: any) =>
+    onError: (err: any) => {
+      const detail = String(err?.response?.data?.detail || err?.response?.data?.error || err?.message || "").trim()
+      const checklistFromServer = detail.match(/requires:\s*(.*)$/i)?.[1]
+      setSubmitChecklist(
+        checklistFromServer
+          ? checklistFromServer
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean)
+          : finalizeMissing,
+      )
       toast({
         title: "Error",
-        description: err?.response?.data?.detail || err?.response?.data?.error || err?.message,
+        description: detail || "Could not save cylinder.",
         variant: "destructive",
-      }),
+      })
+    },
   })
 
   return (
@@ -563,10 +578,11 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                         value={field.value ? "DRAFT" : "PRODUCTION"}
                         onValueChange={(value) => {
                           const draftMode = value === "DRAFT"
+                          setSubmitChecklist([])
                           field.onChange(draftMode)
                           if (draftMode) {
                             form.setValue("lifecycle_status", "DRAFT", { shouldDirty: true, shouldValidate: true })
-                          } else if (form.getValues("lifecycle_status") === "DRAFT") {
+                          } else {
                             form.setValue("lifecycle_status", "READY", { shouldDirty: true, shouldValidate: true })
                           }
                         }}
@@ -638,9 +654,9 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                   )}
                 />
                 </div>
-                {requiresFinalization && finalizeMissing.length > 0 ? (
+                {requiresFinalization && (submitChecklist.length > 0 || finalizeMissing.length > 0) ? (
                   <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800" data-testid="cylinder-finalization-checklist">
-                    Finalization checklist missing: {finalizeMissing.join(", ")}.
+                    Finalization checklist missing: {(submitChecklist.length > 0 ? submitChecklist : finalizeMissing).join(", ")}.
                   </div>
                 ) : null}
               </section>

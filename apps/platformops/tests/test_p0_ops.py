@@ -4,13 +4,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.materials.models import CommercialFamily, InventoryMaterial
 from apps.platformops.models import BackupRecord
 from apps.platformops.services.backup_service import BackupService
 from apps.platformops.services.metrics_service import OpsMetricsService
-from apps.users.models import Notification, NotificationDeliveryAttempt
+from apps.users.models import Notification, NotificationDeliveryAttempt, NotificationRule, Role, User
 
 
 class PlatformOpsP0Tests(TestCase):
@@ -84,3 +86,35 @@ class PlatformOpsP0Tests(TestCase):
         self.assertEqual(record.status, record.RestoreStatus.SUCCEEDED)
         run_mock.assert_any_call(["echo", "restore-ok"], capture_output=True, text=True)
         run_mock.assert_any_call(["echo", "smoke-ok"], capture_output=True, text=True)
+
+    def test_bootstrap_render_production_baseline_seeds_only_repo_safe_defaults(self):
+        call_command("bootstrap_render_production_baseline", allow_production=True)
+
+        self.assertTrue(Role.objects.filter(code="OWNER").exists())
+        self.assertTrue(Role.objects.filter(code="SUPER_ADMIN").exists())
+        self.assertTrue(CommercialFamily.objects.filter(code="PET_PRINT_WEB").exists())
+        self.assertEqual(InventoryMaterial.objects.filter(category="POD").count(), 2)
+        self.assertTrue(NotificationRule.objects.filter(event_key="reports.daily_pack_sent").exists())
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_bootstrap_render_launch_users_creates_named_access_accounts(self):
+        call_command(
+            "bootstrap_render_launch_users",
+            allow_production=True,
+            devarsh_password="TempPass123!",
+            chirag_email="chirag@example.com",
+            chirag_password="TempPass456!",
+        )
+
+        devarsh = User.objects.get(email="dvrshthakkar@gmail.com")
+        chirag = User.objects.get(email="chirag@example.com")
+
+        self.assertEqual(devarsh.role.code, "SUPER_ADMIN")
+        self.assertTrue(devarsh.is_superuser)
+        self.assertTrue(devarsh.is_staff)
+        self.assertTrue(devarsh.is_owner)
+
+        self.assertEqual(chirag.role.code, "OWNER")
+        self.assertFalse(chirag.is_superuser)
+        self.assertFalse(chirag.is_staff)
+        self.assertTrue(chirag.is_owner)

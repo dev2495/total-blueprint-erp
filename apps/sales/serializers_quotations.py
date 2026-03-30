@@ -5,6 +5,9 @@ from .models import Quotation, QuotationItem
 
 class QuotationItemSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source="template.name")
+    sku_variant_name = serializers.ReadOnlyField(source="sku_variant.name")
+    sku_variant_code = serializers.ReadOnlyField(source="sku_variant.code")
+    source_mode = serializers.SerializerMethodField()
 
     class Meta:
         model = QuotationItem
@@ -12,6 +15,10 @@ class QuotationItemSerializer(serializers.ModelSerializer):
             "id",
             "template",
             "template_name",
+            "sku_variant",
+            "sku_variant_name",
+            "sku_variant_code",
+            "source_mode",
             "line_name",
             "finished_good_type",
             "roll_form",
@@ -36,6 +43,9 @@ class QuotationItemSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def get_source_mode(self, obj):
+        return "SKU" if obj.sku_variant_id else "CUSTOM"
 
 
 class QuotationSerializer(serializers.ModelSerializer):

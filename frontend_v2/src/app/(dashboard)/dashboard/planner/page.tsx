@@ -113,6 +113,7 @@ export default function PlannerDashboardPage() {
   const demandPipe: any[] = data.demand_pipeline ?? [];
   const alerts: any[] = data.alerts ?? [];
   const recent: any[] = data.recent_activity ?? [];
+  const sourceMix: any = data.source_mix ?? {};
 
   const chartData = useMemo(() =>
     prodTrend.map((r: any) => ({
@@ -197,6 +198,29 @@ export default function PlannerDashboardPage() {
           <div className={styles.statusLabel}>Free Machines</div>
           <div className={styles.statusVal}>{strip.free_machine_slots || 0}</div>
           <div className={styles.statusSub}>of {strip.total_machines || 0} total</div>
+        </div>
+      </div>
+
+      <div className={`${styles.quadGrid} ${styles.animUp}`} style={{ animationDelay: "130ms" }}>
+        <div className={`${styles.statusCard} ${styles.statusIndigo}`}>
+          <div className={styles.statusLabel}>Final Roll Pool</div>
+          <div className={styles.statusVal}>{fmt(sourceMix.final_roll_kg || 0)}</div>
+          <div className={styles.statusSub}>KG direct FG-capable stock</div>
+        </div>
+        <div className={`${styles.statusCard} ${styles.statusTeal}`}>
+          <div className={styles.statusLabel}>Invariant Pool</div>
+          <div className={styles.statusVal}>{fmt(sourceMix.invariant_roll_kg || 0)}</div>
+          <div className={styles.statusSub}>KG shared intermediate reuse</div>
+        </div>
+        <div className={`${styles.statusCard} ${styles.statusSky}`}>
+          <div className={styles.statusLabel}>Upstream Pool</div>
+          <div className={styles.statusVal}>{fmt(sourceMix.upstream_roll_kg || 0)}</div>
+          <div className={styles.statusSub}>KG downstream-compatible stock</div>
+        </div>
+        <div className={`${styles.statusCard} ${styles.statusAmber}`}>
+          <div className={styles.statusLabel}>Packaging Open</div>
+          <div className={styles.statusVal}>{fmt((data.replenishment_mix || {}).packaging_open || 0, 0)}</div>
+          <div className={styles.statusSub}>stock replenishment orders</div>
         </div>
       </div>
 

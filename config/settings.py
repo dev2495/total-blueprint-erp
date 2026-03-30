@@ -1,12 +1,12 @@
 """Django settings for total blueprint ERP."""
 
-from datetime import timedelta
-from pathlib import Path
+import importlib.util
 import os
 import socket
+from datetime import timedelta
+from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
-from celery.schedules import crontab
 from dotenv import load_dotenv
 from config.runtime_env import (
     is_hosted_secure_env,
@@ -15,10 +15,23 @@ from config.runtime_env import (
     normalize_django_env,
 )
 
+if os.getenv("ENABLE_CELERY_IMPORT") != "1" or os.getenv("SKIP_CELERY_IMPORT") == "1":
+    # Lightweight Django bootstrap paths do not need live Celery schedule objects.
+    def crontab(*args, **kwargs):
+        return {"args": args, "kwargs": kwargs}
+else:
+    try:
+        from celery.schedules import crontab
+    except Exception:
+        def crontab(*args, **kwargs):
+            return {"args": args, "kwargs": kwargs}
+
 # Load environment variables
-load_dotenv()
+if os.environ.get("SKIP_DOTENV_IMPORT") != "1":
+    load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+HAS_WHITENOISE = bool(importlib.util.find_spec("whitenoise"))
 
 
 # Small env helper for explicit boolean controls.
@@ -94,7 +107,6 @@ INSTALLED_APPS = [
     "apps.mrp",
     "apps.costing",
     "apps.platformops",
-    "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
 ]
 
@@ -181,6 +193,8 @@ MIDDLEWARE = [
     "apps.users.middleware.RoleOverrideMiddleware",
     "config.request_context_middleware.RequestContextMiddleware",
 ]
+if HAS_WHITENOISE:
+    MIDDLEWARE.insert(2, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 APPEND_SLASH = False
 ROOT_URLCONF = "config.urls"
@@ -234,6 +248,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if HAS_WHITENOISE
+        else "django.contrib.staticfiles.storage.StaticFilesStorage"
+    },
+}
 
 
 # Hosted security hardening

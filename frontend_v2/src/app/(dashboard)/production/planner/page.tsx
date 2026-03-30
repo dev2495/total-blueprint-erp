@@ -21,6 +21,7 @@ import {
     plannerService,
     ClaimCandidate,
     PlannerAllocationPayload,
+    ControlHubResponse,
     PlannerControlOrder,
     PlannerInventoryOption,
 } from "@/services/planner"
@@ -50,7 +51,10 @@ type OrderPlanState = {
     allocations: Record<string, AllocationState>
 }
 
-const rowKey = (row: PlannerControlOrder) => `${row.order_kind}:${row.order_id}`
+const rowKey = (row: PlannerControlOrder) => {
+    const kind = String(row.order_kind || "").trim().toLowerCase()
+    return `${kind}:${row.order_id}`
+}
 const inventoryKey = (row: PlannerInventoryOption) => `${row.inventory_type}:${row.inventory_id}`
 
 function defaultPlanState(row: PlannerControlOrder): OrderPlanState {
@@ -500,12 +504,61 @@ export default function PlannerControlTowerPage() {
                 item_id: itemId,
             })
         },
-        onSuccess: () => {
+        onSuccess: async (result, row) => {
+            const assignedArtworkId = String(result?.artwork_id || "").trim()
+            const clearedItemId = String(result?.item_id || "").trim()
+            const targetRowKey = rowKey(row)
+            queryClient.setQueryData<ControlHubResponse>(["planner-control-hub-v2"], (current) => {
+                if (!current) return current
+                const patchRow = (entry: PlannerControlOrder): PlannerControlOrder => {
+                    if (rowKey(entry) !== targetRowKey) return entry
+                    const nextPendingItems = (entry.pending_artwork_items || []).filter((item) => item.id !== clearedItemId)
+                    const gateActive = Boolean(entry.printing_enabled) && nextPendingItems.length > 0
+                    return {
+                        ...entry,
+                        artwork_assignment_required: gateActive,
+                        assigned_artwork_id: assignedArtworkId || entry.assigned_artwork_id,
+                        pending_artwork_items: nextPendingItems,
+                        artwork_gate: {
+                            active: gateActive,
+                            message: gateActive
+                                ? "Printing was confirmed without final artwork. Planner must assign approved artwork before release."
+                                : "",
+                            pending_count: nextPendingItems.length,
+                            selected_item: nextPendingItems[0],
+                            items: nextPendingItems,
+                            print_type: String(
+                                nextPendingItems[0]?.print_type || entry.print_type || entry.artwork_gate?.print_type || ""
+                            ).toUpperCase(),
+                            front_colors_count: Number(
+                                nextPendingItems[0]?.front_colors_count ??
+                                    entry.front_colors_count ??
+                                    entry.artwork_gate?.front_colors_count ??
+                                    0
+                            ),
+                            back_colors_count: Number(
+                                nextPendingItems[0]?.back_colors_count ??
+                                    entry.back_colors_count ??
+                                    entry.artwork_gate?.back_colors_count ??
+                                    0
+                            ),
+                        },
+                    }
+                }
+                return {
+                    ...current,
+                    orders: (current.orders || []).map(patchRow),
+                    active_orders: (current.active_orders || []).map(patchRow),
+                    order_history: (current.order_history || []).map(patchRow),
+                }
+            })
+            setQueueFilter("ALL")
+            setSelectedPlanningRowKey(targetRowKey)
             toast({
                 title: "Artwork assigned",
                 description: "Planner gate cleared for the selected printing line.",
             })
-            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-v2"] })
+            await refetch()
         },
         onError: (err: any) => {
             toast({
@@ -797,16 +850,32 @@ export default function PlannerControlTowerPage() {
                                                             {row.customer_name || row.display_name || row.template_name}
                                                         </div>
                                                     </div>
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={cn(
-                                                            blockerCount > 0
-                                                                ? "border-amber-300 bg-amber-50 text-amber-700"
-                                                                : "border-emerald-300 bg-emerald-50 text-emerald-700"
-                                                        )}
-                                                    >
-                                                        {blockerCount > 0 ? `${blockerCount} blocked` : "Ready"}
-                                                    </Badge>
+                                                    <div className="flex flex-col items-end gap-2">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn(
+                                                                blockerCount > 0
+                                                                    ? "border-amber-300 bg-amber-50 text-amber-700"
+                                                                    : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                                            )}
+                                                        >
+                                                            {blockerCount > 0 ? `${blockerCount} blocked` : "Ready"}
+                                                        </Badge>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            data-testid={`planner-toggle-details-${key}`}
+                                                            className="h-7 rounded-full px-3 text-[10px] font-black uppercase tracking-[0.18em]"
+                                                            onClick={(event) => {
+                                                                event.preventDefault()
+                                                                event.stopPropagation()
+                                                                setSelectedPlanningRowKey(key)
+                                                            }}
+                                                        >
+                                                            Details
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                                 <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-600">
                                                     <div>Required {Number(row.required_qty_kg || 0).toFixed(3)} KG</div>
@@ -1014,6 +1083,9 @@ export default function PlannerControlTowerPage() {
                                                         <CardDescription>
                                                             Choose the fulfilment path first, then allocate compatible stock if needed.
                                                         </CardDescription>
+                                                        <div className="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                                            Fulfillment path
+                                                        </div>
                                                     </div>
                                                     <div className="flex flex-wrap gap-2">
                                                         <Badge variant="outline" className="bg-slate-50">FG {selectedSourceSummary?.fg_match_count ?? sourceStats(selectedPlanningRow).fgMatchCount}</Badge>
@@ -1264,7 +1336,7 @@ export default function PlannerControlTowerPage() {
                                         </Card>
 
                                         {artworkGateActive ? (
-                                            <Card className="border-indigo-200 bg-indigo-50/70" data-testid="planner-artwork-gate">
+                                            <Card className="border-indigo-200 bg-indigo-50/70" data-testid={`planner-artwork-gate-${rowKey(selectedPlanningRow)}`}>
                                                 <CardHeader className="pb-3">
                                                     <CardTitle className="text-sm font-black text-indigo-900">Artwork gate</CardTitle>
                                                     <CardDescription className="text-indigo-800">
@@ -1308,7 +1380,7 @@ export default function PlannerControlTowerPage() {
                                                                 }))
                                                             }
                                                         >
-                                                            <SelectTrigger className="h-9 bg-white text-xs" data-testid="planner-approved-artwork-select">
+                                                            <SelectTrigger className="h-9 bg-white text-xs" data-testid={`planner-approved-artwork-select-${rowKey(selectedPlanningRow)}`}>
                                                                 <SelectValue
                                                                     placeholder={
                                                                         artworkOptionsLoading
@@ -1336,7 +1408,7 @@ export default function PlannerControlTowerPage() {
                                                         className="w-full border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-100"
                                                         variant="outline"
                                                         onClick={() => assignArtworkMutation.mutate(selectedPlanningRow)}
-                                                        data-testid="planner-assign-artwork"
+                                                        data-testid={`planner-assign-artwork-${rowKey(selectedPlanningRow)}`}
                                                         disabled={
                                                             assignArtworkMutation.isPending ||
                                                             artworkOptionsLoading ||

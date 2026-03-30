@@ -4,6 +4,8 @@ import json
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List
 
+from django.core.exceptions import ValidationError
+
 
 POD_OVERRIDE_KEYS = {
     "pod_enabled",
@@ -133,6 +135,14 @@ def sanitize_geometry_override(override_geometry: Any) -> Dict[str, Any]:
     if gusset is not None:
         payload["gusset_mm"] = gusset
 
+    trim_loss = _to_number(override_geometry.get("trim_loss_mm"))
+    if trim_loss is not None:
+        payload["trim_loss_mm"] = trim_loss
+
+    flap_tape = _to_number(override_geometry.get("flap_tape_mm"))
+    if flap_tape is not None:
+        payload["flap_tape_mm"] = flap_tape
+
     pouch_style = str(override_geometry.get("pouch_style") or "").upper().strip()
     if pouch_style in POUCH_STYLE_VALUES:
         payload["pouch_style"] = pouch_style
@@ -169,6 +179,10 @@ def normalize_geometry_override(template_geometry: Any, override_geometry: Any) 
         normalized["base"]["height_mm"] = override["height_mm"]
     if "gusset_mm" in override:
         normalized["gusset_mm"] = override["gusset_mm"]
+    if "trim_loss_mm" in override:
+        normalized["trim_loss_mm"] = override["trim_loss_mm"]
+    if "flap_tape_mm" in override:
+        normalized["flap_tape_mm"] = override["flap_tape_mm"]
     if "pouch_style" in override:
         normalized["pouch_style"] = override["pouch_style"]
     if "adjustments" in override:
@@ -194,3 +208,107 @@ def _canonicalize(value: Any) -> Any:
 def geometry_signature(template_geometry: Any, override_geometry: Any) -> str:
     normalized = normalize_geometry_override(template_geometry, override_geometry)
     return json.dumps(_canonicalize(normalized), sort_keys=True, separators=(",", ":"))
+
+
+def _normalize_addon_rows(addons: Any) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    if not isinstance(addons, list):
+        return rows
+    for row in addons:
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("code") or row.get("material_code") or row.get("name") or "").strip()
+        weight_mode = str(row.get("weight_mode") or row.get("type") or "FIXED").upper().strip()
+        applies_to = str(row.get("applies_to") or row.get("affects_dimension") or "NONE").upper().strip()
+        qty = _to_number(row.get("quantity") or row.get("qty") or 1)
+        weight_value = _to_number(row.get("weight_value"))
+        rows.append(
+            {
+                "code": code,
+                "weight_mode": weight_mode or "FIXED",
+                "applies_to": applies_to or "NONE",
+                "quantity": qty if qty is not None else 1.0,
+                "weight_value": weight_value if weight_value is not None else 0.0,
+            }
+        )
+    return rows
+
+
+def validate_pouch_geometry_contract(
+    *,
+    fg_type: str,
+    geometry: Any,
+    addons: Any = None,
+    template_pouch_style: str = "",
+    context_label: str = "Pouch",
+) -> Dict[str, Any]:
+    normalized = normalize_geometry_override({}, geometry or {})
+    normalized_addons = _normalize_addon_rows(addons)
+    if str(fg_type or "").upper() != "POUCH":
+        return normalized
+
+    errors: Dict[str, str] = {}
+    base = normalized.get("base") if isinstance(normalized.get("base"), dict) else {}
+    width_mm = _to_decimal(base.get("width_mm")) or Decimal("0")
+    height_mm = _to_decimal(base.get("height_mm")) or Decimal("0")
+    gusset_mm = _to_decimal(normalized.get("gusset_mm")) or Decimal("0")
+    trim_loss_mm = _to_decimal(normalized.get("trim_loss_mm")) or Decimal("0")
+    flap_tape_mm = _to_decimal(normalized.get("flap_tape_mm")) or Decimal("0")
+    pouch_style = str(
+        normalized.get("pouch_style") or template_pouch_style or ""
+    ).upper().strip()
+
+    if width_mm <= 0:
+        errors["width_mm"] = f"{context_label}: width_mm must be greater than zero."
+    if height_mm <= 0:
+        errors["height_mm"] = f"{context_label}: height_mm must be greater than zero."
+    if trim_loss_mm < 0:
+        errors["trim_loss_mm"] = f"{context_label}: trim_loss_mm cannot be negative."
+    if flap_tape_mm < 0:
+        errors["flap_tape_mm"] = f"{context_label}: flap_tape_mm cannot be negative."
+    if gusset_mm < 0:
+        errors["gusset_mm"] = f"{context_label}: gusset_mm cannot be negative."
+
+    if pouch_style and pouch_style not in POUCH_STYLE_VALUES:
+        errors["pouch_style"] = f"{context_label}: unsupported pouch_style {pouch_style}."
+
+    gusset_required_styles = {"STAND_UP", "SIDE_GUSSET", "QUAD_SEAL", "FLAT_BOTTOM", "SPOUT"}
+    if pouch_style in gusset_required_styles and gusset_mm <= 0:
+        errors["gusset_mm"] = f"{context_label}: {pouch_style.replace('_', ' ').title()} requires gusset_mm > 0."
+
+    if pouch_style == "SPOUT":
+        has_spout_addon = any(
+            any(token in str(row.get("code") or "").upper() for token in ("SPOUT", "FITMENT", "VALVE"))
+            for row in normalized_addons
+        )
+        if not has_spout_addon:
+            errors["addons"] = f"{context_label}: SPOUT style requires a spout or fitment add-on row."
+
+    for index, row in enumerate(normalized_addons, start=1):
+        weight_mode = str(row.get("weight_mode") or "FIXED").upper()
+        applies_to = str(row.get("applies_to") or "NONE").upper()
+        quantity = _to_decimal(row.get("quantity")) or Decimal("0")
+        weight_value = _to_decimal(row.get("weight_value")) or Decimal("0")
+
+        if weight_mode not in {"FIXED", "PER_PIECE", "PER_MM"}:
+            errors[f"addons[{index}]"] = (
+                f"{context_label}: add-on {index} has unsupported weight_mode {weight_mode}."
+            )
+            continue
+        if quantity <= 0:
+            errors[f"addons[{index}].quantity"] = f"{context_label}: add-on {index} quantity must be greater than zero."
+        if weight_value < 0:
+            errors[f"addons[{index}].weight_value"] = f"{context_label}: add-on {index} weight_value cannot be negative."
+        if weight_mode == "PER_MM" and applies_to not in {"WIDTH", "HEIGHT", "BOTH"}:
+            errors[f"addons[{index}].applies_to"] = (
+                f"{context_label}: add-on {index} with PER_MM must apply to WIDTH, HEIGHT, or BOTH."
+            )
+
+    for index, adjustment in enumerate(normalized.get("adjustments") or [], start=1):
+        adj_value = _to_decimal(adjustment.get("value")) or Decimal("0")
+        if adj_value < 0:
+            errors[f"adjustments[{index}]"] = f"{context_label}: geometry adjustment {index} cannot be negative."
+
+    if errors:
+        raise ValidationError(errors)
+    return normalized

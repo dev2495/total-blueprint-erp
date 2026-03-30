@@ -72,6 +72,8 @@ def run_verification():
     
     planner = PlannerViewSet()
     options_fg = planner._eligible_inventory_for_order(
+        order_kind="sales",
+        order_obj=so_fg,
         template=template,
         order_signature=spec_sig_fg,
         order_invariant_signature="",
@@ -127,6 +129,8 @@ def run_verification():
     )
     
     options_semi = planner._eligible_inventory_for_order(
+        order_kind="sales",
+        order_obj=so_semi,
         template=template,
         order_signature=spec_sig_semi,
         order_invariant_signature=inv_sig,

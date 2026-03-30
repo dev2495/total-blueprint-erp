@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from apps.users.models import Role, UserProfileChangeRequest
+from apps.users.models import PermissionAuditLog, Role, UserProfileChangeRequest
 
 
 class ProfileAuthP0Tests(TestCase):
@@ -128,6 +128,28 @@ class ProfileAuthP0Tests(TestCase):
             **self._csrf_headers(),
         )
         self.assertIn(body_refresh_response.status_code, {400, 401})
+
+        self.assertTrue(
+            PermissionAuditLog.objects.filter(
+                user=self.user,
+                action="USER_LOGOUT",
+                path="/api/users/logout/",
+            ).exists()
+        )
+
+    def test_successful_login_creates_audit_log(self):
+        self._login("sales1", "userpass123")
+
+        audit = PermissionAuditLog.objects.filter(
+            user=self.user,
+            action="USER_LOGIN",
+            path="/api/users/login/",
+        ).order_by("-created_at").first()
+
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit.method, "POST")
+        self.assertEqual(audit.details.get("status"), "authenticated")
+        self.assertEqual(audit.effective_role, "SALES")
 
     def test_cookie_refresh_rotates_access_cookie(self):
         self._login("sales1", "userpass123")

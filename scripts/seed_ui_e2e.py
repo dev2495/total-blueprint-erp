@@ -3,6 +3,7 @@ import sys
 import django
 
 sys.path.insert(0, os.getcwd())
+os.environ.setdefault("SKIP_CELERY_IMPORT", "1")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 

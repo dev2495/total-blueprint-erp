@@ -14,6 +14,8 @@ export interface Plant {
     id: string;
     name: string;
     code: string;
+    default_cost_absorption_group?: string | null;
+    default_cost_absorption_group_code?: string | null;
     include_in_official_reports?: boolean;
     location_count?: number;
     work_center_count?: number;
@@ -49,6 +51,8 @@ export interface WorkCenter {
     code: string;
     plant: string;
     plant_name: string;
+    default_cost_absorption_group?: string | null;
+    default_cost_absorption_group_code?: string | null;
     process_codes: string[];
     processes: string[];
 }
@@ -60,6 +64,8 @@ export interface Machine {
     work_center: string;
     work_center_name: string;
     status: string;
+    cost_absorption_group?: string | null;
+    cost_absorption_group_code?: string | null;
 }
 
 export interface Process {
@@ -99,6 +105,7 @@ export const factoryService = {
     createPlant: async (data: {
         code: string;
         name: string;
+        default_cost_absorption_group?: string | null;
         include_in_official_reports?: boolean;
         legal_profile?: {
             legal_name?: string;
@@ -116,6 +123,7 @@ export const factoryService = {
     updatePlant: async (id: string, data: {
         code: string;
         name: string;
+        default_cost_absorption_group?: string | null;
         include_in_official_reports?: boolean;
         legal_profile?: {
             legal_name?: string;
@@ -156,12 +164,12 @@ export const factoryService = {
         const response = await api.get<MaybePaginated<WorkCenter>>("/api/factory/work-centers/");
         return unwrapList<WorkCenter>(response.data);
     },
-    createWorkCenter: async (data: { code: string; name: string; plant: string; processes?: string[] }) => {
+    createWorkCenter: async (data: { code: string; name: string; plant: string; processes?: string[]; default_cost_absorption_group?: string | null }) => {
         const { processes, ...rest } = data;
         const response = await api.post<WorkCenter>("/api/factory/work-centers/", { ...rest, process_ids_input: processes });
         return response.data;
     },
-    updateWorkCenter: async (id: string, data: { code: string; name: string; plant: string; processes?: string[] }) => {
+    updateWorkCenter: async (id: string, data: { code: string; name: string; plant: string; processes?: string[]; default_cost_absorption_group?: string | null }) => {
         const { processes, ...rest } = data;
         const response = await api.put<WorkCenter>(`/api/factory/work-centers/${id}/`, { ...rest, process_ids_input: processes });
         return response.data;
@@ -175,11 +183,11 @@ export const factoryService = {
         const response = await api.get<MaybePaginated<Machine>>("/api/factory/machines/");
         return unwrapList<Machine>(response.data);
     },
-    createMachine: async (data: { code: string; name: string; work_center: string }) => {
+    createMachine: async (data: { code: string; name: string; work_center: string; cost_absorption_group?: string | null }) => {
         const response = await api.post<Machine>("/api/factory/machines/", data);
         return response.data;
     },
-    updateMachine: async (id: string, data: { code: string; name: string; work_center: string }) => {
+    updateMachine: async (id: string, data: { code: string; name: string; work_center: string; cost_absorption_group?: string | null }) => {
         const response = await api.put<Machine>(`/api/factory/machines/${id}/`, data);
         return response.data;
     },

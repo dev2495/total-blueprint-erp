@@ -32,6 +32,9 @@ export interface SalesOrder {
         width_mm?: number;
         height_mm?: number;
         gusset_mm?: number;
+        trim_loss_mm?: number;
+        flap_tape_mm?: number;
+        pouch_style?: string;
         adjustments?: Array<{ name: string; value: number; impact: 'WIDTH' | 'HEIGHT' | 'BOTH' }>;
     };
     commercial_confirmed_at?: string | null;
@@ -39,17 +42,123 @@ export interface SalesOrder {
     created_at: string;
 }
 
+export interface SalesSkuVariant {
+    id: string;
+    sku: string;
+    sku_code?: string;
+    sku_name?: string;
+    code: string;
+    name: string;
+    active: boolean;
+    finished_good_type: "POUCH" | "ROLL";
+    roll_form?: "FLAT" | "FOLDED" | "TUBING" | "" | null;
+    geometry_snapshot: any;
+    layer_snapshot: any[];
+    printing_snapshot: any;
+    chemicals_snapshot: any;
+    addons_snapshot: any[];
+    packaging_snapshot: any;
+    template?: string;
+    template_name?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SalesSku {
+    id: string;
+    code: string;
+    name: string;
+    template: string;
+    template_name?: string;
+    commercial_family?: string | null;
+    commercial_family_name?: string | null;
+    default_line_name?: string;
+    active: boolean;
+    customer_usage_count?: number;
+    customer_last_used_at?: string | null;
+    variants: SalesSkuVariant[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RepeatLineCandidate {
+    id: string;
+    order_id: string;
+    order_number: string;
+    order_name?: string;
+    customer_id?: string | null;
+    customer_name: string;
+    order_created_at: string;
+    template_id: string;
+    template_name: string;
+    sku_variant_id?: string | null;
+    sku_variant_name?: string | null;
+    sku_variant_code?: string | null;
+    line_name: string;
+    qty_value: number | string;
+    qty_uom: "PCS" | "KG";
+    price_basis: "PCS" | "KG";
+    unit_price: number | string;
+    geometry_snapshot: any;
+    layer_snapshot: any[];
+    printing_snapshot: any;
+    chemicals_snapshot: any;
+    addons_snapshot: any[];
+    packaging_snapshot: any;
+    summary: {
+        finished_good_type: "POUCH" | "ROLL";
+        roll_form?: "FLAT" | "FOLDED" | "TUBING" | "";
+        pouch_style?: string;
+        width_mm?: number;
+        height_mm?: number;
+        layer_count?: number;
+        printing_enabled?: boolean;
+        printing_type?: string;
+        pod_enabled?: boolean;
+        addons_count?: number;
+    };
+}
+
+export interface BatchCreateOrderRow {
+    client_reference: string;
+    source_type: "SKU" | "REPEAT" | "CUSTOM";
+    order_name?: string;
+    delivery_date: string;
+    order_type?: string;
+    items: any[];
+}
+
+export interface BatchCreateOrderResult {
+    client_reference?: string;
+    source_type: "SKU" | "REPEAT" | "CUSTOM";
+    status: "created" | "failed";
+    sales_order_id?: string;
+    sales_order_number?: string;
+    error?: string;
+}
+
+export interface BatchCreateResponse {
+    customer?: string;
+    customer_name?: string;
+    created_count: number;
+    failed_count: number;
+    results: BatchCreateOrderResult[];
+}
+
 export interface PreviewPayload {
+    template_id?: string;
     finished_good_type: 'POUCH' | 'ROLL';
     geometry: any;
     film_layers: any[];
-    is_printing_enabled: boolean;
     printing: any;
-    inks: any[];
-    chemicals: any[];
-    addons: any[];
+    chemicals?: any;
+    addons?: any[];
+    packaging_snapshot?: any;
+    roll_form?: "FLAT" | "FOLDED" | "TUBING" | "" | null;
     order_qty: number;
     uom: 'PCS' | 'KG';
+    is_printing_enabled?: boolean;
+    inks?: any[];
 }
 
 export interface PreviewResult {
@@ -82,6 +191,10 @@ export interface PreviewResult {
         effective_width_mm?: number;
         effective_height_mm?: number;
         area_m2?: number;
+    };
+    bom?: {
+        addons?: Array<{ weight_kg?: number }>;
+        pod?: Array<{ weight_kg?: number }>;
     };
     bom_preview: {
         components: {
@@ -157,8 +270,12 @@ export interface QuotationCostingSnapshot {
 
 export interface QuotationLinePayload {
     id?: string;
+    plant?: string | null;
     template?: string | null;
     template_id?: string | null;
+    sku_variant?: string | null;
+    sku_variant_id?: string | null;
+    source_mode?: "SKU" | "CUSTOM";
     line_name: string;
     finished_good_type: "POUCH" | "ROLL";
     roll_form?: "FLAT" | "FOLDED" | "TUBING" | "";
@@ -187,6 +304,10 @@ export interface QuotationPreview extends PreviewResult {
     process_cost_rows: QuotationProcessRow[];
     commercial_snapshot: QuotationCommercialSnapshot;
     template_id?: string | null;
+    sku_variant_id?: string | null;
+    sku_variant_name?: string | null;
+    sku_variant_code?: string | null;
+    source_mode?: "SKU" | "CUSTOM";
     line_name?: string;
     qty_value?: number;
     qty_uom?: "PCS" | "KG";
@@ -197,6 +318,10 @@ export interface QuotationItem {
     id: string;
     template?: string | null;
     template_name?: string | null;
+    sku_variant?: string | null;
+    sku_variant_name?: string | null;
+    sku_variant_code?: string | null;
+    source_mode?: "SKU" | "CUSTOM";
     line_name: string;
     finished_good_type: "POUCH" | "ROLL";
     roll_form?: "FLAT" | "FOLDED" | "TUBING" | "";
@@ -263,6 +388,41 @@ export const salesService = {
         return unwrapList<SalesOrder>(data);
     },
 
+    getSalesSkus: async (params?: { customer_id?: string; active?: boolean }) => {
+        const { data } = await api.get<MaybePaginated<SalesSku>>("/api/sales/sku-catalog/", { params });
+        return unwrapList<SalesSku>(data);
+    },
+
+    createSalesSku: async (payload: Partial<SalesSku>) => {
+        const { data } = await api.post<SalesSku>("/api/sales/sku-catalog/", payload);
+        return data;
+    },
+
+    updateSalesSku: async (id: string, payload: Partial<SalesSku>) => {
+        const { data } = await api.patch<SalesSku>(`/api/sales/sku-catalog/${id}/`, payload);
+        return data;
+    },
+
+    getSalesSkuVariants: async (params?: { customer_id?: string; sku_id?: string; active?: boolean }) => {
+        const { data } = await api.get<MaybePaginated<SalesSkuVariant>>("/api/sales/sku-variants/", { params });
+        return unwrapList<SalesSkuVariant>(data);
+    },
+
+    createSalesSkuVariant: async (payload: Partial<SalesSkuVariant>) => {
+        const { data } = await api.post<SalesSkuVariant>("/api/sales/sku-variants/", payload);
+        return data;
+    },
+
+    updateSalesSkuVariant: async (id: string, payload: Partial<SalesSkuVariant>) => {
+        const { data } = await api.patch<SalesSkuVariant>(`/api/sales/sku-variants/${id}/`, payload);
+        return data;
+    },
+
+    getRepeatLines: async (params?: { customer_id?: string; q?: string }) => {
+        const { data } = await api.get<RepeatLineCandidate[]>("/api/sales/orders/repeat-lines/", { params });
+        return Array.isArray(data) ? data : [];
+    },
+
     getRecentOrders: async () => {
         // Assuming recently created orders (no special endpoint needed based on current usage, just main list)
         const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/");
@@ -271,6 +431,15 @@ export const salesService = {
 
     createOrder: async (payload: any) => {
         const { data } = await api.post("/api/sales/orders/", payload);
+        return data;
+    },
+
+    batchCreateOrders: async (payload: {
+        customer: string;
+        customer_name?: string;
+        orders: BatchCreateOrderRow[];
+    }) => {
+        const { data } = await api.post<BatchCreateResponse>("/api/sales/orders/batch-create/", payload);
         return data;
     },
 

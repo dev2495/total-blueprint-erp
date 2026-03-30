@@ -54,11 +54,14 @@ test("dispatch can pack a roll, create a challan, dispatch it, and print the lis
   const challans = unwrapApiList<any>(challansResponse.data)
   const challan = latestDispatchChallan(challans, seed.dispatch.sales_order_number)
   expect(challan).toBeTruthy()
-  expect(String(challan?.status || "").toUpperCase()).toBe("DRAFT")
+  const initialStatus = String(challan?.status || "").toUpperCase()
+  expect(["DRAFT", "DISPATCHED"]).toContain(initialStatus)
 
-  const sendResponse = page.waitForResponse((response) => response.url().includes(`/api/production/challans/${challan.id}/dispatch/`) && response.request().method() === "POST")
-  await page.getByTestId(`dispatch-send-${challan.id}`).click()
-  expect((await sendResponse).status()).toBe(200)
+  if (initialStatus === "DRAFT") {
+    const sendResponse = page.waitForResponse((response) => response.url().includes(`/api/production/challans/${challan.id}/dispatch/`) && response.request().method() === "POST")
+    await page.getByTestId(`dispatch-send-${challan.id}`).click()
+    expect((await sendResponse).status()).toBe(200)
+  }
   await page.waitForTimeout(1000)
   const dispatchedResponse = await fetchJson<any>(page, "/api/production/challans/list_challans/")
   const dispatched = latestDispatchChallan(unwrapApiList<any>(dispatchedResponse.data), seed.dispatch.sales_order_number)

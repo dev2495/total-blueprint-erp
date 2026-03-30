@@ -36,6 +36,17 @@ STOCK_STRATEGY_LABELS = {
 }
 
 
+def _cached_related(instance, field_name: str):
+    state = getattr(instance, "_state", None)
+    fields_cache = getattr(state, "fields_cache", None)
+    if isinstance(fields_cache, dict) and field_name in fields_cache:
+        return fields_cache.get(field_name)
+    instance_dict = getattr(instance, "__dict__", None)
+    if isinstance(instance_dict, dict) and field_name in instance_dict:
+        return instance_dict.get(field_name)
+    return None
+
+
 def resolve_roll_stock_strategy(roll) -> str:
     meta = getattr(roll, "meta_json", {}) or {}
     strategy = str(
@@ -102,11 +113,15 @@ def roll_form_label(roll) -> str:
 def commercial_family_name_for_roll(roll) -> str:
     template = getattr(roll, "template", None)
     material = getattr(roll, "material", None)
+    template_business_family = _cached_related(template, "commercial_family") if template is not None else None
+    material_business_family = _cached_related(material, "commercial_family") if material is not None else None
+    material_parent_family = _cached_related(material, "parent_family") if material is not None else None
+    parent_business_family = _cached_related(material_parent_family, "commercial_family") if material_parent_family is not None else None
     family_candidates = [
-        getattr(getattr(template, "commercial_family", None), "name", ""),
-        getattr(getattr(material, "commercial_family", None), "name", ""),
-        getattr(getattr(getattr(material, "parent_family", None), "commercial_family", None), "name", ""),
-        getattr(getattr(material, "parent_family", None), "name", ""),
+        getattr(template_business_family, "name", ""),
+        getattr(material_business_family, "name", ""),
+        getattr(parent_business_family, "name", ""),
+        getattr(material_parent_family, "name", ""),
         getattr(material, "name", ""),
         getattr(template, "name", ""),
         getattr(roll, "label_id", ""),
@@ -120,10 +135,14 @@ def commercial_family_name_for_roll(roll) -> str:
 def commercial_reporting_group_for_roll(roll) -> str:
     template = getattr(roll, "template", None)
     material = getattr(roll, "material", None)
+    template_business_family = _cached_related(template, "commercial_family") if template is not None else None
+    material_business_family = _cached_related(material, "commercial_family") if material is not None else None
+    material_parent_family = _cached_related(material, "parent_family") if material is not None else None
+    parent_business_family = _cached_related(material_parent_family, "commercial_family") if material_parent_family is not None else None
     group_candidates = [
-        getattr(getattr(template, "commercial_family", None), "default_reporting_group", ""),
-        getattr(getattr(material, "commercial_family", None), "default_reporting_group", ""),
-        getattr(getattr(getattr(material, "parent_family", None), "commercial_family", None), "default_reporting_group", ""),
+        getattr(template_business_family, "default_reporting_group", ""),
+        getattr(material_business_family, "default_reporting_group", ""),
+        getattr(parent_business_family, "default_reporting_group", ""),
     ]
     for candidate in group_candidates:
         if str(candidate or "").strip():

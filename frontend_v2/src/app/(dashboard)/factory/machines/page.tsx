@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { factoryService, Machine, WorkCenter } from "@/services/factory"
+import { costingService } from "@/services/costing"
 import { AxiosError } from "axios"
 import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Button } from "@/components/ui/button"
@@ -40,15 +41,17 @@ const formSchema = z.object({
     code: z.string().min(1, "Code is required"),
     name: z.string().min(1, "Name is required"),
     work_center: z.string().min(1, "Work Center is required"),
+    cost_absorption_group: z.string().optional(),
 })
 
-function MachineForm({ initialData, workCenters, onSubmit, isLoading }: { initialData?: Machine, workCenters: WorkCenter[], onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
+function MachineForm({ initialData, workCenters, costGroups, onSubmit, isLoading }: { initialData?: Machine, workCenters: WorkCenter[], costGroups: Array<{ id: string; code: string; label: string }>, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
             code: initialData?.code || "",
             name: initialData?.name || "",
             work_center: initialData?.work_center || "",
+            cost_absorption_group: initialData?.cost_absorption_group || "NONE",
         },
     })
 
@@ -75,6 +78,34 @@ function MachineForm({ initialData, workCenters, onSubmit, isLoading }: { initia
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="cost_absorption_group"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Machine Cost Group Override</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Use work center default" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="NONE">Use work center default</SelectItem>
+                                    {costGroups.map((group) => (
+                                        <SelectItem key={group.id} value={group.id}>
+                                            {group.code} · {group.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <div className="text-[0.8rem] text-muted-foreground">
+                                Machine assignment wins first in costing precedence. Leave empty to inherit from the work center.
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -152,6 +183,10 @@ export default function MachinesPage() {
         queryKey: ["work-centers"],
         queryFn: factoryService.getWorkCenters,
     })
+    const { data: costGroups } = useQuery({
+        queryKey: ["cost-groups"],
+        queryFn: costingService.getCostGroups,
+    })
 
     const createMutation = useMutation({
         mutationFn: factoryService.createMachine,
@@ -207,6 +242,7 @@ export default function MachinesPage() {
                         </DialogHeader>
                         <MachineForm
                             workCenters={workCenters || []}
+                            costGroups={costGroups || []}
                             onSubmit={(data) => createMutation.mutate(data)}
                             isLoading={createMutation.isPending}
                         />
@@ -261,6 +297,11 @@ export default function MachinesPage() {
                                                 <span className="mx-2 text-slate-300">|</span>
                                                 <span className="text-slate-500">{wc?.name || "No WC"}</span>
                                             </div>
+                                            <div className="mt-2">
+                                                <Badge variant="outline" className="border-indigo-200 text-indigo-700">
+                                                    {machine.cost_absorption_group_code || wc?.default_cost_absorption_group_code || "Inherited from work center"}
+                                                </Badge>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -278,6 +319,7 @@ export default function MachinesPage() {
                     {editingItem && (
                         <MachineForm
                             workCenters={workCenters || []}
+                            costGroups={costGroups || []}
                             initialData={editingItem}
                             onSubmit={(data) => updateMutation.mutate({ id: editingItem.id, data })}
                             isLoading={updateMutation.isPending}

@@ -15,5 +15,5 @@ test("seeded notifications are visible in the shell inbox without crashing the p
   await page.getByTestId("notification-bell-trigger").click()
   await page.getByTestId("notification-bell-popover").waitFor({ state: "visible", timeout: 15_000 })
   await expect(page.locator("[data-testid^='notification-item-']").first()).toBeVisible()
-  await expect(page.locator("body")).toContainText("Daily reports delivered")
+  await expect(page.locator("body")).toContainText(/Daily reports generated without email|Report generated without email/)
 })

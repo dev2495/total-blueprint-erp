@@ -295,7 +295,34 @@ class MRPService:
         if shortage <= 0: return
 
         # 2. Category based defaults
-        if material.category in ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD', 'ADDITIVE', 'PACKAGING', 'ADDON']:
+        if material.category == 'POD':
+            if getattr(material, 'pod_is_inhouse_produced', False):
+                MRPSuggestion.objects.create(
+                    plan=plan,
+                    type='MTS_PRODUCE',
+                    material=material,
+                    qty=shortage,
+                    reason="In-house POD stock is required.",
+                    target_plant_id=plant_id,
+                    required_date=MRPService._required_date_for_suggestion('MTS_PRODUCE'),
+                    priority=priority,
+                )
+            else:
+                MRPSuggestion.objects.create(
+                    plan=plan,
+                    type='PURCHASE',
+                    material=material,
+                    qty=shortage,
+                    reason="Stockout detected for POD material.",
+                    target_plant_id=plant_id,
+                    required_date=MRPService._required_date_for_suggestion('PURCHASE'),
+                    priority=priority,
+                )
+                rate = CostingService.get_material_rate(material)
+                cost_impact = shortage * rate
+                plan.purchase_value_est += cost_impact
+        
+        elif material.category in ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'ADDITIVE', 'PACKAGING', 'ADDON']:
             MRPSuggestion.objects.create(
                 plan=plan,
                 type='PURCHASE',

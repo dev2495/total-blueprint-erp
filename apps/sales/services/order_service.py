@@ -1,3 +1,4 @@
+from copy import deepcopy
 from decimal import Decimal
 import uuid
 
@@ -6,9 +7,20 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.artwork.models import Artwork
-from apps.inventory.models import InkMaterial
+from apps.artwork.print_contract import (
+    get_artwork_contract,
+    normalize_printing_snapshot as shared_normalize_printing_snapshot,
+    resolve_ink_base_from_layers as shared_resolve_ink_base_from_layers,
+    resolve_ink_contract,
+    validate_frozen_printing_snapshot,
+    validate_roto_cylinder_readiness,
+)
 from apps.bom.services_resolver import BOMResolverService
-from apps.physics.geometry_override import normalize_geometry_override, sanitize_geometry_override
+from apps.physics.geometry_override import (
+    normalize_geometry_override,
+    sanitize_geometry_override,
+    validate_pouch_geometry_contract,
+)
 from apps.physics.spec_signature import (
     build_spec_payload,
     build_spec_signature,
@@ -16,11 +28,9 @@ from apps.physics.spec_signature import (
     build_invariant_signature,
 )
 from apps.physics.services_physics import PhysicsEngine
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, PodSkuVariant
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
-from apps.tooling.models import Cylinder
-
-from ..models import SalesOrder, SalesOrderItem
+from ..models import SalesOrder, SalesOrderItem, SalesSkuVariant
 
 
 def _as_int(value, default=0):
@@ -134,42 +144,11 @@ def _validate_template_film_constraints(template, layer_snapshot, item_label):
 
 
 def _resolve_ink_base_from_layers(layer_snapshot):
-    for layer in layer_snapshot if isinstance(layer_snapshot, list) else []:
-        if not isinstance(layer, dict):
-            continue
-        density = Decimal(str(layer.get("density_g_cm3") or 0))
-        if density >= Decimal("1.4"):
-            return "PET"
-    return "POLY"
+    return shared_resolve_ink_base_from_layers(layer_snapshot)
 
 
 def _normalize_printing_snapshot(raw):
-    src = raw if isinstance(raw, dict) else {}
-    out = dict(src)
-    out["enabled"] = bool(out.get("enabled", False))
-
-    ptype = str(out.get("type") or out.get("method") or "").strip().upper()
-    if ptype:
-        out["type"] = ptype
-        out["method"] = ptype
-
-    substrate_mode = str(out.get("substrate_mode") or "").strip().upper()
-    if substrate_mode:
-        out["substrate_mode"] = substrate_mode
-
-    front_count = max(0, _as_int(out.get("front_colors_count"), 0))
-    back_count = max(0, _as_int(out.get("back_colors_count"), 0))
-    out["front_colors_count"] = front_count
-    out["back_colors_count"] = back_count
-    out["colors"] = front_count + back_count
-    out["ink_gsm_total"] = float(Decimal(str(out.get("ink_gsm_total") or out.get("ink_gsm") or 0)))
-    out["ink_gsm"] = out["ink_gsm_total"]
-    out["artwork_id"] = str(out.get("artwork_id") or "").strip()
-    out["front_colors"] = out.get("front_colors") if isinstance(out.get("front_colors"), list) else []
-    out["back_colors"] = out.get("back_colors") if isinstance(out.get("back_colors"), list) else []
-    out["color_names"] = out.get("color_names") if isinstance(out.get("color_names"), list) else []
-    out["color_mapping"] = out.get("color_mapping") if isinstance(out.get("color_mapping"), dict) else {}
-    return out
+    return shared_normalize_printing_snapshot(raw)
 
 
 def _normalize_packaging_snapshot(raw):
@@ -206,6 +185,13 @@ def _normalize_packaging_snapshot(raw):
         or str(src.get("pod_profile_id") or "").strip()
         or None
     )
+    pod_sku_variant_id = (
+        _safe_uuid_str(pod_src.get("pod_sku_variant_id"))
+        or str(pod_src.get("pod_sku_variant_id") or "").strip()
+        or _safe_uuid_str(src.get("pod_sku_variant_id"))
+        or str(src.get("pod_sku_variant_id") or "").strip()
+        or None
+    )
 
     return {
         "primary_inner_pack": {
@@ -220,8 +206,121 @@ def _normalize_packaging_snapshot(raw):
         "pod": {
             "enabled": pod_enabled,
             "pod_profile_id": pod_profile_id if pod_enabled else None,
+            "pod_sku_variant_id": pod_sku_variant_id if pod_enabled else None,
         },
     }
+
+
+def _hydrate_pod_snapshot(pod_cfg):
+    config = dict(pod_cfg or {})
+    enabled = bool(config.get("enabled"))
+    if not enabled:
+        return {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None, "pod_sku_code": None, "pod_sku_name": None}
+
+    pod_profile_id = str(config.get("pod_profile_id") or "").strip() or None
+    pod_sku_variant_id = _safe_uuid_str(config.get("pod_sku_variant_id")) or str(config.get("pod_sku_variant_id") or "").strip() or None
+    pod_sku_code = str(config.get("pod_sku_code") or "").strip() or None
+    pod_sku_name = str(config.get("pod_sku_name") or "").strip() or None
+    if pod_sku_variant_id and not pod_profile_id:
+        try:
+            variant = PodSkuVariant.objects.select_related("material").get(id=pod_sku_variant_id, active=True)
+        except PodSkuVariant.DoesNotExist as exc:
+            raise ValidationError("Selected POD SKU variant is invalid or inactive.") from exc
+        pod_profile_id = str(variant.material_id)
+        pod_sku_code = pod_sku_code or str(variant.code or variant.pod_sku.code)
+        pod_sku_name = pod_sku_name or str(variant.name or variant.pod_sku.name)
+
+    if not pod_profile_id:
+        raise ValidationError("POD profile is required when POD is enabled.")
+
+    return {
+        "enabled": True,
+        "pod_profile_id": pod_profile_id,
+        "pod_sku_variant_id": pod_sku_variant_id,
+        "pod_sku_code": pod_sku_code,
+        "pod_sku_name": pod_sku_name,
+    }
+
+
+def _resolve_source_item(raw_item):
+    item_id = _safe_uuid_str(raw_item.get("repeat_source_item_id") or raw_item.get("repeat_source_item"))
+    if not item_id:
+        return None
+    try:
+        return SalesOrderItem.objects.select_related("template", "sku_variant", "sales_order").get(id=item_id)
+    except SalesOrderItem.DoesNotExist as exc:
+        raise ValidationError("repeat_source_item_id is invalid.") from exc
+
+
+def _resolve_sku_variant(raw_item):
+    variant_id = _safe_uuid_str(raw_item.get("sku_variant_id") or raw_item.get("sku_variant"))
+    if not variant_id:
+        return None
+    try:
+        variant = SalesSkuVariant.objects.select_related("sku", "sku__template").get(id=variant_id)
+    except SalesSkuVariant.DoesNotExist as exc:
+        raise ValidationError("sku_variant_id is invalid.") from exc
+    if not variant.active or not variant.sku.active:
+        raise ValidationError(f"SKU variant {variant.code} is inactive.")
+    if str(getattr(variant.sku.template, "status", "") or "").upper() != "LIVE":
+        raise ValidationError(f"SKU {variant.sku.code} must link to a LIVE template.")
+    return variant
+
+
+def _merge_item_source_defaults(raw_item):
+    item = dict(raw_item or {})
+    variant = _resolve_sku_variant(item)
+    repeat_source = _resolve_source_item(item)
+
+    if variant:
+        default_printing = deepcopy(variant.printing_snapshot or {})
+        default_chemicals = deepcopy(variant.chemicals_snapshot or {})
+        if default_chemicals and not isinstance(default_printing.get("chemicals"), dict):
+            default_printing["chemicals"] = default_chemicals
+        item.setdefault("template_id", str(variant.sku.template_id))
+        item.setdefault("fg_type", variant.finished_good_type)
+        item.setdefault("roll_form", variant.roll_form or None)
+        item.setdefault("geometry", deepcopy(variant.geometry_snapshot or {}))
+        item.setdefault("film_layers", deepcopy(variant.layer_snapshot or []))
+        item.setdefault("printing", default_printing)
+        item.setdefault("chemicals", default_chemicals)
+        item.setdefault("addons", deepcopy(variant.addons_snapshot or []))
+        item.setdefault("packaging_snapshot", deepcopy(variant.packaging_snapshot or {}))
+        item.setdefault("line_name", variant.name or variant.sku.default_line_name or variant.sku.name)
+
+    if repeat_source:
+        source_geometry = deepcopy(repeat_source.geometry_snapshot or {})
+        source_printing = deepcopy(repeat_source.printing_snapshot or {})
+        source_chemicals = source_printing.get("chemicals") if isinstance(source_printing.get("chemicals"), dict) else {}
+        item.setdefault("template_id", str(repeat_source.template_id))
+        item.setdefault("fg_type", source_geometry.get("finished_good_type") or getattr(repeat_source.template, "fg_type", "POUCH"))
+        item.setdefault("roll_form", source_geometry.get("roll_form") or None)
+        item.setdefault("geometry", source_geometry)
+        item.setdefault("film_layers", deepcopy(repeat_source.layer_snapshot or []))
+        item.setdefault("printing", source_printing)
+        item.setdefault("chemicals", source_chemicals)
+        item.setdefault("addons", deepcopy(repeat_source.addons_snapshot or []))
+        item.setdefault("packaging_snapshot", deepcopy(repeat_source.packaging_snapshot or {}))
+        item.setdefault("line_name", repeat_source.line_name or getattr(repeat_source.template, "name", ""))
+        item.setdefault("price_basis", repeat_source.price_basis)
+        item.setdefault("qty_uom", repeat_source.qty_uom)
+        item.setdefault("unit_price", float(repeat_source.unit_price or 0))
+
+    explicit_chemicals = item.get("chemicals")
+    if isinstance(explicit_chemicals, dict):
+        printing = item.get("printing") if isinstance(item.get("printing"), dict) else {}
+        if explicit_chemicals:
+            printing["chemicals"] = explicit_chemicals
+        item["printing"] = printing
+
+    if repeat_source and not item.get("mode"):
+        item["mode"] = "REPEAT"
+    elif not item.get("mode"):
+        item["mode"] = "TEMPLATE"
+
+    item["_resolved_sku_variant"] = variant
+    item["_resolved_repeat_source_item"] = repeat_source
+    return item
 
 
 def _resolve_preview_fg_type(payload):
@@ -478,6 +577,12 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         printing["color_mapping"] = {}
         printing["ink_base_family"] = _resolve_ink_base_from_layers(item.layer_snapshot or [])
         printing["cylinder_required"] = print_type == "ROTO"
+        printing = validate_frozen_printing_snapshot(
+            printing,
+            layer_snapshot=item.layer_snapshot or [],
+            require_artwork=False,
+            strict_inks=False,
+        )
         return printing, True, None
 
     artwork = Artwork.objects.filter(id=artwork_id).first()
@@ -485,66 +590,48 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         raise ValidationError(f"Item {_item_label(item)}: artwork_id is invalid.")
     if artwork.status != "APPROVED":
         raise ValidationError(f"Item {_item_label(item)}: artwork must be APPROVED before confirmation.")
-    artwork_type = str(getattr(artwork, "print_type", "") or "").upper().strip()
+    contract = get_artwork_contract(artwork, require_asset=True)
+    artwork_type = str(contract["print_type"] or "").upper().strip()
     if artwork_type and artwork_type != print_type:
         raise ValidationError(
             f"Item {_item_label(item)}: artwork print type {artwork_type} does not match selected print type {print_type}."
         )
-
-    art_front = [str(v).strip() for v in (artwork.front_colors or []) if str(v).strip()]
-    art_back = [str(v).strip() for v in (artwork.back_colors or []) if str(v).strip()]
-    if not art_front and not art_back:
-        legacy_colors = [str(v).strip() for v in (artwork.color_list or []) if str(v).strip()]
-        if legacy_colors:
-            art_front = legacy_colors
-
-    art_front_count = int(artwork.front_colors_count or len(art_front) or 0)
-    art_back_count = int(artwork.back_colors_count or len(art_back) or 0)
+    art_front = contract["front_colors"]
+    art_back = contract["back_colors"]
+    art_front_count = int(contract["front_colors_count"] or len(art_front) or 0)
+    art_back_count = int(contract["back_colors_count"] or len(art_back) or 0)
     if art_front_count != front_count or art_back_count != back_count:
         raise ValidationError(
             f"Item {_item_label(item)}: artwork color counts mismatch (expected {front_count}/{back_count}, got {art_front_count}/{art_back_count})."
         )
 
     if print_type == "ROTO":
-        front_ready = Cylinder.objects.filter(
-            artwork_id=artwork.id,
-            side="FRONT",
-            side_slot_index__lte=max(front_count, 0),
-            is_draft=False,
-        ).values_list("side_slot_index", flat=True)
-        back_ready = Cylinder.objects.filter(
-            artwork_id=artwork.id,
-            side="BACK",
-            side_slot_index__lte=max(back_count, 0),
-            is_draft=False,
-        ).values_list("side_slot_index", flat=True)
-        if len(set(front_ready)) < front_count:
-            raise ValidationError(f"Item {_item_label(item)}: ROTO requires full front cylinder coverage from artwork.")
-        if len(set(back_ready)) < back_count:
-            raise ValidationError(f"Item {_item_label(item)}: ROTO requires full back cylinder coverage from artwork.")
+        try:
+            validate_roto_cylinder_readiness(artwork)
+        except ValidationError as exc:
+            raise ValidationError(f"Item {_item_label(item)}: {exc}") from exc
 
-    color_names = [str(v).strip().upper() for v in (art_front + art_back) if str(v).strip()]
-    ink_base = _resolve_ink_base_from_layers(item.layer_snapshot or [])
-    color_mapping = {}
-    unresolved_colors = []
-    for color in color_names:
-        ink = InkMaterial.objects.filter(base_type=ink_base, color_name__iexact=color).first()
-        if ink:
-            color_mapping[color] = str(ink.id)
-        else:
-            unresolved_colors.append(color)
-
-    if unresolved_colors:
-        missing = ", ".join(unresolved_colors)
-        raise ValidationError(f"Item {_item_label(item)}: missing {ink_base} ink master mapping for colors: {missing}")
+    ink_contract = resolve_ink_contract(
+        color_names=contract["color_names"],
+        layer_snapshot=item.layer_snapshot or [],
+        existing_mapping=printing.get("color_mapping") or {},
+        strict=True,
+    )
 
     printing["front_colors"] = [str(v).strip().upper() for v in art_front]
     printing["back_colors"] = [str(v).strip().upper() for v in art_back]
-    printing["color_names"] = color_names
-    printing["color_mapping"] = color_mapping
-    printing["ink_base_family"] = ink_base
+    printing["color_names"] = ink_contract["color_names"]
+    printing["color_mapping"] = ink_contract["color_mapping"]
+    printing["ink_base_family"] = ink_contract["ink_base_family"]
+    printing["artwork_id"] = str(artwork.id)
     printing["artwork_design_code"] = artwork.design_code
     printing["cylinder_required"] = print_type == "ROTO"
+    printing = validate_frozen_printing_snapshot(
+        printing,
+        layer_snapshot=item.layer_snapshot or [],
+        require_artwork=True,
+        strict_inks=True,
+    )
 
     return printing, False, str(artwork.id)
 
@@ -582,6 +669,8 @@ class SalesOrderService:
                 items_data = [
                     {
                         "template_id": payload.get("template_id"),
+                        "sku_variant_id": payload.get("sku_variant_id"),
+                        "repeat_source_item_id": payload.get("repeat_source_item_id"),
                         "qty_value": payload.get("qty_value"),
                         "qty_uom": payload.get("qty_uom"),
                         "mode": payload.get("mode", "TEMPLATE"),
@@ -590,6 +679,7 @@ class SalesOrderService:
                         "geometry": payload.get("geometry"),
                         "film_layers": payload.get("film_layers"),
                         "printing": payload.get("printing"),
+                        "chemicals": payload.get("chemicals"),
                         "addons": payload.get("addons"),
                         "packaging_snapshot": payload.get("packaging_snapshot"),
                         "line_name": payload.get("line_name"),
@@ -601,7 +691,8 @@ class SalesOrderService:
             if not items_data:
                 raise ValidationError("At least one order item is required.")
 
-            for item_data in items_data:
+            for raw_item_data in items_data:
+                item_data = _merge_item_source_defaults(raw_item_data)
                 template_id = item_data.get("template_id")
                 if not template_id:
                     raise ValidationError("template_id is required for every sales order item.")
@@ -630,6 +721,13 @@ class SalesOrderService:
                     qty_uom = "KG"
                 else:
                     normalized_geometry.pop("roll_form", None)
+                    normalized_geometry = validate_pouch_geometry_contract(
+                        fg_type=fg_type,
+                        geometry=normalized_geometry,
+                        addons=item_data.get("addons") or [],
+                        template_pouch_style=str(getattr(template, "pouch_style", "") or ""),
+                        context_label=f"Item {template.name}",
+                    )
 
                 qty_value = Decimal(str(item_data.get("qty_value", 0) or 0))
                 layer_snapshot = _normalize_layer_snapshot(item_data.get("film_layers") or [])
@@ -639,10 +737,9 @@ class SalesOrderService:
                 packaging_snapshot = _normalize_packaging_snapshot(item_data.get("packaging_snapshot") or {})
                 if fg_type == "POUCH":
                     pod_cfg = packaging_snapshot.get("pod") if isinstance(packaging_snapshot.get("pod"), dict) else {}
-                    if bool(pod_cfg.get("enabled")) and not str(pod_cfg.get("pod_profile_id") or "").strip():
-                        raise ValidationError(f"Item {template.name}: POD profile is required when POD is enabled.")
+                    packaging_snapshot["pod"] = _hydrate_pod_snapshot(pod_cfg)
                 else:
-                    packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None}
+                    packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None}
                 line_name = str(item_data.get("line_name") or payload.get("line_name") or "").strip()
                 price_basis = str(item_data.get("price_basis") or payload.get("price_basis") or "KG").upper()
                 if price_basis not in {"KG", "PCS"}:
@@ -667,6 +764,8 @@ class SalesOrderService:
                     sales_order=order,
                     template=template,
                     mode=item_data.get("mode", "TEMPLATE"),
+                    sku_variant=item_data.get("_resolved_sku_variant"),
+                    repeat_source_item=item_data.get("_resolved_repeat_source_item"),
                     line_name=line_name,
                     qty_uom=qty_uom,
                     qty_value=qty_value,
@@ -702,11 +801,90 @@ class SalesOrderService:
             return order
 
     @staticmethod
+    def create_sales_order_batch(payload):
+        customer_id = payload.get("customer")
+        customer_name = payload.get("customer_name")
+        orders_data = payload.get("orders") or []
+        if not isinstance(orders_data, list) or not orders_data:
+            raise ValidationError("orders must contain at least one queued sales order.")
+
+        results = []
+        for index, raw_order in enumerate(orders_data):
+            row = raw_order if isinstance(raw_order, dict) else {}
+            client_reference = str(row.get("client_reference") or "").strip()
+            source_type = str(row.get("source_type") or "CUSTOM").upper()
+            row_payload = {
+                "customer": customer_id,
+                "customer_name": customer_name,
+                "order_name": str(row.get("order_name") or "").strip(),
+                "order_type": str(row.get("order_type") or "MTO").upper(),
+                "delivery_date": row.get("delivery_date"),
+                "items": row.get("items") or [],
+            }
+            try:
+                items = row_payload["items"]
+                if not isinstance(items, list) or len(items) != 1:
+                    raise ValidationError("Each queued sales order must contain exactly one item.")
+                item = items[0]
+                if not isinstance(item, dict):
+                    raise ValidationError("Queued sales order item must be an object.")
+                if source_type == "CUSTOM":
+                    item.setdefault("mode", "CUSTOM")
+                elif source_type == "REPEAT":
+                    item.setdefault("mode", "REPEAT")
+                else:
+                    item.setdefault("mode", "TEMPLATE")
+
+                with transaction.atomic():
+                    order = SalesOrderService.create_sales_order(row_payload)
+                    confirmed_order = SalesOrderService.confirm_sales_order(order.id)
+
+                results.append(
+                    {
+                        "client_reference": client_reference or str(index),
+                        "source_type": source_type,
+                        "status": "created",
+                        "sales_order_id": str(confirmed_order.id),
+                        "sales_order_number": confirmed_order.order_number,
+                        "error": "",
+                    }
+                )
+            except Exception as exc:
+                results.append(
+                    {
+                        "client_reference": client_reference or str(index),
+                        "source_type": source_type,
+                        "status": "failed",
+                        "sales_order_id": "",
+                        "sales_order_number": "",
+                        "error": str(exc),
+                    }
+                )
+
+        created_count = sum(1 for row in results if row["status"] == "created")
+        failed_count = len(results) - created_count
+        return {
+            "customer": customer_id,
+            "customer_name": customer_name,
+            "created_count": created_count,
+            "failed_count": failed_count,
+            "results": results,
+        }
+
+    @staticmethod
     def preview_sales_item(payload):
         normalized_payload = dict(payload or {})
         fg_type = _resolve_preview_fg_type(normalized_payload)
         normalized_payload["finished_good_type"] = fg_type
         normalized_payload["geometry"] = _normalize_preview_geometry(normalized_payload.get("geometry") or {}, fg_type)
+        if fg_type == "POUCH":
+            normalized_payload["geometry"] = validate_pouch_geometry_contract(
+                fg_type=fg_type,
+                geometry=normalized_payload.get("geometry") or {},
+                addons=normalized_payload.get("addons") or [],
+                template_pouch_style=str(normalized_payload.get("pouch_style") or ""),
+                context_label="Preview item",
+            )
         normalized_payload["film_layers"] = _normalize_layer_snapshot(normalized_payload.get("film_layers") or [], strict=False)
         qty_uom = str(normalized_payload.get("uom", "KG") or "KG").upper()
         if fg_type == "ROLL" and qty_uom != "KG":
@@ -896,10 +1074,9 @@ class SalesOrderService:
                 item.packaging_snapshot = _normalize_packaging_snapshot(item.packaging_snapshot or {})
                 if fg_type == "POUCH":
                     pod_cfg = item.packaging_snapshot.get("pod") if isinstance(item.packaging_snapshot.get("pod"), dict) else {}
-                    if bool(pod_cfg.get("enabled")) and not str(pod_cfg.get("pod_profile_id") or "").strip():
-                        raise ValidationError(f"Item {item.template.name}: POD profile is required when POD is enabled.")
+                    item.packaging_snapshot["pod"] = _hydrate_pod_snapshot(pod_cfg)
                 else:
-                    item.packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None}
+                    item.packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None}
                 (
                     normalized_printing,
                     artwork_required,

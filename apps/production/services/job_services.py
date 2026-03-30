@@ -477,7 +477,19 @@ class JobService:
         with transaction.atomic():
             ExecutionService.execute_completion(job.id, output_weight_kg, user=user, **(completion_meta or {}))
 
-            produced_increment = cls._kg_to_job_uom(job, output_weight_kg)
+            output_pcs = None
+            if isinstance(completion_meta, dict):
+                raw_output_pcs = completion_meta.get("output_pcs")
+                if raw_output_pcs not in (None, ""):
+                    try:
+                        output_pcs = Decimal(str(raw_output_pcs))
+                    except Exception:
+                        output_pcs = None
+
+            if str(job.uom or "KG").upper() == "PCS" and output_pcs is not None and output_pcs > 0:
+                produced_increment = output_pcs
+            else:
+                produced_increment = cls._kg_to_job_uom(job, output_weight_kg)
             current_produced = Decimal(str(job.produced_qty or 0))
             target_qty = Decimal(str(job.quantity or 0))
 
@@ -523,13 +535,29 @@ class JobService:
 
         from apps.production.services.services_execution import ExecutionService
         step_profile = ExecutionService.get_step_execution_profile(job.id)
-        remaining = Decimal(str(step_profile.get("step_remaining_kg") or 0))
-        tolerance = Decimal(str(step_profile.get("tolerance_kg") or 0.25))
+        primary_uom = str(step_profile.get("primary_uom") or "KG").upper()
+        remaining = Decimal(
+            str(
+                step_profile.get("step_remaining_primary")
+                if step_profile.get("step_remaining_primary") is not None
+                else step_profile.get("step_remaining_kg")
+                or 0
+            )
+        )
+        tolerance = Decimal(
+            str(
+                step_profile.get("tolerance_primary")
+                if step_profile.get("tolerance_primary") is not None
+                else step_profile.get("tolerance_kg")
+                or 0.25
+            )
+        )
+        remaining_kg = Decimal(str(step_profile.get("step_remaining_kg") or 0))
         force_reason = (force_reason or "").strip()
         needs_force = remaining > tolerance
         if needs_force and not force_reason:
             raise ValueError(
-                f"Step remaining is {remaining:.4f} kg, above tolerance {tolerance:.4f} kg. "
+                f"Step remaining is {remaining:.4f} {primary_uom}, above tolerance {tolerance:.4f} {primary_uom}. "
                 f"Provide force_reason to complete with variance."
             )
 
@@ -556,7 +584,7 @@ class JobService:
                 job,
                 user=user,
                 closed_with_variance=bool(needs_force),
-                variance_kg=remaining if needs_force else Decimal("0"),
+                variance_kg=remaining_kg if needs_force else Decimal("0"),
                 force_reason=force_reason if needs_force else None,
             )
 
@@ -813,15 +841,17 @@ class JobService:
         return job
 
     @classmethod
-    def start_job(cls, job):
+    def start_job(cls, job, user=None):
         from django.utils import timezone
         from apps.inventory.models import InventoryReservation, InventoryRoll
+        from apps.costing.services import CostingService
         
         with transaction.atomic():
             job.status = 'RUNNING'
             job.job_state = 'EXECUTING'
             job.start_date = timezone.now()
             job.save()
+            CostingService.open_runtime_session(job, user=user, ts=job.start_date)
             
             # Phase 64B: Move Reserved Rolls directly to IN_PROCESS
             reservations = InventoryReservation.objects.filter(job=job, status='ACTIVE', roll__isnull=False)
@@ -842,8 +872,8 @@ class JobService:
         if job.status != 'RUNNING':
             raise ValueError("Only RUNNING jobs can be completed.")
         
-        from django.utils import timezone
         from apps.production.services.services_execution import ExecutionService
+        from apps.costing.services import CostingService
         # from apps.production.services.operator_service import OperatorService # Deprecated for Completion
         
         with transaction.atomic():
@@ -860,6 +890,7 @@ class JobService:
             is_fully_done = (job.remaining_qty <= 0)
             
             if is_fully_done:
+                CostingService.close_runtime_session(job, close_reason='COMPLETE', user=user)
                 cls._finalize_step_completion(job, user=user)
             else:
                 # Partial Completion: Job remains RELEASED/RUNNING but with updated remaining_qty
@@ -874,6 +905,7 @@ class JobService:
                 
                 job.status = 'QUEUED' # Re-queue for next shift/session
                 job.save()
+                CostingService.close_runtime_session(job, close_reason='PAUSE', user=user)
                 
         return job
 
@@ -898,6 +930,8 @@ class JobService:
         job = ProductionJob.objects.get(id=job_id)
         if job.job_state not in ['EXECUTING', 'RELEASED']:
             raise ValueError(f"Cannot pause job in {job.job_state} state.")
+        from apps.costing.services import CostingService
+        CostingService.close_runtime_session(job, close_reason='PAUSE')
         job.job_state = 'PAUSED'
         if reason:
             job.hold_reason = reason
@@ -905,12 +939,14 @@ class JobService:
         return job
 
     @classmethod
-    def resume_job(cls, job_id):
+    def resume_job(cls, job_id, user=None):
         job = ProductionJob.objects.get(id=job_id)
         if job.job_state != 'PAUSED':
             raise ValueError("Can only resume PAUSED jobs.")
         if job.status == 'RUNNING':
             job.job_state = 'EXECUTING'
+            from apps.costing.services import CostingService
+            CostingService.open_runtime_session(job, user=user)
         else:
             job.job_state = 'RELEASED'
         job.save()
@@ -1116,6 +1152,36 @@ class WCManagerService:
         return assignment
 
     @classmethod
+    def _validate_roll_assignment_set(cls, job, process, roll_ids):
+        from apps.inventory.models import InventoryRoll
+        from apps.production.services.services_execution import ExecutionService
+
+        selected_ids = [str(rid) for rid in (roll_ids or []) if rid]
+        if not selected_ids:
+            return
+        rolls = list(
+            InventoryRoll.objects.filter(id__in=selected_ids).select_related(
+                "material",
+                "material__parent_family",
+                "grade",
+                "location",
+            )
+        )
+        if len(rolls) != len(set(selected_ids)):
+            raise ValueError("One or more selected rolls could not be resolved for assignment.")
+        validation = ExecutionService._summarize_roll_assignment_validation(
+            job,
+            process,
+            rolls,
+            allow_input_stock_fallback=True,
+        )
+        if not validation.get("slot_satisfied"):
+            raise ValueError(
+                "Selected rolls do not satisfy distinct target slots for this step. "
+                "Review the layer/spec mix before assignment."
+            )
+
+    @classmethod
     def _sync_assignment_status(cls, assignment):
         """
         Keep assignment status consistent with actual resource readiness.
@@ -1191,11 +1257,13 @@ class WCManagerService:
                 )
                 requested = [str(rid) for rid in (roll_ids or [])]
                 new_roll_ids = [rid for rid in requested if rid and rid not in existing_reserved]
+                candidate_roll_ids = list(existing_reserved) + new_roll_ids
 
                 if required_rolls == 0 and new_roll_ids:
                     raise ValueError("This process does not consume rolls.")
                 if required_rolls and (len(existing_reserved) + len(new_roll_ids)) > required_rolls:
                     raise ValueError(f"Too many rolls selected. Required: {required_rolls}.")
+                cls._validate_roll_assignment_set(job, process, candidate_roll_ids)
 
                 # Create strict reservations (InventoryReservation is the source of truth).
                 for rid in new_roll_ids:
@@ -1255,11 +1323,13 @@ class WCManagerService:
             )
             requested = [str(rid) for rid in (roll_ids or [])]
             new_roll_ids = [rid for rid in requested if rid and rid not in existing_reserved]
+            candidate_roll_ids = list(existing_reserved) + new_roll_ids
 
             if required_rolls == 0 and new_roll_ids:
                 raise ValueError("This process does not consume rolls.")
             if required_rolls and (len(existing_reserved) + len(new_roll_ids)) > required_rolls:
                 raise ValueError(f"Too many rolls selected. Required: {required_rolls}.")
+            cls._validate_roll_assignment_set(job, process, candidate_roll_ids)
 
             for rid in new_roll_ids:
                 # Auto-repair orphaned RESERVED rolls (status flipped without a reservation record).
@@ -1307,14 +1377,6 @@ class WCManagerService:
             # Unassign reservation at the engine layer (reverts roll status + requirement).
             ExecutionService.unassign_roll(job.id, reservation_id)
 
-            # Re-apply strict auto-satisfy immediately. This keeps WIP lineage
-            # reservations consistent when exact compatible rolls are available,
-            # while still leaving manual allocation open if exact match is missing.
-            try:
-                ExecutionService.auto_satisfy_inputs(job.id, user=user)
-            except Exception:
-                pass
-
             # Sync legacy linkage for UI convenience.
             reserved_roll_ids = InventoryReservation.objects.filter(
                 job=job, status="ACTIVE", roll__isnull=False
@@ -1360,14 +1422,6 @@ class WCManagerService:
                 if roll and roll.status == "RESERVED":
                     roll.status = "AVAILABLE"
                     roll.save(update_fields=["status"])
-
-            # Re-apply strict auto-satisfy immediately. This keeps WIP lineage
-            # reservations consistent when exact compatible rolls are available,
-            # while still leaving manual allocation open if exact match is missing.
-            try:
-                ExecutionService.auto_satisfy_inputs(job.id, user=user)
-            except Exception:
-                pass
 
             # Sync legacy linkage
             reserved_roll_ids = InventoryReservation.objects.filter(

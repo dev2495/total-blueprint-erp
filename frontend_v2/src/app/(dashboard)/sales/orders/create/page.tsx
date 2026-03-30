@@ -1,11 +1,7 @@
 "use client"
 
-import SalesOrderForm from "@/components/sales/new/sales-order-form"
+import SalesOrderBatchWorkspace from "@/components/sales/new/sales-order-batch-workspace"
 
 export default function CreateSalesOrderPage() {
-    return (
-        <div className="min-h-screen bg-slate-50/30">
-            <SalesOrderForm />
-        </div>
-    )
+    return <SalesOrderBatchWorkspace />
 }
