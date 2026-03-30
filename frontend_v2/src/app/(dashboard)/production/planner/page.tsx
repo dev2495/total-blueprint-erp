@@ -123,9 +123,9 @@ function isSourceOptionEnabled(row: PlannerControlOrder, option: PlanOption) {
 }
 
 function sourceLabel(option: PlanOption) {
-    if (option === "FG") return "Use Existing FG"
-    if (option === "WIP_CONTINUE") return "Continue from WIP"
-    return "Fresh Production"
+    if (option === "FG") return "Assign Direct FG"
+    if (option === "WIP_CONTINUE") return "Use WIP / Invariant"
+    return "Make Fresh"
 }
 
 function normalizeOutputType(value?: string | null): string {
@@ -649,10 +649,89 @@ export default function PlannerControlTowerPage() {
         }
     }, [hubData, queueRows, activeRows, historyRows])
 
+    const focusPlannerFlow = (option: PlanOption) => {
+        const target =
+            prioritizedQueueRows.find((row) => isSourceOptionEnabled(row, option)) ||
+            prioritizedQueueRows[0]
+        if (!target) return
+        setActiveTab("planning")
+        setQueueFilter(option === "FG" ? "READY" : "ALL")
+        setSelectedPlanningRowKey(rowKey(target))
+        updatePlanState(target, { option })
+    }
+
     if (isLoading) {
         return (
-            <div className="flex h-[70vh] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            <div className="min-h-screen space-y-6 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6 md:p-8">
+                <Card className="border-slate-200 bg-white/92 shadow-[0_22px_60px_-48px_rgba(15,23,42,0.22)]">
+                    <CardHeader className="gap-3">
+                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Planner Control Tower</div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <CardTitle className="text-3xl font-black text-slate-950">Planner Control Tower</CardTitle>
+                                <CardDescription className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                                    Pick the fulfilment path, review material policy handoff, and release work from one guided planner workspace.
+                                </CardDescription>
+                            </div>
+                            <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <Tabs value="planning" className="space-y-4">
+                            <TabsList className="h-auto rounded-2xl border border-slate-200 bg-white/92 p-1 shadow-sm">
+                                <TabsTrigger value="planning" aria-label="Planning queue" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                                    Planning Queue (0)
+                                </TabsTrigger>
+                                <TabsTrigger value="active" aria-label="Ready released" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                                    Ready / Released (0)
+                                </TabsTrigger>
+                                <TabsTrigger value="jobs" aria-label="Job board" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                                    Job Board (0)
+                                </TabsTrigger>
+                                <TabsTrigger value="history" aria-label="Completed orders" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                                    Completed Orders (0)
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                        <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+                            <Card className="border-slate-200 bg-slate-50/80 shadow-none">
+                                <CardContent className="space-y-3 p-5">
+                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Fulfillment path</div>
+                                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-700">
+                                        Assign Direct FG
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-700">
+                                        Use WIP / Invariant
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-700">
+                                        Make Fresh
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-slate-200 bg-white shadow-none">
+                                <CardHeader>
+                                    <CardTitle className="text-base font-black text-slate-900">Material policy handoff</CardTitle>
+                                    <CardDescription className="text-sm leading-6 text-slate-600">
+                                        Planner checks the material plan here. Only the Work Center Manager can change current-step issue rules.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-12 text-center text-sm text-slate-500">
+                                        Loading planner queue, completed orders, and release proof...
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-slate-200 bg-slate-50/80 shadow-none">
+                                <CardContent className="space-y-3 p-5">
+                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Planner-owned replenishment</div>
+                                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm leading-6 text-slate-600">
+                                        POD Stock Order and Packaging Stock stay in the planner launcher, not generic row actions.
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         )
     }
@@ -702,40 +781,31 @@ export default function PlannerControlTowerPage() {
                 </CardContent>
             </Card>
 
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
-                    <CardContent className="p-4">
+            <Card className="border-slate-200/80 bg-white/92 shadow-sm">
+                <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Planning Queue</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.planning_queue_count}</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
-                    <CardContent className="p-4">
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Ready / Released</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.ready_released_count}</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
-                    <CardContent className="p-4">
-                        <div className="text-[10px] uppercase font-bold text-slate-500">Blocked Rows</div>
-                        <div className="mt-1 text-2xl font-black text-amber-600">{kpis.queue_blocked_count}</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
-                    <CardContent className="p-4">
-                        <div className="text-[10px] uppercase font-bold text-slate-500">Completed Orders</div>
-                        <div className="mt-1 text-2xl font-black text-slate-900">{kpis.history_count}</div>
-                    </CardContent>
-                </Card>
-                <Card className="border-slate-200/80 bg-white/92 shadow-sm md:col-span-2">
-                    <CardContent className="p-4">
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                        <div className="text-[10px] uppercase font-bold text-slate-500">Blocked / Completed</div>
+                        <div className="mt-1 text-2xl font-black text-slate-900">{kpis.queue_blocked_count} / {kpis.history_count}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Queue KG Coverage</div>
                         <div className="mt-1 text-sm font-bold text-slate-700">
-                            Required {kpis.queue_required_qty_kg.toFixed(3)} KG · Allocatable {kpis.queue_allocatable_qty_kg.toFixed(3)} KG
+                            Required {kpis.queue_required_qty_kg.toFixed(3)} KG
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                            Allocatable {kpis.queue_allocatable_qty_kg.toFixed(3)} KG
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PlannerTab)} className="space-y-4">
                 <TabsList className="h-auto rounded-2xl border border-slate-200 bg-white/92 p-1 shadow-sm">
@@ -770,6 +840,51 @@ export default function PlannerControlTowerPage() {
                 </TabsList>
 
                 <TabsContent value="planning" className="space-y-4">
+                    <div className="grid gap-3 lg:grid-cols-3">
+                        <button
+                            type="button"
+                            onClick={() => focusPlannerFlow("FG")}
+                            className="rounded-[1.7rem] border border-slate-200 bg-white/92 px-5 py-5 text-left shadow-[0_18px_44px_-36px_rgba(15,23,42,0.22)] transition hover:border-slate-300 hover:bg-white"
+                        >
+                            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                <PackageCheck className="h-4 w-4" />
+                                Assign Direct FG
+                            </div>
+                            <div className="mt-3 text-lg font-black text-slate-950">Fastest path when final compatible stock is already available.</div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                                Keep the planner on finished stock first, then release only the rows that still need artwork or source proof.
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => focusPlannerFlow("WIP_CONTINUE")}
+                            className="rounded-[1.7rem] border border-slate-200 bg-white/92 px-5 py-5 text-left shadow-[0_18px_44px_-36px_rgba(15,23,42,0.22)] transition hover:border-slate-300 hover:bg-white"
+                        >
+                            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-indigo-700">
+                                <Layers3 className="h-4 w-4" />
+                                Use WIP / Invariant
+                            </div>
+                            <div className="mt-3 text-lg font-black text-slate-950">Resume compatible semi-finished stock with route-safe continuation.</div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                                This is the planner-owned route for invariant and upstream pools when direct FG does not exist.
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => focusPlannerFlow("FRESH")}
+                            className="rounded-[1.7rem] border border-slate-200 bg-white/92 px-5 py-5 text-left shadow-[0_18px_44px_-36px_rgba(15,23,42,0.22)] transition hover:border-slate-300 hover:bg-white"
+                        >
+                            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
+                                <Rocket className="h-4 w-4" />
+                                Make Fresh
+                            </div>
+                            <div className="mt-3 text-lg font-black text-slate-950">Launch a clean route when no usable finished or WIP source exists.</div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                                Keep fresh production deliberate and visible instead of burying it behind the full planner detail wall.
+                            </div>
+                        </button>
+                    </div>
+
                     {queueRows.length === 0 ? (
                         <Card className="border-dashed border-slate-300 bg-white">
                             <CardContent className="flex flex-col items-center justify-center py-20">
@@ -1136,9 +1251,9 @@ export default function PlannerControlTowerPage() {
                                                                 <div className="font-black">{sourceLabel(option)}</div>
                                                                 <div className="mt-1 text-xs font-medium opacity-80">
                                                                     {option === "FG"
-                                                                        ? "Fastest path when final compatible stock exists."
+                                                                        ? "Assign finished stock immediately when a final compatible match exists."
                                                                         : option === "WIP_CONTINUE"
-                                                                            ? "Resume compatible semi-finished inventory."
+                                                                            ? "Resume compatible semi-finished or invariant stock."
                                                                             : "Plan full fresh conversion from the route start."}
                                                                 </div>
                                                             </button>

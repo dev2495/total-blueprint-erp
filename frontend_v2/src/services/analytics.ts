@@ -255,6 +255,37 @@ export interface ReportDispatchRun {
     sent_at?: string | null;
 }
 
+export interface OperationalLogRow {
+    date: string;
+    type: string;
+    desc: string;
+    val: string;
+    user: string | null;
+    reference: string;
+    href: string;
+    event_type: string;
+    entity_type: string;
+    meta: Record<string, unknown>;
+}
+
+export interface TraceLookupPayload {
+    query: string;
+    matched_by?: string;
+    entity?: {
+        type: string;
+        id: string;
+        reference: string;
+        title: string;
+        subtitle?: string;
+        status?: string;
+    };
+    summary?: Record<string, unknown>;
+    timeline?: Array<Record<string, unknown>>;
+    related?: Array<Record<string, unknown>>;
+    specialized?: Record<string, unknown>;
+    error?: string;
+}
+
 export interface CapabilityMatrixEntry {
     capability_family: string;
     examples: string[];
@@ -333,9 +364,9 @@ export const analyticsApi = {
         const { data } = await api.get("/api/analytics/stock-overview/");
         return data;
     },
-    getOperationalLogs: async (filters: any = {}) => {
+    getOperationalLogs: async (filters: any = {}): Promise<OperationalLogRow[]> => {
         const { data } = await api.get("/api/analytics/operational-logs/", { params: filters });
-        return data;
+        return Array.isArray(data) ? data : [];
     },
     getScrapAnalysis: async (days: number = 30) => {
         const { data } = await api.get(`/api/analytics/scrap-analysis/`, { params: { days } });
@@ -440,6 +471,10 @@ export const analyticsApi = {
         if (typeof days === "number" && Number.isFinite(days)) params.days = days;
         const { data } = await api.get("/api/analytics/report-runs/", { params });
         return Array.isArray(data?.runs) ? data.runs : [];
+    },
+    traceLookup: async (query: string): Promise<TraceLookupPayload> => {
+        const { data } = await api.get("/api/analytics/trace/", { params: { q: query } });
+        return data as TraceLookupPayload;
     },
     getCapabilityMatrix: async (): Promise<CapabilityMatrixResponse> => {
         const { data } = await api.get("/api/analytics/capability-matrix/");

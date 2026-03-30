@@ -22,11 +22,13 @@ const steps = ["Intent", "Spec Capture", "Packaging", "Review"]
 
 type Line = { material_id: string; qty: number; uom?: string; basis?: string }
 type StockStrategy = "FINAL_STOCK" | "INTERMEDIATE_POOL" | "PACKAGING_STOCK"
+type LauncherMode = "FINAL_ROLL" | "SHARED_INVARIANT" | "BASE_UPSTREAM" | "POD_STOCK" | "PACKAGING_STOCK"
 
 export default function CreateStockOrderWizardPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [step, setStep] = useState(0)
+  const [launcherMode, setLauncherMode] = useState<LauncherMode>("FINAL_ROLL")
 
   const [name, setName] = useState("")
   const [templateId, setTemplateId] = useState("")
@@ -138,6 +140,37 @@ export default function CreateStockOrderWizardPage() {
     }
     return "FINAL_STOCK"
   }, [selectedTemplate, stockPurpose, stopsAtFinalStep])
+
+  const selectLauncherMode = (mode: LauncherMode) => {
+    setLauncherMode(mode)
+    if (mode === "PACKAGING_STOCK") {
+      setStockPurpose("PACKAGING")
+      setStockStrategy("PACKAGING_STOCK")
+      if (routeSteps.length) setStopStepIndex(routeLastIndex)
+      return
+    }
+
+    setStockPurpose("PRODUCT")
+    if (mode === "FINAL_ROLL") {
+      setStockStrategy("FINAL_STOCK")
+      if (routeSteps.length) setStopStepIndex(routeLastIndex)
+      return
+    }
+    if (mode === "SHARED_INVARIANT") {
+      setStockStrategy("INTERMEDIATE_POOL")
+      if (routeSteps.length) setStopStepIndex(routeLastIndex)
+      return
+    }
+    if (mode === "BASE_UPSTREAM") {
+      setStockStrategy("INTERMEDIATE_POOL")
+      if (routeSteps.length) setStopStepIndex(Math.max(Number(startStepIndex || 0), routeLastIndex > 0 ? routeLastIndex - 1 : 0))
+      return
+    }
+    if (mode === "POD_STOCK") {
+      setStockStrategy("FINAL_STOCK")
+      if (routeSteps.length) setStopStepIndex(routeLastIndex)
+    }
+  }
 
   const lookupErrors = [
     templatesQuery.isError ? `Templates: ${String((templatesQuery.error as any)?.response?.data?.detail || (templatesQuery.error as Error)?.message || "Failed to load.")}` : null,
@@ -400,13 +433,17 @@ export default function CreateStockOrderWizardPage() {
             </Button>
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-700">Planner Stock Launcher</div>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Create Stock Order</h1>
-              <p className="mt-2 text-sm text-slate-600">Route-based wizard with live snapshot, planner-owned replenishment intent, and review before create.</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                Start with the stock intent, choose where the route should stop, and only then capture the technical snapshot needed for that exact planner replenishment flow.
+              </p>
             </div>
-            {stockPurpose === "PACKAGING" && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-emerald-700">
-                This creates PACKAGING stock
-              </div>
-            )}
+            <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-right text-xs font-semibold text-slate-500">
+              {launcherMode === "PACKAGING_STOCK"
+                ? "Packaging replenishment"
+                : launcherMode === "POD_STOCK"
+                  ? "Planner POD replenishment"
+                  : "Route-based stock order"}
+            </div>
           </div>
         </section>
 
@@ -455,7 +492,67 @@ export default function CreateStockOrderWizardPage() {
                 <CardHeader>
                   <CardTitle>Intent</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <CardContent className="space-y-6">
+                  <div className="grid gap-3 xl:grid-cols-5">
+                    {([
+                      ["FINAL_ROLL", "Final Roll", "Finished stock for direct planner fulfilment once the final route signature is complete."],
+                      ["SHARED_INVARIANT", "Shared Invariant Roll", "Planner-owned semi-finished pool reused across compatible downstream demand."],
+                      ["BASE_UPSTREAM", "Base / Upstream Roll", "Stop earlier in the route and hold upstream material for later continuation."],
+                      ["POD_STOCK", "POD Stock Order", "Planner replenishment for POD-ready output while keeping the same route and proof model."],
+                      ["PACKAGING_STOCK", "Packaging Stock", "Create packaging supply outside the normal sales fulfilment stock pool."],
+                    ] as const).map(([value, title, description]) => {
+                      const selected = launcherMode === value
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => selectLauncherMode(value)}
+                          className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${selected ? "border-indigo-300 bg-indigo-50 shadow-[0_18px_45px_-36px_rgba(79,70,229,0.25)]" : "border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white"}`}
+                        >
+                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                            {value === "POD_STOCK" ? "Planner Flow" : value === "PACKAGING_STOCK" ? "Packaging" : "Stock Intent"}
+                          </div>
+                          <div className="mt-2 text-base font-black text-slate-950">{title}</div>
+                          <div className="mt-2 text-sm leading-6 text-slate-600">{description}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Current intent</div>
+                      <div className="mt-2 text-sm font-black text-slate-900">
+                        {launcherMode === "FINAL_ROLL"
+                          ? "Final Roll"
+                          : launcherMode === "SHARED_INVARIANT"
+                            ? "Shared Invariant Roll"
+                            : launcherMode === "BASE_UPSTREAM"
+                              ? "Base / Upstream Roll"
+                              : launcherMode === "POD_STOCK"
+                                ? "POD Stock Order"
+                                : "Packaging Stock"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Planner visibility</div>
+                      <div className="mt-2 text-sm font-black text-slate-900">
+                        {stockPurpose === "PACKAGING"
+                          ? "Packaging-only archive"
+                          : stockStrategy === "INTERMEDIATE_POOL"
+                            ? "Continue from WIP"
+                            : "Use Existing FG"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Route stop</div>
+                      <div className="mt-2 text-sm font-black text-slate-900">
+                        {templateId ? `Step ${stopStepIndex ?? routeLastIndex} of ${routeLastIndex}` : "Select template"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <Label>Name</Label>
                     <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Stock order name" />
@@ -488,6 +585,7 @@ export default function CreateStockOrderWizardPage() {
                         <SelectItem value="PACKAGING">PACKAGING MATERIAL</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
                   </div>
 
                   <div className="md:col-span-2">

@@ -487,10 +487,10 @@ export default function SalesSkuCatalogPage() {
 
             <PremiumSection
                 dataTestId="sales-sku-catalog-filters"
-                title="Catalog Filters"
-                description="Search across SKU and variant names, then narrow by activity, template, product form, and customer usage."
+                title="Search and Lens"
+                description="Keep the filter rail compact so the selected SKU and variant workspace stays visible immediately."
             >
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_180px_180px] 2xl:grid-cols-[minmax(260px,1.4fr)_180px_180px_220px_220px]">
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.35fr)_160px_160px_200px_220px]">
                         <div className="space-y-2">
                             <Label>Search</Label>
                             <div className="relative">
@@ -558,7 +558,7 @@ export default function SalesSkuCatalogPage() {
                             <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
                                 <div>
                                     <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Used by selected customer</div>
-                                    <div className="mt-1 text-xs text-slate-400">Show only SKUs already used by this customer.</div>
+                                    <div className="mt-1 text-xs text-slate-400">Keep the list focused on customer-proven SKUs only.</div>
                                 </div>
                                 <Switch checked={usageOnly} onCheckedChange={setUsageOnly} />
                             </div>
@@ -566,7 +566,7 @@ export default function SalesSkuCatalogPage() {
                     </div>
             </PremiumSection>
 
-            <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)_300px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
                     <PremiumSection
                         dataTestId="sales-sku-list-section"
                         title="Shared SKUs"
@@ -793,6 +793,79 @@ export default function SalesSkuCatalogPage() {
                                     </div>
                                 </PremiumSection>
                             )}
+                        </div>
+                        <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+                            <PremiumSection
+                                title="Catalog Inspector"
+                                description="Keep the commercial context, usage lens, and fast actions visible while you move through variants."
+                                actions={<Sparkles className="h-4 w-4 text-slate-400" />}
+                            >
+                                <div className="space-y-4">
+                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Usage lens</div>
+                                        <div className="mt-2 text-sm font-black text-slate-900">
+                                            {usageCustomerId === "all"
+                                                ? "All customers"
+                                                : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer lens"}
+                                        </div>
+                                        <div className="mt-2 text-xs leading-5 text-slate-500">
+                                            {usageOnly
+                                                ? "Left rail is narrowed to customer-proven SKUs only."
+                                                : "Full shared catalog remains visible while customer usage stays highlighted."}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Selected snapshot</div>
+                                        <div className="mt-3 space-y-3 text-sm">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-slate-500">SKU</span>
+                                                <span className="font-black text-slate-900">{selectedSku?.code || "No selection"}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-slate-500">Variant</span>
+                                                <span className="font-black text-slate-900">{selectedVariant?.code || "No selection"}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-slate-500">Template</span>
+                                                <span className="text-right font-black text-slate-900">{selectedVariant?.template_name || selectedSku?.template_name || "Missing"}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-slate-500">FG Type</span>
+                                                <span className="font-black text-slate-900">{selectedVariant?.finished_good_type || "—"}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-slate-500">POD</span>
+                                                <span className="font-black text-slate-900">{selectedVariant?.packaging_snapshot?.pod?.enabled ? "Enabled" : "Off"}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Fast actions</div>
+                                        <div className="mt-3 space-y-2">
+                                            <Button className="w-full justify-start" onClick={openCreateSkuDialog}>
+                                                <Plus className="mr-2 h-4 w-4" />
+                                                Create Shared SKU
+                                            </Button>
+                                            <Button className="w-full justify-start" variant="outline" onClick={selectedSku ? openCreateVariantDialog : undefined} disabled={!selectedSku}>
+                                                <Plus className="mr-2 h-4 w-4" />
+                                                Add Variant
+                                            </Button>
+                                            <Button className="w-full justify-start" variant="outline" onClick={() => setUsageDialogOpen(true)} disabled={!selectedVariant}>
+                                                <Clock3 className="mr-2 h-4 w-4" />
+                                                Open Usage History
+                                            </Button>
+                                            <Button className="w-full justify-start" variant="outline" asChild>
+                                                <Link href="/sales/orders/create">
+                                                    <ArrowUpRight className="mr-2 h-4 w-4" />
+                                                    Open Sales Order Entry
+                                                </Link>
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </PremiumSection>
                         </div>
                     </div>
             <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>

@@ -123,7 +123,8 @@ export default function OwnerDashboardPage() {
         queryKey: ["owner-control-tower", timeframe],
         queryFn: () => analyticsApi.getControlTowerStats(timeframe),
         refetchInterval: 30_000,
-        staleTime: 20_000,
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
     });
 
     useEffect(() => {
@@ -200,14 +201,25 @@ export default function OwnerDashboardPage() {
     const overdueCount = overdueAlerts.reduce((s: number, a: any) => s + (a.count || 0), 0);
     const draftCount = draftAlerts.reduce((s: number, a: any) => s + (a.count || 0), 0);
 
-    const isLoading = query.isLoading || query.isFetching;
+    const isInitialLoading = query.isLoading && !query.data;
+    const isRefreshing = query.isFetching && Boolean(query.data);
+
+    if (isInitialLoading) {
+        return (
+            <div className={styles.ownerDash}>
+                <div className={styles.heroCard} style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <RefreshCw size={20} className={styles.spin} style={{ color: "#818cf8" }} />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.ownerDash}>
 
             {/* ─── HERO HEADER ─── */}
             <div className={styles.heroCard}>
-                {isLoading && (
+                {isRefreshing && (
                     <div className={styles.loadingOverlay}>
                         <RefreshCw size={22} className={styles.spin} style={{ color: "#818cf8" }} />
                     </div>
@@ -234,8 +246,8 @@ export default function OwnerDashboardPage() {
                                 </button>
                             ))}
                         </div>
-                        <button className={styles.refreshBtn} onClick={() => query.refetch()} disabled={isLoading}>
-                            <RefreshCw size={12} className={isLoading ? styles.spin : ""} /> Refresh
+                        <button className={styles.refreshBtn} onClick={() => query.refetch()} disabled={isInitialLoading}>
+                            <RefreshCw size={12} className={query.isFetching ? styles.spin : ""} /> Refresh
                         </button>
                     </div>
                 </div>
