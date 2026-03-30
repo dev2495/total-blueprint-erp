@@ -676,22 +676,22 @@ export default function PlannerControlTowerPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/40 p-6 md:p-8 space-y-6">
-            <Card className="border-slate-200 bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white overflow-hidden">
+        <div className="min-h-screen space-y-6 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6 md:p-8">
+            <Card className="overflow-hidden border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_48%,#f7f8ec_100%)] text-slate-950 shadow-[0_30px_80px_-54px_rgba(15,23,42,0.28)]">
                 <CardContent className="p-6 md:p-8">
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-300">Planner Control Tower</div>
-                            <h1 className="mt-1 text-3xl font-black">Board + Drawer Workbench</h1>
-                            <p className="mt-2 text-sm text-slate-300 max-w-2xl">
-                                Pick the fulfilment path, review the material handoff, and release work in one guided workspace.
+                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-700">Planner Control Tower</div>
+                            <h1 className="mt-1 text-3xl font-black">Planner Control Tower</h1>
+                            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                                Pick the fulfilment path, review material handoff, and release work from one guided planner workspace.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            <Button asChild variant="outline" className="border-indigo-200/30 bg-indigo-500/10 text-indigo-50 hover:bg-indigo-500/20">
+                            <Button asChild variant="outline" className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
                                 <Link href="/engineering/templates">Template Studio</Link>
                             </Button>
-                            <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                            <Button asChild className="bg-slate-950 text-white hover:bg-slate-800">
                                 <Link href="/production/planner/stock-orders/create">
                                     <Plus className="h-4 w-4 mr-2" />
                                     Create Stock Order
@@ -703,31 +703,31 @@ export default function PlannerControlTowerPage() {
             </Card>
 
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <Card className="border-slate-200">
+                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
                     <CardContent className="p-4">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Planning Queue</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.planning_queue_count}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-slate-200">
+                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
                     <CardContent className="p-4">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Ready / Released</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.ready_released_count}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-slate-200">
+                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
                     <CardContent className="p-4">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Blocked Rows</div>
                         <div className="mt-1 text-2xl font-black text-amber-600">{kpis.queue_blocked_count}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-slate-200">
+                <Card className="border-slate-200/80 bg-white/92 shadow-sm">
                     <CardContent className="p-4">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Completed Orders</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.history_count}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-slate-200 md:col-span-2">
+                <Card className="border-slate-200/80 bg-white/92 shadow-sm md:col-span-2">
                     <CardContent className="p-4">
                         <div className="text-[10px] uppercase font-bold text-slate-500">Queue KG Coverage</div>
                         <div className="mt-1 text-sm font-bold text-slate-700">
@@ -738,17 +738,33 @@ export default function PlannerControlTowerPage() {
             </div>
 
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PlannerTab)} className="space-y-4">
-                <TabsList className="h-auto rounded-2xl border border-slate-200 bg-white p-1">
-                    <TabsTrigger value="planning" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                <TabsList className="h-auto rounded-2xl border border-slate-200 bg-white/92 p-1 shadow-sm">
+                    <TabsTrigger
+                        value="planning"
+                        aria-label="Planning queue"
+                        className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide"
+                    >
                         Planning Queue ({queueRows.length})
                     </TabsTrigger>
-                    <TabsTrigger value="active" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                    <TabsTrigger
+                        value="active"
+                        aria-label="Ready released"
+                        className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide"
+                    >
                         Ready / Released ({activeRows.length})
                     </TabsTrigger>
-                    <TabsTrigger value="jobs" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                    <TabsTrigger
+                        value="jobs"
+                        aria-label="Job board"
+                        className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide"
+                    >
                         Job Board ({jobs.length})
                     </TabsTrigger>
-                    <TabsTrigger value="history" className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide">
+                    <TabsTrigger
+                        value="history"
+                        aria-label="Completed orders"
+                        className="rounded-xl px-5 py-2 text-xs font-bold uppercase tracking-wide"
+                    >
                         Completed Orders ({historyRows.length})
                     </TabsTrigger>
                 </TabsList>
@@ -763,8 +779,8 @@ export default function PlannerControlTowerPage() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-                            <Card className="border-slate-200 bg-white">
+                        <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+                            <Card className="border-slate-200/80 bg-white/92 shadow-sm">
                                 <CardHeader className="pb-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <div>
@@ -821,7 +837,7 @@ export default function PlannerControlTowerPage() {
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="space-y-2 max-h-[70vh] overflow-auto pr-1">
+                                    <div className="space-y-2 max-h-[calc(100vh-18rem)] overflow-auto pr-1">
                                     {visibleQueueRows.map((row) => {
                                         const key = rowKey(row)
                                         const selected = selectedPlanningRowKey === key

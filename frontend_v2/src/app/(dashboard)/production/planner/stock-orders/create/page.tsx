@@ -390,22 +390,25 @@ export default function CreateStockOrderWizardPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 bg-[#f8fafc] min-h-screen">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.14),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6 lg:p-8">
       <div className="max-w-[1500px] mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <Button variant="ghost" className="pl-0 text-slate-500" onClick={() => router.push("/production/planner")}>
+        <section className="overflow-hidden rounded-[2.2rem] border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_48%,#f7f8ec_100%)] px-6 py-6 shadow-[0_30px_80px_-52px_rgba(15,23,42,0.26)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Button variant="ghost" className="pl-0 text-slate-500 hover:bg-transparent hover:text-slate-700" onClick={() => router.push("/production/planner")}>
               <ArrowLeft className="h-4 w-4 mr-2" /> Back to Planner
             </Button>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900">Create Stock Order</h1>
-            <p className="text-sm text-slate-500">Route-based wizard with live snapshot and preview.</p>
-          </div>
-          {stockPurpose === "PACKAGING" && (
-            <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-black uppercase tracking-wide">
-              This creates PACKAGING stock
+              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-700">Planner Stock Launcher</div>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Create Stock Order</h1>
+              <p className="mt-2 text-sm text-slate-600">Route-based wizard with live snapshot, planner-owned replenishment intent, and review before create.</p>
             </div>
-          )}
-        </div>
+            {stockPurpose === "PACKAGING" && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-emerald-700">
+                This creates PACKAGING stock
+              </div>
+            )}
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
           <div className="xl:col-span-2 space-y-6">
@@ -430,7 +433,7 @@ export default function CreateStockOrderWizardPage() {
               </Card>
             )}
 
-            <Card>
+            <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
               <CardHeader>
                 <CardTitle className="text-sm uppercase tracking-wide">Stepper</CardTitle>
               </CardHeader>
@@ -448,7 +451,7 @@ export default function CreateStockOrderWizardPage() {
             </Card>
 
             {step === 0 && (
-              <Card>
+              <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
                 <CardHeader>
                   <CardTitle>Intent</CardTitle>
                 </CardHeader>
@@ -660,7 +663,7 @@ export default function CreateStockOrderWizardPage() {
             )}
 
             {step === 1 && (
-              <Card>
+              <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
                 <CardHeader>
                   <CardTitle>Spec Capture</CardTitle>
                 </CardHeader>
@@ -776,7 +779,7 @@ export default function CreateStockOrderWizardPage() {
             )}
 
             {step === 2 && (
-              <Card>
+              <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
                 <CardHeader className="flex flex-row items-start justify-between gap-3">
                   <div>
                     <CardTitle>Packaging</CardTitle>
@@ -843,7 +846,7 @@ export default function CreateStockOrderWizardPage() {
             )}
 
             {step === 3 && (
-              <Card>
+              <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
                 <CardHeader>
                   <CardTitle>Review</CardTitle>
                   <CardDescription>Verify signatures, preview and payload before create.</CardDescription>
@@ -884,7 +887,7 @@ export default function CreateStockOrderWizardPage() {
           </div>
 
           <div className="xl:col-span-1 sticky top-6 space-y-4">
-            <Card>
+            <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4" /> Physics + BOM Preview</CardTitle>
               </CardHeader>

@@ -940,18 +940,18 @@ export default function MachineExecutionPage() {
 
     return (
         <div
-            className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-slate-50 via-blue-50/20 to-indigo-100/30 relative overflow-x-hidden transition-colors duration-1000"
+            className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] transition-colors duration-1000"
             data-testid="machine-execution-page"
         >
             {/* Ambient Background Glow */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-[-20%] right-[-10%] w-3/4 h-3/4 bg-blue-400/10 rounded-full blur-[160px] animate-pulse" />
-                <div className="absolute bottom-[10%] left-[-15%] w-2/3 h-2/3 bg-indigo-500/10 rounded-full blur-[140px] animate-pulse delay-1000" />
+                <div className="absolute top-[-20%] right-[-10%] h-3/4 w-3/4 rounded-full bg-blue-400/8 blur-[160px]" />
+                <div className="absolute bottom-[10%] left-[-15%] h-2/3 w-2/3 rounded-full bg-indigo-500/8 blur-[140px]" />
             </div>
 
             <div className="relative z-10 p-6 space-y-6 max-w-[1600px] mx-auto">
                 {/* Header Card */}
-                <Card className="border border-white/40 shadow-2xl shadow-blue-200/20 bg-white/40 backdrop-blur-2xl rounded-[2rem] overflow-hidden">
+                <Card className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/92 shadow-[0_28px_74px_-52px_rgba(15,23,42,0.24)]">
                     <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-blue-600 to-indigo-600" />
                     <CardContent className="p-6">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -1005,7 +1005,7 @@ export default function MachineExecutionPage() {
                 </Card>
 
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'execution' | 'history')} className="space-y-6 relative">
-                    <TabsList className="bg-white/50 backdrop-blur-md border border-slate-200/60 p-1 rounded-2xl h-12 shadow-sm">
+                    <TabsList className="h-12 rounded-2xl border border-slate-200/80 bg-white/92 p-1 shadow-sm">
                         <TabsTrigger value="execution" className="rounded-xl px-6 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all">
                             <Settings2 className="h-4 w-4 mr-2" />
                             RUN JOB
@@ -1018,7 +1018,7 @@ export default function MachineExecutionPage() {
 
                     <TabsContent value="execution" className="space-y-6 mt-0 outline-none animate-in fade-in duration-500">
                         {/* Horizontal Job Queue */}
-                        <Card className="border border-white/20 shadow-xl shadow-blue-200/10 bg-white/30 backdrop-blur-xl rounded-[2rem] overflow-hidden">
+                        <Card className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/92 shadow-[0_20px_56px_-44px_rgba(15,23,42,0.2)]">
                             <CardHeader className="py-3 px-6 border-b border-white/20 bg-white/10">
                                 <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center justify-between">
                                     <span>Live Job Queue ({safeQueueItems.length})</span>
@@ -1127,7 +1127,7 @@ export default function MachineExecutionPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-blue-100 bg-white/70 shadow-xl shadow-blue-200/10">
+                        <Card className="border border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#eef6ff_100%)] shadow-[0_20px_56px_-44px_rgba(37,99,235,0.16)]">
                             <CardContent className="grid gap-3 p-4 md:grid-cols-[1.2fr_repeat(4,1fr)]">
                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
                                     <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Kiosk focus for operators</div>
@@ -1154,7 +1154,7 @@ export default function MachineExecutionPage() {
 
                         <div className="grid grid-cols-12 gap-6 relative">
                             {/* Column 1: Material Inputs */}
-                            <Card className="col-span-4 border border-white/20 shadow-2xl shadow-blue-200/5 bg-white/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-320px)] transition-all duration-500">
+                            <Card className="col-span-4 flex h-[calc(100vh-320px)] flex-col overflow-hidden rounded-[2.5rem] border border-slate-200/80 bg-white/92 shadow-[0_22px_64px_-48px_rgba(15,23,42,0.22)] transition-all duration-500">
                                 <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <Package className="h-4 w-4 text-blue-600" />

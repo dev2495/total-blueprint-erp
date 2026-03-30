@@ -287,8 +287,28 @@ export const analyticsApi = {
         return data as SystemHealthResponse;
     },
     getControlTowerStats: async (timeframe: string = 'month'): Promise<ControlTowerStats> => {
-        const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
-        return data;
+        const hasSeededMetrics = (payload: any) =>
+            Array.isArray(payload?.metrics) &&
+            payload.metrics.some((metric: any) => metric?.id === "revenue" && Number(metric?.value || 0) > 0);
+
+        try {
+            const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
+            if (hasSeededMetrics(data) || typeof window === "undefined") {
+                return data;
+            }
+        } catch (error) {
+            if (typeof window === "undefined") {
+                throw error;
+            }
+        }
+
+        const response = await fetch(`/api/analytics/control-tower/?timeframe=${encodeURIComponent(timeframe)}`, {
+            credentials: "include",
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to load control tower stats (${response.status})`);
+        }
+        return (await response.json()) as ControlTowerStats;
     },
     getOrderTracking: async (orderId: string): Promise<OrderTrackingResponse> => {
         try {

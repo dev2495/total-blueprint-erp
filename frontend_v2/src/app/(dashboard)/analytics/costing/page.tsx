@@ -395,30 +395,30 @@ export default function CostingCenterPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_32%),linear-gradient(180deg,#f7f5ef_0%,#f9fbff_52%,#f4f7fb_100%)] px-6 py-8">
       <div className="mx-auto flex max-w-[1560px] flex-col gap-6">
-        <section className="overflow-hidden rounded-[34px] border border-slate-200/70 bg-[linear-gradient(138deg,#0f172a_0%,#172554_60%,#1d4ed8_100%)] px-8 py-8 text-white shadow-[0_30px_90px_rgba(15,23,42,0.24)]">
+        <section className="overflow-hidden rounded-[34px] border border-slate-200/70 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_46%,#f7f8ec_100%)] px-8 py-8 text-slate-950 shadow-[0_30px_90px_-56px_rgba(15,23,42,0.24)]">
           <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-sky-100">
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-sky-700">
                 <Layers3 className="h-4 w-4" /> Costing Center
               </div>
               <div className="space-y-3">
                 <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] tracking-[-0.04em]">
                   Close plant months, steer absorption, and manage costing groups from one calm command deck.
                 </h1>
-                <p className="max-w-3xl text-sm leading-6 text-slate-200/90">
+                <p className="max-w-3xl text-sm leading-6 text-slate-600">
                   Plants, work centers, machines, and monthly pools now share the same visible cost-group language. Pick the month, control allocations, and keep assignment gaps visible before the close is frozen.
                 </p>
               </div>
               <div className="grid gap-4 md:grid-cols-4">
-                <StatTile label="Coverage" value={`${summary?.kpis?.avg_actual_cost_coverage_pct?.toFixed?.(1) || "0.0"}%`} hint="Average actual-cost confidence" inverted />
-                <StatTile label="Unabsorbed Pool" value={money(summary?.kpis?.unabsorbed_pool_value)} hint="Still outside productive runtime" inverted />
-                <StatTile label="Groups" value={String(summary?.kpis?.cost_group_count || groups.length || 0)} hint="Editable cost buckets" inverted />
-                <StatTile label="Locked Months" value={String(summary?.kpis?.locked_months || 0)} hint="Frozen close periods" inverted />
+                <StatTile label="Coverage" value={`${summary?.kpis?.avg_actual_cost_coverage_pct?.toFixed?.(1) || "0.0"}%`} hint="Average actual-cost confidence" />
+                <StatTile label="Unabsorbed Pool" value={money(summary?.kpis?.unabsorbed_pool_value)} hint="Still outside productive runtime" />
+                <StatTile label="Groups" value={String(summary?.kpis?.cost_group_count || groups.length || 0)} hint="Editable cost buckets" />
+                <StatTile label="Locked Months" value={String(summary?.kpis?.locked_months || 0)} hint="Frozen close periods" />
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-white/12 bg-white/8 p-5 backdrop-blur">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-100/75">Workspace focus</div>
+            <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Workspace focus</div>
               <div className="mt-3 grid gap-3">
                 {[
                   {
@@ -436,10 +436,10 @@ export default function CostingCenterPage() {
                     key={panel.key}
                     type="button"
                     onClick={() => setView(panel.key)}
-                    className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${view === panel.key ? "border-white/18 bg-white/14" : "border-white/10 bg-black/10 hover:bg-white/10"}`}
+                    className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${view === panel.key ? "border-slate-900 bg-slate-950 text-white" : "border-slate-200 bg-white hover:bg-slate-50"}`}
                   >
-                    <div className="text-sm font-semibold text-white">{panel.title}</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-200/85">{panel.body}</div>
+                    <div className={`text-sm font-semibold ${view === panel.key ? "text-white" : "text-slate-900"}`}>{panel.title}</div>
+                    <div className={`mt-1 text-sm leading-6 ${view === panel.key ? "text-slate-200" : "text-slate-600"}`}>{panel.body}</div>
                   </button>
                 ))}
               </div>

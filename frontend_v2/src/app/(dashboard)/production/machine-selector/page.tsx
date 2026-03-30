@@ -97,17 +97,17 @@ export default function MachineSelectorPage() {
     if (machines.length === 1) return null;
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] overflow-hidden relative" data-testid="machine-selector-page">
+        <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)]" data-testid="machine-selector-page">
             {/* Rich Background Elements */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-100/50 blur-[120px]" />
-                <div className="absolute top-[20%] -right-[5%] w-[35%] h-[35%] rounded-full bg-indigo-100/40 blur-[100px]" />
-                <div className="absolute -bottom-[10%] left-[20%] w-[30%] h-[30%] rounded-full bg-slate-200/50 blur-[110px]" />
+                <div className="absolute -top-[10%] -left-[10%] h-[34%] w-[34%] rounded-full bg-blue-100/45 blur-[120px]" />
+                <div className="absolute top-[20%] -right-[5%] h-[28%] w-[28%] rounded-full bg-indigo-100/30 blur-[100px]" />
+                <div className="absolute -bottom-[10%] left-[20%] h-[24%] w-[24%] rounded-full bg-amber-100/35 blur-[110px]" />
             </div>
 
-            <div className="max-w-7xl mx-auto px-6 py-12 relative z-10">
+            <div className="relative z-10 mx-auto max-w-[1480px] px-6 py-10">
                 {/* Header Section */}
-                <div className="flex flex-col items-center text-center mb-16">
+                <div className="mb-12 rounded-[2.2rem] border border-slate-200/80 bg-white/88 px-8 py-10 text-center shadow-[0_28px_72px_-52px_rgba(15,23,42,0.24)]">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[10px] font-bold uppercase tracking-widest mb-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
                         Production Floor Terminal
                     </div>
@@ -117,7 +117,7 @@ export default function MachineSelectorPage() {
                     <p className="text-slate-500 text-lg max-w-2xl font-medium animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
                         You are currently assigned to {machines.length} active machines. Select a terminal below to begin monitoring and execution.
                     </p>
-                    <div className="mt-6 w-full max-w-xl rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+                    <div className="mt-6 mx-auto w-full max-w-xl rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm">
                         <div className="relative">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <Input
@@ -136,7 +136,7 @@ export default function MachineSelectorPage() {
                 </div>
 
                 {/* Machine Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {filteredMachines.map((machine, idx) => {
                         const isActive = machine.status === 'ACTIVE';
                         const isExecuting = Boolean(machine.current_job);
@@ -158,7 +158,7 @@ export default function MachineSelectorPage() {
 
                                 <Card
                                     className={cn(
-                                        'relative h-full bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-3xl overflow-hidden cursor-pointer hover:border-blue-400/50 transition-all duration-300 shadow-sm hover:shadow-2xl hover:-translate-y-2 flex flex-col',
+                                        'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/92 transition-all duration-300 hover:-translate-y-1 hover:border-blue-300/70 hover:shadow-[0_26px_60px_-44px_rgba(37,99,235,0.32)]',
                                         isLastUsed ? 'border-emerald-300/70 ring-1 ring-emerald-200' : '',
                                     )}
                                     data-testid={`machine-card-${machine.id}`}
@@ -271,9 +271,7 @@ export default function MachineSelectorPage() {
                                         </div>
 
                                         {/* Action Button Overlay Style */}
-                                        <Button
-                                            className="w-full h-11 bg-slate-900 hover:bg-blue-600 text-white border-none rounded-xl font-bold text-xs uppercase tracking-widest transition-all duration-300 shadow-lg shadow-slate-200 hover:shadow-blue-200"
-                                        >
+                                        <Button className="h-11 w-full rounded-xl border-none bg-slate-950 font-bold text-xs uppercase tracking-widest text-white shadow-lg shadow-slate-200 transition-all duration-300 hover:bg-blue-600 hover:shadow-blue-200">
                                             Enter Terminal
                                             <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                                         </Button>
@@ -291,7 +289,7 @@ export default function MachineSelectorPage() {
                 ) : null}
 
                 {/* Footer Meta */}
-                <div className="mt-20 text-center text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
+                <div className="mt-14 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 opacity-60">
                     Proprietary Production Intelligence System • v2.4.0
                 </div>
             </div>

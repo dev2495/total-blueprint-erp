@@ -798,6 +798,7 @@ export default function QuotationWorkspace() {
                 eyebrow="Quotation Studio"
                 title={draft.quote_number || "Sales Quote Studio"}
                 description="Lead with SKU-first commercial quoting. Keep the first viewport focused on customer, live SKU, quantity, quoted price, then save or PDF while the ERP keeps estimated cost guidance in view."
+                className="border-sky-200/70 bg-[linear-gradient(135deg,#2563eb_0%,#3b82f6_42%,#7dd3fc_100%)] shadow-[0_34px_80px_-46px_rgba(37,99,235,0.48)]"
                 actions={
                     <>
                         <Button variant="outline" className="rounded-2xl border-white/20 bg-white/10 text-white hover:bg-white/15" onClick={openNewQuote}>
@@ -816,33 +817,33 @@ export default function QuotationWorkspace() {
                 }
                 metrics={
                     <PremiumMetricStrip className="xl:grid-cols-4">
-                        <PremiumMetricCard label="Open Quotations" value={String(metrics.open)} hint="Draft or sent" tone="dark" />
-                        <PremiumMetricCard label="Converted" value={String(metrics.converted)} hint="Already turned into orders" tone="dark" />
-                        <PremiumMetricCard label="Saved Value" value={formatMoney(metrics.value, draft.currency)} hint="From saved commercial totals" tone="dark" />
-                        <PremiumMetricCard label="Avg Margin" value={`${metrics.avgMargin.toFixed(1)}%`} hint="Estimated quote margin" tone="dark" />
+                        <PremiumMetricCard label="Open Quotations" value={String(metrics.open)} hint="Draft or sent" tone="light" />
+                        <PremiumMetricCard label="Converted" value={String(metrics.converted)} hint="Already turned into orders" tone="light" />
+                        <PremiumMetricCard label="Saved Value" value={formatMoney(metrics.value, draft.currency)} hint="From saved commercial totals" tone="light" />
+                        <PremiumMetricCard label="Avg Margin" value={`${metrics.avgMargin.toFixed(1)}%`} hint="Estimated quote margin" tone="light" />
                     </PremiumMetricStrip>
                 }
             />
 
             <div className="grid gap-6 xl:grid-cols-[290px_minmax(0,1fr)]">
                 <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
-                    <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(180deg,#0f172a_0%,#18233f_48%,#f8f5ed_48%,#fffdf7_100%)] shadow-[0_28px_70px_-46px_rgba(15,23,42,0.38)]">
-                        <div className="px-5 py-5 text-white">
-                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-200/80">Quote rail</div>
+                    <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(180deg,#f7fbff_0%,#eef6ff_30%,#f8f5ed_62%,#fffdf7_100%)] shadow-[0_28px_70px_-46px_rgba(15,23,42,0.22)]">
+                        <div className="px-5 py-5 text-slate-950">
+                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-700">Quote rail</div>
                             <div className="mt-3 text-2xl font-black tracking-tight">Keep one commercial thread visible.</div>
-                            <div className="mt-2 text-sm leading-6 text-slate-300">
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
                                 Saved quotes, active lines, and the next line action stay together so sales never has to hunt around the page.
                             </div>
                         </div>
 
                         <div className="space-y-5 px-4 pb-4 pt-1">
-                            <div className="rounded-[1.6rem] border border-white/8 bg-white/5 px-4 py-4 text-white">
+                            <div className="rounded-[1.6rem] border border-sky-100 bg-white/88 px-4 py-4 text-slate-950 shadow-sm">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-300">Open quotes</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Open quotes</div>
                                         <div className="mt-2 text-2xl font-black">{metrics.open}</div>
                                     </div>
-                                    <Button variant="outline" className="rounded-2xl border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={openNewQuote}>
+                                    <Button variant="outline" className="rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50" onClick={openNewQuote}>
                                         <Plus className="mr-2 h-4 w-4" /> New
                                     </Button>
                                 </div>
@@ -868,14 +869,14 @@ export default function QuotationWorkspace() {
                                                 key={quotation.id}
                                                 type="button"
                                                 onClick={() => loadQuotation(quotation)}
-                                                className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${draft.id === quotation.id ? "border-slate-900 bg-slate-900 text-white shadow-xl" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                                                className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${draft.id === quotation.id ? "border-sky-200 bg-sky-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(59,130,246,0.22)]" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="min-w-0">
                                                         <div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">{quotation.quote_number}</div>
                                                         <div className="mt-2 truncate text-sm font-black">{quotation.customer_name}</div>
                                                     </div>
-                                                    <Badge className={`border ${draft.id === quotation.id ? "border-white/10 bg-white/10 text-white" : statusTone(quotation.status)}`}>
+                                                    <Badge className={`border ${draft.id === quotation.id ? "border-sky-200 bg-white text-sky-700" : statusTone(quotation.status)}`}>
                                                         {quotation.status}
                                                     </Badge>
                                                 </div>
@@ -895,7 +896,7 @@ export default function QuotationWorkspace() {
                                         <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Active lines</div>
                                         <div className="mt-1 text-base font-black text-slate-950">One line at a time</div>
                                     </div>
-                                    <Button className="rounded-2xl bg-slate-900 hover:bg-slate-800" data-testid="quotation-add-line" onClick={addLine}>
+                                    <Button className="rounded-2xl bg-indigo-600 hover:bg-indigo-500" data-testid="quotation-add-line" onClick={addLine}>
                                         <Plus className="mr-2 h-4 w-4" /> Add
                                     </Button>
                                 </div>
@@ -905,7 +906,7 @@ export default function QuotationWorkspace() {
                                             key={line.localId}
                                             type="button"
                                             onClick={() => setActiveLineId(line.localId)}
-                                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${line.localId === activeLineId ? "border-slate-900 bg-slate-900 text-white shadow-xl" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${line.localId === activeLineId ? "border-indigo-200 bg-indigo-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">

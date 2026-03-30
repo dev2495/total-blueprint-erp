@@ -139,7 +139,7 @@ export function ReportAdminCenter() {
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#0f172a_0%,#111827_22%,#f5f3ee_22%,#f8f6f1_100%)] p-6">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_24%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6">
         <Card className="mx-auto max-w-3xl rounded-[2rem] border-white/10 bg-white/95 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.6)]">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-2xl font-black text-slate-900">
@@ -156,14 +156,14 @@ export function ReportAdminCenter() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#0f172a_0%,#111827_24%,#f5f3ee_24%,#f8f6f1_100%)] p-6">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(253,224,71,0.12),_transparent_20%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6">
       <div className="mx-auto max-w-[1500px] space-y-6">
-        <section className="rounded-[2.4rem] border border-white/10 bg-slate-950/90 p-6 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.75)]">
+        <section className="rounded-[2.4rem] border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_48%,#f7f8ec_100%)] p-6 text-slate-950 shadow-[0_35px_90px_-52px_rgba(15,23,42,0.22)]">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-slate-300">Administration</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-700">Administration</div>
               <h1 className="mt-3 text-4xl font-black tracking-[-0.05em]">Report Center</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                 Daily packs are generated here, archived for 30 days, and kept ready for preview or direct PDF download.
                 Email can stay disabled without affecting archive generation or retrieval.
               </p>
@@ -171,7 +171,7 @@ export function ReportAdminCenter() {
             <div className="flex flex-wrap gap-3">
               <Button
                 variant="outline"
-                className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
+                className="rounded-full border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-50"
                 onClick={() => {
                   profilesQuery.refetch()
                   runsQuery.refetch()
@@ -181,7 +181,7 @@ export function ReportAdminCenter() {
                 Refresh archive
               </Button>
               <Button
-                className="rounded-full bg-white text-slate-950 hover:bg-slate-200"
+                className="rounded-full bg-slate-950 text-white hover:bg-slate-800"
                 disabled={saveMutation.isPending}
                 onClick={() => saveMutation.mutate()}
               >
@@ -192,21 +192,21 @@ export function ReportAdminCenter() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Active packs</div>
+            <div className="rounded-[1.6rem] border border-slate-200 bg-white/88 p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Active packs</div>
               <div className="mt-3 text-3xl font-black tracking-[-0.05em]">{totals.activePacks}</div>
             </div>
-            <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Configured recipients</div>
+            <div className="rounded-[1.6rem] border border-slate-200 bg-white/88 p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Configured recipients</div>
               <div className="mt-3 text-3xl font-black tracking-[-0.05em]">{totals.recipients}</div>
             </div>
-            <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Archive shelf</div>
+            <div className="rounded-[1.6rem] border border-slate-200 bg-white/88 p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Archive shelf</div>
               <div className="mt-3 text-3xl font-black tracking-[-0.05em]">{totals.archivedRuns}</div>
-              <div className="mt-2 text-xs text-slate-300">Latest 30 days of generated artifacts</div>
+              <div className="mt-2 text-xs text-slate-500">Latest 30 days of generated artifacts</div>
             </div>
-            <div className="rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Archived size</div>
+            <div className="rounded-[1.6rem] border border-slate-200 bg-white/88 p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Archived size</div>
               <div className="mt-3 text-3xl font-black tracking-[-0.05em]">{totals.archivedSizeMb.toFixed(1)} MB</div>
             </div>
           </div>
@@ -222,7 +222,7 @@ export function ReportAdminCenter() {
                 </div>
                 <Badge className="rounded-full border border-slate-200 bg-slate-50 text-slate-700">30-day retention</Badge>
               </div>
-              <div className="mt-5 grid gap-4">
+              <div className="mt-5 grid max-h-[calc(100vh-20rem)] gap-4 overflow-y-auto pr-2">
                 {(profiles.length ? profiles : Object.values(draftProfiles)).map((profile) => {
                   const draft = draftProfiles[profile.report_code] || profile
                   const latestRun = recentRunsByCode.get(profile.report_code)
@@ -231,7 +231,7 @@ export function ReportAdminCenter() {
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-3">
-                            <div className="rounded-full bg-slate-900 p-2 text-white">
+                            <div className="rounded-full bg-sky-100 p-2 text-sky-700">
                               <Mail className="h-4 w-4" />
                             </div>
                             <div>
@@ -308,7 +308,7 @@ export function ReportAdminCenter() {
                             <div>Latest status: <span className="font-semibold text-slate-900">{latestRun?.status || "No run yet"}</span></div>
                           </div>
                           <Button
-                            className="mt-4 w-full rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                            className="mt-4 w-full rounded-full bg-slate-950 text-white hover:bg-slate-800"
                             disabled={sendMutation.isPending}
                             onClick={() => sendMutation.mutate(profile.report_code)}
                           >
@@ -333,7 +333,7 @@ export function ReportAdminCenter() {
                 </div>
                 <Badge className="rounded-full border border-slate-200 bg-slate-50 text-slate-700">Last 30 days</Badge>
               </div>
-              <div className="mt-5 h-[760px] space-y-3 overflow-y-auto pr-4">
+              <div className="mt-5 h-[calc(100vh-20rem)] min-h-[520px] space-y-3 overflow-y-auto pr-4">
                   {runs.map((run) => (
                     <div key={run.id} className="rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-start justify-between gap-3">

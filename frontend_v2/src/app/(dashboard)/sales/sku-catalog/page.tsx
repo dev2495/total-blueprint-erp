@@ -464,6 +464,7 @@ export default function SalesSkuCatalogPage() {
                 eyebrow="Sales Catalog"
                 title="Shared SKUs and orderable variants"
                 description="Build elegant, sales-owned fast-entry presets with customer usage context, clear variant summaries, and a cleaner technical builder."
+                className="border-sky-200/70 bg-[linear-gradient(135deg,#2563eb_0%,#3b82f6_42%,#7dd3fc_100%)] shadow-[0_34px_80px_-46px_rgba(37,99,235,0.48)]"
                 actions={(
                     <>
                         <Button variant="outline" asChild className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white">
@@ -476,10 +477,10 @@ export default function SalesSkuCatalogPage() {
                 )}
                 metrics={(
                     <PremiumMetricStrip>
-                        <PremiumMetricCard label="Visible SKUs" value={filteredSkus.length} tone="dark" />
-                        <PremiumMetricCard label="Selected SKU" value={selectedSku?.code || "No selection"} tone="dark" valueClassName="text-lg sm:text-xl xl:text-[1.4rem]" />
-                        <PremiumMetricCard label="Selected Variants" value={selectedSkuVariants.length} tone="dark" />
-                        <PremiumMetricCard label="Usage Lens" value={usageCustomerId === "all" ? "All customers" : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer"} tone="dark" valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
+                        <PremiumMetricCard label="Visible SKUs" value={filteredSkus.length} tone="light" />
+                        <PremiumMetricCard label="Selected SKU" value={selectedSku?.code || "No selection"} tone="light" valueClassName="text-lg sm:text-xl xl:text-[1.4rem]" />
+                        <PremiumMetricCard label="Selected Variants" value={selectedSkuVariants.length} tone="light" />
+                        <PremiumMetricCard label="Usage Lens" value={usageCustomerId === "all" ? "All customers" : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer"} tone="light" valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
                     </PremiumMetricStrip>
                 )}
             />
@@ -565,15 +566,16 @@ export default function SalesSkuCatalogPage() {
                     </div>
             </PremiumSection>
 
-            <div className="grid min-w-0 gap-6 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
                     <PremiumSection
                         dataTestId="sales-sku-list-section"
                         title="Shared SKUs"
                         description="Sales-owned catalog headers used for fast order entry."
                         actions={<Sparkles className="h-5 w-5 text-slate-400" />}
+                        className="xl:sticky xl:top-6 xl:self-start"
                         contentClassName="p-3"
                     >
-                            <ScrollArea className="pr-2">
+                            <ScrollArea className="h-[calc(100vh-22rem)] min-h-[420px] pr-2">
                                 <div className="space-y-3">
                                     {!filteredSkus.length ? (
                                         <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
@@ -588,24 +590,24 @@ export default function SalesSkuCatalogPage() {
                                                 type="button"
                                                 data-testid="sales-sku-list-item"
                                                 onClick={() => setSelectedSkuId(sku.id)}
-                                                className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isActive ? "border-slate-900 bg-slate-900 text-white shadow-xl" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
+                                                className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isActive ? "border-sky-200 bg-sky-50 text-slate-950 shadow-[0_18px_45px_-34px_rgba(59,130,246,0.24)]" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="space-y-2">
                                                         <div className="text-sm font-black">{sku.code}</div>
-                                                        <div className={`text-sm ${isActive ? "text-white/85" : "text-slate-700"}`}>{sku.name}</div>
+                                                        <div className={`text-sm ${isActive ? "text-slate-700" : "text-slate-700"}`}>{sku.name}</div>
                                                         <div className="flex flex-wrap gap-2">
-                                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-white/20 bg-white/10 text-white" : skuStatusTone(sku.active)}`}>
+                                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-sky-200 bg-white text-sky-700" : skuStatusTone(sku.active)}`}>
                                                                 {sku.active ? "ACTIVE" : "INACTIVE"}
                                                             </span>
                                                             {usageCustomerId !== "all" && asNumber(sku.customer_usage_count, 0) > 0 ? (
-                                                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-white/20 bg-white/10 text-white" : "border-sky-200 bg-sky-50 text-sky-700"}`}>
+                                                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-sky-200 bg-white text-sky-700" : "border-sky-200 bg-sky-50 text-sky-700"}`}>
                                                                     {sku.customer_usage_count} use(s)
                                                                 </span>
                                                             ) : null}
                                                         </div>
                                                     </div>
-                                                    <div className={`max-w-[10rem] break-words text-right text-[11px] leading-5 ${isActive ? "text-white/70" : "text-slate-500"}`}>
+                                                    <div className={`max-w-[10rem] break-words text-right text-[11px] leading-5 ${isActive ? "text-slate-500" : "text-slate-500"}`}>
                                                         <div>{sku.variants.length} variants</div>
                                                         <div>{sku.template_name || "No template"}</div>
                                                     </div>
@@ -668,7 +670,7 @@ export default function SalesSkuCatalogPage() {
                                     description="Clone or update the exact structural presets used by Sales fast entry."
                                 >
                                         <div className="grid gap-4 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                                            <ScrollArea className="pr-3">
+                                            <ScrollArea className="h-[calc(100vh-30rem)] min-h-[360px] pr-3">
                                                 <div className="space-y-3">
                                                     {!selectedSkuVariants.length ? (
                                                         <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
@@ -683,20 +685,20 @@ export default function SalesSkuCatalogPage() {
                                                                 type="button"
                                                                 data-testid="sales-sku-variant-item"
                                                                 onClick={() => setSelectedVariantId(variant.id)}
-                                                                className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isSelected ? "border-slate-900 bg-slate-900 text-white shadow-xl" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
+                                                                className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isSelected ? "border-indigo-200 bg-indigo-50 text-slate-950 shadow-[0_18px_45px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
                                                             >
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="space-y-2">
                                                                         <div className="text-sm font-black">{variant.code}</div>
-                                                                        <div className={`text-sm ${isSelected ? "text-white/85" : "text-slate-700"}`}>{variant.name}</div>
+                                                                        <div className={`text-sm ${isSelected ? "text-slate-700" : "text-slate-700"}`}>{variant.name}</div>
                                                                         <div className="flex flex-wrap gap-2">
-                                                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isSelected ? "border-white/20 bg-white/10 text-white" : skuStatusTone(variant.active)}`}>
+                                                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isSelected ? "border-indigo-200 bg-white text-indigo-700" : skuStatusTone(variant.active)}`}>
                                                                                 {variant.active ? "ACTIVE" : "INACTIVE"}
                                                                             </span>
                                                                             <Badge variant="outline">{variant.finished_good_type}</Badge>
                                                                         </div>
                                                                     </div>
-                                                                    <div className={`text-right text-xs ${isSelected ? "text-white/70" : "text-slate-500"}`}>
+                                                                    <div className={`text-right text-xs ${isSelected ? "text-slate-500" : "text-slate-500"}`}>
                                                                         <div>{(variant.layer_snapshot || []).length} layer(s)</div>
                                                                         <div>{variant.finished_good_type === "ROLL"
                                                                             ? variant.roll_form || "FLAT"
@@ -711,7 +713,7 @@ export default function SalesSkuCatalogPage() {
                                             </ScrollArea>
 
                                             {selectedVariant ? (
-                                                <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
+                                                <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-[0_24px_54px_-44px_rgba(15,23,42,0.32)]">
                                                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                                                         <div className="space-y-3">
                                                             <div className="flex flex-wrap gap-2">
