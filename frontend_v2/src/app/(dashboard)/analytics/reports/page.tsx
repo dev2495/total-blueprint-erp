@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Activity,
     AlertTriangle,
+    BarChart3,
     Droplets,
     Factory,
     Filter,
@@ -18,19 +20,16 @@ import {
     ShoppingCart,
     Timer,
 } from "lucide-react";
-import Link from "next/link";
 
 import { analyticsApi, type ReportDispatchRun, type ReportDistributionProfile, type ReportTabResponse } from "@/services/analytics";
 import { factoryService } from "@/services/factory";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     PremiumHero,
     PremiumMetricCard,
@@ -67,7 +66,7 @@ function toLabel(key: string) {
     return String(key || "")
         .replaceAll("_", " ")
         .replaceAll("-", " ")
-        .replace(/\b\w/g, (m) => m.toUpperCase());
+        .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function toValue(value: unknown) {
@@ -80,37 +79,14 @@ function toValue(value: unknown) {
     return String(value);
 }
 
-function extractColumns(rows: Array<Record<string, any>>): string[] {
-    if (!rows.length) return [];
-    const preferred = [
-        "job_number",
-        "order_number",
-        "material_name",
-        "color_family",
-        "process_name",
-        "machine_name",
-        "shift_code",
-        "status",
-        "theoretical_qty",
-        "planned_issue_qty",
-        "actual_issued_qty",
-        "actual_consumed_qty",
-        "variance_qty",
-        "output_kg",
-        "scrap_kg",
-        "date",
-    ];
-    const keys = Object.keys(rows[0]);
-    return [...preferred.filter((k) => keys.includes(k)), ...keys.filter((k) => !preferred.includes(k))].slice(0, 12);
-}
-
 function formatSchedule(profile: ReportDistributionProfile) {
     return `${String(profile.schedule_hour).padStart(2, "0")}:${String(profile.schedule_minute).padStart(2, "0")}`;
 }
 
 export default function ReportsHubPage() {
-    const queryClient = useQueryClient()
-    const { toast } = useToast()
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+
     const [tab, setTab] = useState<ReportTabId>("production");
     const [plant, setPlant] = useState("ALL");
     const [processId, setProcessId] = useState("ALL");
@@ -123,37 +99,42 @@ export default function ReportsHubPage() {
         queryFn: factoryService.getPlants,
         staleTime: 300_000,
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
     const { data: processes = [] } = useQuery({
         queryKey: ["analytics-reports-processes"],
         queryFn: factoryService.getProcesses,
         staleTime: 300_000,
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
     const { data: shifts = [] } = useQuery({
         queryKey: ["analytics-reports-shifts", plant],
         queryFn: () => factoryService.getShifts(plant !== "ALL" ? plant : undefined),
         staleTime: 120_000,
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
+
     const reportProfilesQuery = useQuery<ReportDistributionProfile[]>({
         queryKey: ["analytics-report-distributions"],
         queryFn: analyticsApi.getReportDistributions,
         retry: (failureCount, error) => getApiErrorStatus(error) !== 403 && failureCount < 3,
-        staleTime: 120_000,
+        staleTime: 600_000,
         refetchOnWindowFocus: false,
-    })
+        refetchOnMount: false,
+        placeholderData: (previous) => previous,
+    });
+
     const reportRunsQuery = useQuery<ReportDispatchRun[]>({
         queryKey: ["analytics-report-runs", 8],
         queryFn: () => analyticsApi.getReportRuns(8),
         retry: (failureCount, error) => getApiErrorStatus(error) !== 403 && failureCount < 3,
-        staleTime: 60_000,
+        staleTime: 300_000,
         refetchOnWindowFocus: false,
-    })
-    const reportProfiles = reportProfilesQuery.data ?? []
-    const reportRuns = reportRunsQuery.data ?? []
-    const reportDeliveryAccessDenied =
-        getApiErrorStatus(reportProfilesQuery.error) === 403 || getApiErrorStatus(reportRunsQuery.error) === 403
+        refetchOnMount: false,
+        placeholderData: (previous) => previous,
+    });
 
     const filters = useMemo(
         () => ({
@@ -163,15 +144,16 @@ export default function ReportsHubPage() {
             date_from: dateFrom || undefined,
             date_to: dateTo || undefined,
         }),
-        [plant, processId, shift, dateFrom, dateTo]
+        [plant, processId, shift, dateFrom, dateTo],
     );
 
     const reportQuery = useQuery<ReportTabResponse>({
         queryKey: ["analytics-report-tab", tab, filters],
         queryFn: () => analyticsApi.getReportTab(tab, filters),
-        refetchInterval: 30000,
-        staleTime: 60_000,
+        staleTime: 300_000,
+        refetchInterval: 120_000,
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
         placeholderData: (previous) => previous,
     });
 
@@ -183,63 +165,101 @@ export default function ReportsHubPage() {
         warnings: [],
         coverage: {},
     };
-    const summary = payload.summary ?? payload.kpis ?? {};
-    const rows = (Array.isArray(payload.rows) ? payload.rows : []) as Array<Record<string, any>>;
-    const series = (Array.isArray(payload.series) ? payload.series : []) as Array<Record<string, any>>;
-    const columns = useMemo(() => extractColumns(rows), [rows]);
-    const warnings = payload.warnings || [];
-    const coverage = payload.coverage || {};
 
-    const summaryEntries = Object.entries(summary).slice(0, 8);
-    const selectedTab = REPORT_TABS.find((x) => x.id === tab) || REPORT_TABS[0];
+    const summary = payload.summary ?? payload.kpis ?? {};
+    const summaryEntries = Object.entries(summary).slice(0, 6);
+    const meaningfulSummaryEntries = summaryEntries.filter(([, value]) => value !== null && value !== undefined && value !== "");
+    const series = Array.isArray(payload.series) ? payload.series : [];
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const coverage = payload.coverage || {};
+    const warnings = payload.warnings || [];
+    const reportProfiles = reportProfilesQuery.data ?? [];
+    const reportRuns = reportRunsQuery.data ?? [];
+    const selectedTab = REPORT_TABS.find((item) => item.id === tab) || REPORT_TABS[0];
     const SelectedTabIcon = selectedTab.icon;
+    const latestRun = reportRuns[0] ?? null;
+    const seriesLeaders = useMemo(() => {
+        return series
+            .slice(0, 6)
+            .map((row, index) => ({
+                key: `${row.name || row.date || row.shift_code || index}`,
+                label: toValue(row.name ?? row.date ?? row.shift_code ?? `Series ${index + 1}`),
+                sublabel: toValue(row.process_name ?? row.machine_name ?? row.category ?? selectedTab.label),
+                value: Number(row.value ?? row.output_kg ?? row.scrap_kg ?? 0),
+            }))
+            .filter((row) => Number.isFinite(row.value));
+    }, [selectedTab.label, series]);
+    const leaderMax = useMemo(() => Math.max(...seriesLeaders.map((row) => row.value), 1), [seriesLeaders]);
+    const headlineMetrics = useMemo(
+        () =>
+            meaningfulSummaryEntries.length
+                ? meaningfulSummaryEntries.slice(0, 4).map(([key, value]) => ({ key, label: toLabel(key), value: toValue(value) }))
+                : [
+                      { key: "profiles", label: "Report Packs", value: reportProfiles.length || "Restricted" },
+                      { key: "runs", label: "Recent Runs", value: reportRuns.length },
+                      { key: "rows", label: "Active Rows", value: rows.length },
+                      { key: "signals", label: "Signal Lines", value: series.length },
+                  ],
+        [rows.length, series.length, meaningfulSummaryEntries, reportProfiles.length, reportRuns.length]
+    );
+
+    const reportDeliveryAccessDenied =
+        getApiErrorStatus(reportProfilesQuery.error) === 403 || getApiErrorStatus(reportRunsQuery.error) === 403;
+
     const manualSendMutation = useMutation({
         mutationFn: async (reportCode: string) => analyticsApi.sendReportDistribution(reportCode),
         onSuccess: () => {
-            toast({ title: "Report sent", description: "Daily PDF pack was generated and dispatched." })
-            queryClient.invalidateQueries({ queryKey: ["analytics-report-runs"] })
+            toast({ title: "Report sent", description: "Daily PDF pack was generated and dispatched." });
+            queryClient.invalidateQueries({ queryKey: ["analytics-report-runs"] });
         },
         onError: (error: any) => {
             toast({
                 variant: "destructive",
                 title: "Manual report send failed",
                 description: error?.response?.data?.detail || error?.message || "Send failed.",
-            })
+            });
         },
-    })
+    });
 
     return (
         <PremiumPageShell dataTestId="reports-hub-page">
             <PremiumHero
                 eyebrow="Analytics"
                 title="Reports Hub"
-                description="Shift-aware production, variance, lineage, and report-delivery telemetry in one lighter analytics workspace."
-                className="border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_45%,#ecfeff_100%)] text-slate-950 shadow-[0_34px_88px_-54px_rgba(15,23,42,0.22)]"
+                description="Fast summary first, active report detail second, and direct jumps into archive or PDF proof without a heavy full-page wait."
+                className="border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e3a8a_54%,#3b82f6_100%)]"
                 actions={(
                     <>
-                        <Button variant="outline" onClick={() => reportQuery.refetch()} disabled={reportQuery.isPending}>
+                        <Button
+                            variant="outline"
+                            className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white"
+                            onClick={() => reportQuery.refetch()}
+                        >
                             <RefreshCw className={`mr-2 h-4 w-4 ${reportQuery.isFetching ? "animate-spin" : ""}`} />
                             Refresh
                         </Button>
-                        <Button asChild variant="outline">
+                        <Button asChild variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white">
                             <Link href="/analytics/capability-matrix">Capability Matrix</Link>
+                        </Button>
+                        <Button asChild variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white">
+                            <Link href="/system/report-center">Open Report Center</Link>
                         </Button>
                     </>
                 )}
                 metrics={(
                     <PremiumMetricStrip className="xl:grid-cols-4">
-                        <PremiumMetricCard label="Active tab" value={selectedTab.label} valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
-                        <PremiumMetricCard label="Report packs" value={reportProfiles.length || "Restricted"} valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
-                        <PremiumMetricCard label="Recent report runs" value={reportRuns.length} />
-                        <PremiumMetricCard label="Execution log coverage" value={`${toValue(coverage.execution_log_coverage)}%`} valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
+                        <PremiumMetricCard label="Active tab" value={selectedTab.label} tone="dark" valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
+                        <PremiumMetricCard label="Report packs" value={reportProfiles.length || "Restricted"} tone="dark" />
+                        <PremiumMetricCard label="Recent report runs" value={reportRuns.length} tone="dark" />
+                        <PremiumMetricCard label="Execution log coverage" value={`${toValue(coverage.execution_log_coverage)}%`} tone="dark" hint={rows.length ? `${rows.length} active rows` : "Awaiting current-tab rows"} />
                     </PremiumMetricStrip>
                 )}
             />
 
-            <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+            <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)_360px]">
                 <PremiumSection
                     title="Filter Rail"
-                    description="Keep one active analytics lens without turning the page into a spreadsheet."
+                    description="Keep one active lens without turning the analytics surface into a spreadsheet."
                     actions={<Filter className="h-4 w-4 text-slate-400" />}
                     className="xl:sticky xl:top-6 xl:self-start"
                 >
@@ -250,8 +270,8 @@ export default function ReportsHubPage() {
                                 <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">All Plants</SelectItem>
-                                    {plants.map((p: any) => (
-                                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                    {plants.map((plantRow: any) => (
+                                        <SelectItem key={plantRow.id} value={plantRow.id}>{plantRow.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -262,8 +282,10 @@ export default function ReportsHubPage() {
                                 <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">All Processes</SelectItem>
-                                    {processes.map((p: any) => (
-                                        <SelectItem key={p.id} value={p.id}>{p.code} • {p.name}</SelectItem>
+                                    {processes.map((processRow: any) => (
+                                        <SelectItem key={processRow.id} value={processRow.id}>
+                                            {processRow.code} • {processRow.name}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -274,25 +296,24 @@ export default function ReportsHubPage() {
                                 <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">All Shifts</SelectItem>
-                                    {shifts.map((s: any) => (
-                                        <SelectItem key={s.id} value={String(s.code || "").toUpperCase()}>
-                                            {String(s.code || "").toUpperCase()} • {s.name || "Shift"}
+                                    {shifts.map((shiftRow: any) => (
+                                        <SelectItem key={shiftRow.id} value={String(shiftRow.code || "").toUpperCase()}>
+                                            {String(shiftRow.code || "").toUpperCase()} • {shiftRow.name || "Shift"}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                        <div className="grid gap-3">
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Date From</Label>
-                                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                                <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Date To</Label>
-                                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                                <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
                             </div>
                         </div>
-
                         <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/80 p-4">
                             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Coverage</div>
                             <div className="mt-3 space-y-2 text-sm">
@@ -315,8 +336,8 @@ export default function ReportsHubPage() {
 
                 <div className="min-w-0 space-y-6">
                     <PremiumSection
-                        title={selectedTab.label}
-                        description="Only the active tab loads its heavy drill payload. Existing data stays visible while the next refresh is happening."
+                        title="Reporting overview"
+                        description="Keep the summary stable, make the active report tab do the heavy lifting, and jump into the exact report route from here."
                         actions={(
                             <div className="flex items-center gap-2 text-xs text-slate-500">
                                 <SelectedTabIcon className="h-4 w-4 text-indigo-600" />
@@ -325,122 +346,197 @@ export default function ReportsHubPage() {
                             </div>
                         )}
                     >
-                        <div className="space-y-4">
-                            <Tabs value={tab} onValueChange={(v) => setTab(v as ReportTabId)}>
-                                <TabsList className="grid h-auto grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white p-1 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9">
-                                    {REPORT_TABS.map((item) => {
-                                        const Icon = item.icon;
-                                        return (
-                                            <TabsTrigger
-                                                key={item.id}
-                                                value={item.id}
-                                                className="gap-1.5 rounded-xl py-2 text-[11px] font-bold uppercase tracking-wide"
-                                            >
-                                                <Icon className="h-3.5 w-3.5" />
-                                                {item.label}
-                                            </TabsTrigger>
-                                        );
-                                    })}
-                                </TabsList>
-                            </Tabs>
-
-                            {warnings.length > 0 && (
-                                <Card className="border-amber-200 bg-amber-50/60 shadow-none">
-                                    <CardContent className="space-y-2 p-4">
-                                        {warnings.map((msg, i) => (
-                                            <div key={`warn-${i}`} className="flex items-start gap-2 text-xs text-amber-800">
-                                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5" />
-                                                <span>{msg}</span>
-                                            </div>
-                                        ))}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                {summaryEntries.map(([key, value]) => (
-                                    <Card key={key} className="border-slate-200 shadow-none">
-                                        <CardContent className="p-4">
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">{toLabel(key)}</div>
-                                            <div className="mt-1 text-xl font-black text-slate-900">{toValue(value)}</div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                                {!summaryEntries.length && (
-                                    <Card className="border-slate-200 shadow-none sm:col-span-2 xl:col-span-4">
-                                        <CardContent className="p-4 text-sm text-slate-500">
-                                            {reportQuery.isPending ? "Loading summary..." : "No summary metrics for selected filters."}
-                                        </CardContent>
-                                    </Card>
-                                )}
+                        <div className="space-y-5">
+                            <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9">
+                                {REPORT_TABS.map((item) => {
+                                    const Icon = item.icon;
+                                    const active = tab === item.id;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => setTab(item.id)}
+                                            className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
+                                                active
+                                                    ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                            }`}
+                                        >
+                                            <Icon className="h-3.5 w-3.5" />
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-                                <Card className="border-slate-200 shadow-none">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="flex items-center gap-2 text-base">
-                                            <Activity className="h-4 w-4 text-slate-500" />
-                                            Series
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <ScrollArea className="h-[420px] pr-3">
-                                            <div className="space-y-2">
-                                                {series.length === 0 && <div className="text-sm text-slate-500">No series for this tab.</div>}
-                                                {series.slice(0, 24).map((row, idx) => (
-                                                    <div key={`series-${idx}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm">
-                                                        <span className="truncate text-slate-700">{toValue(row.name ?? row.date ?? row.shift_code ?? `Series ${idx + 1}`)}</span>
-                                                        <span className="font-semibold text-slate-900">{toValue(row.value ?? row.output_kg ?? row.scrap_kg)}</span>
+                            {warnings.length > 0 ? (
+                                <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50/60 p-4">
+                                    <div className="space-y-2">
+                                        {warnings.map((message, index) => (
+                                            <div key={`${message}-${index}`} className="flex items-start gap-2 text-sm text-amber-800">
+                                                <AlertTriangle className="mt-0.5 h-4 w-4" />
+                                                <span>{message}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            <PremiumMetricStrip className="xl:grid-cols-4">
+                                {headlineMetrics.map((metric) => (
+                                    <PremiumMetricCard
+                                        key={metric.key}
+                                        label={metric.label}
+                                        value={metric.value}
+                                        valueClassName="text-base sm:text-lg xl:text-[1.2rem]"
+                                    />
+                                ))}
+                            </PremiumMetricStrip>
+
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)]">
+                                <div className="space-y-4">
+                                    <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4">
+                                        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                            <Activity className="h-4 w-4 text-indigo-600" />
+                                            Live Reporting Signals
+                                        </div>
+                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                            {meaningfulSummaryEntries.slice(0, 4).map(([key, value]) => (
+                                                <div key={`signal-${key}`} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{toLabel(key)}</div>
+                                                    <div className="mt-2 text-xl font-black text-slate-950">{toValue(value)}</div>
+                                                </div>
+                                            ))}
+                                            {!meaningfulSummaryEntries.length ? (
+                                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 sm:col-span-2">
+                                                    Current tab has no summary metrics yet, so the hub is falling back to recent-run and coverage proof instead.
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4">
+                                        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                            <BarChart3 className="h-4 w-4 text-slate-700" />
+                                            Signal bars
+                                        </div>
+                                        <div className="mt-4 space-y-3">
+                                            {seriesLeaders.length ? seriesLeaders.map((row) => (
+                                                <div key={row.key} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="truncate text-sm font-black text-slate-900">{row.label}</div>
+                                                            <div className="mt-1 truncate text-xs text-slate-500">{row.sublabel}</div>
+                                                        </div>
+                                                        <div className="text-sm font-black text-slate-900">{toValue(row.value)}</div>
                                                     </div>
-                                                ))}
+                                                    <div className="mt-3 h-2 rounded-full bg-slate-100">
+                                                        <div
+                                                            className="h-full rounded-full bg-[linear-gradient(90deg,#2563eb_0%,#60a5fa_55%,#22c55e_100%)]"
+                                                            style={{ width: `${Math.max((row.value / leaderMax) * 100, 8)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                                                    Signal bars will appear as soon as the active report returns chart rows.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4">
+                                        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                            <Factory className="h-4 w-4 text-slate-700" />
+                                            Throughput Leaders
+                                        </div>
+                                        <ScrollArea className="mt-4 h-[300px] pr-3">
+                                            <div className="space-y-3">
+                                                {series.length ? series.slice(0, 18).map((row, index) => (
+                                                    <div key={`${row.name || row.date || index}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-sm font-black text-slate-900">
+                                                                    {toValue(row.name ?? row.date ?? row.shift_code ?? `Series ${index + 1}`)}
+                                                                </div>
+                                                                <div className="mt-1 text-xs text-slate-500">
+                                                                    {toValue(row.process_name ?? row.machine_name ?? row.category ?? selectedTab.label)}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-sm font-black text-slate-900">
+                                                                {toValue(row.value ?? row.output_kg ?? row.scrap_kg)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )) : (
+                                                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                                                        No execution telemetry has been seeded yet. The green runner injects controlled telemetry so this section fills on the next full release pass.
+                                                    </div>
+                                                )}
                                             </div>
                                         </ScrollArea>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
 
-                                <Card className="border-slate-200 shadow-none">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base">Drill Table</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {rows.length === 0 ? (
-                                            <div className="py-12 text-center text-sm text-slate-500">
-                                                No rows in this period for current filters.
-                                            </div>
-                                        ) : (
-                                            <ScrollArea className="h-[420px] rounded-xl border border-slate-200">
-                                                <table className="w-full text-xs">
-                                                    <thead className="bg-slate-50">
-                                                        <tr>
-                                                            {columns.map((col) => (
-                                                                <th key={col} className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-600">
-                                                                    {toLabel(col)}
-                                                                </th>
-                                                            ))}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {rows.slice(0, 120).map((row, rowIndex) => (
-                                                            <tr key={`row-${rowIndex}`} className="border-t border-slate-100">
-                                                                {columns.map((col) => (
-                                                                    <td key={`${rowIndex}-${col}`} className="px-3 py-2 text-slate-800">
-                                                                        {toValue(row[col])}
-                                                                    </td>
-                                                                ))}
-                                                            </tr>
+                                <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4">
+                                    <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                        <Activity className="h-4 w-4 text-indigo-600" />
+                                        Active report workspace
+                                    </div>
+                                    <ScrollArea className="mt-4 h-[520px] pr-3">
+                                        <div className="space-y-3">
+                                            {rows.length ? rows.slice(0, 36).map((row, index) => (
+                                                <div key={`row-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                    <div className="grid gap-3 sm:grid-cols-2">
+                                                        {Object.entries(row).slice(0, 6).map(([key, value]) => (
+                                                            <div key={`${index}-${key}`}>
+                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{toLabel(key)}</div>
+                                                                <div className="mt-1 text-sm font-semibold text-slate-900">{toValue(value)}</div>
+                                                            </div>
                                                         ))}
-                                                    </tbody>
-                                                </table>
-                                            </ScrollArea>
-                                        )}
-                                    </CardContent>
-                                </Card>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-slate-500">
+                                                    No rows in this period for the current filters.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </ScrollArea>
+                                </div>
                             </div>
                         </div>
                     </PremiumSection>
                 </div>
 
                 <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+                    <PremiumSection
+                        title="Quick report access"
+                        description="Jump straight into the latest proof path without scanning the whole hub."
+                        actions={<SelectedTabIcon className="h-4 w-4 text-slate-400" />}
+                    >
+                        <div className="space-y-3">
+                            <Link href="/system/report-center" className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white">
+                                <span>Open report archive</span>
+                                <RefreshCw className="h-4 w-4 text-slate-400" />
+                            </Link>
+                            <Link href={`/analytics/reports/${tab}`} className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white">
+                                <span>Open current report route</span>
+                                <BarChart3 className="h-4 w-4 text-slate-400" />
+                            </Link>
+                            {latestRun ? (
+                                <a
+                                    href={analyticsApi.getReportRunPreviewUrl(latestRun.id)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                                >
+                                    <span>Preview latest PDF</span>
+                                    <Send className="h-4 w-4 text-slate-400" />
+                                </a>
+                            ) : null}
+                        </div>
+                    </PremiumSection>
                     {reportDeliveryAccessDenied ? (
                         <PremiumSection title="Report Delivery Restricted" description="Report pack recipients, dispatch history, and PDF previews are only available to report admins.">
                             <div className="text-sm text-slate-600">Analytics tabs remain available, but the delivery rail is hidden for this role.</div>
@@ -449,13 +545,13 @@ export default function ReportsHubPage() {
                         <>
                             <PremiumSection
                                 title="Report delivery"
-                                description="Daily pack schedules and manual-send controls stay visible without dominating the page."
+                                description="Current recipients, latest run proof, and manual daily-pack control without leaving the hub."
                                 actions={<Mail className="h-4 w-4 text-slate-400" />}
                             >
-                                <ScrollArea className="h-[360px] pr-3">
+                                <ScrollArea className="h-[320px] pr-3">
                                     <div className="space-y-3">
                                         {reportProfiles.map((profile) => {
-                                            const latestRun = reportRuns.find((run) => run.report_code === profile.report_code)
+                                            const latestRun = reportRuns.find((run) => run.report_code === profile.report_code);
                                             return (
                                                 <div key={profile.report_code} className="rounded-[1.35rem] border border-slate-200 bg-slate-50/70 p-4">
                                                     <div className="flex items-start justify-between gap-3">
@@ -487,7 +583,7 @@ export default function ReportsHubPage() {
                                                         )}
                                                     </div>
                                                 </div>
-                                            )
+                                            );
                                         })}
                                     </div>
                                 </ScrollArea>
@@ -495,10 +591,10 @@ export default function ReportsHubPage() {
 
                             <PremiumSection
                                 title="Recent report runs"
-                                description="Latest archive history and preview links."
+                                description="Archive history and direct preview links."
                                 actions={<Send className="h-4 w-4 text-slate-400" />}
                             >
-                                <ScrollArea className="h-[300px] pr-3">
+                                <ScrollArea className="h-[320px] pr-3">
                                     <div className="space-y-3">
                                         {reportRuns.slice(0, 8).map((run) => (
                                             <div key={run.id} className="rounded-[1.35rem] border border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-600">

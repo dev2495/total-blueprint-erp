@@ -755,7 +755,7 @@ export default function PlannerControlTowerPage() {
     }
 
     return (
-        <div className="min-h-screen space-y-6 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6 md:p-8">
+        <div className="min-h-screen space-y-5 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.14),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6 md:p-8">
             <Card className="overflow-hidden border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_48%,#f7f8ec_100%)] text-slate-950 shadow-[0_30px_80px_-54px_rgba(15,23,42,0.28)]">
                 <CardContent className="p-6 md:p-8">
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -763,7 +763,7 @@ export default function PlannerControlTowerPage() {
                             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-700">Planner Control Tower</div>
                             <h1 className="mt-1 text-3xl font-black">Planner Control Tower</h1>
                             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                                Pick the fulfilment path, review material handoff, and release work from one guided planner workspace.
+                                One queue rail, one decision plane, one release inspector. Pick the row, choose the fulfilment path, then clear only the blockers that matter.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -782,9 +782,9 @@ export default function PlannerControlTowerPage() {
             </Card>
 
             <Card className="border-slate-200/80 bg-white/92 shadow-sm">
-                <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+                <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_1.2fr]">
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                        <div className="text-[10px] uppercase font-bold text-slate-500">Planning Queue</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500">Queue</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.planning_queue_count}</div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -795,8 +795,8 @@ export default function PlannerControlTowerPage() {
                         <div className="text-[10px] uppercase font-bold text-slate-500">Blocked / Completed</div>
                         <div className="mt-1 text-2xl font-black text-slate-900">{kpis.queue_blocked_count} / {kpis.history_count}</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                        <div className="text-[10px] uppercase font-bold text-slate-500">Queue KG Coverage</div>
+                    <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#eff6ff_46%,#eef2ff_100%)] px-4 py-3">
+                        <div className="text-[10px] uppercase font-bold text-slate-500">Coverage snapshot</div>
                         <div className="mt-1 text-sm font-bold text-slate-700">
                             Required {kpis.queue_required_qty_kg.toFixed(3)} KG
                         </div>
@@ -894,16 +894,16 @@ export default function PlannerControlTowerPage() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+                        <div className="grid items-start gap-4 xl:grid-cols-[270px_minmax(0,1fr)_290px]">
                             <Card className="border-slate-200/80 bg-white/92 shadow-sm">
                                 <CardHeader className="pb-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <div>
                                             <CardTitle className="text-sm font-black text-slate-900 flex items-center gap-2">
                                                 <Layers3 className="h-4 w-4 text-indigo-600" />
-                                                Queue Rail
+                                                Queue rail
                                             </CardTitle>
-                                            <CardDescription>Artwork-gated and operationally blocked rows are promoted first.</CardDescription>
+                                            <CardDescription>Keep the queue short, select one row, and stay on that order until it is clean enough to release.</CardDescription>
                                         </div>
                                         <Badge variant="outline" className="bg-slate-50">
                                             {visibleQueueRows.length} shown · {queueRows.length} live
@@ -952,7 +952,7 @@ export default function PlannerControlTowerPage() {
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="space-y-2 max-h-[calc(100vh-18rem)] overflow-auto pr-1">
+                                    <div className="space-y-2 max-h-[calc(100vh-19rem)] overflow-auto pr-1">
                                     {visibleQueueRows.map((row) => {
                                         const key = rowKey(row)
                                         const selected = selectedPlanningRowKey === key
@@ -1044,14 +1044,14 @@ export default function PlannerControlTowerPage() {
                                     <CardHeader className="pb-4">
                                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                             <div>
-                                                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600">Order Summary</div>
+                                                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600">Active order</div>
                                                 <CardTitle className="mt-1 text-2xl font-black text-slate-950">
                                                     {selectedPlanningRow?.order_number || "Select queue row"}
                                                 </CardTitle>
                                                 <CardDescription className="mt-1 max-w-2xl">
                                                     {selectedPlanningRow
                                                         ? `${selectedFactSheet?.customer_name || selectedFactSheet?.display_name || selectedPlanningRow.template_name} · ${selectedPlanningRow.template_name}`
-                                                        : "Select a queue row from the rail to start guided planning."}
+                                                        : "Select a queue row from the left rail to open the guided decision plane."}
                                                 </CardDescription>
                                             </div>
                                             {selectedPlanningRow ? (
@@ -1076,52 +1076,41 @@ export default function PlannerControlTowerPage() {
                                             </div>
                                         ) : (
                                             <div className="space-y-4">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {["1 Order summary", "2 Artwork gate", "3 Source decision", "4 Claim / split", "5 Release"].map((step, index) => (
-                                                        <div
-                                                            key={step}
-                                                            className={cn(
-                                                                "rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]",
-                                                                index === 1 && artworkGateActive
-                                                                    ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                                    : "border-slate-200 bg-white text-slate-500"
-                                                            )}
-                                                        >
-                                                            {step}
+                                                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,0.95fr)]">
+                                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-4 py-4">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Fulfillment snapshot</div>
+                                                        <div className="mt-2 text-lg font-black text-slate-950">
+                                                            {selectedSourceSummary?.recommended_label || "Review source"}
                                                         </div>
-                                                    ))}
-                                                </div>
-                                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Due date</div>
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            <Badge variant="outline" className="bg-white">{selectedFactSheet?.release_risk || "LOW"} risk</Badge>
+                                                            <Badge variant="outline" className="bg-white">{stockStrategyLabel(selectedFactSheet?.stock_strategy || selectedPlanningRow.stock_strategy)}</Badge>
+                                                        </div>
+                                                        <div className="mt-3 text-xs leading-5 text-slate-500">
+                                                            Keep only the lane choice, release risk, and handoff policy visible by default. The rest stays behind one secondary facts block.
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Required output</div>
+                                                        <div className="mt-2 text-lg font-black text-slate-950">
+                                                            {Number(selectedFactSheet?.required_qty_kg || 0).toFixed(3)} KG
+                                                        </div>
+                                                        <div className="mt-1 text-xs text-slate-500">
+                                                            {selectedFactSheet?.required_qty_pcs ? `${Number(selectedFactSheet.required_qty_pcs).toFixed(0)} PCS` : "KG-led order"}
+                                                        </div>
+                                                        <div className="mt-4 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Due date</div>
                                                         <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
                                                             <CalendarDays className="h-4 w-4 text-indigo-600" />
                                                             {formatDateLabel(selectedFactSheet?.delivery_date)}
                                                         </div>
                                                     </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Required output</div>
-                                                        <div className="mt-1 text-sm font-semibold text-slate-900">
-                                                            {Number(selectedFactSheet?.required_qty_kg || 0).toFixed(3)} KG
-                                                            {selectedFactSheet?.required_qty_pcs ? ` · ${Number(selectedFactSheet.required_qty_pcs).toFixed(0)} PCS` : ""}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Recommended path</div>
-                                                        <div className="mt-1 text-sm font-semibold text-slate-900">
-                                                            {selectedSourceSummary?.recommended_label || "Review source"}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Release risk</div>
-                                                        <div className="mt-1 text-sm font-semibold text-slate-900">
-                                                            {selectedFactSheet?.release_risk || "LOW"}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Stock strategy</div>
-                                                        <div className="mt-1 text-sm font-semibold text-slate-900">
+                                                    <div className="rounded-[1.5rem] border border-indigo-200 bg-indigo-50/75 px-4 py-4">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Material handoff</div>
+                                                        <div className="mt-2 text-base font-black text-slate-950">
                                                             {stockStrategyLabel(selectedFactSheet?.stock_strategy || selectedPlanningRow.stock_strategy)}
+                                                        </div>
+                                                        <div className="mt-2 text-xs leading-5 text-slate-600">
+                                                            Planner reviews the route-safe material policy here. WCM only takes over if execution needs a live exception.
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1145,14 +1134,14 @@ export default function PlannerControlTowerPage() {
                                                         <div>
                                                             <div className="text-sm font-black text-slate-900">Order facts</div>
                                                             <div className="text-xs text-slate-500">
-                                                                Keep only the critical release facts visible by default.
+                                                                Default to only the release-critical facts. Expand the rest only if needed.
                                                             </div>
                                                         </div>
                                                         <Button variant="ghost" size="sm" onClick={() => setShowExtendedDetails((prev) => !prev)}>
                                                             {showExtendedDetails ? "Hide detail" : "Show more"}
                                                         </Button>
                                                     </div>
-                                                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm">
+                                                    <div className="mt-3 grid gap-3 md:grid-cols-2 text-sm">
                                                         <div>
                                                             <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Customer / row</div>
                                                             <div className="mt-1 font-semibold text-slate-900">{selectedFactSheet?.customer_name || "Internal stock"}</div>
@@ -1173,7 +1162,7 @@ export default function PlannerControlTowerPage() {
                                                                 {stockStrategyHint(selectedFactSheet?.stock_strategy || selectedPlanningRow.stock_strategy)}
                                                             </div>
                                                         </div>
-                                                        <div>
+                                                        <div className="md:col-span-2">
                                                             <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Current status</div>
                                                             <div className="mt-1 font-semibold text-slate-900">{selectedFactSheet?.status || selectedPlanningRow.status}</div>
                                                         </div>
@@ -1212,7 +1201,7 @@ export default function PlannerControlTowerPage() {
                                                     <div>
                                                         <CardTitle className="text-base font-black text-slate-900">Source decision</CardTitle>
                                                         <CardDescription>
-                                                            Choose the fulfilment path first, then allocate compatible stock if needed.
+                                                            Make the fulfilment call first. Keep the decision explicit, then allocate only the compatible stock you actually need.
                                                         </CardDescription>
                                                         <div className="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                                                             Fulfillment path
@@ -1226,7 +1215,7 @@ export default function PlannerControlTowerPage() {
                                                 </div>
                                             </CardHeader>
                                             <CardContent className="space-y-4">
-                                                <div className="grid gap-2 sm:grid-cols-3">
+                                                <div className="grid gap-3 sm:grid-cols-3">
                                                     {(["FG", "WIP_CONTINUE", "FRESH"] as const).map((option) => {
                                                         const active = getPlanState(selectedPlanningRow).option === option
                                                         const enabled = isSourceOptionEnabled(selectedPlanningRow, option)
@@ -1240,21 +1229,21 @@ export default function PlannerControlTowerPage() {
                                                                 }}
                                                                 disabled={!enabled}
                                                                 className={cn(
-                                                                    "rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                                                                    "rounded-[1.4rem] border px-4 py-4 text-left text-sm font-semibold transition",
                                                                     active
-                                                                        ? "border-indigo-300 bg-indigo-50 text-indigo-700 shadow-sm"
+                                                                        ? "border-indigo-300 bg-indigo-50 text-indigo-700 shadow-[0_18px_44px_-34px_rgba(99,102,241,0.26)]"
                                                                         : enabled
-                                                                            ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                                                                            ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                                                                             : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                                                                 )}
                                                             >
                                                                 <div className="font-black">{sourceLabel(option)}</div>
                                                                 <div className="mt-1 text-xs font-medium opacity-80">
                                                                     {option === "FG"
-                                                                        ? "Assign finished stock immediately when a final compatible match exists."
+                                                                        ? "Use compatible finished stock immediately."
                                                                         : option === "WIP_CONTINUE"
-                                                                            ? "Resume compatible semi-finished or invariant stock."
-                                                                            : "Plan full fresh conversion from the route start."}
+                                                                            ? "Resume compatible invariant or upstream stock."
+                                                                            : "Launch a clean route from the required start step."}
                                                                 </div>
                                                             </button>
                                                         )
@@ -1278,7 +1267,10 @@ export default function PlannerControlTowerPage() {
                                                 ) : null}
 
                                                 <div className="space-y-2">
-                                                    <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">Eligible inventory pool</div>
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">Eligible inventory pool</div>
+                                                        <div className="text-[11px] text-slate-500">Allocate only what this row needs.</div>
+                                                    </div>
                                                     <div className="space-y-2">
                                                         {(selectedPlanningRow.workspace?.inventory_options || selectedPlanningRow.inventory_options || [])
                                                             .filter((inv) => {
@@ -1558,10 +1550,10 @@ export default function PlannerControlTowerPage() {
                                             <CardHeader className="pb-3">
                                                 <CardTitle className="text-sm font-black flex items-center gap-2 text-slate-900">
                                                     <ClipboardList className="h-4 w-4 text-indigo-600" />
-                                                    Release checklist
+                                                    Next-step inspector
                                                 </CardTitle>
                                                 <CardDescription>
-                                                    Release stays disabled until every blocking item is resolved.
+                                                    Keep only the active blockers, artwork proof, and release truth in view.
                                                 </CardDescription>
                                             </CardHeader>
                                             <CardContent className="space-y-2">

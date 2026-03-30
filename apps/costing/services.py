@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Avg, Case, Count, DecimalField, ExpressionWrapper, F, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -589,7 +589,36 @@ class CostingService:
             cls.calculate_order_cost(item)
 
     @classmethod
-    def get_financial_summary(cls, year: int = None, month: int = None, date_from=None, date_to=None) -> dict[str, Any]:
+    def purge_orphan_order_costs(cls) -> int:
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM costing_order_costs AS coc
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM sales_order_items AS soi
+                        WHERE soi.id = coc.sales_order_item_id
+                    )
+                    """
+                )
+                removed = int(cursor.rowcount or 0)
+            if removed:
+                logger.warning("Purged %s orphan costing_order_costs rows before financial summary.", removed)
+            return removed
+        except Exception:
+            logger.exception("Failed to purge orphan costing_order_costs rows.")
+            return 0
+
+    @classmethod
+    def get_financial_summary(
+        cls,
+        year: int = None,
+        month: int = None,
+        date_from=None,
+        date_to=None,
+        ensure_costs: bool = False,
+    ) -> dict[str, Any]:
         today = timezone.now().date()
         if not year and not month and not date_from:
             year = today.year
@@ -605,7 +634,9 @@ class CostingService:
             start_date = datetime(year, 1, 1).date()
             end_date = today
 
-        cls.ensure_costs_for_period(date_from=start_date, date_to=end_date)
+        if ensure_costs:
+            cls.purge_orphan_order_costs()
+            cls.ensure_costs_for_period(date_from=start_date, date_to=end_date)
 
         items = SalesOrderItem.objects.filter(
             sales_order__created_at__date__gte=start_date,

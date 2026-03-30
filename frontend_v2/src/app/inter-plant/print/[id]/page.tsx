@@ -80,38 +80,42 @@ export default function InterPlantStandalonePrintPage() {
     };
 
     return (
-        <div className="h-screen w-full bg-white flex flex-col">
-            <div className="p-3 border-b bg-white flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-slate-700">Inter-Plant DC Print Preview</div>
-                <div className="flex items-center gap-2">
-                    {pdfBlobUrl && (
-                        <a
-                            href={pdfBlobUrl}
-                            download
-                            className="text-xs border rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-                        >
-                            Download PDF
-                        </a>
-                    )}
-                    <Button size="sm" onClick={triggerPrint} disabled={loading}>
-                        {loading ? 'Loading PDF...' : 'Print DC'}
-                    </Button>
+        <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
+            <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white shadow-xl">
+                <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inter-Plant Challan PDF</div>
+                        <h1 className="mt-1 text-2xl font-black text-slate-900">Preview and Print</h1>
+                        <p className="mt-1 text-sm text-slate-500">Challan ID {challanId || '—'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild disabled={!pdfBlobUrl && !pdfUrl}>
+                            <a href={pdfBlobUrl || pdfUrl} target="_blank" rel="noreferrer">
+                                Open PDF
+                            </a>
+                        </Button>
+                        <Button onClick={triggerPrint} disabled={!pdfBlobUrl && !pdfUrl}>
+                            Print
+                        </Button>
+                    </div>
+                </div>
+                <div className="space-y-4 px-6 py-5">
+                    {loading ? <div className="text-sm text-slate-500">Loading PDF preview…</div> : null}
+                    {loadError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{loadError}</div> : null}
+                    {popupBlocked ? (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                            Popup was blocked. Use &quot;Open PDF&quot; and print from the viewer.
+                        </div>
+                    ) : null}
+                    {!loading && !loadError ? (
+                        <iframe
+                            title="Inter-Plant Challan PDF Preview"
+                            src={pdfBlobUrl || pdfUrl}
+                            className="h-[75vh] w-full rounded-2xl border border-slate-200"
+                        />
+                    ) : null}
                 </div>
             </div>
-            {popupBlocked && (
-                <div className="px-3 py-2 text-xs text-amber-700 border-b bg-amber-50">
-                    Popup blocked by browser. Use Download PDF and print from the opened file.
-                </div>
-            )}
-            {loadError ? (
-                <div className="p-4 text-sm text-red-600">{loadError}</div>
-            ) : (
-                <object data={pdfBlobUrl || undefined} type="application/pdf" className="w-full flex-1">
-                    <div className="p-4 text-sm">
-                        PDF preview unavailable. Use <span className="font-semibold">Download PDF</span>.
-                    </div>
-                </object>
-            )}
         </div>
     );
 }

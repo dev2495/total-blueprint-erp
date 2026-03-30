@@ -309,6 +309,12 @@ export interface CapabilityMatrixResponse {
 }
 
 export const analyticsApi = {
+    normalizeControlTowerStats: (payload: any): ControlTowerStats => {
+        if (payload && typeof payload === "object" && payload.data && typeof payload.data === "object") {
+            return payload.data as ControlTowerStats;
+        }
+        return (payload ?? {}) as ControlTowerStats;
+    },
     performMaintenance: async (action: 'clear_cache' | 'vacuum_db'): Promise<{ success: boolean; message: string }> => {
         const { data } = await api.post("/api/analytics/maintenance/", { action });
         return data;
@@ -324,8 +330,9 @@ export const analyticsApi = {
 
         try {
             const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
-            if (hasSeededMetrics(data) || typeof window === "undefined") {
-                return data;
+            const normalized = analyticsApi.normalizeControlTowerStats(data);
+            if (hasSeededMetrics(normalized) || typeof window === "undefined") {
+                return normalized;
             }
         } catch (error) {
             if (typeof window === "undefined") {
@@ -339,7 +346,7 @@ export const analyticsApi = {
         if (!response.ok) {
             throw new Error(`Failed to load control tower stats (${response.status})`);
         }
-        return (await response.json()) as ControlTowerStats;
+        return analyticsApi.normalizeControlTowerStats(await response.json());
     },
     getOrderTracking: async (orderId: string): Promise<OrderTrackingResponse> => {
         try {
@@ -409,8 +416,30 @@ export const analyticsApi = {
         return data;
     },
     getWcmDashboard: async (): Promise<any> => {
-        const { data } = await api.get("/api/analytics/wcm-dashboard/");
-        return data;
+        const hasExecutionTelemetry = (payload: any) =>
+            Number(payload?.hero?.active_work_centers || 0) > 0 ||
+            Number(payload?.summary?.machines_running || 0) > 0 ||
+            (Array.isArray(payload?.machine_clusters) && payload.machine_clusters.length > 0) ||
+            (Array.isArray(payload?.recent_activity) && payload.recent_activity.length > 0);
+
+        try {
+            const { data } = await api.get("/api/analytics/wcm-dashboard/");
+            if (hasExecutionTelemetry(data) || typeof window === "undefined") {
+                return data;
+            }
+        } catch (error) {
+            if (typeof window === "undefined") {
+                throw error;
+            }
+        }
+
+        const response = await fetch("/api/analytics/wcm-dashboard/", {
+            credentials: "include",
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to load WCM dashboard (${response.status})`);
+        }
+        return await response.json();
     },
     // ── Dedicated Report APIs ──
     getReportProduction: async (filters: AnalyticsFilterParams = {}): Promise<any> => {

@@ -118,13 +118,16 @@ const INV_COLORS = ["#6366f1", "#06b6d4", "#10b981"];
 export default function OwnerDashboardPage() {
     const [timeframe, setTimeframe] = useState("month");
     const [countdown, setCountdown] = useState(30);
+    const [showHeavyBands, setShowHeavyBands] = useState(false);
 
     const query = useQuery({
         queryKey: ["owner-control-tower", timeframe],
         queryFn: () => analyticsApi.getControlTowerStats(timeframe),
-        refetchInterval: 30_000,
-        staleTime: 60_000,
+        refetchInterval: 60_000,
+        staleTime: 300_000,
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        placeholderData: (previous) => previous,
     });
 
     useEffect(() => {
@@ -132,6 +135,12 @@ export default function OwnerDashboardPage() {
         const iv = setInterval(() => setCountdown(c => (c <= 1 ? 30 : c - 1)), 1000);
         return () => clearInterval(iv);
     }, [query.dataUpdatedAt, timeframe]);
+
+    useEffect(() => {
+        setShowHeavyBands(false);
+        const handle = window.setTimeout(() => setShowHeavyBands(true), 220);
+        return () => window.clearTimeout(handle);
+    }, [timeframe]);
 
     const data = query.data ?? ({} as any);
     const metrics: any[] = data.metrics ?? [];
@@ -201,29 +210,13 @@ export default function OwnerDashboardPage() {
     const overdueCount = overdueAlerts.reduce((s: number, a: any) => s + (a.count || 0), 0);
     const draftCount = draftAlerts.reduce((s: number, a: any) => s + (a.count || 0), 0);
 
-    const isInitialLoading = query.isLoading && !query.data;
     const isRefreshing = query.isFetching && Boolean(query.data);
-
-    if (isInitialLoading) {
-        return (
-            <div className={styles.ownerDash}>
-                <div className={styles.heroCard} style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <RefreshCw size={20} className={styles.spin} style={{ color: "#818cf8" }} />
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className={styles.ownerDash}>
 
             {/* ─── HERO HEADER ─── */}
             <div className={styles.heroCard}>
-                {isRefreshing && (
-                    <div className={styles.loadingOverlay}>
-                        <RefreshCw size={22} className={styles.spin} style={{ color: "#818cf8" }} />
-                    </div>
-                )}
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
                     <div>
                         <h1 className={styles.heroTitle}>🏭 Owner Command Deck</h1>
@@ -234,7 +227,7 @@ export default function OwnerDashboardPage() {
                     <div className={styles.heroControls}>
                         <div className={styles.countdownBadge}>
                             <span className={styles.liveDot} />
-                            LIVE · {countdown}s
+                            LIVE · {countdown}s {isRefreshing ? "· syncing" : ""}
                         </div>
                         <div className={styles.timeframeTabs}>
                             {(["day", "week", "month", "year"] as const).map(tf => (
@@ -246,7 +239,7 @@ export default function OwnerDashboardPage() {
                                 </button>
                             ))}
                         </div>
-                        <button className={styles.refreshBtn} onClick={() => query.refetch()} disabled={isInitialLoading}>
+                        <button className={styles.refreshBtn} onClick={() => query.refetch()}>
                             <RefreshCw size={12} className={query.isFetching ? styles.spin : ""} /> Refresh
                         </button>
                     </div>
@@ -310,6 +303,15 @@ export default function OwnerDashboardPage() {
                 )}
             </div>
 
+            {!showHeavyBands ? (
+                <div className={`${styles.glassCard} ${styles.animUp}`} style={{ marginBottom: 14, animationDelay: "150ms" }}>
+                    <div className={styles.sectionTitle}><RefreshCw size={13} className={query.isFetching ? styles.spin : ""} /> Loading lower analytics bands</div>
+                    <div className={styles.emptyState} style={{ minHeight: 120 }}>
+                        Executive summary stays visible immediately while deeper charts, mix views, and heavy trend bands mount in the background.
+                    </div>
+                </div>
+            ) : (
+            <>
             {/* ─── ROW 4: REVENUE TREND + INVENTORY MIX ─── */}
             <div className={`${styles.chartsGrid} ${styles.animUp}`} style={{ animationDelay: "150ms" }}>
                 {/* Revenue Trend */}
@@ -670,6 +672,8 @@ export default function OwnerDashboardPage() {
                     </div>
                 </div>
             </div>
+            </>
+            )}
 
             {/* ─── ERROR ─── */}
             {query.isError && (

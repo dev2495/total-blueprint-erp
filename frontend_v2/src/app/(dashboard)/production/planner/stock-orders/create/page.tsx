@@ -434,7 +434,7 @@ export default function CreateStockOrderWizardPage() {
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-700">Planner Stock Launcher</div>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Create Stock Order</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Start with the stock intent, choose where the route should stop, and only then capture the technical snapshot needed for that exact planner replenishment flow.
+                Start with the stock intent, choose the route stop, and reveal only the fields that matter for that exact replenishment lane.
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-right text-xs font-semibold text-slate-500">
@@ -472,7 +472,8 @@ export default function CreateStockOrderWizardPage() {
 
             <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
               <CardHeader>
-                <CardTitle className="text-sm uppercase tracking-wide">Stepper</CardTitle>
+                <CardTitle className="text-sm uppercase tracking-wide">Planner flow</CardTitle>
+                <CardDescription>Choose intent first, keep technical capture secondary, and review only what the selected lane needs.</CardDescription>
               </CardHeader>
               <CardContent className="flex items-center gap-2 flex-wrap">
                 {steps.map((s, idx) => (
@@ -489,17 +490,18 @@ export default function CreateStockOrderWizardPage() {
 
             {step === 0 && (
               <Card className="rounded-[1.9rem] border-slate-200/80 bg-white/92 shadow-[0_24px_64px_-48px_rgba(15,23,42,0.24)]">
-                <CardHeader>
-                  <CardTitle>Intent</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid gap-3 xl:grid-cols-5">
+              <CardHeader>
+                <CardTitle>Choose stock intent first</CardTitle>
+                <CardDescription>Start from the replenishment lane. The page should feel like five clear launches, not one long technical wizard.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     {([
-                      ["FINAL_ROLL", "Final Roll", "Finished stock for direct planner fulfilment once the final route signature is complete."],
-                      ["SHARED_INVARIANT", "Shared Invariant Roll", "Planner-owned semi-finished pool reused across compatible downstream demand."],
-                      ["BASE_UPSTREAM", "Base / Upstream Roll", "Stop earlier in the route and hold upstream material for later continuation."],
-                      ["POD_STOCK", "POD Stock Order", "Planner replenishment for POD-ready output while keeping the same route and proof model."],
-                      ["PACKAGING_STOCK", "Packaging Stock", "Create packaging supply outside the normal sales fulfilment stock pool."],
+                      ["FINAL_ROLL", "Final Roll", "Direct finished stock for compatible demand."],
+                      ["SHARED_INVARIANT", "Shared Invariant Roll", "Reusable semi-finished pool for downstream continuation."],
+                      ["BASE_UPSTREAM", "Base / Upstream Roll", "Stop earlier and hold upstream stock."],
+                      ["POD_STOCK", "POD Stock Order", "Planner-owned POD replenishment."],
+                      ["PACKAGING_STOCK", "Packaging Stock", "Packaging replenishment outside sales fulfilment."],
                     ] as const).map(([value, title, description]) => {
                       const selected = launcherMode === value
                       return (
@@ -535,7 +537,7 @@ export default function CreateStockOrderWizardPage() {
                       </div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Planner visibility</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Planner lane</div>
                       <div className="mt-2 text-sm font-black text-slate-900">
                         {stockPurpose === "PACKAGING"
                           ? "Packaging-only archive"
@@ -552,98 +554,186 @@ export default function CreateStockOrderWizardPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <Label>Name</Label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Stock order name" />
-                  </div>
-                  <div>
-                    <Label>Template</Label>
-                    <Select value={templateId} onValueChange={setTemplateId} disabled={templatesQuery.isError}>
-                      <SelectTrigger><SelectValue placeholder="Select template" /></SelectTrigger>
-                      <SelectContent>
-                        {templates.map((t: any) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="mb-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Core setup</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-700">Name the order, choose the route, set quantity, and stop at the exact route step you want to stock.</div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <Label>Name</Label>
+                          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Stock order name" />
+                        </div>
+                        <div>
+                          <Label>Template</Label>
+                          <Select value={templateId} onValueChange={setTemplateId} disabled={templatesQuery.isError}>
+                            <SelectTrigger><SelectValue placeholder="Select template" /></SelectTrigger>
+                            <SelectContent>
+                              {templates.map((t: any) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                  <div>
-                    <Label>Plant (optional)</Label>
-                    <Select value={plantId} onValueChange={setPlantId} disabled={plantsQuery.isError}>
-                      <SelectTrigger><SelectValue placeholder="Auto" /></SelectTrigger>
-                      <SelectContent>
-                        {plants.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Purpose</Label>
-                    <Select value={stockPurpose} onValueChange={(v: any) => setStockPurpose(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PRODUCT">PRODUCT</SelectItem>
-                        <SelectItem value="PACKAGING">PACKAGING MATERIAL</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  </div>
+                        <div>
+                          <Label>Plant (optional)</Label>
+                          <Select value={plantId} onValueChange={setPlantId} disabled={plantsQuery.isError}>
+                            <SelectTrigger><SelectValue placeholder="Auto" /></SelectTrigger>
+                            <SelectContent>
+                              {plants.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Purpose</Label>
+                          <Select value={stockPurpose} onValueChange={(v: any) => setStockPurpose(v)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PRODUCT">PRODUCT</SelectItem>
+                              <SelectItem value="PACKAGING">PACKAGING MATERIAL</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                  <div className="md:col-span-2">
-                    <Label>How will this stock be consumed later?</Label>
-                    <Select
-                      value={stockStrategy}
-                      onValueChange={(value: StockStrategy) => setStockStrategy(value)}
-                      disabled={stockPurpose === "PACKAGING" || !stopsAtFinalStep}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stockPurpose === "PACKAGING" ? (
-                          <SelectItem value="PACKAGING_STOCK">Packaging stock</SelectItem>
-                        ) : !stopsAtFinalStep ? (
-                          <SelectItem value="INTERMEDIATE_POOL">Intermediate pool</SelectItem>
-                        ) : (
-                          <>
-                            <SelectItem value="FINAL_STOCK">Direct finished stock</SelectItem>
-                            <SelectItem value="INTERMEDIATE_POOL">Intermediate pool for later continuation</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-2 text-xs text-slate-500">
-                      {stockPurpose === "PACKAGING"
-                        ? "Packaging stock stays outside sales fulfilment sourcing."
-                        : !stopsAtFinalStep
-                        ? "This order stops before the final route step, so it must remain an intermediate pool."
-                        : stockStrategy === "INTERMEDIATE_POOL"
-                        ? "Planner will surface this output only in Continue from WIP when invariant signatures match."
-                        : "Planner will surface this output as direct-consumable finished stock when final specs match."}
-                    </p>
-                  </div>
+                        <div>
+                          <Label>Quantity</Label>
+                          <Input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value || 0))} />
+                        </div>
+                        <div>
+                          <Label>Quantity UOM</Label>
+                          <Select value={quantityUom} onValueChange={(v: any) => setQuantityUom(v)} disabled={stockPurpose === "PACKAGING" && !!packagingOutputUom}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {stockPurpose === "PACKAGING" && packagingOutputUom ? (
+                                <SelectItem value={packagingOutputUom}>{packagingOutputUom}</SelectItem>
+                              ) : (
+                                <>
+                                  <SelectItem value="KG">KG</SelectItem>
+                                  {stockPurpose !== "PRODUCT" && <SelectItem value="PCS">PCS</SelectItem>}
+                                  {stockPurpose !== "PRODUCT" && <SelectItem value="METER">METER</SelectItem>}
+                                  {stockPurpose === "PRODUCT" && finalProductType !== "ROLL" && <SelectItem value="PCS">PCS</SelectItem>}
+                                  {stockPurpose === "PRODUCT" && finalProductType !== "ROLL" && <SelectItem value="METER">METER</SelectItem>}
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                  <div>
-                    <Label>Quantity</Label>
-                    <Input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value || 0))} />
-                  </div>
-                  <div>
-                    <Label>Quantity UOM</Label>
-                    <Select value={quantityUom} onValueChange={(v: any) => setQuantityUom(v)} disabled={stockPurpose === "PACKAGING" && !!packagingOutputUom}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {stockPurpose === "PACKAGING" && packagingOutputUom ? (
-                          <SelectItem value={packagingOutputUom}>{packagingOutputUom}</SelectItem>
-                        ) : (
-                          <>
-                            <SelectItem value="KG">KG</SelectItem>
-                            {stockPurpose !== "PRODUCT" && <SelectItem value="PCS">PCS</SelectItem>}
-                            {stockPurpose !== "PRODUCT" && <SelectItem value="METER">METER</SelectItem>}
-                            {stockPurpose === "PRODUCT" && finalProductType !== "ROLL" && <SelectItem value="PCS">PCS</SelectItem>}
-                            {stockPurpose === "PRODUCT" && finalProductType !== "ROLL" && <SelectItem value="METER">METER</SelectItem>}
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+                        <div>
+                          <Label>Start Step</Label>
+                          <Select
+                            value={String(startStepIndex)}
+                            onValueChange={(v) => setStartStepIndex(Number(v || 0))}
+                            disabled={Boolean(templateId) && routeStepsQuery.isError}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">0 - Raw Start</SelectItem>
+                                {routeSteps.map((step: any) => (
+                                <SelectItem key={`start-${step.index}`} value={String(step.index)}>
+                                  {step.label || `${step.index} - ${step.name}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Stop Step</Label>
+                          <Select
+                            value={String(stopStepIndex ?? routeLastIndex)}
+                            onValueChange={(v) => setStopStepIndex(Number(v || routeLastIndex))}
+                            disabled={Boolean(templateId) && routeStepsQuery.isError}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {routeSteps.map((step: any) => (
+                                <SelectItem key={`stop-${step.index}`} value={String(step.index)}>
+                                  {step.label || `${step.index} - ${step.name}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-[1.6rem] border border-indigo-200 bg-indigo-50/70 p-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Planner meaning</div>
+                        <div className="mt-2 text-lg font-black text-slate-950">
+                          {launcherMode === "FINAL_ROLL"
+                            ? "Final Roll"
+                            : launcherMode === "SHARED_INVARIANT"
+                              ? "Shared Invariant Roll"
+                              : launcherMode === "BASE_UPSTREAM"
+                                ? "Base / Upstream Roll"
+                                : launcherMode === "POD_STOCK"
+                                  ? "POD Stock Order"
+                                  : "Packaging Stock"}
+                        </div>
+                        <div className="mt-2 text-sm text-slate-600">
+                          {stockPurpose === "PACKAGING"
+                            ? "Packaging supply stays outside the sales fulfilment pool."
+                            : stockStrategy === "INTERMEDIATE_POOL"
+                              ? "Planner will surface this output only in Continue from WIP when invariant signatures match."
+                              : "Planner will surface this output as direct-consumable finished stock when final specs match."}
+                        </div>
+                        <div className="mt-4 space-y-2 text-xs">
+                          <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-white px-3 py-2">
+                            <span className="font-black uppercase tracking-[0.18em] text-slate-500">Lane</span>
+                            <span className="font-semibold text-slate-900">
+                              {stockPurpose === "PACKAGING"
+                                ? "Packaging-only archive"
+                                : stockStrategy === "INTERMEDIATE_POOL"
+                                  ? "Continue from WIP"
+                                  : "Use Existing FG"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-white px-3 py-2">
+                            <span className="font-black uppercase tracking-[0.18em] text-slate-500">Route stop</span>
+                            <span className="font-semibold text-slate-900">{templateId ? `Step ${stopStepIndex ?? routeLastIndex} of ${routeLastIndex}` : "Select template"}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-white px-3 py-2">
+                            <span className="font-black uppercase tracking-[0.18em] text-slate-500">Output type</span>
+                            <span className="font-semibold text-slate-900">{plannedOutputType}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-[1.6rem] border border-slate-200 bg-white p-4">
+                        <Label>How will this stock be consumed later?</Label>
+                        <Select
+                          value={stockStrategy}
+                          onValueChange={(value: StockStrategy) => setStockStrategy(value)}
+                          disabled={stockPurpose === "PACKAGING" || !stopsAtFinalStep}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {stockPurpose === "PACKAGING" ? (
+                              <SelectItem value="PACKAGING_STOCK">Packaging stock</SelectItem>
+                            ) : !stopsAtFinalStep ? (
+                              <SelectItem value="INTERMEDIATE_POOL">Intermediate pool</SelectItem>
+                            ) : (
+                              <>
+                                <SelectItem value="FINAL_STOCK">Direct finished stock</SelectItem>
+                                <SelectItem value="INTERMEDIATE_POOL">Intermediate pool for later continuation</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {stockPurpose === "PACKAGING"
+                            ? "Packaging stock stays outside sales fulfilment sourcing."
+                            : !stopsAtFinalStep
+                            ? "This order stops before the final route step, so it must remain an intermediate pool."
+                            : stockStrategy === "INTERMEDIATE_POOL"
+                            ? "Planner will surface this output only in Continue from WIP when invariant signatures match."
+                            : "Planner will surface this output as direct-consumable finished stock when final specs match."}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {stockPurpose === "PACKAGING" && (
@@ -669,42 +759,6 @@ export default function CreateStockOrderWizardPage() {
                       ) : null}
                     </>
                   )}
-
-                  <div>
-                    <Label>Start Step</Label>
-                    <Select
-                      value={String(startStepIndex)}
-                      onValueChange={(v) => setStartStepIndex(Number(v || 0))}
-                      disabled={Boolean(templateId) && routeStepsQuery.isError}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">0 - Raw Start</SelectItem>
-                          {routeSteps.map((step: any) => (
-                          <SelectItem key={`start-${step.index}`} value={String(step.index)}>
-                            {step.label || `${step.index} - ${step.name}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Stop Step</Label>
-                    <Select
-                      value={String(stopStepIndex ?? routeLastIndex)}
-                      onValueChange={(v) => setStopStepIndex(Number(v || routeLastIndex))}
-                      disabled={Boolean(templateId) && routeStepsQuery.isError}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {routeSteps.map((step: any) => (
-                          <SelectItem key={`stop-${step.index}`} value={String(step.index)}>
-                            {step.label || `${step.index} - ${step.name}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   {templateId && (
                     <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">

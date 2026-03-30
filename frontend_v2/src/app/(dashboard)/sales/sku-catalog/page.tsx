@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
     ArrowUpRight,
@@ -16,7 +16,6 @@ import {
 } from "lucide-react"
 
 import {
-    PremiumHero,
     PremiumMetricCard,
     PremiumMetricStrip,
     PremiumPageShell,
@@ -143,6 +142,7 @@ export default function SalesSkuCatalogPage() {
     const [variantPreviewLoading, setVariantPreviewLoading] = useState(false)
     const [variantPreviewNonce, setVariantPreviewNonce] = useState(0)
     const [usageDialogOpen, setUsageDialogOpen] = useState(false)
+    const deferredSearch = useDeferredValue(search)
 
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: masterDataService.getCustomers })
     const { data: templates = [] } = useQuery({
@@ -191,7 +191,7 @@ export default function SalesSkuCatalogPage() {
     })
 
     const filteredSkus = useMemo(() => {
-        const query = search.trim().toLowerCase()
+        const query = deferredSearch.trim().toLowerCase()
         return salesSkus.filter((sku) => {
             if (usageOnly && usageCustomerId !== "all" && !asNumber(sku.customer_usage_count, 0)) return false
             if (templateFilter !== "all" && String(sku.template) !== templateFilter) return false
@@ -211,7 +211,7 @@ export default function SalesSkuCatalogPage() {
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(query))
         })
-    }, [fgTypeFilter, salesSkus, search, templateFilter, usageCustomerId, usageOnly])
+    }, [deferredSearch, fgTypeFilter, salesSkus, templateFilter, usageCustomerId, usageOnly])
 
     const selectedSku = useMemo(
         () => filteredSkus.find((sku) => sku.id === selectedSkuId) || salesSkus.find((sku) => sku.id === selectedSkuId) || null,
@@ -459,55 +459,70 @@ export default function SalesSkuCatalogPage() {
 
     return (
         <PremiumPageShell className="min-w-0" dataTestId="sales-sku-catalog-page">
-            <PremiumHero
-                dataTestId="sales-sku-catalog-hero"
-                eyebrow="Sales Catalog"
-                title="Shared SKUs and orderable variants"
-                description="Build elegant, sales-owned fast-entry presets with customer usage context, clear variant summaries, and a cleaner technical builder."
-                className="border-sky-200/70 bg-[linear-gradient(135deg,#2563eb_0%,#3b82f6_42%,#7dd3fc_100%)] shadow-[0_34px_80px_-46px_rgba(37,99,235,0.48)]"
-                actions={(
-                    <>
-                        <Button variant="outline" asChild className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white">
+            <section
+                data-testid="sales-sku-catalog-hero"
+                className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#edf5ff_42%,#f4f8ec_100%)] p-5 shadow-[0_28px_72px_-54px_rgba(15,23,42,0.22)]"
+            >
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-2">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-700">Sales Catalog</div>
+                        <h1 className="text-3xl font-black tracking-tight text-slate-950">SKU Studio</h1>
+                        <p className="max-w-3xl text-sm leading-6 text-slate-600">
+                            Pick one shared SKU fast, inspect orderable variants in the center, and keep customer usage plus launch actions visible without wasting the first viewport.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild className="rounded-2xl border-slate-200 bg-white text-slate-700">
                             <Link href="/sales/orders/create">Open Batch Queue</Link>
                         </Button>
-                        <Button data-testid="sales-sku-create" onClick={openCreateSkuDialog} className="bg-white text-slate-950 hover:bg-slate-100">
-                            <Plus className="mr-2 h-4 w-4" /> Create SKU
+                        <Button variant="outline" className="rounded-2xl border-slate-200 bg-white text-slate-700" onClick={() => setUsageDialogOpen(true)} disabled={!selectedVariant}>
+                            <Clock3 className="mr-2 h-4 w-4" />
+                            Usage History
                         </Button>
-                    </>
-                )}
-                metrics={(
-                    <PremiumMetricStrip>
-                        <PremiumMetricCard label="Visible SKUs" value={filteredSkus.length} tone="light" />
-                        <PremiumMetricCard label="Selected SKU" value={selectedSku?.code || "No selection"} tone="light" valueClassName="text-lg sm:text-xl xl:text-[1.4rem]" />
-                        <PremiumMetricCard label="Selected Variants" value={selectedSkuVariants.length} tone="light" />
-                        <PremiumMetricCard label="Usage Lens" value={usageCustomerId === "all" ? "All customers" : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer"} tone="light" valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
-                    </PremiumMetricStrip>
-                )}
-            />
+                        <Button data-testid="sales-sku-create" onClick={openCreateSkuDialog} className="rounded-2xl bg-slate-950 text-white hover:bg-slate-800">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create SKU
+                        </Button>
+                    </div>
+                </div>
 
-            <PremiumSection
-                dataTestId="sales-sku-catalog-filters"
-                title="Search and Lens"
-                description="Keep the filter rail compact so the selected SKU and variant workspace stays visible immediately."
-            >
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.35fr)_160px_160px_200px_220px]">
-                        <div className="space-y-2">
-                            <Label>Search</Label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                <Input
-                                    data-testid="sales-sku-search"
-                                    className="pl-10"
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="SKU code, name, variant, template..."
-                                />
-                            </div>
+                <div data-testid="sales-sku-catalog-filters" className="mt-5 space-y-3">
+                    <div className="grid gap-3 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,0.9fr))]">
+                        <div className="relative rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Search the catalog</Label>
+                            <Search className="absolute left-4 top-[2.35rem] h-4 w-4 text-slate-400" />
+                            <Input
+                                data-testid="sales-sku-search"
+                                className="mt-2 h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10"
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="SKU, variant, template, customer context..."
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <Label>Status</Label>
+                        <div className="rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Visible SKUs</div>
+                            <div className="mt-2 text-2xl font-black text-slate-950">{filteredSkus.length}</div>
+                            <div className="mt-1 text-xs text-slate-500">Filtered shared headers</div>
+                        </div>
+                        <div className="rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Current SKU</div>
+                            <div className="mt-2 truncate text-base font-black text-slate-950">{selectedSku?.code || "Choose one"}</div>
+                            <div className="mt-1 truncate text-xs text-slate-500">{selectedSku?.name || "Start from the left rail"}</div>
+                        </div>
+                        <div className="rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Usage Lens</div>
+                            <div className="mt-2 truncate text-base font-black text-slate-950">
+                                {usageCustomerId === "all" ? "All customers" : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer"}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">{usageOnly ? "Usage-proven only" : "Full shared catalog"}</div>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_140px_190px_auto]">
+                        <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Status</Label>
                             <Select value={activeFilter} onValueChange={setActiveFilter}>
-                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="active">Active</SelectItem>
                                     <SelectItem value="inactive">Inactive</SelectItem>
@@ -515,10 +530,10 @@ export default function SalesSkuCatalogPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-2">
-                            <Label>FG Type</Label>
+                        <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">FG Type</Label>
                             <Select value={fgTypeFilter} onValueChange={setFgTypeFilter}>
-                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All</SelectItem>
                                     <SelectItem value="POUCH">POUCH</SelectItem>
@@ -526,10 +541,10 @@ export default function SalesSkuCatalogPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-2">
-                            <Label>Template</Label>
+                        <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Template</Label>
                             <Select value={templateFilter} onValueChange={setTemplateFilter}>
-                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All templates</SelectItem>
                                     {templates.map((template: any) => (
@@ -540,11 +555,11 @@ export default function SalesSkuCatalogPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-3">
-                            <div className="space-y-2">
-                                <Label>Usage Customer</Label>
+                        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_210px]">
+                            <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
+                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Usage Customer</Label>
                                 <Select value={usageCustomerId} onValueChange={setUsageCustomerId}>
-                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">All customers</SelectItem>
                                         {customers.map((customer) => (
@@ -555,27 +570,28 @@ export default function SalesSkuCatalogPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
                                 <div>
-                                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Used by selected customer</div>
-                                    <div className="mt-1 text-xs text-slate-400">Keep the list focused on customer-proven SKUs only.</div>
+                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Usage only</div>
+                                    <div className="mt-1 text-xs text-slate-500">Only customer-proven SKUs</div>
                                 </div>
                                 <Switch checked={usageOnly} onCheckedChange={setUsageOnly} />
                             </div>
                         </div>
                     </div>
-            </PremiumSection>
+                </div>
+            </section>
 
-            <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)_300px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
+            <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[310px_minmax(0,1.15fr)_320px] 2xl:grid-cols-[330px_minmax(0,1.25fr)_330px]">
                     <PremiumSection
                         dataTestId="sales-sku-list-section"
-                        title="Shared SKUs"
-                        description="Sales-owned catalog headers used for fast order entry."
+                        title="SKU Rail"
+                        description="Shortlist shared SKU headers and move into the selected workplane fast."
                         actions={<Sparkles className="h-5 w-5 text-slate-400" />}
                         className="xl:sticky xl:top-6 xl:self-start"
                         contentClassName="p-3"
                     >
-                            <ScrollArea className="h-[calc(100vh-22rem)] min-h-[420px] pr-2">
+                            <ScrollArea className="h-[calc(100vh-20rem)] min-h-[470px] pr-2">
                                 <div className="space-y-3">
                                     {!filteredSkus.length ? (
                                         <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
@@ -624,8 +640,8 @@ export default function SalesSkuCatalogPage() {
                             <>
                                 <PremiumSection
                                     dataTestId="sales-sku-summary"
-                                    title="Selected SKU"
-                                    description="Commercial summary, activity state, customer usage, and quick actions for the chosen shared SKU."
+                                    title="Selected SKU Workspace"
+                                    description="Commercial header, usage proof, and fast actions stay together before you drop into the variant lane."
                                 >
                                     <div className="space-y-5">
                                         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -666,11 +682,11 @@ export default function SalesSkuCatalogPage() {
 
                                 <PremiumSection
                                     dataTestId="sales-sku-variants-section"
-                                    title="Orderable Variants"
-                                    description="Clone or update the exact structural presets used by Sales fast entry."
+                                    title="Orderable Variant Lane"
+                                    description="Stay on one SKU and move through the exact presets sales can quote or order."
                                 >
                                         <div className="grid gap-4 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                                            <ScrollArea className="h-[calc(100vh-30rem)] min-h-[360px] pr-3">
+                                            <ScrollArea className="h-[calc(100vh-28rem)] min-h-[400px] pr-3">
                                                 <div className="space-y-3">
                                                     {!selectedSkuVariants.length ? (
                                                         <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
@@ -796,8 +812,8 @@ export default function SalesSkuCatalogPage() {
                         </div>
                         <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
                             <PremiumSection
-                                title="Catalog Inspector"
-                                description="Keep the commercial context, usage lens, and fast actions visible while you move through variants."
+                                title="Inspector and Fast Actions"
+                                description="Keep usage context, selected snapshot, and launch actions visible while you move through the studio."
                                 actions={<Sparkles className="h-4 w-4 text-slate-400" />}
                             >
                                 <div className="space-y-4">

@@ -940,7 +940,7 @@ export default function MachineExecutionPage() {
 
     return (
         <div
-            className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_28%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] transition-colors duration-1000"
+            className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.12),_transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f6f7fb_100%)] transition-colors duration-1000"
             data-testid="machine-execution-page"
         >
             {/* Ambient Background Glow */}
@@ -981,6 +981,9 @@ export default function MachineExecutionPage() {
                                         <div className="w-1 h-1 rounded-full bg-slate-300" />
                                         <span>Current Step: <span className="text-indigo-600">{context?.display?.step_name || context?.current_step?.process_name || '—'}</span></span>
                                     </div>
+                                </div>
+                                <div className="pt-2 text-sm text-slate-500">
+                                    Keep one job active, log only current-step output, and let the execution plane carry output, scrap, remainder, and material truth.
                                 </div>
                             </div>
 
@@ -1030,9 +1033,20 @@ export default function MachineExecutionPage() {
                             </CardHeader>
                             <CardContent className="p-4 flex gap-4 overflow-x-auto scrollbar-hide">
                                 {safeQueueItems.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-6 w-full text-slate-400 gap-2">
+                                    <div className="flex w-full flex-col items-center justify-center gap-3 rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-7 text-slate-400">
                                         <Layers className="h-8 w-8 opacity-20" />
                                         <span className="text-xs font-bold uppercase tracking-widest">No released jobs are waiting here.</span>
+                                        <span className="max-w-md text-center text-[11px] font-semibold leading-5 text-slate-500">
+                                            Release work from the WCM deck or switch machines if another terminal already owns the active queue.
+                                        </span>
+                                        <div className="mt-1 flex flex-wrap justify-center gap-2">
+                                            <Button variant="outline" size="sm" className="rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.18em]" onClick={() => router.push('/dashboard/work-center')}>
+                                                Open WCM Deck
+                                            </Button>
+                                            <Button variant="outline" size="sm" className="rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.18em]" onClick={() => router.push('/production/machine-selector')}>
+                                                Change Machine
+                                            </Button>
+                                        </div>
                                     </div>
                                 )}
                                 {safeQueueItems.map((job) => {
@@ -1128,7 +1142,7 @@ export default function MachineExecutionPage() {
                         </Card>
 
                         <Card className="border border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#eef6ff_100%)] shadow-[0_20px_56px_-44px_rgba(37,99,235,0.16)]">
-                            <CardContent className="grid gap-3 p-4 md:grid-cols-[1.2fr_repeat(4,1fr)]">
+                            <CardContent className={cn("grid gap-3 p-4", selectedJob ? "md:grid-cols-[1.2fr_repeat(4,1fr)]" : "lg:grid-cols-[1.15fr_1fr_1fr]")}>
                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
                                     <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Kiosk focus for operators</div>
                                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
@@ -1138,23 +1152,44 @@ export default function MachineExecutionPage() {
                                         <SemanticBadge kind="jobState" value={isActive ? "READY" : "BLOCKED"} label={isActive ? "Machine ready" : "Machine offline"} className="text-[10px]" />
                                     </div>
                                 </div>
-                                {[
-                                    "Select job",
-                                    "1. Pick the job.",
-                                    "2. Start or pause safely.",
-                                    "3. Enter output and scrap.",
-                                    "4. Finalize only when the target is done.",
-                                ].map((step) => (
-                                    <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                                        {step}
-                                    </div>
-                                ))}
+                                {selectedJob ? (
+                                    [
+                                        "Select job",
+                                        "1. Pick the job.",
+                                        "2. Start or pause safely.",
+                                        "3. Enter output and scrap.",
+                                        "4. Finalize when the step target is complete.",
+                                    ].map((step) => (
+                                        <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                                            {step}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <>
+                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Operator contract</div>
+                                            <div className="mt-2 text-sm font-black text-slate-900">Pick one released job, then keep all output and material truth inside the active execution plane.</div>
+                                            <div className="mt-2 text-xs leading-5 text-slate-500">This terminal stays step-aware. Output, scrap, WIP routing, and ink/material actuals only expand once a live job is selected.</div>
+                                        </div>
+                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">What appears next</div>
+                                            <div className="mt-2 space-y-2 text-sm font-semibold text-slate-700">
+                                                <div>1. Released queue job</div>
+                                                <div>2. Step target and remaining</div>
+                                                <div>3. Output, scrap, and material actuals</div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
 
                         <div className="grid grid-cols-12 gap-6 relative">
                             {/* Column 1: Material Inputs */}
-                            <Card className="col-span-4 flex h-[calc(100vh-320px)] flex-col overflow-hidden rounded-[2.5rem] border border-slate-200/80 bg-white/92 shadow-[0_22px_64px_-48px_rgba(15,23,42,0.22)] transition-all duration-500">
+                            <Card className={cn(
+                                "col-span-4 flex flex-col overflow-hidden rounded-[2.5rem] border border-slate-200/80 bg-white/92 shadow-[0_22px_64px_-48px_rgba(15,23,42,0.22)] transition-all duration-500",
+                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
+                            )}>
                                 <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <Package className="h-4 w-4 text-blue-600" />
@@ -1163,11 +1198,14 @@ export default function MachineExecutionPage() {
                                 </CardHeader>
                                 <CardContent className="p-6 space-y-8 overflow-y-auto scrollbar-hide flex-1">
                                     {!selectedJob ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4">
                                             <div className="p-4 rounded-full bg-slate-50">
                                                 <Package className="h-8 w-8 opacity-20" />
                                             </div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Select a job to start</p>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Pick a queue job</p>
+                                            <p className="max-w-xs text-center text-[11px] font-semibold leading-5 text-slate-500">
+                                                Reserved rolls, WIP pool, and requirement-aware material prompts appear here as soon as one live job is selected.
+                                            </p>
                                         </div>
                                     ) : (
                                         <>
@@ -1520,20 +1558,33 @@ export default function MachineExecutionPage() {
                             </Card>
 
                             {/* Column 2: Production Controls */}
-                            <Card className="col-span-5 border border-white/20 shadow-2xl shadow-indigo-200/10 bg-white/40 backdrop-blur-2xl rounded-[3rem] overflow-hidden flex flex-col h-[calc(100vh-320px)] transition-all duration-700">
+                            <Card className={cn(
+                                "col-span-5 border border-white/20 shadow-2xl shadow-indigo-200/10 bg-white/40 backdrop-blur-2xl rounded-[3rem] overflow-hidden flex flex-col transition-all duration-700",
+                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
+                            )}>
                                 <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                        Active Execution Engine
+                                        Execution workspace
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="p-6 space-y-6 overflow-y-auto scrollbar-hide flex-1">
                                     {!selectedJob ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
+                                        <div className="h-full flex flex-col items-center justify-center gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4 text-slate-400">
                                             <div className="p-4 rounded-full bg-slate-50">
                                                 <Play className="h-8 w-8 opacity-20" />
                                             </div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Ready for assignment</p>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Execution plane ready</p>
+                                            <p className="max-w-xs text-center text-[11px] font-semibold leading-5 text-slate-500">
+                                                Pick one live job and this plane becomes the only place the operator needs for start, pause, output, scrap, and close.
+                                            </p>
+                                            <div className="mt-3 grid w-full max-w-xl gap-2 md:grid-cols-3">
+                                                {["1. Pick released job", "2. Start or resume", "3. Log output and actuals"].map((item) => (
+                                                    <div key={item} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
+                                                        {item}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     ) : (
                                         <>
@@ -1996,7 +2047,10 @@ export default function MachineExecutionPage() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="col-span-3 border border-white/20 shadow-2xl shadow-indigo-200/5 bg-white/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-320px)] transition-all duration-500">
+                            <Card className={cn(
+                                "col-span-3 border border-white/20 shadow-2xl shadow-indigo-200/5 bg-white/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden flex flex-col transition-all duration-500",
+                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
+                            )}>
                                 <CardHeader className="py-5 px-6 border-b border-white/10 bg-white/10">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <Activity className="h-4 w-4 text-indigo-600" />
@@ -2005,7 +2059,13 @@ export default function MachineExecutionPage() {
                                 </CardHeader>
                                 <CardContent className="p-3 space-y-3 overflow-y-auto text-sm">
                                     {!selectedJob ? (
-                                        <div className="text-slate-400">Select a job to view telemetry.</div>
+                                        <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4 text-center">
+                                            <Activity className="h-8 w-8 text-slate-300" />
+                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Telemetry comes alive with the selected job</div>
+                                            <div className="max-w-xs text-[11px] font-semibold leading-5 text-slate-500">
+                                                Step progress, material counters, queue health, and live logs appear here as soon as the operator picks a released job.
+                                            </div>
+                                        </div>
                                     ) : (
                                         <>
                                             <div className="p-4 rounded-3xl border border-blue-100 bg-blue-50/70 space-y-2">

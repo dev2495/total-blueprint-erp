@@ -31,9 +31,13 @@ const clusterTone: Record<string, string> = {
 };
 
 export default function WorkCenterDashboard() {
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["wcm-dashboard"],
     queryFn: () => analyticsApi.getWcmDashboard(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: "always",
+    placeholderData: (previous) => previous,
   });
 
   const payload = (data as any) || {};
@@ -44,6 +48,11 @@ export default function WorkCenterDashboard() {
   const needsAction = Array.isArray(payload.needs_action) ? payload.needs_action : [];
   const discipline = payload.discipline || {};
   const recentActivity = Array.isArray(payload.recent_activity) ? payload.recent_activity : [];
+  const showTelemetryPlaceholders =
+    !needsAction.length &&
+    !workCenters.length &&
+    !recentActivity.length &&
+    isFetching;
 
   if (isError) {
     return (
@@ -143,7 +152,12 @@ export default function WorkCenterDashboard() {
                   <ArrowRight className="h-4 w-4" />
                 </div>
               </Link>
-            )) : (
+            )) : showTelemetryPlaceholders ? (
+              <div className="rounded-[20px] border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-800">
+                <Clock3 className="mb-2 h-5 w-5 animate-spin" />
+                Syncing WCM telemetry for assigned work centers.
+              </div>
+            ) : (
               <div className="rounded-[20px] border border-emerald-200 bg-emerald-50 p-5 text-sm font-semibold text-emerald-800">
                 <CheckCircle2 className="mb-2 h-5 w-5" />
                 No WCM telemetry is available yet.
@@ -186,7 +200,11 @@ export default function WorkCenterDashboard() {
                   </div>
                 </div>
               </div>
-            )) : (
+            )) : showTelemetryPlaceholders ? (
+              <div className="rounded-[20px] border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-800">
+                Loading assigned work-center board…
+              </div>
+            ) : (
               <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500">No work centers</div>
             )}
           </CardContent>
@@ -236,7 +254,11 @@ export default function WorkCenterDashboard() {
                 </div>
                 <div className="whitespace-nowrap text-xs font-semibold text-slate-500">{row.date || row.logged_at || "—"}</div>
               </div>
-            )) : (
+            )) : showTelemetryPlaceholders ? (
+              <div className="rounded-[20px] border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-800">
+                Loading recent floor activity…
+              </div>
+            ) : (
               <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500">Recent floor activity will appear here once jobs start logging.</div>
             )}
           </CardContent>
@@ -259,7 +281,7 @@ export default function WorkCenterDashboard() {
         ))}
       </section>
 
-      {isLoading ? (
+      {isLoading && !data ? (
         <Card className="rounded-[24px] border border-slate-200 bg-white shadow-sm">
           <CardContent className="flex items-center gap-3 p-6 text-sm font-semibold text-slate-500">
             <Clock3 className="h-4 w-4 animate-spin" />
