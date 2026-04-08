@@ -1,7 +1,7 @@
 databases:
   - name: erp-postgres-prod
-    plan: pro-4gb
-    diskSizeGB: 20
+    plan: basic-1gb
+    diskSizeGB: 10
     databaseName: total_blueprint_erp
     user: blueprint_admin
 
@@ -17,7 +17,7 @@ services:
   - type: web
     name: backend-api-prod
     runtime: python
-    plan: standard
+    plan: starter
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
     healthCheckPath: /api/health/live/
@@ -92,7 +92,7 @@ services:
   - type: worker
     name: celery-worker-prod
     runtime: python
-    plan: standard
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A config worker -l INFO --concurrency=2
     autoDeployTrigger: off
