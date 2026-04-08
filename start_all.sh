@@ -12,6 +12,7 @@ FRONTEND_BUILD_LOG="${LOG_DIR}/frontend_build.log"
 BACKEND_PID_FILE="${STATE_DIR}/backend.pid"
 FRONTEND_PID_FILE="${STATE_DIR}/frontend.pid"
 FRONTEND_MODE_FILE="${STATE_DIR}/frontend.mode"
+BOOTSTRAP_LOCK_DIR="${STATE_DIR}/bootstrap.lock"
 MAX_RESTARTS="${MAX_RESTARTS:-3}"
 FRONTEND_MODE="${FRONTEND_MODE:-prod}" # prod|dev
 ALLOW_DEV_FALLBACK="${ALLOW_DEV_FALLBACK:-0}" # 1 => fallback to dev if prod build is unstable
@@ -51,6 +52,27 @@ detect_lan_ip() {
   if command -v hostname >/dev/null 2>&1; then
     hostname -I 2>/dev/null | awk '{print $1}' || true
   fi
+}
+
+detect_all_lan_ips() {
+  local ips=""
+  if command -v ifconfig >/dev/null 2>&1; then
+    ips="$(
+      ifconfig 2>/dev/null \
+        | awk '/inet / {print $2}' \
+        | grep -E '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)' \
+        | sort -u \
+        | paste -sd, -
+    )"
+  fi
+  if [ -z "${ips}" ]; then
+    local primary
+    primary="$(detect_lan_ip || true)"
+    if [ -n "${primary}" ]; then
+      ips="${primary}"
+    fi
+  fi
+  echo "${ips}"
 }
 
 rotate_log() {
@@ -101,6 +123,10 @@ detect_frontend_mode() {
       echo "prod"
       return 0
     fi
+    if echo "${cmdline}" | grep -q "next-server"; then
+      echo "prod"
+      return 0
+    fi
     if echo "${cmdline}" | grep -Eq "next dev -H 0.0.0.0 -p 3000|npm run dev"; then
       echo "dev"
       return 0
@@ -124,6 +150,40 @@ kill_pid_tree() {
   sleep 1
   pkill -KILL -P "$pid" 2>/dev/null || true
   kill -KILL "$pid" 2>/dev/null || true
+}
+
+acquire_bootstrap_lock() {
+  local waited=0
+  while ! mkdir "${BOOTSTRAP_LOCK_DIR}" 2>/dev/null; do
+    local holder_pid=""
+    if [ ! -f "${BOOTSTRAP_LOCK_DIR}/pid" ]; then
+      rm -rf "${BOOTSTRAP_LOCK_DIR}" 2>/dev/null || true
+      continue
+    fi
+    if [ -f "${BOOTSTRAP_LOCK_DIR}/pid" ]; then
+      holder_pid="$(head -n 1 "${BOOTSTRAP_LOCK_DIR}/pid" 2>/dev/null || true)"
+    fi
+    if [ -n "${holder_pid}" ] && ! pid_running "${holder_pid}"; then
+      rm -rf "${BOOTSTRAP_LOCK_DIR}" 2>/dev/null || true
+      continue
+    fi
+    if [ "${waited}" -eq 0 ]; then
+      echo "Waiting for runtime bootstrap lock${holder_pid:+ held by PID ${holder_pid}}..."
+    fi
+    sleep 2
+    waited=$((waited + 2))
+    if [ "${waited}" -ge 180 ]; then
+      echo "Timed out waiting for runtime bootstrap lock."
+      exit 1
+    fi
+  done
+  printf '%s\n' "$$" > "${BOOTSTRAP_LOCK_DIR}/pid"
+}
+
+release_bootstrap_lock() {
+  if [ -d "${BOOTSTRAP_LOCK_DIR}" ] && [ "$(head -n 1 "${BOOTSTRAP_LOCK_DIR}/pid" 2>/dev/null || true)" = "$$" ]; then
+    rm -rf "${BOOTSTRAP_LOCK_DIR}" 2>/dev/null || true
+  fi
 }
 
 spawn_detached() {
@@ -290,6 +350,19 @@ ensure_backend_static() {
   echo "Collecting backend static assets..."
   local static_log
   static_log="$(mktemp)"
+  local stale_root
+  stale_root="${ROOT_DIR}/.runtime/backend-static-stale"
+  mkdir -p "${stale_root}"
+  if [ -d "${ROOT_DIR}/staticfiles" ]; then
+    local stale_dir
+    stale_dir="${stale_root}/staticfiles_stale_$(date +%s)"
+    if mv "${ROOT_DIR}/staticfiles" "${stale_dir}" 2>/dev/null; then
+      echo "Moved stale staticfiles to ${stale_dir}"
+    else
+      rm -rf "${ROOT_DIR}/staticfiles"
+    fi
+  fi
+  mkdir -p "${ROOT_DIR}/staticfiles"
   if "${BACKEND_PYTHON}" "${ROOT_DIR}/manage.py" collectstatic --noinput >"${static_log}" 2>&1; then
     cat "${static_log}"
     rm -f "${static_log}"
@@ -446,6 +519,10 @@ start_backend() {
   echo "[1/3] Booting backend..."
   rotate_log "${BACKEND_LOG}"
   ensure_backend_schema
+  local lan_ip
+  lan_ip="$(detect_lan_ip || true)"
+  local lan_hosts
+  lan_hosts="$(detect_all_lan_ips || true)"
   local server_mode="${BACKEND_SERVER_MODE}"
   if [ -z "${server_mode}" ]; then
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -456,8 +533,8 @@ start_backend() {
   fi
   local cmd
   if [ "${server_mode}" = "runserver" ]; then
-    cmd="cd '${ROOT_DIR}'; export SKIP_DOTENV_IMPORT='${SKIP_DOTENV_IMPORT}'; export SKIP_CELERY_IMPORT='${SKIP_CELERY_IMPORT}'; retries=0; while true; do \
-${BACKEND_PYTHON} ${ROOT_DIR}/manage.py runserver 0.0.0.0:8000 --noreload; \
+    cmd="cd '${ROOT_DIR}'; export SKIP_DOTENV_IMPORT='${SKIP_DOTENV_IMPORT}'; export SKIP_CELERY_IMPORT='${SKIP_CELERY_IMPORT}'; export DEV_HOST_IP='${lan_ip}'; export DEV_TRUSTED_HOSTS='${lan_hosts}'; retries=0; while true; do \
+'${BACKEND_PYTHON}' '${ROOT_DIR}/manage.py' runserver 0.0.0.0:8000 --noreload; \
 code=\$?; \
 if [ \$code -eq 0 ]; then exit 0; fi; \
 retries=\$((retries+1)); \
@@ -466,8 +543,8 @@ echo \"backend crashed (\$code), restarting \$retries/${MAX_RESTARTS}\"; sleep 2
 done"
   else
     local workers="${GUNICORN_WORKERS:-3}"
-    cmd="cd '${ROOT_DIR}'; export SKIP_DOTENV_IMPORT='${SKIP_DOTENV_IMPORT}'; export SKIP_CELERY_IMPORT='${SKIP_CELERY_IMPORT}'; retries=0; while true; do \
-${BACKEND_PYTHON} -m gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${workers} --timeout 120 --access-logfile - --error-logfile -; \
+    cmd="cd '${ROOT_DIR}'; export SKIP_DOTENV_IMPORT='${SKIP_DOTENV_IMPORT}'; export SKIP_CELERY_IMPORT='${SKIP_CELERY_IMPORT}'; export DEV_HOST_IP='${lan_ip}'; export DEV_TRUSTED_HOSTS='${lan_hosts}'; retries=0; while true; do \
+'${BACKEND_PYTHON}' -m gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${workers} --timeout 120 --access-logfile - --error-logfile -; \
 code=\$?; \
 if [ \$code -eq 0 ]; then exit 0; fi; \
 retries=\$((retries+1)); \
@@ -793,20 +870,28 @@ run_verification() {
 
 case "${CMD}" in
   start)
+    acquire_bootstrap_lock
+    trap release_bootstrap_lock EXIT INT TERM
     start_services
     ;;
   verify)
     run_verification
     ;;
   stop)
+    acquire_bootstrap_lock
+    trap release_bootstrap_lock EXIT INT TERM
     stop_services
     echo "Servers stopped."
     ;;
   restart)
+    acquire_bootstrap_lock
+    trap release_bootstrap_lock EXIT INT TERM
     stop_services
     start_services
     ;;
   clean-restart)
+    acquire_bootstrap_lock
+    trap release_bootstrap_lock EXIT INT TERM
     echo "Running deterministic clean restart..."
     stop_services
     rm -f "${BACKEND_PID_FILE}" "${FRONTEND_PID_FILE}"

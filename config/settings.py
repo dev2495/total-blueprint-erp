@@ -7,13 +7,34 @@ from datetime import timedelta
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
-from dotenv import load_dotenv
 from config.runtime_env import (
     is_hosted_secure_env,
     is_local_dev_env,
     is_production_env,
     normalize_django_env,
 )
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv(env_path: Path) -> None:
+    """Load simple KEY=VALUE pairs without depending on a hydrated venv package."""
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+
+        value = value.strip().strip("\"'")
+        os.environ[key] = value
+
 
 if os.getenv("ENABLE_CELERY_IMPORT") != "1" or os.getenv("SKIP_CELERY_IMPORT") == "1":
     # Lightweight Django bootstrap paths do not need live Celery schedule objects.
@@ -28,9 +49,8 @@ else:
 
 # Load environment variables
 if os.environ.get("SKIP_DOTENV_IMPORT") != "1":
-    load_dotenv()
+    _load_dotenv(BASE_DIR / ".env")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 HAS_WHITENOISE = bool(importlib.util.find_spec("whitenoise"))
 
 
@@ -57,6 +77,32 @@ def _detect_primary_ipv4() -> str:
     return ""
 
 
+def _detect_local_ipv4s() -> list[str]:
+    candidates: set[str] = set()
+    primary = _detect_primary_ipv4()
+    if primary:
+        candidates.add(primary)
+
+    try:
+        for _, _, _, _, sockaddr in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = str((sockaddr or [""])[0] or "").strip()
+            if ip and ":" not in ip:
+                candidates.add(ip)
+    except Exception:
+        pass
+
+    try:
+        _, _, host_ips = socket.gethostbyname_ex(socket.gethostname())
+        for ip in host_ips:
+            token = str(ip or "").strip()
+            if token and ":" not in token:
+                candidates.add(token)
+    except Exception:
+        pass
+
+    return sorted(candidates)
+
+
 # Environment and runtime mode
 DJANGO_ENV = normalize_django_env(os.getenv("DJANGO_ENV", "development"))
 IS_LOCAL_DEV = is_local_dev_env(DJANGO_ENV)
@@ -80,7 +126,6 @@ else:
 
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -109,6 +154,8 @@ INSTALLED_APPS = [
     "apps.platformops",
     "rest_framework_simplejwt.token_blacklist",
 ]
+if not _env_bool("SKIP_ADMIN_APP_IMPORT", False):
+    INSTALLED_APPS.insert(0, "django.contrib.admin")
 
 # CORS hardening
 CORS_ALLOW_CREDENTIALS = True
@@ -186,7 +233,7 @@ MIDDLEWARE = [
     "config.api_slash_middleware.ApiSlashCompatMiddleware",
     "django.middleware.common.CommonMiddleware",
     "config.head_response_middleware.HeadResponseCleanupMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    "config.local_dev_csrf.LocalDevCsrfViewMiddleware" if IS_LOCAL_DEV else "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -278,6 +325,7 @@ if IS_LOCAL_DEV:
         str(os.getenv("DEV_HOST_IP", "")).strip(),
         _detect_primary_ipv4(),
     }
+    dev_hosts.update(_detect_local_ipv4s())
     dev_hosts.update({host for host in ALLOWED_HOSTS if host and host != "*"})
     dev_hosts.update(
         host.strip()

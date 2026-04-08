@@ -59,3 +59,5 @@ wc_perf.json
 /verify_*.py
 /test_*.py
 /tmp_*.js
+*.bad
+frontend_v2/tmp_ui_probe.mjs

@@ -42,6 +42,13 @@ type SplitRow = {
     weight_kg: string;
 };
 
+type CreateRollRow = {
+    id: number;
+    width_mm: string;
+    weight_kg: string;
+    length_m: string;
+};
+
 type MaterialConfirmationDraft = {
     requirement_id: string;
     material_id?: string;
@@ -130,14 +137,18 @@ export default function MachineExecutionPage() {
     const [outputWidthDirty, setOutputWidthDirty] = useState(false);
     const [outputWeightDirty, setOutputWeightDirty] = useState(false);
     const [outputLengthM, setOutputLengthM] = useState('');
+    const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
     const [scrapKg, setScrapKg] = useState('0');
     const [scrapPcs, setScrapPcs] = useState('0');
     const [scrapEntryMode, setScrapEntryMode] = useState<'KG' | 'PCS'>('KG');
+    const scrapInputRef = useRef<HTMLInputElement | null>(null);
     const [stopReason, setStopReason] = useState('Operator stop');
     const [remainderLocationId, setRemainderLocationId] = useState(DEFAULT_REMAINDER);
     const [forceReason, setForceReason] = useState('');
     const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '' }]);
     const splitCounterRef = useRef(2);
+    const createRowCounterRef = useRef(1);
+    const initializedJobIdRef = useRef<string | null>(null);
     const [materialConfirmations, setMaterialConfirmations] = useState<Record<string, MaterialConfirmationDraft>>({});
     const [activeTab, setActiveTab] = useState<'execution' | 'history'>('execution');
     const [historyDateFrom, setHistoryDateFrom] = useState('');
@@ -385,7 +396,14 @@ export default function MachineExecutionPage() {
     );
 
     useEffect(() => {
-        if (!selectedJob) return;
+        const nextJobId = selectedJob?.id ? String(selectedJob.id) : null;
+        if (!nextJobId) {
+            initializedJobIdRef.current = null;
+            return;
+        }
+        if (initializedJobIdRef.current === nextJobId) return;
+        initializedJobIdRef.current = nextJobId;
+
         setOutputWidthMm('');
         setOutputWidthDirty(false);
         setOutputWeightDirty(false);
@@ -397,6 +415,8 @@ export default function MachineExecutionPage() {
         setForceReason('');
         setOutputPcs('');
         setOutputEntryMode(showPcsEntry ? 'PCS' : 'KG');
+        setCreateRollRows([]);
+        createRowCounterRef.current = 1;
         setSplitRows([{ id: 1, width_mm: '', weight_kg: '' }]);
         splitCounterRef.current = 2;
 
@@ -462,6 +482,35 @@ export default function MachineExecutionPage() {
         [splitRowsParsed]
     );
 
+    const createRollRowsParsed = useMemo(() => {
+        const firstRow = {
+            id: 0,
+            width_mm: toNumber(outputWidthMm, 0),
+            weight_kg: toNumber(outputWeightKg, 0),
+            length_m: toNullableNumber(outputLengthM),
+        };
+        const extraRows = createRollRows
+            .map((row) => ({
+                id: row.id,
+                width_mm: toNumber(row.width_mm, 0),
+                weight_kg: toNumber(row.weight_kg, 0),
+                length_m: toNullableNumber(row.length_m),
+            }))
+            .filter((row) => row.width_mm > 0 && row.weight_kg > 0);
+
+        const rows = [];
+        if (firstRow.width_mm > 0 && firstRow.weight_kg > 0) {
+            rows.push(firstRow);
+        }
+        rows.push(...extraRows);
+        return rows;
+    }, [createRollRows, outputLengthM, outputWeightKg, outputWidthMm]);
+
+    const createRollTotalKg = useMemo(
+        () => createRollRowsParsed.reduce((acc, row) => acc + toNumber(row.weight_kg, 0), 0),
+        [createRollRowsParsed]
+    );
+
     const firstReservedWeight = toNumber(reservedRolls[0]?.weight_kg, 0);
     const scrapValue = useMemo(() => {
         if (scrapEntryMode === 'PCS') {
@@ -475,6 +524,9 @@ export default function MachineExecutionPage() {
     const previewOutputKg = useMemo(() => {
         if (behavior === 'SPLIT') {
             return Math.max(0, splitTotalKg);
+        }
+        if (behavior === 'CREATE_NEW' && createRollRowsParsed.length > 0) {
+            return Math.max(0, createRollTotalKg);
         }
         if (showPcsEntry && outputEntryMode === 'PCS') {
             const pcs = toNumber(outputPcs, NaN);
@@ -491,7 +543,7 @@ export default function MachineExecutionPage() {
             }
         }
         return 0;
-    }, [behavior, splitTotalKg, showPcsEntry, outputEntryMode, outputPcs, unitWeightG, outputWeightKg]);
+    }, [behavior, splitTotalKg, createRollRowsParsed.length, createRollTotalKg, showPcsEntry, outputEntryMode, outputPcs, unitWeightG, outputWeightKg]);
     const previewOutputPcs = useMemo(() => {
         if (!showPcsEntry) return null;
         const pcs = toNumber(outputPcs, NaN);
@@ -568,12 +620,27 @@ export default function MachineExecutionPage() {
         setSplitRows((prev) => [...prev, { id: splitCounterRef.current++, width_mm: '', weight_kg: '' }]);
     };
 
+    const addCreateRollRow = () => {
+        setCreateRollRows((prev) => [
+            ...prev,
+            { id: createRowCounterRef.current++, width_mm: outputWidthMm || '', weight_kg: '', length_m: '' },
+        ]);
+    };
+
     const removeSplitRow = (id: number) => {
         setSplitRows((prev) => (prev.length <= 1 ? prev : prev.filter((row) => row.id !== id)));
     };
 
+    const removeCreateRollRow = (id: number) => {
+        setCreateRollRows((prev) => prev.filter((row) => row.id !== id));
+    };
+
     const updateSplitRow = (id: number, key: 'width_mm' | 'weight_kg', value: string) => {
         setSplitRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+    };
+
+    const updateCreateRollRow = (id: number, key: 'width_mm' | 'weight_kg' | 'length_m', value: string) => {
+        setCreateRollRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
     };
 
     const handleOutputWeightChange = (value: string) => {
@@ -668,7 +735,7 @@ export default function MachineExecutionPage() {
     });
 
     const logOutputMutation = useMutation({
-        mutationFn: async () => {
+        mutationFn: async (draft?: { scrapInputValue?: string | null; scrapEntryMode?: 'KG' | 'PCS' }) => {
             if (!selectedJob) throw new Error('Select a job first.');
 
             const payload: {
@@ -677,12 +744,27 @@ export default function MachineExecutionPage() {
                 output_length_m?: number;
                 output_pcs?: number;
                 scrap_qty?: number;
+                roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
                 split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
                 remainder_location_id?: string;
             } = {
                 actual_qty: 0,
-                scrap_qty: scrapValue,
             };
+
+            const resolvedScrapValue = (() => {
+                const liveInput = draft?.scrapInputValue ?? scrapInputRef.current?.value;
+                const liveMode = draft?.scrapEntryMode || scrapEntryMode;
+                if (typeof liveInput === 'string' && liveInput.trim().length > 0) {
+                    if (liveMode === 'PCS') {
+                        const pcs = Math.max(0, toNumber(liveInput, 0));
+                        if (pcs <= 0 || unitWeightG <= 0) return 0;
+                        return (pcs * unitWeightG) / 1000;
+                    }
+                    return Math.max(0, toNumber(liveInput, 0));
+                }
+                return scrapValue;
+            })();
+            payload.scrap_qty = resolvedScrapValue;
 
             if (remainderLocationId && remainderLocationId !== DEFAULT_REMAINDER) {
                 payload.remainder_location_id = remainderLocationId;
@@ -698,6 +780,19 @@ export default function MachineExecutionPage() {
                 payload.split_outputs = splitRowsParsed.map((row) => ({ width_mm: row.width_mm, weight_kg: row.weight_kg }));
                 payload.actual_qty = splitTotalKg;
             } else {
+                if (behavior === 'CREATE_NEW' && createRollRowsParsed.length > 1) {
+                    if (createRollTotalKg > (maxOutputWithScrapKg + 0.001)) {
+                        throw new Error(`Output exceeds physical max for this log (${maxOutputWithScrapKg.toFixed(3)} kg).`);
+                    }
+                    payload.roll_outputs = createRollRowsParsed.map((row) => ({
+                        width_mm: row.width_mm,
+                        weight_kg: row.weight_kg,
+                        ...(row.length_m !== null && row.length_m > 0 ? { length_m: row.length_m } : {}),
+                    }));
+                    payload.actual_qty = createRollTotalKg;
+                    return machineService.logOutput(machineId, String(selectedJob.id), payload);
+                }
+
                 let qty = toNumber(outputWeightKg, NaN);
                 if (showPcsEntry) {
                     const pcsInput = toNumber(outputPcs, NaN);
@@ -1007,22 +1102,22 @@ export default function MachineExecutionPage() {
                     </CardContent>
                 </Card>
 
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'execution' | 'history')} className="space-y-6 relative">
-                    <TabsList className="h-12 rounded-2xl border border-slate-200/80 bg-white/92 p-1 shadow-sm">
-                        <TabsTrigger value="execution" className="rounded-xl px-6 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all">
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'execution' | 'history')} className="space-y-3 relative">
+                    <TabsList className="h-10 rounded-xl border border-slate-200/80 bg-white/92 p-1 shadow-sm">
+                        <TabsTrigger value="execution" className="rounded-lg px-4 font-bold text-[11px] data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm transition-all">
                             <Settings2 className="h-4 w-4 mr-2" />
                             RUN JOB
                         </TabsTrigger>
-                        <TabsTrigger value="history" className="rounded-xl px-6 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all">
+                        <TabsTrigger value="history" className="rounded-lg px-4 font-bold text-[11px] data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm transition-all">
                             <History className="h-4 w-4 mr-2" />
                             PAST JOBS
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="execution" className="space-y-6 mt-0 outline-none animate-in fade-in duration-500">
+                    <TabsContent value="execution" className="space-y-3 mt-0 outline-none animate-in fade-in duration-500">
                         {/* Horizontal Job Queue */}
-                        <Card className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/92 shadow-[0_20px_56px_-44px_rgba(15,23,42,0.2)]">
-                            <CardHeader className="py-3 px-6 border-b border-white/20 bg-white/10">
+                        <Card className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/92 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.2)]">
+                            <CardHeader className="py-2 px-4 border-b border-white/20 bg-white/10">
                                 <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center justify-between">
                                     <span>Live Job Queue ({safeQueueItems.length})</span>
                                     <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-bold tracking-widest lowercase">
@@ -1031,19 +1126,21 @@ export default function MachineExecutionPage() {
                                     </div>
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="p-4 flex gap-4 overflow-x-auto scrollbar-hide">
+                            <CardContent className="p-3 flex gap-3 overflow-x-auto scrollbar-hide">
                                 {safeQueueItems.length === 0 && (
-                                    <div className="flex w-full flex-col items-center justify-center gap-3 rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-7 text-slate-400">
-                                        <Layers className="h-8 w-8 opacity-20" />
-                                        <span className="text-xs font-bold uppercase tracking-widest">No released jobs are waiting here.</span>
-                                        <span className="max-w-md text-center text-[11px] font-semibold leading-5 text-slate-500">
-                                            Release work from the WCM deck or switch machines if another terminal already owns the active queue.
-                                        </span>
-                                        <div className="mt-1 flex flex-wrap justify-center gap-2">
-                                            <Button variant="outline" size="sm" className="rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.18em]" onClick={() => router.push('/dashboard/work-center')}>
+                                    <div className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-4 text-slate-400 sm:flex-row sm:justify-between sm:text-left">
+                                        <Layers className="h-5 w-5 opacity-30" />
+                                        <div className="min-w-0 flex-1 text-center sm:text-left">
+                                            <span className="block text-[11px] font-black uppercase tracking-widest text-slate-500">No released jobs are waiting here.</span>
+                                            <span className="mt-1 block text-[10px] font-semibold leading-4 text-slate-500">
+                                                Release work from the WCM deck or switch machines if another terminal already owns the active queue.
+                                            </span>
+                                        </div>
+                                        <div className="flex shrink-0 flex-wrap justify-center gap-2">
+                                            <Button variant="outline" size="sm" className="h-8 rounded-lg border-slate-200 bg-white px-3 text-[9px] font-black uppercase tracking-[0.14em]" onClick={() => router.push('/dashboard/work-center')}>
                                                 Open WCM Deck
                                             </Button>
-                                            <Button variant="outline" size="sm" className="rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.18em]" onClick={() => router.push('/production/machine-selector')}>
+                                            <Button variant="outline" size="sm" className="h-8 rounded-lg border-slate-200 bg-white px-3 text-[9px] font-black uppercase tracking-[0.14em]" onClick={() => router.push('/production/machine-selector')}>
                                                 Change Machine
                                             </Button>
                                         </div>
@@ -1089,25 +1186,25 @@ export default function MachineExecutionPage() {
                                             onClick={() => setSelectedJobId(String(job.id))}
                                             data-testid={`machine-job-card-${job.id}`}
                                             className={cn(
-                                                "group relative min-w-[280px] text-left rounded-2xl border transition-all duration-500 p-4",
+                                                "group relative min-w-[220px] text-left rounded-xl border transition-all duration-300 p-3",
                                                 isSelected
-                                                    ? "border-blue-400/50 bg-white/80 shadow-[0_20px_40px_-15px_rgba(59,130,246,0.3)] -translate-y-2"
-                                                    : "border-white/20 bg-white/20 backdrop-blur-sm hover:border-white/40 hover:bg-white/40 hover:shadow-xl hover:-translate-y-1"
+                                                    ? "border-blue-400/50 bg-white/90 shadow-[0_14px_28px_-18px_rgba(59,130,246,0.35)] -translate-y-1"
+                                                    : "border-white/20 bg-white/30 backdrop-blur-sm hover:border-white/40 hover:bg-white/50 hover:shadow-md"
                                             )}
                                         >
-                                            <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center justify-between mb-2">
                                                 <div className={cn(
-                                                    "text-sm font-black tracking-tight transition-colors",
+                                                    "text-xs font-black tracking-tight transition-colors",
                                                     isSelected ? "text-blue-600" : "text-slate-900"
                                                 )}>
                                                     {job.job_number}
                                                 </div>
                                                 <SemanticBadge kind="jobState" value={job.job_state} label={job.job_state || "Queued"} className="text-[9px] px-2 py-1" />
                                             </div>
-                                            <div className="text-[11px] font-black text-slate-900 truncate mb-1">
+                                            <div className="text-[10px] font-black text-slate-900 truncate mb-1">
                                                 {job.template_name || job.product_name}
                                             </div>
-                                            <div className="flex items-center justify-between mt-4 bg-slate-50/50 rounded-xl px-3 py-2 border border-slate-100/50">
+                                            <div className="flex items-center justify-between mt-3 bg-slate-50/50 rounded-lg px-2.5 py-2 border border-slate-100/50">
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider mt-1">
                                                         Step Target {stepTargetKg.toFixed(2)} KG
@@ -1141,13 +1238,12 @@ export default function MachineExecutionPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#eef6ff_100%)] shadow-[0_20px_56px_-44px_rgba(37,99,235,0.16)]">
-                            <CardContent className={cn("grid gap-3 p-4", selectedJob ? "md:grid-cols-[1.2fr_repeat(4,1fr)]" : "lg:grid-cols-[1.15fr_1fr_1fr]")}>
-                                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-                                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Kiosk focus for operators</div>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
-                                    <div className="mt-2 text-base font-black text-slate-900">{operatorNextStep}</div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
+                        <Card className="border border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#eef6ff_100%)] shadow-[0_12px_34px_-30px_rgba(37,99,235,0.16)]">
+                            <CardContent className={cn("grid gap-2 p-3", selectedJob ? "md:grid-cols-[1.4fr_repeat(4,0.85fr)]" : "lg:grid-cols-[1.2fr_0.9fr_0.9fr]")}>
+                                <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-700">Next action now</div>
+                                    <div className="mt-1 text-sm font-black text-slate-900">{operatorNextStep}</div>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
                                         <SemanticBadge kind="jobState" value={jobState || "PENDING"} label={jobState || "No job"} className="text-[10px]" />
                                         <SemanticBadge kind="jobState" value={isActive ? "READY" : "BLOCKED"} label={isActive ? "Machine ready" : "Machine offline"} className="text-[10px]" />
                                     </div>
@@ -1160,23 +1256,22 @@ export default function MachineExecutionPage() {
                                         "3. Enter output and scrap.",
                                         "4. Finalize when the step target is complete.",
                                     ].map((step) => (
-                                        <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                                        <div key={step} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700">
                                             {step}
                                         </div>
                                     ))
                                 ) : (
                                     <>
-                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Operator contract</div>
-                                            <div className="mt-2 text-sm font-black text-slate-900">Pick one released job, then keep all output and material truth inside the active execution plane.</div>
-                                            <div className="mt-2 text-xs leading-5 text-slate-500">This terminal stays step-aware. Output, scrap, WIP routing, and ink/material actuals only expand once a live job is selected.</div>
+                                            <div className="mt-1 text-xs font-black text-slate-900">Pick one job; output and material truth stay in the active execution plane.</div>
                                         </div>
-                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">What appears next</div>
-                                            <div className="mt-2 space-y-2 text-sm font-semibold text-slate-700">
-                                                <div>1. Released queue job</div>
-                                                <div>2. Step target and remaining</div>
-                                                <div>3. Output, scrap, and material actuals</div>
+                                            <div className="mt-1 space-y-1 text-[11px] font-bold text-slate-700">
+                                                <div>1. Queue job</div>
+                                                <div>2. Step target</div>
+                                                <div>3. Output + actuals</div>
                                             </div>
                                         </div>
                                     </>
@@ -1184,19 +1279,19 @@ export default function MachineExecutionPage() {
                             </CardContent>
                         </Card>
 
-                        <div className="grid grid-cols-12 gap-6 relative">
+                        <div className="grid grid-cols-1 gap-3 relative xl:grid-cols-12">
                             {/* Column 1: Material Inputs */}
                             <Card className={cn(
-                                "col-span-4 flex flex-col overflow-hidden rounded-[2.5rem] border border-slate-200/80 bg-white/92 shadow-[0_22px_64px_-48px_rgba(15,23,42,0.22)] transition-all duration-500",
-                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
+                                "xl:col-span-4 flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/92 shadow-[0_18px_48px_-42px_rgba(15,23,42,0.22)] transition-all duration-500",
+                                selectedJob ? "min-h-[360px] xl:h-[calc(100vh-245px)]" : "min-h-[320px]"
                             )}>
-                                <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
+                                <CardHeader className="py-3 px-4 border-b border-slate-100 bg-slate-50/50">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <Package className="h-4 w-4 text-blue-600" />
                                         Material Feed
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="p-6 space-y-8 overflow-y-auto scrollbar-hide flex-1">
+                                <CardContent className="p-4 space-y-5 overflow-y-auto scrollbar-hide flex-1">
                                     {!selectedJob ? (
                                         <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4">
                                             <div className="p-4 rounded-full bg-slate-50">
@@ -1306,8 +1401,8 @@ export default function MachineExecutionPage() {
                                                             </div>
                                                             <div className="grid gap-3">
                                                                 {reconcilableBulkRows.map((req: any, idx: number) => {
-                                                                    const requirementId = Number(req.requirement_id || 0)
-                                                                    const draft = materialConfirmations[String(requirementId)] || {
+                                                                    const requirementId = String(req?.requirement_id || "").trim()
+                                                                    const draft = materialConfirmations[requirementId] || {
                                                                         actual_issued_qty: toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0).toFixed(3),
                                                                         actual_returned_qty: "0",
                                                                         actual_scrap_qty: "0",
@@ -1341,7 +1436,7 @@ export default function MachineExecutionPage() {
                                                                                         return_mode: "EXACT_COLOR_RETURN",
                                                                                         target_ink_material_id: "",
                                                                                     })}
-                                                                                    disabled={requirementId <= 0}
+                                                                                    disabled={!requirementId}
                                                                                 >
                                                                                     Use Estimate
                                                                                 </Button>
@@ -1380,6 +1475,7 @@ export default function MachineExecutionPage() {
                                                                                         Issued (KG)
                                                                                     </Label>
                                                                                     <Input
+                                                                                        data-testid={`machine-material-issued-${requirementId}`}
                                                                                         value={draft.actual_issued_qty}
                                                                                         onChange={(e) => updateMaterialConfirmation(requirementId, {
                                                                                             actual_issued_qty: e.target.value,
@@ -1387,7 +1483,7 @@ export default function MachineExecutionPage() {
                                                                                         })}
                                                                                         placeholder="0.000"
                                                                                         className="h-10 rounded-xl border-amber-200 bg-white font-bold"
-                                                                                        disabled={requirementId <= 0}
+                                                                                        disabled={!requirementId}
                                                                                     />
                                                                                 </div>
                                                                                 <div className="space-y-2">
@@ -1395,6 +1491,7 @@ export default function MachineExecutionPage() {
                                                                                         Returned (KG)
                                                                                     </Label>
                                                                                     <Input
+                                                                                        data-testid={`machine-material-returned-${requirementId}`}
                                                                                         value={draft.actual_returned_qty}
                                                                                         onChange={(e) => updateMaterialConfirmation(requirementId, {
                                                                                             actual_returned_qty: e.target.value,
@@ -1402,7 +1499,7 @@ export default function MachineExecutionPage() {
                                                                                         })}
                                                                                         placeholder="0.000"
                                                                                         className="h-10 rounded-xl border-amber-200 bg-white font-bold"
-                                                                                        disabled={requirementId <= 0}
+                                                                                        disabled={!requirementId}
                                                                                     />
                                                                                 </div>
                                                                                 <div className="space-y-2">
@@ -1410,6 +1507,7 @@ export default function MachineExecutionPage() {
                                                                                         Scrap (KG)
                                                                                     </Label>
                                                                                     <Input
+                                                                                        data-testid={`machine-material-scrap-${requirementId}`}
                                                                                         value={draft.actual_scrap_qty}
                                                                                         onChange={(e) => updateMaterialConfirmation(requirementId, {
                                                                                             actual_scrap_qty: e.target.value,
@@ -1417,7 +1515,7 @@ export default function MachineExecutionPage() {
                                                                                         })}
                                                                                         placeholder="0.000"
                                                                                         className="h-10 rounded-xl border-amber-200 bg-white font-bold"
-                                                                                        disabled={requirementId <= 0}
+                                                                                        disabled={!requirementId}
                                                                                     />
                                                                                 </div>
                                                                             </div>
@@ -1440,7 +1538,10 @@ export default function MachineExecutionPage() {
                                                                                                 })
                                                                                             }
                                                                                         >
-                                                                                            <SelectTrigger className="h-10 rounded-xl border-amber-200 bg-white font-bold text-[11px]">
+                                                                                            <SelectTrigger
+                                                                                                data-testid={`machine-material-return-mode-${requirementId}`}
+                                                                                                className="h-10 rounded-xl border-amber-200 bg-white font-bold text-[11px]"
+                                                                                            >
                                                                                                 <SelectValue />
                                                                                             </SelectTrigger>
                                                                                             <SelectContent>
@@ -1463,7 +1564,10 @@ export default function MachineExecutionPage() {
                                                                                             }
                                                                                             disabled={(draft.return_mode || 'EXACT_COLOR_RETURN') !== 'REMIXED_RETURN'}
                                                                                         >
-                                                                                            <SelectTrigger className="h-10 rounded-xl border-amber-200 bg-white font-bold text-[11px]">
+                                                                                            <SelectTrigger
+                                                                                                data-testid={`machine-material-target-ink-${requirementId}`}
+                                                                                                className="h-10 rounded-xl border-amber-200 bg-white font-bold text-[11px]"
+                                                                                            >
                                                                                                 <SelectValue placeholder="Select target ink" />
                                                                                             </SelectTrigger>
                                                                                             <SelectContent>
@@ -1559,16 +1663,16 @@ export default function MachineExecutionPage() {
 
                             {/* Column 2: Production Controls */}
                             <Card className={cn(
-                                "col-span-5 border border-white/20 shadow-2xl shadow-indigo-200/10 bg-white/40 backdrop-blur-2xl rounded-[3rem] overflow-hidden flex flex-col transition-all duration-700",
-                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
+                                "xl:col-span-5 border border-white/20 shadow-2xl shadow-indigo-200/10 bg-white/40 backdrop-blur-2xl rounded-2xl overflow-hidden flex flex-col transition-all duration-700",
+                                selectedJob ? "min-h-[360px] xl:h-[calc(100vh-245px)]" : "min-h-[320px]"
                             )}>
-                                <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
+                                <CardHeader className="py-3 px-4 border-b border-slate-100 bg-slate-50/50">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                         Execution workspace
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="p-6 space-y-6 overflow-y-auto scrollbar-hide flex-1">
+                                <CardContent className="p-4 space-y-5 overflow-y-auto scrollbar-hide flex-1">
                                     {!selectedJob ? (
                                         <div className="h-full flex flex-col items-center justify-center gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4 text-slate-400">
                                             <div className="p-4 rounded-full bg-slate-50">
@@ -1707,6 +1811,18 @@ export default function MachineExecutionPage() {
                                                             <Plus className="h-3 w-3 mr-1" /> Add Split
                                                         </Button>
                                                     )}
+                                                    {behavior === 'CREATE_NEW' && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            data-testid="machine-add-create-row"
+                                                            onClick={addCreateRollRow}
+                                                            className="h-7 text-[10px] font-black text-blue-600 hover:text-blue-700 hover:bg-blue-50 uppercase tracking-widest"
+                                                        >
+                                                            <Plus className="h-3 w-3 mr-1" /> Add Output
+                                                        </Button>
+                                                    )}
                                                 </div>
                                                 {allocationRequired && (
                                                     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800">
@@ -1747,40 +1863,112 @@ export default function MachineExecutionPage() {
                                                                 </div>
                                                             </div>
                                                         )}
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Width (MM)</Label>
+                                                        <div className="space-y-3">
+                                                            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 space-y-3">
+                                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Output Roll 1</div>
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <div className="space-y-2">
+                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Width (MM)</Label>
+                                                                        <Input
+                                                                            data-testid="machine-create-row-width-0"
+                                                                            value={outputWidthMm}
+                                                                            onChange={(e) => {
+                                                                                setOutputWidthDirty(true);
+                                                                                setOutputWidthMm(e.target.value);
+                                                                            }}
+                                                                            placeholder="0.00"
+                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Weight (KG)</Label>
+                                                                        <Input
+                                                                            data-testid="machine-create-row-weight-0"
+                                                                            value={outputWeightKg}
+                                                                            onChange={(e) => handleOutputWeightChange(e.target.value)}
+                                                                            placeholder="0.00"
+                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                {showPcsEntry && (
+                                                                    <div className="space-y-2">
+                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output PCS</Label>
+                                                                        <Input
+                                                                            data-testid="machine-output-pcs"
+                                                                            value={outputPcs}
+                                                                            onChange={(e) => handleOutputPcsChange(e.target.value)}
+                                                                            placeholder="0"
+                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                                <div className="space-y-2">
+                                                                    <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output Length (M) <span className="text-[8px] font-medium opacity-50">(optional)</span></Label>
                                                                     <Input
-                                                                        data-testid="machine-output-width"
-                                                                        value={outputWidthMm}
-                                                                        onChange={(e) => {
-                                                                            setOutputWidthDirty(true);
-                                                                            setOutputWidthMm(e.target.value);
-                                                                    }}
-                                                                    placeholder="0.00"
-                                                                    className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                />
+                                                                        data-testid="machine-create-row-length-0"
+                                                                        value={outputLengthM}
+                                                                        onChange={(e) => setOutputLengthM(e.target.value)}
+                                                                        placeholder="0.00"
+                                                                        className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Weight (KG)</Label>
-                                                                    <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(e) => handleOutputWeightChange(e.target.value)} placeholder="0.00" className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm" />
-                                                            </div>
+
+                                                            {createRollRows.map((row, index) => (
+                                                                <div key={row.id} className="rounded-2xl border border-slate-200 bg-white/90 p-4 space-y-3">
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                                                            Output Roll {index + 2}
+                                                                        </div>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            onClick={() => removeCreateRollRow(row.id)}
+                                                                            className="h-9 w-9 rounded-2xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-4">
+                                                                        <div className="space-y-2">
+                                                                            <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Width (MM)</Label>
+                                                                            <Input
+                                                                                data-testid={`machine-create-row-width-${index + 1}`}
+                                                                                value={row.width_mm}
+                                                                                onChange={(e) => updateCreateRollRow(row.id, 'width_mm', e.target.value)}
+                                                                                placeholder="0.00"
+                                                                                className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="space-y-2">
+                                                                            <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Weight (KG)</Label>
+                                                                            <Input
+                                                                                data-testid={`machine-create-row-weight-${index + 1}`}
+                                                                                value={row.weight_kg}
+                                                                                onChange={(e) => updateCreateRollRow(row.id, 'weight_kg', e.target.value)}
+                                                                                placeholder="0.00"
+                                                                                className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output Length (M) <span className="text-[8px] font-medium opacity-50">(optional)</span></Label>
+                                                                        <Input
+                                                                            data-testid={`machine-create-row-length-${index + 1}`}
+                                                                            value={row.length_m}
+                                                                            onChange={(e) => updateCreateRollRow(row.id, 'length_m', e.target.value)}
+                                                                            placeholder="0.00"
+                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
-                                                        {showPcsEntry && (
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output PCS</Label>
-                                                                <Input
-                                                                    data-testid="machine-output-pcs"
-                                                                    value={outputPcs}
-                                                                    onChange={(e) => handleOutputPcsChange(e.target.value)}
-                                                                    placeholder="0"
-                                                                    className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                />
-                                                            </div>
-                                                        )}
-                                                        <div className="space-y-2">
-                                                            <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output Length (M) <span className="text-[8px] font-medium opacity-50">(optional)</span></Label>
-                                                            <Input data-testid="machine-output-length" value={outputLengthM} onChange={(e) => setOutputLengthM(e.target.value)} placeholder="0.00" className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm" />
+                                                        <div className="flex items-center justify-between rounded-2xl bg-blue-50/30 border border-blue-100 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-600">
+                                                            <span>Total Create-New Output</span>
+                                                            <span>{createRollTotalKg.toFixed(3)} KG</span>
                                                         </div>
                                                     </div>
                                                 )}
@@ -1890,6 +2078,7 @@ export default function MachineExecutionPage() {
                                                             </SelectContent>
                                                         </Select>
                                                             <Input
+                                                                ref={scrapInputRef}
                                                                 data-testid="machine-scrap-input"
                                                                 value={scrapEntryMode === 'PCS' ? scrapPcs : scrapKg}
                                                             onChange={(e) => {
@@ -1993,7 +2182,12 @@ export default function MachineExecutionPage() {
                                                 </Button>
                                                 <Button
                                                     data-testid="machine-log-output"
-                                                    onClick={() => logOutputMutation.mutate()}
+                                                    onClick={() =>
+                                                        logOutputMutation.mutate({
+                                                            scrapInputValue: scrapInputRef.current?.value ?? null,
+                                                            scrapEntryMode,
+                                                        })
+                                                    }
                                                     disabled={!canLogOutput || logOutputMutation.isPending}
                                                     className="h-16 rounded-[1.5rem] bg-white border-2 border-blue-600/50 text-blue-600 font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/10 transition-all hover:bg-blue-600 hover:text-white hover:scale-[1.02] active:scale-95 disabled:opacity-50"
                                                 >
@@ -2048,16 +2242,16 @@ export default function MachineExecutionPage() {
                             </Card>
 
                             <Card className={cn(
-                                "col-span-3 border border-white/20 shadow-2xl shadow-indigo-200/5 bg-white/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden flex flex-col transition-all duration-500",
-                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
+                                "xl:col-span-3 border border-white/20 shadow-2xl shadow-indigo-200/5 bg-white/40 backdrop-blur-xl rounded-2xl overflow-hidden flex flex-col transition-all duration-500",
+                                selectedJob ? "min-h-[360px] xl:h-[calc(100vh-245px)]" : "min-h-[320px]"
                             )}>
-                                <CardHeader className="py-5 px-6 border-b border-white/10 bg-white/10">
+                                <CardHeader className="py-3 px-4 border-b border-white/10 bg-white/10">
                                     <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                         <Activity className="h-4 w-4 text-indigo-600" />
                                         Live Telemetry Feed
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="p-3 space-y-3 overflow-y-auto text-sm">
+                                <CardContent className="p-3 space-y-3 overflow-y-auto text-sm flex-1">
                                     {!selectedJob ? (
                                         <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4 text-center">
                                             <Activity className="h-8 w-8 text-slate-300" />
