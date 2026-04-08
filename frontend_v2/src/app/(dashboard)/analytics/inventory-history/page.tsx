@@ -55,7 +55,7 @@ export default function InventoryHistoryPage() {
   const loadSnapshots = async () => {
     try {
       setLoading(true)
-      const data = await observabilityApi.getSnapshots()
+      const data = await observabilityApi.getSnapshots(undefined, { limit: 180, days: 180 })
       setSnapshots(data)
     } catch (error) {
       console.error("Failed to load snapshots:", error)

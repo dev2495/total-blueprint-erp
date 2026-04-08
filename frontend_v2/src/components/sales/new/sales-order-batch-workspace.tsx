@@ -8,7 +8,6 @@ import {
     Copy,
     Layers3,
     Loader2,
-    Package2,
     Plus,
     Repeat2,
     Save,
@@ -18,13 +17,6 @@ import {
     Wand2,
 } from "lucide-react"
 
-import {
-    PremiumHero,
-    PremiumMetricCard,
-    PremiumMetricStrip,
-    PremiumPageShell,
-    PremiumSection,
-} from "@/components/ui-custom/premium-page-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,8 +37,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 import OrderItemTechnicalEditor from "@/components/sales/shared/order-item-technical-editor"
 import {
     asNumber,
@@ -74,6 +66,7 @@ import {
     salesService,
 } from "@/services/sales"
 import { templateService } from "@/services/templates"
+import styles from "./sales-order-batch.module.css"
 
 type QueueStatus = "draft" | "submitting" | "created" | "failed"
 
@@ -98,17 +91,66 @@ type SaveSkuForm = {
     variantName: string
 }
 
-function sourceTone(sourceType: OrderDraftSource) {
-    if (sourceType === "SKU") return "border-emerald-200 bg-emerald-50 text-emerald-700"
-    if (sourceType === "REPEAT") return "border-indigo-200 bg-indigo-50 text-indigo-700"
-    return "border-amber-200 bg-amber-50 text-amber-700"
+type ChipTone =
+    | "neutral"
+    | "sku"
+    | "variant"
+    | "template"
+    | "type"
+    | "geometry"
+    | "layer"
+    | "printing"
+    | "packaging"
+    | "pod"
+    | "qty"
+    | "value"
+    | "status"
+
+function chipToneClass(tone: ChipTone) {
+    switch (tone) {
+        case "sku":
+            return styles.chipSku
+        case "variant":
+            return styles.chipVariant
+        case "template":
+            return styles.chipTemplate
+        case "type":
+            return styles.chipType
+        case "geometry":
+            return styles.chipGeometry
+        case "layer":
+            return styles.chipLayer
+        case "printing":
+            return styles.chipPrinting
+        case "packaging":
+            return styles.chipPackaging
+        case "pod":
+            return styles.chipPod
+        case "qty":
+            return styles.chipQty
+        case "value":
+            return styles.chipValue
+        case "status":
+            return styles.chipStatus
+        default:
+            return styles.chipNeutral
+    }
 }
 
-function statusTone(status: QueueStatus) {
-    if (status === "created") return "border-emerald-200 bg-emerald-50 text-emerald-700"
-    if (status === "failed") return "border-rose-200 bg-rose-50 text-rose-700"
-    if (status === "submitting") return "border-sky-200 bg-sky-50 text-sky-700"
-    return "border-slate-200 bg-slate-100 text-slate-600"
+function InfoChip({
+    children,
+    tone = "neutral",
+    title,
+}: {
+    children: ReactNode
+    tone?: ChipTone
+    title?: string
+}) {
+    return (
+        <span title={title} className={cn(styles.previewChip, chipToneClass(tone))}>
+            {children}
+        </span>
+    )
 }
 
 function formatDateLabel(value: string) {
@@ -118,18 +160,135 @@ function formatDateLabel(value: string) {
     return parsed.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function summarizeItem(item: OrderItemDraft) {
-    if (item.finished_good_type === "ROLL") {
-        return item.roll_form || "FLAT"
-    }
-    return `${item.geometry.base.width_mm}W x ${item.geometry.base.height_mm}H`
-}
-
 function estimateOrderValue(order: BatchQueuedOrder) {
     const qtyBasis = order.item.price_basis === "KG"
-        ? asNumber(order.item.savedPreview?.total_weight_kg, 0)
-        : asNumber(order.item.qty_value, 0)
+        ? orderEstimatedKg(order.item)
+        : (orderEstimatedPcs(order.item) ?? 0)
     return qtyBasis * asNumber(order.item.unit_price, 0)
+}
+
+function previewUnitWeightG(item: OrderItemDraft) {
+    return asNumber(item.savedPreview?.unit_weight_g, 0)
+}
+
+function orderEstimatedKg(item: OrderItemDraft) {
+    if (item.savedPreview) return asNumber(item.savedPreview.total_weight_kg, 0)
+    if (item.finished_good_type === "ROLL" && item.qty_uom === "KG") return asNumber(item.qty_value, 0)
+    if (item.finished_good_type !== "ROLL" && item.qty_uom === "PCS" && previewUnitWeightG(item) > 0) {
+        return (asNumber(item.qty_value, 0) * previewUnitWeightG(item)) / 1000
+    }
+    return 0
+}
+
+function orderEstimatedPcs(item: OrderItemDraft) {
+    if (item.finished_good_type === "ROLL") return null
+    if (item.qty_uom === "PCS") return asNumber(item.qty_value, 0)
+    if (item.qty_uom === "KG" && previewUnitWeightG(item) > 0) {
+        return Math.round((asNumber(item.qty_value, 0) * 1000) / previewUnitWeightG(item))
+    }
+    return null
+}
+
+function convertQtyValueForUom(item: OrderItemDraft, nextUom: "PCS" | "KG") {
+    if (item.finished_good_type === "ROLL") {
+        return { qty_uom: "KG" as const, qty_value: asNumber(item.qty_value, 0) }
+    }
+    if (item.qty_uom === nextUom) {
+        return { qty_uom: nextUom, qty_value: asNumber(item.qty_value, 0) }
+    }
+    const unitWeightG = previewUnitWeightG(item)
+    if (unitWeightG <= 0) {
+        return { qty_uom: nextUom, qty_value: asNumber(item.qty_value, 0) }
+    }
+    if (nextUom === "KG") {
+        return {
+            qty_uom: "KG" as const,
+            qty_value: Number(((asNumber(item.qty_value, 0) * unitWeightG) / 1000).toFixed(3)),
+        }
+    }
+    return {
+        qty_uom: "PCS" as const,
+        qty_value: Math.round((asNumber(item.qty_value, 0) * 1000) / unitWeightG),
+    }
+}
+
+function itemTemplateName(item: OrderItemDraft, templates: any[]) {
+    return templates.find((template: any) => String(template.id) === String(item.template_id || ""))?.name || "No template"
+}
+
+function itemTemplateTag(item: OrderItemDraft, templates: any[]) {
+    const templateName = itemTemplateName(item, templates)
+    return templateName === "No template" ? "TPL pending" : `TPL ${templateName}`
+}
+
+function itemSpecLabel(item: OrderItemDraft) {
+    if (item.finished_good_type === "ROLL") return item.roll_form || "FLAT"
+    return `${item.geometry.base.width_mm} x ${item.geometry.base.height_mm}`
+}
+
+function itemPrintingLabel(item: OrderItemDraft) {
+    if (!item.printing.enabled) return "No print"
+    return `${item.printing.type} F${item.printing.front_colors_count}/B${item.printing.back_colors_count}`
+}
+
+function resolveMaterialMeta(id: string, families: any[], variants: any[], packagingMaterials: any[]) {
+    return variants.find((row) => String(row.id) === String(id))
+        || families.find((row) => String(row.id) === String(id))
+        || packagingMaterials.find((row) => String(row.id) === String(id))
+        || null
+}
+
+function itemLayerLabels(item: OrderItemDraft, families: any[], variants: any[]) {
+    return (item.film_layers || []).map((layer, index) => {
+        const material = resolveMaterialMeta(layer.variant_id || layer.family_id, families, variants, [])
+        const code = String(material?.code || "").trim()
+        const name = String(material?.name || "").trim()
+        if (code && name && code.toUpperCase() !== name.toUpperCase()) return `${code} · ${name}`
+        return code || name || `Layer ${index + 1}`
+    })
+}
+
+function itemPackagingLabels(item: OrderItemDraft, packagingMaterials: any[]) {
+    const labels: string[] = []
+    const primary = item.packaging_snapshot.primary_inner_pack
+    if (primary.enabled) {
+        const material = resolveMaterialMeta(primary.material_id, [], [], packagingMaterials)
+        const materialLabel = String(material?.code || material?.name || "Pack").trim()
+        labels.push(materialLabel && materialLabel !== "Pack"
+            ? `${materialLabel} ${asNumber(primary.pcs_per_pack, 0)} pcs/pack`
+            : `${asNumber(primary.pcs_per_pack, 0)} pcs/pack`)
+    }
+    if (item.packaging_snapshot.pod.enabled) {
+        const podLabel = String(item.packaging_snapshot.pod.pod_sku_code || item.packaging_snapshot.pod.pod_sku_name || "POD").trim()
+        labels.push(podLabel && podLabel.toUpperCase() !== "POD" ? `POD ${podLabel}` : "POD enabled")
+    }
+    if (item.packaging_snapshot.roll_dispatch_pack.enabled) {
+        for (const line of item.packaging_snapshot.roll_dispatch_pack.lines.slice(0, 3)) {
+            const material = resolveMaterialMeta(line.material_id, [], [], packagingMaterials)
+            const materialLabel = String(material?.code || material?.name || "Sheet").trim()
+            labels.push(`${materialLabel} ${asNumber(line.qty, 0)} ${line.uom}/roll`)
+        }
+    }
+    return labels.length ? labels : ["Standard pack"]
+}
+
+function itemPackagingWeightLabel(item: OrderItemDraft) {
+    const bom = item.savedPreview?.bom
+    const podRows = Array.isArray(bom?.pod) ? bom.pod : []
+    const podWeightKg = podRows.reduce((sum: number, row: any) => sum + asNumber(row?.weight_kg, 0), 0)
+    if (podWeightKg > 0) return `POD weight ${podWeightKg.toFixed(3)} kg`
+    if (item.packaging_snapshot.primary_inner_pack.enabled || item.packaging_snapshot.roll_dispatch_pack.enabled) {
+        return "Pack config captured"
+    }
+    return "No extra pack weight modelled"
+}
+
+function pricingBasisSummary(item: OrderItemDraft) {
+    if (item.price_basis === "PCS") {
+        const estimatedPcs = orderEstimatedPcs(item)
+        return estimatedPcs !== null ? `${estimatedPcs} pcs priced` : "PCS price pending preview"
+    }
+    return `${orderEstimatedKg(item).toFixed(3)} kg priced`
 }
 
 function createQueuedOrder(params: {
@@ -161,42 +320,6 @@ function resetResultState(order: BatchQueuedOrder): BatchQueuedOrder {
         createdOrderId: "",
         createdOrderNumber: "",
     }
-}
-
-function QueueLane({
-    title,
-    description,
-    icon,
-    disabled,
-    dataTestId,
-    onClick,
-}: {
-    title: string
-    description: string
-    icon: ReactNode
-    disabled?: boolean
-    dataTestId?: string
-    onClick: () => void
-}) {
-    return (
-        <button
-            type="button"
-            data-testid={dataTestId}
-            onClick={onClick}
-            disabled={disabled}
-            className="group rounded-[1.6rem] border border-slate-200/80 bg-white/92 p-4 text-left shadow-[0_18px_38px_-34px_rgba(15,23,42,0.4)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_22px_48px_-32px_rgba(15,23,42,0.32)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-            <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                    <div className="text-sm font-black tracking-tight text-slate-900">{title}</div>
-                    <div className="text-xs leading-5 text-slate-500 sm:text-[13px]">{description}</div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-slate-600 shadow-sm">
-                    {icon}
-                </div>
-            </div>
-        </button>
-    )
 }
 
 function SaveSkuVariantDialog({
@@ -299,15 +422,16 @@ export default function SalesOrderBatchWorkspace() {
     const [activeOrderId, setActiveOrderId] = useState("")
     const [previewLoading, setPreviewLoading] = useState(false)
     const [previewError, setPreviewError] = useState("")
-    const [sharedSkuOpen, setSharedSkuOpen] = useState(false)
     const [repeatDialogOpen, setRepeatDialogOpen] = useState(false)
     const [selectedSkuId, setSelectedSkuId] = useState("")
+    const [selectedSharedVariantId, setSelectedSharedVariantId] = useState("")
     const [skuSearch, setSkuSearch] = useState("")
     const [variantSearch, setVariantSearch] = useState("")
     const [repeatSearch, setRepeatSearch] = useState("")
     const [saveSkuOpen, setSaveSkuOpen] = useState(false)
     const [saveSkuTarget, setSaveSkuTarget] = useState<OrderItemDraft | null>(null)
     const [previewNonce, setPreviewNonce] = useState(0)
+    const [technicalEditorOpen, setTechnicalEditorOpen] = useState(false)
     const [saveSkuForm, setSaveSkuForm] = useState<SaveSkuForm>({
         skuId: "__NEW__",
         newSkuCode: "",
@@ -393,6 +517,10 @@ export default function SalesOrderBatchWorkspace() {
         }
     }, [activeOrderId, queue])
 
+    useEffect(() => {
+        setTechnicalEditorOpen(Boolean(activeOrder?.item.advancedUnlocked))
+    }, [activeOrder?.localId, activeOrder?.item.advancedUnlocked])
+
     const activePreviewSignature = useMemo(() => {
         if (!activeItem) return ""
         return JSON.stringify({
@@ -468,8 +596,26 @@ export default function SalesOrderBatchWorkspace() {
         )
     }, [selectedSku, selectedSkuVariants, variantSearch])
 
-    const totalEstimatedWeightKg = queue.reduce((sum, order) => sum + asNumber(order.item.savedPreview?.total_weight_kg, 0), 0)
+    const selectedSharedVariant = useMemo(
+        () => filteredSelectedVariants.find((variant) => variant.id === selectedSharedVariantId) || filteredSelectedVariants[0] || null,
+        [filteredSelectedVariants, selectedSharedVariantId]
+    )
+
+    useEffect(() => {
+        if (!filteredSelectedVariants.length) {
+            setSelectedSharedVariantId("")
+            return
+        }
+        if (!selectedSharedVariantId || !filteredSelectedVariants.some((variant) => variant.id === selectedSharedVariantId)) {
+            setSelectedSharedVariantId(filteredSelectedVariants[0].id)
+        }
+    }, [filteredSelectedVariants, selectedSharedVariantId])
+
+    const totalEstimatedWeightKg = queue.reduce((sum, order) => sum + orderEstimatedKg(order.item), 0)
     const totalEstimatedValue = queue.reduce((sum, order) => sum + estimateOrderValue(order), 0)
+    const queueDraftCount = queue.filter((order) => order.submitStatus === "draft").length
+    const queueCreatedCount = queue.filter((order) => order.submitStatus === "created").length
+    const queueFailedCount = queue.filter((order) => order.submitStatus === "failed").length
 
     const saveSkuMutation = useMutation({
         mutationFn: async () => {
@@ -639,6 +785,7 @@ export default function SalesOrderBatchWorkspace() {
         setCustomerId(value)
         setCustomerName(customer?.name || "")
         setSelectedSkuId("")
+        setSelectedSharedVariantId("")
         setSkuSearch("")
         setVariantSearch("")
         setRepeatSearch("")
@@ -692,7 +839,6 @@ export default function SalesOrderBatchWorkspace() {
                 item: orderItemFromVariant(sku, variant),
             })
         )
-        setSharedSkuOpen(false)
     }
 
     const addRepeatToBatch = (candidate: RepeatLineCandidate, asCustom = false) => {
@@ -731,59 +877,29 @@ export default function SalesOrderBatchWorkspace() {
     }
 
     const activeEstimatedValue = activeOrder ? estimateOrderValue(activeOrder) : 0
-    const activeEstimatedWeight = asNumber(activeOrder?.item.savedPreview?.total_weight_kg, 0)
     const activeTemplate = templates.find((template: any) => String(template.id) === String(activeItem?.template_id || ""))
+    const activeLayerLabels = activeItem ? itemLayerLabels(activeItem, families, variants) : []
+    const activePackagingLabels = activeItem ? itemPackagingLabels(activeItem, packagingMaterials) : []
+    const activeEstimatedKg = activeItem ? orderEstimatedKg(activeItem) : 0
+    const activeEstimatedPcs = activeItem ? orderEstimatedPcs(activeItem) : null
+    const activeUnitWeightG = activeItem ? previewUnitWeightG(activeItem) : 0
 
     return (
-        <PremiumPageShell className="min-w-0" dataTestId="sales-order-batch-workspace-page">
-            <PremiumHero
-                dataTestId="sales-batch-hero"
-                eyebrow="Sales Order Studio"
-                title="Batch single orders for one customer"
-                description="Queue repeat, shared-SKU, and custom detailed orders with clean commercial editing. Every card still submits as its own sales order."
-                actions={(
-                    <>
-                        <Button variant="outline" asChild className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white">
-                            <Link href="/sales/sku-catalog">Open SKU Catalog</Link>
-                        </Button>
-                        <Button variant="outline" asChild className="border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white">
-                            <Link href="/sales/orders">Back to Orders</Link>
-                        </Button>
-                        <Button
-                            data-testid="sales-batch-submit"
-                            onClick={() => batchCreateMutation.mutate(undefined)}
-                            disabled={!customerId || !queue.length || batchCreateMutation.isPending}
-                            className="bg-white text-slate-950 hover:bg-slate-100"
-                        >
-                            {batchCreateMutation.isPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <Save className="mr-2 h-4 w-4" />
-                            )}
-                            Submit Batch Singles
-                        </Button>
-                    </>
-                )}
-                metrics={(
-                    <PremiumMetricStrip>
-                        <PremiumMetricCard label="Customer" value={customerName || "Choose customer"} hint="Single-customer queue" tone="dark" valueClassName="text-lg sm:text-xl xl:text-[1.35rem]" />
-                        <PremiumMetricCard label="Queued Orders" value={<span data-testid="sales-batch-queue-count">{queue.length}</span>} tone="dark" />
-                        <PremiumMetricCard label="Estimated Weight" value={`${totalEstimatedWeightKg.toFixed(2)} KG`} tone="dark" />
-                        <PremiumMetricCard label="Estimated Value" value={formatMoney(totalEstimatedValue)} tone="dark" />
-                    </PremiumMetricStrip>
-                )}
-            />
+        <div className={styles.shell} data-testid="sales-order-batch-workspace-page">
+            <div data-testid="sales-order-batch-workspace" className={styles.shellFrame}>
+                <header className={styles.headerBar}>
+                    <div className={styles.headerTitleWrap}>
+                        <div className={styles.headerEyebrow}>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Sales Fast Entry
+                        </div>
+                        <h1 className={styles.headerTitle}>Create Sales Orders</h1>
+                    </div>
 
-            <PremiumSection
-                dataTestId="sales-batch-header"
-                title="Customer Batch Header"
-                description="Choose the customer once, then stage multiple single-order cards with isolated submit results."
-            >
-                <div className="grid gap-4 lg:grid-cols-[minmax(280px,1.3fr)_repeat(3,minmax(0,1fr))]">
-                    <div className="space-y-2">
-                        <Label>Customer</Label>
+                    <div className={styles.customerInline}>
+                        <Label className={styles.inlineLabel}>Customer</Label>
                         <Select value={customerId} onValueChange={handleCustomerChange}>
-                            <SelectTrigger data-testid="sales-batch-customer" className="h-12 rounded-2xl bg-white">
+                            <SelectTrigger data-testid="sales-batch-customer" className={styles.inlineSelect}>
                                 <SelectValue placeholder="Select customer" />
                             </SelectTrigger>
                             <SelectContent>
@@ -795,188 +911,190 @@ export default function SalesOrderBatchWorkspace() {
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 px-4 py-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Queue Health</div>
-                        <div className="mt-2 text-lg font-black text-slate-900">
-                            {queue.filter((order) => order.submitStatus === "created").length} created / {queue.filter((order) => order.submitStatus === "failed").length} failed
-                        </div>
-                    </div>
-                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 px-4 py-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fast-entry lanes</div>
-                        <div className="mt-2 text-lg font-black text-slate-900">Shared SKU + Repeat</div>
-                    </div>
-                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 px-4 py-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Detailed lane</div>
-                        <div className="mt-2 text-lg font-black text-slate-900">Template-attached</div>
-                    </div>
-                </div>
-            </PremiumSection>
 
-            <div data-testid="sales-order-batch-workspace" className="grid min-w-0 gap-6 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
-                    <div className="space-y-6">
-                        <PremiumSection
-                            dataTestId="sales-batch-lanes"
-                            title="Add Order Lanes"
-                            description="Choose the fastest lane for this customer. Shared SKU and repeat keep product physics locked until you explicitly unlock them."
-                            actions={<ShoppingCart className="h-5 w-5 text-slate-400" />}
-                            contentClassName="space-y-3"
-                        >
-                                <QueueLane
-                                    title="Shared SKU"
-                                    description="Pick a customer-ranked SKU variant and only edit commercial fields."
-                                    icon={<Sparkles className="h-4 w-4" />}
-                                    dataTestId="sales-batch-lane-shared"
-                                    disabled={!customerId}
-                                    onClick={() => setSharedSkuOpen(true)}
-                                />
-                                <QueueLane
-                                    title="Repeat Order"
-                                    description="Reuse a historical customer line, then keep or adjust the commercial inputs."
-                                    icon={<Repeat2 className="h-4 w-4" />}
-                                    dataTestId="sales-batch-lane-repeat"
-                                    disabled={!customerId}
-                                    onClick={() => setRepeatDialogOpen(true)}
-                                />
-                                <QueueLane
-                                    title="Custom Detailed Order"
-                                    description="Use the collapsible detailed editor for template-attached exceptional orders."
-                                    icon={<Layers3 className="h-4 w-4" />}
-                                    dataTestId="sales-batch-lane-custom"
-                                    disabled={!customerId}
-                                    onClick={addCustomDetailedOrder}
-                                />
-                        </PremiumSection>
+                    <div className={styles.headerStats}>
+                        <span className={styles.headerStatChip}><span data-testid="sales-batch-queue-count">{queue.length}</span> in queue</span>
+                        <span className={styles.headerStatChip}>{queueCreatedCount} ok</span>
+                        <span className={styles.headerStatChip}>{queueFailedCount} err</span>
+                    </div>
 
-                        <PremiumSection
-                            dataTestId="sales-batch-queue-section"
-                            title="Queued Single Orders"
-                            description="Each card becomes one sales order and one sales order item."
-                            contentClassName="p-3"
+                    <div className={styles.headerActions}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            data-testid="sales-batch-lane-repeat"
+                            onClick={() => setRepeatDialogOpen(true)}
+                            disabled={!customerId}
                         >
-                                <ScrollArea className="pr-2">
-                                    <div className="space-y-3">
-                                        {!queue.length ? (
-                                            <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-                                                Select a customer, then add shared-SKU, repeat, or custom detailed orders to the batch queue.
-                                            </div>
-                                        ) : null}
-                                        {queue.map((order) => {
-                                            const isActive = order.localId === activeOrderId
-                                            return (
-                                                <button
-                                                    key={order.localId}
-                                                    type="button"
-                                                    data-testid="sales-batch-queue-card"
-                                                    onClick={() => setActiveOrderId(order.localId)}
-                                                    className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isActive ? "border-slate-900 bg-slate-900 text-white shadow-xl" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
-                                                >
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="space-y-2">
-                                                            <div className="text-sm font-black">{order.orderName || order.item.line_name || "Untitled queued order"}</div>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-white/20 bg-white/10 text-white" : sourceTone(order.sourceType)}`}>
-                                                                    {order.sourceType}
-                                                                </span>
-                                                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-white/20 bg-white/10 text-white" : statusTone(order.submitStatus)}`}>
-                                                                    {order.submitStatus}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <div className={`text-right text-xs ${isActive ? "text-white/80" : "text-slate-500"}`}>
-                                                            <div>{order.item.qty_value} {order.item.qty_uom}</div>
-                                                            <div>{formatMoney(order.item.unit_price)} / {order.item.price_basis}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className={`mt-3 space-y-1 text-xs ${isActive ? "text-white/75" : "text-slate-500"}`}>
-                                                        <div>{summarizeItem(order.item)} • {order.sourceMeta}</div>
-                                                        <div>{formatDateLabel(order.deliveryDate)}</div>
-                                                        {order.createdOrderNumber ? <div className="font-semibold">Created: {order.createdOrderNumber}</div> : null}
-                                                        {order.submitError ? <div className="font-semibold text-rose-300">{order.submitError}</div> : null}
-                                                    </div>
-                                                </button>
-                                            )
-                                        })}
+                            <Repeat2 className="mr-2 h-4 w-4" />
+                            Repeat
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            data-testid="sales-batch-lane-custom"
+                            onClick={addCustomDetailedOrder}
+                            disabled={!customerId}
+                        >
+                            <Layers3 className="mr-2 h-4 w-4" />
+                            Custom
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/sales/sku-catalog">
+                                SKU Catalog
+                            </Link>
+                        </Button>
+                        <Button
+                            data-testid="sales-batch-submit"
+                            onClick={() => batchCreateMutation.mutate(undefined)}
+                            disabled={!customerId || !queue.length || batchCreateMutation.isPending}
+                            className={styles.submitBtn}
+                        >
+                            {batchCreateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Submit queued orders
+                        </Button>
+                    </div>
+                </header>
+
+                <div className={styles.mainLayout}>
+                    <div className={styles.workColumn}>
+                        <section className={styles.panel}>
+                            <div className={styles.panelTopline}>
+                                <div>
+                                    <div className={styles.panelLabel}>Shared SKU Source</div>
+                                    <div className={styles.panelHint}>Shared SKU is the primary lane. Repeat and custom hydrate the same queue/composer model.</div>
+                                </div>
+                                <Badge variant="outline" className={styles.modeBadge}>SKU-first</Badge>
+                            </div>
+
+                            <div className={styles.sourceRow}>
+                                <div className={styles.fieldBlock}>
+                                    <Label className={styles.compactLabel}>Sales SKU</Label>
+                                    <Select
+                                        value={selectedSkuId}
+                                        onValueChange={(value) => {
+                                            setSelectedSkuId(value)
+                                            setSelectedSharedVariantId("")
+                                        }}
+                                        disabled={!customerId}
+                                    >
+                                        <SelectTrigger data-testid="sales-batch-shared-sku" className={styles.compactSelect}>
+                                            <SelectValue placeholder={customerId ? "Select SKU" : "Select customer first"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {filteredSkus.map((sku) => (
+                                                <SelectItem key={sku.id} value={sku.id}>
+                                                    {sku.code} · {sku.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className={styles.fieldBlock}>
+                                    <Label className={styles.compactLabel}>Variant</Label>
+                                    <Select
+                                        value={selectedSharedVariantId}
+                                        onValueChange={setSelectedSharedVariantId}
+                                        disabled={!customerId || !selectedSku}
+                                    >
+                                        <SelectTrigger data-testid="sales-batch-shared-variant" className={styles.compactSelect}>
+                                            <SelectValue placeholder="Select variant" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {filteredSelectedVariants.map((variant) => (
+                                                <SelectItem key={variant.id} value={variant.id}>
+                                                    {variant.code} · {variant.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className={styles.searchBlock}>
+                                    <Label className={styles.compactLabel}>Quick search</Label>
+                                    <div className={styles.searchInputWrap}>
+                                        <Search className={styles.searchIcon} />
+                                        <Input
+                                            value={variantSearch}
+                                            onChange={(event) => setVariantSearch(event.target.value)}
+                                            placeholder="Filter variants"
+                                            className={styles.searchInput}
+                                        />
                                     </div>
-                                </ScrollArea>
-                        </PremiumSection>
-                    </div>
+                                </div>
 
-                    <div className="min-w-0 space-y-6">
+                                <Button
+                                    data-testid="sales-batch-shared-add"
+                                    className={styles.addSharedBtn}
+                                    onClick={() => {
+                                        if (!selectedSku || !selectedSharedVariant) return
+                                        addSharedSkuToBatch(selectedSku, selectedSharedVariant)
+                                    }}
+                                    disabled={!customerId || !selectedSku || !selectedSharedVariant}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add to queue
+                                </Button>
+                            </div>
+
+                            <div className={styles.sourceMeta}>
+                                <InfoChip tone="sku">{selectedSku?.code || "No SKU"}</InfoChip>
+                                <InfoChip tone="variant">{selectedSharedVariant?.code || "No variant"}</InfoChip>
+                                {selectedSharedVariant ? (
+                                    <>
+                                        <InfoChip tone="type">{selectedSharedVariant.finished_good_type}</InfoChip>
+                                        <InfoChip tone="geometry">
+                                            {selectedSharedVariant.finished_good_type === "ROLL"
+                                                ? selectedSharedVariant.roll_form || "FLAT"
+                                                : `${selectedSharedVariant.geometry_snapshot?.base?.width_mm || selectedSharedVariant.geometry_snapshot?.width_mm || 0} x ${selectedSharedVariant.geometry_snapshot?.base?.height_mm || selectedSharedVariant.geometry_snapshot?.height_mm || 0}`}
+                                        </InfoChip>
+                                        {itemLayerLabels(orderItemFromVariant(selectedSku!, selectedSharedVariant), families, variants).map((label) => (
+                                            <InfoChip key={`selected-layer-${label}`} tone="layer">{label}</InfoChip>
+                                        ))}
+                                        {selectedSharedVariant.printing_snapshot?.enabled ? (
+                                            <InfoChip tone="printing">{selectedSharedVariant.printing_snapshot?.type || "PRINT"}</InfoChip>
+                                        ) : null}
+                                        {itemPackagingLabels(orderItemFromVariant(selectedSku!, selectedSharedVariant), packagingMaterials).map((label) => (
+                                            <InfoChip key={`selected-pack-${label}`} tone={label.startsWith("POD ") ? "pod" : "packaging"}>{label}</InfoChip>
+                                        ))}
+                                        {selectedSharedVariant.packaging_snapshot?.pod?.enabled ? <InfoChip tone="pod">POD</InfoChip> : null}
+                                    </>
+                                ) : null}
+                                <InfoChip tone="template">{selectedSharedVariant?.template_name || selectedSku?.template_name || "TPL pending"}</InfoChip>
+                            </div>
+                        </section>
+
                         {activeOrder ? (
                             <>
-                                <PremiumSection
-                                    dataTestId="sales-batch-selected-order"
-                                    title="Selected Order"
-                                    description="Commercial summary, status, and quick actions for the active queued order."
-                                    className="xl:sticky xl:top-4 xl:z-10"
-                                >
-                                    <div className="flex flex-col gap-5">
-                                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                                            <div className="space-y-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${sourceTone(activeOrder.sourceType)}`}>
-                                                        {activeOrder.sourceType}
-                                                    </span>
-                                                    <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${statusTone(activeOrder.submitStatus)}`}>
-                                                        {activeOrder.submitStatus}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                                                        {activeOrder.orderName || activeOrder.item.line_name || "Queued order"}
-                                                    </h2>
-                                                    <p className="mt-1 text-sm text-slate-500">
-                                                        {activeTemplate?.name || "Choose a LIVE template"} • {summarizeItem(activeOrder.item)} • {activeOrder.sourceMeta}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {activeOrder.submitStatus === "failed" ? (
-                                                    <Button variant="outline" onClick={() => retrySpecificOrder(activeOrder.localId)} disabled={batchCreateMutation.isPending}>
-                                                        Retry This Order
-                                                    </Button>
-                                                ) : null}
-                                                {activeOrder.createdOrderId ? (
-                                                    <Button variant="outline" asChild>
-                                                        <Link href={`/sales/orders/${activeOrder.createdOrderId}`}>
-                                                            Open Order <ArrowUpRight className="ml-2 h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                ) : null}
-                                                <Button variant="outline" onClick={() => duplicateQueuedOrder(activeOrder.localId)}>
-                                                    <Copy className="mr-2 h-4 w-4" /> Duplicate
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={() => openSaveSkuDialog(activeOrder.item)}
-                                                    disabled={!activeOrder.item.template_id}
-                                                >
-                                                    <Save className="mr-2 h-4 w-4" /> Save as SKU Variant
-                                                </Button>
-                                                <Button variant="outline" className="text-rose-600" onClick={() => removeQueuedOrder(activeOrder.localId)}>
-                                                    Remove
-                                                </Button>
+                                <section className={styles.panel} data-testid="sales-batch-selected-order">
+                                    <div className={styles.panelTopline}>
+                                        <div>
+                                            <div className={styles.panelLabel}>Line Composer</div>
+                                            <div className={styles.panelHint}>
+                                                {activeOrder.sourceType === "SKU"
+                                                    ? "Variant provides technical truth. Edit the commercial inputs here."
+                                                    : activeOrder.sourceType === "REPEAT"
+                                                        ? "Repeat hydrates the same draft. Keep it fast unless you need to unlock physics."
+                                                        : "Custom starts in the same draft model with the technical editor ready."}
                                             </div>
                                         </div>
-                                        <PremiumMetricStrip className="md:grid-cols-2 xl:grid-cols-[minmax(0,1.55fr)_repeat(3,minmax(0,0.82fr))]">
-                                            <PremiumMetricCard label="Template" value={activeTemplate?.name || "Missing"} valueClassName="text-base sm:text-lg xl:text-xl" />
-                                            <PremiumMetricCard label="Delivery" value={formatDateLabel(activeOrder.deliveryDate)} valueClassName="text-base sm:text-lg xl:text-xl" />
-                                            <PremiumMetricCard label="Estimated Weight" value={`${activeEstimatedWeight.toFixed(2)} KG`} />
-                                            <PremiumMetricCard label="Estimated Value" value={formatMoney(activeEstimatedValue)} />
-                                        </PremiumMetricStrip>
+                                        <div className={styles.inlineBadgeRow}>
+                                            <span className={cn(styles.stateBadge, styles.sourceBadge)}>{activeOrder.sourceType}</span>
+                                            <span className={cn(styles.stateBadge, activeOrder.submitStatus === "failed" ? styles.errorBadge : activeOrder.submitStatus === "created" ? styles.successBadge : styles.neutralBadge)}>
+                                                {activeOrder.submitStatus}
+                                            </span>
+                                        </div>
                                     </div>
-                                </PremiumSection>
 
-                                <PremiumSection
-                                    dataTestId="sales-batch-basics"
-                                    title="Basics"
-                                    description="Commercial controls stay light for every lane. Technical sections open only for custom detailed orders."
-                                >
-                                    <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-                                        <div className="space-y-2 2xl:col-span-2">
-                                            <Label>Order Name</Label>
+                                    <div className={styles.composerGrid}>
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Order name</Label>
                                             <Input
                                                 data-testid="sales-batch-order-name"
+                                                className={styles.compactInput}
                                                 value={activeOrder.orderName}
                                                 onChange={(event) =>
                                                     updateQueuedOrder(activeOrder.localId, (order) => ({
@@ -986,10 +1104,27 @@ export default function SalesOrderBatchWorkspace() {
                                                 }
                                             />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Delivery Date</Label>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Line label</Label>
+                                            <Input
+                                                data-testid="sales-batch-line-name"
+                                                className={styles.compactInput}
+                                                value={activeOrder.item.line_name}
+                                                onChange={(event) =>
+                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                        ...order,
+                                                        item: { ...order.item, line_name: event.target.value, savedPreview: null },
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Delivery</Label>
                                             <Input
                                                 data-testid="sales-batch-delivery-date"
+                                                className={styles.compactInput}
                                                 type="date"
                                                 value={activeOrder.deliveryDate}
                                                 onChange={(event) =>
@@ -1000,58 +1135,12 @@ export default function SalesOrderBatchWorkspace() {
                                                 }
                                             />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Line Item Name</Label>
-                                            <Input
-                                                data-testid="sales-batch-line-name"
-                                                value={activeOrder.item.line_name}
-                                                onChange={(event) =>
-                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
-                                                        ...order,
-                                                        item: { ...order.item, line_name: event.target.value, savedPreview: null },
-                                                    }))
-                                                }
-                                            />
-                                        </div>
-                                        <div className="space-y-2 md:col-span-2 2xl:col-span-2">
-                                            <Label>Template</Label>
-                                            <Select
-                                                value={activeOrder.item.template_id || "__NONE__"}
-                                                onValueChange={(value) => {
-                                                    const selected = templates.find((template: any) => String(template.id) === value)
-                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
-                                                        ...order,
-                                                        item: {
-                                                            ...order.item,
-                                                            template_id: value === "__NONE__" ? "" : value,
-                                                            finished_good_type: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() as OrderItemDraft["finished_good_type"],
-                                                            qty_uom: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "KG" : order.item.qty_uom,
-                                                            price_basis: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "KG" : order.item.price_basis,
-                                                            roll_form: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL"
-                                                                ? (order.item.roll_form || "FLAT")
-                                                                : "",
-                                                            savedPreview: null,
-                                                        },
-                                                    }))
-                                                }}
-                                            >
-                                                <SelectTrigger data-testid="sales-batch-template" className="bg-white">
-                                                    <SelectValue placeholder="Select LIVE template" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="__NONE__">Select template</SelectItem>
-                                                    {templates.map((template: any) => (
-                                                        <SelectItem key={template.id} value={String(template.id)}>
-                                                            {template.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Target Qty</Label>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Qty</Label>
                                             <Input
                                                 data-testid="sales-batch-qty"
+                                                className={styles.compactInput}
                                                 type="number"
                                                 value={String(activeOrder.item.qty_value)}
                                                 onChange={(event) =>
@@ -1062,30 +1151,36 @@ export default function SalesOrderBatchWorkspace() {
                                                 }
                                             />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Qty UOM</Label>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>UOM</Label>
                                             <Select
                                                 value={activeOrder.item.qty_uom}
                                                 onValueChange={(value) =>
-                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
-                                                        ...order,
-                                                        item: {
-                                                            ...order.item,
-                                                            qty_uom: order.item.finished_good_type === "ROLL" ? "KG" : (value as "PCS" | "KG"),
-                                                            savedPreview: null,
-                                                        },
-                                                    }))
+                                                    updateQueuedOrder(activeOrder.localId, (order) => {
+                                                        const converted = convertQtyValueForUom(order.item, value as "PCS" | "KG")
+                                                        return {
+                                                            ...order,
+                                                            item: {
+                                                                ...order.item,
+                                                                qty_uom: converted.qty_uom,
+                                                                qty_value: converted.qty_value,
+                                                                savedPreview: null,
+                                                            },
+                                                        }
+                                                    })
                                                 }
                                             >
-                                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className={styles.compactSelect}><SelectValue /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="KG">KG</SelectItem>
                                                     {activeOrder.item.finished_good_type !== "ROLL" ? <SelectItem value="PCS">PCS</SelectItem> : null}
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Price Basis</Label>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Price basis</Label>
                                             <Select
                                                 value={activeOrder.item.price_basis}
                                                 onValueChange={(value) =>
@@ -1098,17 +1193,19 @@ export default function SalesOrderBatchWorkspace() {
                                                     }))
                                                 }
                                             >
-                                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className={styles.compactSelect}><SelectValue /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="KG">Per KG</SelectItem>
                                                     {activeOrder.item.finished_good_type !== "ROLL" ? <SelectItem value="PCS">Per PCS</SelectItem> : null}
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label>Unit Price</Label>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Unit price</Label>
                                             <Input
                                                 data-testid="sales-batch-unit-price"
+                                                className={styles.compactInput}
                                                 type="number"
                                                 step="0.01"
                                                 value={String(activeOrder.item.unit_price)}
@@ -1120,312 +1217,317 @@ export default function SalesOrderBatchWorkspace() {
                                                 }
                                             />
                                         </div>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>LIVE template</Label>
+                                            <Select
+                                                value={activeOrder.item.template_id || "__NONE__"}
+                                                onValueChange={(value) => {
+                                                    const selected = templates.find((template: any) => String(template.id) === value)
+                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                        ...order,
+                                                        item: {
+                                                            ...order.item,
+                                                            template_id: value === "__NONE__" ? "" : value,
+                                                            finished_good_type: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() as OrderItemDraft["finished_good_type"],
+                                                            qty_uom: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "KG" : order.item.qty_uom,
+                                                            price_basis: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "KG" : order.item.price_basis,
+                                                            roll_form: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? (order.item.roll_form || "FLAT") : "",
+                                                            savedPreview: null,
+                                                        },
+                                                    }))
+                                                }}
+                                            >
+                                                <SelectTrigger data-testid="sales-batch-template" className={styles.compactSelect}>
+                                                    <SelectValue placeholder="Select LIVE template" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__NONE__">Select template</SelectItem>
+                                                    {templates.map((template: any) => (
+                                                        <SelectItem key={template.id} value={String(template.id)}>
+                                                            {template.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
-                                </PremiumSection>
 
-                                {activeOrder.item.advancedUnlocked ? (
-                                    <OrderItemTechnicalEditor
-                                        item={activeOrder.item}
-                                        templates={templates}
-                                        families={families}
-                                        variants={variants}
-                                        addonsMaster={addonsMaster}
-                                        packagingMaterials={packagingMaterials}
-                                        podProfiles={podProfiles}
-                                        artworks={artworks}
-                                        previewLoading={previewLoading}
-                                        previewError={previewError}
-                                        onPreviewRetry={() => {
-                                            if (!activeOrder.item.template_id) return
-                                            setPreviewError("")
-                                            setPreviewNonce((current) => current + 1)
-                                        }}
-                                        updateItem={(updater) =>
-                                            updateQueuedOrder(activeOrder.localId, (order) => {
-                                                const nextItem = updater(order.item)
-                                                return {
-                                                    ...order,
-                                                    item: nextItem,
-                                                    sourceType: nextItem.sourceType,
-                                                }
-                                            })
-                                        }
-                                    />
-                                ) : (
-                                    <PremiumSection
-                                        dataTestId="sales-batch-fast-entry-lock"
-                                        title="Fast Entry Lock"
-                                        description="This order keeps the technical structure locked for speed. Convert only if sales must change the product physics."
-                                    >
-                                        <div className="space-y-6">
-                                            <div className="flex flex-wrap gap-2">
-                                                <Badge variant="outline">{activeOrder.item.finished_good_type}</Badge>
-                                                <Badge variant="outline">{summarizeItem(activeOrder.item)}</Badge>
-                                                <Badge variant="outline">{activeOrder.item.film_layers.length} layer(s)</Badge>
-                                                {activeOrder.item.printing.enabled ? <Badge variant="outline">{activeOrder.item.printing.type} print</Badge> : <Badge variant="outline">No print</Badge>}
-                                                {activeOrder.item.packaging_snapshot.pod.enabled ? <Badge variant="outline">POD</Badge> : null}
-                                            </div>
-                                            <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                                                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <div className="text-sm font-black text-slate-900">Commercial-first configuration</div>
-                                                            <p className="mt-1 text-sm leading-6 text-slate-500">
-                                                                Technical data came from {activeOrder.sourceType === "SKU" ? "the shared SKU variant" : "the repeat-order snapshot"}.
-                                                                Width, stack, print, add-ons, packaging, and POD are preserved until you explicitly unlock them.
-                                                            </p>
-                                                        </div>
-                                                        <Package2 className="mt-1 h-5 w-5 text-slate-400" />
-                                                    </div>
-                                                    <Separator className="my-4" />
-                                                    <div className="grid gap-3 md:grid-cols-2">
-                                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Template</div>
-                                                            <div className="mt-2 text-sm font-black text-slate-900">{activeTemplate?.name || "Missing"}</div>
-                                                        </div>
-                                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Source</div>
-                                                            <div className="mt-2 text-sm font-black text-slate-900">{activeOrder.sourceMeta}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-4">
-                                                        <Button
-                                                            variant="outline"
-                                                            onClick={() =>
-                                                                updateQueuedOrder(activeOrder.localId, (order) => ({
-                                                                    ...order,
-                                                                    sourceType: "CUSTOM",
-                                                                    item: {
-                                                                        ...order.item,
-                                                                        sourceType: "CUSTOM",
-                                                                        advancedUnlocked: true,
-                                                                        savedPreview: null,
-                                                                    },
-                                                                }))
-                                                            }
-                                                        >
-                                                            <Wand2 className="mr-2 h-4 w-4" /> Convert to Custom Detailed Order
-                                                        </Button>
-                                                    </div>
-                                                </div>
+                                    <div className={styles.previewStrip}>
+                                        <InfoChip tone="qty">{activeEstimatedKg.toFixed(2)} kg</InfoChip>
+                                        <InfoChip tone="qty">{activeEstimatedPcs !== null ? `${activeEstimatedPcs} pcs` : "— pcs"}</InfoChip>
+                                        <InfoChip tone="type">{activeOrder.item.finished_good_type}</InfoChip>
+                                        <InfoChip tone="geometry">{itemSpecLabel(activeOrder.item)}</InfoChip>
+                                        {activeLayerLabels.map((label) => (
+                                            <InfoChip key={`active-layer-${label}`} tone="layer">{label}</InfoChip>
+                                        ))}
+                                        <InfoChip tone="printing">{itemPrintingLabel(activeOrder.item)}</InfoChip>
+                                        {activePackagingLabels.map((label) => (
+                                            <InfoChip key={`active-pack-${label}`} tone={label.startsWith("POD ") ? "pod" : "packaging"}>{label}</InfoChip>
+                                        ))}
+                                        <InfoChip tone="template">{itemTemplateTag(activeOrder.item, templates)}</InfoChip>
+                                        <InfoChip tone="status">{pricingBasisSummary(activeOrder.item)}</InfoChip>
+                                        <InfoChip tone="value">{formatMoney(activeEstimatedValue)}</InfoChip>
+                                    </div>
 
-                                                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div>
-                                                            <div className="text-sm font-black text-slate-900">Preview & BOM</div>
-                                                            <p className="mt-1 text-sm text-slate-500">Still powered by the existing preview contract.</p>
-                                                        </div>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                if (!activeOrder.item.template_id) return
-                                                                setPreviewError("")
-                                                                setPreviewNonce((current) => current + 1)
-                                                            }}
-                                                        >
-                                                            Refresh Preview
-                                                        </Button>
-                                                    </div>
-                                                    <div className="mt-4 space-y-3">
-                                                        {previewLoading ? (
-                                                            <div className="flex items-center gap-2 text-sm text-slate-500">
-                                                                <Loader2 className="h-4 w-4 animate-spin" /> Calculating preview...
-                                                            </div>
-                                                        ) : previewError ? (
-                                                            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                                                                {previewError}
-                                                            </div>
-                                                        ) : activeOrder.item.savedPreview ? (
-                                                            <>
-                                                                <div className="grid gap-3 md:grid-cols-2">
-                                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Unit Weight</div>
-                                                                        <div className="mt-2 text-xl font-black text-slate-900">
-                                                                            {activeOrder.item.finished_good_type === "ROLL"
-                                                                                ? `${asNumber(activeOrder.item.savedPreview.roll_preview?.weight_kg, activeOrder.item.savedPreview.total_weight_kg).toFixed(2)} KG`
-                                                                                : `${asNumber(activeOrder.item.savedPreview.unit_weight_g, 0).toFixed(3)} g`}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Total Weight</div>
-                                                                        <div className="mt-2 text-xl font-black text-slate-900">
-                                                                            {asNumber(activeOrder.item.savedPreview.total_weight_kg, 0).toFixed(3)} KG
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="space-y-2">
-                                                                    {(activeOrder.item.savedPreview.bom_preview?.components || []).length === 0 ? (
-                                                                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                                                                            No BOM components resolved yet.
-                                                                        </div>
-                                                                    ) : (
-                                                                        activeOrder.item.savedPreview.bom_preview.components.map((component, index) => (
-                                                                            <div
-                                                                                key={`${component.material_name}-${index}`}
-                                                                                className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3 text-sm"
-                                                                            >
-                                                                                <span className="font-medium text-slate-700">{component.material_name}</span>
-                                                                                <span className="font-black text-slate-900">{component.qty} {component.uom}</span>
-                                                                            </div>
-                                                                        ))
-                                                                    )}
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-                                                                Preview appears automatically once the order has enough valid data.
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                    {previewError ? (
+                                        <div className={styles.inlineAlert}>{previewError}</div>
+                                    ) : null}
+
+                                    <div className={styles.actionRow}>
+                                        <div className={styles.actionGroup}>
+                                            <Button variant="outline" size="sm" onClick={() => duplicateQueuedOrder(activeOrder.localId)}>
+                                                <Copy className="mr-2 h-4 w-4" />
+                                                Duplicate
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openSaveSkuDialog(activeOrder.item)}
+                                                disabled={!activeOrder.item.template_id}
+                                            >
+                                                <Save className="mr-2 h-4 w-4" />
+                                                Save as SKU
+                                            </Button>
+                                            {activeOrder.createdOrderId ? (
+                                                <Button variant="outline" size="sm" asChild>
+                                                    <Link href={`/sales/orders/${activeOrder.createdOrderId}`}>
+                                                        Open order <ArrowUpRight className="ml-2 h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                            ) : null}
+                                            {activeOrder.submitStatus === "failed" ? (
+                                                <Button variant="outline" size="sm" onClick={() => retrySpecificOrder(activeOrder.localId)} disabled={batchCreateMutation.isPending}>
+                                                    Retry
+                                                </Button>
+                                            ) : null}
+                                        </div>
+
+                                        <Button variant="outline" size="sm" className={styles.removeBtn} onClick={() => removeQueuedOrder(activeOrder.localId)}>
+                                            Remove
+                                        </Button>
+                                    </div>
+                                </section>
+
+                                <section className={styles.panel}>
+                                    <div className={styles.panelTopline}>
+                                        <div>
+                                            <div className={styles.panelLabel}>Technical Truth</div>
+                                            <div className={styles.panelHint}>
+                                                {activeOrder.item.advancedUnlocked
+                                                    ? "This line is in detailed mode. Geometry, layers, printing, add-ons, packaging, and POD are editable."
+                                                    : "Shared SKU and repeat keep product physics locked by default for speed."}
                                             </div>
                                         </div>
-                                    </PremiumSection>
-                                )}
+                                        <div className={styles.actionGroup}>
+                                            {!activeOrder.item.advancedUnlocked ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                            ...order,
+                                                            sourceType: "CUSTOM",
+                                                            item: {
+                                                                ...order.item,
+                                                                sourceType: "CUSTOM",
+                                                                advancedUnlocked: true,
+                                                                savedPreview: null,
+                                                            },
+                                                        }))
+                                                    }
+                                                >
+                                                    <Wand2 className="mr-2 h-4 w-4" />
+                                                    Convert to custom
+                                                </Button>
+                                            ) : null}
+                                            {activeOrder.item.advancedUnlocked ? (
+                                                <Button variant="outline" size="sm" onClick={() => setTechnicalEditorOpen((open) => !open)}>
+                                                    {technicalEditorOpen ? "Hide spec editor" : "Open spec editor"}
+                                                </Button>
+                                            ) : null}
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.previewStrip}>
+                                        <InfoChip tone="sku">{activeOrder.sourceMeta}</InfoChip>
+                                        <InfoChip tone="type">{activeOrder.item.finished_good_type}</InfoChip>
+                                        <InfoChip tone="geometry">{itemSpecLabel(activeOrder.item)}</InfoChip>
+                                        {activeLayerLabels.map((label) => (
+                                            <InfoChip key={`truth-layer-${label}`} tone="layer">{label}</InfoChip>
+                                        ))}
+                                        <InfoChip tone="printing">{itemPrintingLabel(activeOrder.item)}</InfoChip>
+                                        {activePackagingLabels.map((label) => (
+                                            <InfoChip key={`truth-pack-${label}`} tone={label.startsWith("POD ") ? "pod" : "packaging"}>{label}</InfoChip>
+                                        ))}
+                                        <InfoChip tone="template">{itemTemplateTag(activeOrder.item, templates)}</InfoChip>
+                                    </div>
+
+                                    <div className={styles.lockedSummary}>
+                                        <div className={styles.lockedCard}>
+                                            <div className={styles.lockedLabel}>Live Weight</div>
+                                            <div className={styles.lockedValue}>
+                                                {activeEstimatedKg.toFixed(3)} kg
+                                            </div>
+                                            <div className={styles.lockedSubvalue}>
+                                                {activeEstimatedPcs !== null ? `${activeEstimatedPcs} pcs` : "— pcs"}
+                                            </div>
+                                        </div>
+                                        <div className={styles.lockedCard}>
+                                            <div className={styles.lockedLabel}>Unit Weight</div>
+                                            <div className={styles.lockedValue}>
+                                                {activeOrder.item.finished_good_type === "ROLL"
+                                                    ? `${activeEstimatedKg.toFixed(3)} kg/roll`
+                                                    : `${activeUnitWeightG.toFixed(3)} g/pc`}
+                                            </div>
+                                            <div className={styles.lockedSubvalue}>
+                                                Qty {activeOrder.item.qty_value} {activeOrder.item.qty_uom} · {pricingBasisSummary(activeOrder.item)}
+                                            </div>
+                                        </div>
+                                        <div className={styles.lockedCard}>
+                                            <div className={styles.lockedLabel}>Geometry</div>
+                                            <div className={styles.lockedValue}>{itemSpecLabel(activeOrder.item)}</div>
+                                            <div className={styles.lockedSubvalue}>{activeOrder.item.finished_good_type}</div>
+                                        </div>
+                                        <div className={styles.lockedCard}>
+                                            <div className={styles.lockedLabel}>Layers</div>
+                                            <div className={styles.lockedValue}>{activeLayerLabels.length} layer(s)</div>
+                                            <div className={styles.lockedSubvalue}>{activeLayerLabels.join(" · ") || "No layers"}</div>
+                                        </div>
+                                        <div className={styles.lockedCard}>
+                                            <div className={styles.lockedLabel}>Printing</div>
+                                            <div className={styles.lockedValue}>{itemPrintingLabel(activeOrder.item)}</div>
+                                            <div className={styles.lockedSubvalue}>
+                                                {activeOrder.item.printing.enabled
+                                                    ? `${activeOrder.item.printing.front_colors_count + activeOrder.item.printing.back_colors_count} colors`
+                                                    : "No artwork dependency"}
+                                            </div>
+                                        </div>
+                                        <div className={styles.lockedCard}>
+                                            <div className={styles.lockedLabel}>Packaging</div>
+                                            <div className={styles.lockedValue}>{activePackagingLabels[0] || "Standard pack"}</div>
+                                            <div className={styles.lockedSubvalue}>
+                                                {activePackagingLabels.slice(1).join(" · ") || itemPackagingWeightLabel(activeOrder.item)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {activeOrder.item.advancedUnlocked && technicalEditorOpen ? (
+                                        <OrderItemTechnicalEditor
+                                            item={activeOrder.item}
+                                            templates={templates}
+                                            families={families}
+                                            variants={variants}
+                                            addonsMaster={addonsMaster}
+                                            packagingMaterials={packagingMaterials}
+                                            podProfiles={podProfiles}
+                                            artworks={artworks}
+                                            previewLoading={previewLoading}
+                                            previewError={previewError}
+                                            onPreviewRetry={() => {
+                                                if (!activeOrder.item.template_id) return
+                                                setPreviewError("")
+                                                setPreviewNonce((current) => current + 1)
+                                            }}
+                                            updateItem={(updater) =>
+                                                updateQueuedOrder(activeOrder.localId, (order) => {
+                                                    const nextItem = updater(order.item)
+                                                    return {
+                                                        ...order,
+                                                        item: nextItem,
+                                                        sourceType: nextItem.sourceType,
+                                                    }
+                                                })
+                                            }
+                                        />
+                                    ) : null}
+                                </section>
                             </>
                         ) : (
-                            <PremiumSection
-                                dataTestId="sales-batch-empty-state"
-                                title="Selected Order"
-                                description="Pick a queued order to work on its commercial or detailed configuration."
-                            >
-                                <div className="flex min-h-[420px] items-center justify-center p-2 text-center sm:min-h-[540px]">
-                                    <div className="space-y-3">
-                                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
-                                            <ShoppingCart className="h-6 w-6" />
+                            <section className={cn(styles.panel, styles.emptyStatePanel)} data-testid="sales-batch-empty-state">
+                                <div className={styles.emptyStateCopy}>
+                                    <ShoppingCart className="h-6 w-6" />
+                                    <div>
+                                        <div className={styles.emptyStateTitle}>Queue the first line</div>
+                                        <div className={styles.emptyStateText}>
+                                            Select a customer, stage a shared SKU, or start from repeat/custom. Each queued card still becomes one separate sales order.
                                         </div>
-                                        <div className="text-lg font-black text-slate-900">Select a queued order</div>
-                                        <p className="max-w-md text-sm leading-6 text-slate-500">
-                                            Add an order from Shared SKU, Repeat Order, or Custom Detailed Order and then edit its single-order details here.
-                                        </p>
                                     </div>
                                 </div>
-                            </PremiumSection>
+                            </section>
                         )}
                     </div>
-                </div>
 
-            <div className="mobile-safe-bottom sticky bottom-3 z-20 lg:hidden">
-                <div className="rounded-[1.6rem] border border-slate-200/80 bg-white/92 p-3 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.32)] backdrop-blur">
-                    <Button
-                        className="h-11 w-full rounded-2xl"
-                        data-testid="sales-batch-submit-mobile"
-                        onClick={() => batchCreateMutation.mutate(undefined)}
-                        disabled={!customerId || !queue.length || batchCreateMutation.isPending}
-                    >
-                        {batchCreateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Submit {queue.length || 0} queued order{queue.length === 1 ? "" : "s"}
-                    </Button>
+                    <aside className={styles.cartRail}>
+                        <div className={styles.cartHeader}>
+                            <div>
+                                <div className={styles.panelLabel}>Release Cart</div>
+                                <div className={styles.panelHint}>{queueDraftCount} draft · {queueCreatedCount} ok · {queueFailedCount} err</div>
+                            </div>
+                            <div className={styles.cartHeaderMetrics}>
+                                <span>{totalEstimatedWeightKg.toFixed(2)} kg</span>
+                                <span>{formatMoney(totalEstimatedValue)}</span>
+                            </div>
+                        </div>
+
+                        <div className={styles.cartBody}>
+                            {!queue.length ? (
+                                <div className={styles.emptyCart}>
+                                    Select SKU, set quantity, and queue lines here.
+                                </div>
+                            ) : (
+                                queue.map((order) => {
+                                    const isActive = order.localId === activeOrderId
+                                    return (
+                                        <button
+                                            key={order.localId}
+                                            type="button"
+                                            data-testid="sales-batch-queue-card"
+                                            className={cn(styles.cartItem, isActive && styles.cartItemActive)}
+                                            onClick={() => setActiveOrderId(order.localId)}
+                                        >
+                                            <div className={styles.cartItemTop}>
+                                                <div className={styles.cartItemName}>{order.orderName || order.item.line_name || "Queued order"}</div>
+                                                <span className={cn(styles.cartStatusDot, order.submitStatus === "created" ? styles.dotSuccess : order.submitStatus === "failed" ? styles.dotError : order.submitStatus === "submitting" ? styles.dotBusy : styles.dotDraft)} />
+                                            </div>
+                                            <div className={styles.cartItemMeta}>
+                                                {order.item.qty_value} {order.item.qty_uom} · {orderEstimatedKg(order.item).toFixed(2)} kg · {orderEstimatedPcs(order.item) !== null ? `${orderEstimatedPcs(order.item)} pcs` : "— pcs"}
+                                            </div>
+                                            <div className={styles.cartItemMeta}>
+                                                {itemSpecLabel(order.item)} · {itemTemplateTag(order.item, templates)}
+                                            </div>
+                                            <div className={styles.cartItemMeta}>
+                                                {itemLayerLabels(order.item, families, variants).join(" · ") || "No layers"} · {formatMoney(estimateOrderValue(order))}
+                                            </div>
+                                            <div className={styles.cartItemMeta}>
+                                                {itemPackagingLabels(order.item, packagingMaterials).join(" · ")} · {formatDateLabel(order.deliveryDate)}
+                                            </div>
+                                            {order.createdOrderNumber ? <div className={styles.cartMessage}>Created {order.createdOrderNumber}</div> : null}
+                                            {order.submitError ? <div className={cn(styles.cartMessage, styles.cartError)}>{order.submitError}</div> : null}
+                                        </button>
+                                    )
+                                })
+                            )}
+                        </div>
+
+                        <div className={styles.cartFooter}>
+                            <Button variant="outline" size="sm" onClick={() => setQueue((current) => current.filter((order) => order.submitStatus === "created"))} disabled={!queueDraftCount && !queueFailedCount}>
+                                Clear drafts
+                            </Button>
+                            <Button
+                                size="sm"
+                                data-testid="sales-batch-submit-mobile"
+                                onClick={() => batchCreateMutation.mutate(undefined)}
+                                disabled={!customerId || !queue.length || batchCreateMutation.isPending}
+                                className={styles.submitBtn}
+                            >
+                                {batchCreateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Submit all
+                            </Button>
+                        </div>
+                    </aside>
                 </div>
             </div>
-
-            <Dialog open={sharedSkuOpen} onOpenChange={setSharedSkuOpen}>
-                <DialogContent data-testid="sales-shared-sku-dialog" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-y-auto rounded-none p-0 sm:h-auto sm:max-h-[94vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(78rem,calc(100vw-1rem))] sm:rounded-[2rem]">
-                    <DialogHeader>
-                        <DialogTitle className="px-6 pt-6">Add Shared SKU Order</DialogTitle>
-                        <DialogDescription>
-                            Choose the shared SKU first, then the orderable variant for this customer.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-6 px-6 pb-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Search SKU</Label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                    <Input
-                                        className="pl-10"
-                                        value={skuSearch}
-                                        onChange={(event) => setSkuSearch(event.target.value)}
-                                        placeholder="Code, name, template..."
-                                    />
-                                </div>
-                            </div>
-                            <ScrollArea className="pr-3">
-                                <div className="space-y-2">
-                                    {filteredSkus.map((sku) => (
-                                        <button
-                                            key={sku.id}
-                                            type="button"
-                                            onClick={() => setSelectedSkuId(sku.id)}
-                                            className={`w-full rounded-2xl border p-3 text-left transition ${selectedSkuId === sku.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white hover:border-slate-300"}`}
-                                        >
-                                            <div className="text-sm font-black">{sku.code}</div>
-                                            <div className={`mt-1 text-xs ${selectedSkuId === sku.id ? "text-white/75" : "text-slate-500"}`}>{sku.name}</div>
-                                            <div className={`mt-2 text-[11px] font-semibold ${selectedSkuId === sku.id ? "text-white/75" : "text-slate-400"}`}>
-                                                {sku.template_name || "No template"} • {sku.variants.length} variants
-                                            </div>
-                                        </button>
-                                    ))}
-                                    {!filteredSkus.length ? (
-                                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                                            No shared SKUs matched this search.
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </ScrollArea>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                                <div>
-                                    <div className="text-sm font-black text-slate-900">
-                                        {selectedSku ? `${selectedSku.code} variants` : "Select a SKU"}
-                                    </div>
-                                    <div className="mt-1 text-sm text-slate-500">
-                                        Customer-ranked variants appear here for fast staging.
-                                    </div>
-                                </div>
-                                <div className="w-full md:w-72">
-                                    <Label className="mb-2 block">Search Variant</Label>
-                                    <Input
-                                        value={variantSearch}
-                                        onChange={(event) => setVariantSearch(event.target.value)}
-                                        placeholder="Code or variant name"
-                                    />
-                                </div>
-                            </div>
-                            <ScrollArea className="pr-3">
-                                <div className="space-y-3">
-                                    {selectedSku ? filteredSelectedVariants.map((variant) => (
-                                        <div key={variant.id} className="rounded-3xl border border-slate-200 bg-white p-4">
-                                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                                <div className="space-y-2">
-                                                    <div className="text-sm font-black text-slate-900">{variant.code} • {variant.name}</div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Badge variant="outline">{variant.finished_good_type}</Badge>
-                                                        <Badge variant="outline">
-                                                            {variant.finished_good_type === "ROLL"
-                                                                ? variant.roll_form || "FLAT"
-                                                                : `${variant.geometry_snapshot?.base?.width_mm || variant.geometry_snapshot?.width_mm || 0}W x ${variant.geometry_snapshot?.base?.height_mm || variant.geometry_snapshot?.height_mm || 0}H`}
-                                                        </Badge>
-                                                        <Badge variant="outline">{(variant.layer_snapshot || []).length} layer(s)</Badge>
-                                                        {variant.printing_snapshot?.enabled ? <Badge variant="outline">{variant.printing_snapshot?.type || "PRINT"}</Badge> : null}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500">{variant.template_name || selectedSku.template_name}</div>
-                                                </div>
-                                                <Button data-testid="sales-shared-sku-add" onClick={() => addSharedSkuToBatch(selectedSku, variant)}>
-                                                    <Plus className="mr-2 h-4 w-4" /> Add to Batch
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )) : (
-                                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                                            Choose a shared SKU to see its variants.
-                                        </div>
-                                    )}
-                                    {selectedSku && !filteredSelectedVariants.length ? (
-                                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                                            No variants matched this search.
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </ScrollArea>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
 
             <Dialog open={repeatDialogOpen} onOpenChange={setRepeatDialogOpen}>
                 <DialogContent data-testid="sales-repeat-dialog" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-y-auto rounded-none p-0 sm:h-auto sm:max-h-[94vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(78rem,calc(100vw-1rem))] sm:rounded-[2rem]">
@@ -1520,6 +1622,6 @@ export default function SalesOrderBatchWorkspace() {
                 isSaving={saveSkuMutation.isPending}
                 onSave={() => saveSkuMutation.mutate()}
             />
-        </PremiumPageShell>
+        </div>
     )
 }

@@ -12,31 +12,35 @@ import {
     Waypoints,
     Workflow,
     FileStack,
+    Box,
+    Database,
+    Settings,
+    Layers,
+    Search
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
-import {
-    PremiumHero,
-    PremiumMetricCard,
-    PremiumMetricStrip,
-    PremiumPageShell,
-    PremiumSection,
-} from "@/components/ui-custom/premium-page-shell";
+import { PremiumPageShell } from "@/components/ui-custom/premium-page-shell";
 import { analyticsApi } from "@/services/analytics";
-import { NotificationService } from "@/services/notifications";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import styles from "./audit.module.css";
+import { cn } from "@/lib/utils";
 
-type AuditMode = "trace" | "sessions" | "permissions" | "reports";
+type AuditMode = "trace" | "production" | "inventory" | "master_data" | "system_config" | "permissions" | "sessions" | "reports";
 
-const AUDIT_MODES: Array<{ id: AuditMode; label: string }> = [
-    { id: "trace", label: "Operational flow audit" },
-    { id: "sessions", label: "Login and session audit" },
-    { id: "permissions", label: "Permission and role override audit" },
-    { id: "reports", label: "Report-run and archive audit" },
+const AUDIT_MODES: Array<{ id: AuditMode; label: string; styleClass: string; icon: any }> = [
+    { id: "trace", label: "Operational Flow", styleClass: styles.trace, icon: Workflow },
+    { id: "production", label: "Production Runs", styleClass: styles.production, icon: Layers },
+    { id: "inventory", label: "Inventory Movement", styleClass: styles.inventory, icon: Box },
+    { id: "master_data", label: "Master Data", styleClass: styles.masterData, icon: Database },
+    { id: "system_config", label: "System Config", styleClass: styles.systemConfig, icon: Settings },
+    { id: "permissions", label: "Permissions", styleClass: styles.permissions, icon: ShieldCheck },
+    { id: "sessions", label: "Session & Login", styleClass: styles.sessions, icon: LogIn },
+    { id: "reports", label: "Report Archives", styleClass: styles.reports, icon: FileStack },
 ];
 
 function formatStamp(value?: string | null) {
@@ -48,11 +52,10 @@ function formatStamp(value?: string | null) {
 
 function pillTone(value?: string | null) {
     const normalized = String(value || "").toUpperCase();
-    if (normalized.includes("LOGIN") || normalized === "SUCCEEDED") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    if (normalized.includes("ROLE") || normalized.includes("OVERRIDE")) return "border-indigo-200 bg-indigo-50 text-indigo-700";
-    if (normalized.includes("FAILED") || normalized === "DENIED") return "border-rose-200 bg-rose-50 text-rose-700";
-    if (normalized.includes("SKIPPED")) return "border-sky-200 bg-sky-50 text-sky-700";
-    return "border-slate-200 bg-slate-100 text-slate-600";
+    if (normalized.includes("LOGIN") || normalized === "SUCCEEDED") return styles.pillSuccess;
+    if (normalized.includes("ROLE") || normalized.includes("OVERRIDE")) return styles.pillWarning;
+    if (normalized.includes("FAILED") || normalized === "DENIED" || normalized.includes("SCRAP")) return styles.pillDanger;
+    return styles.pillNeutral;
 }
 
 export default function AuditCenterPage() {
@@ -64,25 +67,9 @@ export default function AuditCenterPage() {
     const [mode, setMode] = useState<AuditMode>("trace");
     const deferredQuery = useDeferredValue(query.trim());
 
-    const logsQuery = useQuery({
-        queryKey: ["audit-operational-logs", "all"],
-        queryFn: () => analyticsApi.getOperationalLogs({ type: "all", limit: 80 }),
-        enabled: canAccess,
-        staleTime: 60_000,
-        refetchInterval: 60_000,
-    });
-
-    const permissionAuditQuery = useQuery({
-        queryKey: ["audit-permission-log"],
-        queryFn: NotificationService.getPermissionAudit,
-        enabled: canAccess,
-        staleTime: 60_000,
-        refetchInterval: 60_000,
-    });
-
-    const reportRunsQuery = useQuery({
-        queryKey: ["audit-report-runs"],
-        queryFn: () => analyticsApi.getReportRuns(20, 30),
+    const auditConsoleQuery = useQuery({
+        queryKey: ["audit-console"],
+        queryFn: analyticsApi.getAuditConsole,
         enabled: canAccess,
         staleTime: 60_000,
         refetchInterval: 60_000,
@@ -96,41 +83,42 @@ export default function AuditCenterPage() {
         staleTime: 30_000,
     });
 
-    const logs = Array.isArray(logsQuery.data) ? logsQuery.data : [];
-    const permissionRows = Array.isArray(permissionAuditQuery.data) ? permissionAuditQuery.data : [];
-    const reportRuns = Array.isArray(reportRunsQuery.data) ? reportRunsQuery.data : [];
+    const auditConsole = auditConsoleQuery.data;
+    
+    // Fallback empty arrays
+    const loginRows = useMemo(() => Array.isArray(auditConsole?.modes?.sessions?.items) ? auditConsole.modes.sessions.items : [], [auditConsole]);
+    const permissionRows = useMemo(() => Array.isArray(auditConsole?.modes?.permissions?.items) ? auditConsole.modes.permissions.items : [], [auditConsole]);
+    const operationalRows = useMemo(() => Array.isArray(auditConsole?.modes?.operations?.items) ? auditConsole.modes.operations.items : [], [auditConsole]);
+    const reportRuns = useMemo(() => Array.isArray(auditConsole?.modes?.reports?.items) ? auditConsole.modes.reports.items : [], [auditConsole]);
+    const inventoryRows = useMemo(() => Array.isArray(auditConsole?.modes?.inventory?.items) ? auditConsole.modes.inventory.items : [], [auditConsole]);
+    const productionRows = useMemo(() => Array.isArray(auditConsole?.modes?.production?.items) ? auditConsole.modes.production.items : [], [auditConsole]);
+    const masterDataRows = useMemo(() => Array.isArray(auditConsole?.modes?.master_data?.items) ? auditConsole.modes.master_data.items : [], [auditConsole]);
+    const systemConfigRows = useMemo(() => Array.isArray(auditConsole?.modes?.system_config?.items) ? auditConsole.modes.system_config.items : [], [auditConsole]);
 
-    const loginRows = useMemo(
-        () => logs.filter((row) => {
-            const eventType = String(row.event_type || "").toUpperCase();
-            return eventType === "USER_LOGIN" || eventType === "USER_LOGOUT";
-        }),
-        [logs],
-    );
-    const operationalRows = useMemo(
-        () => logs.filter((row) => !["USER_LOGIN", "USER_LOGOUT"].includes(String(row.event_type || "").toUpperCase())),
-        [logs],
-    );
     const modeCounts = useMemo(
         () => ({
-            trace: operationalRows.length,
-            sessions: loginRows.length,
-            permissions: permissionRows.length,
-            reports: reportRuns.length,
+            trace: Number(auditConsole?.counts?.operational_logs ?? operationalRows.length),
+            sessions: Number(auditConsole?.counts?.login_entries ?? loginRows.length),
+            permissions: Number(auditConsole?.counts?.permission_audit ?? permissionRows.length),
+            reports: Number(auditConsole?.counts?.report_runs ?? reportRuns.length),
+            inventory: Number(auditConsole?.counts?.inventory_audit ?? inventoryRows.length),
+            production: Number(auditConsole?.counts?.production_audit ?? productionRows.length),
+            master_data: Number(auditConsole?.counts?.master_data_audit ?? masterDataRows.length),
+            system_config: Number(auditConsole?.counts?.system_config_audit ?? systemConfigRows.length),
         }),
-        [operationalRows.length, loginRows.length, permissionRows.length, reportRuns.length]
+        [auditConsole, operationalRows, loginRows, permissionRows, reportRuns, inventoryRows, productionRows, masterDataRows, systemConfigRows]
     );
 
     if (!canAccess) {
         return (
-            <div className="space-y-6">
+            <div className="space-y-6 max-w-2xl">
                 <section className="rounded-[28px] border border-amber-200 bg-amber-50/90 p-8 shadow-sm">
                     <Badge className="rounded-full border border-amber-200 bg-white text-[11px] font-black uppercase tracking-[0.26em] text-amber-700">
                         Audit Access
                     </Badge>
                     <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Audit Center</h1>
-                    <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-700">
-                        Audit Center is limited to owner and admin roles. Store and operational roles should use Roll Genealogy,
+                    <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">
+                        Audit Center is limited to owner and admin roles. Use Roll Genealogy,
                         inventory history, and route-specific timelines instead of the enterprise audit console.
                     </p>
                     <div className="mt-6 flex flex-wrap gap-3">
@@ -140,410 +128,256 @@ export default function AuditCenterPage() {
                                 Open Roll Genealogy
                             </Button>
                         </Link>
-                        <Link href="/inventory/roll-explorer">
-                            <Button variant="outline" className="rounded-2xl">
-                                <FileSearch className="mr-2 h-4 w-4" />
-                                Open Roll Explorer
-                            </Button>
-                        </Link>
                     </div>
                 </section>
             </div>
         );
     }
+    
+    // Select the current rows based on active mode
+    const getCurrentRows = () => {
+        switch(mode) {
+            case "sessions": return loginRows;
+            case "permissions": return permissionRows;
+            case "reports": return reportRuns;
+            case "inventory": return inventoryRows;
+            case "production": return productionRows;
+            case "master_data": return masterDataRows;
+            case "system_config": return systemConfigRows;
+            default: return operationalRows;
+        }
+    };
+    
+    const currentRows = getCurrentRows();
+    const currentModeMeta = AUDIT_MODES.find(m => m.id === mode);
 
     return (
         <PremiumPageShell dataTestId="audit-center-page">
-            <PremiumHero
-                eyebrow="Administration"
-                title="Audit Center"
-                description="One enterprise proof console for login/session evidence, permission overrides, operational flow truth, and report-run/archive audit."
-                className="border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_40%,#dbeafe_100%)] text-slate-950 shadow-[0_34px_88px_-54px_rgba(15,23,42,0.22)]"
-                actions={(
-                    <>
-                        <Button asChild variant="outline" className="border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-50">
-                            <Link href="/inventory/traceability">Roll Genealogy</Link>
-                        </Button>
-                        <Button asChild className="bg-slate-950 text-white hover:bg-slate-800">
-                            <Link href="/system/report-center">Report Center</Link>
-                        </Button>
-                    </>
-                )}
-                metrics={(
-                    <PremiumMetricStrip className="xl:grid-cols-4">
-                        <PremiumMetricCard label="Operational logs" value={logs.length} />
-                        <PremiumMetricCard label="Login entries" value={loginRows.length} />
-                        <PremiumMetricCard label="Permission audit" value={permissionRows.length} />
-                        <PremiumMetricCard label="Report runs" value={reportRuns.length} />
-                    </PremiumMetricStrip>
-                )}
-            />
+            <div className={styles.auditContainer}>
+                {/* Hero Section */}
+                <div className={styles.heroCard}>
+                    <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-end">
+                        <div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/50 mb-3">Enterprise Governance</div>
+                            <h1 className="text-4xl font-black text-white">Audit Center</h1>
+                            <p className="mt-3 text-sm font-medium text-white/70 max-w-2xl leading-relaxed">
+                                Live operational evidence, system logs, master data changes, and session proof.<br/> 
+                                Full traceability across 8 distinct factory streams without leaving the console.
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <Button asChild variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-xl">
+                                <Link href="/inventory/traceability">Genealogy</Link>
+                            </Button>
+                            <Button asChild className="bg-white text-slate-900 hover:bg-slate-100 rounded-xl">
+                                <Link href="/system/report-center">Report Center</Link>
+                            </Button>
+                        </div>
+                    </div>
+                    
+                    <div className={styles.metricStrip}>
+                        <div className={styles.metricCard}>
+                            <div className={styles.metricLabel}>Total Events</div>
+                            <div className={styles.metricValue}>
+                                {Object.values(modeCounts).reduce((a, b) => a + b, 0).toLocaleString()}
+                            </div>
+                        </div>
+                        <div className={styles.metricCard}>
+                            <div className={styles.metricLabel}>Active Streams</div>
+                            <div className={styles.metricValue}>8</div>
+                        </div>
+                        <div className={styles.metricCard}>
+                            <div className={styles.metricLabel}>Data Source</div>
+                            <div className={styles.metricValue}>Live</div>
+                        </div>
+                        <div className={styles.metricCard}>
+                            <div className={styles.metricLabel}>Trace Latency</div>
+                            <div className={styles.metricValue}>{'<'} 1s</div>
+                        </div>
+                    </div>
+                </div>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_380px]">
-                <PremiumSection
-                    title="Guided search"
-                    description="Search one reference and follow order, dispatch, permission, login, and reporting proof without jumping across modules."
-                >
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
-                        <div className="space-y-4">
-                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                                <div className="space-y-2">
-                                    <Label>Reference search</Label>
-                                    <Input
-                                        value={query}
-                                        onChange={(event) => setQuery(event.target.value)}
-                                        placeholder="SO02938, QT00167, challan, roll label, PBK, DC..."
-                                    />
+                {/* Audit Modes Grid */}
+                <div className={styles.lanesGrid}>
+                    {AUDIT_MODES.map((item) => {
+                        const active = mode === item.id;
+                        const Icon = item.icon;
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => setMode(item.id)}
+                                className={cn(styles.laneCard, item.styleClass, active && styles.active)}
+                            >
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Icon className={cn("h-4 w-4", active ? "text-slate-900" : "text-slate-500")} />
+                                    <div className={styles.laneLabel}>Stream Mode</div>
                                 </div>
-                                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm text-slate-600">
-                                    Search stays inside the current audit and trace endpoints.
+                                <div className={styles.laneTitle}>{item.label}</div>
+                                <div className={styles.laneValue}>
+                                    {modeCounts[item.id].toLocaleString()} events linked
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Split Workspace */}
+                <div className={styles.workspaceGrid}>
+                    
+                    {/* Left: Stream Feed / Search Results */}
+                    <div className="space-y-4">
+                        <div className={styles.sectionPanel}>
+                            <div className={styles.sectionHeader}>
+                                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Evidence Console</div>
+                                <h3 className={styles.sectionTitle}>{currentModeMeta?.label}</h3>
+                                <div className={styles.sectionDesc}>
+                                    Viewing {currentRows.length} recent visible entries in this stream constraint.
                                 </div>
                             </div>
-
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                                {AUDIT_MODES.map((item) => (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => setMode(item.id)}
-                                        className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                                            mode === item.id
-                                                ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                                        }`}
-                                    >
-                                        <div>{item.label}</div>
-                                        <div className="mt-1 text-[11px] font-black tracking-normal text-slate-400">
-                                            {modeCounts[item.id]} records
+                            
+                            <ScrollArea className="h-[calc(100vh-28rem)] min-h-[500px] pr-4">
+                                <div className="space-y-3 pb-6">
+                                    {auditConsoleQuery.isLoading && (
+                                        <div className="flex items-center gap-2 p-5 text-sm text-slate-500">
+                                            <Loader2 className="h-4 w-4 animate-spin" /> Fetching stream...
                                         </div>
-                                    </button>
-                                ))}
+                                    )}
+                                    
+                                    {!auditConsoleQuery.isLoading && currentRows.length === 0 && (
+                                        <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+                                            No events captured in this stream yet.
+                                        </div>
+                                    )}
+
+                                    {currentRows.map((row: any, i: number) => {
+                                        // Standardize row variables as much as possible since different arrays have different shapes
+                                        const title = row.desc || row.label || row.action || String(row.report_code || "Event");
+                                        const subtitle = row.event_type || row.method || (row.report_date ? `Reported ${row.report_date}` : null);
+                                        const timestamp = row.date || row.created_at || row.timestamp;
+                                        const tagText = row.val || row.status || row.reference || row.user || "LOGGED";
+                                        const link = row.href || (row.id ? `/system/audit?id=${row.id}` : "#");
+
+                                        return (
+                                            <div key={`${row.id || i}`} className={styles.timelineCard}>
+                                                <div className={styles.timelineCardHeader}>
+                                                    <div>
+                                                        <div className={styles.timelineTitle}>{String(title).replaceAll("_", " ")}</div>
+                                                        {subtitle && <div className={styles.timelineSub}>{String(subtitle).replaceAll("_", " ")}</div>}
+                                                    </div>
+                                                    <span className={cn(styles.timelinePill, pillTone(tagText))}>
+                                                        {tagText}
+                                                    </span>
+                                                </div>
+                                                <div className={styles.timelineMeta}>
+                                                    <div>{formatStamp(timestamp)}</div>
+                                                    {row.user && <div>User: {row.user}</div>}
+                                                    {row.reference && <div>Ref: {row.reference}</div>}
+                                                    {row.required_permission && <div>Missing Perm: {row.required_permission}</div>}
+                                                    {row.path && <div>Path: {row.path}</div>}
+                                                </div>
+                                                
+                                                {/* Reports Extra Links */}
+                                                {mode === "reports" && row.id && (
+                                                    <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                                                       <a href={analyticsApi.getReportRunPreviewUrl(row.id)} target="_blank" rel="noreferrer" className="text-xs font-bold text-indigo-600 hover:text-indigo-800">Preview PDF</a>
+                                                       <span className="text-slate-300">|</span>
+                                                       <a href={analyticsApi.getReportRunPdfDownloadUrl(row.id)} target="_blank" rel="noreferrer" className="text-xs font-bold text-indigo-600 hover:text-indigo-800">Download</a>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    </div>
+
+                    {/* Right: Trace Lookup panel */}
+                    <div className="space-y-4">
+                        <div className={styles.sectionPanel}>
+                            <div className={styles.sectionHeader}>
+                                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Guided search</div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Cross-Module Target</div>
+                                <h3 className={styles.sectionTitle}>Deep Trace</h3>
+                                <div className={styles.sectionDesc}>Follow one reference across all connected streams.</div>
                             </div>
-
-                            <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/70 p-4">
-                                {deferredQuery.length <= 1 ? (
-                                    <div className="space-y-4">
-                                        <div className="text-sm text-slate-500">
-                                            Enter at least 2 characters to load trace proof. Until then, keep the latest enterprise evidence visible by audit lane.
+                            
+                            <div className="space-y-4">
+                                <div className="space-y-2 relative">
+                                    <Label>Reference Number</Label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                                            <Search className="h-4 w-4" />
                                         </div>
-                                        <div className="grid gap-3 lg:grid-cols-2">
-                                            <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest session proof</div>
-                                                <div className="mt-2 text-sm font-black text-slate-900">
-                                                    {loginRows[0]?.desc || "No login event captured yet."}
-                                                </div>
-                                                <div className="mt-2 text-xs text-slate-500">
-                                                    {loginRows[0]?.date ? formatStamp(loginRows[0].date) : "Login audit stays live as soon as a session event lands."}
-                                                </div>
-                                            </div>
-                                            <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest permission event</div>
-                                                <div className="mt-2 text-sm font-black text-slate-900">
-                                                    {permissionRows[0] ? String(permissionRows[0].action || "ROLE_OVERRIDE").replaceAll("_", " ") : "No permission event captured yet."}
-                                                </div>
-                                                <div className="mt-2 text-xs text-slate-500">
-                                                    {permissionRows[0]?.created_at ? formatStamp(permissionRows[0].created_at) : "Role override and denial proof appears here first."}
-                                                </div>
-                                            </div>
-                                            <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest operational trail</div>
-                                                <div className="mt-2 text-sm font-black text-slate-900">
-                                                    {operationalRows[0]?.desc || "No operational audit event captured yet."}
-                                                </div>
-                                                <div className="mt-2 text-xs text-slate-500">
-                                                    {operationalRows[0]?.date ? formatStamp(operationalRows[0].date) : "Order, dispatch, inter-plant, and jobwork proof appears here."}
-                                                </div>
-                                            </div>
-                                            <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest report-run proof</div>
-                                                <div className="mt-2 text-sm font-black text-slate-900">
-                                                    {reportRuns[0]?.report_code ? String(reportRuns[0].report_code).replaceAll("_", " ") : "No report run captured yet."}
-                                                </div>
-                                                <div className="mt-2 text-xs text-slate-500">
-                                                    {reportRuns[0]?.sent_at ? formatStamp(reportRuns[0].sent_at) : "PDF archive and manual-send proof appears here."}
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <Input
+                                            value={query}
+                                            onChange={(e) => setQuery(e.target.value)}
+                                            placeholder="SO02938, PBK-RM, challan..."
+                                            className="pl-10 h-11 bg-white border-slate-200"
+                                        />
                                     </div>
-                                ) : traceQuery.isLoading ? (
-                                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Searching cross-module proof...
-                                    </div>
-                                ) : traceQuery.isError ? (
-                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                        {(traceQuery.error as any)?.response?.data?.error || (traceQuery.error as Error)?.message || "No trace record found."}
-                                    </div>
-                                ) : traceQuery.data?.entity ? (
-                                    <div className="space-y-4">
-                                        <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                                    {traceQuery.data.entity.type.replaceAll("_", " ")}
-                                                </div>
-                                                <div className="mt-2 text-2xl font-black text-slate-950">{traceQuery.data.entity.reference}</div>
-                                                <div className="mt-1 text-sm text-slate-600">
-                                                    {traceQuery.data.entity.subtitle || traceQuery.data.entity.title}
-                                                </div>
+                                </div>
+                                
+                                {deferredQuery.length > 1 ? (
+                                    <div className="mt-6 rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                                        {traceQuery.isLoading ? (
+                                            <div className="flex gap-2 text-sm text-slate-500 items-center">
+                                                <Loader2 className="h-4 w-4 animate-spin"/> Tracking reference...
                                             </div>
-                                            {traceQuery.data.entity.status ? <Badge variant="outline">{traceQuery.data.entity.status}</Badge> : null}
-                                        </div>
-
-                                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                            {Object.entries(traceQuery.data.summary || {}).slice(0, 4).map(([key, value]) => (
-                                                <div key={key} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{key.replaceAll("_", " ")}</div>
-                                                    <div className="mt-2 text-sm font-bold text-slate-900">{String(value ?? "—")}</div>
+                                        ) : traceQuery.isError ? (
+                                            <div className="text-sm text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                                                No reference matched across ERP databases.
+                                            </div>
+                                        ) : traceQuery.data?.entity ? (
+                                            <div className="space-y-4">
+                                                <div className="border-b border-slate-200 pb-3">
+                                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                       {String(traceQuery.data.entity.type).replaceAll("_", " ")}
+                                                    </div>
+                                                    <div className="font-bold text-lg text-slate-900 mt-1">{traceQuery.data.entity.reference}</div>
+                                                    {traceQuery.data.entity.subtitle && (
+                                                        <div className="text-xs text-slate-500 mt-0.5">{traceQuery.data.entity.subtitle}</div>
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Timeline proof</div>
-                                                <div className="mt-3 space-y-2">
-                                                    {(traceQuery.data.timeline || []).slice(0, 6).map((item: any, index: number) => (
-                                                        <div key={`${item.reference || item.event_type || index}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                                                            <div className="font-semibold text-slate-900">{item.label || item.event_type || "Event"}</div>
-                                                            <div className="mt-1 text-xs text-slate-500">{item.description || item.reference || "Trace proof"}</div>
+                                                
+                                                {traceQuery.data.summary && (
+                                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                                        {Object.entries(traceQuery.data.summary).slice(0, 4).map(([k, v]) => (
+                                                            <div key={k} className="bg-white rounded-lg p-2 border border-slate-200">
+                                                                <div className="text-slate-500 capitalize">{k.replace(/_/g, " ")}</div>
+                                                                <div className="font-bold text-slate-900 mt-1">{String(v ?? "-")}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="space-y-2 mt-4 pt-4 border-t border-slate-200">
+                                                    <div className="text-xs font-bold text-slate-900 mb-2">Attached Trace Proof</div>
+                                                    {(traceQuery.data.timeline || []).slice(0, 5).map((item: any, i: number) => (
+                                                        <div key={i} className="flex gap-3 text-xs">
+                                                            <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1 shrink-0"/>
+                                                            <div>
+                                                                <div className="font-bold text-slate-700">{item.label || item.event_type}</div>
+                                                                <div className="text-slate-500">{item.description || item.reference}</div>
+                                                            </div>
                                                         </div>
                                                     ))}
-                                                    {!(traceQuery.data.timeline || []).length ? (
-                                                        <div className="rounded-xl border border-dashed border-slate-200 px-3 py-5 text-center text-slate-500">
-                                                            No timeline entries returned for this query.
-                                                        </div>
-                                                    ) : null}
                                                 </div>
                                             </div>
-                                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Related proof routes</div>
-                                                <div className="mt-3 space-y-2 text-sm">
-                                                    {(traceQuery.data.related || []).slice(0, 8).map((item, index) => (
-                                                        <Link
-                                                            key={`${item.reference || item.label || index}`}
-                                                            href={String(item.href || "/system/audit")}
-                                                            className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 transition hover:border-slate-300 hover:bg-white"
-                                                        >
-                                                            <span className="font-semibold">{String(item.label || item.reference || item.type || "Related proof")}</span>
-                                                            <ArrowRight className="h-4 w-4 text-slate-400" />
-                                                        </Link>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
+                                        ) : (
+                                            <div className="text-sm text-slate-500">No trace record found.</div>
+                                        )}
                                     </div>
                                 ) : (
-                                    <div className="text-sm text-slate-500">No trace record found for the current query.</div>
+                                    <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-500 text-sm">
+                                        Enter 2+ characters to scan full database vectors.
+                                    </div>
                                 )}
                             </div>
                         </div>
-
-                        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-                            {[
-                                {
-                                    icon: <LogIn className="h-4 w-4 text-emerald-600" />,
-                                    title: "Login visibility",
-                                    description: "Login attempts and session proof stay first-class, not hidden in generic operational logs.",
-                                    value: `${loginRows.length} visible entries`,
-                                },
-                                {
-                                    icon: <ShieldCheck className="h-4 w-4 text-indigo-600" />,
-                                    title: "Permission audit",
-                                    description: "Role overrides, denials, and effective-role changes stay in one explicit governance lane.",
-                                    value: `${permissionRows.length} governance events`,
-                                },
-                                {
-                                    icon: <FileStack className="h-4 w-4 text-slate-700" />,
-                                    title: "Report archive proof",
-                                    description: "Archive history, PDF preview, and manual-send evidence stay in the same admin proof console.",
-                                    value: `${reportRuns.length} recent report runs`,
-                                },
-                                {
-                                    icon: <Workflow className="h-4 w-4 text-sky-700" />,
-                                    title: "Operational flow proof",
-                                    description: "Dispatch, jobwork, inter-plant, and route proof stay attached to the same reference trail.",
-                                    value: `${operationalRows.length} cross-module logs`,
-                                },
-                            ].map((card) => (
-                                <div key={card.title} className="rounded-[1.5rem] border border-slate-200 bg-white/92 p-5 shadow-sm">
-                                    <div className="flex items-center gap-2 text-slate-900">
-                                        {card.icon}
-                                        <div className="text-sm font-black">{card.title}</div>
-                                    </div>
-                                    <p className="mt-3 text-sm leading-6 text-slate-600">{card.description}</p>
-                                    <div className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{card.value}</div>
-                                </div>
-                            ))}
-                        </div>
                     </div>
-                </PremiumSection>
-
-                <PremiumSection
-                    title={AUDIT_MODES.find((item) => item.id === mode)?.label || "Audit"}
-                    description="Switch the proof mode without losing the current search context."
-                    actions={mode === "trace" ? <Workflow className="h-4 w-4 text-slate-400" /> : null}
-                >
-                    {mode === "trace" ? (
-                        <ScrollArea className="h-[calc(100vh-27rem)] min-h-[420px] pr-4">
-                            <div className="space-y-3">
-                                {logsQuery.isLoading ? (
-                                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Loading operational proof...
-                                    </div>
-                                ) : null}
-                                {operationalRows.map((row, index) => (
-                                    <Link
-                                        key={`${String(row.event_type || "event")}-${String(row.reference || index)}-${index}`}
-                                        href={row.href || "/system/audit"}
-                                        className="block rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
-                                    >
-                                        <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-black text-slate-900">{row.desc || "Operational event"}</div>
-                                                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
-                                                    {String(row.type || "proof")} · {String(row.event_type || "event").replaceAll("_", " ")}
-                                                </div>
-                                            </div>
-                                            <Badge className={`rounded-full ${pillTone(row.event_type)}`}>
-                                                {row.val || row.reference || String(row.event_type || "event")}
-                                            </Badge>
-                                        </div>
-                                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                            <span>{formatStamp(row.date)}</span>
-                                            {row.user ? <span>User {row.user}</span> : null}
-                                            {row.reference ? <span>{row.reference}</span> : null}
-                                        </div>
-                                    </Link>
-                                ))}
-                                {!logsQuery.isLoading && !operationalRows.length ? (
-                                    <div className="grid gap-3 lg:grid-cols-3">
-                                        <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-4">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Login and session audit</div>
-                                            <div className="mt-2 text-sm font-black text-slate-900">
-                                                {loginRows[0]?.desc || "Recent login proof appears here first."}
-                                            </div>
-                                            <div className="mt-2 text-xs text-slate-500">
-                                                {loginRows[0]?.date ? formatStamp(loginRows[0].date) : "Switch to Login and session audit to review live entries."}
-                                            </div>
-                                        </div>
-                                        <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-4">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Permission and role override audit</div>
-                                            <div className="mt-2 text-sm font-black text-slate-900">
-                                                {permissionRows[0] ? String(permissionRows[0].action || "ROLE_OVERRIDE").replaceAll("_", " ") : "Recent role and permission proof appears here."}
-                                            </div>
-                                            <div className="mt-2 text-xs text-slate-500">
-                                                {permissionRows[0]?.created_at ? formatStamp(permissionRows[0].created_at) : "Switch to Permission and role override audit for the detailed feed."}
-                                            </div>
-                                        </div>
-                                        <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-4">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Report-run and archive audit</div>
-                                            <div className="mt-2 text-sm font-black text-slate-900">
-                                                {reportRuns[0]?.report_code ? String(reportRuns[0].report_code).replaceAll("_", " ") : "Recent report proof appears here."}
-                                            </div>
-                                            <div className="mt-2 text-xs text-slate-500">
-                                                {reportRuns[0]?.sent_at ? formatStamp(reportRuns[0].sent_at) : "Switch to Report-run and archive audit for PDF and manual-send proof."}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : null}
-                            </div>
-                        </ScrollArea>
-                    ) : null}
-
-                    {mode === "sessions" ? (
-                        <ScrollArea className="h-[calc(100vh-27rem)] min-h-[420px] pr-4">
-                            <div className="space-y-3">
-                                {loginRows.map((row, index) => (
-                                    <div key={`${row.reference || row.user || index}-${index}`} className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-black text-slate-900">{row.desc || "Login event"}</div>
-                                                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
-                                                    {String(row.event_type || "USER_LOGIN").replaceAll("_", " ")}
-                                                </div>
-                                            </div>
-                                            <Badge className={`rounded-full ${pillTone(row.event_type)}`}>{row.user || "User"}</Badge>
-                                        </div>
-                                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                            <span>{formatStamp(row.date)}</span>
-                                            {row.reference ? <span>{row.reference}</span> : null}
-                                        </div>
-                                    </div>
-                                ))}
-                                {!loginRows.length ? (
-                                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-                                        No login or logout records are visible yet.
-                                    </div>
-                                ) : null}
-                            </div>
-                        </ScrollArea>
-                    ) : null}
-
-                    {mode === "permissions" ? (
-                        <ScrollArea className="h-[calc(100vh-27rem)] min-h-[420px] pr-4">
-                            <div className="space-y-3">
-                                {permissionRows.slice(0, 24).map((row) => (
-                                    <div key={row.id} className="rounded-[1.35rem] border border-slate-200 bg-slate-50/70 p-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-black text-slate-900">{String(row.action || "AUDIT").replaceAll("_", " ")}</div>
-                                                <div className="mt-1 text-xs text-slate-500">{row.method} · {row.path || "Path unavailable"}</div>
-                                            </div>
-                                            <Badge className={`rounded-full ${pillTone(row.action)}`}>{row.effective_role || "—"}</Badge>
-                                        </div>
-                                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                            <span>{formatStamp(row.created_at)}</span>
-                                            {row.user ? <span>User {row.user}</span> : null}
-                                            {row.required_permission ? <span>{row.required_permission}</span> : null}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </ScrollArea>
-                    ) : null}
-
-                    {mode === "reports" ? (
-                        <ScrollArea className="h-[calc(100vh-27rem)] min-h-[420px] pr-4">
-                            <div className="space-y-3">
-                                {reportRuns.slice(0, 16).map((run) => (
-                                    <div key={run.id} className="rounded-[1.35rem] border border-slate-200 bg-slate-50/70 p-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-black text-slate-900">{String(run.report_code || "report").replaceAll("_", " ")}</div>
-                                                <div className="mt-1 text-xs text-slate-500">Report date {run.report_date}</div>
-                                            </div>
-                                            <Badge className={`rounded-full ${pillTone(run.status)}`}>{run.status}</Badge>
-                                        </div>
-                                        <div className="mt-3 grid gap-3 sm:grid-cols-3 text-xs text-slate-500">
-                                            <div>{run.recipient_count} recipients</div>
-                                            <div>{run.triggered_manually ? "Manual dispatch" : "Scheduled dispatch"}</div>
-                                            <div>{run.sent_at ? formatStamp(run.sent_at) : "Not sent yet"}</div>
-                                        </div>
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            <a
-                                                href={analyticsApi.getReportRunPreviewUrl(run.id)}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300"
-                                            >
-                                                Preview PDF
-                                            </a>
-                                            <a
-                                                href={analyticsApi.getReportRunPdfDownloadUrl(run.id)}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300"
-                                            >
-                                                Download PDF
-                                            </a>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </ScrollArea>
-                    ) : null}
-                </PremiumSection>
+                </div>
             </div>
         </PremiumPageShell>
     );

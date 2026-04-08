@@ -21,7 +21,13 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return (
             SalesOrder.objects.all()
-            .prefetch_related("items__inventory_rolls", "items__fg_batches")
+            .prefetch_related(
+                "items__inventory_rolls",
+                "items__fg_batches",
+                "items__packing_units",
+                "items__sku_variant",
+                "items__template",
+            )
             .order_by("-created_at")
         )
 
@@ -52,7 +58,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         search = str(request.query_params.get("q") or "").strip()
         queryset = list(
             SalesOrderItem.objects.select_related("sales_order", "template", "sku_variant")
-            .filter(sales_order__status__in=["DRAFT", "PLANNING_REQUIRED", "PLANNED", "RELEASED", "DISPATCH_READY", "COMPLETED"])
+            .filter(sales_order__status__in=["DRAFT", "PLANNING_REQUIRED", "PLANNED", "RELEASED", "PACKING_READY", "DISPATCH_READY", "COMPLETED"])
             .order_by("-sales_order__created_at", "-created_at")
         )
         if customer_id:

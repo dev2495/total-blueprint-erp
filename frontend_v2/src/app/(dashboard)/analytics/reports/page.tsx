@@ -12,13 +12,13 @@ import {
     Filter,
     Gauge,
     Layers,
-    Mail,
     Package,
     RefreshCw,
     Scale,
     Send,
     ShoppingCart,
     Timer,
+    Truck,
 } from "lucide-react";
 
 import { analyticsApi, type ReportDispatchRun, type ReportDistributionProfile, type ReportTabResponse } from "@/services/analytics";
@@ -43,6 +43,7 @@ type ReportTabId =
     | "production"
     | "oee"
     | "scrap"
+    | "interplant"
     | "material-variance"
     | "ink-intelligence"
     | "sales"
@@ -54,6 +55,7 @@ const REPORT_TABS: Array<{ id: ReportTabId; label: string; icon: any }> = [
     { id: "production", label: "Production", icon: Factory },
     { id: "oee", label: "OEE", icon: Gauge },
     { id: "scrap", label: "Scrap", icon: AlertTriangle },
+    { id: "interplant", label: "Inter-Plant", icon: Truck },
     { id: "material-variance", label: "Material Variance", icon: Scale },
     { id: "ink-intelligence", label: "Ink Intelligence", icon: Droplets },
     { id: "sales", label: "Sales Fulfillment", icon: ShoppingCart },
@@ -77,10 +79,6 @@ function toValue(value: unknown) {
     }
     if (typeof value === "boolean") return value ? "Yes" : "No";
     return String(value);
-}
-
-function formatSchedule(profile: ReportDistributionProfile) {
-    return `${String(profile.schedule_hour).padStart(2, "0")}:${String(profile.schedule_minute).padStart(2, "0")}`;
 }
 
 export default function ReportsHubPage() {
@@ -209,7 +207,7 @@ export default function ReportsHubPage() {
     const manualSendMutation = useMutation({
         mutationFn: async (reportCode: string) => analyticsApi.sendReportDistribution(reportCode),
         onSuccess: () => {
-            toast({ title: "Report sent", description: "Daily PDF pack was generated and dispatched." });
+            toast({ title: "Report generated", description: "Daily pack was archived and owner/admin were notified in-app." });
             queryClient.invalidateQueries({ queryKey: ["analytics-report-runs"] });
         },
         onError: (error: any) => {
@@ -538,15 +536,15 @@ export default function ReportsHubPage() {
                         </div>
                     </PremiumSection>
                     {reportDeliveryAccessDenied ? (
-                        <PremiumSection title="Report Delivery Restricted" description="Report pack recipients, dispatch history, and PDF previews are only available to report admins.">
-                            <div className="text-sm text-slate-600">Analytics tabs remain available, but the delivery rail is hidden for this role.</div>
+                        <PremiumSection title="Report Archive Restricted" description="Report generation history and PDF previews are only available to report admins.">
+                            <div className="text-sm text-slate-600">Analytics tabs remain available, but the archive rail is hidden for this role.</div>
                         </PremiumSection>
                     ) : (
                         <>
                             <PremiumSection
-                                title="Report delivery"
-                                description="Current recipients, latest run proof, and manual daily-pack control without leaving the hub."
-                                actions={<Mail className="h-4 w-4 text-slate-400" />}
+                                title="Report generation"
+                                description="Owner/admin archive generation controls and latest run proof without leaving the hub."
+                                actions={<Send className="h-4 w-4 text-slate-400" />}
                             >
                                 <ScrollArea className="h-[320px] pr-3">
                                     <div className="space-y-3">
@@ -558,7 +556,7 @@ export default function ReportsHubPage() {
                                                         <div>
                                                             <div className="text-sm font-black text-slate-900">{profile.label}</div>
                                                             <div className="mt-1 text-xs text-slate-500">
-                                                                {formatSchedule(profile)} · {(profile.target_roles || []).length + (profile.extra_recipients || []).length} recipients
+                                                                Owner/Admin inbox notice · {(profile.target_roles || []).join(" · ") || "OWNER · ADMIN"}
                                                             </div>
                                                         </div>
                                                         <Button
@@ -568,7 +566,7 @@ export default function ReportsHubPage() {
                                                             disabled={manualSendMutation.isPending}
                                                         >
                                                             <Send className="mr-2 h-3.5 w-3.5" />
-                                                            Send daily pack now
+                                                            Generate daily pack
                                                         </Button>
                                                     </div>
                                                     <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs text-slate-600">
@@ -603,8 +601,8 @@ export default function ReportsHubPage() {
                                                     <Badge variant="outline">{run.status}</Badge>
                                                 </div>
                                                 <div className="mt-2">Report date: {run.report_date}</div>
-                                                <div>Recipients: {run.recipient_count}</div>
-                                                <div>Sent: {run.sent_at ? new Date(run.sent_at).toLocaleString() : "—"}</div>
+                                                <div>Audience: {(run.recipients || []).join(" · ") || "OWNER · ADMIN"}</div>
+                                                <div>Generated: {run.sent_at ? new Date(run.sent_at).toLocaleString() : "—"}</div>
                                                 <div className="mt-3 flex flex-wrap gap-3">
                                                     <a
                                                         href={analyticsApi.getReportRunPreviewUrl(run.id)}

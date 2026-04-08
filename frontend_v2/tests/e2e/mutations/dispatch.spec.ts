@@ -1,5 +1,5 @@
 import { test, expect } from "../support/base"
-import { annotate, assertHealthyPage, fetchBinaryMeta, fetchJson, selectByTestId, switchRole, unwrapApiList } from "../support/test-helpers"
+import { annotate, assertHealthyPage, fetchBinaryMeta, fetchJson, selectByTestId, unwrapApiList } from "../support/test-helpers"
 import { readMutationSeed } from "../support/mutation-seed"
 
 function latestDispatchChallan(rows: any[], salesOrderNumber: string) {
@@ -8,35 +8,38 @@ function latestDispatchChallan(rows: any[], salesOrderNumber: string) {
     .sort((left, right) => new Date(String(right.dispatch_date || right.created_at || 0)).getTime() - new Date(String(left.dispatch_date || left.created_at || 0)).getTime())[0]
 }
 
-test("dispatch can pack a roll, create a challan, dispatch it, and print the list", async ({ page }, testInfo) => {
+test("packing yard can release a roll to dispatch, then dispatch can create challan, dispatch it, and print the list", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Dispatch",
     severity: "critical",
     role: "DISPATCH",
     feature: "Dispatch challan lifecycle",
-    expected: "Dispatch should be able to pack the seeded FG roll, create a delivery challan, release it, and generate a printable PDF.",
+    expected: "Packing Yard should release the seeded FG roll to Dispatch Bay first, then Dispatch should create a delivery challan, release it, and generate a printable PDF.",
   })
 
-  const seed = readMutationSeed()
+  const seed = readMutationSeed({ refresh: true })
 
-  await page.goto("/dashboard/admin")
-  await switchRole(page, "Dispatch", "/dashboard/logistics")
-  await page.goto("/logistics/dispatch")
+  await page.goto("/logistics/packing", { waitUntil: "domcontentloaded" })
+  await page.getByTestId("packing-page").waitFor({ state: "visible", timeout: 30_000 })
+  await assertHealthyPage(page, { requireAuth: false })
+
+  await selectByTestId(page, "packing-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
+  await page.getByTestId(`packing-roll-release-${seed.dispatch.roll_id}`).click()
+  await page.getByTestId("packing-roll-dialog").waitFor({ state: "visible", timeout: 15_000 })
+  await page.getByTestId("packing-roll-release-mode").selectOption("PACKED")
+  await page.getByTestId("packing-roll-material-0").fill(seed.dispatch.packaging_material_id)
+  await page.getByTestId("packing-roll-qty-0").fill(String(seed.dispatch.packaging_qty))
+  const releaseResponse = page.waitForResponse((response) => response.url().includes("/api/production/packing/release-roll/") && response.request().method() === "POST")
+  await page.getByTestId("packing-roll-submit").click()
+  expect([200, 201]).toContain((await releaseResponse).status())
+  await expect(page.getByRole("dialog")).toBeHidden({ timeout: 15_000 })
+
+  await page.goto("/logistics/dispatch", { waitUntil: "domcontentloaded" })
   await page.getByTestId("dispatch-page").waitFor({ state: "visible", timeout: 30_000 })
-  await assertHealthyPage(page)
+  await assertHealthyPage(page, { requireAuth: false })
 
   await selectByTestId(page, "dispatch-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
-  await page.getByTestId(`dispatch-pack-trigger-${seed.dispatch.roll_id}`).click()
-  if (await page.getByText(/no packing lines configured/i).isVisible().catch(() => false)) {
-    await page.getByRole("button", { name: /add row/i }).click()
-  }
-  await page.getByTestId("dispatch-pack-material-0").fill(seed.dispatch.packaging_material_id)
-  await page.getByTestId("dispatch-pack-qty-0").fill(String(seed.dispatch.packaging_qty))
-  const packResponse = page.waitForResponse((response) => response.url().includes("/api/production/challans/pack_roll/") && response.request().method() === "POST")
-  await page.getByTestId("dispatch-pack-save").click()
-  expect((await packResponse).status()).toBe(201)
-  await expect(page.getByRole("dialog")).toBeHidden({ timeout: 15_000 })
-  await expect(page.getByTestId(`dispatch-roll-checkbox-${seed.dispatch.roll_id}`)).toBeEnabled({ timeout: 15_000 })
+  await expect(page.getByTestId(`dispatch-roll-checkbox-${seed.dispatch.roll_id}`)).toBeVisible({ timeout: 15_000 })
 
   await page.getByTestId(`dispatch-roll-checkbox-${seed.dispatch.roll_id}`).click()
   await page.getByTestId("dispatch-create-trigger").click()

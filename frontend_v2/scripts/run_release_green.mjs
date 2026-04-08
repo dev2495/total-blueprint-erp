@@ -191,7 +191,7 @@ runOrThrow(
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/verify_uat_business_truth.py")], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e_planner_gate.py")], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e_mutations.py")], strictEnv)
-runOrThrow(npmBin, ["run", "e2e:ui"], strictEnv, frontendRoot)
+runOrThrow(npmBin, ["run", "e2e:ui"], { ...strictEnv, UI_E2E_SKIP_BOOTSTRAP: "1" }, frontendRoot)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/write_uat_green_manifest.py")], strictEnv)
 
 const summaryPath = path.join(runtimeRoot, "release-readiness-summary.json")

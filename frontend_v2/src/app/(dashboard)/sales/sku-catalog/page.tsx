@@ -13,14 +13,11 @@ import {
     Search,
     ShieldCheck,
     Sparkles,
+    Zap,
 } from "lucide-react"
 
-import {
-    PremiumMetricCard,
-    PremiumMetricStrip,
-    PremiumPageShell,
-    PremiumSection,
-} from "@/components/ui-custom/premium-page-shell"
+import styles from "./sku-catalog.module.css"
+import { cn } from "@/lib/utils"
 import OrderItemTechnicalEditor from "@/components/sales/shared/order-item-technical-editor"
 import {
     asNumber,
@@ -458,139 +455,128 @@ export default function SalesSkuCatalogPage() {
     }
 
     return (
-        <PremiumPageShell className="min-w-0" dataTestId="sales-sku-catalog-page">
-            <section
-                data-testid="sales-sku-catalog-hero"
-                className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#edf5ff_42%,#f4f8ec_100%)] p-5 shadow-[0_28px_72px_-54px_rgba(15,23,42,0.22)]"
-            >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="space-y-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-700">Sales Catalog</div>
-                        <h1 className="text-3xl font-black tracking-tight text-slate-950">SKU Studio</h1>
-                        <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                            Pick one shared SKU fast, inspect orderable variants in the center, and keep customer usage plus launch actions visible without wasting the first viewport.
-                        </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" asChild className="rounded-2xl border-slate-200 bg-white text-slate-700">
-                            <Link href="/sales/orders/create">Open Batch Queue</Link>
-                        </Button>
-                        <Button variant="outline" className="rounded-2xl border-slate-200 bg-white text-slate-700" onClick={() => setUsageDialogOpen(true)} disabled={!selectedVariant}>
-                            <Clock3 className="mr-2 h-4 w-4" />
-                            Usage History
-                        </Button>
-                        <Button data-testid="sales-sku-create" onClick={openCreateSkuDialog} className="rounded-2xl bg-slate-950 text-white hover:bg-slate-800">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Create SKU
-                        </Button>
-                    </div>
+        <div className={styles.catalogShell} data-testid="sales-sku-catalog-page">
+            <section className={styles.pageHeader} data-testid="sales-sku-catalog-hero">
+                <div className={styles.pageHeaderCopy}>
+                    <div className={styles.pageEyebrow}><Zap className="h-3 w-3" /> Sales Catalog</div>
+                    <h1 className={styles.pageTitle}>Sales SKU Studio</h1>
+                    <p className={styles.pageDescription}>
+                        Build shared sales SKUs quickly, then author orderable variants with geometry, layers, printing, packaging, and POD truth in one place.
+                    </p>
                 </div>
-
-                <div data-testid="sales-sku-catalog-filters" className="mt-5 space-y-3">
-                    <div className="grid gap-3 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,0.9fr))]">
-                        <div className="relative rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Search the catalog</Label>
-                            <Search className="absolute left-4 top-[2.35rem] h-4 w-4 text-slate-400" />
-                            <Input
-                                data-testid="sales-sku-search"
-                                className="mt-2 h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10"
-                                value={search}
-                                onChange={(event) => setSearch(event.target.value)}
-                                placeholder="SKU, variant, template, customer context..."
-                            />
-                        </div>
-                        <div className="rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Visible SKUs</div>
-                            <div className="mt-2 text-2xl font-black text-slate-950">{filteredSkus.length}</div>
-                            <div className="mt-1 text-xs text-slate-500">Filtered shared headers</div>
-                        </div>
-                        <div className="rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Current SKU</div>
-                            <div className="mt-2 truncate text-base font-black text-slate-950">{selectedSku?.code || "Choose one"}</div>
-                            <div className="mt-1 truncate text-xs text-slate-500">{selectedSku?.name || "Start from the left rail"}</div>
-                        </div>
-                        <div className="rounded-[1.45rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Usage Lens</div>
-                            <div className="mt-2 truncate text-base font-black text-slate-950">
-                                {usageCustomerId === "all" ? "All customers" : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">{usageOnly ? "Usage-proven only" : "Full shared catalog"}</div>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_140px_190px_auto]">
-                        <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Status</Label>
-                            <Select value={activeFilter} onValueChange={setActiveFilter}>
-                                <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                    <SelectItem value="all">All</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">FG Type</Label>
-                            <Select value={fgTypeFilter} onValueChange={setFgTypeFilter}>
-                                <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All</SelectItem>
-                                    <SelectItem value="POUCH">POUCH</SelectItem>
-                                    <SelectItem value="ROLL">ROLL</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Template</Label>
-                            <Select value={templateFilter} onValueChange={setTemplateFilter}>
-                                <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All templates</SelectItem>
-                                    {templates.map((template: any) => (
-                                        <SelectItem key={template.id} value={String(template.id)}>
-                                            {template.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_210px]">
-                            <div className="space-y-2 rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Usage Customer</Label>
-                                <Select value={usageCustomerId} onValueChange={setUsageCustomerId}>
-                                    <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All customers</SelectItem>
-                                        {customers.map((customer) => (
-                                            <SelectItem key={customer.id} value={customer.id}>
-                                                {customer.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-white/92 px-4 py-3 shadow-sm">
-                                <div>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Usage only</div>
-                                    <div className="mt-1 text-xs text-slate-500">Only customer-proven SKUs</div>
-                                </div>
-                                <Switch checked={usageOnly} onCheckedChange={setUsageOnly} />
-                            </div>
-                        </div>
-                    </div>
+                <div className={styles.pageActions}>
+                    <Link href="/sales/orders/create" className={cn(styles.pageBtn, styles.pageBtnOutline)}>Launch Orders</Link>
+                    <button type="button" className={cn(styles.pageBtn, styles.pageBtnOutline)} onClick={() => setUsageDialogOpen(true)} disabled={!selectedVariant}>
+                        <Clock3 className="h-4 w-4" /> Usage History
+                    </button>
+                    <button type="button" data-testid="sales-sku-create" onClick={openCreateSkuDialog} className={cn(styles.pageBtn, styles.pageBtnPrimary)}>
+                        <Plus className="h-4 w-4" /> New SKU
+                    </button>
                 </div>
             </section>
 
-            <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[310px_minmax(0,1.15fr)_320px] 2xl:grid-cols-[330px_minmax(0,1.25fr)_330px]">
-                    <PremiumSection
-                        dataTestId="sales-sku-list-section"
-                        title="SKU Rail"
-                        description="Shortlist shared SKU headers and move into the selected workplane fast."
-                        actions={<Sparkles className="h-5 w-5 text-slate-400" />}
-                        className="xl:sticky xl:top-6 xl:self-start"
-                        contentClassName="p-3"
-                    >
+            <section className={styles.kpiStrip}>
+                <div className={styles.kpiChip}>
+                    <div className={styles.kpiLabel}>Total SKUs</div>
+                    <div className={styles.kpiValue}>{filteredSkus.length}</div>
+                </div>
+                <div className={styles.kpiChip}>
+                    <div className={styles.kpiLabel}>Total Variants</div>
+                    <div className={styles.kpiValue}>
+                        {filteredSkus.reduce((sum, sku) => sum + sku.variants.length, 0)}
+                    </div>
+                </div>
+                <div className={styles.kpiChip}>
+                    <div className={styles.kpiLabel}>Active Count</div>
+                    <div className={styles.kpiValue}>
+                        {filteredSkus.filter((sku) => sku.active).length}
+                    </div>
+                </div>
+                <div className={styles.kpiChip}>
+                    <div className={styles.kpiLabel}>Customer Lens</div>
+                    <div className={styles.kpiValueSm}>{usageCustomerId === "all" ? "All customers" : customers.find((c) => c.id === usageCustomerId)?.name || "Customer"}</div>
+                </div>
+            </section>
+
+            <section className={styles.filterBar} data-testid="sales-sku-catalog-filters">
+                <div className={styles.filterRow}>
+                    <div className={styles.searchCell}>
+                        <Label className={styles.filterLabel}>Search the catalog</Label>
+                        <Search className="absolute left-5 top-[2.35rem] h-4 w-4 text-slate-400" />
+                        <Input
+                            data-testid="sales-sku-search"
+                            className="mt-2 h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="SKU, variant, template, customer context..."
+                        />
+                    </div>
+                    <div className={cn(styles.filterCell, "space-y-2")}>
+                        <Label className={styles.filterLabel}>Status</Label>
+                        <Select value={activeFilter} onValueChange={setActiveFilter}>
+                            <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="inactive">Inactive</SelectItem>
+                                <SelectItem value="all">All</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className={cn(styles.filterCell, "space-y-2")}>
+                        <Label className={styles.filterLabel}>FG Type</Label>
+                        <Select value={fgTypeFilter} onValueChange={setFgTypeFilter}>
+                            <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="POUCH">POUCH</SelectItem>
+                                <SelectItem value="ROLL">ROLL</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className={cn(styles.filterCell, "space-y-2")}>
+                        <Label className={styles.filterLabel}>Template</Label>
+                        <Select value={templateFilter} onValueChange={setTemplateFilter}>
+                            <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All templates</SelectItem>
+                                {templates.map((template: any) => (
+                                    <SelectItem key={template.id} value={String(template.id)}>
+                                        {template.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className={cn(styles.filterCell, "space-y-2")}>
+                        <Label className={styles.filterLabel}>Usage Customer</Label>
+                        <Select value={usageCustomerId} onValueChange={setUsageCustomerId}>
+                            <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All customers</SelectItem>
+                                {customers.map((customer) => (
+                                    <SelectItem key={customer.id} value={customer.id}>
+                                        {customer.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className={cn(styles.filterCell, styles.toggleCell)}>
+                        <div>
+                            <div className={styles.filterLabel}>Usage only</div>
+                            <div className="mt-1 text-xs text-slate-500">Only customer-proven SKUs</div>
+                        </div>
+                        <Switch checked={usageOnly} onCheckedChange={setUsageOnly} />
+                    </div>
+                </div>
+            </section>
+            <div className={styles.mainGrid}>
+                    <div className={cn(styles.sectionCard, styles.stickyTop)} data-testid="sales-sku-list-section">
+                        <div className={styles.sectionHeader}>
+                            <div className={styles.sectionTitle}><Sparkles className="h-4 w-4 text-slate-400" /> SKU Rail</div>
+                            <div className={styles.sectionSubtitle}>Shortlist shared SKU headers and move into the selected workplane fast.</div>
+                        </div>
+                        <div className={styles.sectionContent}>
                             <ScrollArea className="h-[calc(100vh-20rem)] min-h-[470px] pr-2">
                                 <div className="space-y-3">
                                     {!filteredSkus.length ? (
@@ -610,8 +596,8 @@ export default function SalesSkuCatalogPage() {
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="space-y-2">
-                                                        <div className="text-sm font-black">{sku.code}</div>
-                                                        <div className={`text-sm ${isActive ? "text-slate-700" : "text-slate-700"}`}>{sku.name}</div>
+                                                        <div className="break-words text-sm font-black leading-5">{sku.code}</div>
+                                                        <div className="break-words text-sm leading-5 text-slate-700">{sku.name}</div>
                                                         <div className="flex flex-wrap gap-2">
                                                             <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isActive ? "border-sky-200 bg-white text-sky-700" : skuStatusTone(sku.active)}`}>
                                                                 {sku.active ? "ACTIVE" : "INACTIVE"}
@@ -623,7 +609,7 @@ export default function SalesSkuCatalogPage() {
                                                             ) : null}
                                                         </div>
                                                     </div>
-                                                    <div className={`max-w-[10rem] break-words text-right text-[11px] leading-5 ${isActive ? "text-slate-500" : "text-slate-500"}`}>
+                                                    <div className={styles.itemMeta}>
                                                         <div>{sku.variants.length} variants</div>
                                                         <div>{sku.template_name || "No template"}</div>
                                                     </div>
@@ -633,16 +619,18 @@ export default function SalesSkuCatalogPage() {
                                     })}
                                 </div>
                             </ScrollArea>
-                    </PremiumSection>
+                    </div>
+                    </div>
 
                     <div className="min-w-0 space-y-6">
                         {selectedSku ? (
                             <>
-                                <PremiumSection
-                                    dataTestId="sales-sku-summary"
-                                    title="Selected SKU Workspace"
-                                    description="Commercial header, usage proof, and fast actions stay together before you drop into the variant lane."
-                                >
+                                <div className={styles.sectionCard} data-testid="sales-sku-summary">
+                                    <div className={styles.sectionHeader}>
+                                        <div className={styles.sectionTitle}>Selected SKU Workspace</div>
+                                        <div className={styles.sectionSubtitle}>Header truth first: commercial identity, LIVE template, default line, and customer usage. Then move into variants.</div>
+                                    </div>
+                                    <div className={styles.sectionContent}>
                                     <div className="space-y-5">
                                         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                                             <div className="space-y-3">
@@ -653,38 +641,54 @@ export default function SalesSkuCatalogPage() {
                                                     {selectedSku.commercial_family_name ? <Badge variant="outline">{selectedSku.commercial_family_name}</Badge> : null}
                                                 </div>
                                                 <div>
-                                                    <h2 className="text-2xl font-black tracking-tight text-slate-900 sm:text-[2rem]">{selectedSku.code} • {selectedSku.name}</h2>
+                                                    <h2 className="break-words text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-[2rem]">
+                                                        {selectedSku.code} • {selectedSku.name}
+                                                    </h2>
                                                     <p className="mt-1 text-sm text-slate-500">
                                                         {selectedSku.template_name || "No template"} • Default line: {selectedSku.default_line_name || "Not set"}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="flex flex-wrap gap-2">
-                                                <Button variant="outline" onClick={openEditSkuDialog}>
+                                                <Button variant="outline" className="rounded-full" onClick={openEditSkuDialog}>
                                                     Edit SKU
                                                 </Button>
-                                                <Button variant="outline" onClick={() => toggleSkuMutation.mutate()} disabled={toggleSkuMutation.isPending}>
+                                                <Button variant="outline" className="rounded-full" onClick={() => toggleSkuMutation.mutate()} disabled={toggleSkuMutation.isPending}>
                                                     {selectedSku.active ? "Deactivate" : "Reactivate"}
                                                 </Button>
-                                                <Button data-testid="sales-sku-add-variant" onClick={openCreateVariantDialog}>
+                                                <Button data-testid="sales-sku-add-variant" className="rounded-full" onClick={openCreateVariantDialog}>
                                                     <Plus className="mr-2 h-4 w-4" /> Add Variant
                                                 </Button>
                                             </div>
                                         </div>
-                                        <PremiumMetricStrip className="md:grid-cols-2 xl:grid-cols-[minmax(0,1.55fr)_repeat(3,minmax(0,0.82fr))]">
-                                            <PremiumMetricCard label="Template" value={selectedSku.template_name || "Missing"} valueClassName="text-base sm:text-lg xl:text-xl" />
-                                            <PremiumMetricCard label="Variants" value={selectedSku.variants.length} />
-                                            <PremiumMetricCard label="Customer Usage" value={asNumber(selectedSku.customer_usage_count, 0)} />
-                                            <PremiumMetricCard label="Last Used" value={selectedSku.customer_last_used_at ? new Date(selectedSku.customer_last_used_at).toLocaleDateString() : "No usage"} valueClassName="text-base sm:text-lg xl:text-xl" />
-                                        </PremiumMetricStrip>
+                                        <div className={styles.metricStrip}>
+                                            <div className={styles.metricCard}>
+                                                <div className={styles.metricLabel}>Template</div>
+                                                <div className={styles.metricValueSm}>{selectedSku.template_name || "Missing"}</div>
+                                            </div>
+                                            <div className={styles.metricCard}>
+                                                <div className={styles.metricLabel}>Variants</div>
+                                                <div className={styles.metricValue}>{selectedSku.variants.length}</div>
+                                            </div>
+                                            <div className={styles.metricCard}>
+                                                <div className={styles.metricLabel}>Customer Usage</div>
+                                                <div className={styles.metricValue}>{asNumber(selectedSku.customer_usage_count, 0)}</div>
+                                            </div>
+                                            <div className={styles.metricCard}>
+                                                <div className={styles.metricLabel}>Last Used</div>
+                                                <div className={styles.metricValueSm}>{selectedSku.customer_last_used_at ? new Date(selectedSku.customer_last_used_at).toLocaleDateString() : "No usage"}</div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </PremiumSection>
+                                </div>
+                                </div>
 
-                                <PremiumSection
-                                    dataTestId="sales-sku-variants-section"
-                                    title="Orderable Variant Lane"
-                                    description="Stay on one SKU and move through the exact presets sales can quote or order."
-                                >
+                                <div className={styles.sectionCard} data-testid="sales-sku-variants-section">
+                                    <div className={styles.sectionHeader}>
+                                        <div className={styles.sectionTitle}>Orderable Variant Lane</div>
+                                        <div className={styles.sectionSubtitle}>Variants are the real sales product contract: geometry, lamination stack, printing, add-ons, packaging, and POD.</div>
+                                    </div>
+                                    <div className={styles.sectionContent}>
                                         <div className="grid gap-4 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                                             <ScrollArea className="h-[calc(100vh-28rem)] min-h-[400px] pr-3">
                                                 <div className="space-y-3">
@@ -705,8 +709,8 @@ export default function SalesSkuCatalogPage() {
                                                             >
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="space-y-2">
-                                                                        <div className="text-sm font-black">{variant.code}</div>
-                                                                        <div className={`text-sm ${isSelected ? "text-slate-700" : "text-slate-700"}`}>{variant.name}</div>
+                                                                        <div className="break-words text-sm font-black leading-5">{variant.code}</div>
+                                                                        <div className="break-words text-sm leading-5 text-slate-700">{variant.name}</div>
                                                                         <div className="flex flex-wrap gap-2">
                                                                             <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isSelected ? "border-indigo-200 bg-white text-indigo-700" : skuStatusTone(variant.active)}`}>
                                                                                 {variant.active ? "ACTIVE" : "INACTIVE"}
@@ -714,9 +718,9 @@ export default function SalesSkuCatalogPage() {
                                                                             <Badge variant="outline">{variant.finished_good_type}</Badge>
                                                                         </div>
                                                                     </div>
-                                                                    <div className={`text-right text-xs ${isSelected ? "text-slate-500" : "text-slate-500"}`}>
-                                                                        <div>{(variant.layer_snapshot || []).length} layer(s)</div>
-                                                                        <div>{variant.finished_good_type === "ROLL"
+                                                                    <div className={styles.itemMeta}>
+                                                                        <div className="font-semibold">{(variant.layer_snapshot || []).length} layer(s)</div>
+                                                                        <div className="mt-1 break-words">{variant.finished_good_type === "ROLL"
                                                                             ? variant.roll_form || "FLAT"
                                                                             : `${variant.geometry_snapshot?.base?.width_mm || variant.geometry_snapshot?.width_mm || 0}W x ${variant.geometry_snapshot?.base?.height_mm || variant.geometry_snapshot?.height_mm || 0}H`}
                                                                         </div>
@@ -741,7 +745,7 @@ export default function SalesSkuCatalogPage() {
                                                                 {selectedVariant.packaging_snapshot?.pod?.enabled ? <Badge variant="outline">POD</Badge> : null}
                                                             </div>
                                                             <div>
-                                                                <div className="text-xl font-black text-slate-900">{selectedVariant.code} • {selectedVariant.name}</div>
+                                                                <div className="break-words text-xl font-black leading-tight text-slate-900">{selectedVariant.code} • {selectedVariant.name}</div>
                                                                 <div className="mt-1 text-sm text-slate-500">
                                                                     {selectedVariant.finished_good_type === "ROLL"
                                                                         ? selectedVariant.roll_form || "FLAT"
@@ -750,16 +754,16 @@ export default function SalesSkuCatalogPage() {
                                                             </div>
                                                         </div>
                                                         <div className="flex flex-wrap gap-2">
-                                                            <Button variant="outline" onClick={() => openVariantEditor("edit", selectedVariant)}>
+                                                            <Button variant="outline" className="rounded-full" onClick={() => openVariantEditor("edit", selectedVariant)}>
                                                                 Edit Variant
                                                             </Button>
-                                                            <Button variant="outline" onClick={() => openVariantEditor("clone", selectedVariant)}>
+                                                            <Button variant="outline" className="rounded-full" onClick={() => openVariantEditor("clone", selectedVariant)}>
                                                                 <Copy className="mr-2 h-4 w-4" /> Clone Variant
                                                             </Button>
-                                                            <Button variant="outline" onClick={() => toggleVariantMutation.mutate()} disabled={toggleVariantMutation.isPending}>
+                                                            <Button variant="outline" className="rounded-full" onClick={() => toggleVariantMutation.mutate()} disabled={toggleVariantMutation.isPending}>
                                                                 {selectedVariant.active ? "Deactivate" : "Reactivate"}
                                                             </Button>
-                                                            <Button data-testid="sales-sku-usage-history" variant="outline" onClick={() => setUsageDialogOpen(true)}>
+                                                            <Button data-testid="sales-sku-usage-history" variant="outline" className="rounded-full" onClick={() => setUsageDialogOpen(true)}>
                                                                 <Clock3 className="mr-2 h-4 w-4" /> Usage History
                                                             </Button>
                                                         </div>
@@ -782,6 +786,22 @@ export default function SalesSkuCatalogPage() {
                                                             <div className="mt-2 text-sm font-black text-slate-900">{selectedVariant.template_name || selectedSku.template_name}</div>
                                                         </div>
                                                     </div>
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        <Badge variant="outline">
+                                                            {selectedVariant.finished_good_type === "ROLL"
+                                                                ? selectedVariant.roll_form || "FLAT"
+                                                                : `${selectedVariant.geometry_snapshot?.base?.width_mm || selectedVariant.geometry_snapshot?.width_mm || 0} x ${selectedVariant.geometry_snapshot?.base?.height_mm || selectedVariant.geometry_snapshot?.height_mm || 0}`}
+                                                        </Badge>
+                                                        <Badge variant="outline">{(selectedVariant.layer_snapshot || []).length} layer(s)</Badge>
+                                                        <Badge variant="outline">
+                                                            {selectedVariant.printing_snapshot?.enabled
+                                                                ? `${selectedVariant.printing_snapshot?.type || "PRINT"} F${selectedVariant.printing_snapshot?.front_colors_count || 0}/B${selectedVariant.printing_snapshot?.back_colors_count || 0}`
+                                                                : "No print"}
+                                                        </Badge>
+                                                        <Badge variant="outline">{(selectedVariant.addons_snapshot || []).length} add-on(s)</Badge>
+                                                        {selectedVariant.packaging_snapshot?.primary_inner_pack?.enabled ? <Badge variant="outline">Primary pack</Badge> : null}
+                                                        {selectedVariant.packaging_snapshot?.pod?.enabled ? <Badge variant="outline">POD enabled</Badge> : null}
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
@@ -789,13 +809,16 @@ export default function SalesSkuCatalogPage() {
                                                 </div>
                                             )}
                                         </div>
-                                    </PremiumSection>
-                                </>
-                            ) : (
-                                <PremiumSection
-                                    title="Selected SKU"
-                                    description="Choose a shared SKU from the left rail or create one to begin building fast-entry variants."
-                                >
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className={styles.sectionCard}>
+                                <div className={styles.sectionHeader}>
+                                    <div className={styles.sectionTitle}>Selected SKU</div>
+                                    <div className={styles.sectionSubtitle}>Choose a shared SKU from the left rail or create one to begin building fast-entry variants.</div>
+                                </div>
+                                <div className={styles.sectionContent}>
                                     <div className="flex min-h-[420px] items-center justify-center p-2 text-center sm:min-h-[540px]">
                                         <div className="space-y-3">
                                             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
@@ -807,89 +830,17 @@ export default function SalesSkuCatalogPage() {
                                             </p>
                                         </div>
                                     </div>
-                                </PremiumSection>
-                            )}
-                        </div>
-                        <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-                            <PremiumSection
-                                title="Inspector and Fast Actions"
-                                description="Keep usage context, selected snapshot, and launch actions visible while you move through the studio."
-                                actions={<Sparkles className="h-4 w-4 text-slate-400" />}
-                            >
-                                <div className="space-y-4">
-                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Usage lens</div>
-                                        <div className="mt-2 text-sm font-black text-slate-900">
-                                            {usageCustomerId === "all"
-                                                ? "All customers"
-                                                : customers.find((customer) => customer.id === usageCustomerId)?.name || "Customer lens"}
-                                        </div>
-                                        <div className="mt-2 text-xs leading-5 text-slate-500">
-                                            {usageOnly
-                                                ? "Left rail is narrowed to customer-proven SKUs only."
-                                                : "Full shared catalog remains visible while customer usage stays highlighted."}
-                                        </div>
-                                    </div>
-
-                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Selected snapshot</div>
-                                        <div className="mt-3 space-y-3 text-sm">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-slate-500">SKU</span>
-                                                <span className="font-black text-slate-900">{selectedSku?.code || "No selection"}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-slate-500">Variant</span>
-                                                <span className="font-black text-slate-900">{selectedVariant?.code || "No selection"}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-slate-500">Template</span>
-                                                <span className="text-right font-black text-slate-900">{selectedVariant?.template_name || selectedSku?.template_name || "Missing"}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-slate-500">FG Type</span>
-                                                <span className="font-black text-slate-900">{selectedVariant?.finished_good_type || "—"}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-slate-500">POD</span>
-                                                <span className="font-black text-slate-900">{selectedVariant?.packaging_snapshot?.pod?.enabled ? "Enabled" : "Off"}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Fast actions</div>
-                                        <div className="mt-3 space-y-2">
-                                            <Button className="w-full justify-start" onClick={openCreateSkuDialog}>
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Create Shared SKU
-                                            </Button>
-                                            <Button className="w-full justify-start" variant="outline" onClick={selectedSku ? openCreateVariantDialog : undefined} disabled={!selectedSku}>
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add Variant
-                                            </Button>
-                                            <Button className="w-full justify-start" variant="outline" onClick={() => setUsageDialogOpen(true)} disabled={!selectedVariant}>
-                                                <Clock3 className="mr-2 h-4 w-4" />
-                                                Open Usage History
-                                            </Button>
-                                            <Button className="w-full justify-start" variant="outline" asChild>
-                                                <Link href="/sales/orders/create">
-                                                    <ArrowUpRight className="mr-2 h-4 w-4" />
-                                                    Open Sales Order Entry
-                                                </Link>
-                                            </Button>
-                                        </div>
-                                    </div>
                                 </div>
-                            </PremiumSection>
-                        </div>
+                            </div>
+                        )}
                     </div>
+                </div>
             <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
                 <DialogContent data-testid="sales-sku-dialog" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-y-auto rounded-none p-0 sm:h-auto sm:max-h-[94vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(42rem,calc(100vw-1rem))] sm:rounded-[2rem]">
                     <DialogHeader>
                         <DialogTitle className="px-6 pt-6">{skuDialogMode === "create" ? "Create Shared SKU" : "Edit Shared SKU"}</DialogTitle>
                         <DialogDescription>
-                            SKU headers define the commercial grouping and LIVE template behind fast sales ordering.
+                            SKU headers define the commercial master. Variants under the SKU hold the actual technical order truth.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 px-6 py-2 md:grid-cols-2">
@@ -958,7 +909,7 @@ export default function SalesSkuCatalogPage() {
                             {variantDialog.mode === "create" ? "Create Variant" : variantDialog.mode === "clone" ? "Clone Variant" : "Edit Variant"}
                         </DialogTitle>
                         <DialogDescription>
-                            Sales variants store the exact technical snapshot used by fast-entry orders.
+                            Sales variants store the exact technical snapshot used by fast-entry orders. Route logic stays on the template; sales variants own product truth only.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-5 px-4 pb-4 sm:px-6 sm:pb-6">
@@ -973,7 +924,7 @@ export default function SalesSkuCatalogPage() {
                                             {variantDialog.code || "Variant code"} • {variantDialog.name || "Variant name"}
                                         </div>
                                         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                                            Build a clean sales preset. Film density is inherited from the selected film family and variant in master data, so choose the lamination stack carefully.
+                                            Build a clean sales preset. Flow is always: geometry, film layers, printing and chemicals, add-ons, then packaging and POD.
                                         </p>
                                     </div>
                                 </div>
@@ -986,12 +937,24 @@ export default function SalesSkuCatalogPage() {
                                 </div>
                             </div>
                             <div className="mt-5">
-                                <PremiumMetricStrip className="md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.8fr))]">
-                                    <PremiumMetricCard label="Shared SKU" value={salesSkus.find((sku) => sku.id === variantDialog.skuId)?.code || "No SKU"} valueClassName="text-base sm:text-lg xl:text-xl" />
-                                    <PremiumMetricCard label="Template" value={templates.find((template: any) => String(template.id) === String(variantDialog.item.template_id))?.name || "Choose template"} valueClassName="text-base sm:text-lg xl:text-xl" />
-                                    <PremiumMetricCard label="FG Type" value={variantDialog.item.finished_good_type || "Pending"} />
-                                    <PremiumMetricCard label="Layers" value={variantDialog.item.film_layers.length} />
-                                </PremiumMetricStrip>
+                                <div className={styles.metricStrip}>
+                                    <div className={styles.metricCard}>
+                                        <div className={styles.metricLabel}>Shared SKU</div>
+                                        <div className={styles.metricValueSm}>{salesSkus.find((sku) => sku.id === variantDialog.skuId)?.code || "No SKU"}</div>
+                                    </div>
+                                    <div className={styles.metricCard}>
+                                        <div className={styles.metricLabel}>Template</div>
+                                        <div className={styles.metricValueSm}>{templates.find((template: any) => String(template.id) === String(variantDialog.item.template_id))?.name || "Choose template"}</div>
+                                    </div>
+                                    <div className={styles.metricCard}>
+                                        <div className={styles.metricLabel}>FG Type</div>
+                                        <div className={styles.metricValue}>{variantDialog.item.finished_good_type || "Pending"}</div>
+                                    </div>
+                                    <div className={styles.metricCard}>
+                                        <div className={styles.metricLabel}>Layers</div>
+                                        <div className={styles.metricValue}>{variantDialog.item.film_layers.length}</div>
+                                    </div>
+                                </div>
                             </div>
                             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                                 <div className="space-y-2">
@@ -1002,6 +965,23 @@ export default function SalesSkuCatalogPage() {
                                     <Label>Variant Name</Label>
                                     <Input value={variantDialog.name} onChange={(event) => setVariantDialog((current) => ({ ...current, name: event.target.value }))} />
                                 </div>
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                <Badge variant="outline">{variantDialog.item.finished_good_type || "FG pending"}</Badge>
+                                <Badge variant="outline">
+                                    {variantDialog.item.finished_good_type === "ROLL"
+                                        ? variantDialog.item.roll_form || "FLAT"
+                                        : `${variantDialog.item.geometry.base.width_mm} x ${variantDialog.item.geometry.base.height_mm}`}
+                                </Badge>
+                                <Badge variant="outline">{variantDialog.item.film_layers.length} layer(s)</Badge>
+                                <Badge variant="outline">
+                                    {variantDialog.item.printing.enabled
+                                        ? `${variantDialog.item.printing.type} F${variantDialog.item.printing.front_colors_count}/B${variantDialog.item.printing.back_colors_count}`
+                                        : "No print"}
+                                </Badge>
+                                <Badge variant="outline">{variantDialog.item.addons.length} add-on(s)</Badge>
+                                {variantDialog.item.packaging_snapshot.primary_inner_pack.enabled ? <Badge variant="outline">Primary pack</Badge> : null}
+                                {variantDialog.item.packaging_snapshot.pod.enabled ? <Badge variant="outline">POD enabled</Badge> : null}
                             </div>
                         </div>
 
@@ -1088,6 +1068,6 @@ export default function SalesSkuCatalogPage() {
                     </ScrollArea>
                 </DialogContent>
             </Dialog>
-        </PremiumPageShell>
+        </div>
     )
 }

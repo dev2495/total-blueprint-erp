@@ -7,34 +7,13 @@ from datetime import timedelta
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
+from dotenv import load_dotenv
 from config.runtime_env import (
     is_hosted_secure_env,
     is_local_dev_env,
     is_production_env,
     normalize_django_env,
 )
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-def _load_dotenv(env_path: Path) -> None:
-    """Load simple KEY=VALUE pairs without depending on a hydrated venv package."""
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or key in os.environ:
-            continue
-
-        value = value.strip().strip("\"'")
-        os.environ[key] = value
-
 
 if os.getenv("ENABLE_CELERY_IMPORT") != "1" or os.getenv("SKIP_CELERY_IMPORT") == "1":
     # Lightweight Django bootstrap paths do not need live Celery schedule objects.
@@ -49,8 +28,9 @@ else:
 
 # Load environment variables
 if os.environ.get("SKIP_DOTENV_IMPORT") != "1":
-    _load_dotenv(BASE_DIR / ".env")
+    load_dotenv()
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 HAS_WHITENOISE = bool(importlib.util.find_spec("whitenoise"))
 
 

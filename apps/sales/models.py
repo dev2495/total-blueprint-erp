@@ -48,6 +48,7 @@ class SalesOrder(models.Model):
         ('PLANNING_REQUIRED', 'Planning Required'),
         ('PLANNED', 'Planned'),
         ('RELEASED', 'Released'),
+        ('PACKING_READY', 'Packing Ready'),
         ('DISPATCH_READY', 'Dispatch Ready'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
@@ -213,11 +214,18 @@ class SalesOrderItem(models.Model):
     def line_amount(self):
         from decimal import Decimal
         basis = str(self.price_basis or "KG").upper()
+        qty_uom = str(self.qty_uom or "KG").upper()
         unit_price = Decimal(str(self.unit_price or 0))
         if unit_price <= 0:
             return Decimal("0")
         if basis == "PCS":
-            return Decimal(str(self.qty_value or 0)) * unit_price
+            if qty_uom == "PCS":
+                return Decimal(str(self.qty_value or 0)) * unit_price
+            unit_weight_g = Decimal(str(self.unit_weight_g or 0))
+            if qty_uom == "KG" and unit_weight_g > 0:
+                derived_pcs = (Decimal(str(self.qty_value or 0)) * Decimal("1000")) / unit_weight_g
+                return derived_pcs * unit_price
+            return Decimal("0")
         return Decimal(str(self.total_weight_kg or 0)) * unit_price
 
     class Meta:

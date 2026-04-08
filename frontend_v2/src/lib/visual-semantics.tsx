@@ -29,6 +29,7 @@ import {
 export type SemanticKind =
   | "origin"
   | "stockStrategy"
+  | "planningChoice"
   | "rollRole"
   | "processState"
   | "materialCategory"
@@ -561,6 +562,7 @@ const notificationRegistry: Record<string, SemanticMeta> = {
 function registryFor(kind: SemanticKind) {
   if (kind === "origin") return originRegistry
   if (kind === "stockStrategy") return stockStrategyRegistry
+  if (kind === "planningChoice") return stockStrategyRegistry
   if (kind === "rollRole") return rollRoleRegistry
   if (kind === "processState") return processStateRegistry
   if (kind === "materialCategory") return materialCategoryRegistry

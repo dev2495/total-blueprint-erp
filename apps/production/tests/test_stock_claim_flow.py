@@ -9,6 +9,52 @@ from apps.production.views_planner import PlannerViewSet
 
 
 class StockClaimFlowTests(SimpleTestCase):
+    @patch("apps.production.views_planner.Process.objects.filter")
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_sales_required_start_step_uses_first_roll_input_for_purchased_layers(self, material_filter, process_filter):
+        template = SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["EXTRUDE", "LAMINATION", "POUCH"]))
+        process_filter.return_value.only.return_value = [
+            SimpleNamespace(code="EXTRUDE", input_form="BULK"),
+            SimpleNamespace(code="LAMINATION", input_form="ROLL"),
+            SimpleNamespace(code="POUCH", input_form="ROLL"),
+        ]
+        material_filter.return_value.values.return_value = [
+            {"id": "film-1", "is_extrudable": False},
+            {"id": "film-2", "is_extrudable": False},
+        ]
+
+        required_start = PlannerViewSet()._sales_required_start_step(
+            template,
+            [
+                {"variant_id": "film-1"},
+                {"variant_id": "film-2"},
+            ],
+        )
+
+        self.assertEqual(required_start, 1)
+
+    @patch("apps.production.views_planner.Process.objects.filter")
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_sales_required_start_step_stays_raw_for_extrudable_layers(self, material_filter, process_filter):
+        template = SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["EXTRUDE", "LAMINATION", "POUCH"]))
+        process_filter.return_value.only.return_value = [
+            SimpleNamespace(code="EXTRUDE", input_form="BULK"),
+            SimpleNamespace(code="LAMINATION", input_form="ROLL"),
+            SimpleNamespace(code="POUCH", input_form="ROLL"),
+        ]
+        material_filter.return_value.values.return_value = [
+            {"id": "film-1", "is_extrudable": True},
+        ]
+
+        required_start = PlannerViewSet()._sales_required_start_step(
+            template,
+            [
+                {"variant_id": "film-1"},
+            ],
+        )
+
+        self.assertEqual(required_start, 0)
+
     def test_source_availability_counts_fg_and_wip_matches(self):
         row = {
             "required_start_step": 2,
@@ -417,8 +463,8 @@ class StockClaimFlowTests(SimpleTestCase):
                  "stop_step_index": 1,
              }]), \
              patch.object(PlannerViewSet, "_order_job_queryset", return_value=empty_jobs), \
-             patch.object(PlannerViewSet, "_resume_allocations_for_sales_from_stock_route", return_value=(created_allocations, 1)), \
-             patch("apps.production.views_planner.JobService.create_jobs_for_so_item", return_value=created_jobs):
+             patch.object(PlannerViewSet, "_resume_allocations_for_sales_from_stock_route", return_value=(created_allocations, 2)), \
+             patch("apps.production.views_planner.JobService.create_jobs_for_so_item", return_value=created_jobs) as create_jobs:
             so_select.return_value.get.return_value = so_item
             stock_select.return_value.get.return_value = stock_order
             response = PlannerViewSet().resume_stock_route(request, sales_order_item_id="so-item-1")
@@ -427,3 +473,28 @@ class StockClaimFlowTests(SimpleTestCase):
         self.assertEqual(response.data["allocations_created"], 2)
         self.assertEqual(response.data["created_job_numbers"], ["JOB-1", "JOB-2"])
         self.assertEqual(response.data["resume_mode"], "EXACT_STOPPED_ROUTE")
+        create_jobs.assert_called_once()
+        self.assertEqual(create_jobs.call_args.kwargs["start_index"], 2)
+
+    def test_prime_stock_order_for_release_creates_jobs_and_marks_order_planned(self):
+        order = SimpleNamespace(
+            template=SimpleNamespace(routing_rule=object()),
+            start_step_index=1,
+            stop_step_index=2,
+            target_step_index=2,
+            status="PLANNING_REQUIRED",
+            save=MagicMock(),
+        )
+        existing_jobs = MagicMock()
+        existing_jobs.exclude.return_value.exists.return_value = False
+        created_jobs = [SimpleNamespace(id="job-1"), SimpleNamespace(id="job-2")]
+
+        with patch.object(PlannerViewSet, "_route_last_index", return_value=3), \
+             patch.object(PlannerViewSet, "_order_job_queryset", return_value=existing_jobs), \
+             patch("apps.production.views_planner.JobService.create_jobs_for_planned_order", return_value=created_jobs) as create_jobs:
+            jobs = PlannerViewSet()._prime_stock_order_for_release(order)
+
+        self.assertEqual(jobs, created_jobs)
+        self.assertEqual(order.status, "PLANNED")
+        create_jobs.assert_called_once_with(order, start_index=1, stop_index=2)
+        order.save.assert_called_once()

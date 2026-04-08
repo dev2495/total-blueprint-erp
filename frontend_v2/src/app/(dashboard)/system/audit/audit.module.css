@@ -1,0 +1,236 @@
+.auditContainer {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.heroCard {
+    position: relative;
+    border-radius: 1.75rem;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0f172a 0%, #16213a 35%, #1d4ed8 78%, #312e81 100%);
+    box-shadow: 0 34px 88px -54px rgba(15, 23, 42, 0.36);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 2.5rem;
+    color: white;
+}
+
+.metricStrip {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(4, 1fr);
+    margin-top: 2rem;
+}
+
+@media (max-width: 1280px) {
+    .metricStrip {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.metricCard {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    backdrop-filter: blur(8px);
+}
+
+.metricLabel {
+    font-size: 0.625rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.metricValue {
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-top: 0.5rem;
+}
+
+.lanesGrid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1280px) {
+    .lanesGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .lanesGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.laneCard {
+    position: relative;
+    border-radius: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    text-align: left;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.laneCard::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: transparent;
+    transition: background-color 0.2s;
+}
+
+.laneCard:hover {
+    background: white;
+    border-color: #cbd5e1;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.05);
+}
+
+.laneCard.active {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-color: #cbd5e1;
+    box-shadow: 0 22px 58px -40px rgba(0, 0, 0, 0.15);
+}
+
+/* Color-coded left borders for specific lanes */
+.laneCard.trace::before { background: #3b82f6; }
+.laneCard.inventory::before { background: #f59e0b; }
+.laneCard.production::before { background: #10b981; }
+.laneCard.masterData::before { background: #8b5cf6; }
+.laneCard.sessions::before { background: #14b8a6; }
+.laneCard.permissions::before { background: #ef4444; }
+.laneCard.systemConfig::before { background: #64748b; }
+.laneCard.reports::before { background: #ec4899; }
+
+.laneLabel {
+    font-size: 0.625rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: #64748b;
+}
+
+.laneTitle {
+    font-size: 1.125rem;
+    font-weight: 900;
+    color: #0f172a;
+    margin-top: 0.5rem;
+}
+
+.laneValue {
+    font-size: 0.875rem;
+    color: #475569;
+    margin-top: 0.25rem;
+}
+
+.workspaceGrid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1.08fr) 380px;
+}
+
+@media (max-width: 1280px) {
+    .workspaceGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sectionPanel {
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    padding: 1.5rem;
+    box-shadow: 0 10px 40px -20px rgba(0, 0, 0, 0.05);
+}
+
+.sectionHeader {
+    margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+}
+
+.sectionDesc {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+.timelineCard {
+    display: block;
+    background: rgba(248, 250, 252, 0.7);
+    border: 1px solid #e2e8f0;
+    border-radius: 1.4rem;
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.timelineCard:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+}
+
+.timelineCardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.timelineTitle {
+    font-size: 0.875rem;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.timelineSub {
+    font-size: 0.625rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+.timelineMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    row-gap: 0.25rem;
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.timelinePill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pillNeutral { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.pillSuccess { background: #ecfdf5; color: #047857; border: 1px solid #d1fae5; }
+.pillWarning { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.pillDanger { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }

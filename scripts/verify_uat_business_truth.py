@@ -6,7 +6,8 @@ from pathlib import Path
 import django
 
 sys.path.insert(0, os.getcwd())
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings_script")
+os.environ.setdefault("SKIP_ADMIN_APP_IMPORT", "1")
 django.setup()
 
 from apps.analytics.models import ReportDispatchRun, ReportDistributionProfile

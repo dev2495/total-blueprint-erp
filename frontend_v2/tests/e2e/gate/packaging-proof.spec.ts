@@ -2,7 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 
 import { test, expect } from "../support/base"
-import { annotate, assertHealthyPage, fetchJson, loginViaUi, switchRole, unwrapApiList } from "../support/test-helpers"
+import { annotate, assertHealthyPage, fetchJson, unwrapApiList } from "../support/test-helpers"
 
 type InhousePackagingProof = {
   skus: Array<{ code: string; base_uom: string }>
@@ -26,6 +26,7 @@ type InhousePackagingProof = {
 
 function readAcceptanceProof(): InhousePackagingProof {
   const candidates = [
+    path.resolve(process.cwd(), "../.runtime/final-go-live-acceptance/inhouse_packaging_proof.json"),
     path.resolve(process.cwd(), "../.runtime/ui-e2e/acceptance/inhouse_packaging_proof.json"),
     path.resolve(process.cwd(), "../.runtime/acceptance/inhouse_packaging_proof.json"),
   ]
@@ -62,10 +63,7 @@ test("produced in-house packaging is visible across packaging inventory, packing
   expect(innerSku).toBeTruthy()
   expect(sheetSku).toBeTruthy()
 
-  await loginViaUi(page)
-
-  await switchRole(page, "Store", "/inventory/roll-explorer")
-  await page.goto("/inventory/packaging")
+  await page.goto("/inventory/packaging", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
 
   const packagingSearch = page.getByPlaceholder(/Search packaging material, code, kind, plant, or location/i).first()
@@ -78,14 +76,25 @@ test("produced in-house packaging is visible across packaging inventory, packing
   await expect(page.locator("tbody").first()).toContainText(String(sheetSku?.code || "PACK_ROLL_SHEET_INHOUSE"))
   await expect(page.locator("tbody").first()).toContainText(formatQty(proof.stock.after_consumption.sheet_kg, "KG"))
 
-  await switchRole(page, "Dispatch", "/dashboard/logistics")
-  await page.goto("/logistics/packing")
+  await page.goto("/logistics/packing", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
 
   const primaryPackGonny = proof.pouch_breakdown.gonnies.find((row) => row.content_mode === "PRIMARY_PACKS")
   const looseGonny = proof.pouch_breakdown.gonnies.find((row) => row.content_mode === "LOOSE_POUCHES")
   expect(primaryPackGonny).toBeTruthy()
   expect(looseGonny).toBeTruthy()
+
+  const challansResponse = await fetchJson<any>(page, "/api/production/challans/list_challans/")
+  expect(challansResponse.status).toBe(200)
+  const challans = unwrapApiList<any>(challansResponse.data)
+  const proofChallan = challans.find((row) => String(row.dc_no || "") === proof.pouch_breakdown.challan_no)
+  expect(proofChallan).toBeTruthy()
+
+  const salesOrderLabel = String(proofChallan?.so_number || proofChallan?.sales_order_number || "")
+  if (salesOrderLabel) {
+    await page.getByTestId("packing-sales-order-select").click()
+    await page.getByRole("option", { name: new RegExp(salesOrderLabel, "i") }).click()
+  }
 
   await expect(page.locator("body")).toContainText(String(primaryPackGonny?.label || ""))
   await expect(page.locator("body")).toContainText(String(looseGonny?.label || ""))
@@ -95,14 +104,8 @@ test("produced in-house packaging is visible across packaging inventory, packing
     await expect(page.locator("body")).toContainText(`${primaryPackGonny.primary_pack_count} inner packs`)
   }
 
-  await page.goto("/logistics/dispatch")
+  await page.goto("/logistics/dispatch", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
-
-  const challansResponse = await fetchJson<any>(page, "/api/production/challans/list_challans/")
-  expect(challansResponse.status).toBe(200)
-  const challans = unwrapApiList<any>(challansResponse.data)
-  const proofChallan = challans.find((row) => String(row.dc_no || "") === proof.pouch_breakdown.challan_no)
-  expect(proofChallan).toBeTruthy()
 
   await expect(page.getByTestId(`dispatch-challan-row-${proofChallan.id}`)).toBeVisible()
   await expect(page.getByTestId(`dispatch-print-${proofChallan.id}`)).toBeVisible()

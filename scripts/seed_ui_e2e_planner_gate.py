@@ -8,7 +8,8 @@ import json
 import django
 
 sys.path.insert(0, os.getcwd())
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings_script")
+os.environ.setdefault("SKIP_ADMIN_APP_IMPORT", "1")
 django.setup()
 
 from django.utils import timezone
@@ -23,18 +24,33 @@ ARTWORK_CODE = "UI-E2E-FLEXO-GATE"
 ARTWORK_NAME = "UI E2E Deferred Artwork"
 
 
-def ensure_seed_artwork(admin_user: User) -> Artwork:
+def ensure_seed_artwork(
+    admin_user: User,
+    *,
+    print_type: str = "FLEXO",
+    front_colors_count: int = 1,
+    back_colors_count: int = 0,
+) -> Artwork:
+    normalized_print_type = str(print_type or "FLEXO").upper()
+    front_count = max(0, int(front_colors_count or 0))
+    back_count = max(0, int(back_colors_count or 0))
+    if front_count + back_count <= 0:
+        front_count = 1
+        back_count = 0
+    front_colors = [f"FRONT-{idx + 1}" for idx in range(front_count)]
+    back_colors = [f"BACK-{idx + 1}" for idx in range(back_count)]
+    color_list = front_colors + back_colors
     artwork, _ = Artwork.objects.get_or_create(
         design_code=ARTWORK_CODE,
         defaults={
             "name": ARTWORK_NAME,
-            "print_type": "FLEXO",
-            "front_colors_count": 1,
-            "back_colors_count": 0,
-            "front_colors": ["YELLOW"],
-            "back_colors": [],
-            "color_list": ["YELLOW"],
-            "colors_count": 1,
+            "print_type": normalized_print_type,
+            "front_colors_count": front_count,
+            "back_colors_count": back_count,
+            "front_colors": front_colors,
+            "back_colors": back_colors,
+            "color_list": color_list,
+            "colors_count": len(color_list),
             "file_path": "/tmp/ui-e2e-flexo-gate.pdf",
             "status": "APPROVED",
             "approved_by": admin_user,
@@ -45,13 +61,13 @@ def ensure_seed_artwork(admin_user: User) -> Artwork:
     changed = False
     required = {
         "name": ARTWORK_NAME,
-        "print_type": "FLEXO",
-        "front_colors_count": 1,
-        "back_colors_count": 0,
-        "front_colors": ["YELLOW"],
-        "back_colors": [],
-        "color_list": ["YELLOW"],
-        "colors_count": 1,
+        "print_type": normalized_print_type,
+        "front_colors_count": front_count,
+        "back_colors_count": back_count,
+        "front_colors": front_colors,
+        "back_colors": back_colors,
+        "color_list": color_list,
+        "colors_count": len(color_list),
         "file_path": "/tmp/ui-e2e-flexo-gate.pdf",
         "status": "APPROVED",
     }
@@ -77,6 +93,8 @@ def find_existing_gate_order() -> SalesOrder | None:
         .first()
     )
     if not existing:
+        return None
+    if existing.created_at and existing.created_at < timezone.now() - timedelta(minutes=15):
         return None
     if existing.items.filter(artwork_assignment_required=True).exists():
         return existing
@@ -196,10 +214,16 @@ def main():
     if not admin_user:
         raise RuntimeError("Admin user is required before seeding UI E2E planner gate fixtures.")
 
-    artwork = ensure_seed_artwork(admin_user)
     existing = find_existing_gate_order()
     order = force_artwork_gate(existing) if existing else build_gate_order()
     gate_item = order.items.filter(artwork_assignment_required=True).first()
+    printing = dict(getattr(gate_item, "printing_snapshot", {}) or {})
+    artwork = ensure_seed_artwork(
+        admin_user,
+        print_type=str(printing.get("type") or printing.get("method") or "FLEXO").upper(),
+        front_colors_count=int(printing.get("front_colors_count") or 0),
+        back_colors_count=int(printing.get("back_colors_count") or 0),
+    )
     runtime_dir = Path(os.environ.get("UI_E2E_RUNTIME_DIR", Path(os.getcwd()) / ".runtime" / "ui-e2e"))
     runtime_dir.mkdir(parents=True, exist_ok=True)
     metadata_path = runtime_dir / "planner-gate-seed.json"

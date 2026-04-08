@@ -1,98 +1,134 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { analyticsApi } from "@/services/analytics";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, ClipboardList,
-  Factory, Layers, ListChecks, Loader2, Package, Plus,
-  RefreshCw, Zap, Activity, Clock, Eye,
-  Gauge, BarChart3, CalendarClock, AlertCircle,
+  Activity,
+  AlertTriangle,
+  Boxes,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  Gauge,
+  Layers,
+  Package,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Workflow,
 } from "lucide-react";
+
+import { analyticsApi } from "@/services/analytics";
 import styles from "./planner.module.css";
 
-/* ─────────────── Helpers ─────────────── */
-function fmt(v: unknown, decimals = 1): string {
-  if (v === null || v === undefined) return "—";
-  const n = typeof v === "number" ? v : parseFloat(String(v));
-  if (isNaN(n)) return "—";
-  return n.toLocaleString("en-IN", { maximumFractionDigits: decimals });
+function fmt(value: unknown, decimals = 0) {
+  if (value === null || value === undefined) return "—";
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return "—";
+  return parsed.toLocaleString("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  });
 }
 
-/* ─────────────── Animated Counter ─────────────── */
-function AnimCount({ value, decimals = 0 }: { value: number; decimals?: number }) {
+function pct(part: number, total: number) {
+  if (!total) return 0;
+  return Math.max(0, Math.min(100, (part / total) * 100));
+}
+
+function Counter({ value, decimals = 0 }: { value: number; decimals?: number }) {
   const [display, setDisplay] = useState(0);
-  const raf = useRef<number | null>(null);
+  const frame = useRef<number | null>(null);
+
   useEffect(() => {
-    if (raf.current) cancelAnimationFrame(raf.current);
-    const start = display; const end = value; const dur = 800;
+    if (frame.current) cancelAnimationFrame(frame.current);
+    const start = display;
+    const end = value;
+    const duration = 650;
     const t0 = performance.now();
+
     const tick = (now: number) => {
-      const p = Math.min((now - t0) / dur, 1);
-      setDisplay(start + (end - start) * (1 - Math.pow(1 - p, 3)));
-      if (p < 1) raf.current = requestAnimationFrame(tick);
+      const progress = Math.min((now - t0) / duration, 1);
+      setDisplay(start + (end - start) * (1 - Math.pow(1 - progress, 3)));
+      if (progress < 1) frame.current = requestAnimationFrame(tick);
     };
-    raf.current = requestAnimationFrame(tick);
-    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
+
+    frame.current = requestAnimationFrame(tick);
+    return () => {
+      if (frame.current) cancelAnimationFrame(frame.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+
   return <>{display.toLocaleString("en-IN", { maximumFractionDigits: decimals })}</>;
 }
 
-/* ─────────────── KPI Card ─────────────── */
-function KPICard({ label, value, sub, icon, gradientClass, suffix = "", delay = "0ms" }: {
-  label: string; value: number;
-  icon: React.ReactNode; gradientClass: string;
-  sub?: string; suffix?: string; delay?: string;
+function MetricCard({
+  label,
+  value,
+  detail,
+  tone,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tone: "sky" | "emerald" | "amber" | "violet" | "rose" | "teal";
+  suffix?: string;
 }) {
   return (
-    <div className={styles.kpiCard} style={{ animationDelay: delay }}>
-      <div className={`${styles.kpiIconWrap} ${gradientClass}`}>{icon}</div>
-      <div className={styles.kpiContent}>
-        <div className={styles.kpiLabel}>{label}</div>
-        <div className={styles.kpiValue}>
-          <AnimCount value={value} decimals={suffix === " KG" ? 1 : 0} />{suffix}
-        </div>
-        {sub && <div className={styles.kpiSub}>{sub}</div>}
+    <div className={styles.metricCard}>
+      <div className={styles.metricHeader}>
+        <span className={styles.metricLabel}>{label}</span>
+        <span className={`${styles.metricTone} ${styles[`tone${tone[0].toUpperCase()}${tone.slice(1)}`]}`} />
       </div>
+      <div className={styles.metricValue}>
+        <Counter value={value} decimals={suffix === " KG" ? 1 : 0} />
+        {suffix || ""}
+      </div>
+      <div className={styles.metricDetail}>{detail}</div>
     </div>
   );
 }
 
-/* ─────────────── Chart Tooltip ─────────────── */
-const ChartTooltip = ({ active, payload, label }: any) => {
+function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className={styles.chartTooltip}>
       <div className={styles.chartTooltipLabel}>{label}</div>
-      {payload.map((p: any, i: number) => (
-        <div key={i} className={styles.chartTooltipItem} style={{ color: p.color }}>
-          <span>{p.name}:</span> <strong>{fmt(p.value, 2)}</strong>
+      {payload.map((item: any, index: number) => (
+        <div key={index} className={styles.chartTooltipItem}>
+          <span style={{ color: item.color }}>{item.name}</span>
+          <strong>{fmt(item.value, 1)}</strong>
         </div>
       ))}
     </div>
   );
-};
+}
 
-/* ─────────────── Colors ─────────────── */
-const JOB_COLORS: Record<string, string> = {
-  RUNNING: "#0ea5e9", COMPLETED: "#10b981", PAUSED: "#06b6d4",
-  PENDING: "#78716c", CANCELLED: "#f43f5e", DRAFT: "#f59e0b",
-  RELEASED: "#8b5cf6", EXECUTING: "#38bdf8", PLANNED: "#14b8a6",
-  ON_HOLD: "#f59e0b",
-};
+const PIE_COLORS = ["#111827", "#2563eb", "#14b8a6", "#f59e0b", "#8b5cf6", "#ef4444"];
 
-/* ─────────────── MAIN PAGE ─────────────── */
 export default function PlannerDashboardPage() {
   const [countdown, setCountdown] = useState(30);
 
   const query = useQuery({
-    queryKey: ["planner-dashboard"],
+    queryKey: ["planner-dashboard-v2"],
     queryFn: () => analyticsApi.getPlannerDashboard(),
     refetchInterval: 30_000,
     staleTime: 20_000,
@@ -100,351 +136,482 @@ export default function PlannerDashboardPage() {
 
   useEffect(() => {
     setCountdown(30);
-    const iv = setInterval(() => setCountdown(c => (c <= 1 ? 30 : c - 1)), 1000);
-    return () => clearInterval(iv);
+    const interval = setInterval(() => setCountdown((current) => (current <= 1 ? 30 : current - 1)), 1000);
+    return () => clearInterval(interval);
   }, [query.dataUpdatedAt]);
 
-  const data = query.data ?? ({} as any);
-  const qKPI: any = data.queue_kpis ?? {};
-  const strip: any = data.status_strip ?? {};
-  const jobDist: any[] = data.job_distribution ?? [];
-  const wcCapacity: any[] = data.wc_capacity ?? [];
-  const prodTrend: any[] = data.production_trend ?? [];
-  const demandPipe: any[] = data.demand_pipeline ?? [];
-  const alerts: any[] = data.alerts ?? [];
-  const recent: any[] = data.recent_activity ?? [];
-  const sourceMix: any = data.source_mix ?? {};
+  const data = query.data ?? {};
+  const queueKpis = data.queue_kpis ?? {};
+  const statusStrip = data.status_strip ?? {};
+  const productionTrend = Array.isArray(data.production_trend) ? data.production_trend : [];
+  const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+  const recentActivity = Array.isArray(data.recent_activity) ? data.recent_activity : [];
+  const demandPipeline = Array.isArray(data.demand_pipeline) ? data.demand_pipeline : [];
+  const jobDistribution = Array.isArray(data.job_distribution) ? data.job_distribution : [];
+  const wcCapacity = Array.isArray(data.wc_capacity) ? data.wc_capacity : [];
+  const sourceMix = data.source_mix ?? {};
+  const replenishmentMix = data.replenishment_mix ?? {};
+  const costingSummary = data.costing_summary ?? {};
 
-  const chartData = useMemo(() =>
-    prodTrend.map((r: any) => ({
-      date: String(r.date ?? "").slice(5),
-      output_kg: Number(r.output_kg || 0),
-    })), [prodTrend]);
+  const productionTrendData = useMemo(
+    () =>
+      productionTrend.map((row: any) => ({
+        date: String(row.date || "").slice(5),
+        output_kg: Number(row.output_kg || 0),
+      })),
+    [productionTrend]
+  );
+  const productionTrendTotal = useMemo(
+    () => productionTrendData.reduce((sum: number, row: { output_kg: number }) => sum + row.output_kg, 0),
+    [productionTrendData]
+  );
 
-  const jobTotal = jobDist.reduce((acc: number, d: any) => acc + (d.count ?? 0), 0);
+  const queueByPath = useMemo(() => {
+    const fg = Number(sourceMix.fg_batch_count || 0);
+    const invariant = Number(sourceMix.invariant_roll_kg || 0);
+    const upstream = Number(sourceMix.upstream_roll_kg || 0);
+    return [
+      { label: "Final Roll Pool", value: fg, display: `${fmt(fg)} batches` },
+      { label: "Invariant Pool", value: invariant, display: `${fmt(invariant, 1)} KG` },
+      { label: "Upstream Pool", value: upstream, display: `${fmt(upstream, 1)} KG` },
+    ];
+  }, [sourceMix]);
+
+  const outputMix = useMemo(
+    () => [
+      { name: "FG", value: Number(sourceMix.fg_batch_count || 0) || 0.0001 },
+      { name: "Invariant", value: Number(sourceMix.invariant_roll_kg || 0) || 0.0001 },
+      { name: "WIP", value: Number(sourceMix.upstream_roll_kg || 0) || 0.0001 },
+      { name: "POD", value: Number(replenishmentMix.pod_bulk_open || 0) || 0.0001 },
+      { name: "Packaging", value: Number(replenishmentMix.packaging_open || 0) || 0.0001 },
+    ],
+    [replenishmentMix, sourceMix]
+  );
+
+  const readiness = useMemo(() => {
+    const ready = Number(queueKpis.ready_released || 0);
+    const blocked = Number(queueKpis.blocked_count || 0);
+    const artwork = alerts
+      .filter((item: any) => String(item.type || "").toUpperCase().includes("ARTWORK"))
+      .reduce((sum: number, item: any) => sum + Number(item.count || 0), 0);
+    const total = ready + blocked + artwork;
+    return { ready, blocked, artwork, total };
+  }, [alerts, queueKpis]);
+
+  const duePressure = useMemo(
+    () => [
+      { label: "Overdue", value: Number(statusStrip.overdue_count || 0) },
+      { label: "Due today", value: Number(statusStrip.due_today_count || 0) },
+      { label: "Planning queue", value: Number(queueKpis.planning_queue || 0) },
+    ],
+    [queueKpis, statusStrip]
+  );
+
+  const workCenterRows = useMemo(
+    () =>
+      [...wcCapacity]
+        .sort((left: any, right: any) => Number(right.pending_jobs || 0) - Number(left.pending_jobs || 0))
+        .slice(0, 10),
+    [wcCapacity]
+  );
+
+  const recentRows = recentActivity.slice(0, 8);
+  const demandRows = demandPipeline.slice(0, 8);
+  const coveragePct = Number(queueKpis.coverage_pct || 0);
+  const costCoverage = Number(costingSummary.avg_actual_cost_coverage_pct || 0);
+  const actualCount = Number(costingSummary.actual_count || 0);
+  const hybridCount = Number(costingSummary.hybrid_count || 0);
+  const estimatedCount = Number(costingSummary.estimated_count || 0);
+
   const isLoading = query.isLoading || query.isFetching;
 
-  const today = new Date().toISOString().split('T')[0];
-
   return (
-    <div className={styles.plannerDash}>
+    <div className={styles.shell}>
+      <section className={styles.hero}>
+        <div>
+          <div className={styles.eyebrow}>
+            <Sparkles className="h-3.5 w-3.5" />
+            Planner Command Center
+          </div>
+          <h1 className={styles.title}>Contained planner analytics for release, replenishment, and route pressure.</h1>
+          <p className={styles.description}>
+            Watch queue health, output mix, capacity, and readiness without letting the page sprawl into another report.
+          </p>
+        </div>
+        <div className={styles.heroMeta}>
+          <div className={styles.liveBadge}>
+            <span className={styles.liveDot} />
+            Refresh in {countdown}s
+          </div>
+          <button className={styles.refreshButton} onClick={() => query.refetch()} disabled={isLoading}>
+            <RefreshCw className={isLoading ? styles.spin : ""} size={14} />
+            Refresh
+          </button>
+        </div>
+      </section>
 
-      {/* ─── HERO HEADER ─── */}
-      <div className={styles.heroCard}>
-        {isLoading && (
-          <div className={styles.loadingOverlay}>
-            <RefreshCw size={22} className={styles.spin} style={{ color: "#bae6fd" }} />
-          </div>
-        )}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 14, width: "100%" }}>
-          <div>
-            <h1 className={styles.heroTitle}>📋 Planner Command Center</h1>
-            <p className={styles.heroSubtitle}>
-              Queue · Capacity · Pipeline · Jobs — your planning intelligence at a glance
-            </p>
-          </div>
-          <div className={styles.heroControls}>
-            <div className={styles.countdownBadge}>
-              <span className={styles.liveDot} />
-              LIVE · {countdown}s
+      <section className={styles.metricGrid}>
+        <MetricCard
+          label="Planning queue"
+          value={Number(queueKpis.planning_queue || 0)}
+          detail="Rows waiting for planner action"
+          tone="sky"
+        />
+        <MetricCard
+          label="Ready / released"
+          value={Number(queueKpis.ready_released || 0)}
+          detail="Rows already releaseable"
+          tone="emerald"
+        />
+        <MetricCard
+          label="Blocked rows"
+          value={Number(queueKpis.blocked_count || 0)}
+          detail="Queue rows with blockers or hold state"
+          tone="amber"
+        />
+        <MetricCard
+          label="Required demand"
+          value={Number(queueKpis.required_kg || 0)}
+          detail="Planner queue weight still to satisfy"
+          tone="violet"
+          suffix=" KG"
+        />
+        <MetricCard
+          label="Allocatable stock"
+          value={Number(queueKpis.allocatable_kg || 0)}
+          detail="Inventory immediately visible to planner"
+          tone="teal"
+          suffix=" KG"
+        />
+        <MetricCard
+          label="Coverage"
+          value={coveragePct}
+          detail={`${fmt(Number(statusStrip.free_machine_slots || 0))} free machine slots`}
+          tone={coveragePct >= 80 ? "emerald" : coveragePct >= 40 ? "amber" : "rose"}
+          suffix="%"
+        />
+      </section>
+
+      <section className={styles.dashboardGrid}>
+        <div className={styles.mainColumn}>
+          <div className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <div className={styles.sectionEyebrow}>Output trend</div>
+                <h2 className={styles.panelTitle}>Thirty-day production rhythm</h2>
+              </div>
+              <div className={styles.panelStat}>{fmt(productionTrendTotal, 1)} KG</div>
             </div>
-            <button className={styles.refreshBtn} onClick={() => query.refetch()} disabled={isLoading}>
-              <RefreshCw size={12} className={isLoading ? styles.spin : ""} /> Refresh
-            </button>
+            <div className={styles.chartBox}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={productionTrendData} margin={{ top: 12, right: 6, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="plannerArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" stopOpacity={0.22} />
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="output_kg" name="Output KG" stroke="#111827" fill="url(#plannerArea)" strokeWidth={2.2} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* ─── ROW 1: 6 PRIMARY KPI CARDS ─── */}
-      <div className={styles.kpiGrid} style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        <KPICard label="Planning Queue" value={qKPI.planning_queue || 0}
-          icon={<ClipboardList size={17} color="#fff" />} gradientClass={styles.gSky}
-          sub="Orders awaiting planning" delay="0ms" />
-        <KPICard label="Ready / Released" value={qKPI.ready_released || 0}
-          icon={<CheckCircle2 size={17} color="#fff" />} gradientClass={styles.gEmerald}
-          sub="Jobs ready for production" delay="60ms" />
-        <KPICard label="Blocked Orders" value={qKPI.blocked_count || 0}
-          icon={<AlertTriangle size={17} color="#fff" />} gradientClass={styles.gAmber}
-          sub="Need attention" delay="120ms" />
-        <KPICard label="Required Qty" value={qKPI.required_kg || 0}
-          icon={<Package size={17} color="#fff" />} gradientClass={styles.gCyan}
-          suffix=" KG" sub="Queue demand" delay="180ms" />
-        <KPICard label="Allocatable Stock" value={qKPI.allocatable_kg || 0}
-          icon={<Layers size={17} color="#fff" />} gradientClass={styles.gViolet}
-          suffix=" KG" sub="Available inventory" delay="240ms" />
-        <KPICard label="Coverage" value={qKPI.coverage_pct || 0}
-          icon={<Gauge size={17} color="#fff" />} gradientClass={styles.gTeal}
-          suffix="%" sub="Stock vs demand" delay="300ms" />
-      </div>
-
-      {/* ─── ROW 2: STATUS STRIP ─── */}
-      <div className={`${styles.quadGrid} ${styles.animUp}`} style={{ animationDelay: "100ms" }}>
-        <div className={`${styles.statusCard} ${styles.statusRose}`}>
-          <div className={styles.statusLabel}>Overdue Orders</div>
-          <div className={styles.statusVal}>{strip.overdue_count || 0}</div>
-          <div className={styles.statusSub}>past delivery date</div>
-        </div>
-        <div className={`${styles.statusCard} ${styles.statusAmber}`}>
-          <div className={styles.statusLabel}>Due Today</div>
-          <div className={styles.statusVal}>{strip.due_today_count || 0}</div>
-          <div className={styles.statusSub}>need priority</div>
-        </div>
-        <div className={`${styles.statusCard} ${styles.statusSky}`}>
-          <div className={styles.statusLabel}>Jobs Executing</div>
-          <div className={styles.statusVal}>{strip.executing_jobs || 0}</div>
-          <div className={styles.statusSub}>on shop floor</div>
-        </div>
-        <div className={`${styles.statusCard} ${styles.statusTeal}`}>
-          <div className={styles.statusLabel}>Free Machines</div>
-          <div className={styles.statusVal}>{strip.free_machine_slots || 0}</div>
-          <div className={styles.statusSub}>of {strip.total_machines || 0} total</div>
-        </div>
-      </div>
-
-      <div className={`${styles.quadGrid} ${styles.animUp}`} style={{ animationDelay: "130ms" }}>
-        <div className={`${styles.statusCard} ${styles.statusIndigo}`}>
-          <div className={styles.statusLabel}>Final Roll Pool</div>
-          <div className={styles.statusVal}>{fmt(sourceMix.final_roll_kg || 0)}</div>
-          <div className={styles.statusSub}>KG direct FG-capable stock</div>
-        </div>
-        <div className={`${styles.statusCard} ${styles.statusTeal}`}>
-          <div className={styles.statusLabel}>Invariant Pool</div>
-          <div className={styles.statusVal}>{fmt(sourceMix.invariant_roll_kg || 0)}</div>
-          <div className={styles.statusSub}>KG shared intermediate reuse</div>
-        </div>
-        <div className={`${styles.statusCard} ${styles.statusSky}`}>
-          <div className={styles.statusLabel}>Upstream Pool</div>
-          <div className={styles.statusVal}>{fmt(sourceMix.upstream_roll_kg || 0)}</div>
-          <div className={styles.statusSub}>KG downstream-compatible stock</div>
-        </div>
-        <div className={`${styles.statusCard} ${styles.statusAmber}`}>
-          <div className={styles.statusLabel}>Packaging Open</div>
-          <div className={styles.statusVal}>{fmt((data.replenishment_mix || {}).packaging_open || 0, 0)}</div>
-          <div className={styles.statusSub}>stock replenishment orders</div>
-        </div>
-      </div>
-
-      {/* ─── ROW 3: PRODUCTION TREND + ALERTS ─── */}
-      <div className={`${styles.chartsGrid} ${styles.animUp}`} style={{ animationDelay: "150ms" }}>
-        {/* Production Output Trend */}
-        <div className={styles.glassCard}>
-          <div className={styles.sectionTitle}><Activity size={13} /> Production Output — 30 Day Trend</div>
-          <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 5, right: 8, left: -15, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="planProdG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.03} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(14,165,233,0.08)" />
-                <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="output_kg" name="Output KG" stroke="#0ea5e9" strokeWidth={2} fill="url(#planProdG)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Alerts & Immediate Actions */}
-        <div className={styles.glassCard}>
-          <div className={styles.sectionTitle}><AlertCircle size={13} /> Immediate Actions</div>
-          {alerts.length === 0 ? (
-            <div className={styles.allClear}><CheckCircle2 size={16} /> <span>All clear — no urgent items</span></div>
-          ) : alerts.map((a: any, i: number) => (
-            <Link key={i} href={a.href || "/production/planner"} style={{ textDecoration: "none" }}>
-              <div className={`${styles.alertRow} ${a.severity === "HIGH" ? styles.alertHigh : a.severity === "MEDIUM" ? styles.alertMedium : styles.alertLow}`}>
-                <div className={styles.alertCount}>{a.count}</div>
+          <div className={styles.doubleGrid}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
                 <div>
-                  <div className={styles.alertTitle}>{a.title}</div>
-                  <div className={styles.alertDesc}>{a.description}</div>
+                  <div className={styles.sectionEyebrow}>Source path</div>
+                  <h2 className={styles.panelTitle}>Planner-visible source pools</h2>
                 </div>
+                <Workflow className={styles.panelIcon} />
               </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* ─── ROW 4: JOB DISTRIBUTION + WORK CENTER CAPACITY ─── */}
-      <div className={`${styles.dualGrid} ${styles.animUp}`} style={{ animationDelay: "180ms" }}>
-        {/* Job Distribution */}
-        <div className={styles.glassCard}>
-          <div className={styles.sectionTitle}><BarChart3 size={13} /> Job Distribution</div>
-          {jobDist.length > 0 ? (
-            <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-              <div style={{ width: 160, height: 160, position: "relative" }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={jobDist} dataKey="count" nameKey="job_state" cx="50%" cy="50%" innerRadius={48} outerRadius={68} paddingAngle={3}>
-                      {jobDist.map((e: any, i: number) => <Cell key={i} fill={JOB_COLORS[e.job_state] ?? "#64748b"} />)}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: "#0284c7" }}>{jobTotal}</div>
-                    <div style={{ fontSize: 8, color: "#64748b", fontWeight: 700 }}>JOBS</div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                {jobDist.map((d: any, i: number) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 3, background: JOB_COLORS[d.job_state] ?? "#64748b" }} />
-                      <span style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>{d.job_state}</span>
+              <div className={styles.stackList}>
+                {queueByPath.map((item) => (
+                  <div key={item.label} className={styles.stackRow}>
+                    <div className={styles.stackRowHeader}>
+                      <span>{item.label}</span>
+                      <span>{item.display}</span>
                     </div>
-                    <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 800 }}>{d.count}</span>
+                    <div className={styles.stackTrack}>
+                      <div
+                        className={styles.stackFill}
+                        style={{ width: `${pct(item.value, Math.max(...queueByPath.map((entry) => entry.value), 1))}%` }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          ) : <div className={styles.emptyState}>No jobs</div>}
-        </div>
 
-        {/* Work Center Capacity */}
-        <div className={styles.glassCard}>
-          <div className={styles.sectionTitle}><Factory size={13} /> Work Center Capacity</div>
-          {wcCapacity.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {wcCapacity.map((wc: any, i: number) => (
-                <div key={i} className={styles.wcRow}>
-                  <div className={styles.wcName}>{wc.wc_name}</div>
-                  <div className={styles.wcBarTrack}>
-                    <div className={`${styles.wcBarFill} ${wc.utilization >= 80 ? styles.fillEmerald : wc.utilization >= 40 ? styles.fillSky : styles.fillAmber}`}
-                      style={{ width: `${Math.min(100, wc.utilization)}%` }} />
-                  </div>
-                  <div className={styles.wcStats}>
-                    <span className={styles.wcStatItem}>
-                      <span className={styles.wcStatHighlight}>{wc.utilization}%</span>
-                    </span>
-                    <span className={styles.wcStatItem}>
-                      {wc.running}/{wc.machine_count}
-                    </span>
-                    {wc.pending_jobs > 0 && (
-                      <span className={styles.wcStatItem} style={{ color: "#f59e0b" }}>
-                        +{wc.pending_jobs} pending
-                      </span>
-                    )}
-                  </div>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Output class</div>
+                  <h2 className={styles.panelTitle}>Planner stock mix</h2>
                 </div>
-              ))}
-            </div>
-          ) : <div className={styles.emptyState}>No work centers</div>}
-        </div>
-      </div>
-
-      {/* ─── ROW 5: DEMAND PIPELINE + RECENT ACTIVITY ─── */}
-      <div className={`${styles.dualGrid} ${styles.animUp}`} style={{ animationDelay: "200ms" }}>
-        {/* Sales Demand Pipeline */}
-        <div className={styles.glassCard}>
-          <div className={styles.sectionTitle}><CalendarClock size={13} /> Sales Demand Pipeline</div>
-          {demandPipe.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
-              <table className={styles.demandTable}>
-                <thead>
-                  <tr>
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Product</th>
-                    <th style={{ textAlign: "right" }}>Pending KG</th>
-                    <th>Due</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {demandPipe.slice(0, 8).map((d: any, i: number) => {
-                    const isOverdue = d.due_date && d.due_date < today;
-                    return (
-                      <tr key={i}>
-                        <td style={{ color: "#0284c7", fontWeight: 800 }}>{d.so_number}</td>
-                        <td style={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer}</td>
-                        <td style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.template_name}</td>
-                        <td style={{ textAlign: "right", fontWeight: 800 }}>{fmt(d.pending_kg)}</td>
-                        <td>
-                          {d.due_date ? (
-                            isOverdue ? (
-                              <span className={styles.overdueBadge}>
-                                <AlertTriangle size={10} />{d.due_date.slice(5)}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: 11, color: "#475569" }}>{d.due_date.slice(5)}</span>
-                            )
-                          ) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : <div className={styles.emptyState}>No pending demand</div>}
-        </div>
-
-        {/* Recent Activity */}
-        <div className={styles.glassCard}>
-          <div className={styles.sectionTitle}><Clock size={13} /> Recent Jobs</div>
-          {recent.length > 0 ? recent.map((j: any, i: number) => (
-            <div key={i} className={styles.activityRow}>
-              <div className={styles.activityJob}>{String(j.job_number || "—").slice(-8)}</div>
-              <div className={styles.activityProduct}>{j.product || "—"}</div>
-              <div className={styles.activityWC}>{j.work_center || "—"}</div>
-              <div className={`${styles.activityStateBadge} ${j.state === "RELEASED" ? styles.stateReleased : j.state === "PLANNED" ? styles.statePlanned : styles.stateExecuting}`}>
-                {j.state}
+                <Boxes className={styles.panelIcon} />
+              </div>
+              <div className={styles.pieWrap}>
+                <div className={styles.pieChart}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={outputMix} dataKey="value" nameKey="name" innerRadius={42} outerRadius={66} paddingAngle={3}>
+                        {outputMix.map((entry, index) => (
+                          <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className={styles.legendList}>
+                  {outputMix.map((entry, index) => (
+                    <div key={entry.name} className={styles.legendRow}>
+                      <span className={styles.legendDot} style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
+                      <span className={styles.legendLabel}>{entry.name}</span>
+                      <span className={styles.legendValue}>{fmt(entry.value, entry.name === "Invariant" || entry.name === "WIP" ? 1 : 0)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          )) : (
-            <div className={styles.emptyState} style={{ flexDirection: "column", gap: 6 }}>
-              <Zap size={20} style={{ color: "#0284c7", opacity: 0.4 }} />
-              <span>No recent activity</span>
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* ─── ROW 6: QUICK ACTIONS ─── */}
-      <div className={`${styles.glassCard} ${styles.animUp}`} style={{ animationDelay: "220ms" }}>
-        <div className={styles.sectionTitle}><Zap size={13} /> Quick Actions</div>
-        <div className={styles.actionGrid}>
-          <Link href="/production/planner" className={styles.actionCard}>
-            <div className={styles.actionIconWrap} style={{ background: "linear-gradient(135deg, #0ea5e9, #0284c7)" }}>
-              <ListChecks size={20} color="#fff" />
+          <div className={styles.doubleGrid}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Work center load</div>
+                  <h2 className={styles.panelTitle}>Capacity pressure</h2>
+                </div>
+                <Gauge className={styles.panelIcon} />
+              </div>
+              <div className={styles.scrollPanel}>
+                {workCenterRows.length ? (
+                  workCenterRows.map((row: any) => (
+                    <div key={row.wc_id || row.wc_name} className={styles.capacityRow}>
+                      <div className={styles.capacityHeader}>
+                        <span className={styles.capacityName}>{row.wc_name}</span>
+                        <span className={styles.capacityMeta}>
+                          {fmt(row.utilization)}% · {fmt(row.running)}/{fmt(row.machine_count)}
+                        </span>
+                      </div>
+                      <div className={styles.capacityTrack}>
+                        <div className={styles.capacityFill} style={{ width: `${Math.min(100, Number(row.utilization || 0))}%` }} />
+                      </div>
+                      <div className={styles.capacitySub}>Pending jobs {fmt(row.pending_jobs || 0)}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No work-center telemetry</div>
+                )}
+              </div>
             </div>
-            <div className={styles.actionLabel}>Planner Workbench</div>
-            <div className={styles.actionDesc}>Plan, source & release orders</div>
-          </Link>
-          <Link href="/production/planner/stock-orders/create" className={styles.actionCard}>
-            <div className={styles.actionIconWrap} style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-              <Plus size={20} color="#fff" />
-            </div>
-            <div className={styles.actionLabel}>Create Stock Order</div>
-            <div className={styles.actionDesc}>New MTS production order</div>
-          </Link>
-          <Link href="/factory/overview" className={styles.actionCard}>
-            <div className={styles.actionIconWrap} style={{ background: "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}>
-              <Eye size={20} color="#fff" />
-            </div>
-            <div className={styles.actionLabel}>Visual Factory</div>
-            <div className={styles.actionDesc}>See live plant status</div>
-          </Link>
-          <Link href="/analytics/inventory-health" className={styles.actionCard}>
-            <div className={styles.actionIconWrap} style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
-              <Package size={20} color="#fff" />
-            </div>
-            <div className={styles.actionLabel}>Inventory Health</div>
-            <div className={styles.actionDesc}>Check stock availability</div>
-          </Link>
-        </div>
-      </div>
 
-      {/* ─── ERROR ─── */}
-      {query.isError && (
-        <div className={`${styles.errorBanner} ${styles.animIn}`}>
-          <AlertTriangle size={15} /> <span>API failed — showing cached data. Click Refresh or ensure servers are running.</span>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Demand pressure</div>
+                  <h2 className={styles.panelTitle}>Due and queue risk</h2>
+                </div>
+                <CalendarClock className={styles.panelIcon} />
+              </div>
+              <div className={styles.miniBars}>
+                {duePressure.map((item, index) => (
+                  <div key={item.label} className={styles.miniBarCard}>
+                    <div className={styles.miniBarHead}>
+                      <span>{item.label}</span>
+                      <strong>{fmt(item.value)}</strong>
+                    </div>
+                    <div className={styles.miniBarTrack}>
+                      <div
+                        className={styles.miniBarFill}
+                        style={{
+                          width: `${pct(item.value, Math.max(...duePressure.map((entry) => entry.value), 1))}%`,
+                          background: PIE_COLORS[index % PIE_COLORS.length],
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.readinessCard}>
+                <div className={styles.readinessHeader}>
+                  <div>
+                    <div className={styles.sectionEyebrow}>Release readiness</div>
+                    <h3 className={styles.readinessTitle}>Queue state split</h3>
+                  </div>
+                  <ShieldCheck className={styles.panelIcon} />
+                </div>
+                <div className={styles.readinessBar}>
+                  <span className={styles.readySegment} style={{ width: `${pct(readiness.ready, readiness.total || 1)}%` }} />
+                  <span className={styles.blockedSegment} style={{ width: `${pct(readiness.blocked, readiness.total || 1)}%` }} />
+                  <span className={styles.artworkSegment} style={{ width: `${pct(readiness.artwork, readiness.total || 1)}%` }} />
+                </div>
+                <div className={styles.readinessLegend}>
+                  <span>Ready {fmt(readiness.ready)}</span>
+                  <span>Blocked {fmt(readiness.blocked)}</span>
+                  <span>Artwork {fmt(readiness.artwork)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.doubleGrid}>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Demand</div>
+                  <h2 className={styles.panelTitle}>Upcoming sales pull</h2>
+                </div>
+                <ClipboardList className={styles.panelIcon} />
+              </div>
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Customer</th>
+                      <th>Template</th>
+                      <th>Pending</th>
+                      <th>Due</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandRows.length ? (
+                      demandRows.map((row: any) => (
+                        <tr key={`${row.so_number}-${row.template_name}`}>
+                          <td>{row.so_number}</td>
+                          <td>{row.customer}</td>
+                          <td>{row.template_name}</td>
+                          <td>{fmt(row.pending_kg, 1)} KG</td>
+                          <td>{row.due_date ? String(row.due_date).slice(5) : "—"}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className={styles.emptyCell}>No pending demand</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Recent planner activity</div>
+                  <h2 className={styles.panelTitle}>Latest released and planned jobs</h2>
+                </div>
+                <Activity className={styles.panelIcon} />
+              </div>
+              <div className={styles.scrollPanel}>
+                {recentRows.length ? (
+                  recentRows.map((row: any) => (
+                    <div key={`${row.job_number}-${row.work_center}`} className={styles.activityRow}>
+                      <div>
+                        <div className={styles.activityTitle}>{row.job_number}</div>
+                        <div className={styles.activitySub}>{row.product || "Custom"} · {row.work_center || "Unassigned"}</div>
+                      </div>
+                      <span className={styles.activityBadge}>{row.state}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No recent jobs</div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+
+        <aside className={styles.sideColumn}>
+          <div className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <div className={styles.sectionEyebrow}>Immediate actions</div>
+                <h2 className={styles.panelTitle}>What needs planner attention now</h2>
+              </div>
+              <AlertTriangle className={styles.panelIcon} />
+            </div>
+            <div className={styles.scrollPanel}>
+              {alerts.length ? (
+                alerts.map((alert: any) => (
+                  <Link key={`${alert.type}-${alert.title}`} href={alert.href || "/production/planner"} className={styles.alertCard}>
+                    <div className={styles.alertCount}>{fmt(alert.count)}</div>
+                    <div>
+                      <div className={styles.alertTitle}>{alert.title}</div>
+                      <div className={styles.alertDesc}>{alert.description}</div>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <div className={styles.successCard}>
+                  <CheckCircle2 size={16} />
+                  All clear. No urgent planner blockers.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <div className={styles.sectionEyebrow}>Costing coverage</div>
+                <h2 className={styles.panelTitle}>How much of active demand is actual-costed</h2>
+              </div>
+              <TrendingUp className={styles.panelIcon} />
+            </div>
+            <div className={styles.coverageHero}>
+              <div className={styles.coverageValue}>{fmt(costCoverage, 1)}%</div>
+              <div className={styles.coverageSub}>Average actual cost coverage on active demand</div>
+            </div>
+            <div className={styles.costSplit}>
+              <div className={styles.costChip}>
+                <span>Actual</span>
+                <strong>{fmt(actualCount)}</strong>
+              </div>
+              <div className={styles.costChip}>
+                <span>Hybrid</span>
+                <strong>{fmt(hybridCount)}</strong>
+              </div>
+              <div className={styles.costChip}>
+                <span>Estimated</span>
+                <strong>{fmt(estimatedCount)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <div className={styles.sectionEyebrow}>Quick actions</div>
+                <h2 className={styles.panelTitle}>Open the live planner surfaces</h2>
+              </div>
+              <Package className={styles.panelIcon} />
+            </div>
+            <div className={styles.actionList}>
+              <Link href="/production/planner" className={styles.actionCard}>
+                <span>Planner control tower</span>
+                <span>Open</span>
+              </Link>
+              <Link href="/production/planner/stock-orders/create" className={styles.actionCard}>
+                <span>Create stock order</span>
+                <span>Launch</span>
+              </Link>
+              <Link href="/production/planner/sku-catalog" className={styles.actionCard}>
+                <span>Planner SKU studio</span>
+                <span>Preset</span>
+              </Link>
+            </div>
+          </div>
+        </aside>
+      </section>
     </div>
   );
 }

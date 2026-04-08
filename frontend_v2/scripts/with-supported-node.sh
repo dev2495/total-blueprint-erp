@@ -16,6 +16,15 @@ prepend_bin_dir "$PWD/node_modules/.bin"
 prepend_bin_dir "/opt/homebrew/opt/node@20/bin"
 prepend_bin_dir "/opt/homebrew/opt/node@18/bin"
 
+ensure_routes_manifest() {
+  DIST_DIR="$PROJECT_DIR/.next"
+  MANIFEST_FILE="$DIST_DIR/routes-manifest.json"
+  mkdir -p "$DIST_DIR"
+  if [ ! -f "$MANIFEST_FILE" ]; then
+    printf '%s\n' '{"version":4,"caseSensitive":false,"basePath":"","rewrites":{"beforeFiles":[],"afterFiles":[],"fallback":[]},"redirects":[],"headers":[],"skipMiddlewareUrlNormalize":false}' > "$MANIFEST_FILE"
+  fi
+}
+
 NODE_VERSION=$(node -p "process.versions.node" 2>/dev/null || true)
 NODE_MAJOR=$(node -p "Number.parseInt(process.versions.node.split('.')[0], 10)" 2>/dev/null || echo 0)
 
@@ -23,5 +32,11 @@ if [ "$NODE_MAJOR" -lt 18 ] || [ "$NODE_MAJOR" -ge 21 ]; then
   echo "Unsupported Node.js version ${NODE_VERSION:-unknown}. Install Node 18 or 20, or expose it on PATH." >&2
   exit 1
 fi
+
+case "${1:-}" in
+  next|env|node)
+    ensure_routes_manifest
+    ;;
+esac
 
 exec "$@"

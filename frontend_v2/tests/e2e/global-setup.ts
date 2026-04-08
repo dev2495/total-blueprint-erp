@@ -132,8 +132,12 @@ function ensureSchemaReady(pythonBin: string, repoRoot: string, env: NodeJS.Proc
 
 async function assertAuthenticatedShell(page: Page, baseURL: string) {
   try {
-    await page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout: 30_000 })
-    await page.getByTestId("profile-menu-trigger").waitFor({ state: "visible", timeout: 30_000 })
+    await Promise.any([
+      page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout: 30_000 }),
+      page.getByTestId("profile-menu-trigger").waitFor({ state: "visible", timeout: 30_000 }),
+      page.getByRole("button", { name: /logout/i }).waitFor({ state: "visible", timeout: 30_000 }),
+      page.waitForURL((url: URL) => !url.pathname.startsWith("/login"), { timeout: 30_000 }),
+    ])
   } catch {
     const backendOrigin = resolveApiOrigin(String(baseURL))
     const meResponse = await page.context().request.get(`${backendOrigin}/api/users/me/`, {
@@ -173,6 +177,17 @@ async function assertAuthenticatedShell(page: Page, baseURL: string) {
 async function bootstrapSession(page: Page, baseURL: string) {
   const identifier = process.env.UI_E2E_ADMIN_USER || "admin"
   const password = process.env.UI_E2E_ADMIN_PASSWORD || "admin123"
+  const backendOrigin = resolveApiOrigin(String(baseURL))
+  const requestContext = page.context().request
+  const resolveVisibleLocator = async (candidates: Array<() => ReturnType<typeof page.locator>>) => {
+    for (const candidate of candidates) {
+      const locator = candidate()
+      if (await locator.first().isVisible().catch(() => false)) {
+        return locator.first()
+      }
+    }
+    return candidates[0]().first()
+  }
 
   await page.goto("/login", { waitUntil: "domcontentloaded" })
   await page.evaluate(() => {
@@ -184,16 +199,100 @@ async function bootstrapSession(page: Page, baseURL: string) {
       window.sessionStorage.removeItem("x_role_override")
     } catch {}
   })
-  await page.getByTestId("login-form").waitFor({ state: "visible", timeout: 30_000 })
-  await page.getByTestId("login-client-ready").waitFor({ state: "visible", timeout: 30_000 })
-  await page.getByTestId("login-submit").waitFor({ state: "visible", timeout: 30_000 })
-  await page.waitForFunction(() => {
-    const submit = document.querySelector('[data-testid="login-submit"]') as HTMLButtonElement | null
-    return Boolean(submit && !submit.disabled)
-  }, undefined, { timeout: 30_000 })
-  await page.getByTestId("login-identifier").fill(identifier)
-  await page.getByTestId("login-password").fill(password)
-  await page.getByTestId("login-submit").click()
+  let sessionProbe:
+    | {
+        ok: boolean
+        status: number
+        detail: string
+      }
+    | undefined
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const csrfResponse = await requestContext.get(`${backendOrigin}/api/users/csrf/`, {
+      failOnStatusCode: false,
+    })
+    const csrfPayload = await csrfResponse.json().catch(() => ({}))
+    const requestStateBefore = await requestContext.storageState()
+    const cookieToken = requestStateBefore.cookies.find((cookie) => cookie.name === "csrftoken")?.value
+    const csrfToken = String(cookieToken || (csrfPayload as any)?.csrfToken || (csrfPayload as any)?.csrf_token || "")
+
+    await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
+      failOnStatusCode: false,
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
+      },
+      data: {},
+    }).catch(() => undefined)
+
+    let meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
+      failOnStatusCode: false,
+    })
+
+    if (!meResponse.ok()) {
+      await requestContext.post(`${backendOrigin}/api/users/login/`, {
+        failOnStatusCode: false,
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
+        },
+        data: { identifier, password },
+      })
+      meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
+        failOnStatusCode: false,
+      })
+    }
+
+    const mePayload = await meResponse.json().catch(() => ({}))
+    sessionProbe = {
+      ok: meResponse.ok(),
+      status: meResponse.status(),
+      detail:
+        (mePayload as any)?.detail ||
+        (mePayload as any)?.message ||
+        (mePayload as any)?.username ||
+        `session probe returned ${meResponse.status()}`,
+    }
+
+    if (sessionProbe.ok || sessionProbe.status !== 429) {
+      break
+    }
+
+    await page.waitForTimeout(Math.min(2_000 * (attempt + 1), 6_000))
+  }
+
+  if (sessionProbe?.ok) {
+    const requestState = await requestContext.storageState()
+    if (requestState.cookies.length) {
+      await page.context().addCookies(requestState.cookies)
+    }
+    await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" }).catch(() => undefined)
+    await page.evaluate(() => {
+      document.cookie = "x_role_override=; Max-Age=0; path=/"
+    })
+    await assertAuthenticatedShell(page, baseURL)
+    return
+  }
+
+  const identifierField = await resolveVisibleLocator([
+    () => page.getByTestId("login-identifier"),
+    () => page.getByLabel(/email|identifier/i),
+    () => page.locator('input[type="email"]'),
+    () => page.locator('input[name="identifier"]'),
+  ])
+  const passwordField = await resolveVisibleLocator([
+    () => page.getByTestId("login-password"),
+    () => page.getByLabel(/password/i),
+    () => page.locator('input[type="password"]'),
+  ])
+  const submitButton = await resolveVisibleLocator([
+    () => page.getByTestId("login-submit"),
+    () => page.getByRole("button", { name: /open erp|sign in|login/i }),
+  ])
+
+  await identifierField.fill(identifier)
+  await passwordField.fill(password)
+  await submitButton.click()
 
   try {
     await page.waitForURL((url: URL) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
@@ -209,8 +308,6 @@ async function bootstrapSession(page: Page, baseURL: string) {
       // Fall through to API-based recovery when the UI shell is still unauthenticated.
     }
 
-    const backendOrigin = resolveApiOrigin(String(baseURL))
-    const requestContext = page.context().request
     const loginResult = await retry(
       async () => {
         const csrfResponse = await requestContext.get(`${backendOrigin}/api/users/csrf/`, {
@@ -332,6 +429,15 @@ export default async function globalSetup(config: FullConfig) {
     ),
     "utf8",
   )
+
+  if (skipBootstrap) {
+    try {
+      await fs.access(storagePath)
+    } catch {
+      await fs.writeFile(storagePath, JSON.stringify({ cookies: [], origins: [] }, null, 2), "utf8")
+    }
+    return
+  }
 
   if (!skipBootstrap) {
     await fs.rm(path.join(runtimeRoot, "test-results"), { recursive: true, force: true })

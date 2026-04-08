@@ -14,7 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
+import os
+
 from django.urls import path, include
 from .views import health_check, health_live, health_ready
 
@@ -22,8 +23,7 @@ urlpatterns = [
     path('api/health/live/', health_live, name='health-live'),
     path('api/health/ready/', health_ready, name='health-ready'),
     path('api/health/', health_check, name='health-check'),
-    path('admin/', admin.site.urls),
-    
+
     # 1. Canonical Master Data APIs
     path('api/master/', include('apps.materials.urls')), # Fix for frontend master-data.ts
     path('api/recipes/', include('apps.recipes.urls')),  # Fix for missing recipes/grades endpoint
@@ -56,3 +56,8 @@ urlpatterns = [
     path('api/costing/', include('apps.costing.urls')),
     path('api/ops/', include('apps.platformops.urls')),
 ]
+
+if os.getenv("SKIP_ADMIN_APP_IMPORT") != "1":
+    from django.contrib import admin
+
+    urlpatterns.insert(3, path('admin/', admin.site.urls))

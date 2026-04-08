@@ -386,7 +386,8 @@ def _print_compact_report(report: Dict[str, Any]):
         print(
             f"  - {row.get('order_number')} size={row.get('geometry')} "
             f"target_kg={row.get('target_kg')} status={row.get('status')} "
-            f"dispatch_ready={row.get('dispatch_ready')} fg_batches={row.get('fg_batches_count')}"
+            f"packing_ready={row.get('packing_ready')} dispatch_ready={row.get('dispatch_ready')} "
+            f"fg_batches={row.get('fg_batches_count')}"
         )
     print(f"lineage_roll_count: {len(report.get('wip_lineage', []))}")
     print(f"audit_report_file: {report.get('audit_report_file')}")
@@ -526,6 +527,7 @@ def main() -> int:
                 "order_id": str(so.id),
                 "order_number": so.order_number,
                 "status": so.status,
+                "packing_ready": so.status == "PACKING_READY",
                 "dispatch_ready": so.status == "DISPATCH_READY",
                 "geometry": {"width_mm": spec["width_mm"], "height_mm": spec["height_mm"]},
                 "target_kg": _as_float(so.total_weight_kg),
@@ -596,6 +598,8 @@ def main() -> int:
         "targets_audit": job_rows,
         "wip_lineage": lineage,
         "dispatch_readiness": {
+            "packing_ready_orders": [row["order_number"] for row in sales_rows if row.get("packing_ready")],
+            "non_packing_ready_orders": [row["order_number"] for row in sales_rows if not row.get("packing_ready")],
             "dispatch_ready_orders": [row["order_number"] for row in sales_rows if row["dispatch_ready"]],
             "non_dispatch_ready_orders": [row["order_number"] for row in sales_rows if not row["dispatch_ready"]],
         },

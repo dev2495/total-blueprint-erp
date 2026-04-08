@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { test, expect } from "../support/base"
@@ -13,7 +14,27 @@ function readPlannerGateSeed() {
   }
 }
 
+function reseedPlannerGate() {
+  const repoRoot = path.resolve(process.cwd(), "..")
+  const python = process.env.UI_E2E_PYTHON || path.resolve(repoRoot, "venv_311/bin/python")
+  execFileSync(python, [path.resolve(repoRoot, "scripts/seed_ui_e2e_planner_gate.py")], {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: "inherit",
+  })
+}
+
+async function rowHasActiveArtworkGate(page: any, rowKey: string) {
+  const select = page.getByTestId(`planner-approved-artwork-select-${rowKey}`)
+  if (await select.count()) return true
+  const assignButton = page.getByTestId(`planner-assign-artwork-${rowKey}`)
+  if (await assignButton.count()) return true
+  return false
+}
+
 test("planner can resolve a deferred artwork gate from the queue", async ({ page }, testInfo) => {
+  reseedPlannerGate()
+
   annotate(testInfo, {
     module: "Planner",
     severity: "critical",
@@ -27,13 +48,26 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
   await expect(page.getByText(/Loading planner truth/i)).toHaveCount(0, { timeout: 30_000 })
 
   const seed = readPlannerGateSeed()
+  const queueSearch = page.getByPlaceholder(/search order, customer, template/i)
+  if (seed?.order_number) {
+    await queueSearch.fill(seed.order_number)
+    await page.waitForTimeout(300)
+  }
   let selectedRowKey: string | null = null
   if (seed?.order_id) {
     selectedRowKey = `sales:${seed.order_id}`
     const seededRow = page.getByTestId(`planner-queue-row-${selectedRowKey}`)
-    await expect(seededRow).toBeVisible({ timeout: 30_000 })
-    await page.getByTestId(`planner-toggle-details-${selectedRowKey}`).click()
-    await page.waitForTimeout(300)
+    if (await seededRow.count()) {
+      await seededRow.scrollIntoViewIfNeeded().catch(() => undefined)
+      if (await seededRow.isVisible().catch(() => false)) {
+        await page.getByTestId(`planner-toggle-details-${selectedRowKey}`).click()
+        await page.waitForTimeout(300)
+      } else {
+        selectedRowKey = null
+      }
+    } else {
+      selectedRowKey = null
+    }
   } else if (seed?.order_number) {
     await expect(page.locator("[data-testid^='planner-queue-row-']").first()).toBeVisible({ timeout: 30_000 })
     const seededText = page.getByText(new RegExp(seed.order_number, "i"))
@@ -48,11 +82,18 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
     }
   }
 
-  const rows = page.locator("[data-testid^='planner-queue-row-']")
+  let rows = page.locator("[data-testid^='planner-queue-row-']")
+  if ((await rows.count()) === 0) {
+    await queueSearch.fill("")
+    await page.waitForTimeout(250)
+    await page.getByTestId("planner-filter-artwork_gate").click().catch(() => undefined)
+    await page.waitForTimeout(400)
+    rows = page.locator("[data-testid^='planner-queue-row-']")
+  }
   await expect(rows.first()).toBeVisible({ timeout: 30_000 })
   const rowCount = await rows.count()
   let gateFound = selectedRowKey
-    ? await page.getByTestId(`planner-artwork-gate-${selectedRowKey}`).isVisible().catch(() => false)
+    ? await rowHasActiveArtworkGate(page, selectedRowKey)
     : false
 
   if (!gateFound) {
@@ -62,7 +103,7 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
       if (!rowKey || rowKey === selectedRowKey) continue
       await page.getByTestId(`planner-toggle-details-${rowKey}`).click()
       await page.waitForTimeout(300)
-      if (await page.getByTestId(`planner-artwork-gate-${rowKey}`).isVisible().catch(() => false)) {
+      if (await rowHasActiveArtworkGate(page, rowKey)) {
         selectedRowKey = rowKey
         gateFound = true
         break
@@ -76,6 +117,7 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
     throw new Error("Planner artwork gate row key was not resolved.")
   }
   await expect(page.getByTestId(`planner-artwork-gate-${selectedRowKey}`)).toBeVisible()
+  await expect(page.getByTestId(`planner-approved-artwork-select-${selectedRowKey}`)).toBeVisible()
 
   const selectedArtwork = await page.getByTestId(`planner-approved-artwork-select-${selectedRowKey}`).click()
     .then(async () => {
@@ -94,6 +136,8 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
     await page.waitForTimeout(500)
   }
 
-  await expect(page.getByTestId(`planner-artwork-gate-${selectedRowKey}`)).toHaveCount(0, { timeout: 30_000 })
+  const artworkCard = page.getByTestId(`planner-artwork-gate-${selectedRowKey}`)
+  await expect(artworkCard).toBeVisible({ timeout: 30_000 })
+  await expect(artworkCard).toContainText(/artwork cleared/i)
   await expect(page.locator("body")).not.toContainText(/ARTWORK_REQUIRED/)
 })

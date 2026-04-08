@@ -7,19 +7,24 @@ from decimal import Decimal
 from uuid import uuid4
 
 import django
+from django.apps import apps as django_apps
 
 sys.path.insert(0, os.getcwd())
 os.environ.setdefault("SKIP_CELERY_IMPORT", "1")
+os.environ.setdefault("SKIP_ADMIN_APP_IMPORT", "1")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-django.setup()
+if not django_apps.ready:
+    django.setup()
 
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.factory.models import Machine, Plant, Process, WorkCenter
+from apps.artwork.print_contract import resolve_ink_base_from_layers, validate_frozen_printing_snapshot
+from apps.factory.models import Machine, Plant, Process, WorkCenter, WorkCenterProcess
 from apps.inventory.models import (
     DeliveryChallan as InterPlantDeliveryChallan,
+    InkMaterial,
     InterPlantChallanItem,
     InventoryLocation,
     InventoryReservation,
@@ -44,17 +49,25 @@ from apps.production.models import (
     WorkCenterAssignment as ProductionWCAssignment,
 )
 from apps.production.services.dispatch_service import FGDispatchService
+from apps.production.services.services_execution import ExecutionService
+from apps.physics.spec_signature import (
+    build_invariant_payload,
+    build_invariant_signature,
+    build_spec_payload,
+    build_spec_signature,
+)
 from apps.recipes.models import RecipeGrade
-from apps.sales.models import SalesOrder
+from apps.sales.models import Customer, SalesOrder, SalesOrderItem, SalesSkuVariant
 from apps.templates.models import TemplateProcessStep
 from apps.users.models import MachineAssignment, User, WorkCenterAssignment as UserWCAssignment
 from apps.inventory.models import Vendor
 from scripts.e2e_green_utils import CODE_PREFIX, current_run_tag, label, runtime_dir
 
 
-RUN_TAG = current_run_tag()
+RUN_TAG = f"{current_run_tag()}{uuid4().hex[:6].upper()}"
 PREFIX = f"{CODE_PREFIX}-MUT"
 OPERATOR_JOB_NUMBER = f"{PREFIX}-OP-{RUN_TAG}"
+PRINTING_JOB_NUMBER = f"{PREFIX}-PRINT-{RUN_TAG}"
 WCM_JOB_NUMBER = f"{PREFIX}-WCM-{RUN_TAG}"
 JOBWORK_JOB_NUMBER = f"{PREFIX}-JW-{RUN_TAG}"
 
@@ -72,6 +85,35 @@ class PlantContext:
 
 def _suffix() -> str:
     return RUN_TAG
+
+
+def _pick_active_ink(*tokens: str, base_type: str | None = None):
+    query = InkMaterial.objects.filter(status="ACTIVE")
+    if base_type:
+        query = query.filter(base_type=str(base_type).upper())
+    for token in tokens:
+        match = (
+            query.filter(
+                Q(code__icontains=token)
+                | Q(name__icontains=token)
+                | Q(color_name__icontains=token)
+            )
+            .order_by("created_at")
+            .first()
+        )
+        if match:
+            return match
+    return None
+
+
+def _json_ready(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {str(key): _json_ready(inner) for key, inner in value.items()}
+    if isinstance(value, list):
+        return [_json_ready(inner) for inner in value]
+    return value
 
 
 def _require(model, **filters):
@@ -148,6 +190,8 @@ def _cleanup_previous_seed_data():
     JobMaterialRequirement.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
     ProductionWCAssignment.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
     ProductionJob.objects.filter(job_number__startswith=f"{PREFIX}-").delete()
+    SalesOrderItem.objects.filter(sales_order__order_name=f"{PREFIX} Printing Seed").delete()
+    SalesOrder.objects.filter(order_name=f"{PREFIX} Printing Seed").delete()
 
 
 def _find_job_template_source() -> ProductionJob:
@@ -301,26 +345,207 @@ def _ensure_production_assignment(job: ProductionJob, work_center: WorkCenter, m
     return assignment
 
 
-def _dispatch_target_sales_order() -> tuple[SalesOrder, object]:
-    candidates = list(FGDispatchService.get_sales_orders_with_fg())
-    if not candidates:
-        raise RuntimeError("No sales order with dispatchable FG is available for UI E2E mutation seeding.")
-    for candidate in candidates:
+def _dispatch_target_sales_order(fallback_template=None) -> tuple[SalesOrder, SalesOrderItem]:
+    seeded_order = SalesOrder.objects.filter(order_name=f"{PREFIX} Dispatch Seed").order_by("-created_at").first()
+    seeded_item = seeded_order.items.order_by("created_at").first() if seeded_order else None
+    if seeded_order and seeded_item:
+        if seeded_order.status != "PACKING_READY":
+            seeded_order.status = "PACKING_READY"
+            seeded_order.save(update_fields=["status"])
+        return seeded_order, seeded_item
+
+    for candidate in FGDispatchService.get_sales_orders_with_fg():
         order = SalesOrder.objects.filter(id=candidate["id"]).first()
         item = order.items.order_by("created_at").first() if order else None
         if order and item:
             return order, item
-    raise RuntimeError("Dispatchable sales order exists but no sales-order item could be resolved.")
+
+    variant = (
+        SalesSkuVariant.objects.select_related("sku", "sku__template")
+        .filter(active=True, sku__active=True, sku__template__isnull=False)
+        .order_by("-updated_at", "-created_at")
+        .first()
+    )
+    template = (
+        getattr(getattr(variant, "sku", None), "template", None)
+        or fallback_template
+    )
+    if template is None:
+        raise RuntimeError("Could not resolve a fallback template for UI E2E dispatch mutation seeding.")
+
+    customer = (
+        Customer.objects.filter(code="UAT-GREEN-SALES").first()
+        or Customer.objects.filter(status="ACTIVE").order_by("name").first()
+    )
+    if customer is None:
+        customer = Customer.objects.create(code=f"{PREFIX}-CUSTOMER", name=f"{PREFIX} Customer", status="ACTIVE")
+
+    geometry_snapshot = dict(getattr(variant, "geometry_snapshot", None) or {})
+    layer_snapshot = list(getattr(variant, "layer_snapshot", None) or [])
+    printing_snapshot = dict(getattr(variant, "printing_snapshot", None) or {})
+    addons_snapshot = list(getattr(variant, "addons_snapshot", None) or [])
+    packaging_snapshot = dict(getattr(variant, "packaging_snapshot", None) or {})
+
+    fg_type = str(getattr(variant, "finished_good_type", "") or geometry_snapshot.get("fg_type") or getattr(template, "fg_type", "POUCH")).upper()
+    qty_uom = "PCS" if fg_type == "POUCH" else "KG"
+    qty_value = Decimal("1000") if qty_uom == "PCS" else Decimal("5")
+    unit_weight_g = Decimal("2.5000") if qty_uom == "PCS" else Decimal("0")
+    total_weight_kg = (
+        (qty_value * unit_weight_g) / Decimal("1000")
+        if qty_uom == "PCS" and unit_weight_g > 0
+        else qty_value
+    )
+
+    order = SalesOrder.objects.create(
+        customer=customer,
+        customer_name=customer.name,
+        order_name=f"{PREFIX} Dispatch Seed",
+        status="PACKING_READY",
+        order_type="MTO",
+    )
+    item = SalesOrderItem.objects.create(
+        sales_order=order,
+        template=template,
+        mode="TEMPLATE",
+        sku_variant=variant,
+        line_name=f"{PREFIX} Dispatch Seed Line",
+        geometry_snapshot=geometry_snapshot,
+        layer_snapshot=layer_snapshot,
+        printing_snapshot=printing_snapshot,
+        addons_snapshot=addons_snapshot,
+        packaging_snapshot=packaging_snapshot,
+        bom_snapshot={"items": []},
+        qty_uom=qty_uom,
+        qty_value=qty_value,
+        unit_weight_g=unit_weight_g,
+        total_weight_kg=total_weight_kg,
+        price_basis="PCS" if qty_uom == "PCS" else "KG",
+        unit_price=Decimal("1.0000"),
+    )
+    return order, item
+
+
+def _seed_printing_sales_item(
+    *,
+    template,
+    source_item: SalesOrderItem | None,
+    source_variant: SalesSkuVariant | None,
+    primary_ink_material: InkMaterial,
+    secondary_ink_material: InkMaterial,
+) -> tuple[SalesOrder, SalesOrderItem]:
+    customer = (
+        Customer.objects.filter(code="UAT-GREEN-SALES").first()
+        or Customer.objects.filter(status="ACTIVE").order_by("name").first()
+    )
+    if customer is None:
+        customer = Customer.objects.create(code=f"{PREFIX}-CUSTOMER", name=f"{PREFIX} Customer", status="ACTIVE")
+
+    geometry_snapshot = dict(getattr(source_item, "geometry_snapshot", None) or getattr(source_variant, "geometry_snapshot", None) or {})
+    layer_snapshot = list(getattr(source_item, "layer_snapshot", None) or getattr(source_variant, "layer_snapshot", None) or [])
+    addons_snapshot = list(getattr(source_item, "addons_snapshot", None) or getattr(source_variant, "addons_snapshot", None) or [])
+    packaging_snapshot = dict(getattr(source_item, "packaging_snapshot", None) or getattr(source_variant, "packaging_snapshot", None) or {})
+
+    printing_snapshot = validate_frozen_printing_snapshot(
+        {
+            "enabled": True,
+            "type": "FLEXO",
+            "method": "FLEXO",
+            "substrate_mode": "SHEET",
+            "front_colors_count": 2,
+            "back_colors_count": 0,
+            "front_colors": ["RED", "BLACK"],
+            "back_colors": [],
+            "color_names": ["RED", "BLACK"],
+            "ink_gsm_total": 1.2,
+            "artwork_id": f"{PREFIX}-PRINT-ARTWORK",
+            "artwork_design_code": f"{PREFIX}-PRINT-DESIGN",
+            "cylinder_required": False,
+            "color_mapping": {
+                "RED": str(primary_ink_material.id),
+                "BLACK": str(secondary_ink_material.id),
+            },
+            "ink_base_family": str(primary_ink_material.base_type or "").upper(),
+        },
+        layer_snapshot=layer_snapshot,
+        require_artwork=True,
+        strict_inks=True,
+    )
+
+    fg_type = str(
+        geometry_snapshot.get("fg_type")
+        or getattr(source_variant, "finished_good_type", "")
+        or getattr(template, "fg_type", "ROLL")
+    ).upper()
+    roll_form = str(geometry_snapshot.get("roll_form") or getattr(source_variant, "roll_form", "") or "").upper()
+    spec_payload = build_spec_payload(
+        fg_type=fg_type,
+        roll_form=roll_form,
+        geometry=geometry_snapshot,
+        film_layers=layer_snapshot,
+        printing=printing_snapshot,
+        addons=addons_snapshot,
+    )
+    invariant_payload = build_invariant_payload(film_layers=layer_snapshot, printing=printing_snapshot)
+
+    order = SalesOrder.objects.create(
+        customer=customer,
+        customer_name=customer.name,
+        order_name=f"{PREFIX} Printing Seed",
+        order_type="MTO",
+        status="CONFIRMED",
+        geometry_override=_json_ready(geometry_snapshot),
+        commercial_confirmed_at=timezone.now(),
+        delivery_date=timezone.localdate(),
+    )
+    item = SalesOrderItem.objects.create(
+        sales_order=order,
+        template=template,
+        mode="TEMPLATE",
+        sku_variant=source_variant,
+        line_name=f"{PREFIX} Printing Seed Line",
+        geometry_snapshot=_json_ready(geometry_snapshot),
+        layer_snapshot=_json_ready(layer_snapshot),
+        printing_snapshot=_json_ready(printing_snapshot),
+        addons_snapshot=_json_ready(addons_snapshot),
+        packaging_snapshot=_json_ready(packaging_snapshot),
+        bom_snapshot={"items": []},
+        spec_signature=build_spec_signature(spec_payload),
+        invariant_signature=build_invariant_signature(invariant_payload),
+        unit_weight_g=Decimal("0"),
+        total_weight_kg=Decimal("5.0000"),
+        qty_uom="KG",
+        qty_value=Decimal("5.00"),
+        price_basis="KG",
+        unit_price=Decimal("1.0000"),
+        artwork_assignment_required=False,
+    )
+    return order, item
 
 
 def _seed_extrusion_requirement(job: ProductionJob, material: InventoryMaterial, required_qty: Decimal):
+    _seed_step_requirement(job, material, required_qty)
+
+
+def _seed_step_requirement(
+    job: ProductionJob,
+    material: InventoryMaterial,
+    required_qty: Decimal,
+    *,
+    process_code: str | None = None,
+):
     first_step = (
         TemplateProcessStep.objects.filter(template=job.template)
+        .filter(process__code=process_code) if process_code else TemplateProcessStep.objects.filter(template=job.template)
+    )
+    first_step = (
+        first_step
         .order_by("sequence_number")
         .first()
     )
     if not first_step:
-        raise RuntimeError(f"Template step metadata missing for seeded job {job.job_number}.")
+        raise RuntimeError(
+            f"Template step metadata missing for seeded job {job.job_number}{f' ({process_code})' if process_code else ''}."
+        )
     JobMaterialRequirement.objects.update_or_create(
         production_job=job,
         material=material,
@@ -337,20 +562,82 @@ def _seed_extrusion_requirement(job: ProductionJob, material: InventoryMaterial,
 def main():
     run_suffix = _suffix()
     runtime_path = runtime_dir() / "mutation-seed.json"
+    print("[seed-ui-mutations] cleanup", flush=True)
     _cleanup_previous_seed_data()
+    print("[seed-ui-mutations] lookup core masters", flush=True)
     admin = _ensure_admin()
     plant_a = _get_plant_context("PLANT_A")
     plant_b = _get_plant_context("PLANT_B")
     dspx = Plant.objects.filter(code="DSPX").first()
     dspx_fg = InventoryLocation.objects.filter(plant=dspx, code="FG").first() if dspx else None
     extrusion = _require(Process, code="EXTRUSION")
+    printing = _require(Process, code="PRINTING")
     job_source = _find_job_template_source()
+    print_source = (
+        ProductionJob.objects.filter(current_process__code="PRINTING", template__isnull=False, work_center__isnull=False)
+        .exclude(job_state__in=["COMPLETED", "CANCELLED"])
+        .order_by("-created_at")
+        .first()
+    )
+    print_source_item = getattr(print_source, "sales_order_item", None) or getattr(job_source, "sales_order_item", None)
+    print_source_variant = (
+        getattr(print_source_item, "sku_variant", None)
+        or SalesSkuVariant.objects.filter(
+            sku__template=(getattr(print_source, "template", None) or job_source.template),
+            active=True,
+        )
+        .order_by("-updated_at", "-created_at")
+        .first()
+    )
+    print_layer_snapshot = list(
+        getattr(print_source_item, "layer_snapshot", None)
+        or getattr(print_source_variant, "layer_snapshot", None)
+        or []
+    )
+    print_ink_base = resolve_ink_base_from_layers(print_layer_snapshot)
     granule = _require(InventoryMaterial, category="GRANULE", code="GRANULE_LDPE")
     film_variant = _require(InventoryMaterial, category="FILM_VARIANT", code="VAR_PET_12")
     extrudable_variant = _require(InventoryMaterial, category="FILM_VARIANT", code="VAR_MLD_40")
     packaging_material = _require(InventoryMaterial, category="PACKAGING", code="PACK_INNER_100")
+    primary_ink_material = _pick_active_ink("RED", base_type=print_ink_base) or _pick_active_ink("RED")
+    secondary_ink_material = _pick_active_ink("BLACK", base_type=print_ink_base) or _pick_active_ink("BLACK")
+    if primary_ink_material is None or secondary_ink_material is None:
+        raise RuntimeError("At least two active INK materials are required for UI E2E printing mutation seeding.")
+    if primary_ink_material.id == secondary_ink_material.id:
+        secondary_ink_material = (
+            InkMaterial.objects.filter(status="ACTIVE", base_type=str(primary_ink_material.base_type or "").upper())
+            .exclude(id=primary_ink_material.id)
+            .order_by("created_at")
+            .first()
+        )
+    if secondary_ink_material is None:
+        raise RuntimeError("Could not resolve a second active INK material for printing remix proof.")
     grade = _require(RecipeGrade, name="GP")
     vendor = _require(Vendor, code="JW_VENDOR_A")
+    print_wc_map = (
+        WorkCenterProcess.objects.select_related("work_center", "work_center__plant")
+        .filter(process=printing)
+        .order_by("work_center__plant__code", "work_center__code")
+        .first()
+    )
+    if print_wc_map is None:
+        raise RuntimeError("No work center is mapped to PRINTING for UI E2E printing mutation seeding.")
+    print_work_center = print_wc_map.work_center
+    print_machine = (
+        Machine.objects.filter(work_center=print_work_center, status="ACTIVE").order_by("code").first()
+        or Machine.objects.filter(work_center=print_work_center).order_by("code").first()
+    )
+    if print_machine is None:
+        raise RuntimeError(f"No machine found for printing work center {print_work_center.code}.")
+    print_ctx = PlantContext(
+        plant=print_work_center.plant,
+        work_center=print_work_center,
+        machine=print_machine,
+        rm=_require(InventoryLocation, plant=print_work_center.plant, code="RM"),
+        wip=_require(InventoryLocation, plant=print_work_center.plant, code="WIP"),
+        warehouse=_require(InventoryLocation, plant=print_work_center.plant, code="WAREHOUSE"),
+        fg=_require(InventoryLocation, plant=print_work_center.plant, code="FG"),
+    )
     vendor_fields = []
     if str(vendor.status or "").upper() != "ACTIVE":
         vendor.status = "ACTIVE"
@@ -371,9 +658,21 @@ def main():
     if vendor_fields:
         vendor.save(update_fields=vendor_fields + ["updated_at"])
 
+    print("[seed-ui-mutations] scope users", flush=True)
     _ensure_user_scope(admin, plant_a.work_center, plant_a.machine)
     _ensure_user_scope(admin, plant_b.work_center, plant_b.machine)
+    _ensure_user_scope(admin, print_ctx.work_center, print_ctx.machine)
 
+    print("[seed-ui-mutations] printing sales source", flush=True)
+    _, printing_sales_item = _seed_printing_sales_item(
+        template=(getattr(print_source, "template", None) or job_source.template),
+        source_item=print_source_item,
+        source_variant=print_source_variant,
+        primary_ink_material=primary_ink_material,
+        secondary_ink_material=secondary_ink_material,
+    )
+
+    print("[seed-ui-mutations] operator fixture", flush=True)
     operator_job = _clone_job(
         job_number=OPERATOR_JOB_NUMBER,
         source=job_source,
@@ -402,6 +701,97 @@ def main():
         reference=f"{PREFIX}-OP-BULK-{run_suffix}",
     )
 
+    print("[seed-ui-mutations] printing fixture", flush=True)
+    printing_source = print_source or job_source
+    printing_job = _clone_job(
+        job_number=PRINTING_JOB_NUMBER,
+        source=printing_source,
+        process=printing,
+        work_center=print_ctx.work_center,
+        from_location=print_ctx.wip,
+        to_location=print_ctx.wip,
+        machine=print_ctx.machine,
+        quantity_kg=Decimal("5.0"),
+        user=admin,
+    )
+    printing_job.sales_order_item = printing_sales_item
+    printing_job.mts_order = None
+    printing_job.current_step_index = 1
+    printing_job.routing_step_index = 1
+    printing_job.save(update_fields=["sales_order_item", "mts_order", "current_step_index", "routing_step_index"])
+    printing_context = ExecutionService.get_job_context(str(printing_job.id))
+    printing_target_spec = next(
+        (
+            spec
+            for spec in (printing_context.get("target_roll_invariant_list") or [])
+            if isinstance(spec, dict) and spec.get("variant_id")
+        ),
+        {},
+    )
+    printing_variant = (
+        InventoryMaterial.objects.filter(id=printing_target_spec.get("variant_id")).first()
+        or film_variant
+    )
+    printing_width_mm = Decimal(str(printing_target_spec.get("min_width_mm") or "200"))
+    printing_thickness_micron = Decimal(str(printing_target_spec.get("thickness_micron") or "12"))
+    printing_assignment = _ensure_production_assignment(
+        printing_job,
+        print_ctx.work_center,
+        print_ctx.machine,
+        "EXECUTION_READY",
+        admin,
+    )
+    print_input_roll = _create_roll(
+        label_prefix=f"{PREFIX}-PRINT-IN",
+        material=printing_variant,
+        location=print_ctx.wip,
+        plant=print_ctx.plant,
+        grade=None,
+        weight_kg=Decimal("5.000"),
+        width_mm=printing_width_mm,
+        thickness_micron=printing_thickness_micron,
+        batch_no=f"{PREFIX}-PRINT-{run_suffix}",
+        created_by_job=operator_job,
+        production_job=operator_job,
+        current_step_index=1,
+        completed_step_index=1,
+        stage_index=1,
+        meta_json={"ui_e2e_seed": True, "seed_type": "printing_input", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
+    )
+    if print_input_roll.status != "RESERVED":
+        print_input_roll.status = "RESERVED"
+        print_input_roll.save(update_fields=["status"])
+    InventoryReservation.objects.update_or_create(
+        job=printing_job,
+        roll=print_input_roll,
+        defaults={
+            "material": print_input_roll.material,
+            "quantity": print_input_roll.weight_kg,
+            "uom": "KG",
+            "status": "ACTIVE",
+            "created_by": admin,
+        },
+    )
+    _seed_step_requirement(printing_job, primary_ink_material, Decimal("0.250"), process_code="PRINTING")
+    _seed_step_requirement(printing_job, secondary_ink_material, Decimal("0.150"), process_code="PRINTING")
+    BulkService.add_bulk(
+        material_id=primary_ink_material.id,
+        qty=Decimal("5.000"),
+        plant_id=print_ctx.plant.id,
+        location_id=print_ctx.wip.id,
+        cost=Decimal("1.0"),
+        reference=f"{PREFIX}-PRINT-INK-A-{run_suffix}",
+    )
+    BulkService.add_bulk(
+        material_id=secondary_ink_material.id,
+        qty=Decimal("5.000"),
+        plant_id=print_ctx.plant.id,
+        location_id=print_ctx.wip.id,
+        cost=Decimal("1.0"),
+        reference=f"{PREFIX}-PRINT-INK-B-{run_suffix}",
+    )
+
+    print("[seed-ui-mutations] wcm fixture", flush=True)
     wcm_job = _clone_job(
         job_number=WCM_JOB_NUMBER,
         source=job_source,
@@ -428,6 +818,7 @@ def main():
         reference=f"{PREFIX}-WCM-BULK-{run_suffix}",
     )
 
+    print("[seed-ui-mutations] jobwork fixture", flush=True)
     jobwork_source_job = _clone_job(
         job_number=JOBWORK_JOB_NUMBER,
         source=job_source,
@@ -469,7 +860,8 @@ def main():
         meta_json={"ui_e2e_seed": True, "seed_type": "interplant_source", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
     )
 
-    dispatch_order, dispatch_item = _dispatch_target_sales_order()
+    print("[seed-ui-mutations] dispatch fixture", flush=True)
+    dispatch_order, dispatch_item = _dispatch_target_sales_order(job_source.template)
     dispatch_roll = _create_roll(
         label_prefix=f"{PREFIX}-DSP-ROLL",
         material=film_variant,
@@ -498,6 +890,7 @@ def main():
         input_uom="PCS",
     )
 
+    print("[seed-ui-mutations] write metadata", flush=True)
     metadata = {
         "run_tag": RUN_TAG,
         "label_prefix": label("").strip(),
@@ -518,6 +911,31 @@ def main():
             "job_id": str(wcm_job.id),
             "job_number": wcm_job.job_number,
             "assignment_id": str(wcm_assignment.id),
+        },
+        "printing_operator": {
+            "machine_id": str(print_ctx.machine.id),
+            "machine_code": print_ctx.machine.code,
+            "work_center_id": str(print_ctx.work_center.id),
+            "work_center_code": print_ctx.work_center.code,
+            "job_id": str(printing_job.id),
+            "job_number": printing_job.job_number,
+            "assignment_id": str(printing_assignment.id),
+            "input_roll_id": str(print_input_roll.id),
+            "input_roll_label": print_input_roll.label_id,
+            "ink_material_id": str(primary_ink_material.id),
+            "ink_material_code": primary_ink_material.code,
+            "ink_materials": [
+                {
+                    "id": str(primary_ink_material.id),
+                    "code": primary_ink_material.code,
+                    "name": primary_ink_material.name,
+                },
+                {
+                    "id": str(secondary_ink_material.id),
+                    "code": secondary_ink_material.code,
+                    "name": secondary_ink_material.name,
+                },
+            ],
         },
         "grn": {
             "plant_id": str(plant_a.plant.id),

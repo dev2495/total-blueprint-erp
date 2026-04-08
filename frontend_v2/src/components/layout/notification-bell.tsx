@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Bell, X, CheckCheck, ExternalLink, AlertTriangle, Package, Truck, Gauge, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +10,6 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { NotificationService, type Notification } from '@/services/notifications'
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 const TYPE_ICONS: Record<string, React.ElementType> = {
     FG_READY: Package,
     CHALLAN_CREATED: Truck,
+    PACKING_READY: Package,
     DISPATCH_READY: Truck,
     LOW_STOCK: AlertTriangle,
     SCRAP_HIGH: Gauge,
@@ -34,6 +35,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 }
 
 export function NotificationBell() {
+    const router = useRouter()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [isOpen, setIsOpen] = useState(false)
@@ -97,6 +99,30 @@ export function NotificationBell() {
         }
     }
 
+    const notificationHref = (notification: Notification) => {
+        if (notification.related_object_type === "ReportDispatchRun") return "/system/report-center"
+        if (notification.related_object_type === "SalesOrder" && notification.related_object_id) {
+            return `/sales/orders/${notification.related_object_id}/tracking`
+        }
+        if (notification.related_object_type === "ProductionJob") return "/production/planner"
+        if (notification.related_object_type === "DeliveryChallan") return "/logistics/dispatch-bay"
+        if (notification.event_key?.startsWith("reports.")) return "/system/report-center"
+        if (notification.type === "ORDER_CREATED") return "/sales/orders"
+        if (notification.type === "LOW_STOCK") return "/inventory/inventory-health"
+        return ""
+    }
+
+    const handleOpenNotification = async (notification: Notification) => {
+        if (!notification.is_read) {
+            await handleMarkAsRead(notification.id)
+        }
+        const href = notificationHref(notification)
+        if (href) {
+            setIsOpen(false)
+            router.push(href)
+        }
+    }
+
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger asChild>
@@ -114,7 +140,12 @@ export function NotificationBell() {
                     )}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[420px] p-0 rounded-2xl border-slate-200 shadow-2xl" align="end" sideOffset={8} data-testid="notification-bell-popover">
+            <PopoverContent
+                className="w-[calc(100vw-2rem)] max-h-[72vh] overflow-y-auto overscroll-contain rounded-2xl border-slate-200 p-0 shadow-2xl sm:w-[440px]"
+                align="end"
+                sideOffset={8}
+                data-testid="notification-bell-popover"
+            >
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                     <div>
                         <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
@@ -134,7 +165,7 @@ export function NotificationBell() {
                         </Button>
                     )}
                 </div>
-                <ScrollArea className="max-h-[420px]">
+                <div className="max-h-[calc(72vh-69px)] overflow-y-auto">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12">
                             <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" />
@@ -149,15 +180,25 @@ export function NotificationBell() {
                             <span className="text-[11px] mt-1">No notifications to show</span>
                         </div>
                     ) : (
-                        <div>
-                            {notifications.map((notification, idx) => {
+                        <div className="divide-y divide-slate-100">
+                            {notifications.map((notification) => {
                                 const Icon = TYPE_ICONS[notification.type] || Bell
+                                const href = notificationHref(notification)
                                 return (
                                     <div
                                         key={notification.id}
+                                        role="button"
+                                        tabIndex={0}
                                         data-testid={`notification-item-${notification.id}`}
+                                        onClick={() => handleOpenNotification(notification)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault()
+                                                handleOpenNotification(notification)
+                                            }
+                                        }}
                                         className={cn(
-                                            "flex gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/80 border-b border-slate-50 last:border-b-0",
+                                            "flex w-full cursor-pointer gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-indigo-300",
                                             !notification.is_read && "bg-indigo-50/30"
                                         )}
                                     >
@@ -177,7 +218,10 @@ export function NotificationBell() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-6 w-6 shrink-0 rounded-lg hover:bg-slate-200"
-                                                        onClick={() => handleMarkAsRead(notification.id)}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation()
+                                                            handleMarkAsRead(notification.id)
+                                                        }}
                                                     >
                                                         <X className="h-3 w-3 text-slate-400" />
                                                     </Button>
@@ -194,6 +238,15 @@ export function NotificationBell() {
                                                 <Badge variant="outline" className="h-[18px] text-[9px] font-semibold px-1.5 rounded-md border-slate-200 text-slate-500">
                                                     {notification.type.replace(/_/g, ' ')}
                                                 </Badge>
+                                                {href ? (
+                                                    <>
+                                                        <span className="text-slate-200">·</span>
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
+                                                            Open
+                                                            <ExternalLink className="h-3 w-3" />
+                                                        </span>
+                                                    </>
+                                                ) : null}
                                             </div>
                                         </div>
                                     </div>
@@ -201,7 +254,7 @@ export function NotificationBell() {
                             })}
                         </div>
                     )}
-                </ScrollArea>
+                </div>
             </PopoverContent>
         </Popover>
     )

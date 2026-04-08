@@ -159,7 +159,11 @@ export function SidebarNavContent({
                 </div>
                 <div className="space-y-0.5">
                   {authorizedChildren?.map((child) => {
-                    const isChildActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                    const childHref = String(child.href || "");
+                    const isPlannerRoot = childHref === "/production/planner";
+                    const isChildActive = isPlannerRoot
+                      ? pathname === childHref
+                      : pathname === childHref || pathname.startsWith(childHref + "/");
                     return (
                       <Link
                         key={child.href}

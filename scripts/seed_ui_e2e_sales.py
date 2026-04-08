@@ -7,7 +7,8 @@ from pathlib import Path
 import django
 
 sys.path.insert(0, os.getcwd())
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings_script")
+os.environ.setdefault("SKIP_ADMIN_APP_IMPORT", "1")
 django.setup()
 
 from django.contrib.auth import get_user_model
@@ -89,34 +90,90 @@ film_variant, _ = InventoryMaterial.objects.update_or_create(
         "commercial_family": commercial_family,
     },
 )
-
-process, _ = Process.objects.update_or_create(
-    code="UATGREENPRINT",
+sealant_family, _ = InventoryMaterial.objects.update_or_create(
+    code="UAT-GREEN-PE",
     defaults={
-        "name": "UAT GREEN Printing",
-        "input_form": "ROLL",
-        "output_form": "ROLL",
-        "roll_behavior": "MODIFY_EXISTING",
-    },
-)
-routing, _ = RoutingRule.objects.update_or_create(
-    name="UAT GREEN Quotation Route",
-    defaults={"ordered_processes": [process.code]},
-)
-if routing.ordered_processes != [process.code]:
-    routing.ordered_processes = [process.code]
-    routing.save(update_fields=["ordered_processes"])
-
-template, _ = TemplateBlueprint.objects.update_or_create(
-    name="UAT GREEN Dry Fruit Pouch",
-    defaults={
-        "fg_type": "POUCH",
-        "status": "LIVE",
-        "routing_rule": routing,
-        "pouch_style": "THREE_SIDE_SEAL",
+        "name": "UAT-GREEN PE Family",
+        "category": "FILM_FAMILY",
+        "density_gcm3": Decimal("0.9200"),
+        "status": "ACTIVE",
         "commercial_family": commercial_family,
     },
 )
+sealant_variant, _ = InventoryMaterial.objects.update_or_create(
+    code="UAT-GREEN-PE-40",
+    defaults={
+        "name": "UAT-GREEN PE 40u",
+        "category": "FILM_VARIANT",
+        "parent_family": sealant_family,
+        "density_gcm3": Decimal("0.9200"),
+        "is_purchasable": True,
+        "is_extrudable": False,
+        "status": "ACTIVE",
+        "commercial_family": commercial_family,
+    },
+)
+
+template = (
+    TemplateBlueprint.objects.select_related("routing_rule")
+    .filter(name__iexact="courier bags", status="LIVE")
+    .first()
+)
+if template is None:
+    extrusion, _ = Process.objects.update_or_create(
+        code="UATGREENEXTRUSION",
+        defaults={
+            "name": "UAT GREEN Extrusion",
+            "input_form": "BULK",
+            "output_form": "ROLL",
+            "roll_behavior": "CREATE_NEW",
+        },
+    )
+    printing, _ = Process.objects.update_or_create(
+        code="UATGREENPRINT",
+        defaults={
+            "name": "UAT GREEN Printing",
+            "input_form": "ROLL",
+            "output_form": "ROLL",
+            "roll_behavior": "MODIFY_EXISTING",
+        },
+    )
+    lamination, _ = Process.objects.update_or_create(
+        code="UATGREENLAMINATION",
+        defaults={
+            "name": "UAT GREEN Lamination",
+            "input_form": "ROLL",
+            "output_form": "ROLL",
+            "roll_behavior": "MULTI_INPUT_COMBINE",
+        },
+    )
+    pouching, _ = Process.objects.update_or_create(
+        code="UATGREENPOUCHING",
+        defaults={
+            "name": "UAT GREEN Pouching",
+            "input_form": "ROLL",
+            "output_form": "BULK",
+            "roll_behavior": "NONE",
+        },
+    )
+    routing, _ = RoutingRule.objects.update_or_create(
+        name="UAT GREEN Courier Route",
+        defaults={"ordered_processes": [extrusion.code, printing.code, lamination.code, pouching.code]},
+    )
+    desired_order = [extrusion.code, printing.code, lamination.code, pouching.code]
+    if routing.ordered_processes != desired_order:
+        routing.ordered_processes = desired_order
+        routing.save(update_fields=["ordered_processes"])
+    template, _ = TemplateBlueprint.objects.update_or_create(
+        name="courier bags",
+        defaults={
+            "fg_type": "POUCH",
+            "status": "LIVE",
+            "routing_rule": routing,
+            "pouch_style": "THREE_SIDE_SEAL",
+            "commercial_family": commercial_family,
+        },
+    )
 
 sku, _ = SalesSku.objects.update_or_create(
     code="UAT-GREEN-DRYFRUIT",
@@ -153,9 +210,16 @@ for code, name, width_mm, height_mm in variant_specs:
             "layer_snapshot": [
                 {
                     "family_id": str(film_family.id),
+                    "variant_id": str(film_variant.id),
                     "thickness_micron": 12,
                     "density_g_cm3": 1.38,
-                }
+                },
+                {
+                    "family_id": str(sealant_family.id),
+                    "variant_id": str(sealant_variant.id),
+                    "thickness_micron": 40,
+                    "density_g_cm3": 0.92,
+                },
             ],
             "printing_snapshot": {"enabled": False},
             "chemicals_snapshot": {},
@@ -238,6 +302,7 @@ payload = {
     "sku_id": str(sku.id),
     "sku_code": sku.code,
     "shared_sku_code": sku.code,
+    "pouch_template_name": template.name,
     "shared_variant_name": variants[0].name,
     "repeat_line_name": (repeat_item.line_name if repeat_item and repeat_item.line_name else "UAT-GREEN Repeat Pouch"),
     "variant_codes": [variant.code for variant in variants],

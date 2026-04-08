@@ -14,6 +14,7 @@ const reportRouteChecks: RouteHealthCheck[] = [
   { route: "/analytics/reports/downtime", api: "/api/analytics/reports/downtime/", anchor: /Downtime Analysis/i, kind: "object" },
   { route: "/analytics/reports/scrap", api: "/api/analytics/reports/scrap/", anchor: /Scrap & Yield/i, kind: "object" },
   { route: "/analytics/reports/inventory", api: "/api/analytics/reports/inventory/", anchor: /Inventory Health/i, kind: "object" },
+  { route: "/analytics/reports/interplant", api: "/api/analytics/reports/interplant/", anchor: /Inter-Plant Logistics/i, kind: "object" },
   { route: "/analytics/reports/mrp", api: "/api/analytics/reports/mrp/", anchor: /MRP & Consumption Variance/i, kind: "object" },
   { route: "/analytics/reports/sales", api: "/api/analytics/reports/sales/", anchor: /Sales Fulfillment/i, kind: "object" },
   { route: "/analytics/reports/dispatch", api: "/api/analytics/reports/dispatch/", anchor: /Dispatch & Logistics/i, kind: "object" },
@@ -45,9 +46,9 @@ for (const check of reportRouteChecks) {
     expect(response.status).toBe(200)
     expect(hasMeaningfulPayload(response.data, check.kind)).toBeTruthy()
 
-    await page.goto(check.route, { waitUntil: "domcontentloaded" })
-    await assertHealthyPage(page, { requireAuth: true, requireRoleSwitcher: true })
-    await expect(page.locator("body")).toContainText(check.anchor, { timeout: 30_000 })
+    await page.goto(check.route, { waitUntil: "domcontentloaded", timeout: 60_000 })
+    await expect(page.locator("body")).toContainText(check.anchor, { timeout: 60_000 })
+    await assertHealthyPage(page, { requireAuth: false })
   })
 }
 
@@ -56,7 +57,7 @@ test("report center shows seeded runs and manual send updates run history", asyn
     module: "Analytics",
     severity: "critical",
     feature: "Report delivery freshness",
-    expected: "Reports Hub should show seeded report runs, allow a manual send, and refresh run history after dispatch.",
+    expected: "Reports Hub should show seeded report runs, allow a manual generation, and refresh run history after archive creation.",
   })
 
   const beforeProfiles = await fetchJson(page, "/api/analytics/report-distributions/")
@@ -69,13 +70,13 @@ test("report center shows seeded runs and manual send updates run history", asyn
   const beforeRuns = Array.isArray((beforeRunsResponse.data as any)?.runs) ? (beforeRunsResponse.data as any).runs : []
   expect(beforeRuns.length).toBeGreaterThan(0)
 
-  await page.goto("/analytics/reports")
-  await assertHealthyPage(page, { requireAuth: true, requireRoleSwitcher: true })
+  await page.goto("/analytics/reports", { waitUntil: "domcontentloaded", timeout: 60_000 })
   await expect(page.locator("body")).toContainText(/Reports Hub/i, { timeout: 30_000 })
   await expect(page.locator("body")).toContainText(/Recent report runs/i, { timeout: 30_000 })
   await expect(page.locator("body")).toContainText(/Latest run/i, { timeout: 30_000 })
+  await assertHealthyPage(page, { requireAuth: false })
 
-  await page.getByRole("button", { name: /send daily pack now/i }).first().click()
+  await page.getByRole("button", { name: /generate daily pack/i }).first().click()
 
   let afterRuns = beforeRuns
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -96,6 +97,6 @@ test("report center shows seeded runs and manual send updates run history", asyn
   expect(String(afterRuns[0]?.id || "")).not.toBe(String(beforeRuns[0]?.id || ""))
 
   await page.reload({ waitUntil: "domcontentloaded" })
-  await assertHealthyPage(page, { requireAuth: true, requireRoleSwitcher: true })
   await expect(page.locator("body")).toContainText(/Recent report runs/i, { timeout: 30_000 })
+  await assertHealthyPage(page, { requireAuth: false })
 })

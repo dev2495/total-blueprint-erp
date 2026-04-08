@@ -29,6 +29,8 @@ function runScript(scriptName, extraEnv = {}) {
   return typeof result.status === "number" ? result.status : 1
 }
 
+const sharedPlaywrightEnv = process.env.UI_E2E_SKIP_BOOTSTRAP === "1" ? { UI_E2E_SKIP_BOOTSTRAP: "1" } : {}
+
 function readJsonIfPresent(fileName) {
   const filePath = path.join(runtimeRoot, fileName)
   if (!fs.existsSync(filePath)) return null
@@ -106,14 +108,14 @@ function writeAggregateSummary(summaries, exitCodes) {
   fs.writeFileSync(markdownPath, lines.join("\n"))
 }
 
-const gateExitCode = runScript("e2e:ui:gate")
+const gateExitCode = runScript("e2e:ui:gate", sharedPlaywrightEnv)
 let mutationsExitCode = null
 if (hasMutationSpecs()) {
-  mutationsExitCode = runScript("e2e:ui:mutations", { UI_E2E_SKIP_BOOTSTRAP: "1" })
+  mutationsExitCode = runScript("e2e:ui:mutations", { ...sharedPlaywrightEnv, UI_E2E_SKIP_BOOTSTRAP: "1" })
 }
 let observationsExitCode = null
 if (hasObservationSpecs()) {
-  observationsExitCode = runScript("e2e:ui:observations", { UI_E2E_SKIP_BOOTSTRAP: "1" })
+  observationsExitCode = runScript("e2e:ui:observations", { ...sharedPlaywrightEnv, UI_E2E_SKIP_BOOTSTRAP: "1" })
 }
 
 fs.writeFileSync(

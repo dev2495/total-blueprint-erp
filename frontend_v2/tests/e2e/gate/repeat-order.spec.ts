@@ -20,7 +20,7 @@ test("sales repeat order lane surfaces inherited values and clear next actions b
   const seed = readRuntimeJson<SalesSeed>("sales-seed.json") || {}
 
   await loginViaUi(page)
-  await switchRole(page, "Sales", "/sales/orders")
+  await switchRole(page, "Sales", "/sales/orders", { allowCookieFallback: true })
   await page.goto("/sales/orders/create")
   await assertHealthyPage(page)
   await page.getByTestId("sales-order-batch-workspace").waitFor({ state: "visible", timeout: 30_000 })

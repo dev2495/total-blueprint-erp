@@ -2,7 +2,7 @@ import { test, expect } from "../support/base"
 import { annotate, assertAuthenticatedShell, loginViaUi, logoutViaUi } from "../support/test-helpers"
 
 test.describe("Auth UI", () => {
-  test.use({ storageState: { cookies: [], origins: [] } })
+  test.use({ storageState: { cookies: [], origins: [] }, autoAuth: false })
 
   test("admin login and logout roundtrip", async ({ page }, testInfo) => {
     annotate(testInfo, {

@@ -257,11 +257,6 @@ export interface ReportDistributionProfile {
     label: string;
     active: boolean;
     target_roles: string[];
-    extra_recipients?: string[];
-    schedule_hour: number;
-    schedule_minute: number;
-    email_subject_template?: string;
-    email_body_template?: string;
     updated_at?: string | null;
     updated_by?: string | null;
 }

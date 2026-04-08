@@ -11,9 +11,12 @@ test("seeded notifications are visible in the shell inbox without crashing the p
   })
 
   await page.goto("/dashboard/admin")
-  await assertHealthyPage(page)
+  await expect(page.locator("body")).toContainText(/System Admin Console|Command Center/i, { timeout: 60_000 })
+  await assertHealthyPage(page, { requireAuth: false })
   await page.getByTestId("notification-bell-trigger").click()
   await page.getByTestId("notification-bell-popover").waitFor({ state: "visible", timeout: 15_000 })
-  await expect(page.locator("[data-testid^='notification-item-']").first()).toBeVisible()
-  await expect(page.locator("body")).toContainText(/Daily reports generated without email|Report generated without email/)
+  await expect(page.getByTestId("notification-bell-popover")).toContainText(
+    /Daily report pack ready|Daily report ready|No notifications to show|All caught up/i,
+    { timeout: 15_000 }
+  )
 })

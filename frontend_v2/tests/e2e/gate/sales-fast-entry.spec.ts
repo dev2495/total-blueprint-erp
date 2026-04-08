@@ -21,23 +21,19 @@ test("sales batch queue and SKU Catalog expose the new fast-entry lanes", async 
   const seed = readRuntimeJson<SalesSeed>("sales-seed.json") || {}
 
   await loginViaUi(page)
-  await switchRole(page, "Sales", "/sales/orders")
+  await switchRole(page, "Sales", "/sales/orders", { allowCookieFallback: true })
 
   await page.goto("/sales/orders/create")
   await assertHealthyPage(page)
   await page.getByTestId("sales-order-batch-workspace").waitFor({ state: "visible", timeout: 30_000 })
 
   await selectByTestId(page, "sales-batch-customer", new RegExp(seed.customer_name || "UI E2E Sales Customer", "i"))
-  await expect(page.getByTestId("sales-batch-lane-shared")).toBeEnabled()
   await expect(page.getByTestId("sales-batch-lane-repeat")).toBeEnabled()
   await expect(page.getByTestId("sales-batch-lane-custom")).toBeEnabled()
 
-  await page.getByTestId("sales-batch-lane-shared").click()
-  await page.getByTestId("sales-shared-sku-dialog").waitFor({ state: "visible", timeout: 30_000 })
-  await page.getByPlaceholder("Code, name, template...").fill(seed.shared_sku_code || "UIE2E-POUCH")
-  await page.getByRole("button", { name: new RegExp(seed.shared_sku_code || "UIE2E-POUCH", "i") }).first().click()
-  await expect(page.locator("body")).toContainText(seed.shared_variant_name || "Mango Pouch 200 x 300")
-  await page.getByTestId("sales-shared-sku-add").first().click()
+  await selectByTestId(page, "sales-batch-shared-sku", new RegExp(seed.shared_sku_code || "UIE2E-POUCH", "i"))
+  await selectByTestId(page, "sales-batch-shared-variant", new RegExp(seed.shared_variant_name || "Mango Pouch 200 x 300", "i"))
+  await page.getByTestId("sales-batch-shared-add").click()
   await expect(page.getByTestId("sales-batch-queue-count")).toHaveText("1")
 
   await page.getByTestId("sales-batch-lane-repeat").click()
@@ -49,8 +45,11 @@ test("sales batch queue and SKU Catalog expose the new fast-entry lanes", async 
 
   await page.getByTestId("sales-batch-lane-custom").click()
   await expect(page.getByTestId("sales-batch-queue-count")).toHaveText("3")
-  await expect(page.locator("body")).toContainText("Basics")
-  await expect(page.locator("body")).toContainText("Preview & Commercial")
+  await expect(page.locator("body")).toContainText("Line Composer")
+  await expect(page.locator("body")).toContainText("Technical Truth")
+  await expect(page.locator("body")).toContainText(/TPL/i)
+  await expect(page.locator("body")).toContainText(/kg/i)
+  await expect(page.locator("body")).toContainText(/pcs/i)
 
   await page.goto("/sales/sku-catalog")
   await assertHealthyPage(page)
@@ -60,4 +59,9 @@ test("sales batch queue and SKU Catalog expose the new fast-entry lanes", async 
   await page.getByTestId("sales-sku-variant-item").first().click()
   await page.getByTestId("sales-sku-usage-history").click()
   await expect(page.getByText(/Variant Usage History/i)).toBeVisible()
+
+  await page.goto("/sales/orders")
+  await assertHealthyPage(page)
+  await expect(page.getByRole("button", { name: /active orders/i })).toBeVisible()
+  await expect(page.getByRole("button", { name: /completed orders/i })).toBeVisible()
 })

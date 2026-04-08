@@ -34,7 +34,7 @@ test("sales can build, save, and export a quotation from the quotations workspac
   const runTag = String(seed.run_tag || process.env.UI_E2E_RUN_TAG || Date.now())
 
   await loginViaUi(page)
-  await switchRole(page, "Sales", "/sales/orders")
+  await switchRole(page, "Sales", "/sales/orders", { allowCookieFallback: true })
   await page.goto("/sales/quotations")
   await assertHealthyPage(page)
 

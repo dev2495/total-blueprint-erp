@@ -1,7 +1,8 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from rest_framework import serializers
 
+from apps.materials.models import InventoryMaterial
 from apps.physics.geometry_override import validate_pouch_geometry_contract
 from apps.templates.models import TemplateBlueprint
 
@@ -255,6 +256,9 @@ class SalesOrderSerializer(serializers.ModelSerializer):
     can_confirm = serializers.SerializerMethodField()
     block_reasons = serializers.SerializerMethodField()
     total_value = serializers.SerializerMethodField()
+    item_summary = serializers.SerializerMethodField()
+    qty_summary = serializers.SerializerMethodField()
+    fulfillment_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrder
@@ -272,6 +276,9 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "delivery_date",
             "geometry_override",
             "commercial_confirmed_at",
+            "item_summary",
+            "qty_summary",
+            "fulfillment_summary",
             "items",
             "items_data",
             "can_confirm",
@@ -291,6 +298,295 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         for item in obj.items.all():
             total += Decimal(str(getattr(item, "line_amount", 0) or 0))
         return float(total)
+
+    def _order_items(self, obj):
+        return list(obj.items.all())
+
+    def _first_item(self, obj):
+        items = self._order_items(obj)
+        return items[0] if items else None
+
+    def _geometry_size_label(self, item):
+        geometry = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+        base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+        fg_type = str(geometry.get("finished_good_type") or getattr(item.template, "fg_type", "POUCH") or "POUCH").upper()
+        if fg_type == "ROLL":
+            return str(geometry.get("roll_form") or "FLAT").upper()
+        width = base.get("width_mm") or geometry.get("width_mm") or 0
+        height = base.get("height_mm") or geometry.get("height_mm") or 0
+        return f"{width} x {height}"
+
+    def _material_cache(self):
+        cache = getattr(self, "_inventory_material_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(self, "_inventory_material_cache", cache)
+        return cache
+
+    def _get_material(self, material_id):
+        if not material_id:
+            return None
+        key = str(material_id)
+        cache = self._material_cache()
+        if key not in cache:
+            cache[key] = InventoryMaterial.objects.filter(id=key).first()
+        return cache.get(key)
+
+    def _layer_labels(self, item):
+        labels = []
+        for index, layer in enumerate(item.layer_snapshot or []):
+            if not isinstance(layer, dict):
+                continue
+            material = self._get_material(layer.get("variant_id")) or self._get_material(layer.get("family_id"))
+            code = str(getattr(material, "code", "") or layer.get("code") or layer.get("variant_code") or layer.get("family_code") or "").strip()
+            name = str(getattr(material, "name", "") or layer.get("name") or layer.get("variant_name") or layer.get("family_name") or "").strip()
+            if code and name and name.upper() != code.upper():
+                labels.append(f"{code} · {name}")
+            elif code:
+                labels.append(code)
+            elif name:
+                labels.append(name)
+            else:
+                labels.append(f"Layer {index + 1}")
+        return labels
+
+    def _packaging_summary(self, item):
+        packaging = item.packaging_snapshot if isinstance(item.packaging_snapshot, dict) else {}
+        primary = packaging.get("primary_inner_pack") if isinstance(packaging.get("primary_inner_pack"), dict) else {}
+        pod = packaging.get("pod") if isinstance(packaging.get("pod"), dict) else {}
+        roll_dispatch = packaging.get("roll_dispatch_pack") if isinstance(packaging.get("roll_dispatch_pack"), dict) else {}
+        parts = []
+
+        if bool(primary.get("enabled")):
+            material = self._get_material(primary.get("material_id"))
+            material_label = str(getattr(material, "code", "") or getattr(material, "name", "") or "Pack").strip()
+            pcs_per_pack = int(Decimal(str(primary.get("pcs_per_pack") or 0))) if primary.get("pcs_per_pack") not in (None, "") else 0
+            if pcs_per_pack > 0:
+                parts.append(f"{material_label} {pcs_per_pack} pcs/pack" if material_label and material_label != "Pack" else f"{pcs_per_pack} pcs/pack")
+            else:
+                parts.append(material_label)
+
+        if bool(pod.get("enabled")):
+            pod_label = str(pod.get("pod_sku_code") or pod.get("pod_sku_name") or "POD").strip()
+            parts.append(f"POD {pod_label}" if pod_label and pod_label.upper() != "POD" else "POD enabled")
+
+        if bool(roll_dispatch.get("enabled")):
+            line_parts = []
+            for line in (roll_dispatch.get("lines") or [])[:3]:
+                if not isinstance(line, dict):
+                    continue
+                material = self._get_material(line.get("material_id"))
+                material_label = str(getattr(material, "code", "") or getattr(material, "name", "") or "Sheet").strip()
+                qty = Decimal(str(line.get("qty") or 0))
+                uom = str(line.get("uom") or "PCS").upper()
+                line_parts.append(f"{material_label} {qty.normalize()} {uom}/roll")
+            if line_parts:
+                parts.extend(line_parts)
+
+        return " · ".join(parts) if parts else "Standard pack"
+
+    def _printing_summary(self, item):
+        printing = item.printing_snapshot if isinstance(item.printing_snapshot, dict) else {}
+        if not printing.get("enabled"):
+            return "No print"
+        print_type = str(printing.get("type") or "PRINT").upper()
+        front = int(printing.get("front_colors_count") or 0)
+        back = int(printing.get("back_colors_count") or 0)
+        return f"{print_type} F{front}/B{back}"
+
+    def _item_unit_weight_g(self, item):
+        return Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+
+    def _item_ordered_pcs(self, item):
+        geometry = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+        fg_type = str(geometry.get("finished_good_type") or getattr(item.template, "fg_type", "POUCH") or "POUCH").upper()
+        if fg_type == "ROLL":
+            return None
+        qty_uom = str(getattr(item, "qty_uom", "") or "").upper()
+        qty_value = Decimal(str(getattr(item, "qty_value", 0) or 0))
+        if qty_uom == "PCS":
+            return qty_value
+        unit_weight_g = self._item_unit_weight_g(item)
+        if qty_uom == "KG" and unit_weight_g > 0:
+            return (qty_value * Decimal("1000")) / unit_weight_g
+        return None
+
+    def _kg_to_pcs(self, item, value_kg):
+        unit_weight_g = self._item_unit_weight_g(item)
+        if unit_weight_g <= 0:
+            return None
+        qty_kg = Decimal(str(value_kg or 0))
+        if qty_kg <= 0:
+            return Decimal("0")
+        return ((qty_kg * Decimal("1000")) / unit_weight_g).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+    def get_item_summary(self, obj):
+        items = self._order_items(obj)
+        if not items:
+            return {
+                "line_count": 0,
+                "claimed_stock_order_nos": [],
+            }
+        item = items[0]
+        packaging = item.packaging_snapshot if isinstance(item.packaging_snapshot, dict) else {}
+        pod = packaging.get("pod") if isinstance(packaging.get("pod"), dict) else {}
+        geometry = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+        fg_type = str(geometry.get("finished_good_type") or getattr(item.template, "fg_type", "POUCH") or "POUCH").upper()
+        claimed_stock_order_nos = sorted(
+            {
+                str(source_no).strip()
+                for row in items
+                for source_no in SalesOrderItemSerializer().get_claimed_stock_order_nos(row)
+                if str(source_no).strip()
+            }
+        )
+        return {
+            "variant_code": str(getattr(item.sku_variant, "code", "") or ""),
+            "variant_name": str(getattr(item.sku_variant, "name", "") or ""),
+            "template_name": str(getattr(item.template, "name", "") or ""),
+            "template_tag": f"TPL {str(getattr(item.template, 'name', '') or '').strip()}".strip(),
+            "finished_good_type": fg_type,
+            "size_or_form": self._geometry_size_label(item),
+            "layer_count": len(item.layer_snapshot or []),
+            "layer_labels": self._layer_labels(item),
+            "printing_summary": self._printing_summary(item),
+            "pod_enabled": bool(pod.get("enabled", False)),
+            "packaging_summary": self._packaging_summary(item),
+            "addons_count": len(item.addons_snapshot or []),
+            "claimed_stock_order_nos": claimed_stock_order_nos,
+            "line_count": len(items),
+            "unit_weight_g": float(Decimal(str(getattr(item, "unit_weight_g", 0) or 0))),
+        }
+
+    def get_qty_summary(self, obj):
+        items = self._order_items(obj)
+        ordered_kg = Decimal("0")
+        ordered_pcs = Decimal("0")
+        has_pcs = False
+        for item in items:
+            ordered_kg += Decimal(str(getattr(item, "total_weight_kg", 0) or 0))
+            derived_pcs = self._item_ordered_pcs(item)
+            if derived_pcs is not None:
+                has_pcs = True
+                ordered_pcs += derived_pcs
+        return {
+            "ordered_kg": float(ordered_kg),
+            "ordered_pcs": float(ordered_pcs) if has_pcs else None,
+        }
+
+    def get_fulfillment_summary(self, obj):
+        items = self._order_items(obj)
+        ordered = self.get_qty_summary(obj)
+        produced_kg = Decimal("0")
+        dispatched_kg = Decimal("0")
+        produced_pcs = Decimal("0")
+        dispatched_pcs = Decimal("0")
+
+        for item in items:
+            item_produced_kg = Decimal("0")
+            item_dispatched_kg = Decimal("0")
+            item_produced_pcs = Decimal("0")
+            item_dispatched_pcs = Decimal("0")
+            rolls = [
+                roll
+                for roll in item.inventory_rolls.all()
+                if not bool(((getattr(roll, "meta_json", None) or {}).get("is_internal_stock")))
+            ]
+            batches = [
+                batch
+                for batch in item.fg_batches.all()
+                if not bool(((getattr(batch, "meta_json", None) or {}).get("is_internal_stock")))
+            ]
+            packing_units = list(item.packing_units.all())
+
+            item_produced_kg += sum((Decimal(str(getattr(roll, "weight_kg", 0) or 0)) for roll in rolls), Decimal("0"))
+            item_dispatched_kg += sum(
+                (
+                    Decimal(str(getattr(roll, "weight_kg", 0) or 0))
+                    for roll in rolls
+                    if str(getattr(roll, "status", "") or "").upper() in {"IN_TRANSIT", "CONSUMED"}
+                ),
+                Decimal("0"),
+            )
+
+            item_produced_kg += sum((Decimal(str(getattr(batch, "qty_kg", 0) or 0)) for batch in batches), Decimal("0"))
+            item_produced_pcs += sum((Decimal(str(getattr(batch, "qty_pcs", 0) or 0)) for batch in batches), Decimal("0"))
+
+            item_produced_kg += sum(
+                (
+                    Decimal(
+                        str(
+                            getattr(pack, "net_product_weight_kg", None)
+                            or getattr(pack, "weight_kg", 0)
+                            or 0
+                        )
+                    )
+                    for pack in packing_units
+                ),
+                Decimal("0"),
+            )
+            item_produced_pcs += sum((Decimal(str(getattr(pack, "qty_pcs", 0) or 0)) for pack in packing_units), Decimal("0"))
+
+            item_dispatched_kg += sum(
+                (
+                    Decimal(
+                        str(
+                            getattr(pack, "net_product_weight_kg", None)
+                            or getattr(pack, "weight_kg", 0)
+                            or 0
+                        )
+                    )
+                    for pack in packing_units
+                    if str(getattr(pack, "status", "") or "").upper() == "DISPATCHED"
+                ),
+                Decimal("0"),
+            )
+            item_dispatched_pcs += sum(
+                (
+                    Decimal(str(getattr(pack, "qty_pcs", 0) or 0))
+                    for pack in packing_units
+                    if str(getattr(pack, "status", "") or "").upper() == "DISPATCHED"
+                ),
+                Decimal("0"),
+            )
+
+            produced_kg += item_produced_kg
+            dispatched_kg += item_dispatched_kg
+
+            ordered_item_pcs = self._item_ordered_pcs(item)
+            if ordered_item_pcs is not None:
+                derived_produced_pcs = self._kg_to_pcs(item, item_produced_kg)
+                derived_dispatched_pcs = self._kg_to_pcs(item, item_dispatched_kg)
+                produced_pcs += item_produced_pcs if item_produced_pcs > 0 else (derived_produced_pcs or Decimal("0"))
+                dispatched_pcs += item_dispatched_pcs if item_dispatched_pcs > 0 else (derived_dispatched_pcs or Decimal("0"))
+
+        ordered_kg = Decimal(str(ordered.get("ordered_kg") or 0))
+        ordered_pcs = Decimal(str(ordered.get("ordered_pcs") or 0)) if ordered.get("ordered_pcs") is not None else None
+        remaining_kg = ordered_kg - dispatched_kg
+        if remaining_kg < 0:
+            remaining_kg = Decimal("0")
+        remaining_pcs = None
+        if ordered_pcs is not None:
+            remaining_pcs = ordered_pcs - dispatched_pcs
+            if remaining_pcs < 0:
+                remaining_pcs = Decimal("0")
+
+        if ordered_pcs is not None and ordered_pcs > 0:
+            completion_percent = float((dispatched_pcs / ordered_pcs) * Decimal("100"))
+        elif ordered_kg > 0:
+            completion_percent = float((dispatched_kg / ordered_kg) * Decimal("100"))
+        else:
+            completion_percent = 0.0
+
+        return {
+            "produced_kg": float(produced_kg),
+            "dispatched_kg": float(dispatched_kg),
+            "remaining_kg": float(remaining_kg),
+            "produced_pcs": float(produced_pcs) if ordered_pcs is not None else None,
+            "dispatched_pcs": float(dispatched_pcs) if ordered_pcs is not None else None,
+            "remaining_pcs": float(remaining_pcs) if remaining_pcs is not None else None,
+            "completion_percent": max(0.0, min(100.0, completion_percent)),
+        }
 
     def create(self, validated_data):
         items_data = validated_data.pop("items_data", [])

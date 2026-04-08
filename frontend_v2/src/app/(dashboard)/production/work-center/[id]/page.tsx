@@ -974,75 +974,75 @@ export default function WCMTerminal() {
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
 
     return (
-            <div className="space-y-3 bg-slate-50" data-testid="wcm-terminal-page">
+            <div className="space-y-6 bg-slate-50" data-testid="wcm-terminal-page">
             {/* HEADER */}
-            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-slate-900">
+                    <h1 className="text-2xl font-bold text-slate-900">
                         Work Center Terminal - {workCenter?.name || (activeAssignment as any)?.work_center_name || wcId}
                         {workCenter?.code ? <span className="ml-2 text-sm font-semibold text-slate-500">({workCenter.code})</span> : null}
                     </h1>
-                    <p className="text-sm text-slate-500">Pick a job, check the step, set the machine, then push it to the operator.</p>
+                    <p className="text-slate-500">Pick a job, check the step, set the machine, then push it to the operator.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <SemanticBadge kind="jobState" value="RUNNING" label={`Running ${stats.running}`} className="text-xs px-3 py-1.5" />
-                    <SemanticBadge kind="jobState" value="WC_READY" label={`Waiting ${stats.waiting}`} className="text-xs px-3 py-1.5" />
+                <div className="flex flex-wrap gap-3">
+                    <SemanticBadge kind="jobState" value="RUNNING" label={`Running ${stats.running}`} className="text-sm px-4 py-2" />
+                    <SemanticBadge kind="jobState" value="WC_READY" label={`Waiting ${stats.waiting}`} className="text-sm px-4 py-2" />
                 </div>
             </div>
-            <div className="flex min-h-0 flex-col gap-3">
+            <div className="flex min-h-0 flex-col gap-6">
                 <Tabs value={activeMainTab} onValueChange={(v: any) => setActiveMainTab(v)} className="w-full">
-                    <TabsList className="bg-white border p-1 h-10 rounded-xl shadow-sm">
-                        <TabsTrigger value="terminal" className="px-5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
+                    <TabsList className="bg-white border p-1 h-12 rounded-xl shadow-sm">
+                        <TabsTrigger value="terminal" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
                             Run Step
                         </TabsTrigger>
                         {isManager && (
-                            <TabsTrigger value="history" className="px-5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
+                            <TabsTrigger value="history" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
                                 Past Jobs
                             </TabsTrigger>
                         )}
                     </TabsList>
 
-                    <TabsContent value="terminal" className="mt-3">
-                        <Card className="border-slate-200 bg-white/90">
-                            <CardContent className="grid gap-2 p-2.5 md:grid-cols-4">
+                    <TabsContent value="terminal" className="mt-6">
+                        <Card className="border-slate-200 bg-white">
+                            <CardContent className="grid gap-3 p-4 md:grid-cols-4">
                                 {[
-                                    "1. Pick job",
-                                    "2. Check material",
-                                    "3. Assign roll/machine",
-                                    "4. Push to operator",
+                                    "1. Pick the job from the left queue.",
+                                    "2. Check step requirements and material rule.",
+                                    "3. Assign roll and machine if needed.",
+                                    "4. Push the job to operator when ready.",
                                 ].map((step) => (
-                                    <div key={step} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700">
+                                    <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                                         {step}
                                     </div>
                                 ))}
                             </CardContent>
                         </Card>
                         <Card className="border-indigo-100 bg-indigo-50/70 shadow-sm">
-                            <CardContent className="grid gap-2 p-3 md:grid-cols-[1.6fr_0.9fr_0.9fr]">
-                                <div className="rounded-xl border border-indigo-200 bg-white px-3 py-2">
-                                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-indigo-700">Next action now</div>
-                                    <div className="mt-1 text-base font-black text-slate-900">{wcmNextAction}</div>
-                                    <div className="mt-1 text-xs text-slate-600">{wcmStatusSummary}</div>
+                            <CardContent className="grid gap-3 p-4 md:grid-cols-[1.5fr_1fr_1fr]">
+                                <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700">Next action now</div>
+                                    <div className="mt-2 text-lg font-black text-slate-900">{wcmNextAction}</div>
+                                    <div className="mt-1 text-sm text-slate-600">{wcmStatusSummary}</div>
                                 </div>
-                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Step status</div>
-                                    <div className="mt-1"><SemanticBadge kind="jobState" value={requirementsSatisfied ? "READY" : "BLOCKED"} label={requirementsSatisfied ? "Ready" : "Needs action"} className="text-[11px] px-2.5 py-1" /></div>
-                                    <div className="mt-1 text-[11px] text-slate-500">Current step {currentStepNumber || "—"}</div>
+                                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Step status</div>
+                                    <div className="mt-2"><SemanticBadge kind="jobState" value={requirementsSatisfied ? "READY" : "BLOCKED"} label={requirementsSatisfied ? "Ready" : "Needs action"} className="text-xs px-3 py-1.5" /></div>
+                                    <div className="mt-2 text-xs text-slate-500">Current step {currentStepNumber || "—"}</div>
                                 </div>
-                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Machine</div>
-                                    <div className="mt-1"><SemanticBadge kind="jobState" value={selectedMachineId ? "ASSIGNED" : "PENDING"} label={selectedMachineId ? "Machine set" : "Machine needed"} className="text-[11px] px-2.5 py-1" /></div>
-                                    <div className="mt-1 text-[11px] text-slate-500">{selectedMachineId ? "Ready after checks." : "Pick line before handoff."}</div>
+                                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Machine</div>
+                                    <div className="mt-2"><SemanticBadge kind="jobState" value={selectedMachineId ? "ASSIGNED" : "PENDING"} label={selectedMachineId ? "Machine set" : "Machine needed"} className="text-xs px-3 py-1.5" /></div>
+                                    <div className="mt-2 text-xs text-slate-500">{selectedMachineId ? "This step can move forward once all checks stay green." : "Pick the production line before handoff."}</div>
                                 </div>
                             </CardContent>
                         </Card>
-                        <div className="grid gap-3 xl:grid-cols-12 xl:min-h-[calc(100vh-250px)]">
+                        <div className="grid gap-6 xl:grid-cols-12 xl:min-h-[680px]">
                             {/* COLUMN 1: SCHEDULED QUEUE */}
-                            <Card className="flex max-h-[42vh] flex-col overflow-hidden border-none shadow-md xl:col-span-2 xl:max-h-none xl:h-full">
-                                <CardHeader className="bg-slate-100 py-2.5 shrink-0">
+                            <Card className="flex max-h-[60vh] flex-col overflow-hidden border-none shadow-md xl:col-span-2 xl:max-h-none xl:h-full">
+                                <CardHeader className="bg-slate-100 py-3 shrink-0">
                                     <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Queue</CardTitle>
                                 </CardHeader>
-                                <CardContent className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-slate-50/50">
+                                <CardContent className="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/50">
                                     {visibleQueueAssignments.map((assignment: any) => {
                                         const hasRollAllocations =
                                             (Array.isArray((assignment as any)?.allocated_roll_details) && (assignment as any).allocated_roll_details.length > 0) ||
@@ -1089,13 +1089,13 @@ export default function WCMTerminal() {
                                                 }}
                                                 data-testid={`wcm-assignment-row-${assignment.id}`}
                                                 className={cn(
-                                                    "p-2.5 rounded-lg border cursor-pointer transition-all hover:shadow-md",
+                                                    "p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md",
                                                     activeAssignmentId === assignment.id
                                                         ? "bg-white border-indigo-500 shadow-indigo-100 ring-1 ring-indigo-500"
                                                         : "bg-white border-slate-200 hover:border-indigo-300"
                                                 )}
                                             >
-                                                <div className="flex justify-between items-start mb-1 gap-2">
+                                                <div className="flex justify-between items-start mb-1">
                                                     <span className="font-bold text-xs text-slate-900">{assignment.job_details?.job_number || "—"}</span>
                                                     <SemanticBadge kind="jobState" value={displayStatus} label={displayStatus === "WC_READY" ? "Ready" : displayStatus} className="text-[10px] h-auto px-2 py-1" />
                                                 </div>
@@ -1121,7 +1121,7 @@ export default function WCMTerminal() {
                             </Card>
 
                             {/* MAIN CONTENT AREA: COLUMN 2 & 3 */}
-                            <div className="grid min-h-0 gap-3 overflow-hidden xl:col-span-10 xl:grid-cols-10 xl:h-full">
+                            <div className="grid min-h-0 gap-6 overflow-hidden xl:col-span-10 xl:grid-cols-10 xl:h-full">
                                 {activeAssignment ? (
                                     <>
                                         {/* COLUMN 2: JOB SPECIFICATION & BOM */}

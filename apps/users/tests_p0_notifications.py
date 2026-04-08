@@ -92,17 +92,34 @@ class NotificationP0Tests(TestCase):
         self.assertIsNone(notification.related_object_id)
 
     @patch("apps.users.tasks.deliver_notification_email_task.delay")
-    def test_report_email_skipped_is_in_app_only(self, mock_delay):
+    def test_report_generated_is_in_app_only(self, mock_delay):
         NotificationService.emit_event(
-            event_key="reports.daily_pack_email_skipped",
+            event_key="reports.daily_pack_generated",
             notification_type="SYSTEM",
-            title="Report email skipped",
-            message="PDF and workbook were generated locally but email is not configured.",
-            idempotency_key="report-email-skipped-1",
+            title="Report ready",
+            message="PDF and workbook were generated locally and archived for review.",
+            idempotency_key="report-generated-1",
         )
 
         attempts = NotificationDeliveryAttempt.objects.filter(channel="EMAIL").count()
         self.assertEqual(attempts, 0)
+        self.assertEqual(mock_delay.call_count, 0)
+
+    @patch("apps.users.tasks.deliver_notification_email_task.delay")
+    def test_transfer_created_routes_to_dispatch_store_and_plant_manager_in_app_only(self, mock_delay):
+        Role.objects.create(code="PLANT_MANAGER", name="Plant Manager", default_permissions=["notifications.view"])
+
+        NotificationService.emit_event(
+            event_key="inventory.transfer_created",
+            notification_type="DISPATCH_READY",
+            title="Transfer created",
+            message="Dispatch should prepare the transfer challan.",
+            idempotency_key="transfer-created-1",
+        )
+
+        role_targets = sorted(Notification.objects.values_list("target_role", flat=True))
+        self.assertEqual(role_targets, ["DISPATCH", "PLANT_MANAGER", "STORE"])
+        self.assertEqual(NotificationDeliveryAttempt.objects.filter(channel="EMAIL").count(), 0)
         self.assertEqual(mock_delay.call_count, 0)
 
     @patch("apps.users.tasks.deliver_notification_email_task.delay", side_effect=RuntimeError("broker down"))

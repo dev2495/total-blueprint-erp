@@ -17,22 +17,28 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_EVENT_ROUTING = {
+    "sales.order_created": {"roles": ["SALES", "ADMIN"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "sales.confirmed": {"roles": ["PLANNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "sales.planning_required": {"roles": ["PLANNER"], "channels": ["IN_APP"], "priority": "HIGH"},
     "production.job_released": {"roles": ["WORK_CENTER_MANAGER"], "channels": ["IN_APP"], "priority": "HIGH"},
+    "production.next_step_ready": {"roles": ["WORK_CENTER_MANAGER", "OPERATOR"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "production.machine_ready": {"roles": ["OPERATOR"], "channels": ["IN_APP"], "priority": "NORMAL"},
+    "production.job_completed": {"roles": ["PLANNER", "STORE"], "channels": ["IN_APP"], "priority": "NORMAL"},
+    "production.wip_ready": {"roles": ["PLANNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "production.fg_ready": {"roles": ["DISPATCH", "STORE"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "logistics.dispatch_ready": {"roles": ["DISPATCH"], "channels": ["IN_APP"], "priority": "HIGH"},
+    "logistics.dispatch_completed": {"roles": ["SALES", "DISPATCH", "ADMIN"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "production.delayed": {"roles": ["PLANNER", "WORK_CENTER_MANAGER"], "channels": ["IN_APP", "EMAIL"], "priority": "URGENT"},
     "inventory.low_stock": {"roles": ["STORE", "PLANNER"], "channels": ["IN_APP", "EMAIL"], "priority": "HIGH"},
     "inventory.grn_posted": {"roles": ["STORE", "PLANNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
+    "inventory.item_created": {"roles": ["STORE", "PLANNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
+    "inventory.transfer_created": {"roles": ["STORE", "DISPATCH", "PLANT_MANAGER"], "channels": ["IN_APP"], "priority": "HIGH"},
     "inventory.interplant_dispatched": {"roles": ["STORE", "DISPATCH", "PLANT_MANAGER"], "channels": ["IN_APP"], "priority": "HIGH"},
     "inventory.interplant_received": {"roles": ["STORE", "PLANT_MANAGER"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "inventory.jobwork_dispatched": {"roles": ["STORE", "PLANNER"], "channels": ["IN_APP"], "priority": "HIGH"},
     "inventory.jobwork_received": {"roles": ["STORE", "PLANNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
-    "reports.daily_pack_sent": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP", "EMAIL"], "priority": "LOW"},
-    "reports.daily_pack_email_skipped": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP"], "priority": "NORMAL"},
-    "reports.daily_pack_failed": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP", "EMAIL"], "priority": "HIGH"},
+    "reports.daily_pack_generated": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP"], "priority": "NORMAL"},
+    "reports.daily_pack_failed": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP"], "priority": "HIGH"},
 }
 
 

@@ -56,7 +56,7 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   const createRowWeight = outputPanel.getByTestId("machine-create-row-weight-0")
   const splitRowWidth = outputPanel.getByTestId("machine-split-row-width-0")
   const splitRowWeight = outputPanel.getByTestId("machine-split-row-weight-0")
-  const scrapInput = outputPanel.getByTestId("machine-scrap-input")
+  const scrapInput = page.getByTestId("machine-scrap-input")
 
   if (await outputWidth.isVisible().catch(() => false)) {
     await outputWidth.fill("1120")
@@ -92,12 +92,9 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   if (await outputPcs.isVisible().catch(() => false)) {
     await outputPcs.fill("25")
   }
-  if (await scrapInput.isVisible().catch(() => false)) {
-    await scrapInput.fill("0.250")
-  } else {
-    const visibleInputs = outputPanel.locator("input:visible")
-    await visibleInputs.last().fill("0.250")
-  }
+  await scrapInput.scrollIntoViewIfNeeded().catch(() => undefined)
+  await expect(scrapInput).toBeVisible({ timeout: 10_000 })
+  await scrapInput.fill("0.250")
   await page.getByTestId("machine-log-output").click()
 
   await expect(page.getByTestId("machine-finalize-step")).toBeEnabled({ timeout: 20_000 })

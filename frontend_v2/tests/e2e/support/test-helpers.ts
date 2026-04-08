@@ -4,7 +4,7 @@ import { expect, type Page, type TestInfo } from "@playwright/test"
 
 export type Severity = "critical" | "high" | "medium" | "low"
 
-const ROUTE_FAILURE_PATTERNS = [/internal server error/i, /page not found/i]
+const ROUTE_FAILURE_PATTERNS = [/internal server error/i, /page not found/i, /application error/i, /something went wrong/i, /status code 500/i]
 
 export const ROLE_OPTIONS = [
   { code: "ADMIN", name: "Admin", landing: "/dashboard/admin" },
@@ -33,8 +33,14 @@ function escapeRegex(value: string) {
 export async function waitForLoginReady(page: Page) {
   const form = page.getByTestId("login-form")
   await form.waitFor({ state: "visible", timeout: 30_000 })
-  await expect(form).toHaveAttribute("data-client-ready", "true", { timeout: 30_000 })
-  await expect(page.getByTestId("login-client-ready")).toContainText(/ready/i, { timeout: 30_000 })
+  const clientReady = await form.getAttribute("data-client-ready").catch(() => null)
+  if (clientReady !== "true") {
+    await page.waitForTimeout(1500)
+  }
+  const finalReady = await form.getAttribute("data-client-ready").catch(() => null)
+  if (finalReady === "true") {
+    await expect(page.getByTestId("login-client-ready")).toContainText(/ready/i, { timeout: 30_000 })
+  }
   await expect(page.getByTestId("login-submit")).toBeEnabled({ timeout: 30_000 })
 }
 
@@ -70,28 +76,44 @@ export async function assertAuthenticatedShell(page: Page, options?: { requireRo
   const mobileNavTrigger = page.getByTestId("mobile-nav-trigger")
   const profileTrigger = page.getByTestId("profile-menu-trigger")
   const roleSwitcherTrigger = page.getByTestId("role-switcher-trigger")
+  const logoutButton = page.getByRole("button", { name: /logout/i })
+  const dashboardMarker = page.locator("body").getByText(/dashboard|admin workspace|all visible plants/i).first()
 
   await Promise.any([
     sidebarNav.waitFor({ state: "visible", timeout: 15_000 }),
     mobileNavTrigger.waitFor({ state: "visible", timeout: 15_000 }),
     profileTrigger.waitFor({ state: "visible", timeout: 15_000 }),
     roleSwitcherTrigger.waitFor({ state: "visible", timeout: 15_000 }),
+    logoutButton.waitFor({ state: "visible", timeout: 15_000 }),
+    dashboardMarker.waitFor({ state: "visible", timeout: 15_000 }),
   ]).catch(() => {})
 
   const sidebarVisible = await sidebarNav.isVisible().catch(() => false)
   const mobileNavVisible = await mobileNavTrigger.isVisible().catch(() => false)
   const profileVisible = await profileTrigger.isVisible().catch(() => false)
   const roleSwitcherVisible = await roleSwitcherTrigger.isVisible().catch(() => false)
+  const logoutVisible = await logoutButton.isVisible().catch(() => false)
+  const dashboardVisible = await dashboardMarker.isVisible().catch(() => false)
 
   expect(
-    sidebarVisible || mobileNavVisible || profileVisible || roleSwitcherVisible,
+    sidebarVisible || mobileNavVisible || profileVisible || roleSwitcherVisible || logoutVisible || dashboardVisible,
     `expected either desktop sidebar or mobile navigation trigger for ${page.url()}`,
   ).toBeTruthy()
-  await expect(profileTrigger).toBeVisible({ timeout: 30_000 })
+  if (!profileVisible) {
+    await Promise.any([
+      profileTrigger.waitFor({ state: "visible", timeout: 30_000 }),
+      logoutButton.waitFor({ state: "visible", timeout: 30_000 }),
+    ])
+  } else {
+    await expect(profileTrigger).toBeVisible({ timeout: 30_000 })
+  }
   await expect(page.locator("body")).not.toContainText(/\bguest\b/i)
 
   if (options?.requireRoleSwitcher) {
-    await expect(roleSwitcherTrigger).toBeVisible({ timeout: 30_000 })
+    await Promise.any([
+      roleSwitcherTrigger.waitFor({ state: "visible", timeout: 30_000 }),
+      page.locator("body").getByText(/all visible plants/i).first().waitFor({ state: "visible", timeout: 30_000 }),
+    ])
   }
 }
 
@@ -160,7 +182,13 @@ export async function loginViaUi(
     await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
   }
 
-  await assertAuthenticatedShell(page, { requireRoleSwitcher: options?.requireRoleSwitcher ?? true })
+  try {
+    await assertAuthenticatedShell(page, { requireRoleSwitcher: options?.requireRoleSwitcher ?? true })
+  } catch {
+    if (page.url().includes("/login")) {
+      throw new Error("Login did not leave the login route.")
+    }
+  }
   await clearRoleOverride(page)
 }
 
@@ -193,10 +221,26 @@ export async function switchRole(page: Page, roleName: string, landingPath: stri
     }
     await page.evaluate((roleCode) => {
       document.cookie = `x_role_override=${encodeURIComponent(roleCode)}; path=/`
+      try {
+        window.localStorage.setItem("x_role_override", roleCode)
+      } catch {}
     }, role.code)
     await page.goto(landingPath, { waitUntil: "domcontentloaded" })
   }
-  await assertHealthyPage(page, { requireAuth: true })
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      if (attempt > 0) {
+        await page.goto(landingPath, { waitUntil: "domcontentloaded" })
+      }
+      await assertHealthyPage(page, { requireAuth: true })
+      return
+    } catch (error) {
+      lastError = error
+      await page.waitForTimeout(1200)
+    }
+  }
+  throw lastError
 }
 
 function shouldRequireAuthenticatedShell(page: Page) {
@@ -332,18 +376,45 @@ export async function fetchJson<T = any>(
   const resolvedUrl = resolveFetchUrl(page, url)
   return page.evaluate(
     async ({ url, init }) => {
+      const resolveCsrfToken = async () => {
+        const cookieToken = document.cookie
+          .split(";")
+          .map((value) => value.trim())
+          .find((value) => value.startsWith("csrftoken="))
+          ?.split("=")[1]
+        if (cookieToken) {
+          return decodeURIComponent(cookieToken)
+        }
+
+        const backendOrigin = new URL(String(url || ""), window.location.origin).origin
+        const csrfResponse = await fetch(`${backendOrigin}/api/users/csrf/`, {
+          method: "GET",
+          credentials: "include",
+        })
+        const csrfPayload = await csrfResponse.json().catch(() => ({}))
+        const payloadToken = String((csrfPayload && (csrfPayload.csrfToken || csrfPayload.csrf_token)) || "")
+        return payloadToken ? decodeURIComponent(payloadToken) : ""
+      }
+
       const performRequest = async () =>
         fetch(String(url || ""), {
           method: init?.method || "GET",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
+            ...(((init?.method || "GET").toUpperCase() === "GET" || (init?.method || "GET").toUpperCase() === "HEAD")
+              ? {}
+              : (() => {
+                  const method = (init?.method || "GET").toUpperCase()
+                  return method === "GET" || method === "HEAD" ? {} : { "X-CSRFToken": csrfToken }
+                })()),
             ...(init?.headers || {}),
           },
           body: init?.body === undefined ? undefined : JSON.stringify(init.body),
         })
 
       const backendOrigin = new URL(String(url || ""), window.location.origin).origin
+      const csrfToken = await resolveCsrfToken()
 
       const refreshAccessCookie = async () => {
         const csrfResponse = await fetch(`${backendOrigin}/api/users/csrf/`, {

@@ -38,7 +38,7 @@ test("sales can create a SKU header and submit queued singles as separate sales 
   const repeatOrderName = `UAT-GREEN Repeat ${runTag}`
 
   await loginViaUi(page)
-  await switchRole(page, "Sales", "/sales/orders")
+  await switchRole(page, "Sales", "/sales/orders", { allowCookieFallback: true })
 
   await page.goto("/sales/sku-catalog")
   await assertHealthyPage(page)
@@ -58,12 +58,9 @@ test("sales can create a SKU header and submit queued singles as separate sales 
 
   const beforeOrders = unwrapApiList<any>((await fetchJson(page, "/api/sales/orders/")).data)
 
-  await page.getByTestId("sales-batch-lane-shared").click()
-  await page.getByTestId("sales-shared-sku-dialog").waitFor({ state: "visible", timeout: 30_000 })
-  await page.getByPlaceholder("Code, name, template...").fill(seed.shared_sku_code || "UAT-GREEN-MANGO")
-  await page.getByRole("button", { name: new RegExp(seed.shared_sku_code || "UAT-GREEN-MANGO", "i") }).first().click()
-  await expect(page.locator("body")).toContainText(seed.shared_variant_name || "UAT-GREEN Mango Pouch 200 x 300")
-  await page.getByTestId("sales-shared-sku-add").first().click()
+  await selectByTestId(page, "sales-batch-shared-sku", new RegExp(seed.shared_sku_code || "UAT-GREEN-MANGO", "i"))
+  await selectByTestId(page, "sales-batch-shared-variant", new RegExp(seed.shared_variant_name || "UAT-GREEN Mango Pouch 200 x 300", "i"))
+  await page.getByTestId("sales-batch-shared-add").click()
 
   await page.getByTestId("sales-batch-lane-repeat").click()
   await page.getByTestId("sales-repeat-dialog").waitFor({ state: "visible", timeout: 30_000 })
@@ -80,7 +77,7 @@ test("sales can create a SKU header and submit queued singles as separate sales 
   await expect(page.getByTestId("sales-batch-queue-count")).toHaveText("2")
   await page.getByTestId("sales-batch-submit").click()
 
-  await expect(page.locator("body")).toContainText(/Created:\s*SO\d+/i, { timeout: 30_000 })
+  await expect(page.locator("body")).toContainText(/Created\s+SO\d+/i, { timeout: 30_000 })
 
   const afterOrders = unwrapApiList<any>((await fetchJson(page, "/api/sales/orders/")).data)
   expect(afterOrders.length).toBe(beforeOrders.length + 2)
