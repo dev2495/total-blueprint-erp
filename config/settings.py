@@ -91,7 +91,10 @@ IS_PRODUCTION = is_production_env(DJANGO_ENV)
 IS_HOSTED_SECURE = is_hosted_secure_env(DJANGO_ENV)
 
 COMMAND_LINE = " ".join(sys.argv).lower()
-IS_HTTP_PROCESS = any(token in COMMAND_LINE for token in ("gunicorn", "runserver", "uvicorn", "daphne"))
+IS_CELERY_PROCESS = "celery" in COMMAND_LINE
+IS_HTTP_PROCESS = (not IS_CELERY_PROCESS) and any(
+    token in COMMAND_LINE for token in ("gunicorn", "runserver", "uvicorn", "daphne")
+)
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-fallback")
 DEBUG = os.getenv("DEBUG", "False") == "True"
