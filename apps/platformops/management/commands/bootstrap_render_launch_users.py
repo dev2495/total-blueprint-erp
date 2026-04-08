@@ -31,7 +31,7 @@ def _ensure_role(role_code: str) -> Role:
 class Command(BaseCommand):
     help = (
         "Create or update the named Render go-live users without storing passwords in repo files. "
-        "Devarsh is created as SUPER_ADMIN + superuser; Chirag is created as OWNER without superuser."
+        "Devarsh is created as ADMIN; Chirag is created as OWNER."
     )
 
     def add_arguments(self, parser):
@@ -61,7 +61,7 @@ class Command(BaseCommand):
         if not chirag_password:
             raise CommandError("--chirag-password is required.")
 
-        super_admin_role = _ensure_role("SUPER_ADMIN")
+        admin_role = _ensure_role("ADMIN")
         owner_role = _ensure_role("OWNER")
 
         self._upsert_user(
@@ -70,10 +70,10 @@ class Command(BaseCommand):
             password=devarsh_password,
             first_name="Devarsh",
             last_name="Thakkar",
-            role=super_admin_role,
-            is_superuser=True,
+            role=admin_role,
+            is_superuser=False,
             is_staff=True,
-            is_owner=True,
+            is_owner=False,
         )
         self._upsert_user(
             username=str(options["chirag_username"] or chirag_email).strip(),
