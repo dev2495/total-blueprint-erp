@@ -12,13 +12,13 @@ import {
 import { useAuth } from "@/components/auth-provider"
 import { ShieldCheck } from "lucide-react"
 import { ROLES, getLandingPage } from "@/lib/roles"
+import { cn } from "@/lib/utils"
 
-export function RoleSwitcher() {
+export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
     const { user, effectiveRole } = useAuth()
     const [currentRole, setCurrentRole] = useState<string>("")
 
     useEffect(() => {
-        // Use effectiveRole from auth context (considers role override)
         if (effectiveRole) {
             setCurrentRole(effectiveRole)
         } else if (user?.role_info?.code) {
@@ -32,25 +32,34 @@ export function RoleSwitcher() {
 
     const handleRoleChange = (role: string) => {
         if (role === "RESET") {
-            Cookies.remove("x_role_override");
-            // Go to primary role landing page
-            const primaryRole = user?.role_info?.code || "ADMIN";
-            window.location.href = getLandingPage(primaryRole) || "/";
+            Cookies.remove("x_role_override")
+            const primaryRole = user?.role_info?.code || "ADMIN"
+            window.location.href = getLandingPage(primaryRole) || "/"
         } else {
-            Cookies.set("x_role_override", role);
-            // Go to the selected role's landing page
-            window.location.href = getLandingPage(role) || "/";
+            Cookies.set("x_role_override", role)
+            window.location.href = getLandingPage(role) || "/"
         }
     }
 
     return (
-        <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded-lg border border-amber-100">
-                <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
-                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">Master View</span>
-            </div>
+        <div className={cn("flex items-center gap-2", compact && "min-w-0") }>
+            {!compact ? (
+                <div className="flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-2 py-1">
+                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                    <span className="text-[10px] font-bold uppercase tracking-tight text-amber-700">Master View</span>
+                </div>
+            ) : null}
             <Select value={currentRole} onValueChange={handleRoleChange}>
-                <SelectTrigger className="w-[160px] h-8 text-xs font-bold bg-white border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors" data-testid="role-switcher-trigger">
+                <SelectTrigger
+                    className={cn(
+                        "border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50",
+                        compact
+                            ? "h-10 w-[132px] rounded-2xl px-3 text-[11px] font-black uppercase tracking-[0.14em]"
+                            : "h-8 w-[160px] text-xs font-bold",
+                    )}
+                    data-testid="role-switcher-trigger"
+                >
+                    {compact ? <ShieldCheck className="mr-1.5 h-3.5 w-3.5 text-amber-600" /> : null}
                     <SelectValue placeholder="Switch Role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -59,8 +68,8 @@ export function RoleSwitcher() {
                             {r.name}
                         </SelectItem>
                     ))}
-                    <div className="border-t my-1" />
-                    <SelectItem value="RESET" className="text-xs text-red-600 font-bold focus:bg-red-50 focus:text-red-700">
+                    <div className="my-1 border-t" />
+                    <SelectItem value="RESET" className="text-xs font-bold text-red-600 focus:bg-red-50 focus:text-red-700">
                         Reset to Primary
                     </SelectItem>
                 </SelectContent>

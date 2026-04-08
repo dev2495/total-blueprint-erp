@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
 import { resolveNavigableRoute } from "@/lib/navigation-routes"
 import { NAV_ITEMS } from "@/lib/sidebar-nav"
+import { cn } from "@/lib/utils"
 
 type SearchResultType = "route" | "order" | "job" | "customer" | "machine" | "work_center"
 
@@ -99,13 +100,13 @@ function StatusBadge({ status }: { status?: string }) {
     if (value === "RUNNING" || value === "IN_PRODUCTION" || value === "EXECUTING") variant = "secondary"
 
     return (
-        <Badge variant={variant} className="ml-auto text-[10px] uppercase tracking-wider font-bold h-4 px-1">
+        <Badge variant={variant} className="ml-auto h-4 px-1 text-[10px] font-bold uppercase tracking-wider">
             {value}
         </Badge>
     )
 }
 
-export function CommandPalette() {
+export function CommandPalette({ compact = false }: { compact?: boolean }) {
     const [open, setOpen] = React.useState(false)
     const [query, setQuery] = React.useState("")
     const [loading, setLoading] = React.useState(false)
@@ -132,21 +133,19 @@ export function CommandPalette() {
         const entries = new Map<string, RouteIndexItem>()
         NAV_ITEMS.forEach((item) => {
             const parentTarget = resolveNavigableRoute(item.href)
-            if (canAccessRoute(item.roles)) {
-                if (parentTarget) {
-                    entries.set(parentTarget, {
-                        id: `route:${parentTarget}`,
-                        type: "route",
-                        group: "Navigate",
-                        label: item.title,
-                        subtitle: parentTarget === item.href ? item.href : `${item.href} -> ${parentTarget}`,
-                        href: parentTarget,
-                        status: "",
-                        score: 0,
-                    })
-                }
+            if (canAccessRoute(item.roles) && parentTarget) {
+                entries.set(parentTarget, {
+                    id: `route:${parentTarget}`,
+                    type: "route",
+                    group: "Navigate",
+                    label: item.title,
+                    subtitle: parentTarget === item.href ? item.href : `${item.href} -> ${parentTarget}`,
+                    href: parentTarget,
+                    status: "",
+                    score: 0,
+                })
             }
-            ; (item.children || []).forEach((child) => {
+            ;(item.children || []).forEach((child) => {
                 if (!canAccessRoute(child.roles || item.roles)) return
                 const childTarget = resolveNavigableRoute(child.href)
                 if (!childTarget) return
@@ -225,13 +224,13 @@ export function CommandPalette() {
 
     const mergedResults = React.useMemo(() => {
         const map = new Map<string, SearchV2Item>()
-            ;[...localRouteMatches, ...apiResults].forEach((item) => {
-                const key = `${item.type}:${item.id || item.href}`
-                const existing = map.get(key)
-                if (!existing || Number(item.score || 0) > Number(existing.score || 0)) {
-                    map.set(key, item)
-                }
-            })
+        ;[...localRouteMatches, ...apiResults].forEach((item) => {
+            const key = `${item.type}:${item.id || item.href}`
+            const existing = map.get(key)
+            if (!existing || Number(item.score || 0) > Number(existing.score || 0)) {
+                map.set(key, item)
+            }
+        })
         return Array.from(map.values()).sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     }, [localRouteMatches, apiResults])
 
@@ -245,11 +244,14 @@ export function CommandPalette() {
         return groups
     }, [mergedResults])
 
-    const runCommand = React.useCallback((href: string) => {
-        setOpen(false)
-        setQuery("")
-        router.push(href)
-    }, [router])
+    const runCommand = React.useCallback(
+        (href: string) => {
+            setOpen(false)
+            setQuery("")
+            router.push(href)
+        },
+        [router],
+    )
 
     const hasResults = mergedResults.length > 0
 
@@ -258,14 +260,22 @@ export function CommandPalette() {
             <button
                 onClick={() => setOpen(true)}
                 data-testid="command-palette-trigger"
-                className="relative inline-flex h-10 w-full min-w-0 max-w-full items-center justify-start rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 sm:pr-12"
+                className={cn(
+                    "relative inline-flex min-w-0 max-w-full items-center justify-start border border-slate-200 bg-slate-50/60 font-medium text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50",
+                    compact
+                        ? "h-11 w-full rounded-2xl px-3 py-2 text-[13px]"
+                        : "h-10 w-full rounded-xl px-4 py-2 text-sm sm:pr-12",
+                )}
             >
                 <Search className="mr-2 h-4 w-4 opacity-60" />
-                <span className="hidden lg:inline-flex">Search commands, routes, records...</span>
-                <span className="inline-flex lg:hidden text-xs">Search...</span>
-                <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.4rem] hidden h-5 select-none items-center gap-1 rounded border bg-white px-1.5 font-mono text-[10px] font-medium sm:flex">
-                    <span className="text-xs">⌘</span>K
-                </kbd>
+                <span className="truncate">
+                    {compact ? "Search routes, orders, jobs..." : (<><span className="hidden lg:inline-flex">Search commands, routes, records...</span><span className="inline-flex lg:hidden text-xs">Search...</span></>)}
+                </span>
+                {!compact ? (
+                    <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.4rem] hidden h-5 select-none items-center gap-1 rounded border bg-white px-1.5 font-mono text-[10px] font-medium sm:flex">
+                        <span className="text-xs">⌘</span>K
+                    </kbd>
+                ) : null}
             </button>
 
             <CommandDialog open={open} onOpenChange={setOpen}>
@@ -282,7 +292,9 @@ export function CommandPalette() {
                             <Badge variant="outline">{mergedResults.length} results</Badge>
                             <Badge variant="outline">{meta.took_ms} ms</Badge>
                             {Object.entries(meta.counts_by_type || {}).map(([type, count]) => (
-                                <Badge key={type} variant="outline" className="uppercase">{type}: {count}</Badge>
+                                <Badge key={type} variant="outline" className="uppercase">
+                                    {type}: {count}
+                                </Badge>
                             ))}
                         </div>
                     ) : null}
@@ -297,40 +309,40 @@ export function CommandPalette() {
 
                     {!loading && query.trim().length < 2 ? (
                         <div className="py-10 text-center text-slate-400">
-                            <Clock className="mx-auto h-8 w-8 opacity-20 mb-2" />
-                            <p className="text-xs uppercase tracking-widest font-semibold">Quick Launch</p>
-                            <p className="text-[10px] mt-1">Type at least 2 characters for full scoped search</p>
+                            <Clock className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                            <p className="text-xs font-semibold uppercase tracking-widest">Quick Launch</p>
+                            <p className="mt-1 text-[10px]">Type at least 2 characters for full scoped search</p>
                         </div>
                     ) : null}
 
                     {!loading && query.trim().length >= 2 && !hasResults ? (
                         <CommandEmpty className="py-10 text-center">
-                            <AlertCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                            <AlertCircle className="mx-auto mb-2 h-8 w-8 text-slate-300" />
                             <p className="text-slate-500">No results found for &quot;{query}&quot;</p>
                         </CommandEmpty>
                     ) : null}
 
                     {!loading && hasResults
                         ? Object.entries(grouped).map(([groupName, items]) => (
-                            <CommandGroup key={groupName} heading={groupName}>
-                                {items.map((item) => (
-                                    <CommandItem
-                                        key={`${item.type}:${item.id || item.href}`}
-                                        value={`${item.label} ${item.subtitle || ""}`}
-                                        data-testid={`command-item-${toStableTestSlug(item.href || item.id || item.label)}`}
-                                        onSelect={() => runCommand(item.href)}
-                                        className="flex items-center py-3 px-4 cursor-pointer hover:bg-slate-50"
-                                    >
-                                        <TypeIcon type={item.type} />
-                                        <div className="flex min-w-0 flex-col">
-                                            <span className="truncate font-medium text-slate-700">{item.label}</span>
-                                            <span className="truncate text-[10px] text-slate-400 tracking-tight">{item.subtitle || item.type}</span>
-                                        </div>
-                                        <StatusBadge status={item.status} />
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        ))
+                              <CommandGroup key={groupName} heading={groupName}>
+                                  {items.map((item) => (
+                                      <CommandItem
+                                          key={`${item.type}:${item.id || item.href}`}
+                                          value={`${item.label} ${item.subtitle || ""}`}
+                                          data-testid={`command-item-${toStableTestSlug(item.href || item.id || item.label)}`}
+                                          onSelect={() => runCommand(item.href)}
+                                          className="flex cursor-pointer items-center px-4 py-3 hover:bg-slate-50"
+                                      >
+                                          <TypeIcon type={item.type} />
+                                          <div className="flex min-w-0 flex-col">
+                                              <span className="truncate font-medium text-slate-700">{item.label}</span>
+                                              <span className="truncate text-[10px] tracking-tight text-slate-400">{item.subtitle || item.type}</span>
+                                          </div>
+                                          <StatusBadge status={item.status} />
+                                      </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                          ))
                         : null}
                 </CommandList>
             </CommandDialog>

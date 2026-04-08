@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import { resolveNavigableRoute } from "@/lib/navigation-routes"
+import { cn } from "@/lib/utils"
 
 const LABELS: Record<string, string> = {
     dashboard: "Dashboard",
@@ -35,17 +36,24 @@ function toLabel(segment: string): string {
         .join(" ")
 }
 
-export function LocationCapsule() {
+export function LocationCapsule({ compact = false }: { compact?: boolean }) {
     const pathname = usePathname()
     const normalizedPathname = String(pathname || "").replace(/\/+$/, "") || "/"
     const segments = String(pathname || "")
         .split("/")
         .filter(Boolean)
 
+    const wrapperClass = cn(
+        "relative z-10 items-center border border-slate-200 bg-slate-50 font-semibold text-slate-600",
+        compact
+            ? "flex w-full overflow-x-auto rounded-2xl px-3 py-2 text-[11px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "hidden rounded-xl px-2 py-1 text-[11px] lg:flex",
+    )
+
     if (!segments.length) {
         return (
-            <div className="relative z-10 hidden lg:flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500" data-testid="location-capsule">
-                Home
+            <div className={wrapperClass} data-testid="location-capsule">
+                <span className="whitespace-nowrap">Home</span>
             </div>
         )
     }
@@ -62,33 +70,33 @@ export function LocationCapsule() {
     })
 
     return (
-        <div className="relative z-10 hidden lg:flex items-center rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600" data-testid="location-capsule">
-            {crumbs.map((crumb, index) => {
-                const isLast = index === crumbs.length - 1
-                const breadcrumbHref =
-                    crumb.target && crumb.target === normalizedPathname && crumb.href !== normalizedPathname
-                        ? crumb.href
-                        : crumb.target
-                return (
-                    <div key={crumb.href} className="flex items-center">
-                        {!isLast && breadcrumbHref ? (
-                            <Link
-                                href={breadcrumbHref}
-                                data-testid={`breadcrumb-link-${crumb.segment.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`}
-                                data-route={crumb.target}
-                                className="text-slate-500 hover:text-slate-700"
-                            >
-                                {crumb.label}
-                            </Link>
-                        ) : (
-                            <span className={isLast ? "font-bold text-slate-800" : "text-slate-500"}>
-                                {crumb.label}
-                            </span>
-                        )}
-                        {!isLast ? <ChevronRight className="mx-1 h-3 w-3 text-slate-400" /> : null}
-                    </div>
-                )
-            })}
+        <div className={wrapperClass} data-testid="location-capsule">
+            <div className="flex min-w-max items-center">
+                {crumbs.map((crumb, index) => {
+                    const isLast = index === crumbs.length - 1
+                    const breadcrumbHref =
+                        crumb.target && crumb.target === normalizedPathname && crumb.href !== normalizedPathname
+                            ? crumb.href
+                            : crumb.target
+                    return (
+                        <div key={crumb.href} className="flex items-center whitespace-nowrap">
+                            {!isLast && breadcrumbHref ? (
+                                <Link
+                                    href={breadcrumbHref}
+                                    data-testid={`breadcrumb-link-${crumb.segment.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`}
+                                    data-route={crumb.target}
+                                    className="text-slate-500 hover:text-slate-700"
+                                >
+                                    {crumb.label}
+                                </Link>
+                            ) : (
+                                <span className={isLast ? "font-bold text-slate-800" : "text-slate-500"}>{crumb.label}</span>
+                            )}
+                            {!isLast ? <ChevronRight className="mx-1 h-3 w-3 text-slate-400" /> : null}
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 }

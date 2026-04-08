@@ -29,53 +29,89 @@ export function Header() {
     const pathname = usePathname()
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
-    // Get role display name
     const getRoleDisplayName = () => {
         return getCanonicalRoleLabel(effectiveRole || user?.role_info?.code, user?.role_info?.name)
-    };
+    }
 
     return (
-        <header className="sticky top-2 z-50 mx-3 flex min-h-[72px] items-center gap-3 rounded-[1.75rem] border border-white/80 bg-white/80 px-3 py-3 shadow-premium backdrop-blur-xl transition-all duration-300 hover:shadow-premium-hover md:top-3 md:mx-4 md:px-4 lg:top-4 lg:mx-8 lg:px-6">
-            <div className="flex w-full items-center gap-3 md:gap-4 lg:gap-6">
-                <div className="flex items-center gap-2 lg:hidden">
-                    <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-                        <SheetTrigger asChild>
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-11 w-11 rounded-2xl border-slate-200 bg-white/95 shadow-sm"
-                                data-testid="mobile-nav-trigger"
+        <header className="sticky top-0 z-50 mx-0 border-b border-white/80 bg-white/95 px-3 py-2 shadow-premium backdrop-blur-xl transition-all duration-300 md:top-3 md:mx-4 md:rounded-[1.75rem] md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:top-4 lg:mx-8 lg:px-6">
+            <div className="flex w-full flex-col gap-2.5 lg:hidden">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                            <SheetTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-11 w-11 rounded-2xl border-slate-200 bg-white/95 shadow-sm"
+                                    data-testid="mobile-nav-trigger"
+                                >
+                                    <Menu className="h-5 w-5" />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent
+                                side="left"
+                                className="w-[min(92vw,24rem)] border-r border-slate-200 bg-[#f8fbff]/95 p-0 backdrop-blur-2xl"
                             >
-                                <Menu className="h-5 w-5" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent
-                            side="left"
-                            className="w-[min(92vw,24rem)] border-r border-slate-200 bg-[#f8fbff]/95 p-0 backdrop-blur-2xl"
-                        >
-                            <div className="flex h-full flex-col">
-                                <SheetHeader className="border-b border-slate-200/60 px-5 py-5 text-left">
-                                    <SheetTitle className="sr-only">Navigation</SheetTitle>
-                                    <SheetDescription className="sr-only">
-                                        Open navigation menu for ERP modules.
-                                    </SheetDescription>
-                                    <SheetClose asChild>
-                                        <div>
-                                            <SidebarBrand compact />
-                                        </div>
-                                    </SheetClose>
-                                </SheetHeader>
-                                <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-elegant">
-                                    <SidebarNavContent mobile onNavigate={() => setMobileNavOpen(false)} />
+                                <div className="flex h-full flex-col">
+                                    <SheetHeader className="border-b border-slate-200/60 px-5 py-5 text-left">
+                                        <SheetTitle className="sr-only">Navigation</SheetTitle>
+                                        <SheetDescription className="sr-only">
+                                            Open navigation menu for ERP modules.
+                                        </SheetDescription>
+                                        <SheetClose asChild>
+                                            <div>
+                                                <SidebarBrand compact />
+                                            </div>
+                                        </SheetClose>
+                                    </SheetHeader>
+                                    <div className="scrollbar-elegant flex-1 overflow-y-auto px-3 py-4">
+                                        <SidebarNavContent mobile onNavigate={() => setMobileNavOpen(false)} />
+                                    </div>
+                                    <div className="border-t border-slate-200/60 p-3">
+                                        <SidebarFooterProfile compact />
+                                    </div>
                                 </div>
-                                <div className="border-t border-slate-200/60 p-3">
-                                    <SidebarFooterProfile compact />
-                                </div>
-                            </div>
-                        </SheetContent>
-                    </Sheet>
+                            </SheetContent>
+                        </Sheet>
+                        <div className="min-w-0 rounded-2xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm">
+                            <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Current role</div>
+                            <div className="truncate text-[11px] font-bold text-slate-800">{getRoleDisplayName()}</div>
+                        </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        <ContextHelpSheet />
+                        <NotificationBell />
+                        <UserProfileMenu />
+                    </div>
                 </div>
 
+                <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                        <CommandPalette compact />
+                    </div>
+                    <div className="shrink-0">
+                        <RoleSwitcher compact />
+                    </div>
+                </div>
+
+                <div className="flex min-w-0 items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                        <LocationCapsule compact />
+                    </div>
+                    {Boolean(user?.email_missing) && pathname !== "/profile" ? (
+                        <Button asChild variant="outline" className="h-10 shrink-0 rounded-2xl border-amber-300 bg-amber-50 px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                            <Link href="/profile">
+                                <AlertTriangle className="mr-1.5 h-4 w-4" />
+                                Email
+                            </Link>
+                        </Button>
+                    ) : null}
+                </div>
+            </div>
+
+            <div className="hidden w-full items-center gap-3 md:gap-4 lg:flex lg:gap-6">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="hidden min-w-0 flex-1 items-center gap-3 sm:flex lg:max-w-[18rem] xl:max-w-[24rem]">
                         <CommandPalette />
@@ -89,8 +125,8 @@ export function Header() {
                     <div className="relative z-10 hidden md:block">
                         <RoleSwitcher />
                     </div>
-                    <div className="hidden md:flex items-center gap-2 rounded-2xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+                    <div className="hidden items-center gap-2 rounded-2xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm md:flex">
+                        <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 lg:text-[11px]">
                             {getRoleDisplayName()}
                         </span>
@@ -102,7 +138,7 @@ export function Header() {
                         {Boolean(user?.email_missing) && pathname !== "/profile" ? (
                             <Button asChild variant="outline" className="hidden h-10 rounded-xl border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 lg:inline-flex">
                                 <Link href="/profile">
-                                    <AlertTriangle className="h-4 w-4 mr-1.5" />
+                                    <AlertTriangle className="mr-1.5 h-4 w-4" />
                                     Update email
                                 </Link>
                             </Button>
