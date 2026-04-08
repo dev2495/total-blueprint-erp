@@ -17,6 +17,7 @@ if not django_apps.ready:
     django.setup()
 
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -85,6 +86,22 @@ class PlantContext:
 
 def _suffix() -> str:
     return RUN_TAG
+
+
+def _create_sales_order(**kwargs) -> SalesOrder:
+    last_error = None
+    for _ in range(8):
+        try:
+            order = SalesOrder(**kwargs)
+            order.save()
+            return order
+        except IntegrityError as exc:
+            if "sales_orders_order_number_key" not in str(exc):
+                raise
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise RuntimeError("Unable to create a unique seeded sales order.")
 
 
 def _pick_active_ink(*tokens: str, base_type: str | None = None):
@@ -396,7 +413,7 @@ def _dispatch_target_sales_order(fallback_template=None) -> tuple[SalesOrder, Sa
         else qty_value
     )
 
-    order = SalesOrder.objects.create(
+    order = _create_sales_order(
         customer=customer,
         customer_name=customer.name,
         order_name=f"{PREFIX} Dispatch Seed",
@@ -487,7 +504,7 @@ def _seed_printing_sales_item(
     )
     invariant_payload = build_invariant_payload(film_layers=layer_snapshot, printing=printing_snapshot)
 
-    order = SalesOrder.objects.create(
+    order = _create_sales_order(
         customer=customer,
         customer_name=customer.name,
         order_name=f"{PREFIX} Printing Seed",

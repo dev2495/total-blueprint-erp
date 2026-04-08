@@ -62,6 +62,27 @@ def _safe(fn, default=None):
         return default
 
 
+def _has_material_evidence(summary, rows, breakdowns):
+    summary = summary or {}
+    numeric_keys = (
+        "actual_issued_kg",
+        "consumed_kg",
+        "returned_kg",
+        "scrap_kg",
+        "ink_actual_issued_kg",
+        "ink_consumed_kg",
+        "ink_returned_kg",
+    )
+    if any(float(summary.get(key) or 0) > 0 for key in numeric_keys):
+        return True
+    if rows:
+        return True
+    for key in ("by_material", "job_variance", "waterfall"):
+        if isinstance((breakdowns or {}).get(key), list) and (breakdowns or {}).get(key):
+            return True
+    return False
+
+
 class ReportService:
     """
     Enterprise-grade report generation with deep drill-downs,
@@ -2232,9 +2253,10 @@ class ReportService:
 
         warnings = list(payload.get("warnings") or [])
         coverage = ReportService._coverage(normalized)
+        material_evidence = _has_material_evidence(summary, rows, breakdowns)
         if coverage.get("execution_log_coverage", 0) <= 0:
             warnings.append("No telemetry in selected period.")
-        if coverage.get("material_actual_coverage", 0) <= 0 and key in {"production", "material-variance", "ink-intelligence", "mrp"}:
+        if coverage.get("material_actual_coverage", 0) <= 0 and key in {"production", "material-variance", "ink-intelligence", "mrp"} and not material_evidence:
             warnings.append("No material actuals captured.")
         if coverage.get("shift_coverage", 0) <= 0:
             shift_qs = PlantShiftDefinition.objects.filter(is_active=True)

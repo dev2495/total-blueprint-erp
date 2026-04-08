@@ -254,7 +254,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
   const accentStyle = ACCENT_STYLES[accent]
   const isScrapTab = tab === "scrap"
   const isOeeTab = tab === "oee"
-  const prefersWideDefaultWindow = tab === "scrap"
+  const isMrpTab = tab === "mrp"
+  const isInterplantTab = tab === "interplant"
+  const prefersWideDefaultWindow = ["scrap", "mrp", "interplant"].includes(tab)
   const [preset, setPreset] = useState<FilterPreset>(prefersWideDefaultWindow ? "custom" : "weekly")
   const [dateFrom, setDateFrom] = useState(prefersWideDefaultWindow ? todayIso(-30) : todayIso(-6))
   const [dateTo, setDateTo] = useState(todayIso(0))
@@ -307,6 +309,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
   })
 
   const payload = reportQuery.data ?? ({ tab, summary: {}, rows: [], breakdowns: {}, series: [], warnings: [] } satisfies Partial<ReportTabResponse>)
+  const reportPending = !reportQuery.data && (reportQuery.isPending || reportQuery.isFetching)
   const normalizedSummary = (payload.summary || payload.kpis || {}) as Record<string, any>
   const summaryEntries = Object.entries(normalizedSummary).filter(([, value]) => value !== null && value !== undefined && value !== "").slice(0, 12)
   const seriesSource = Array.isArray(payload.series) && payload.series.length ? payload.series : payload.charts?.trend || []
@@ -322,7 +325,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     return firstBreakdown?.rows || []
   }, [payload.rows, firstBreakdown])
   const tableColumns = useMemo(() => inferTableColumns(tableRows), [tableRows])
-  const degraded = !hasMeaningfulData([normalizedSummary, seriesSource, payload.rows, payload.breakdowns, payload.charts]) || Boolean((payload as any)?.degraded)
+  const degraded = !reportPending && (!hasMeaningfulData([normalizedSummary, seriesSource, payload.rows, payload.breakdowns, payload.charts]) || Boolean((payload as any)?.degraded))
   const scrapPrimaryKeys = useMemo(
     () =>
       new Set([
@@ -355,6 +358,79 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       { label: "Output", value: formatMetricValue("output_kg", normalizedSummary.output_kg), hint: "Produced quantity in current lens" },
     ]
   }, [isOeeTab, normalizedSummary])
+  const mrpFlowRows = useMemo(() => {
+    if (!isMrpTab) return []
+    return [
+      { label: "Theoretical", value: toNumber(normalizedSummary.theoretical_kg), color: "#334155" },
+      { label: "Required", value: toNumber(normalizedSummary.required_kg), color: "#f59e0b" },
+      { label: "Planned issue", value: toNumber(normalizedSummary.planned_issue_kg), color: "#6366f1" },
+      { label: "Actual issued", value: toNumber(normalizedSummary.actual_issued_kg), color: "#0ea5e9" },
+      { label: "Consumed", value: toNumber(normalizedSummary.consumed_kg), color: "#10b981" },
+      { label: "Returned", value: toNumber(normalizedSummary.returned_kg), color: "#94a3b8" },
+      { label: "Scrap", value: toNumber(normalizedSummary.scrap_kg), color: "#ef4444" },
+    ]
+  }, [isMrpTab, normalizedSummary])
+  const mrpBreakdowns = useMemo(() => {
+    if (!isMrpTab) return { byMaterial: [], jobVariance: [], waterfall: [] }
+    const raw = payload.breakdowns || {}
+    return {
+      byMaterial: Array.isArray(raw.by_material)
+        ? raw.by_material.filter((row): row is Record<string, any> => !!row && typeof row === "object")
+        : tableRows,
+      jobVariance: Array.isArray(raw.job_variance)
+        ? raw.job_variance.filter((row): row is Record<string, any> => !!row && typeof row === "object")
+        : [],
+      waterfall: Array.isArray(raw.waterfall)
+        ? raw.waterfall.filter((row): row is Record<string, any> => !!row && typeof row === "object")
+        : [],
+    }
+  }, [isMrpTab, payload.breakdowns, tableRows])
+  const mrpKpis = useMemo(() => {
+    if (!isMrpTab) return []
+    return [
+      { label: "Net variance", value: formatMetricValue("variance_kg", normalizedSummary.variance_kg), hint: "Consumed minus theoretical need", tone: "border-rose-200 bg-rose-50 text-rose-700" },
+      { label: "Returned", value: formatMetricValue("returned_kg", normalizedSummary.returned_kg), hint: "Material booked back to stock", tone: "border-slate-200 bg-slate-50 text-slate-700" },
+      { label: "Scrap", value: formatMetricValue("scrap_kg", normalizedSummary.scrap_kg), hint: "Material lost in execution", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Planning accuracy", value: formatMetricValue("planning_accuracy_pct", normalizedSummary.planning_accuracy_pct), hint: "Theory versus actual consumption", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Issue accuracy", value: formatMetricValue("issue_accuracy_pct", normalizedSummary.issue_accuracy_pct), hint: "Planned issue versus actual issue", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
+      { label: "Material coverage", value: `${formatMaybeNumber(payload.coverage?.material_actual_coverage, 0)}%`, hint: "Actual material logging coverage", tone: "border-indigo-200 bg-indigo-50 text-indigo-700" },
+    ]
+  }, [isMrpTab, normalizedSummary, payload.coverage])
+  const interplantRows = useMemo(
+    () => (isInterplantTab ? tableRows.filter((row) => row.dc_no || row.from_plant || row.to_plant) : []),
+    [isInterplantTab, tableRows],
+  )
+  const interplantStatusRows = useMemo(() => {
+    if (!isInterplantTab) return []
+    return [
+      { label: "Draft", value: toNumber(normalizedSummary.draft), color: "#64748b" },
+      { label: "In transit", value: toNumber(normalizedSummary.in_transit), color: "#f59e0b" },
+      { label: "Received", value: toNumber(normalizedSummary.received), color: "#10b981" },
+    ]
+  }, [isInterplantTab, normalizedSummary])
+  const interplantRouteRows = useMemo(() => {
+    if (!isInterplantTab) return []
+    const grouped = new Map<string, { route: string; challans: number; weight_kg: number }>()
+    for (const row of interplantRows) {
+      const route = `${row.from_plant || "Unknown"} → ${row.to_plant || "Unknown"}`
+      const bucket = grouped.get(route) || { route, challans: 0, weight_kg: 0 }
+      bucket.challans += 1
+      bucket.weight_kg += toNumber(row.dispatched_kg)
+      grouped.set(route, bucket)
+    }
+    return [...grouped.values()].sort((left, right) => right.weight_kg - left.weight_kg).slice(0, 8)
+  }, [isInterplantTab, interplantRows])
+  const interplantKpis = useMemo(() => {
+    if (!isInterplantTab) return []
+    return [
+      { label: "Challans", value: formatMetricValue("count", normalizedSummary.total_challans), hint: "Visible transfer documents", tone: "border-slate-200 bg-slate-50 text-slate-700" },
+      { label: "Dispatched", value: formatMetricValue("dispatched_total_kg", normalizedSummary.dispatched_total_kg), hint: "Total kg sent between plants", tone: "border-indigo-200 bg-indigo-50 text-indigo-700" },
+      { label: "Received", value: formatMetricValue("received_total_kg", normalizedSummary.received_total_kg), hint: "Total kg booked in at destination", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Output in transit", value: formatMetricValue("output_in_transit_kg", normalizedSummary.output_in_transit_kg), hint: "Saleable mass still moving", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Remainder in transit", value: formatMetricValue("remainder_in_transit_kg", normalizedSummary.remainder_in_transit_kg), hint: "Remainder rolls still moving", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
+      { label: "Execution coverage", value: `${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}%`, hint: "Transfer telemetry linked to execution", tone: "border-slate-200 bg-slate-50 text-slate-700" },
+    ]
+  }, [isInterplantTab, normalizedSummary, payload.coverage])
   const scrapBreakdowns = useMemo(() => {
     const raw = payload.breakdowns || {}
     return {
@@ -547,7 +623,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         </div>
       </section>
 
-      {payload.warnings?.length ? (
+      {!reportPending && payload.warnings?.length ? (
         <ReportStateBanner
           title="Report needs attention"
           message={payload.warnings.join(" ")}
@@ -702,16 +778,320 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {visibleSummaryEntries.map(([key, value]) => (
-          <Card key={key} className={cn("overflow-hidden border shadow-sm", metricTone(key))}>
-            <CardContent className="p-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.18em]">{toLabel(key)}</div>
-              <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-900">{formatMetricValue(key, value)}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+      {isMrpTab ? (
+        <>
+          <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr] xl:items-start">
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <LineChartIcon className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Theory vs issue vs use
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="h-[360px] min-w-0">
+                  {mrpFlowRows.some((row) => row.value > 0) ? (
+                    <ResponsiveContainer width="100%" height={360}>
+                      <BarChart data={mrpFlowRows} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <Tooltip formatter={(value) => formatMetricValue("kg", value)} />
+                        <Bar dataKey="value" radius={[12, 12, 0, 0]}>
+                          {mrpFlowRows.map((row) => (
+                            <Cell key={row.label} fill={row.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : reportPending ? (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      Loading live material movement…
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      No material movement was captured for this filter window.
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.15rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Theory to required</div>
+                    <div className="mt-2 text-lg font-black text-slate-900">{formatMetricValue("kg", toNumber(normalizedSummary.required_kg) - toNumber(normalizedSummary.theoretical_kg))}</div>
+                  </div>
+                  <div className="rounded-[1.15rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Issue delta</div>
+                    <div className="mt-2 text-lg font-black text-slate-900">{formatMetricValue("kg", toNumber(normalizedSummary.actual_issued_kg) - toNumber(normalizedSummary.planned_issue_kg))}</div>
+                  </div>
+                  <div className="rounded-[1.15rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Consumption delta</div>
+                    <div className="mt-2 text-lg font-black text-slate-900">{formatMetricValue("kg", toNumber(normalizedSummary.consumed_kg) - toNumber(normalizedSummary.actual_issued_kg))}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <Gauge className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Control signals
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-1">
+                {mrpKpis.map((metric) => (
+                  <div key={metric.label} className={cn("rounded-[1.2rem] border p-4", metric.tone)}>
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em]">{metric.label}</div>
+                    <div className="mt-3 text-[1.65rem] font-black tracking-[-0.05em] text-slate-900">{metric.value}</div>
+                    <div className="mt-2 text-xs text-slate-500">{metric.hint}</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:items-start">
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <BarChart3 className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Material pressure
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="h-[360px] min-w-0">
+                  {mrpBreakdowns.byMaterial.length ? (
+                    <ResponsiveContainer width="100%" height={360}>
+                      <BarChart data={mrpBreakdowns.byMaterial.slice(0, 8)} layout="vertical" margin={{ top: 8, right: 8, left: 24, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <YAxis type="category" dataKey="name" width={138} tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <Tooltip formatter={(value, name) => [formatMetricValue("kg", value), toLabel(String(name || ""))]} />
+                        <Legend />
+                        <Bar dataKey="consumed" name="Consumed" fill="#0f766e" radius={[0, 8, 8, 0]} />
+                        <Bar dataKey="variance" name="Variance" fill="#f97316" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : reportPending ? (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      Loading material pressure…
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      No material rows returned for this filter window.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <Rows3 className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Variance waterfall
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-4">
+                {mrpBreakdowns.waterfall.length ? (
+                  mrpBreakdowns.waterfall.map((row, index) => (
+                    <div key={`${row.name || index}`} className="flex items-center justify-between gap-4 rounded-[1.15rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-black text-slate-900">{String(row.name || `Step ${index + 1}`)}</div>
+                        <div className="text-xs text-slate-500">{toLabel(String(row.type || "detail"))}</div>
+                      </div>
+                      <Badge className={cn(
+                        "rounded-full border",
+                        row.type === "add"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : row.type === "subtract"
+                          ? "border-slate-200 bg-slate-50 text-slate-700"
+                          : row.type === "total"
+                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          : "border-indigo-200 bg-indigo-50 text-indigo-700",
+                      )}>
+                        {formatMetricValue("kg", row.value)}
+                      </Badge>
+                    </div>
+                  ))
+                ) : reportPending ? (
+                  <div className="rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                    Loading variance cascade…
+                  </div>
+                ) : (
+                  <div className="rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                    No variance cascade is available for this filter window.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      ) : isInterplantTab ? (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {interplantKpis.map((metric) => (
+              <Card key={metric.label} className={cn("overflow-hidden border shadow-sm", metric.tone)}>
+                <CardContent className="p-4">
+                  <div className="text-[11px] font-black uppercase tracking-[0.18em]">{metric.label}</div>
+                  <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-900">{metric.value}</div>
+                  <div className="mt-2 text-xs text-slate-500">{metric.hint}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+
+          <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <LineChartIcon className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Dispatch vs receipts over time
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="h-[360px] min-w-0">
+                  {chartSeries.rows.length && chartSeries.primaryKey ? (
+                    <ResponsiveContainer width="100%" height={360}>
+                      <AreaChart data={chartSeries.rows}>
+                        <defs>
+                          <linearGradient id={`${tab}-flow-fill`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.28} />
+                            <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.03} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                        <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                        <Tooltip formatter={(value, name) => [String(name).includes("challan") ? formatMetricValue("count", value) : formatMetricValue("kg", value), String(name || "")]} />
+                        <Area type="monotone" dataKey="weight_kg" name="Weight kg" stroke="#0ea5e9" fill={`url(#${tab}-flow-fill)`} strokeWidth={2.5} />
+                        <Line type="monotone" dataKey="challans" name="Challans" stroke="#6366f1" strokeWidth={2.2} dot={false} />
+                        <Legend />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : reportPending ? (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      Loading inter-plant movement trend…
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      No inter-plant movement trend is available for this filter window.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <BarChart3 className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Transit posture
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 pt-4 md:grid-cols-[0.95fr_1.05fr]">
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={interplantStatusRows} dataKey="value" nameKey="label" innerRadius={56} outerRadius={82} stroke="none" paddingAngle={4}>
+                        {interplantStatusRows.map((row) => (
+                          <Cell key={row.label} fill={row.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatMetricValue("count", value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-3">
+                  {interplantStatusRows.map((row) => (
+                    <div key={row.label} className="rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{row.label}</div>
+                      <div className="mt-2 text-xl font-black text-slate-900">{formatMetricValue("count", row.value)}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr] xl:items-start">
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="text-xl font-black text-slate-900">Busy routes</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="h-[320px] min-w-0">
+                  {interplantRouteRows.length ? (
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={interplantRouteRows} layout="vertical" margin={{ top: 8, right: 8, left: 20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <YAxis type="category" dataKey="route" width={156} tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <Tooltip formatter={(value, name) => [String(name) === "challans" ? formatMetricValue("count", value) : formatMetricValue("kg", value), toLabel(String(name || ""))]} />
+                        <Legend />
+                        <Bar dataKey="weight_kg" name="Weight kg" fill="#0ea5e9" radius={[0, 8, 8, 0]} />
+                        <Bar dataKey="challans" name="Challans" fill="#6366f1" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : reportPending ? (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      Loading busy routes…
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
+                      No route concentration is available for this filter window.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="text-xl font-black text-slate-900">Recent challans</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="max-h-[520px] overflow-auto rounded-[1.2rem] border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-50">
+                      <tr>
+                        {["dc_no", "status", "from_plant", "to_plant", "dispatched_kg", "received_kg"].map((column) => (
+                          <th key={column} className="border-b border-slate-200 px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                            {toLabel(column)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {interplantRows.slice(0, 25).map((row, index) => (
+                        <tr key={`${row.dc_no || index}`} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/80">
+                          <td className="px-4 py-3 font-semibold text-slate-900">{String(row.dc_no || "—")}</td>
+                          <td className="px-4 py-3 text-slate-700">{String(row.status || "—")}</td>
+                          <td className="px-4 py-3 text-slate-700">{String(row.from_plant || "—")}</td>
+                          <td className="px-4 py-3 text-slate-700">{String(row.to_plant || "—")}</td>
+                          <td className="px-4 py-3 text-slate-700">{formatMetricValue("kg", row.dispatched_kg)}</td>
+                          <td className="px-4 py-3 text-slate-700">{formatMetricValue("kg", row.received_kg)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      ) : (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {visibleSummaryEntries.map(([key, value]) => (
+            <Card key={key} className={cn("overflow-hidden border shadow-sm", metricTone(key))}>
+              <CardContent className="p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.18em]">{toLabel(key)}</div>
+                <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-900">{formatMetricValue(key, value)}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+      )}
 
       {isScrapTab ? (
         <section className="grid gap-5 xl:grid-cols-3 xl:items-start">
@@ -744,6 +1124,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         </section>
       ) : null}
 
+      {!isMrpTab && !isInterplantTab ? (
       <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr] xl:items-start">
         <Card className="rounded-[1.75rem] border-slate-200 shadow-sm">
           <CardHeader className="pb-0">
@@ -818,7 +1199,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
           </CardContent>
         </Card>
       </section>
+      ) : null}
 
+      {!isMrpTab && !isInterplantTab ? (
       <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
         <Card className="rounded-[1.75rem] border-slate-200 shadow-sm">
           <CardHeader className="pb-0">
@@ -901,8 +1284,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
           </CardContent>
         </Card>
       </section>
+      ) : null}
 
-      {visibleBreakdowns.length ? (
+      {visibleBreakdowns.length && !isMrpTab && !isInterplantTab ? (
         <section className="grid gap-5 xl:grid-cols-2 xl:items-start">
           {visibleBreakdowns.map((group) => {
             const columns = inferTableColumns(group.rows)
@@ -943,6 +1327,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         </section>
       ) : null}
 
+      {!isMrpTab && !isInterplantTab ? (
       <Card className="overflow-hidden rounded-[1.85rem] border-slate-200 shadow-sm">
         <CardHeader className="pb-0">
           <CardTitle className="text-xl font-black text-slate-900">Detailed Rows</CardTitle>
@@ -980,6 +1365,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
           )}
         </CardContent>
       </Card>
+      ) : null}
     </div>
   )
 }

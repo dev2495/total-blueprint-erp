@@ -1,10 +1,14 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import playwrightPkg from "/Users/devarshthakkar/Documents/total_blueprint_erp/frontend_v2/node_modules/playwright/index.js"
+import { fileURLToPath } from "node:url"
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const playwrightModulePath = path.join(repoRoot, "frontend_v2/node_modules/playwright/index.js")
+const playwrightModule = await import(playwrightModulePath)
+const playwrightPkg = playwrightModule.default ?? playwrightModule
 
 const { chromium } = playwrightPkg
 
-const repoRoot = "/Users/devarshthakkar/Documents/total_blueprint_erp"
 const runtimeRoot = path.join(repoRoot, ".runtime/ui-e2e")
 const BASE_URL = process.env.UI_E2E_BASE_URL || "http://127.0.0.1:3000"
 const API_URL = process.env.UI_E2E_API_URL || "http://127.0.0.1:8000"
@@ -110,6 +114,35 @@ async function main() {
     }
     await page.screenshot({ path: runtimePath("live-oee-report.png"), fullPage: true })
 
+    await page.goto(`${BASE_URL}/analytics/reports/mrp`, { waitUntil: "domcontentloaded" })
+    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined)
+    await page.getByText(/MRP & Consumption Variance/i).waitFor({ state: "visible", timeout: 15_000 })
+    await page.getByText(/Theory vs issue vs use/i).waitFor({ state: "visible", timeout: 15_000 })
+    await page.waitForFunction(
+      () => !document.body.innerText.includes("Loading live material movement…"),
+      undefined,
+      { timeout: 15_000 },
+    ).catch(() => undefined)
+    const mrpBody = await page.locator("body").innerText()
+    if (/No material movement was captured/i.test(mrpBody)) {
+      throw new Error("MRP report still rendered the empty material movement placeholder.")
+    }
+    await page.screenshot({ path: runtimePath("live-mrp-report.png"), fullPage: true })
+
+    await page.goto(`${BASE_URL}/analytics/reports/interplant`, { waitUntil: "domcontentloaded" })
+    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined)
+    await page.getByRole("heading", { name: /Inter-Plant Logistics/i }).waitFor({ state: "visible", timeout: 15_000 })
+    await page.waitForFunction(
+      () => !document.body.innerText.includes("Loading inter-plant movement trend…"),
+      undefined,
+      { timeout: 15_000 },
+    ).catch(() => undefined)
+    const interplantBody = await page.locator("body").innerText()
+    if (/No categorical split available yet\./i.test(interplantBody)) {
+      throw new Error("Interplant report still rendered the empty categorical split placeholder.")
+    }
+    await page.screenshot({ path: runtimePath("live-interplant-report.png"), fullPage: true })
+
     await page.goto(`${BASE_URL}/dashboard/sales`, { waitUntil: "domcontentloaded" })
     await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined)
     await page.getByText(/Sales Command Center/i).waitFor({ state: "visible", timeout: 15_000 })
@@ -132,6 +165,16 @@ async function main() {
           oee_report: {
             route: "/analytics/reports/oee",
             average_oee_visible: true,
+            empty_snapshot_placeholder: false,
+          },
+          mrp_report: {
+            route: "/analytics/reports/mrp",
+            custom_material_flow_visible: true,
+            empty_material_placeholder: false,
+          },
+          interplant_report: {
+            route: "/analytics/reports/interplant",
+            custom_transit_view_visible: true,
             empty_snapshot_placeholder: false,
           },
           sales_dashboard: {
