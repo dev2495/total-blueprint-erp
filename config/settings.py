@@ -3,6 +3,7 @@
 import importlib.util
 import os
 import socket
+import sys
 from datetime import timedelta
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
@@ -88,6 +89,9 @@ DJANGO_ENV = normalize_django_env(os.getenv("DJANGO_ENV", "development"))
 IS_LOCAL_DEV = is_local_dev_env(DJANGO_ENV)
 IS_PRODUCTION = is_production_env(DJANGO_ENV)
 IS_HOSTED_SECURE = is_hosted_secure_env(DJANGO_ENV)
+
+COMMAND_LINE = " ".join(sys.argv).lower()
+IS_HTTP_PROCESS = any(token in COMMAND_LINE for token in ("gunicorn", "runserver", "uvicorn", "daphne"))
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-fallback")
 DEBUG = os.getenv("DEBUG", "False") == "True"
@@ -416,16 +420,17 @@ if IS_HOSTED_SECURE:
     missing = []
     if not SECRET_KEY or SECRET_KEY == "django-insecure-fallback":
         missing.append("SECRET_KEY")
-    if not ALLOWED_HOSTS:
-        missing.append("ALLOWED_HOSTS")
-    elif "*" in ALLOWED_HOSTS:
-        missing.append("ALLOWED_HOSTS must not contain '*' in hosted environments")
-    if not CORS_ALLOWED_ORIGINS:
-        missing.append("CORS_ALLOWED_ORIGINS")
-    if CORS_ALLOW_ALL_ORIGINS:
-        missing.append("CORS_ALLOW_ALL_ORIGINS must be False in hosted environments")
-    if not CSRF_TRUSTED_ORIGINS:
-        missing.append("CSRF_TRUSTED_ORIGINS")
+    if IS_HTTP_PROCESS:
+        if not ALLOWED_HOSTS:
+            missing.append("ALLOWED_HOSTS")
+        elif "*" in ALLOWED_HOSTS:
+            missing.append("ALLOWED_HOSTS must not contain '*' in hosted environments")
+        if not CORS_ALLOWED_ORIGINS:
+            missing.append("CORS_ALLOWED_ORIGINS")
+        if CORS_ALLOW_ALL_ORIGINS:
+            missing.append("CORS_ALLOW_ALL_ORIGINS must be False in hosted environments")
+        if not CSRF_TRUSTED_ORIGINS:
+            missing.append("CSRF_TRUSTED_ORIGINS")
     if not os.getenv("DB_PASSWORD", "").strip():
         missing.append("DB_PASSWORD")
     if JWT_COOKIE_SAMESITE.lower() == "none" and not JWT_COOKIE_SECURE:
