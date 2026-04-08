@@ -42,6 +42,7 @@ export interface Gonny {
     gross_weight_kg?: number | null;
     tare_breakdown_json?: Record<string, any> | null;
     status: string;
+    released_to_dispatch?: boolean;
     fg_batch__batch_number?: string;
     batch_no?: string;
     location: {
@@ -66,6 +67,8 @@ export interface DispatchableRoll {
     remaining_stock_pool_kg?: number;
     split_parent_label?: string | null;
     default_pack_lines?: Array<{ material_id: string; qty: number; uom?: string; basis?: string }>;
+    released_to_dispatch?: boolean;
+    release_mode?: 'PACKED' | 'UNPACKED' | string;
     material__name: string;
     location: {
         id: string;
@@ -108,12 +111,16 @@ export interface SODispatchSummary {
         rolls_kg: number;
         gonnies_count: number;
         gonnies_pcs: number;
+        gonnies_net_kg?: number;
+        gonnies_gross_kg?: number;
     };
     packing_pending?: {
         open_gonnies_count: number;
         open_gonnies_pcs: number;
         unpacked_batch_count?: number;
         unpacked_batch_pcs?: number;
+        unreleased_rolls_count?: number;
+        unreleased_sealed_gonnies_count?: number;
     };
     batches?: Array<{
         id: string;
@@ -132,8 +139,73 @@ export interface SODispatchSummary {
     gonnies: Gonny[];
 }
 
+export interface PackingSalesOrderRow {
+    id: string;
+    order_number: string;
+    customer_name: string;
+    status: string;
+}
+
+export interface SOPackingSummary {
+    sales_order: {
+        id: string;
+        order_number: string;
+        customer_name: string;
+        status: string;
+    };
+    ordered_qty: number;
+    packing_pending: {
+        rolls_count: number;
+        batches_count: number;
+        batches_pcs: number;
+        open_gonnies_count: number;
+        sealed_gonnies_count: number;
+    };
+    ready_for_dispatch: {
+        rolls_count: number;
+        rolls_kg: number;
+        gonnies_count: number;
+        gonnies_pcs: number;
+        gonnies_net_kg: number;
+        gonnies_gross_kg: number;
+    };
+    rolls: DispatchableRoll[];
+    batches: Array<{
+        id: string;
+        batch_number: string;
+        qty_pcs: number;
+        qty_kg: number;
+        status: string;
+        template_name?: string | null;
+        location: {
+            id: string | null;
+            name: string | null;
+            plant_id: string | null;
+            plant_name: string | null;
+        };
+    }>;
+    gonnies: Gonny[];
+}
+
 export const logisticsService = {
     // Packing
+    async getPackingOrders(): Promise<PackingSalesOrderRow[]> {
+        const response = await api.get('/api/production/packing/orders/');
+        return normalizeListPayload<any>(response.data).map((row) => ({
+            id: String(row?.id || ''),
+            order_number: String(row?.order_number || ''),
+            customer_name: String(row?.customer_name || ''),
+            status: String(row?.status || ''),
+        })).filter((row) => row.id);
+    },
+
+    async getSOPackingSummary(salesOrderId: string): Promise<SOPackingSummary> {
+        const response = await api.get('/api/production/packing/so_summary/', {
+            params: { sales_order_id: salesOrderId },
+        });
+        return (response.data?.data || response.data) as SOPackingSummary;
+    },
+
     async getAvailableBatches(plantId?: string): Promise<FGBatch[]> {
         const params = plantId ? { plant_id: plantId } : {};
         const response = await api.get('/api/production/packing/batches/', { params });
@@ -177,6 +249,34 @@ export const logisticsService = {
             extras,
         });
         return response.data;
+    },
+
+    async releaseGonny(gonnyId: string): Promise<{ id: string; label_id: string; message: string }> {
+        const response = await api.post(`/api/production/packing/${gonnyId}/release/`);
+        return response.data;
+    },
+
+    async releaseRoll(
+        rollId: string,
+        releaseMode: 'PACKED' | 'UNPACKED',
+        lines: Array<{ material_id: string; qty: number; uom?: string; basis?: string }> = [],
+    ) {
+        const response = await api.post('/api/production/packing/release-roll/', {
+            roll_id: rollId,
+            release_mode: releaseMode,
+            lines,
+        });
+        return response.data as {
+            id: string
+            roll_id: string
+            sales_order_item_id: string
+            packed_at: string
+            lines: Array<{ material_id: string; qty: number; uom: string; basis: string; tx_id?: string }>
+            tx_ids: string[]
+            released_to_dispatch: boolean
+            release_mode: 'PACKED' | 'UNPACKED'
+            message: string
+        }
     },
 
     // Dispatch

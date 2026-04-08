@@ -13,6 +13,7 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
 export interface SalesOrder {
     id: string;
     order_number: string;
+    order_name?: string | null;
     line_name?: string | null;
     customer_name: string;
     customer_id?: string;
@@ -24,6 +25,7 @@ export interface SalesOrder {
         | 'PLANNING_REQUIRED'
         | 'PLANNED'
         | 'RELEASED'
+        | 'PACKING_READY'
         | 'DISPATCH_READY'
         | 'COMPLETED'
         | 'CANCELLED';
@@ -38,6 +40,38 @@ export interface SalesOrder {
         adjustments?: Array<{ name: string; value: number; impact: 'WIDTH' | 'HEIGHT' | 'BOTH' }>;
     };
     commercial_confirmed_at?: string | null;
+    total_weight_kg?: number | string;
+    total_value?: number;
+    item_summary?: {
+        variant_code?: string;
+        variant_name?: string;
+        template_name?: string;
+        template_tag?: string;
+        finished_good_type?: "POUCH" | "ROLL" | string;
+        size_or_form?: string;
+        layer_count?: number;
+        layer_labels?: string[];
+        printing_summary?: string;
+        pod_enabled?: boolean;
+        packaging_summary?: string;
+        addons_count?: number;
+        claimed_stock_order_nos?: string[];
+        line_count?: number;
+        unit_weight_g?: number;
+    };
+    qty_summary?: {
+        ordered_kg?: number | null;
+        ordered_pcs?: number | null;
+    };
+    fulfillment_summary?: {
+        produced_kg?: number | null;
+        dispatched_kg?: number | null;
+        remaining_kg?: number | null;
+        produced_pcs?: number | null;
+        dispatched_pcs?: number | null;
+        remaining_pcs?: number | null;
+        completion_percent?: number | null;
+    };
     items: any[];
     created_at: string;
 }

@@ -125,6 +125,60 @@ class PackagingConsumptionTests(SimpleTestCase):
         self.assertEqual(payload["tare_breakdown_json"]["primary_pack_count"], 3)
         self.assertEqual(payload["meta_json"]["weight_breakdown"]["net_product_weight_kg"], 18.5)
 
+    def test_create_gonny_does_not_double_consume_prepacked_inner_packs(self):
+        batch = SimpleNamespace(
+            id="batch-3",
+            batch_number="B-3",
+            status="AVAILABLE",
+            qty_pcs=240,
+            packing_units=SimpleNamespace(
+                count=lambda: 0,
+                filter=lambda **kwargs: [SimpleNamespace(primary_pack_count=1)],
+            ),
+            location=SimpleNamespace(id="loc-1"),
+            production_job_id=None,
+            sales_order_item=SimpleNamespace(
+                packaging_snapshot={
+                    "primary_inner_pack": {
+                        "enabled": True,
+                        "material_id": "inner-1",
+                        "pcs_per_pack": 100,
+                    }
+                }
+            ),
+            sales_order_item_id="so-item-3",
+            meta_json={
+                "primary_inner_pack": {
+                    "enabled": True,
+                    "material_id": "inner-1",
+                    "pcs_per_pack": 100,
+                    "pack_count": 3,
+                    "consumed_at_fg": True,
+                }
+            },
+            save=MagicMock(),
+        )
+        created = SimpleNamespace(id="gonny-3", label_id="G-B-3-001", qty_pcs=100, status="OPEN")
+
+        with patch("apps.production.services.packing_service.FinishedGoodsBatch.objects.select_for_update") as select_for_update, \
+             patch("apps.production.services.packing_service.PackingService._net_product_weight_kg", return_value=Decimal("12.0000")), \
+             patch("apps.production.services.packing_service.PackingService._packaging_mass_kg", side_effect=[Decimal("0.8000"), Decimal("0.3000")]), \
+             patch("apps.production.services.packing_service.PackagingService.consume_packaging_stock") as consume_stock, \
+             patch("apps.production.services.packing_service.PackingUnit.objects.create", return_value=created) as create_unit:
+            select_for_update.return_value.get.return_value = batch
+
+            PackingService.create_gonny.__wrapped__(
+                "batch-3",
+                100,
+                user=None,
+                gonny_material_id="gonny-mat-3",
+                content_mode="PRIMARY_PACKS",
+            )
+
+        self.assertEqual(consume_stock.call_count, 1)
+        self.assertEqual(consume_stock.call_args.kwargs["material_id"], "gonny-mat-3")
+        self.assertTrue(create_unit.call_args.kwargs["meta_json"]["primary_packs_prepacked"])
+
     def test_seal_gonny_consumes_submitted_extras_before_legacy_snapshot(self):
         gonny = SimpleNamespace(
             id="gonny-1",

@@ -79,6 +79,8 @@ class FGDispatchRollListTests(TestCase):
 
     def test_dispatchable_summary_lists_each_fg_roll_for_sales_order(self):
         so, _, rolls = self._create_sales_order_with_fg_rolls(roll_count=5, roll_weight=Decimal("100.000"))
+        for roll in rolls:
+            FGDispatchService.release_roll_to_dispatch(str(roll.id), user=None, lines=[], release_mode="UNPACKED")
 
         summary = FGDispatchService.get_dispatchable_units_by_so(str(so.id))
 
@@ -92,6 +94,8 @@ class FGDispatchRollListTests(TestCase):
 
     def test_create_and_dispatch_challan_creates_one_line_per_roll(self):
         so, _, rolls = self._create_sales_order_with_fg_rolls(roll_count=5, roll_weight=Decimal("100.000"))
+        for roll in rolls:
+            FGDispatchService.release_roll_to_dispatch(str(roll.id), user=None, lines=[], release_mode="UNPACKED")
 
         challan = FGDispatchService.create_challan(
             customer_name=so.customer_name,
@@ -114,4 +118,3 @@ class FGDispatchRollListTests(TestCase):
             InventoryRoll.objects.filter(id__in=[r.id for r in rolls]).values_list("status", flat=True)
         )
         self.assertEqual(statuses, {"IN_TRANSIT"})
-

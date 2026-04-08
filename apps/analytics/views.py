@@ -443,6 +443,16 @@ class AnalyticsViewSet(viewsets.ViewSet):
             logger.error(f"Trace lookup error: {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_TRACE_LOOKUP_FAILED")
 
+    @action(detail=False, methods=['get'], url_path='audit-console')
+    def audit_console(self, request):
+        try:
+            if not _is_reports_admin(request.user):
+                return _reports_admin_forbidden_response(request.user, "audit_console.read")
+            return Response(ReportingService.get_audit_console())
+        except Exception as e:
+            logger.error(f"Audit console error: {str(e)}", exc_info=True)
+            return _error_response(code="ANALYTICS_AUDIT_CONSOLE_FAILED")
+
     @action(detail=False, methods=['get'], url_path='sales-dashboard')
     def sales_dashboard(self, request):
         try:

@@ -210,7 +210,7 @@ class WorkCenterAssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['status', 'assigned_at']
 
-from .models import PlannedStockOrder, PlannedBulkStockOrder
+from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, PlannerSkuVariant
 
 class PlannedStockOrderSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source='template.name')
@@ -225,6 +225,7 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
     addons = serializers.JSONField(source='addons_snapshot', required=False)
     derived_output_type = serializers.SerializerMethodField()
     planner_stock_class = serializers.SerializerMethodField()
+    planner_origin_meta = serializers.JSONField(required=False)
 
     def get_derived_output_type(self, obj):
         template = getattr(obj, "template", None)
@@ -298,6 +299,7 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
             'film_layers', 'layer_snapshot', 'printing', 'printing_snapshot',
             'addons', 'addons_snapshot', 'packaging_snapshot',
             'bom_snapshot', 'spec_signature',
+            'planner_origin_meta',
             'unit_weight_g', 'total_weight_kg',
             'stock_purpose', 'stock_strategy', 'planner_stock_class', 'packaging_material',
             'artwork_assignment_required', 'assigned_artwork',
@@ -379,3 +381,118 @@ class PlannedBulkStockOrderSerializer(serializers.ModelSerializer):
             'order_number', 'produced_qty_kg', 'created_by', 'created_by_name',
             'created_at', 'updated_at',
         ]
+
+
+class PlannerSkuVariantSerializer(serializers.ModelSerializer):
+    sku_code = serializers.ReadOnlyField(source="sku.code")
+    sku_name = serializers.ReadOnlyField(source="sku.name")
+    template_name = serializers.ReadOnlyField(source="template.name")
+    default_plant_name = serializers.ReadOnlyField(source="default_plant.name")
+    packaging_material_name = serializers.ReadOnlyField(source="packaging_material.name")
+    pod_sku_variant_code = serializers.ReadOnlyField(source="pod_sku_variant.code")
+    pod_sku_variant_name = serializers.ReadOnlyField(source="pod_sku_variant.name")
+
+    class Meta:
+        model = PlannerSkuVariant
+        fields = [
+            "id",
+            "sku",
+            "sku_code",
+            "sku_name",
+            "code",
+            "name",
+            "active",
+            "launch_kind",
+            "template",
+            "template_name",
+            "default_plant",
+            "default_plant_name",
+            "default_qty",
+            "quantity_uom",
+            "stock_purpose",
+            "stock_strategy",
+            "planner_stock_class",
+            "start_step_index",
+            "stop_step_index",
+            "geometry_snapshot",
+            "layer_snapshot",
+            "printing_snapshot",
+            "addons_snapshot",
+            "packaging_snapshot",
+            "packaging_material",
+            "packaging_material_name",
+            "pod_sku_variant",
+            "pod_sku_variant_code",
+            "pod_sku_variant_name",
+            "planner_origin_meta",
+            "spec_signature",
+            "invariant_signature",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_by", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        instance = getattr(self, "instance", None)
+        launch_kind = str(attrs.get("launch_kind", getattr(instance, "launch_kind", "")) or "").upper()
+        stock_purpose = str(attrs.get("stock_purpose", getattr(instance, "stock_purpose", "PRODUCT")) or "PRODUCT").upper()
+        packaging_material = attrs.get("packaging_material", getattr(instance, "packaging_material", None))
+        pod_sku_variant = attrs.get("pod_sku_variant", getattr(instance, "pod_sku_variant", None))
+        start_step_index = attrs.get("start_step_index", getattr(instance, "start_step_index", 0))
+        stop_step_index = attrs.get("stop_step_index", getattr(instance, "stop_step_index", None))
+
+        errors = {}
+        if launch_kind == "PACKAGING_STOCK":
+            if stock_purpose != "PACKAGING":
+                errors["stock_purpose"] = "Packaging planner presets must use stock_purpose=PACKAGING."
+            if not packaging_material:
+                errors["packaging_material"] = "Packaging planner presets require packaging_material."
+        elif stock_purpose == "PACKAGING":
+            errors["stock_purpose"] = "Only PACKAGING_STOCK presets may use stock_purpose=PACKAGING."
+
+        if launch_kind == "POD_STOCK":
+            if not pod_sku_variant:
+                errors["pod_sku_variant"] = "POD planner presets require pod_sku_variant."
+        elif pod_sku_variant:
+            errors["pod_sku_variant"] = "Only POD_STOCK presets may set pod_sku_variant."
+
+        if launch_kind != "PACKAGING_STOCK" and packaging_material:
+            errors["packaging_material"] = "Only PACKAGING_STOCK presets may set packaging_material."
+
+        try:
+            start_index = int(start_step_index or 0)
+            stop_index = None if stop_step_index is None else int(stop_step_index)
+            if stop_index is not None and stop_index < start_index:
+                errors["stop_step_index"] = "stop_step_index must be greater than or equal to start_step_index."
+        except Exception:
+            errors["stop_step_index"] = "Invalid route span."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+
+class PlannerSkuSerializer(serializers.ModelSerializer):
+    template_name = serializers.ReadOnlyField(source="template.name")
+    default_plant_name = serializers.ReadOnlyField(source="default_plant.name")
+    variants = PlannerSkuVariantSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PlannerSku
+        fields = [
+            "id",
+            "code",
+            "name",
+            "template",
+            "template_name",
+            "default_plant",
+            "default_plant_name",
+            "active",
+            "notes",
+            "variants",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_by", "created_at", "updated_at", "variants"]

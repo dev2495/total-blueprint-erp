@@ -2,7 +2,7 @@ import os
 from decimal import Decimal
 from django.db import transaction
 from django.db import connection
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 from apps.production.models import (
     ProductionJob,
@@ -21,14 +21,64 @@ class FGDispatchService:
     """
 
     @staticmethod
-    def _packed_roll_map(roll_ids: list[str]) -> dict[str, bool]:
+    def _roll_dispatch_record_map(roll_ids: list[str]) -> dict[str, dict]:
         if not roll_ids:
             return {}
-        packed_ids = {
-            str(v)
-            for v in RollDispatchPackRecord.objects.filter(roll_id__in=roll_ids).values_list("roll_id", flat=True)
-        }
-        return {str(roll_id): (str(roll_id) in packed_ids) for roll_id in roll_ids}
+        rows = (
+            RollDispatchPackRecord.objects.filter(roll_id__in=roll_ids)
+            .values("roll_id", "lines", "meta_json", "packed_at", "sales_order_item_id")
+        )
+        result = {}
+        for row in rows:
+            roll_id = str(row["roll_id"])
+            meta = dict(row.get("meta_json") or {})
+            lines = list(row.get("lines") or [])
+            result[roll_id] = {
+                "packed_for_dispatch": True,
+                "released_to_dispatch": bool(meta.get("released_to_dispatch")),
+                "released_to_dispatch_at": meta.get("released_to_dispatch_at"),
+                "release_mode": str(meta.get("release_mode") or ("PACKED" if lines else "UNPACKED")).upper(),
+                "lines": lines,
+            }
+        return result
+
+    @staticmethod
+    def _packed_roll_map(roll_ids: list[str]) -> dict[str, bool]:
+        dispatch_map = FGDispatchService._roll_dispatch_record_map(roll_ids)
+        return {str(roll_id): bool(dispatch_map.get(str(roll_id), {}).get("packed_for_dispatch")) for roll_id in roll_ids}
+
+    @staticmethod
+    def _gonny_released_for_dispatch(gonny: PackingUnit) -> bool:
+        return bool(dict(getattr(gonny, "meta_json", {}) or {}).get("released_to_dispatch"))
+
+    @staticmethod
+    def _mark_release_meta(meta_json: dict | None, *, user=None, release_mode: str | None = None) -> dict:
+        payload = dict(meta_json or {})
+        payload["released_to_dispatch"] = True
+        payload["released_to_dispatch_at"] = timezone.now().isoformat()
+        if user is not None and getattr(user, "id", None):
+            payload["released_to_dispatch_by"] = str(user.id)
+            payload["released_to_dispatch_by_name"] = str(
+                getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", "") or ""
+            ).strip()
+        if release_mode:
+            payload["release_mode"] = str(release_mode).upper()
+        return payload
+
+    @staticmethod
+    def _set_sales_order_status(sales_order, status_value: str):
+        if not sales_order:
+            return
+        current = str(getattr(sales_order, "status", "") or "").upper()
+        target = str(status_value or "").upper()
+        if not target or current == target:
+            return
+        if current in {"CANCELLED", "COMPLETED"}:
+            return
+        sales_order.status = target
+        save = getattr(sales_order, "save", None)
+        if callable(save):
+            save(update_fields=["status"])
     
     @staticmethod
     def get_dispatchable_units(
@@ -153,13 +203,58 @@ class FGDispatchService:
     @staticmethod
     def get_sales_orders_with_fg():
         """
-        Returns SalesOrders that have available dispatchable goods:
-        - FG rolls
-        - available FG batches (remaining qty > 0)
-        - OPEN/SEALED gonnies (packing in-progress + ready)
+        Returns SalesOrders that have units already released from Packing Yard
+        and therefore can appear in Dispatch Bay.
         """
         from apps.sales.models import SalesOrder
-        # SOs with available FG Rolls
+
+        ready_rolls = list(
+            InventoryRoll.objects.filter(
+                is_fg=True,
+                status="AVAILABLE",
+                sales_order_item__isnull=False,
+            )
+            .filter(
+                Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True)
+            )
+            .values("id", "sales_order_item__sales_order_id")
+        )
+        roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(row["id"]) for row in ready_rolls])
+        so_ids_with_rolls = {
+            str(row["sales_order_item__sales_order_id"])
+            for row in ready_rolls
+            if roll_dispatch_map.get(str(row["id"]), {}).get("released_to_dispatch")
+        }
+
+        so_ids_with_gonnies = {
+            str(gonny.sales_order_item.sales_order_id)
+            for gonny in PackingUnit.objects.filter(
+                status="SEALED",
+                sales_order_item__isnull=False,
+            ).select_related("sales_order_item__sales_order")
+            if FGDispatchService._gonny_released_for_dispatch(gonny)
+        }
+
+        combined_so_ids = [sid for sid in set(so_ids_with_rolls).union(so_ids_with_gonnies) if sid]
+
+        return (
+            SalesOrder.objects
+            .filter(id__in=combined_so_ids)
+            .order_by('-created_at')
+            .values('id', 'order_number', 'customer_name', 'status')
+        )
+
+    @staticmethod
+    def get_sales_orders_for_packing():
+        """
+        Returns sales orders that have packable or releasable goods in Packing Yard.
+        This includes:
+        - finished rolls tied to sales orders
+        - finished pouch batches tied to sales orders
+        - open or sealed gonnies tied to sales orders
+        """
+        from apps.sales.models import SalesOrder
+
         so_ids_with_rolls = InventoryRoll.objects.filter(
             is_fg=True,
             status='AVAILABLE',
@@ -168,7 +263,6 @@ class FGDispatchService:
             Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True)
         ).values_list('sales_order_item__sales_order_id', flat=True)
 
-        # SOs with available FG batches
         so_ids_with_batches = FinishedGoodsBatch.objects.filter(
             qty_pcs__gt=0,
             status__in=['AVAILABLE', 'PACKED'],
@@ -177,7 +271,6 @@ class FGDispatchService:
             Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True)
         ).values_list('sales_order_item__sales_order_id', flat=True)
 
-        # SOs with packing units (OPEN => pending seal, SEALED => dispatch-ready)
         so_ids_with_gonnies = PackingUnit.objects.filter(
             status__in=['OPEN', 'SEALED'],
             sales_order_item__isnull=False,
@@ -194,6 +287,192 @@ class FGDispatchService:
             .order_by('-created_at')
             .values('id', 'order_number', 'customer_name', 'status')
         )
+
+    @staticmethod
+    def get_packing_units_by_so(so_id: str) -> dict:
+        """
+        Returns packable and releasable units for a Sales Order.
+        Packing Yard uses this view to create gonnies, seal them, pack rolls,
+        and explicitly release physical units to Dispatch Bay.
+        """
+        from apps.sales.models import SalesOrderItem
+
+        so = FGDispatchService._sales_order_row(so_id)
+        if not so:
+            raise ValueError(f"Sales Order {so_id} not found")
+
+        so_items = SalesOrderItem.objects.filter(sales_order_id=so_id)
+        so_item_ids = list(so_items.values_list("id", flat=True))
+        ordered_qty = so_items.aggregate(total=Sum("qty_value"))["total"] or Decimal("0")
+
+        rolls = list(
+            InventoryRoll.objects.filter(
+                is_fg=True,
+                sales_order_item__in=so_item_ids,
+                status="AVAILABLE",
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .select_related("location__plant", "production_job", "sales_order_item")
+        )
+        roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(roll.id) for roll in rolls])
+
+        batches = list(
+            FinishedGoodsBatch.objects.filter(
+                sales_order_item__in=so_item_ids,
+                status__in=["AVAILABLE", "PACKED"],
+                qty_pcs__gt=0,
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .select_related("location__plant", "template", "production_job", "sales_order_item")
+        )
+
+        gonnies = list(
+            PackingUnit.objects.filter(
+                sales_order_item__in=so_item_ids,
+                status__in=["OPEN", "SEALED"],
+            ).select_related("location__plant", "fg_batch", "sales_order_item")
+        )
+
+        roll_rows = []
+        for roll in rolls:
+            dispatch_meta = roll_dispatch_map.get(str(roll.id), {})
+            roll_rows.append(
+                {
+                    "id": str(roll.id),
+                    "sales_order_item_id": str(roll.sales_order_item_id) if roll.sales_order_item_id else None,
+                    "label_id": roll.label_id,
+                    "batch_no": roll.batch_no or "",
+                    "weight_kg": float(roll.weight_kg or 0),
+                    "width_mm": float(roll.width_mm or 0),
+                    "material__name": getattr(getattr(roll, "material", None), "name", ""),
+                    "location": {
+                        "id": str(roll.location.id),
+                        "name": roll.location.name,
+                        "plant_id": str(roll.location.plant_id),
+                        "plant_name": roll.location.plant.name,
+                    },
+                    "packed_for_dispatch": bool(dispatch_meta.get("packed_for_dispatch")),
+                    "released_to_dispatch": bool(dispatch_meta.get("released_to_dispatch")),
+                    "release_mode": dispatch_meta.get("release_mode") or "UNPACKED",
+                    "default_pack_lines": (
+                        (
+                            (
+                                (getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}).get("roll_dispatch_pack")
+                                or {}
+                            ).get("lines")
+                            or []
+                        )
+                        if bool(
+                            (
+                                (getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}).get("roll_dispatch_pack")
+                                or {}
+                            ).get("enabled", False)
+                        )
+                        else []
+                    ),
+                    "job_no": roll.production_job.job_number if roll.production_job else None,
+                }
+            )
+
+        batch_rows = [
+            {
+                "id": str(batch.id),
+                "batch_number": batch.batch_number,
+                "qty_pcs": int(batch.qty_pcs or 0),
+                "qty_kg": float(batch.qty_kg or 0),
+                "status": batch.status,
+                "template_name": batch.template.name if batch.template else None,
+                "customer": batch.customer_name,
+                "so_number": batch.sales_order_no,
+                "primary_pack_enabled": bool(
+                    (
+                        dict(getattr(batch.sales_order_item, "packaging_snapshot", {}) or {}).get("primary_inner_pack", {})
+                        if getattr(batch, "sales_order_item", None)
+                        else {}
+                    ).get("enabled", False)
+                ),
+                "pcs_per_pack": (
+                    int(
+                        (
+                            dict(getattr(batch.sales_order_item, "packaging_snapshot", {}) or {}).get("primary_inner_pack", {})
+                            if getattr(batch, "sales_order_item", None)
+                            else {}
+                        ).get("pcs_per_pack") or 0
+                    )
+                    if getattr(batch, "sales_order_item", None)
+                    else None
+                ),
+                "default_content_mode": (
+                    "PRIMARY_PACKS"
+                    if bool(
+                        (
+                            dict(getattr(batch.sales_order_item, "packaging_snapshot", {}) or {}).get("primary_inner_pack", {})
+                            if getattr(batch, "sales_order_item", None)
+                            else {}
+                        ).get("enabled", False)
+                    )
+                    else "LOOSE_POUCHES"
+                ),
+                "location": {
+                    "id": str(batch.location.id) if batch.location else None,
+                    "name": batch.location.name if batch.location else None,
+                    "plant_id": str(batch.location.plant_id) if batch.location else None,
+                    "plant_name": batch.location.plant.name if batch.location else None,
+                },
+            }
+            for batch in batches
+        ]
+
+        gonny_rows = [
+            {
+                "id": str(gonny.id),
+                "label_id": gonny.label_id,
+                "qty_pcs": int(gonny.qty_pcs or 0),
+                "content_mode": gonny.content_mode,
+                "primary_pack_count": gonny.primary_pack_count,
+                "weight_kg": float(gonny.weight_kg or 0) if gonny.weight_kg is not None else None,
+                "net_product_weight_kg": float(gonny.net_product_weight_kg or 0),
+                "inner_pack_tare_kg": float(gonny.inner_pack_tare_kg or 0),
+                "secondary_pack_tare_kg": float(gonny.secondary_pack_tare_kg or 0),
+                "extras_tare_kg": float(gonny.extras_tare_kg or 0),
+                "gross_weight_kg": float(gonny.gross_weight_kg or gonny.weight_kg or 0) if gonny.gross_weight_kg is not None or gonny.weight_kg is not None else None,
+                "status": gonny.status,
+                "released_to_dispatch": FGDispatchService._gonny_released_for_dispatch(gonny),
+                "batch_no": gonny.fg_batch.batch_number if gonny.fg_batch else None,
+                "location": {
+                    "id": str(gonny.location.id) if gonny.location_id else None,
+                    "name": gonny.location.name if gonny.location_id else None,
+                    "plant_id": str(gonny.location.plant_id) if gonny.location_id else None,
+                    "plant_name": gonny.location.plant.name if gonny.location_id else None,
+                },
+            }
+            for gonny in gonnies
+        ]
+
+        ready_rolls = [row for row in roll_rows if row["released_to_dispatch"]]
+        ready_gonnies = [row for row in gonny_rows if row["released_to_dispatch"] and str(row["status"]).upper() == "SEALED"]
+
+        return {
+            "sales_order": so,
+            "ordered_qty": float(ordered_qty),
+            "packing_pending": {
+                "rolls_count": len([row for row in roll_rows if not row["released_to_dispatch"]]),
+                "batches_count": len(batch_rows),
+                "batches_pcs": sum(int(row["qty_pcs"] or 0) for row in batch_rows),
+                "open_gonnies_count": len([row for row in gonny_rows if str(row["status"]).upper() == "OPEN"]),
+                "sealed_gonnies_count": len([row for row in gonny_rows if str(row["status"]).upper() == "SEALED" and not row["released_to_dispatch"]]),
+            },
+            "ready_for_dispatch": {
+                "rolls_count": len(ready_rolls),
+                "rolls_kg": float(sum(float(row["weight_kg"] or 0) for row in ready_rolls)),
+                "gonnies_count": len(ready_gonnies),
+                "gonnies_pcs": sum(int(row["qty_pcs"] or 0) for row in ready_gonnies),
+                "gonnies_gross_kg": float(sum(float(row["gross_weight_kg"] or 0) for row in ready_gonnies)),
+            },
+            "rolls": roll_rows,
+            "batches": batch_rows,
+            "gonnies": gonny_rows,
+        }
 
     @staticmethod
     def get_aggregated_dispatch_summary(plant_id: str = None) -> dict:
@@ -339,7 +618,7 @@ class FGDispatchService:
                 source_remaining_map[source_key] = float(source_remaining_map.get(source_key, 0.0)) + float(
                     source_roll.weight_kg or 0
                 )
-        packed_map = FGDispatchService._packed_roll_map([str(r.id) for r in available_roll_rows])
+        roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(r.id) for r in available_roll_rows])
         roll_units = [{
             'id': str(r.id),
             'sales_order_item_id': str(r.sales_order_item_id) if r.sales_order_item_id else None,
@@ -352,7 +631,9 @@ class FGDispatchService:
                 'plant_id': str(r.location.plant_id),
                 'plant_name': r.location.plant.name
             },
-            'packed_for_dispatch': bool(packed_map.get(str(r.id), False)),
+            'packed_for_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("packed_for_dispatch")),
+            'released_to_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("released_to_dispatch")),
+            'release_mode': str(roll_dispatch_map.get(str(r.id), {}).get("release_mode") or "UNPACKED").upper(),
             'default_pack_lines': (
                 (
                     (
@@ -382,8 +663,8 @@ class FGDispatchService:
                 (getattr(r, "meta_json", None) or {}).get("split_parent_label")
             ),
             'job_no': r.production_job.job_number if r.production_job else None
-        } for r in available_roll_rows]
-        
+        } for r in available_roll_rows if bool(roll_dispatch_map.get(str(r.id), {}).get("released_to_dispatch"))]
+
         gonny_units = [{
             'id': str(g.id),
             'label_id': g.label_id,
@@ -404,7 +685,8 @@ class FGDispatchService:
             },
             'batch_no': g.fg_batch.batch_number,
             'fg_batch__batch_number': g.fg_batch.batch_number,
-        } for g in all_gonnies.filter(status='SEALED')]
+            'released_to_dispatch': FGDispatchService._gonny_released_for_dispatch(g),
+        } for g in all_gonnies.filter(status='SEALED') if FGDispatchService._gonny_released_for_dispatch(g)]
 
         batch_units = [{
             'id': str(b.id),
@@ -438,18 +720,23 @@ class FGDispatchService:
                 'gonnies_pcs': dispatched_gonnies_pcs,
             },
             'available_for_dispatch': {
-                'rolls_count': available_rolls.count(),
-                'rolls_kg': float(available_rolls.aggregate(total=Sum('weight_kg'))['total'] or 0),
-                'gonnies_count': available_gonnies.count(),
-                'gonnies_pcs': available_gonnies.aggregate(total=Sum('qty_pcs'))['total'] or 0,
-                'gonnies_net_kg': float(available_gonnies.aggregate(total=Sum('net_product_weight_kg'))['total'] or 0),
-                'gonnies_gross_kg': float(available_gonnies.aggregate(total=Sum('gross_weight_kg'))['total'] or 0),
+                'rolls_count': len(roll_units),
+                'rolls_kg': float(sum(float(row['weight_kg'] or 0) for row in roll_units)),
+                'gonnies_count': len(gonny_units),
+                'gonnies_pcs': sum(int(row['qty_pcs'] or 0) for row in gonny_units),
+                'gonnies_net_kg': float(sum(float(row['net_product_weight_kg'] or 0) for row in gonny_units)),
+                'gonnies_gross_kg': float(sum(float(row['gross_weight_kg'] or 0) for row in gonny_units)),
             },
             'packing_pending': {
                 'open_gonnies_count': open_gonnies.count(),
                 'open_gonnies_pcs': open_gonnies.aggregate(total=Sum('qty_pcs'))['total'] or 0,
                 'unpacked_batch_count': unpacked_batches.count(),
                 'unpacked_batch_pcs': unpacked_batches.aggregate(total=Sum('qty_pcs'))['total'] or 0,
+                'unreleased_rolls_count': len([row for row in available_roll_rows if not bool(roll_dispatch_map.get(str(row.id), {}).get("released_to_dispatch"))]),
+                'unreleased_sealed_gonnies_count': len([
+                    gonny for gonny in all_gonnies.filter(status='SEALED')
+                    if not FGDispatchService._gonny_released_for_dispatch(gonny)
+                ]),
             },
             'rolls': roll_units,
             'gonnies': gonny_units,
@@ -544,6 +831,75 @@ class FGDispatchService:
 
     @staticmethod
     @transaction.atomic
+    def release_roll_to_dispatch(roll_id: str, user=None, lines: list | None = None, release_mode: str = "PACKED") -> RollDispatchPackRecord:
+        try:
+            roll = InventoryRoll.objects.select_related("sales_order_item", "sales_order_item__sales_order").get(id=roll_id)
+        except InventoryRoll.DoesNotExist:
+            raise ValueError(f"Roll {roll_id} not found")
+
+        if not roll.sales_order_item_id:
+            raise ValueError(f"Roll {roll.label_id} has no sales-order lineage and cannot be released to dispatch.")
+        if str(roll.status or "").upper() != "AVAILABLE":
+            raise ValueError(f"Roll {roll.label_id} is not AVAILABLE.")
+
+        normalized_mode = str(release_mode or "PACKED").upper()
+        if normalized_mode not in {"PACKED", "UNPACKED"}:
+            raise ValueError("release_mode must be PACKED or UNPACKED.")
+
+        record = RollDispatchPackRecord.objects.filter(
+            roll_id=roll.id,
+            sales_order_item_id=roll.sales_order_item_id,
+        ).first()
+
+        if record is None:
+            if normalized_mode == "PACKED":
+                record = FGDispatchService.pack_roll(roll_id=str(roll.id), lines=lines, user=user)
+            else:
+                record = RollDispatchPackRecord.objects.create(
+                    roll=roll,
+                    sales_order_item_id=roll.sales_order_item_id,
+                    packed_by=user,
+                    lines=[],
+                    tx_ids=[],
+                    meta_json={
+                        "defaulted_from_snapshot": False,
+                        "release_mode": "UNPACKED",
+                    },
+                )
+
+        record.meta_json = FGDispatchService._mark_release_meta(
+            record.meta_json,
+            user=user,
+            release_mode=normalized_mode if normalized_mode else ("PACKED" if record.lines else "UNPACKED"),
+        )
+        record.save(update_fields=["meta_json"])
+        FGDispatchService._set_sales_order_status(
+            getattr(getattr(roll, "sales_order_item", None), "sales_order", None),
+            "DISPATCH_READY",
+        )
+        return record
+
+    @staticmethod
+    @transaction.atomic
+    def release_gonny_to_dispatch(gonny_id: str, user=None) -> PackingUnit:
+        try:
+            gonny = PackingUnit.objects.select_related("sales_order_item", "sales_order_item__sales_order").get(id=gonny_id)
+        except PackingUnit.DoesNotExist:
+            raise ValueError(f"Packing unit {gonny_id} not found")
+
+        if str(gonny.status or "").upper() != "SEALED":
+            raise ValueError(f"Gonny {gonny.label_id} must be SEALED before release to dispatch.")
+
+        gonny.meta_json = FGDispatchService._mark_release_meta(gonny.meta_json, user=user, release_mode="GONNY")
+        gonny.save(update_fields=["meta_json"])
+        FGDispatchService._set_sales_order_status(
+            getattr(getattr(gonny, "sales_order_item", None), "sales_order", None),
+            "DISPATCH_READY",
+        )
+        return gonny
+
+    @staticmethod
+    @transaction.atomic
     def create_challan(customer_name: str, plant_id: str, sales_order_id: str = None,
                        vehicle_no: str = '', driver_name: str = '', driver_phone: str = '',
                        roll_ids: list = None, gonny_ids: list = None, batch_items: list = None, user=None) -> DeliveryChallan:
@@ -560,12 +916,56 @@ class FGDispatchService:
         if batch_items:
             raise ValueError("Direct FG batch dispatch is not allowed for sales orders. Dispatch sealed gonnies instead.")
 
-        # Generate DC number only after request validation to avoid unnecessary DB work on rejected requests.
-        dc_count = DeliveryChallan.objects.count() + 1
-        dc_no = f"DC-{timezone.now().strftime('%Y%m%d')}-{dc_count:04d}"
+        validated_rolls = []
+        if roll_ids:
+            rolls = InventoryRoll.objects.filter(id__in=roll_ids)
+            for roll in rolls:
+                # Validation: must belong to same SO
+                if not roll.sales_order_item_id or str(roll.sales_order_item.sales_order_id) != str(sales_order_id):
+                    raise ValueError(f"Roll {roll.label_id} belongs to a different Sales Order")
+                dispatch_record = RollDispatchPackRecord.objects.filter(
+                    roll_id=roll.id,
+                    sales_order_item_id=roll.sales_order_item_id,
+                ).first()
+                if not dispatch_record:
+                    raise ValueError(f"Roll {roll.label_id} is not released from Packing Yard.")
+                if not bool(dict(getattr(dispatch_record, "meta_json", {}) or {}).get("released_to_dispatch")):
+                    raise ValueError(f"Roll {roll.label_id} is not released to Dispatch Bay yet.")
+
+                validated_rolls.append(roll)
+
+        validated_gonnies = []
+        if gonny_ids:
+            gonnies = PackingUnit.objects.filter(id__in=gonny_ids)
+            for gonny in gonnies:
+                if not gonny.sales_order_item_id or str(gonny.sales_order_item.sales_order_id) != str(sales_order_id):
+                    raise ValueError(f"Gonny {gonny.label_id} belongs to a different Sales Order")
+                if gonny.status != 'SEALED':
+                    raise ValueError(f"Gonny {gonny.label_id} must be sealed before dispatch.")
+                if not FGDispatchService._gonny_released_for_dispatch(gonny):
+                    raise ValueError(f"Gonny {gonny.label_id} is not released from Packing Yard.")
+                if gonny.weight_kg is None:
+                    raise ValueError(f"Gonny {gonny.label_id} is missing sealed weight.")
+
+                validated_gonnies.append(gonny)
+
+        # Generate DC number only after all request validation to keep rejection paths side-effect free.
+        dc_prefix = f"DC-{timezone.now().strftime('%Y%m%d')}-"
+        todays_numbers = DeliveryChallan.objects.filter(dc_no__startswith=dc_prefix).values_list("dc_no", flat=True)
+        next_suffix = 1
+        for value in todays_numbers:
+            try:
+                suffix = int(str(value).rsplit("-", 1)[-1])
+            except Exception:
+                continue
+            if suffix >= next_suffix:
+                next_suffix = suffix + 1
+        dc_no = f"{dc_prefix}{next_suffix:04d}"
+        while DeliveryChallan.objects.filter(dc_no=dc_no).exists():
+            next_suffix += 1
+            dc_no = f"{dc_prefix}{next_suffix:04d}"
 
         plant = Plant.objects.get(id=plant_id)
-        # Create challan
         challan = DeliveryChallan.objects.create(
             dc_no=dc_no,
             customer_name=customer_name,
@@ -577,54 +977,24 @@ class FGDispatchService:
             status='DRAFT',
             created_by=user
         )
-        
-        # Add items
-        if roll_ids:
-            rolls = InventoryRoll.objects.filter(id__in=roll_ids)
-            for roll in rolls:
-                # Validation: must belong to same SO
-                if not roll.sales_order_item_id or str(roll.sales_order_item.sales_order_id) != str(sales_order_id):
-                    raise ValueError(f"Roll {roll.label_id} belongs to a different Sales Order")
-                packed_exists = RollDispatchPackRecord.objects.filter(
-                    roll_id=roll.id,
-                    sales_order_item_id=roll.sales_order_item_id,
-                ).exists()
-                if not packed_exists:
-                    strict_pack = str(os.getenv("STRICT_DISPATCH_PACKING", "False")).strip().lower() == "true"
-                    if strict_pack:
-                        raise ValueError(f"Roll {roll.label_id} is not packed. Pack it before creating challan.")
-                    try:
-                        FGDispatchService.pack_roll(str(roll.id), user=user)
-                    except Exception:
-                        # Backward-compatible mode: challan can still be created when
-                        # dispatch-pack snapshots are unavailable.
-                        pass
-                
-                DeliveryChallanItem.objects.create(
-                    challan=challan,
-                    sales_order_item=roll.sales_order_item,
-                    roll=roll,
-                    weight_kg=roll.weight_kg,
-                    qty_pcs=None
-                )
-        
-        if gonny_ids:
-            gonnies = PackingUnit.objects.filter(id__in=gonny_ids)
-            for gonny in gonnies:
-                if not gonny.sales_order_item_id or str(gonny.sales_order_item.sales_order_id) != str(sales_order_id):
-                    raise ValueError(f"Gonny {gonny.label_id} belongs to a different Sales Order")
-                if gonny.status != 'SEALED':
-                    raise ValueError(f"Gonny {gonny.label_id} must be sealed before dispatch.")
-                if gonny.weight_kg is None:
-                    raise ValueError(f"Gonny {gonny.label_id} is missing sealed weight.")
-                
-                DeliveryChallanItem.objects.create(
-                    challan=challan,
-                    sales_order_item=gonny.sales_order_item,
-                    packing_unit=gonny,
-                    weight_kg=gonny.weight_kg,
-                    qty_pcs=gonny.qty_pcs
-                )
+
+        for roll in validated_rolls:
+            DeliveryChallanItem.objects.create(
+                challan=challan,
+                sales_order_item=roll.sales_order_item,
+                roll=roll,
+                weight_kg=roll.weight_kg,
+                qty_pcs=None
+            )
+
+        for gonny in validated_gonnies:
+            DeliveryChallanItem.objects.create(
+                challan=challan,
+                sales_order_item=gonny.sales_order_item,
+                packing_unit=gonny,
+                weight_kg=gonny.weight_kg,
+                qty_pcs=gonny.qty_pcs
+            )
         
         return challan
     

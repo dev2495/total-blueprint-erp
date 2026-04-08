@@ -1,208 +1,434 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { salesService } from "@/services/sales"
-import { DataTable } from "@/components/ui/data-table"
-import { ColumnDef } from "@tanstack/react-table"
-import { Button } from "@/components/ui/button"
-import { Plus, Activity, Clock, Zap, Loader2, Package, MapPin, Hash } from "lucide-react"
 import Link from "next/link"
-import { StatusBadge } from "@/components/ui-custom/status-badge"
-import { Card } from "@/components/ui/card"
+import { type ReactNode, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { type ColumnDef } from "@tanstack/react-table"
+import { Activity, CheckCircle2, Loader2, Plus, Search, SlidersHorizontal } from "lucide-react"
 
-interface SalesOrder {
-    id: string
-    order_number: string
-    customer_name: string
-    status: string
-    total_weight_kg?: number
-    created_at: string
-    items?: any[]
+import { DataTable } from "@/components/ui/data-table"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+import { type SalesOrder, salesService } from "@/services/sales"
+
+type OrderTab = "active" | "completed"
+type CompletedStatusFilter = "ALL" | "COMPLETED" | "CANCELLED"
+type CompletedTypeFilter = "ALL" | "POUCH" | "ROLL"
+type CompletedWindowFilter = "ALL" | "30" | "90" | "180"
+
+function formatDate(value: string) {
+    if (!value) return "No date"
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function formatDate(dateStr: string) {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+function safeNumber(value: unknown) {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : 0
+}
+
+function firstLineLabel(order: SalesOrder) {
+    const summary = order.item_summary || {}
+    const variantLabel = [summary.variant_code, summary.variant_name].filter(Boolean).join(" · ")
+    return variantLabel || summary.template_name || order.order_name || order.order_number
+}
+
+function progressParts(order: SalesOrder) {
+    const summary = order.fulfillment_summary || {}
+    const qty = order.qty_summary || {}
+    const orderedBasis = qty.ordered_pcs ?? qty.ordered_kg ?? 0
+    const producedBasis = qty.ordered_pcs != null ? safeNumber(summary.produced_pcs) : safeNumber(summary.produced_kg)
+    const dispatchedBasis = qty.ordered_pcs != null ? safeNumber(summary.dispatched_pcs) : safeNumber(summary.dispatched_kg)
+    const remainingBasis = qty.ordered_pcs != null ? safeNumber(summary.remaining_pcs) : safeNumber(summary.remaining_kg)
+    const total = Math.max(orderedBasis, producedBasis, dispatchedBasis + remainingBasis, 0)
+    if (!total) return { dispatchedPct: 0, producedOpenPct: 0, remainingPct: 0 }
+    const dispatchedPct = Math.max(0, Math.min(100, (dispatchedBasis / total) * 100))
+    const producedOpenPct = Math.max(0, Math.min(100 - dispatchedPct, ((producedBasis - dispatchedBasis) / total) * 100))
+    const remainingPct = Math.max(0, 100 - dispatchedPct - producedOpenPct)
+    return { dispatchedPct, producedOpenPct, remainingPct }
+}
+
+function isCompletedOrder(order: SalesOrder) {
+    return ["COMPLETED", "CANCELLED"].includes(String(order.status || "").toUpperCase())
+}
+
+function withinDays(value: string | null | undefined, days: number) {
+    if (!value) return false
+    const timestamp = new Date(value).getTime()
+    if (Number.isNaN(timestamp)) return false
+    return Date.now() - timestamp <= days * 24 * 60 * 60 * 1000
+}
+
+function badgeTone(kind: "type" | "geometry" | "layer" | "printing" | "pod" | "template" | "stock" | "packaging") {
+    switch (kind) {
+        case "type":
+            return "border-orange-200 bg-orange-50 text-orange-700"
+        case "geometry":
+            return "border-teal-200 bg-teal-50 text-teal-700"
+        case "layer":
+            return "border-amber-200 bg-amber-50 text-amber-700"
+        case "printing":
+            return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700"
+        case "pod":
+            return "border-rose-200 bg-rose-50 text-rose-700"
+        case "template":
+            return "border-violet-200 bg-violet-50 text-violet-700"
+        case "stock":
+            return "border-indigo-200 bg-indigo-50 text-indigo-700"
+        case "packaging":
+            return "border-emerald-200 bg-emerald-50 text-emerald-700"
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-700"
+    }
+}
+
+function Pill({ children, kind }: { children: ReactNode; kind: Parameters<typeof badgeTone>[0] }) {
+    return (
+        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", badgeTone(kind))}>
+            {children}
+        </span>
+    )
+}
+
+function StatusPill({ status }: { status: string }) {
+    const normalized = String(status || "").toUpperCase()
+    const tone = normalized === "COMPLETED"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : normalized === "CANCELLED"
+            ? "border-rose-200 bg-rose-50 text-rose-700"
+            : normalized === "PACKING_READY"
+                ? "border-violet-200 bg-violet-50 text-violet-700"
+            : normalized === "DISPATCH_READY"
+                ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                : normalized === "RELEASED"
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : normalized === "PLANNING_REQUIRED"
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+    return <span className={cn("inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]", tone)}>{normalized}</span>
 }
 
 export default function SalesOrdersPage() {
-    const { data: orders, isLoading } = useQuery({
+    const [tab, setTab] = useState<OrderTab>("active")
+    const [searchText, setSearchText] = useState("")
+    const [completedStatus, setCompletedStatus] = useState<CompletedStatusFilter>("ALL")
+    const [completedType, setCompletedType] = useState<CompletedTypeFilter>("ALL")
+    const [completedWindow, setCompletedWindow] = useState<CompletedWindowFilter>("90")
+    const { data: orders = [], isLoading } = useQuery({
         queryKey: ["sales-orders"],
-        queryFn: () => salesService.getOrders()
+        queryFn: () => salesService.getOrders(),
     })
+
+    const activeOrders = useMemo(() => orders.filter((order) => !isCompletedOrder(order)), [orders])
+    const completedOrders = useMemo(() => orders.filter((order) => isCompletedOrder(order)), [orders])
+    const shownOrders = useMemo(() => {
+        const list = tab === "active" ? activeOrders : completedOrders
+        return list.filter((order) => {
+            const haystack = [
+                order.order_number,
+                order.order_name,
+                order.customer_name,
+                order.status,
+                order.item_summary?.variant_code,
+                order.item_summary?.variant_name,
+                order.item_summary?.template_name,
+                order.item_summary?.template_tag,
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+
+            if (searchText.trim() && !haystack.includes(searchText.trim().toLowerCase())) {
+                return false
+            }
+
+            if (tab === "completed") {
+                const normalizedStatus = String(order.status || "").toUpperCase()
+                const finishedGoodType = String(order.item_summary?.finished_good_type || "").toUpperCase()
+                if (completedStatus !== "ALL" && normalizedStatus !== completedStatus) {
+                    return false
+                }
+                if (completedType !== "ALL" && finishedGoodType !== completedType) {
+                    return false
+                }
+                if (completedWindow !== "ALL" && !withinDays(order.created_at, Number(completedWindow))) {
+                    return false
+                }
+            }
+
+            return true
+        })
+    }, [activeOrders, completedOrders, completedStatus, completedType, completedWindow, searchText, tab])
 
     const columns: ColumnDef<SalesOrder>[] = [
         {
             accessorKey: "order_number",
-            header: () => <span className="text-[11px] font-semibold text-slate-500 pl-2">PROTOCOL ID</span>,
+            header: () => <span className="pl-2 text-[11px] font-semibold text-slate-500">ORDER</span>,
             cell: ({ row }) => (
-                <div className="pl-2 flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                        <Hash className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                        <span className="font-bold text-slate-900 text-sm">{row.getValue("order_number")}</span>
-                        <div className="text-[10px] text-slate-400 font-medium">{row.original?.id?.slice(0, 8)}...</div>
+                <div className="pl-2">
+                    <div className="text-sm font-black text-slate-900">{row.original.order_number}</div>
+                    <div className="mt-0.5 text-[11px] font-semibold text-slate-700">{row.original.order_name || "Single order"}</div>
+                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                        {formatDate(row.original.created_at)}
                     </div>
                 </div>
-            )
+            ),
         },
         {
             accessorKey: "customer_name",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">CLIENT IDENTITY</span>,
+            header: () => <span className="text-[11px] font-semibold text-slate-500">CUSTOMER</span>,
             cell: ({ row }) => (
-                <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-slate-700">{row.getValue("customer_name")}</span>
-                    <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium mt-0.5">
-                        <MapPin className="h-3 w-3" />
-                        Global Account
+                <div>
+                    <div className="text-sm font-semibold text-slate-800">{row.original.customer_name}</div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                        {row.original.delivery_date ? `Delivery ${formatDate(row.original.delivery_date)}` : "Delivery pending"}
                     </div>
                 </div>
-            )
+            ),
+        },
+        {
+            id: "item_summary",
+            header: () => <span className="text-[11px] font-semibold text-slate-500">SKU / PRODUCT TRUTH</span>,
+            cell: ({ row }) => {
+                const summary = row.original.item_summary || {}
+                const claimed = summary.claimed_stock_order_nos || []
+                const layerLabels = summary.layer_labels || []
+                return (
+                    <div className="min-w-[360px]">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-black text-slate-900">{firstLineLabel(row.original)}</span>
+                            {(summary.line_count || 0) > 1 ? (
+                                <Pill kind="stock">+{(summary.line_count || 1) - 1} more</Pill>
+                            ) : null}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {summary.finished_good_type ? <Pill kind="type">{summary.finished_good_type}</Pill> : null}
+                            {summary.size_or_form ? <Pill kind="geometry">{summary.size_or_form}</Pill> : null}
+                            {layerLabels.length
+                                ? layerLabels.map((label) => <Pill key={`${row.original.id}-${label}`} kind="layer">{label}</Pill>)
+                                : summary.layer_count
+                                    ? <Pill kind="layer">{summary.layer_count} layer(s)</Pill>
+                                    : null}
+                            {summary.printing_summary ? <Pill kind="printing">{summary.printing_summary}</Pill> : null}
+                            {summary.packaging_summary ? <Pill kind="packaging">{summary.packaging_summary}</Pill> : null}
+                            {summary.pod_enabled ? <Pill kind="pod">POD</Pill> : null}
+                            {summary.template_tag ? <Pill kind="template">{summary.template_tag}</Pill> : null}
+                            {claimed.length ? <Pill kind="stock">Stock {claimed.join(", ")}</Pill> : null}
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-500">{summary.template_name || "Template pending"}</div>
+                    </div>
+                )
+            },
+        },
+        {
+            id: "qty_progress",
+            header: () => <span className="text-[11px] font-semibold text-slate-500">QTY / FULFILLMENT</span>,
+            cell: ({ row }) => {
+                const qty = row.original.qty_summary || {}
+                const summary = row.original.fulfillment_summary || {}
+                const progress = progressParts(row.original)
+                return (
+                    <div className="min-w-[280px]">
+                        <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-slate-700">
+                            <Pill kind="type">{safeNumber(qty.ordered_kg).toFixed(2)} kg</Pill>
+                            <Pill kind="geometry">{qty.ordered_pcs != null ? `${safeNumber(qty.ordered_pcs)} pcs` : "— pcs"}</Pill>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div className="flex h-full w-full">
+                                <div className="bg-emerald-500" style={{ width: `${progress.dispatchedPct}%` }} />
+                                <div className="bg-indigo-500" style={{ width: `${progress.producedOpenPct}%` }} />
+                                <div className="bg-slate-200" style={{ width: `${progress.remainingPct}%` }} />
+                            </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500">
+                            <span>Produced {safeNumber(summary.produced_kg).toFixed(2)} kg</span>
+                            <span>Dispatched {safeNumber(summary.dispatched_kg).toFixed(2)} kg</span>
+                            <span>Remaining {safeNumber(summary.remaining_kg).toFixed(2)} kg</span>
+                            {summary.produced_pcs != null ? <span>Produced {safeNumber(summary.produced_pcs)} pcs</span> : null}
+                            {summary.dispatched_pcs != null ? <span>Dispatched {safeNumber(summary.dispatched_pcs)} pcs</span> : null}
+                            {summary.remaining_pcs != null ? <span>Remaining {safeNumber(summary.remaining_pcs)} pcs</span> : null}
+                        </div>
+                    </div>
+                )
+            },
         },
         {
             accessorKey: "status",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">PHASE STATUS</span>,
-            cell: ({ row }) => <StatusBadge status={row.getValue("status")} />
-        },
-        {
-            id: "product",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">PRODUCT / TEMPLATE</span>,
-            cell: ({ row }) => {
-                const items = row.original.items || []
-                const firstItem = items[0]
-                const otherCount = items.length - 1
-                const totalWeight = row.original.total_weight_kg || 0
-                const printing = firstItem?.printing_snapshot || {}
-                const printingEnabled = Boolean(printing?.enabled)
-                const printType = String(printing?.type || printing?.method || "").toUpperCase()
-                const substrate = String(printing?.substrate_mode || "").toUpperCase()
-                const frontCount = Number(printing?.front_colors_count || 0)
-                const backCount = Number(printing?.back_colors_count || 0)
-                const geometry = firstItem?.geometry_snapshot || {}
-                const fgType = String(geometry?.finished_good_type || "POUCH").toUpperCase()
-                const rollForm = fgType === "ROLL" ? String(geometry?.roll_form || "FLAT").toUpperCase() : ""
-                const claimedStockNos = Array.from(
-                    new Set(
-                        items.flatMap((item: any) =>
-                            Array.isArray(item?.claimed_stock_order_nos) ? item.claimed_stock_order_nos : []
-                        )
-                    )
-                )
-
-                return (
-                    <div className="flex items-center gap-3">
-                        {/* <div className="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <Package className="h-4 w-4" />
-                        </div> */}
-                        <div className="flex flex-col">
-                            {firstItem ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-slate-900 truncate max-w-[200px]" title={firstItem.template_name}>
-                                        {firstItem.template_name}
-                                    </span>
-                                    {otherCount > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[9px] font-bold border border-slate-200">
-                                            +{otherCount}
-                                        </span>
-                                    )}
-                                </div>
-                            ) : (
-                                <span className="text-sm font-medium text-slate-400 italic">No Items</span>
-                            )}
-                            <span className="text-[10px] text-slate-500 font-medium mt-0.5">
-                                {totalWeight > 0 ? `${Math.round(totalWeight).toLocaleString()} KG Net Weight` : "Weight Pending"}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                                {fgType}{rollForm ? ` • ${rollForm}` : ""}
-                            </span>
-                            {claimedStockNos.length > 0 && (
-                                <span className="text-[10px] text-indigo-700 font-semibold mt-0.5">
-                                    STOCK_CLAIM • {claimedStockNos.join(", ")}
-                                </span>
-                            )}
-                            {printingEnabled && (
-                                <span className="text-[10px] text-indigo-600 font-semibold mt-0.5">
-                                    {printType || "PRINT"} • {substrate || "NA"} • F{frontCount}/B{backCount}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                )
-            }
-        },
-        {
-            accessorKey: "created_at",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">TIMESTAMP</span>,
+            header: () => <span className="text-[11px] font-semibold text-slate-500">STATUS</span>,
             cell: ({ row }) => (
-                <div className="flex items-center gap-1.5 text-slate-500 font-medium text-xs">
-                    {formatDate(row.getValue("created_at"))}
+                <div className="space-y-2">
+                    <StatusPill status={row.original.status} />
+                    <div className="text-[11px] font-medium text-slate-500">
+                        {safeNumber(row.original.fulfillment_summary?.completion_percent).toFixed(0)}% complete
+                    </div>
                 </div>
-            )
+            ),
         },
         {
             id: "actions",
+            header: () => <span className="text-[11px] font-semibold text-slate-500">ACTION</span>,
             cell: ({ row }) => (
-                <div className="flex items-center justify-end gap-3 px-4">
-                    <Link href={`/sales/orders/${row.original.id}/tracking`} className="active-scale transition-opacity hover:opacity-90">
-                        <div className="h-9 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 flex items-center gap-2 transition-all shadow-sm">
-                            <Activity className="h-3.5 w-3.5" />
-                            <span className="text-[11px] font-bold uppercase tracking-wide">Track</span>
-                        </div>
+                <div className="flex items-center justify-end gap-2 pr-2">
+                    <Link href={`/sales/orders/${row.original.id}/tracking`}>
+                        <Button variant="outline" size="sm" className="h-8 rounded-lg">
+                            <Activity className="mr-2 h-3.5 w-3.5" />
+                            Track
+                        </Button>
                     </Link>
                 </div>
-            )
-        }
+            ),
+        },
     ]
 
     return (
-        <div className="p-8 lg:p-12 space-y-8 bg-[#F8F9FC] min-h-screen">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100/50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider">
-                        <Zap className="h-3 w-3 fill-indigo-600" /> Commercial Hub
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                            Sales Orders
-                        </h1>
-                        <p className="text-slate-500 font-medium text-sm mt-1">
-                            Managing <span className="text-slate-900 font-bold">{orders?.length || 0}</span> active commercial pipelines
-                        </p>
-                    </div>
+        <div className="min-h-screen space-y-5 bg-[#f4f6fb] p-4 lg:p-6" data-testid="sales-orders-list-page">
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.28)] lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">Commercial Queue</div>
+                    <h1 className="mt-1 text-xl font-black tracking-tight text-slate-900">Sales Orders</h1>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Dense queue with product truth pills, KG and PCS progress, and a completed-order audit desk.
+                    </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Link href="/sales/orders/create" className="active-scale">
-                        <Button className="h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs tracking-wide shadow-lg shadow-indigo-100 transition-all">
-                            <Plus className="h-4 w-4 mr-2" /> New Order
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+                        <button
+                            type="button"
+                            onClick={() => setTab("active")}
+                            className={cn(
+                                "rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]",
+                                tab === "active" ? "bg-slate-950 text-white" : "text-slate-600"
+                            )}
+                        >
+                            Active Orders {activeOrders.length}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTab("completed")}
+                            className={cn(
+                                "rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]",
+                                tab === "completed" ? "bg-emerald-600 text-white" : "text-slate-600"
+                            )}
+                        >
+                            Completed Orders {completedOrders.length}
+                        </button>
+                    </div>
+                    <Link href="/sales/orders/create">
+                        <Button className="h-9 rounded-full bg-slate-950 px-5 text-xs font-bold uppercase tracking-[0.14em] text-white hover:bg-slate-800">
+                            <Plus className="mr-2 h-4 w-4" />
+                            New Order
                         </Button>
                     </Link>
                 </div>
             </div>
 
-            {/* Content Section */}
-            <div className="relative">
-                {isLoading ? (
-                    <div className="flex h-[400px] items-center justify-center bg-white/50 backdrop-blur-sm rounded-[24px] border border-dashed border-slate-200">
-                        <div className="text-center space-y-3">
-                            <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto" />
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Synchronizing...</p>
+            {isLoading ? (
+                <div className="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white">
+                    <div className="text-center">
+                        <Loader2 className="mx-auto h-7 w-7 animate-spin text-slate-500" />
+                        <div className="mt-3 text-sm font-medium text-slate-500">Loading sales queue…</div>
+                    </div>
+                </div>
+            ) : (
+                <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_34px_-28px_rgba(15,23,42,0.3)]">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                        <div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-500">
+                                {tab === "active" ? "Operational queue" : "Completed order audit"}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-500">
+                                {tab === "active"
+                                    ? "Watch technical truth, production progress, and dispatch readiness in one dense row."
+                                    : "Track older completed and cancelled orders without leaving the queue desk."}
+                            </div>
+                        </div>
+                        {tab === "completed" ? (
+                            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Audit-ready history
+                            </div>
+                        ) : null}
+                    </div>
+                    <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
+                                <div className="relative min-w-0 flex-1 lg:max-w-sm">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                    <Input
+                                        value={searchText}
+                                        onChange={(event) => setSearchText(event.target.value)}
+                                        placeholder={tab === "completed" ? "Search completed order, customer, SKU, template..." : "Search order number, customer, SKU..."}
+                                        className="h-10 rounded-full border-slate-200 bg-white pl-9 text-sm"
+                                    />
+                                </div>
+                                {tab === "completed" ? (
+                                    <div className="flex flex-col gap-3 sm:flex-row">
+                                        <Select value={completedStatus} onValueChange={(value) => setCompletedStatus(value as CompletedStatusFilter)}>
+                                            <SelectTrigger className="h-10 min-w-[150px] rounded-full border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.12em]">
+                                                <SelectValue placeholder="Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="ALL">All statuses</SelectItem>
+                                                <SelectItem value="COMPLETED">Completed</SelectItem>
+                                                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <Select value={completedType} onValueChange={(value) => setCompletedType(value as CompletedTypeFilter)}>
+                                            <SelectTrigger className="h-10 min-w-[150px] rounded-full border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.12em]">
+                                                <SelectValue placeholder="Type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="ALL">All products</SelectItem>
+                                                <SelectItem value="POUCH">Pouch</SelectItem>
+                                                <SelectItem value="ROLL">Roll</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <Select value={completedWindow} onValueChange={(value) => setCompletedWindow(value as CompletedWindowFilter)}>
+                                            <SelectTrigger className="h-10 min-w-[150px] rounded-full border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.12em]">
+                                                <SelectValue placeholder="Window" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="30">Last 30 days</SelectItem>
+                                                <SelectItem value="90">Last 90 days</SelectItem>
+                                                <SelectItem value="180">Last 180 days</SelectItem>
+                                                <SelectItem value="ALL">All history</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ) : null}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">
+                                    <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
+                                    {shownOrders.length} visible row{shownOrders.length === 1 ? "" : "s"}
+                                </div>
+                                {tab === "completed" ? (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="h-9 rounded-full px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 hover:bg-white hover:text-slate-900"
+                                        onClick={() => {
+                                            setSearchText("")
+                                            setCompletedStatus("ALL")
+                                            setCompletedType("ALL")
+                                            setCompletedWindow("90")
+                                        }}
+                                    >
+                                        Reset filters
+                                    </Button>
+                                ) : null}
+                            </div>
                         </div>
                     </div>
-                ) : (
-                    <Card className="border border-slate-100 shadow-xl shadow-slate-200/40 rounded-[24px] overflow-hidden bg-white/80 backdrop-blur-xl">
-                        <div className="overflow-x-auto">
-                            <DataTable
-                                columns={columns}
-                                data={orders || []}
-                                filterColumn="order_number"
-                                filterPlaceholder="Find protocol ID..."
-                            />
-                        </div>
-                    </Card>
-                )}
-            </div>
+                    <div className="overflow-x-auto">
+                        <DataTable columns={columns} data={shownOrders} />
+                    </div>
+                </Card>
+            )}
         </div>
     )
 }

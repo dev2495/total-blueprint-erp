@@ -23,10 +23,7 @@ from apps.inventory.models import InventoryBulk, InventoryRoll, InventorySnapsho
 from apps.inventory.serializers import resolve_roll_role, resolve_roll_stage_name
 from apps.inventory.services.inventory_audit_service import InventoryAuditService
 from apps.inventory.services.roll_naming import build_roll_naming_payload, build_variant_key
-from apps.platformops.models import OperationalAlert
 from apps.production.models import DeliveryChallan, DeliveryChallanItem, PackingUnit
-from apps.users.models import User
-from apps.users.services.email_service import EmailDeliveryService
 
 try:
     from openpyxl import Workbook
@@ -66,38 +63,18 @@ except Exception:  # pragma: no cover
 DEFAULT_REPORT_PROFILES = {
     ReportDistributionProfile.ReportCode.OWNER_EXECUTIVE_DAILY: {
         "target_roles": ["OWNER", "ADMIN"],
-        "schedule_hour": 7,
-        "schedule_minute": 30,
-        "email_subject_template": "Owner Executive Daily - {report_date}",
-        "email_body_template": "Attached is the owner executive daily pack for {report_date}.",
     },
     ReportDistributionProfile.ReportCode.PRODUCTION_DAILY: {
-        "target_roles": ["OWNER", "ADMIN", "PLANNER", "PLANT_MANAGER", "WORK_CENTER_MANAGER"],
-        "schedule_hour": 8,
-        "schedule_minute": 0,
-        "email_subject_template": "Daily Production Report - {report_date}",
-        "email_body_template": "Attached is the daily production report for {report_date}.",
+        "target_roles": ["OWNER", "ADMIN"],
     },
     ReportDistributionProfile.ReportCode.DISPATCH_DAILY: {
-        "target_roles": ["OWNER", "ADMIN", "DISPATCH", "PLANT_MANAGER"],
-        "schedule_hour": 8,
-        "schedule_minute": 10,
-        "email_subject_template": "Dispatch Daily - {report_date}",
-        "email_body_template": "Attached is the daily dispatch report for {report_date}.",
+        "target_roles": ["OWNER", "ADMIN"],
     },
     ReportDistributionProfile.ReportCode.PACKING_DISPATCH_SUMMARY_DAILY: {
-        "target_roles": ["OWNER", "ADMIN", "DISPATCH", "STORE", "PLANT_MANAGER"],
-        "schedule_hour": 8,
-        "schedule_minute": 15,
-        "email_subject_template": "Packing Dispatch Summary - {report_date}",
-        "email_body_template": "Attached is the packing dispatch summary for {report_date}.",
+        "target_roles": ["OWNER", "ADMIN"],
     },
     ReportDistributionProfile.ReportCode.STOCK_STANDING_DAILY: {
-        "target_roles": ["OWNER", "ADMIN", "STORE", "PLANT_MANAGER"],
-        "schedule_hour": 8,
-        "schedule_minute": 20,
-        "email_subject_template": "Daily Stock Standing Report - {report_date}",
-        "email_body_template": "Attached is the daily stock standing report for {report_date}.",
+        "target_roles": ["OWNER", "ADMIN"],
     },
 }
 
@@ -259,23 +236,9 @@ class ReportDistributionService:
                 profile = ReportDistributionProfile.objects.filter(report_code=report_code).first()
                 if not profile:
                     profile = ReportDistributionProfile(report_code=report_code)
-                target_roles = [str(role or "").upper() for role in (row.get("target_roles") or []) if str(role or "").strip()]
-                extra_recipients = [str(email or "").strip() for email in (row.get("extra_recipients") or []) if str(email or "").strip()]
                 profile.active = bool(row.get("active", True))
-                profile.target_roles = target_roles
-                profile.extra_recipients = extra_recipients
-                profile.schedule_hour = max(0, min(23, int(row.get("schedule_hour", profile.schedule_hour or 8) or 8)))
-                profile.schedule_minute = max(0, min(59, int(row.get("schedule_minute", profile.schedule_minute or 0) or 0)))
-                profile.email_subject_template = str(
-                    row.get("email_subject_template")
-                    or profile.email_subject_template
-                    or DEFAULT_REPORT_PROFILES[report_code]["email_subject_template"]
-                )
-                profile.email_body_template = str(
-                    row.get("email_body_template")
-                    or profile.email_body_template
-                    or DEFAULT_REPORT_PROFILES[report_code]["email_body_template"]
-                )
+                profile.target_roles = list(DEFAULT_REPORT_PROFILES[report_code]["target_roles"])
+                profile.extra_recipients = []
                 profile.updated_by = updated_by
                 profile.save()
                 updated.append(profile)
@@ -300,17 +263,11 @@ class ReportDistributionService:
 
     @staticmethod
     def serialize_profile(profile: ReportDistributionProfile) -> dict:
-        defaults = DEFAULT_REPORT_PROFILES.get(profile.report_code, {})
         return {
             "report_code": profile.report_code,
             "label": dict(ReportDistributionProfile.ReportCode.choices).get(profile.report_code, profile.report_code),
             "active": bool(profile.active),
             "target_roles": list(profile.target_roles or []),
-            "extra_recipients": list(profile.extra_recipients or []),
-            "schedule_hour": int(profile.schedule_hour or 0),
-            "schedule_minute": int(profile.schedule_minute or 0),
-            "email_subject_template": profile.email_subject_template or defaults.get("email_subject_template", ""),
-            "email_body_template": profile.email_body_template or defaults.get("email_body_template", ""),
             "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
             "updated_by": getattr(profile.updated_by, "username", None),
         }
@@ -349,15 +306,11 @@ class ReportDistributionService:
 
     @staticmethod
     def recipients_for_profile(profile: ReportDistributionProfile):
-        role_recipients = list(
-            User.objects.filter(role__code__in=profile.target_roles)
-            .exclude(email="")
-            .values_list("email", flat=True)
-        )
+        role_recipients = [str(role or "").strip().upper() for role in (profile.target_roles or []) if str(role or "").strip()]
         deduped = []
         seen = set()
-        for email in [*role_recipients, *(profile.extra_recipients or [])]:
-            normalized = str(email or "").strip().lower()
+        for role_code in role_recipients:
+            normalized = str(role_code or "").strip().upper()
             if not normalized or normalized in seen:
                 continue
             seen.add(normalized)
@@ -391,7 +344,7 @@ class ReportDistributionService:
     def send_profile(profile: ReportDistributionProfile, *, report_date=None, triggered_by=None, triggered_manually=False):
         ReportDistributionService.prune_old_artifacts()
         rendered = ReportDistributionService.render_report(profile.report_code, report_date=report_date)
-        recipients = ReportDistributionService.recipients_for_profile(profile)
+        recipients = ReportDistributionService.recipients_for_profile(profile) or list(DEFAULT_REPORT_PROFILES[profile.report_code]["target_roles"])
         warning_text = rendered.warning_text or ""
         detail_attachment = rendered.detail_attachments[0] if rendered.detail_attachments else None
         run = ReportDispatchRun.objects.create(
@@ -413,112 +366,20 @@ class ReportDistributionService:
             triggered_manually=triggered_manually,
         )
         ReportDistributionService.persist_rendered_artifacts(rendered, folder=f"runs/{run.id}")
-        if not recipients:
-            run.status = ReportDispatchRun.Status.SKIPPED
-            run.warning_text = (warning_text + "\nNo recipients configured.").strip()
-            run.save(update_fields=["status", "warning_text"])
-            return run
-
-        email_ready, email_warning = EmailDeliveryService.configuration_status()
-        if not email_ready:
-            run.status = ReportDispatchRun.Status.SKIPPED_EMAIL
-            run.warning_text = "\n".join(filter(None, [warning_text, email_warning])).strip()
-            run.provider = str(getattr(settings, "EMAIL_PROVIDER", "") or "")
-            run.sent_at = timezone.now()
-            run.save(update_fields=["status", "warning_text", "provider", "sent_at"])
-            from apps.users.services.notification_service import NotificationService
-
-            NotificationService.emit_event(
-                event_key="reports.daily_pack_email_skipped",
-                title=f"Report generated without email: {profile.report_code}",
-                message=f"{profile.report_code} for {rendered.report_date.isoformat()} generated successfully, but email delivery was skipped. {email_warning}",
-                notification_type="SYSTEM",
-                related_object_type="ReportDispatchRun",
-                related_object_id=str(run.id),
-                priority="NORMAL",
-                idempotency_key=f"report-email-skipped:{profile.report_code}:{rendered.report_date.isoformat()}",
-            )
-            return run
-
-        subject_template = profile.email_subject_template or DEFAULT_REPORT_PROFILES[profile.report_code]["email_subject_template"]
-        body_template = profile.email_body_template or DEFAULT_REPORT_PROFILES[profile.report_code]["email_body_template"]
-        context = {
-            "report_date": rendered.report_date.isoformat(),
-            "company_name": _company_name(),
-            "summary_text": rendered.summary_text,
-        }
-        subject = subject_template.format(**context)
-        body = (
-            body_template.format(**context)
-            + "<br/><br/>"
-            + rendered.summary_text.replace("\n", "<br/>")
-        )
-        try:
-            result = EmailDeliveryService.send_email(
-                subject=subject,
-                body=body,
-                recipients=recipients,
-                idempotency_key=f"{profile.report_code}:{rendered.report_date.isoformat()}:{'manual' if triggered_manually else 'scheduled'}",
-                attachments=[
-                    {
-                        "filename": rendered.file_name,
-                        "content": rendered.pdf,
-                        "content_type": "application/pdf",
-                    },
-                    *[
-                        {
-                            "filename": attachment.file_name,
-                            "content": attachment.content,
-                            "content_type": attachment.content_type,
-                        }
-                        for attachment in rendered.detail_attachments
-                    ],
-                ],
-            )
-        except Exception as exc:
-            run.status = ReportDispatchRun.Status.FAILED
-            run.error_text = str(exc)
-            run.save(update_fields=["status", "error_text"])
-            OperationalAlert.objects.create(
-                category="REPORTING",
-                severity=OperationalAlert.Severity.WARNING,
-                message="Daily report delivery failed",
-                details={
-                    "report_code": profile.report_code,
-                    "report_date": rendered.report_date.isoformat(),
-                    "error": str(exc),
-                },
-            )
-            from apps.users.services.notification_service import NotificationService
-
-            NotificationService.emit_event(
-                event_key="reports.daily_pack_failed",
-                title=f"Report delivery failed: {profile.report_code}",
-                message=f"{profile.report_code} for {rendered.report_date.isoformat()} failed to send. Review reporting audit logs.",
-                notification_type="SYSTEM",
-                related_object_type="ReportDispatchRun",
-                related_object_id=str(run.id),
-                priority="HIGH",
-                idempotency_key=f"report-failed:{profile.report_code}:{rendered.report_date.isoformat()}",
-            )
-            raise
-
         run.status = ReportDispatchRun.Status.SUCCEEDED
-        run.provider = str(result.get("provider") or "")
-        run.provider_message_id = str(result.get("provider_message_id") or "")
         run.sent_at = timezone.now()
-        run.save(update_fields=["status", "provider", "provider_message_id", "sent_at"])
+        run.save(update_fields=["status", "sent_at"])
         from apps.users.services.notification_service import NotificationService
 
         NotificationService.emit_event(
-            event_key="reports.daily_pack_sent",
-            title=f"Report sent: {profile.report_code}",
-            message=f"{profile.report_code} for {rendered.report_date.isoformat()} was sent to {len(recipients)} recipients.",
+            event_key="reports.daily_pack_generated",
+            title=f"Daily report ready: {profile.report_code}",
+            message=f"{profile.report_code.replace('_', ' ')} for {rendered.report_date.isoformat()} was generated and archived for review.",
             notification_type="SYSTEM",
             related_object_type="ReportDispatchRun",
             related_object_id=str(run.id),
-            priority="LOW",
-            idempotency_key=f"report-sent:{profile.report_code}:{rendered.report_date.isoformat()}",
+            priority="NORMAL",
+            idempotency_key=f"report-generated:{profile.report_code}:{rendered.report_date.isoformat()}",
         )
         return run
 

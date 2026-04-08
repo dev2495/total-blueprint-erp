@@ -91,7 +91,55 @@ export interface PlannerStockOrderMatch {
     stop_step_index: number;
     remaining_qty_kg: number;
     produced_qty_kg: number;
+    planner_stock_class?: string;
+    match_mode?: string;
     stock_strategy?: 'FINAL_STOCK' | 'INTERMEDIATE_POOL' | 'PACKAGING_STOCK' | string;
+}
+
+export interface PlannerContinuationCandidate {
+    candidate_type: "INVENTORY" | "STOCK_ORDER" | string;
+    candidate_kind: "inventory" | "stock_order" | string;
+    inventory_type?: string;
+    inventory_id?: string;
+    label?: string;
+    display_name?: string;
+    planner_stock_class?: string;
+    stock_strategy?: string;
+    source_bucket?: string;
+    source_label?: string;
+    completed_step_index?: number;
+    allocatable_qty_kg?: number;
+    candidate_label?: string;
+    reason_label?: string;
+    resume_action_allowed?: boolean;
+    claim_action_allowed?: boolean;
+    recommended_action?: string;
+    route_span_label?: string;
+    order_id?: string;
+    order_number?: string;
+    start_step_index?: number;
+    stop_step_index?: number;
+    remaining_qty_kg?: number;
+    produced_qty_kg?: number;
+    match_mode?: string;
+}
+
+export interface PlannerContinuationSummary {
+    recommended_mode: string;
+    recommended_label: string;
+    recommended_reason: string;
+    exact_fg_count: number;
+    exact_stock_route_count: number;
+    carry_forward_wip_count: number;
+    shared_invariant_count: number;
+    upstream_route_count: number;
+    exact_fg_candidates: PlannerContinuationCandidate[];
+    exact_stock_route_candidates: PlannerContinuationCandidate[];
+    carry_forward_wip_candidates: PlannerContinuationCandidate[];
+    shared_invariant_candidates: PlannerContinuationCandidate[];
+    stopped_invariant_route_candidates: PlannerContinuationCandidate[];
+    upstream_candidates: PlannerContinuationCandidate[];
+    stopped_upstream_route_candidates: PlannerContinuationCandidate[];
 }
 
 export interface PlannerControlOrder {
@@ -114,6 +162,7 @@ export interface PlannerControlOrder {
     required_start_step: number;
     route_last_step_index: number;
     geometry_override: GeometryOverridePayload;
+    geometry_snapshot?: any;
     spec_signature?: string;
     effective_dims?: { width_mm: number; height_mm: number };
     roll_invariants?: {
@@ -123,6 +172,11 @@ export interface PlannerControlOrder {
         derived_area_m2?: number | null;
         derived_length_m?: number | null;
     };
+    layer_snapshot?: any[];
+    layer_summary?: any[];
+    printing_snapshot?: any;
+    addons_snapshot?: any[];
+    packaging_snapshot?: any;
     material_plan_lines?: Array<{
         policy_key: string;
         category_code: string;
@@ -181,6 +235,37 @@ export interface PlannerControlOrder {
     jobs_released?: number;
     jobs_completed?: number;
     created_at?: string;
+    completed_at?: string | null;
+    job_numbers?: string[];
+    completed_jobs?: Array<{
+        id: string;
+        job_number: string;
+        step_label: string;
+        process_code?: string;
+        input_form?: string;
+        output_form?: string;
+        planned_qty: number;
+        produced_qty: number;
+        remaining_qty: number;
+        scrap_qty: number;
+        uom: string;
+        work_center_name?: string;
+        machine_name?: string;
+        operator_name?: string;
+        closed_by_name?: string;
+        closed_at?: string | null;
+    }>;
+    display_qty_kg?: string;
+    display_qty_pcs?: string;
+    display_geometry_label?: string;
+    display_layers?: string[];
+    display_printing_label?: string;
+    display_addons_label?: string;
+    display_packaging_label?: string;
+    display_route_summary?: string;
+    display_material_summary?: string;
+    display_action_label?: string;
+    display_action_help?: string;
     row_error?: string;
     row_error_detail?: string;
     row_recoverable?: boolean;
@@ -199,6 +284,8 @@ export interface PlannerControlOrder {
         wip_match_count: number;
         has_fg: boolean;
         has_wip: boolean;
+        pod_bulk_material_count?: number;
+        packaging_stock_material_count?: number;
     };
     source_summary?: {
         fg_match_count: number;
@@ -207,6 +294,7 @@ export interface PlannerControlOrder {
         recommended_option: "FG" | "WIP_CONTINUE" | "FRESH" | string;
         recommended_label: string;
     };
+    continuation?: PlannerContinuationSummary;
     summary?: {
         required_qty_kg: number;
         allocatable_qty_kg: number;
@@ -278,6 +366,7 @@ export interface PlannerControlOrder {
         print_type?: string;
         front_colors_count?: number;
         back_colors_count?: number;
+        pod_label?: string;
         partial_shortfall_kg?: number;
         partial_replan_required?: boolean;
         release_risk?: "LOW" | "MEDIUM" | "HIGH" | string;
@@ -303,6 +392,16 @@ export interface ControlHubResponse {
         queue_required_qty_kg: number;
         queue_allocatable_qty_kg: number;
     };
+}
+
+export interface PlannerControlHubParams {
+    planning_limit?: number;
+    active_limit?: number;
+    history_limit?: number;
+    history_days?: number | null;
+    history_query?: string;
+    history_source?: "ALL" | "FG" | "WIP" | "FRESH" | string;
+    history_order_kind?: "ALL" | "SALES" | "STOCK" | string;
 }
 
 export interface PlannerAllocationPayload {
@@ -334,7 +433,11 @@ export interface CloneOrderPayload {
 }
 
 export interface CreateStockOrderPayload {
-    template_id: string;
+    template_id?: string;
+    planner_sku_variant_id?: string;
+    sales_sku_variant_id?: string;
+    launcher_mode?: 'FINAL_ROLL' | 'SHARED_INVARIANT_ROLL' | 'BASE_UPSTREAM_ROLL' | 'POD_STOCK' | 'PACKAGING_STOCK';
+    pod_sku_variant_id?: string;
     name?: string;
     quantity: number;
     quantity_uom: 'KG' | 'PCS' | 'METER';
@@ -351,6 +454,53 @@ export interface CreateStockOrderPayload {
     start_step_index: number;
     stop_step_index?: number;
     preferred_plant_id?: string;
+}
+
+export interface PlannerSkuVariantPreset {
+    id: string;
+    sku: string;
+    sku_code?: string;
+    sku_name?: string;
+    code: string;
+    name: string;
+    active: boolean;
+    launch_kind: 'FINAL_ROLL' | 'SHARED_INVARIANT_ROLL' | 'BASE_UPSTREAM_ROLL' | 'POD_STOCK' | 'PACKAGING_STOCK';
+    template?: string | null;
+    template_name?: string;
+    default_plant?: string | null;
+    default_plant_name?: string;
+    default_qty: number;
+    quantity_uom: 'KG' | 'PCS' | 'METER';
+    stock_purpose: 'PRODUCT' | 'PACKAGING';
+    stock_strategy: 'FINAL_STOCK' | 'INTERMEDIATE_POOL' | 'PACKAGING_STOCK' | string;
+    planner_stock_class: 'FINAL_PRODUCT' | 'FINAL_PLAIN_ROLL' | 'EXTRUDED_BASE_ROLL' | 'SHARED_INVARIANT_ROLL' | 'PACKAGING_STOCK' | string;
+    start_step_index: number;
+    stop_step_index?: number | null;
+    geometry_snapshot: any;
+    layer_snapshot: any[];
+    printing_snapshot: any;
+    addons_snapshot: any[];
+    packaging_snapshot: any;
+    packaging_material?: string | null;
+    packaging_material_name?: string;
+    pod_sku_variant?: string | null;
+    pod_sku_variant_name?: string;
+    spec_signature?: string;
+    invariant_signature?: string;
+    planner_origin_meta?: Record<string, any>;
+}
+
+export interface PlannerSkuPreset {
+    id: string;
+    code: string;
+    name: string;
+    template: string;
+    template_name?: string;
+    default_plant?: string | null;
+    default_plant_name?: string;
+    active: boolean;
+    notes?: string;
+    variants: PlannerSkuVariantPreset[];
 }
 
 export interface ClaimCandidate {
@@ -433,13 +583,53 @@ export const plannerService = {
         return data;
     },
 
+    getPlannerSkus: async (params?: { template_id?: string; active?: boolean }) => {
+        const { data } = await api.get<MaybePaginated<PlannerSkuPreset>>('/api/production/planner/sku-catalog/', { params });
+        return unwrapList<PlannerSkuPreset>(data);
+    },
+
+    getPlannerSkuVariants: async (params?: { sku_id?: string; launch_kind?: string; active?: boolean }) => {
+        const { data } = await api.get<MaybePaginated<PlannerSkuVariantPreset>>('/api/production/planner/sku-variants/', { params });
+        return unwrapList<PlannerSkuVariantPreset>(data);
+    },
+
+    createPlannerSku: async (payload: Partial<PlannerSkuPreset>) => {
+        const { data } = await api.post<PlannerSkuPreset>('/api/production/planner/sku-catalog/', payload);
+        return data;
+    },
+
+    updatePlannerSku: async (id: string, payload: Partial<PlannerSkuPreset>) => {
+        const { data } = await api.patch<PlannerSkuPreset>(`/api/production/planner/sku-catalog/${id}/`, payload);
+        return data;
+    },
+
+    createPlannerSkuVariant: async (payload: Partial<PlannerSkuVariantPreset>) => {
+        const { data } = await api.post<PlannerSkuVariantPreset>('/api/production/planner/sku-variants/', payload);
+        return data;
+    },
+
+    updatePlannerSkuVariant: async (id: string, payload: Partial<PlannerSkuVariantPreset>) => {
+        const { data } = await api.patch<PlannerSkuVariantPreset>(`/api/production/planner/sku-variants/${id}/`, payload);
+        return data;
+    },
+
     cloneOrderToStock: async (payload: CloneOrderPayload) => {
         const { data } = await api.post('/api/production/planner/control-hub/clone/', payload);
         return data;
     },
 
-    getControlHub: async (): Promise<ControlHubResponse> => {
-        const { data } = await api.get<ControlHubResponse>('/api/production/planner/control-hub/');
+    getControlHub: async (params?: PlannerControlHubParams): Promise<ControlHubResponse> => {
+        const { data } = await api.get<ControlHubResponse>('/api/production/planner/control-hub/', {
+            params: {
+                planning_limit: params?.planning_limit ?? 18,
+                active_limit: params?.active_limit ?? 24,
+                history_limit: params?.history_limit ?? 48,
+                history_days: params?.history_days ?? undefined,
+                history_query: params?.history_query || undefined,
+                history_source: params?.history_source || undefined,
+                history_order_kind: params?.history_order_kind || undefined,
+            },
+        });
         if (!data || typeof data !== "object" || Array.isArray(data)) {
             throw new Error("Invalid planner control-hub response payload")
         }
@@ -488,6 +678,13 @@ export const plannerService = {
 
     claimStockToSales: async (salesOrderItemId: string, payload: ClaimStockPayload) => {
         const { data } = await api.post(`/api/production/planner/control-hub/sales-items/${salesOrderItemId}/claim-stock/`, payload);
+        return data;
+    },
+
+    resumeStockRouteToSales: async (salesOrderItemId: string, stockOrderId: string) => {
+        const { data } = await api.post(`/api/production/planner/control-hub/sales-items/${salesOrderItemId}/resume-stock-route/`, {
+            stock_order_id: stockOrderId,
+        });
         return data;
     },
 }

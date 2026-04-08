@@ -87,9 +87,45 @@ export interface OrderTrackingResponse {
     items?: any[];
     order_header?: any;
     line_items?: any[];
-    job_steps?: any[];
-    active_jobs?: any[];
-    completed_jobs?: any[];
+    job_steps?: Array<{
+        job_id: string;
+        job_number: string;
+        state: string;
+        process_code?: string | null;
+        step_name?: string | null;
+        work_center?: string | null;
+        work_center_code?: string | null;
+        machine?: string | null;
+        machine_code?: string | null;
+        operator?: string | null;
+        operator_username?: string | null;
+        closed_by?: string | null;
+        closed_by_username?: string | null;
+        assignment_status?: string | null;
+        assigned_machine?: string | null;
+        assigned_machine_code?: string | null;
+        assigned_by?: string | null;
+        assigned_at?: string | null;
+        created_at?: string | null;
+        start_date?: string | null;
+        end_date?: string | null;
+        closed_at?: string | null;
+        closed_with_variance?: boolean;
+        variance_kg?: number;
+        force_reason?: string;
+        produced_kg?: number;
+        scrap_kg?: number;
+        logs?: Array<{
+            type: string;
+            timestamp?: string | null;
+            qty?: number;
+            uom?: string;
+            actor?: string;
+            reason?: string;
+        }>;
+    }>;
+    active_jobs?: OrderTrackingResponse["job_steps"];
+    completed_jobs?: OrderTrackingResponse["job_steps"];
     wip_lineage?: any[];
     interplant_links?: any[];
     dispatch_evidence?: any[];
@@ -221,13 +257,37 @@ export interface ReportDistributionProfile {
     label: string;
     active: boolean;
     target_roles: string[];
-    extra_recipients: string[];
+    extra_recipients?: string[];
     schedule_hour: number;
     schedule_minute: number;
-    email_subject_template: string;
-    email_body_template: string;
+    email_subject_template?: string;
+    email_body_template?: string;
     updated_at?: string | null;
     updated_by?: string | null;
+}
+
+export interface AuditConsolePayload {
+    counts: {
+        operational_logs: number;
+        login_entries: number;
+        permission_audit: number;
+        report_runs: number;
+        inventory_audit?: number;
+        production_audit?: number;
+        master_data_audit?: number;
+        system_config_audit?: number;
+    };
+    modes: {
+        sessions: { items: any[]; latest?: any | null };
+        permissions: { items: any[]; latest?: any | null };
+        operations: { items: any[]; latest?: any | null };
+        reports: { items: any[]; latest?: any | null };
+        inventory?: { items: any[]; latest?: any | null };
+        production?: { items: any[]; latest?: any | null };
+        master_data?: { items: any[]; latest?: any | null };
+        system_config?: { items: any[]; latest?: any | null };
+    };
+    generated_at?: string;
 }
 
 export interface ReportDispatchRun {
@@ -391,6 +451,15 @@ export const analyticsApi = {
         const { data } = await api.get(`/api/analytics/reports/${tab}/`, { params: filters });
         return data;
     },
+    getReportTabPdfDownloadUrl: (tab: string, filters: AnalyticsFilterParams = {}) => {
+        const params = new URLSearchParams()
+        for (const [key, value] of Object.entries(filters)) {
+            if (value === undefined || value === null || value === "") continue
+            params.set(key, String(value))
+        }
+        const query = params.toString()
+        return `/api/analytics/reports/${tab}/export-pdf/${query ? `?${query}` : ""}`
+    },
     getCatalog: async (): Promise<any[]> => {
         const { data } = await api.get("/api/analytics/catalog/");
         return data;
@@ -504,6 +573,10 @@ export const analyticsApi = {
     traceLookup: async (query: string): Promise<TraceLookupPayload> => {
         const { data } = await api.get("/api/analytics/trace/", { params: { q: query } });
         return data as TraceLookupPayload;
+    },
+    getAuditConsole: async (): Promise<AuditConsolePayload> => {
+        const { data } = await api.get("/api/analytics/audit-console/");
+        return data as AuditConsolePayload;
     },
     getCapabilityMatrix: async (): Promise<CapabilityMatrixResponse> => {
         const { data } = await api.get("/api/analytics/capability-matrix/");

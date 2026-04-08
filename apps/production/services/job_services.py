@@ -23,6 +23,29 @@ class JobService:
         return None
 
     @classmethod
+    def _resolve_work_center_for_process(cls, process, *, plant=None):
+        if not process:
+            return None
+
+        mapped_qs = WorkCenterProcess.objects.select_related("work_center", "work_center__plant").filter(process=process)
+        if plant is not None:
+            mapped_for_plant = mapped_qs.filter(work_center__plant=plant).first()
+            if mapped_for_plant:
+                return mapped_for_plant.work_center
+
+        mapped = mapped_qs.first()
+        if mapped:
+            return mapped.work_center
+
+        wc_qs = WorkCenter.objects.select_related("plant")
+        if plant is not None:
+            plant_wc = wc_qs.filter(plant=plant).first()
+            if plant_wc:
+                return plant_wc
+
+        return wc_qs.first()
+
+    @classmethod
     def _release_active_roll_reservations(cls, job):
         """
         Release stale ACTIVE reservations and unlock rolls for downstream transfer.
@@ -379,9 +402,25 @@ class JobService:
             sales_order.save(update_fields=["status"])
             return
 
-        # Completed with acceptable variance or exact match -> dispatch ready.
-        sales_order.status = "DISPATCH_READY"
+        # Completed production goes to Packing Yard first; only packing release
+        # should make the order dispatch-ready.
+        sales_order.status = "PACKING_READY"
         sales_order.save(update_fields=["status"])
+
+    @classmethod
+    def _update_stock_order_post_terminal_step(cls, job):
+        mts_order = getattr(job, "mts_order", None)
+        if not mts_order:
+            return
+
+        active_jobs_exist = ProductionJob.objects.filter(
+            mts_order=mts_order
+        ).exclude(job_state__in=["COMPLETED", "CANCELLED"]).exists()
+        if active_jobs_exist:
+            return
+
+        mts_order.status = "STOCK_READY"
+        mts_order.save(update_fields=["status", "updated_at"])
 
     @classmethod
     def _finalize_step_completion(
@@ -457,6 +496,8 @@ class JobService:
 
         if cls._is_final_route_step(job) and getattr(job, "sales_order_item_id", None):
             cls._update_sales_order_post_final_step(job)
+        if getattr(job, "mts_order_id", None):
+            cls._update_stock_order_post_terminal_step(job)
         return job
 
     @classmethod
@@ -640,8 +681,7 @@ class JobService:
                 continue
                 
             process = Process.objects.get(code=process_code)
-            wc_process = WorkCenterProcess.objects.filter(process=process).first()
-            wc = wc_process.work_center if wc_process else None
+            wc = cls._resolve_work_center_for_process(process)
 
             # Resolve plant per-step from the resolved work center (future-proof for multi-plant).
             # Fallback to first plant if the process isn't mapped to any work center.
@@ -755,8 +795,7 @@ class JobService:
                 continue
                 
             process = Process.objects.get(code=process_code)
-            wc_process = WorkCenterProcess.objects.filter(process=process).first()
-            wc = wc_process.work_center if wc_process else None
+            wc = cls._resolve_work_center_for_process(process, plant=planned_order.plant)
             
             # Resolve Plant: If order has no plant, take from first work center resolved
             plant = planned_order.plant
@@ -1139,7 +1178,24 @@ class WCManagerService:
     @classmethod
     def prepare_job_for_wc(cls, job):
         from apps.production.models import WorkCenterAssignment
-        
+
+        if not job.work_center_id:
+            fallback_plant = (
+                getattr(job.mts_order, "plant", None)
+                or getattr(job.from_location, "plant", None)
+                or getattr(job.to_location, "plant", None)
+            )
+            resolved_wc = JobService._resolve_work_center_for_process(
+                job.current_process or job.process,
+                plant=fallback_plant,
+            )
+            if not resolved_wc:
+                raise ValueError(
+                    f"No work center is mapped for process {getattr(job.current_process or job.process, 'code', 'UNKNOWN')}."
+                )
+            job.work_center = resolved_wc
+            job.save(update_fields=["work_center", "updated_at"])
+
         assignment, created = WorkCenterAssignment.objects.get_or_create(
             production_job=job,
             defaults={'work_center': job.work_center}
@@ -1479,6 +1535,7 @@ class WCManagerService:
     def mark_execution_ready(cls, assignment_id):
         from apps.production.models import WorkCenterAssignment
         from apps.production.services.services_execution import ExecutionService
+        from django.utils import timezone
         assignment = WorkCenterAssignment.objects.get(id=assignment_id)
         
         if not assignment.assigned_machine:
@@ -1531,14 +1588,26 @@ class WCManagerService:
             detail = f" ({'; '.join(pending_rows[:3])})" if pending_rows else ""
             raise ValueError(f"Cannot mark ready: requirements not satisfied{detail}.")
 
+        ready_timestamp = timezone.now()
+        updated = WorkCenterAssignment.objects.filter(id=assignment.id).update(
+            status='EXECUTION_READY',
+            updated_at=ready_timestamp,
+        )
+        if not updated:
+            raise ValueError("Assignment could not be marked execution ready.")
         assignment.status = 'EXECUTION_READY'
-        assignment.save(update_fields=['status', 'updated_at'])
+        assignment.updated_at = ready_timestamp
         
         # Also update job state/status so Operator dashboard can consistently discover it.
         job = assignment.production_job
         job.status = 'ASSIGNED'
         if job.job_state not in ['EXECUTING', 'PAUSED']:
             job.job_state = 'RELEASED'
-        job.save(update_fields=['status', 'job_state', 'updated_at'])
+        ProductionJob.objects.filter(id=job.id).update(
+            status=job.status,
+            job_state=job.job_state,
+            updated_at=ready_timestamp,
+        )
+        job.updated_at = ready_timestamp
         
         return assignment

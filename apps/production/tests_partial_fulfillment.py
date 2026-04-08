@@ -33,14 +33,14 @@ class JobServicePartialFulfillmentTests(SimpleTestCase):
 
     @patch("apps.production.services.job_services.ProductionJob.objects.filter")
     @patch.object(JobService, "_sales_item_shortfall_metrics")
-    def test_final_step_sets_dispatch_ready_when_shortfall_within_threshold(self, mock_metrics, mock_filter):
+    def test_final_step_sets_packing_ready_when_shortfall_within_threshold(self, mock_metrics, mock_filter):
         job, sales_order, _ = self._build_job()
         mock_metrics.return_value = {"requires_replan": False}
         mock_filter.return_value.exclude.return_value.exists.return_value = False
 
         JobService._update_sales_order_post_final_step(job)
 
-        self.assertEqual(sales_order.status, "DISPATCH_READY")
+        self.assertEqual(sales_order.status, "PACKING_READY")
         sales_order.save.assert_called_once_with(update_fields=["status"])
 
     @patch("apps.production.services.job_services.ProductionJob.objects.filter")
@@ -122,7 +122,7 @@ class PlannerShortCloseTests(SimpleTestCase):
         response = view.control_hub_short_close(request, order_kind="sales", order_id="SO-1")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(sales_order.status, "DISPATCH_READY")
+        self.assertEqual(sales_order.status, "PACKING_READY")
         sales_order.save.assert_called_once_with(update_fields=["status"])
         self.assertIn("Planner short-close", str(final_job.completion_force_reason))
         final_job.save.assert_called_once()

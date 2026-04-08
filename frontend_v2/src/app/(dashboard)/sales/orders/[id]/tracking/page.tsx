@@ -1,775 +1,531 @@
-"use client";
+"use client"
 
-import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { analyticsService } from '@/services/analytics';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useParams, useRouter } from "next/navigation"
+import { type ReactNode } from "react"
+import { useQuery } from "@tanstack/react-query"
 import {
-    ArrowLeft,
-    Package,
-    Truck,
-    Factory,
-    CheckCircle2,
-    Clock,
-    AlertCircle,
-    Calendar,
-    FileText,
-    Box,
-    Database,
-    ShieldCheck,
-    RefreshCcw,
-    History,
-    Gauge,
-    Layers3,
-    Flame,
     Activity,
-    Sparkles,
-    Split,
-} from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+    ArrowLeft,
+    CheckCircle2,
+    Clock3,
+    Factory,
+    Layers3,
+    Loader2,
+    Package,
+    ShieldCheck,
+    Truck,
+    UserRound,
+    Warehouse,
+} from "lucide-react"
+
+import { analyticsService } from "@/services/analytics"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
+
+function formatTs(value?: string | null) {
+    if (!value) return "—"
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    })
+}
+
+function formatDate(value?: string | null) {
+    if (!value) return "No date"
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function safeNumber(value: unknown) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+}
+
+function identityLabel(name?: string | null, username?: string | null, fallback = "—") {
+    const displayName = String(name || "").trim()
+    const handle = String(username || "").trim()
+    if (displayName && handle) return `${displayName} · @${handle}`
+    return displayName || (handle ? `@${handle}` : fallback)
+}
+
+function codedLabel(name?: string | null, code?: string | null, fallback = "—") {
+    const label = String(name || "").trim()
+    const tag = String(code || "").trim()
+    if (label && tag && label.toUpperCase() !== tag.toUpperCase()) return `${label} · ${tag}`
+    return label || tag || fallback
+}
+
+function statusTone(status: string) {
+    const normalized = String(status || "").toUpperCase()
+    if (normalized === "COMPLETED") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    if (normalized === "CANCELLED") return "border-rose-200 bg-rose-50 text-rose-700"
+    if (normalized === "EXECUTING") return "border-red-200 bg-red-50 text-red-700"
+    if (normalized === "RELEASED" || normalized === "PLANNED") return "border-indigo-200 bg-indigo-50 text-indigo-700"
+    if (normalized === "PACKING_READY") return "border-violet-200 bg-violet-50 text-violet-700"
+    if (normalized === "IN_TRANSIT" || normalized === "DISPATCH_READY") return "border-cyan-200 bg-cyan-50 text-cyan-700"
+    if (normalized === "ON_HOLD" || normalized === "PAUSED" || normalized === "PLANNING_REQUIRED") return "border-amber-200 bg-amber-50 text-amber-700"
+    return "border-slate-200 bg-slate-50 text-slate-700"
+}
+
+function progressParts(progress: any) {
+    const ordered = Math.max(safeNumber(progress?.ordered), 0)
+    const produced = Math.max(safeNumber(progress?.produced), 0)
+    const packed = Math.max(safeNumber(progress?.packed), 0)
+    const dispatched = Math.max(safeNumber(progress?.dispatched), 0)
+    if (!ordered) return { producedPct: 0, packedPct: 0, dispatchedPct: 0 }
+    return {
+        producedPct: Math.min((produced / ordered) * 100, 100),
+        packedPct: Math.min((packed / ordered) * 100, 100),
+        dispatchedPct: Math.min((dispatched / ordered) * 100, 100),
+    }
+}
 
 export default function OrderTrackingPage() {
-    const params = useParams();
-    const router = useRouter();
-    const orderId = Array.isArray(params?.id) ? params.id[0] : String(params?.id || "");
+    const params = useParams()
+    const router = useRouter()
+    const orderId = Array.isArray(params?.id) ? params.id[0] : String(params?.id || "")
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['order-tracking', orderId],
+        queryKey: ["order-tracking", orderId],
         queryFn: () => analyticsService.getOrderTracking(orderId),
-        refetchInterval: 10000, // Faster refresh for live tracking
-    });
+        refetchInterval: 10_000,
+    })
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
-                <div className="flex items-center space-x-4">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <Skeleton className="h-8 w-64" />
+            <div className="flex min-h-screen items-center justify-center bg-[#f4f6fb]">
+                <div className="text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+                    <div className="mt-3 text-sm font-medium text-slate-500">Loading live order tracking…</div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
-                </div>
-                <Skeleton className="h-[600px] rounded-xl" />
             </div>
-        );
+        )
     }
 
     if (error || !data || data.error) {
         return (
-            <div className="flex flex-col items-center justify-center p-20 text-center min-h-[60vh]">
-                <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-full mb-6">
-                    <AlertCircle className="h-16 w-16 text-red-500" />
-                </div>
-                <h2 className="text-3xl font-bold tracking-tight">Tracking Unavailable</h2>
-                <p className="text-muted-foreground mt-3 max-w-md text-lg">
-                    {data?.error || `Could not find order #${orderId}. Please check the ID and try again.`}
-                </p>
-                <div className="flex gap-4 mt-8">
-                    <Button onClick={() => router.back()} variant="outline" size="lg">Go Back</Button>
-                    <Button onClick={() => window.location.reload()} size="lg">Retry Connection</Button>
-                </div>
-            </div>
-        );
-    }
-
-    const progress = data?.progress || { produced: 0, packed: 0, dispatched: 0, ordered: 0, completion_percentage: 0 };
-    const items = data?.items || [];
-    const lineItems = data?.line_items || [];
-    const jobSteps = data?.job_steps || [];
-    const wipLineage = data?.wip_lineage || [];
-    const interplantLinks = data?.interplant_links || [];
-    const dispatchEvidence = data?.dispatch_evidence || [];
-    const auditTimeline = data?.audit_timeline || [];
-    const materialAudit = data?.material_audit || {};
-    const materialAuditSummary = materialAudit?.summary || {};
-    const materialAuditItems = materialAudit?.item_flow || [];
-    const materialAuditMaterials = materialAudit?.materials || [];
-    const freshness = data?.data_freshness;
-
-    const kpis = data?.kpi_snapshot || {
-        ordered_kg: progress.ordered || 0,
-        produced_kg: progress.produced || 0,
-        packed_kg: progress.packed || 0,
-        dispatched_kg: progress.dispatched || 0,
-        scrap_kg: 0,
-        yield_percent: 0,
-        active_jobs: 0,
-        completed_jobs: 0,
-        wip_kg: 0,
-        fg_kg: 0,
-        output_roll_kg: 0,
-        remainder_roll_kg: 0,
-        interplant_in_transit_kg: 0,
-        wip_output_kg: 0,
-        wip_remainder_kg: 0,
-        interplant_output_in_transit_kg: 0,
-        interplant_remainder_in_transit_kg: 0,
-    };
-
-    // Aggregate data for easier display in tables
-    const fallbackLiveJobs = items.flatMap((item: any) => item.live_production.map((j: any) => ({ ...j, sku: item.sku })));
-    const activeJobs = (data?.active_jobs?.length ? data.active_jobs : fallbackLiveJobs) || [];
-    const completedJobs = (data?.completed_jobs?.length ? data.completed_jobs : jobSteps.filter((s: any) => s.state === "COMPLETED")) || [];
-    const allRolls = wipLineage.length > 0
-        ? wipLineage
-        : items.flatMap((item: any) => item.rolls.map((r: any) => ({ ...r, sku: item.sku })));
-    const outputRolls = allRolls.filter((r: any) => r.roll_role !== 'REMAINDER');
-    const remainderRolls = allRolls.filter((r: any) => r.roll_role === 'REMAINDER');
-    const allBatches = items.flatMap((item: any) => item.fg_batches.map((b: any) => ({ ...b, sku: item.sku })));
-    const legacyChallans = (Array.from(new Set(items.flatMap((item: any) => item.challans.map((c: any) => JSON.stringify(c))))) as string[]).map(s => JSON.parse(s));
-    const allChallans = dispatchEvidence.length > 0 ? dispatchEvidence : legacyChallans;
-
-    // Timeline Steps
-    const steps = [
-        { id: 'confirmed', label: 'Confirmed', icon: FileText, complete: true, status: 'Completed' },
-        { id: 'production', label: 'Production', icon: Factory, complete: (progress?.produced || 0) > 0, status: (progress?.produced || 0) > 0 ? 'In Progress' : 'Pending' },
-        { id: 'packing', label: 'Packing', icon: Box, complete: (progress?.packed || 0) > 0, status: (progress?.packed || 0) > 0 ? 'Active' : 'Awaiting' },
-        { id: 'dispatch', label: 'Dispatch', icon: Truck, complete: (progress?.dispatched || 0) > 0, status: 'In Queue' },
-        { id: 'delivered', label: 'Delivered', icon: CheckCircle2, complete: data?.status === 'COMPLETED', status: data?.status === 'COMPLETED' ? 'Finalized' : 'Est. TBD' },
-    ];
-
-    return (
-        <div className="p-6 md:p-10 space-y-10 max-w-[1700px] mx-auto min-h-screen bg-slate-50/30 dark:bg-slate-950/20">
-            {/* Navigation & Title */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b pb-8 border-slate-200 dark:border-slate-800">
-                <div className="space-y-4">
-                    <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground p-0 h-auto">
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Orders
-                    </Button>
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-4">
-                            <h1 className="text-4xl font-extrabold tracking-tight">Order {data.order_number}</h1>
-                            <Badge className={`
-                                px-4 py-1 text-sm font-semibold rounded-full
-                                ${data.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-100'}
-                            `} variant="outline">
-                                {data.status}
-                            </Badge>
+            <div className="flex min-h-screen items-center justify-center bg-[#f4f6fb] p-6">
+                <Card className="w-full max-w-xl rounded-3xl border border-rose-200 bg-white">
+                    <CardContent className="space-y-4 p-8 text-center">
+                        <div className="text-lg font-black text-slate-900">Tracking unavailable</div>
+                        <div className="text-sm text-slate-500">
+                            {data?.error || `Could not find order ${orderId}.`}
                         </div>
-                        <p className="text-xl text-muted-foreground font-medium flex items-center gap-3">
-                            {data.customer}
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                            <span className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-indigo-500" /> Due {data.delivery_date}
-                            </span>
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-2">
-                    <div className="flex items-center gap-4">
-                        <div className="text-right">
-                            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Overall Progress</p>
-                            <p className="text-4xl font-black text-indigo-600 dark:text-indigo-400">{progress.completion_percentage.toFixed(1)}%</p>
-                        </div>
-                        <div className="w-24 h-24 rounded-full border-8 border-slate-100 dark:border-slate-800 flex items-center justify-center relative overflow-hidden">
-                            <div
-                                className="absolute bottom-0 left-0 w-full bg-indigo-500/20 transition-all duration-1000"
-                                style={{ height: `${progress.completion_percentage}%` }}
-                            />
-                            <CheckCircle2 className={`h-10 w-10 ${progress.completion_percentage === 100 ? 'text-emerald-500' : 'text-slate-200'}`} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <Card className="border border-indigo-100 bg-indigo-50/40 dark:bg-indigo-950/20 dark:border-indigo-900/40">
-                <CardContent className="p-4 flex flex-wrap items-center gap-4 text-sm">
-                    <div className="inline-flex items-center gap-2 font-semibold text-indigo-700 dark:text-indigo-300">
-                        <ShieldCheck className="h-4 w-4" />
-                        Audit Tracking Active
-                    </div>
-                    <div className="text-slate-600 dark:text-slate-300">
-                        Jobs: <span className="font-bold">{jobSteps.length}</span> |
-                        WIP Rolls: <span className="font-bold"> {wipLineage.length}</span> |
-                        Inter-Plant Links: <span className="font-bold"> {interplantLinks.length}</span>
-                    </div>
-                    <div className="ml-auto inline-flex items-center gap-2 text-slate-500">
-                        <RefreshCcw className="h-4 w-4" />
-                        {freshness?.generated_at ? `Last refresh ${new Date(freshness.generated_at).toLocaleString()}` : "Live refresh enabled"}
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Smart Timeline Card */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                <Card className="xl:col-span-8 border-none shadow-xl shadow-slate-200/50 dark:shadow-none bg-white dark:bg-slate-900 overflow-hidden">
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-1" />
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg font-bold flex items-center gap-2">
-                            <Clock className="h-5 w-5 text-indigo-500" />
-                            Logistic Journey Map
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6 pb-10">
-                        <div className="relative flex items-center justify-between w-full px-6">
-                            <div className="absolute left-10 right-10 top-1/2 transform -translate-y-1/2 h-1 bg-slate-100 dark:bg-slate-800 -z-0" />
-                            {steps.map((step, index) => {
-                                const Icon = step.icon;
-                                const isActive = step.complete;
-                                return (
-                                    <div key={step.id} className="relative z-10 flex flex-col items-center bg-white dark:bg-slate-900 pt-2 transition-all duration-500">
-                                        <div className={`
-                                            flex items-center justify-center w-14 h-14 rounded-full border-4 transition-all duration-500
-                                            ${isActive
-                                                ? 'bg-indigo-600 border-indigo-100 text-white shadow-xl shadow-indigo-200 dark:shadow-none'
-                                                : 'bg-white border-slate-100 text-slate-300 dark:bg-slate-800 dark:border-slate-700'
-                                            }
-                                        `}>
-                                            <Icon className="h-6 w-6" />
-                                        </div>
-                                        <div className="mt-4 text-center">
-                                            <p className={`text-sm font-bold uppercase tracking-tight ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                                {step.label}
-                                            </p>
-                                            <p className="text-[10px] font-medium text-slate-400 mt-0.5">{step.status}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                        <div className="flex items-center justify-center gap-3">
+                            <Button variant="outline" onClick={() => router.back()}>Back</Button>
+                            <Button onClick={() => window.location.reload()}>Retry</Button>
                         </div>
                     </CardContent>
                 </Card>
-
-                <div className="xl:col-span-4 grid grid-cols-2 gap-4">
-                    <SimpleKPI title="Total Ordered" value={`${kpis.ordered_kg} kg`} icon={FileText} color="blue" />
-                    <SimpleKPI title="Gross Output" value={`${kpis.produced_kg} kg`} icon={Factory} color="emerald" />
-                    <SimpleKPI title="Scrap" value={`${kpis.scrap_kg} kg`} icon={Flame} color="rose" />
-                    <SimpleKPI title="Yield" value={`${kpis.yield_percent}%`} icon={Gauge} color="teal" />
-                    <SimpleKPI title="WIP Output" value={`${(kpis.wip_output_kg ?? kpis.output_roll_kg ?? kpis.wip_kg ?? 0)} kg`} icon={Layers3} color="amber" />
-                    <SimpleKPI title="WIP Remainder" value={`${(kpis.wip_remainder_kg ?? kpis.remainder_roll_kg ?? 0)} kg`} icon={Split} color="orange" />
-                    <SimpleKPI title="FG Ready" value={`${kpis.fg_kg} kg`} icon={Package} color="indigo" />
-                    <SimpleKPI title="Transit Output" value={`${(kpis.interplant_output_in_transit_kg ?? kpis.interplant_in_transit_kg ?? 0)} kg`} icon={Truck} color="violet" />
-                    <SimpleKPI title="Transit Remainder" value={`${(kpis.interplant_remainder_in_transit_kg ?? 0)} kg`} icon={History} color="pink" />
-                    <SimpleKPI title="Jobs Closed" value={`${kpis.completed_jobs}`} icon={Activity} color="slate" />
-                </div>
             </div>
-
-            {/* Intelligence Hub */}
-            <Tabs defaultValue="live" className="space-y-6">
-                <TabsList className="bg-slate-100 dark:bg-slate-900 p-1 rounded-xl w-full lg:w-fit border border-slate-200/60">
-                    <TabsTrigger value="live" className="rounded-lg px-6 flex items-center gap-2 py-2.5">
-                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        Live Production
-                    </TabsTrigger>
-                    <TabsTrigger value="lineage" className="rounded-lg px-6 py-2.5 flex items-center gap-2">
-                        <Database className="h-4 w-4" />
-                        Inventory Lineage
-                    </TabsTrigger>
-                    <TabsTrigger value="logistics" className="rounded-lg px-6 py-2.5 flex items-center gap-2">
-                        <Truck className="h-4 w-4" />
-                        Dispatch Timeline
-                    </TabsTrigger>
-                    <TabsTrigger value="interplant" className="rounded-lg px-6 py-2.5 flex items-center gap-2">
-                        <History className="h-4 w-4" />
-                        Inter-Plant
-                    </TabsTrigger>
-                    <TabsTrigger value="audit" className="rounded-lg px-6 py-2.5 flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        Audit Trail
-                    </TabsTrigger>
-                    <TabsTrigger value="material-audit" className="rounded-lg px-6 py-2.5 flex items-center gap-2">
-                        <Layers3 className="h-4 w-4" />
-                        Material Audit
-                    </TabsTrigger>
-                    <TabsTrigger value="skus" className="rounded-lg px-6 py-2.5 flex items-center gap-2">
-                        <Box className="h-4 w-4" />
-                        SKU Status
-                    </TabsTrigger>
-                </TabsList>
-
-                {/* Tab: Live Production */}
-                <TabsContent value="live" className="space-y-6">
-                    {activeJobs.length === 0 && completedJobs.length === 0 ? (
-                        <EmptyState icon={Factory} title="No Active Production" description="This order is currently not being processed on any machine logs." />
-                    ) : (
-                        <div className="space-y-8">
-                            <div>
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Sparkles className="h-4 w-4 text-red-500" />
-                                    <h3 className="text-sm font-black tracking-wider uppercase text-slate-500">Active Jobs</h3>
-                                </div>
-                                {activeJobs.length === 0 ? (
-                                    <div className="text-sm text-slate-500 border rounded-lg p-4 bg-white">No active jobs right now.</div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {activeJobs.map((job: any) => (
-                                            <LiveJobCard key={job.id || job.job_id || job.job_number} job={job} />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div>
-                                <div className="flex items-center gap-2 mb-4">
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                                    <h3 className="text-sm font-black tracking-wider uppercase text-slate-500">Completed Jobs with Logs</h3>
-                                </div>
-                                {completedJobs.length === 0 ? (
-                                    <div className="text-sm text-slate-500 border rounded-lg p-4 bg-white">No completed jobs yet.</div>
-                                ) : (
-                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                                        {completedJobs.map((job: any) => (
-                                            <CompletedJobCard key={job.job_id || job.job_number} job={job} />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </TabsContent>
-
-                {/* Tab: Inventory Lineage */}
-                <TabsContent value="lineage">
-                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                        <span className="font-semibold">Remainder / Balance roll:</span> unconsumed parent balance returned to reusable WIP stock. It is tracked separately from step output rolls.
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <DataCard title="Step Output Rolls" icon={Database}>
-                            <InventoryTable
-                                data={outputRolls}
-                                columns={['label_id', 'roll_role', 'material', 'weight_kg', 'status', 'location', 'created_job_number']}
-                            />
-                        </DataCard>
-                        <DataCard title="Remainder / Balance Rolls" icon={Layers3}>
-                            <InventoryTable
-                                data={remainderRolls}
-                                columns={['label_id', 'roll_role', 'parent_roll_label', 'weight_kg', 'status', 'location', 'created_job_number']}
-                            />
-                        </DataCard>
-                    </div>
-                    <div className="mt-8">
-                        <DataCard title="Finished Goods Batches" icon={Package}>
-                            <InventoryTable data={allBatches} columns={['batch_number', 'sku', 'qty_pcs', 'qty_kg', 'status']} />
-                        </DataCard>
-                    </div>
-                </TabsContent>
-
-                {/* Tab: Logistics */}
-                <TabsContent value="logistics">
-                    <DataCard title="Delivery History & Challans" icon={Truck}>
-                        <InventoryTable data={allChallans} columns={['dc_no', 'status', 'weight_kg', 'vehicle_no', 'dispatch_date']} />
-                    </DataCard>
-                </TabsContent>
-
-                <TabsContent value="interplant">
-                    {interplantLinks.length === 0 ? (
-                        <EmptyState icon={History} title="No Inter-Plant Links" description="This order has no inter-plant movement yet." />
-                    ) : (
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                            {interplantLinks.map((link: any) => (
-                                <Card key={link.challan_id} className="border border-slate-200 shadow-sm">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <CardTitle className="text-base font-black">{link.dc_no || link.challan_id}</CardTitle>
-                                            <Badge
-                                                variant="outline"
-                                                className={link.status === "RECEIVED" ? "border-emerald-200 text-emerald-700 bg-emerald-50" : "border-blue-200 text-blue-700 bg-blue-50"}
-                                            >
-                                                {link.status}
-                                            </Badge>
-                                        </div>
-                                        <CardDescription className="text-xs">
-                                            {link.from_plant} → {link.to_plant}
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3 text-sm">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <MetricChip label="Roll Lines" value={link.summary?.roll_lines ?? 0} color="blue" />
-                                            <MetricChip label="Bulk Lines" value={link.summary?.bulk_lines ?? 0} color="amber" />
-                                            <MetricChip label="Out (kg)" value={Number(link.summary?.dispatched_total_kg || 0).toFixed(3)} color="indigo" />
-                                        </div>
-                                        <div className="text-xs text-slate-500">
-                                            Source Job: {link.source_job_number || "—"} | Target Job: {link.target_job_number || "—"}
-                                        </div>
-                                        {Array.isArray(link.items_preview) && link.items_preview.length > 0 && (
-                                            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 space-y-1">
-                                                {link.items_preview.map((item: any, idx: number) => (
-                                                    <div key={`${link.challan_id}-line-${idx}`} className="flex justify-between text-xs">
-                                                        <span className="truncate">
-                                                            {item.line_type} • {item.roll_role || item.roll_label || item.material_name || "Item"}
-                                                        </span>
-                                                        <span className="font-semibold">{Number(item.dispatched_qty_kg || 0).toFixed(3)} kg</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-
-                <TabsContent value="audit">
-                    <DataCard title="Normalized Audit Events" icon={ShieldCheck}>
-                        <InventoryTable
-                            data={auditTimeline}
-                            columns={['timestamp', 'event_type', 'entity_type', 'reference', 'delta_qty_kg', 'actor', 'message']}
-                        />
-                    </DataCard>
-                </TabsContent>
-
-                <TabsContent value="material-audit" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <SimpleKPI title="Ordered Target" value={`${Number(materialAuditSummary?.ordered_target_kg || 0).toFixed(3)} kg`} icon={FileText} color="indigo" />
-                        <SimpleKPI title="Latest Output" value={`${Number(materialAuditSummary?.latest_output_kg || 0).toFixed(3)} kg`} icon={Factory} color="emerald" />
-                        <SimpleKPI title="WIP Carry (Output)" value={`${Number(materialAuditSummary?.wip_output_kg || 0).toFixed(3)} kg`} icon={Database} color="blue" />
-                        <SimpleKPI title="Gap To Target" value={`${Number(materialAuditSummary?.mass_gap_to_target_kg || 0).toFixed(3)} kg`} icon={AlertCircle} color="amber" />
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <DataCard title="Line Flow Balance" icon={Layers3}>
-                            <InventoryTable
-                                data={materialAuditItems}
-                                columns={[
-                                    'template_name',
-                                    'ordered_target_kg',
-                                    'latest_output_kg',
-                                    'wip_output_kg',
-                                    'wip_remainder_kg',
-                                    'bulk_consumed_kg',
-                                    'scrap_logged_kg',
-                                    'mass_gap_to_target_kg',
-                                    'step_target_source',
-                                ]}
-                            />
-                        </DataCard>
-                        <DataCard title="Material Consumption Audit" icon={Activity}>
-                            <InventoryTable
-                                data={materialAuditMaterials}
-                                columns={[
-                                    'material_code',
-                                    'material_name',
-                                    'category',
-                                    'required_kg',
-                                    'consumed_kg',
-                                    'remaining_kg',
-                                    'steps',
-                                ]}
-                            />
-                        </DataCard>
-                    </div>
-                </TabsContent>
-
-                {/* Tab: SKU Status */}
-                <TabsContent value="skus">
-                    {lineItems.length > 0 ? (
-                        <DataCard title="SKU Progress (Audit)" icon={Box}>
-                            <InventoryTable
-                                data={lineItems.map((line: any) => ({
-                                    template_name: line.template_name,
-                                    fg_profile: line.fg_type === "ROLL"
-                                        ? `${line.fg_type} • ${line.roll_form || "FLAT"}`
-                                        : (line.fg_type || "POUCH"),
-                                    print_profile: line.printing_enabled
-                                        ? `${line.printing_type || "PRINT"} • ${line.substrate_mode || "NA"} • F${line.front_colors_count || 0}/B${line.back_colors_count || 0}`
-                                        : "DISABLED",
-                                    execution_model_version: line.execution_model_version,
-                                    ordered_kg: line.ordered_kg,
-                                    route_target_source: line.route_target_source || line.ordered_target_source,
-                                    step_target_kg: line.step_target_kg,
-                                    step_target_source: line.step_target_source,
-                                    produced_kg: line.produced_kg,
-                                    packed_kg: line.packed_kg,
-                                    dispatched_kg: line.dispatched_kg,
-                                    scrap_kg: line.scrap_kg,
-                                    completion_percentage: `${line.completion_percentage}%`,
-                                }))}
-                                columns={[
-                                    'template_name',
-                                    'fg_profile',
-                                    'print_profile',
-                                    'execution_model_version',
-                                    'ordered_kg',
-                                    'route_target_source',
-                                    'step_target_kg',
-                                    'step_target_source',
-                                    'produced_kg',
-                                    'packed_kg',
-                                    'dispatched_kg',
-                                    'scrap_kg',
-                                    'completion_percentage'
-                                ]}
-                            />
-                        </DataCard>
-                    ) : (
-                        <div className="space-y-4">
-                            {items.map((item: any) => (
-                                <SKUProgress key={item.sku} item={item} />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-            </Tabs>
-        </div>
-    );
-}
-
-function SimpleKPI({ title, value, icon: Icon, color, trend }: any) {
-    const colors: any = {
-        blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20',
-        emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20',
-        amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20',
-        indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20',
-        rose: 'bg-rose-50 text-rose-600 dark:bg-rose-900/20',
-        teal: 'bg-teal-50 text-teal-600 dark:bg-teal-900/20',
-        violet: 'bg-violet-50 text-violet-600 dark:bg-violet-900/20',
-        orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/20',
-        pink: 'bg-pink-50 text-pink-600 dark:bg-pink-900/20',
-        slate: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
-    };
-    return (
-        <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
-            <CardContent className="p-5">
-                <div className={`w-10 h-10 rounded-lg ${colors[color]} flex items-center justify-center mb-3`}>
-                    <Icon className="h-5 w-5" />
-                </div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</p>
-                <div className="flex items-baseline gap-2 mt-1">
-                    <h3 className="text-xl font-black">{value}</h3>
-                    {trend && <span className="text-[10px] font-bold text-emerald-500">{trend}</span>}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function LiveJobCard({ job }: any) {
-    const jobNumber = job.job_number || job.jobNumber || "--"
-    const machine = job.machine || "Not Assigned"
-    const latestActivity = job.latest_activity || job.start_date || "No logs yet"
-    const state = job.state || "IN_PROGRESS"
-    return (
-        <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-all">
-            <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <Badge variant="outline" className="mb-2 uppercase text-[10px] font-bold tracking-widest">{machine}</Badge>
-                        <h4 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            Job {jobNumber}
-                            <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                        </h4>
-                    </div>
-                    <Badge className="bg-amber-500 text-white border-none">{state}</Badge>
-                </div>
-                <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Product</span>
-                        <span className="font-bold">{job.sku || job.step_name || "--"}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Last Output</span>
-                        <span className="font-bold flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            {latestActivity}
-                        </span>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function CompletedJobCard({ job }: any) {
-    const logs = Array.isArray(job.logs) ? job.logs.slice(0, 5) : [];
-    return (
-        <Card className="border border-emerald-200 bg-emerald-50/30 shadow-sm">
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base font-black">{job.job_number}</CardTitle>
-                    <Badge className={job.closed_with_variance ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"}>
-                        {job.closed_with_variance ? "FORCED VARIANCE" : "NORMAL CLOSE"}
-                    </Badge>
-                </div>
-                <CardDescription>{job.step_name || "Step"} • {job.machine || "No machine"}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-                <div className="grid grid-cols-3 gap-2">
-                    <MetricChip label="Produced" value={`${Number(job.produced_kg || 0).toFixed(3)} kg`} color="emerald" />
-                    <MetricChip label="Scrap" value={`${Number(job.scrap_kg || 0).toFixed(3)} kg`} color="rose" />
-                    <MetricChip label="Variance" value={`${Number(job.variance_kg || 0).toFixed(3)} kg`} color="amber" />
-                </div>
-                {job.force_reason ? (
-                    <div className="text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-700 p-2">
-                        Force reason: {job.force_reason}
-                    </div>
-                ) : null}
-                <div className="rounded-md border bg-white p-2 space-y-1">
-                    <div className="text-xs font-semibold text-slate-500">Recent Logs</div>
-                    {logs.length === 0 ? (
-                        <div className="text-xs text-slate-400">No logs recorded.</div>
-                    ) : logs.map((log: any, idx: number) => (
-                        <div key={`${job.job_id}-log-${idx}`} className="flex items-center justify-between text-xs">
-                            <span className="font-medium">{log.type} • {Number(log.qty || 0).toFixed(3)} {log.uom || "KG"}</span>
-                            <span className="text-slate-500">{log.timestamp ? new Date(log.timestamp).toLocaleString() : "--"}</span>
-                        </div>
-                    ))}
-                </div>
-            </CardContent>
-        </Card>
-    )
-}
-
-function MetricChip({ label, value, color = "slate" }: any) {
-    const colorMap: Record<string, string> = {
-        blue: "bg-blue-50 border-blue-200 text-blue-700",
-        amber: "bg-amber-50 border-amber-200 text-amber-700",
-        indigo: "bg-indigo-50 border-indigo-200 text-indigo-700",
-        emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-        rose: "bg-rose-50 border-rose-200 text-rose-700",
-        slate: "bg-slate-100 border-slate-200 text-slate-700",
+        )
     }
+
+    const progress: any = data.progress || {}
+    const progressBars = progressParts(progress)
+    const activeJobs = Array.isArray(data.active_jobs) ? data.active_jobs : []
+    const completedJobs = Array.isArray(data.completed_jobs) ? data.completed_jobs : []
+    const lineItems = Array.isArray(data.line_items) ? data.line_items : []
+    const wipLineage = Array.isArray(data.wip_lineage) ? data.wip_lineage : []
+    const dispatchEvidence = Array.isArray(data.dispatch_evidence) ? data.dispatch_evidence : []
+    const auditTimeline = Array.isArray(data.audit_timeline) ? data.audit_timeline : []
+    const materialRows = Array.isArray(data.material_audit?.materials) ? data.material_audit?.materials : []
+    const interplantLinks = Array.isArray(data.interplant_links) ? data.interplant_links : []
+    const freshness = data.data_freshness
+    const header: any = data.order_header || {}
+    const kpis: any = data.kpi_snapshot || {}
+
     return (
-        <div className={`rounded-md border px-2 py-1 ${colorMap[color] || colorMap.slate}`}>
-            <div className="text-[10px] font-bold uppercase tracking-wider">{label}</div>
-            <div className="text-xs font-black">{value}</div>
+        <div className="min-h-screen bg-[#f4f6fb] p-4 lg:p-6" data-testid="sales-order-tracking-page">
+            <div className="mx-auto flex max-w-[1680px] flex-col gap-5">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_14px_38px_-28px_rgba(15,23,42,0.32)]">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                            <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-auto px-0 text-slate-500 hover:text-slate-900">
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back to sales orders
+                            </Button>
+                            <div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-600">Live tracking</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-3">
+                                    <h1 className="text-2xl font-black tracking-tight text-slate-900">{data.order_number}</h1>
+                                    <span className={cn("rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]", statusTone(data.status))}>
+                                        {data.status}
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-3 text-sm text-slate-500">
+                                    <span>{data.customer}</span>
+                                    <span>Delivery {formatDate(data.delivery_date)}</span>
+                                    <span>{safeNumber(header?.totals?.ordered_kg).toFixed(2)} kg</span>
+                                    <span>{header?.totals?.ordered_pcs != null ? `${safeNumber(header.totals.ordered_pcs)} pcs` : "— pcs"}</span>
+                                    <span>{safeNumber(header?.totals?.line_count)} line(s)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="min-w-[320px] space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Fulfillment truth</div>
+                                <div className="text-right">
+                                    <div className="text-xl font-black text-indigo-600">{safeNumber(progress.completion_percentage).toFixed(0)}%</div>
+                                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Complete</div>
+                                </div>
+                            </div>
+                            <ProgressRow label="Produced" value={safeNumber(progress.produced)} total={safeNumber(progress.ordered)} percent={progressBars.producedPct} tone="bg-indigo-500" />
+                            <ProgressRow label="Packed" value={safeNumber(progress.packed)} total={safeNumber(progress.ordered)} percent={progressBars.packedPct} tone="bg-cyan-500" />
+                            <ProgressRow label="Dispatched" value={safeNumber(progress.dispatched)} total={safeNumber(progress.ordered)} percent={progressBars.dispatchedPct} tone="bg-emerald-500" />
+                            <div className="text-[11px] text-slate-500">
+                                Refresh {freshness?.generated_at ? formatTs(freshness.generated_at) : "live"}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                    <KpiCard icon={Package} title="Ordered" value={`${safeNumber(kpis.ordered_kg).toFixed(2)} kg`} tone="blue" />
+                    <KpiCard icon={Factory} title="Produced" value={`${safeNumber(kpis.produced_kg).toFixed(2)} kg`} tone="indigo" />
+                    <KpiCard icon={Layers3} title="WIP Output" value={`${safeNumber(kpis.wip_output_kg ?? kpis.output_roll_kg).toFixed(2)} kg`} tone="amber" />
+                    <KpiCard icon={Warehouse} title="FG Ready" value={`${safeNumber(kpis.fg_kg).toFixed(2)} kg`} tone="emerald" />
+                    <KpiCard icon={Truck} title="Transit" value={`${safeNumber(kpis.interplant_output_in_transit_kg ?? kpis.interplant_in_transit_kg).toFixed(2)} kg`} tone="violet" />
+                    <KpiCard icon={CheckCircle2} title="Jobs Closed" value={`${safeNumber(kpis.completed_jobs)}`} tone="slate" />
+                </section>
+
+                <Tabs defaultValue="jobs" className="space-y-4">
+                    <TabsList className="w-full justify-start overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1">
+                        <TabsTrigger value="jobs">Jobs</TabsTrigger>
+                        <TabsTrigger value="inventory">Inventory</TabsTrigger>
+                        <TabsTrigger value="dispatch">Dispatch</TabsTrigger>
+                        <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+                        <TabsTrigger value="sku">SKU Status</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="jobs" className="space-y-4">
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+                            <SectionCard title={`Active jobs (${activeJobs.length})`} icon={Factory}>
+                                {activeJobs.length ? (
+                                    <div className="space-y-3">
+                                        {activeJobs.map((job: any) => (
+                                            <JobCard key={job.job_id || job.id || job.job_number} job={job} mode="active" />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <EmptyState label="No active jobs are executing right now." />
+                                )}
+                            </SectionCard>
+
+                            <SectionCard title={`Completed jobs (${completedJobs.length})`} icon={CheckCircle2}>
+                                {completedJobs.length ? (
+                                    <div className="space-y-3">
+                                        {completedJobs.map((job: any) => (
+                                            <JobCard key={job.job_id || job.id || job.job_number} job={job} mode="completed" />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <EmptyState label="No completed jobs recorded yet." />
+                                )}
+                            </SectionCard>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="inventory" className="space-y-4">
+                        <SectionCard title={`Line truth (${lineItems.length})`} icon={Package}>
+                            <DataGrid
+                                rows={lineItems.map((line: any) => ({
+                                    template: line.template_name,
+                                    fg_type: line.fg_type,
+                                    ordered_kg: `${safeNumber(line.ordered_kg).toFixed(2)} kg`,
+                                    produced_kg: `${safeNumber(line.produced_kg).toFixed(2)} kg`,
+                                    dispatched_kg: `${safeNumber(line.dispatched_kg).toFixed(2)} kg`,
+                                    wip_output_kg: `${safeNumber(line.wip_output_kg).toFixed(2)} kg`,
+                                    wip_remainder_kg: `${safeNumber(line.wip_remainder_kg).toFixed(2)} kg`,
+                                    completion: `${safeNumber(line.completion_percentage).toFixed(0)}%`,
+                                }))}
+                            />
+                        </SectionCard>
+                        <SectionCard title={`Inventory lineage (${wipLineage.length})`} icon={Layers3}>
+                            <DataGrid
+                                rows={wipLineage.map((roll: any) => ({
+                                    label: roll.label_id,
+                                    role: roll.roll_role,
+                                    material: roll.material_code || roll.material,
+                                    weight: `${safeNumber(roll.weight_kg).toFixed(3)} kg`,
+                                    status: roll.status,
+                                    location: roll.location || "—",
+                                    created_job: roll.created_job_number || "—",
+                                }))}
+                            />
+                        </SectionCard>
+                    </TabsContent>
+
+                    <TabsContent value="dispatch" className="space-y-4">
+                        <SectionCard title={`Dispatch challans (${dispatchEvidence.length})`} icon={Truck}>
+                            <DataGrid
+                                rows={dispatchEvidence.map((challan: any) => ({
+                                    dc_no: challan.dc_no,
+                                    status: challan.status,
+                                    dispatched_kg: `${safeNumber(challan.dispatched_kg).toFixed(2)} kg`,
+                                    vehicle: challan.vehicle_no || "—",
+                                    dispatch_date: formatTs(challan.dispatch_date),
+                                    received_date: formatTs(challan.received_date),
+                                }))}
+                            />
+                        </SectionCard>
+                        <SectionCard title={`Inter-plant movement (${interplantLinks.length})`} icon={Truck}>
+                            <DataGrid
+                                rows={interplantLinks.map((link: any) => ({
+                                    dc_no: link.dc_no,
+                                    status: link.status,
+                                    from: link.from_plant,
+                                    to: link.to_plant,
+                                    source_job: link.source_job_number || "—",
+                                    target_job: link.target_job_number || "—",
+                                    dispatched_kg: `${safeNumber(link.summary?.dispatched_total_kg).toFixed(2)} kg`,
+                                }))}
+                            />
+                        </SectionCard>
+                    </TabsContent>
+
+                    <TabsContent value="audit" className="space-y-4">
+                        <SectionCard title={`Audit timeline (${auditTimeline.length})`} icon={ShieldCheck}>
+                            <div className="space-y-2">
+                                {auditTimeline.length ? auditTimeline.slice(0, 60).map((event: any, index: number) => (
+                                    <div key={`${event.reference || event.entity_id || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="text-sm font-bold text-slate-900">{event.message || event.event_type}</div>
+                                            <div className="text-[11px] text-slate-500">{formatTs(event.timestamp)}</div>
+                                        </div>
+                                        <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500">
+                                            <span>{event.actor || "system"}</span>
+                                            <span>{event.entity_type}</span>
+                                            {event.reference ? <span>{event.reference}</span> : null}
+                                            {event.delta_qty_kg != null ? <span>{safeNumber(event.delta_qty_kg).toFixed(3)} kg</span> : null}
+                                        </div>
+                                    </div>
+                                )) : <EmptyState label="No audit events recorded." />}
+                            </div>
+                        </SectionCard>
+                        <SectionCard title={`Material audit (${materialRows.length})`} icon={Layers3}>
+                            <DataGrid
+                                rows={materialRows.map((row: any) => ({
+                                    material: `${row.material_code} · ${row.material_name}`,
+                                    category: row.category,
+                                    required: `${safeNumber(row.required_kg).toFixed(3)} kg`,
+                                    consumed: `${safeNumber(row.consumed_kg).toFixed(3)} kg`,
+                                    remaining: `${safeNumber(row.remaining_kg).toFixed(3)} kg`,
+                                    steps: row.steps,
+                                }))}
+                            />
+                        </SectionCard>
+                    </TabsContent>
+
+                    <TabsContent value="sku" className="space-y-4">
+                        <SectionCard title={`SKU item status (${lineItems.length})`} icon={Package}>
+                            <div className="grid gap-4 lg:grid-cols-2">
+                                {lineItems.length ? lineItems.map((line: any) => (
+                                    <div key={line.sales_order_item_id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <div className="text-sm font-black text-slate-900">{line.template_name || "Item"}</div>
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">{line.fg_type}</span>
+                                            {line.roll_form ? <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700">{line.roll_form}</span> : null}
+                                            {line.printing_enabled ? <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-[10px] font-bold text-fuchsia-700">{line.printing_type || "PRINT"}</span> : null}
+                                        </div>
+                                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                            <Metric label="Ordered" value={`${safeNumber(line.ordered_kg).toFixed(2)} kg`} />
+                                            <Metric label="Produced" value={`${safeNumber(line.produced_kg).toFixed(2)} kg`} />
+                                            <Metric label="Packed" value={`${safeNumber(line.packed_kg).toFixed(2)} kg`} />
+                                            <Metric label="Dispatched" value={`${safeNumber(line.dispatched_kg).toFixed(2)} kg`} />
+                                        </div>
+                                    </div>
+                                )) : <EmptyState label="No line items available." />}
+                            </div>
+                        </SectionCard>
+                    </TabsContent>
+                </Tabs>
+            </div>
         </div>
     )
 }
 
-function DataCard({ title, icon: Icon, children }: any) {
+function ProgressRow({
+    label,
+    value,
+    total,
+    percent,
+    tone,
+}: {
+    label: string
+    value: number
+    total: number
+    percent: number
+    tone: string
+}) {
     return (
-        <Card className="border-none shadow-xl shadow-slate-200/40 dark:shadow-none bg-white dark:bg-slate-900">
-            <CardHeader className="border-b border-slate-50 dark:border-slate-800">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Icon className="h-5 w-5 text-indigo-500" />
+        <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                <span>{label}</span>
+                <span>{value.toFixed(2)} / {total.toFixed(2)} kg</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white">
+                <div className={cn("h-full", tone)} style={{ width: `${Math.max(0, Math.min(percent, 100))}%` }} />
+            </div>
+        </div>
+    )
+}
+
+function KpiCard({ icon: Icon, title, value, tone }: { icon: any; title: string; value: string; tone: string }) {
+    const toneClass =
+        tone === "blue" ? "bg-blue-50 text-blue-700" :
+        tone === "indigo" ? "bg-indigo-50 text-indigo-700" :
+        tone === "amber" ? "bg-amber-50 text-amber-700" :
+        tone === "emerald" ? "bg-emerald-50 text-emerald-700" :
+        tone === "violet" ? "bg-violet-50 text-violet-700" :
+        "bg-slate-100 text-slate-700"
+
+    return (
+        <Card className="rounded-2xl border border-slate-200 bg-white">
+            <CardContent className="p-4">
+                <div className={cn("mb-3 inline-flex rounded-xl p-2.5", toneClass)}>
+                    <Icon className="h-4 w-4" />
+                </div>
+                <div className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400">{title}</div>
+                <div className="mt-1 text-lg font-black text-slate-900">{value}</div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function SectionCard({ title, icon: Icon, children }: { title: string; icon: any; children: ReactNode }) {
+    return (
+        <Card className="rounded-3xl border border-slate-200 bg-white">
+            <CardHeader className="border-b border-slate-100 pb-4">
+                <CardTitle className="flex items-center gap-2 text-base font-black text-slate-900">
+                    <Icon className="h-4 w-4 text-indigo-600" />
                     {title}
                 </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-                {children}
-            </CardContent>
+            <CardContent className="p-4">{children}</CardContent>
         </Card>
-    );
+    )
 }
 
-function InventoryTable({ data, columns }: any) {
-    if (data.length === 0) return <div className="p-10 text-center text-slate-400 font-medium">No results recorded yet.</div>;
-    const dateColumns = new Set([
-        'created_at',
-        'updated_at',
-        'dispatch_date',
-        'delivery_date',
-        'received_date',
-        'timestamp',
-        'start_date',
-        'end_date',
-        'closed_at',
-        'dispatched_at',
-    ]);
-
-    const renderCell = (row: any, col: string) => {
-        const value = row[col];
-        if (col.includes('status')) {
-            const status = String(value || '').toUpperCase();
-            const className = status === 'COMPLETED' || status === 'RECEIVED'
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : status === 'IN_TRANSIT' || status === 'RELEASED' || status === 'EXECUTING'
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : status === 'REMAINDER'
-                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                        : "bg-slate-100 text-slate-700 border-slate-200";
-            return <Badge variant="outline" className={`uppercase text-[10px] font-bold ${className}`}>{status || '--'}</Badge>;
-        }
-        if (col === 'roll_role') {
-            const role = String(value || '--').toUpperCase();
-            const className = role === 'REMAINDER'
-                ? "bg-amber-50 text-amber-700 border-amber-200"
-                : role === 'FG'
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : role.includes('OUTPUT')
-                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                        : "bg-slate-100 text-slate-700 border-slate-200";
-            return <Badge variant="outline" className={`text-[10px] font-bold ${className}`}>{role}</Badge>;
-        }
-        if (typeof value === 'number' && col.includes('kg')) {
-            return <span className="font-semibold">{value.toFixed(3)}</span>;
-        }
-        if (typeof value === 'string' && dateColumns.has(col) && value.includes('T')) {
-            return new Date(value).toLocaleString();
-        }
-        return value || '--';
-    };
-
+function JobCard({ job, mode }: { job: any; mode: "active" | "completed" }) {
+    const logs = Array.isArray(job.logs) ? job.logs.slice(0, 4) : []
     return (
-        <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50/50 dark:bg-slate-800/50 text-xs font-black text-slate-500 uppercase">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-black text-slate-900">{job.job_number || "Job"}</div>
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]", statusTone(job.state))}>
+                            {job.state}
+                        </span>
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                        {[job.step_name || "Process step", job.process_code].filter(Boolean).join(" · ")}
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-right text-[11px] font-semibold text-slate-500">
+                    <span>{safeNumber(job.produced_kg).toFixed(3)} kg out</span>
+                    <span>{safeNumber(job.scrap_kg).toFixed(3)} kg scrap</span>
+                </div>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Metric label="Work center" value={codedLabel(job.work_center, job.work_center_code, "Unassigned")} icon={<Warehouse className="h-3.5 w-3.5" />} />
+                <Metric label="Machine" value={codedLabel(job.machine || job.assigned_machine, job.machine_code || job.assigned_machine_code, "Unassigned")} icon={<Factory className="h-3.5 w-3.5" />} />
+                <Metric label="Operator" value={identityLabel(job.operator, job.operator_username, "Pending")} icon={<UserRound className="h-3.5 w-3.5" />} />
+                <Metric label={mode === "completed" ? "Closed by" : "Assigned by"} value={mode === "completed" ? identityLabel(job.closed_by, job.closed_by_username) : identityLabel(job.assigned_by, null)} icon={<ShieldCheck className="h-3.5 w-3.5" />} />
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Metric label="Created" value={formatTs(job.created_at)} />
+                <Metric label="Started" value={formatTs(job.start_date)} />
+                <Metric label={mode === "completed" ? "Closed" : "Assigned"} value={formatTs(mode === "completed" ? job.closed_at : job.assigned_at)} />
+                <Metric label="Variance" value={`${safeNumber(job.variance_kg).toFixed(3)} kg`} />
+            </div>
+
+            {job.force_reason ? (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Force-close reason: {job.force_reason}
+                </div>
+            ) : null}
+
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    Recent logs
+                </div>
+                {logs.length ? (
+                    <div className="space-y-2">
+                        {logs.map((log: any, index: number) => (
+                            <div key={`${job.job_id || job.job_number}-${index}`} className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                <div className="font-semibold text-slate-700">
+                                    {log.type} · {safeNumber(log.qty).toFixed(3)} {log.uom || "KG"} · {log.actor || "system"}
+                                </div>
+                                <div className="text-slate-500">{formatTs(log.timestamp)}</div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-[11px] text-slate-500">No execution logs recorded.</div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+function Metric({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">
+                {icon}
+                {label}
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-800">{value || "—"}</div>
+        </div>
+    )
+}
+
+function DataGrid({ rows }: { rows: Array<Record<string, string>> }) {
+    if (!rows.length) return <EmptyState label="No records available." />
+    const columns = Object.keys(rows[0] || {})
+    return (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-slate-50">
                     <tr>
-                        {columns.map((c: string) => (
-                            <th key={c} className="px-6 py-4">{c.replace('_', ' ').replace('__', ' ')}</th>
+                        {columns.map((column) => (
+                            <th key={column} className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                                {column.replace(/_/g, " ")}
+                            </th>
                         ))}
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {data.map((row: any, i: number) => (
-                        <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                            {columns.map((c: string) => (
-                                <td key={c} className="px-6 py-4 font-medium">{renderCell(row, c)}</td>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                    {rows.map((row, index) => (
+                        <tr key={index}>
+                            {columns.map((column) => (
+                                <td key={column} className="px-4 py-3 text-sm font-medium text-slate-700">
+                                    {row[column] || "—"}
+                                </td>
                             ))}
                         </tr>
                     ))}
                 </tbody>
             </table>
         </div>
-    );
+    )
 }
 
-function SKUProgress({ item }: any) {
-    const pct = Math.min((item.produced / item.ordered) * 100, 100);
-    return (
-        <Card className="border-none shadow-sm overflow-hidden bg-white/50 dark:bg-slate-900/50">
-            <CardContent className="p-6">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="space-y-1 flex-1">
-                        <h4 className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400">{item.sku}</h4>
-                        <p className="text-sm font-bold text-slate-400">ORDERED: {item.ordered} KG</p>
-                    </div>
-
-                    <div className="flex items-center gap-10 flex-[2]">
-                        <div className="flex-1 space-y-2">
-                            <div className="flex justify-between text-xs font-black text-slate-500">
-                                <span>PRODUCTION PROGRESS</span>
-                                <span>{pct.toFixed(0)}%</span>
-                            </div>
-                            <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${pct}%` }} />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-4 border-l pl-4 border-slate-100 dark:border-slate-800">
-                            <MetricBox label="Produced" value={item.produced} unit="kg" />
-                            <MetricBox label="Packed" value={item.packed} unit="kg" />
-                            <MetricBox label="Loaded" value={item.dispatched} unit="kg" />
-                        </div>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function MetricBox({ label, value, unit }: any) {
-    return (
-        <div className="text-right min-w-[70px]">
-            <p className="text-[10px] font-black text-slate-400 uppercase">{label}</p>
-            <p className="text-base font-black text-slate-700 dark:text-slate-200">{value}<span className="text-[10px] ml-0.5 text-slate-400">{unit}</span></p>
-        </div>
-    );
-}
-
-function EmptyState({ icon: Icon, title, description }: any) {
-    return (
-        <div className="flex flex-col items-center justify-center p-20 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-            <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-full mb-6">
-                <Icon className="h-10 w-10 text-slate-300" />
-            </div>
-            <h3 className="text-xl font-bold">{title}</h3>
-            <p className="text-muted-foreground mt-2 max-w-sm">{description}</p>
-        </div>
-    );
+function EmptyState({ label }: { label: string }) {
+    return <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{label}</div>
 }

@@ -20,6 +20,7 @@ urlpatterns = [
     path('order-tracking/', AnalyticsViewSet.as_view({'get': 'order_tracking'}), name='analytics-order-tracking'),
     path('orders/<str:order_id>/tracking/', AnalyticsViewSet.as_view({'get': 'order_tracking_for_order'}), name='analytics-order-tracking-detail'),
     path('trace/', AnalyticsViewSet.as_view({'get': 'trace_lookup'}), name='analytics-trace-lookup'),
+    path('audit-console/', AnalyticsViewSet.as_view({'get': 'audit_console'}), name='analytics-audit-console'),
     path('sales-dashboard/', AnalyticsViewSet.as_view({'get': 'sales_dashboard'}), name='analytics-sales-dashboard'),
     path('planner-dashboard/', AnalyticsViewSet.as_view({'get': 'planner_dashboard'}), name='analytics-planner-dashboard'),
     path('wcm-dashboard/', AnalyticsViewSet.as_view({'get': 'wcm_dashboard'}), name='analytics-wcm-dashboard'),

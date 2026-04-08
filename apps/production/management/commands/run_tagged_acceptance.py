@@ -30,7 +30,7 @@ from apps.inventory.services.job_work import JobWorkService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.services.roll_service import RollService
 from apps.materials.models import InventoryMaterial
-from apps.factory.models import Process, WorkCenter, WorkCenterProcess
+from apps.factory.models import Machine, Process, WorkCenter, WorkCenterProcess
 from apps.physics.spec_signature import (
     build_invariant_payload,
     build_invariant_signature,
@@ -65,6 +65,7 @@ from apps.sales.models import Customer, SalesOrder, SalesOrderItem
 from apps.sales.services.order_service import SalesOrderService
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from apps.templates.views import TemplateBlueprintViewSet
+from apps.users.models import MachineAssignment, WorkCenterAssignment as UserWorkCenterAssignment
 
 
 class Command(BaseCommand):
@@ -1064,21 +1065,23 @@ class Command(BaseCommand):
 
         # Roll pack + challan with two rolls on one SO
         self.stdout.write("Acceptance: execute roll dispatch pack + challan")
-        roll_pack_record_a1 = FGDispatchService.pack_roll(
+        roll_pack_record_a1 = FGDispatchService.release_roll_to_dispatch(
             str(roll_a1.id),
-            [
+            lines=[
                 {"material_id": str(sheet_mat.id), "qty": 0.25, "uom": "KG", "basis": "PER_ROLL"},
                 {"material_id": str(tape_mat.id), "qty": 2, "uom": "PCS", "basis": "PER_ROLL"},
             ],
             user=admin,
+            release_mode="PACKED",
         )
-        roll_pack_record_a2 = FGDispatchService.pack_roll(
+        roll_pack_record_a2 = FGDispatchService.release_roll_to_dispatch(
             str(roll_a2.id),
-            [
+            lines=[
                 {"material_id": str(sheet_mat.id), "qty": 0.25, "uom": "KG", "basis": "PER_ROLL"},
                 {"material_id": str(tape_mat.id), "qty": 2, "uom": "PCS", "basis": "PER_ROLL"},
             ],
             user=admin,
+            release_mode="PACKED",
         )
         roll_challan = FGDispatchService.create_challan(
             customer_name=roll_so_a.customer_name,
@@ -1159,6 +1162,44 @@ class Command(BaseCommand):
             location=fg_location,
             status="AVAILABLE",
         )
+        fg_primary_pack_count = 0
+        primary_pack_cfg = pouch_pack_snapshot.get("primary_inner_pack") if isinstance(pouch_pack_snapshot.get("primary_inner_pack"), dict) else {}
+        if primary_pack_cfg.get("enabled"):
+            pcs_per_pack = int(primary_pack_cfg.get("pcs_per_pack") or 0)
+            if pcs_per_pack > 0:
+                fg_primary_pack_count = (int(pouch_batch.qty_pcs or 0) + pcs_per_pack - 1) // pcs_per_pack
+                pouch_batch.meta_json = {
+                    **dict(getattr(pouch_batch, "meta_json", {}) or {}),
+                    "primary_inner_pack": {
+                        "enabled": True,
+                        "material_id": str(primary_pack_cfg["material_id"]),
+                        "pcs_per_pack": pcs_per_pack,
+                        "pack_count": fg_primary_pack_count,
+                        "consumed_at_fg": True,
+                        "source": "FINAL_STEP",
+                    },
+                }
+                pouch_batch.save(update_fields=["meta_json", "updated_at"])
+                PackagingService.consume_packaging_stock(
+                    material_id=str(primary_pack_cfg["material_id"]),
+                    qty=fg_primary_pack_count,
+                    input_uom="PCS",
+                    location_id=str(fg_location.id),
+                    job_id=str(pouch_job.id),
+                    sales_order_item_id=str(pouch_item.id),
+                    reference=f"FG primary inner pack completion {pouch_batch.batch_number}",
+                    basis="PER_BATCH",
+                    meta_json={
+                        "source": "FINAL_STEP",
+                        "batch_id": str(pouch_batch.id),
+                        "qty_pcs": int(pouch_batch.qty_pcs or 0),
+                        "pcs_per_pack": pcs_per_pack,
+                    },
+                )
+        packaging_after_fg_completion = {
+            "inner_pouch_pcs": float(self._packaging_stock_qty(inner_pouch, fg_location)),
+            "sheet_kg": float(self._packaging_stock_qty(sheet_mat, fg_location)),
+        }
         gonny_primary = PackingService.create_gonny(
             str(pouch_batch.id),
             140,
@@ -1184,6 +1225,8 @@ class Command(BaseCommand):
             admin,
             extras=[{"material_id": str(tape_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_GONNY"}],
         )
+        gonny_primary = FGDispatchService.release_gonny_to_dispatch(str(gonny_primary.id), user=admin)
+        gonny_loose = FGDispatchService.release_gonny_to_dispatch(str(gonny_loose.id), user=admin)
         pouch_challan = FGDispatchService.create_challan(
             customer_name=pouch_so.customer_name,
             plant_id=str(fg_location.plant_id),
@@ -1205,6 +1248,7 @@ class Command(BaseCommand):
         report["pouch_flow"] = {
             "output_pcs": 240,
             "pcs_per_pack": 100,
+            "inner_packs_consumed_at_fg": fg_primary_pack_count,
             "inner_packs_consumed": gonny_primary.primary_pack_count,
             "gonnies": [
                 {
@@ -1263,9 +1307,10 @@ class Command(BaseCommand):
             "stock": {
                 "before_production": packaging_before,
                 "after_production": packaging_after_production,
+                "after_fg_completion": packaging_after_fg_completion,
                 "after_consumption": packaging_after_consumption,
                 "expected_remaining": {
-                    "inner_pouch_pcs": float(Decimal("4") - Decimal(str(gonny_primary.primary_pack_count or 0))),
+                    "inner_pouch_pcs": float(Decimal("4") - Decimal(str(fg_primary_pack_count or 0))),
                     "sheet_kg": float(Decimal("2.0000") - Decimal("0.5000")),
                 },
             },
@@ -1393,6 +1438,32 @@ class Command(BaseCommand):
                 },
             )
             return assignment
+
+        def _ensure_ui_machine(job, *, slug):
+            if not getattr(job, "work_center_id", None):
+                raise CommandError(f"UI proof job {job.job_number} has no work center for machine setup.")
+            machine_code = f"E2E-{slug}-{tag}"[:50]
+            machine, _ = Machine.objects.get_or_create(
+                work_center=job.work_center,
+                code=machine_code,
+                defaults={
+                    "name": f"{job.work_center.name} Proof Machine",
+                    "status": "ACTIVE",
+                    "assigned_operator": admin,
+                },
+            )
+            update_fields = []
+            if machine.status != "ACTIVE":
+                machine.status = "ACTIVE"
+                update_fields.append("status")
+            if machine.assigned_operator_id != admin.id:
+                machine.assigned_operator = admin
+                update_fields.append("assigned_operator")
+            if update_fields:
+                machine.save(update_fields=update_fields)
+            UserWorkCenterAssignment.objects.get_or_create(user=admin, work_center=job.work_center)
+            MachineAssignment.objects.get_or_create(user=admin, machine=machine)
+            return machine
 
         route_profiles = {}
 
@@ -1962,8 +2033,12 @@ class Command(BaseCommand):
             completed_step_index=0,
             meta_json={"roll_role": "RAW_MATERIAL", "invariant_signature": roll_invariant_signature},
         )
+        ui_modify_create_job = ui_modify_fallback_bundle.jobs["create_new"]
+        ui_modify_create_assignment = _ensure_wc_assignment(ui_modify_create_job)
+        ui_modify_create_machine = _ensure_ui_machine(ui_modify_create_job, slug="MODFBCREATE")
         ui_modify_job = ui_modify_fallback_bundle.jobs["modify_existing"]
         ui_modify_assignment = _ensure_wc_assignment(ui_modify_job)
+        ui_modify_machine = _ensure_ui_machine(ui_modify_job, slug="MODFB")
         ui_modify_context = ExecutionService.get_job_context(str(ui_modify_job.id))
 
         ui_combine_three_bundle = _build_route_proof_bundle(
@@ -2002,27 +2077,71 @@ class Command(BaseCommand):
             completed_step_index=0,
             meta_json={"roll_role": "RAW_MATERIAL", "invariant_signature": three_layer_roll_invariant_signature},
         )
+        ui_combine_create_assignment = _ensure_wc_assignment(ui_combine_create_job)
+        ui_combine_create_machine = _ensure_ui_machine(ui_combine_create_job, slug="COMB3CREATE")
         ui_combine_job = ui_combine_three_bundle.jobs["combine"]
         ui_combine_assignment = _ensure_wc_assignment(ui_combine_job)
+        ui_combine_machine = _ensure_ui_machine(ui_combine_job, slug="COMB3FB")
         ui_combine_context = ExecutionService.get_job_context(str(ui_combine_job.id))
+        def _pick_ui_roll(context: dict, preferred_roll_id: str | None = None) -> dict:
+            eligible_rows = list(context.get("eligible_rolls") or [])
+            if preferred_roll_id:
+                preferred = next((row for row in eligible_rows if str(row.get("id")) == str(preferred_roll_id)), None)
+                if preferred:
+                    return preferred
+            if eligible_rows:
+                return eligible_rows[0]
+            return {}
+
+        ui_modify_selected_roll = _pick_ui_roll(ui_modify_context, str(ui_modify_fallback_roll.id))
+        ui_combine_selected_roll = _pick_ui_roll(ui_combine_context, str(ui_combine_fallback_roll.id))
+
         report["wip_route_truth"]["ui_jobs"] = {
             "modify_fallback": {
+                "create_new": {
+                    "job_id": str(ui_modify_create_job.id),
+                    "job_number": ui_modify_create_job.job_number,
+                    "assignment_id": str(ui_modify_create_assignment.id),
+                    "work_center_id": str(ui_modify_create_job.work_center_id),
+                    "machine_id": str(ui_modify_create_machine.id),
+                    "machine_code": ui_modify_create_machine.code,
+                },
                 "job_id": str(ui_modify_job.id),
                 "job_number": ui_modify_job.job_number,
                 "assignment_id": str(ui_modify_assignment.id),
                 "work_center_id": str(ui_modify_job.work_center_id),
-                "fallback_roll_label": ui_modify_fallback_roll.label_id,
-                "fallback_roll_id": str(ui_modify_fallback_roll.id),
+                "machine_id": str(ui_modify_machine.id),
+                "machine_code": ui_modify_machine.code,
+                "fallback_roll_label": (
+                    ui_modify_selected_roll.get("label_id")
+                    or ui_modify_selected_roll.get("label")
+                    or ui_modify_fallback_roll.label_id
+                ),
+                "fallback_roll_id": str(ui_modify_selected_roll.get("id") or ui_modify_fallback_roll.id),
                 "lineage_roll_count": int((ui_modify_context.get("wip_pool_meta") or {}).get("lineage_roll_count") or 0),
                 "fallback_roll_count": int((ui_modify_context.get("wip_pool_meta") or {}).get("fallback_roll_count") or 0),
             },
             "combine_three_fallback": {
+                "create_new": {
+                    "job_id": str(ui_combine_create_job.id),
+                    "job_number": ui_combine_create_job.job_number,
+                    "assignment_id": str(ui_combine_create_assignment.id),
+                    "work_center_id": str(ui_combine_create_job.work_center_id),
+                    "machine_id": str(ui_combine_create_machine.id),
+                    "machine_code": ui_combine_create_machine.code,
+                },
                 "job_id": str(ui_combine_job.id),
                 "job_number": ui_combine_job.job_number,
                 "assignment_id": str(ui_combine_assignment.id),
                 "work_center_id": str(ui_combine_job.work_center_id),
-                "fallback_roll_label": ui_combine_fallback_roll.label_id,
-                "fallback_roll_id": str(ui_combine_fallback_roll.id),
+                "machine_id": str(ui_combine_machine.id),
+                "machine_code": ui_combine_machine.code,
+                "fallback_roll_label": (
+                    ui_combine_selected_roll.get("label_id")
+                    or ui_combine_selected_roll.get("label")
+                    or ui_combine_fallback_roll.label_id
+                ),
+                "fallback_roll_id": str(ui_combine_selected_roll.get("id") or ui_combine_fallback_roll.id),
                 "lineage_roll_labels": [roll.label_id for roll in ui_combine_lineage_rolls],
                 "lineage_roll_ids": [str(roll.id) for roll in ui_combine_lineage_rolls],
                 "required_rolls": int((ui_combine_context.get("roll_assignment_validation") or {}).get("required_rolls") or 0),
@@ -2288,11 +2407,20 @@ class Command(BaseCommand):
             "plant_b_roll_rows": InventoryRoll.objects.filter(plant=secondary_fg_location.plant).count(),
         }
         sales_row_source = (sales_row_a or {}).get("source_availability") if isinstance(sales_row_a, dict) else {}
+        carry_forward_wip_count = int((sales_row_source or {}).get("carry_forward_wip_count") or 0)
+        shared_invariant_roll_count = int((sales_row_source or {}).get("shared_invariant_roll_count") or 0)
+        compatible_upstream_roll_match_count = int((sales_row_source or {}).get("compatible_upstream_roll_match_count") or 0)
         planner_source_gating = {
             "has_fg": bool((sales_row_source or {}).get("has_fg")),
             "has_wip": bool((sales_row_source or {}).get("has_wip")),
+            "has_shared_invariant_roll_stock": bool((sales_row_source or {}).get("has_shared_invariant_roll_stock")),
+            "has_compatible_upstream_roll": bool((sales_row_source or {}).get("has_compatible_upstream_roll")),
             "fg_match_count": int((sales_row_source or {}).get("fg_match_count") or 0),
             "wip_match_count": int((sales_row_source or {}).get("wip_match_count") or 0),
+            "carry_forward_wip_count": carry_forward_wip_count,
+            "shared_invariant_roll_count": shared_invariant_roll_count,
+            "compatible_upstream_roll_match_count": compatible_upstream_roll_match_count,
+            "wip_path_count": carry_forward_wip_count + shared_invariant_roll_count + compatible_upstream_roll_match_count,
         }
         report["planner_source_gating"] = planner_source_gating
         nav_parent_redirect_targets = {
@@ -2568,7 +2696,7 @@ class Command(BaseCommand):
                 {
                     "scenario_id": "PLANNER_SOURCE_GATING",
                     "status": "PASS"
-                    if planner_source_gating["fg_match_count"] >= 1 and planner_source_gating["wip_match_count"] >= 1
+                    if planner_source_gating["fg_match_count"] >= 1 and planner_source_gating["wip_path_count"] >= 1
                     else "FAIL",
                     "evidence": json.dumps(planner_source_gating, default=str),
                 },
@@ -3237,6 +3365,8 @@ class Command(BaseCommand):
             | Q(parent_roll__label_id__startswith="TEST-BAD-")
             | Q(parent_roll__label_id__startswith="E2E-GRN-ROLL-")
             | Q(parent_roll__label_id__startswith="UIE2E-MUT-")
+            | Q(parent_roll__label_id__startswith="UAT-GREEN-MUT-")
+            | Q(parent_roll__label_id__startswith="R-UAT-GREEN-MUT-")
             | Q(parent_roll__production_job_id__in=job_ids)
             | Q(parent_roll__created_by_job_id__in=job_ids)
             | Q(child_roll__label_id__startswith="TEST-ROLL-")
@@ -3245,6 +3375,8 @@ class Command(BaseCommand):
             | Q(child_roll__label_id__startswith="TEST-BAD-")
             | Q(child_roll__label_id__startswith="E2E-GRN-ROLL-")
             | Q(child_roll__label_id__startswith="UIE2E-MUT-")
+            | Q(child_roll__label_id__startswith="UAT-GREEN-MUT-")
+            | Q(child_roll__label_id__startswith="R-UAT-GREEN-MUT-")
             | Q(child_roll__production_job_id__in=job_ids)
             | Q(child_roll__created_by_job_id__in=job_ids)
         ).delete()

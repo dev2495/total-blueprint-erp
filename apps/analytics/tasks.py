@@ -12,14 +12,10 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_jitter=True, max_retries=2)
 def dispatch_due_report_packs_task(self):
     now = timezone.localtime()
-    due_profiles = ReportDistributionProfile.objects.filter(
-        active=True,
-        schedule_hour=now.hour,
-        schedule_minute=now.minute,
-    ).order_by("report_code")
+    due_profiles = ReportDistributionProfile.objects.filter(active=True).order_by("report_code")
     results = []
+    report_date = ReportDistributionService.report_date_for_run()
     for profile in due_profiles:
-        report_date = ReportDistributionService.report_date_for_run()
         already_sent = ReportDispatchRun.objects.filter(
             report_code=profile.report_code,
             report_date=report_date,

@@ -10,6 +10,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from decimal import Decimal
+from datetime import timedelta
 from io import BytesIO
 import uuid
 from collections import defaultdict
@@ -1635,6 +1636,27 @@ class InventorySnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plant']
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        try:
+            days = int(request.query_params.get("days", 180))
+        except (TypeError, ValueError):
+            days = 180
+        days = max(7, min(days, 730))
+
+        try:
+            limit = int(request.query_params.get("limit", 180))
+        except (TypeError, ValueError):
+            limit = 180
+        limit = max(1, min(limit, 500))
+
+        cutoff = timezone.now() - timedelta(days=days)
+        queryset = queryset.filter(created_at__gte=cutoff).order_by("-created_at")
+
+        serializer = self.get_serializer(queryset[:limit], many=True)
+        return Response(serializer.data)
     
     @action(detail=False, methods=['post'])
     def create_now(self, request):

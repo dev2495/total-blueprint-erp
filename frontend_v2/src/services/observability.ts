@@ -169,8 +169,17 @@ export const observabilityApi = {
     },
 
     // Snapshots
-    getSnapshots: async (plantId?: string): Promise<InventorySnapshot[]> => {
-        const params = plantId ? { plant: plantId } : {};
+    getSnapshots: async (
+        plantId?: string,
+        options?: {
+            limit?: number;
+            days?: number;
+        }
+    ): Promise<InventorySnapshot[]> => {
+        const params: Record<string, string | number> = {};
+        if (plantId) params.plant = plantId;
+        if (options?.limit) params.limit = options.limit;
+        if (options?.days) params.days = options.days;
         const { data } = await api.get("/api/inventory/snapshots/", { params });
         return data;
     },

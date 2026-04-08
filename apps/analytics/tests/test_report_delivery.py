@@ -92,26 +92,12 @@ class ReportDeliveryTests(TestCase):
                 self.assertTrue(str(artifact_path).endswith(rendered.file_name))
                 self.assertEqual(artifact_path.read_bytes(), rendered.pdf)
 
-    @patch("apps.users.tasks.deliver_notification_email_task.delay")
-    @patch("apps.analytics.report_delivery.EmailDeliveryService.send_email")
-    @patch("apps.analytics.report_delivery.EmailDeliveryService.configuration_status")
     @patch("apps.analytics.report_delivery.ReportDistributionService.render_report")
-    def test_send_profile_creates_audited_run_and_emails_pdf_attachment(
-        self,
-        render_report,
-        configuration_status,
-        send_email,
-        _deliver_notification_email_task,
-    ):
+    @patch("apps.users.services.notification_service.NotificationService.emit_event")
+    def test_send_profile_creates_audited_run_and_owner_notification(self, emit_event, render_report):
         render_report.return_value = self._rendered()
-        configuration_status.return_value = (True, "")
-        send_email.return_value = {
-            "provider": "resend",
-            "provider_message_id": "msg_123",
-        }
-
-        self.production_profile.target_roles = ["OWNER"]
-        self.production_profile.extra_recipients = ["ops@example.com", "owner@example.com"]
+        self.production_profile.target_roles = ["OWNER", "ADMIN"]
+        self.production_profile.extra_recipients = []
         self.production_profile.save(update_fields=["target_roles", "extra_recipients"])
 
         run = ReportDistributionService.send_profile(
@@ -123,37 +109,16 @@ class ReportDeliveryTests(TestCase):
 
         self.assertEqual(run.status, ReportDispatchRun.Status.SUCCEEDED)
         self.assertEqual(run.recipient_count, 2)
-        self.assertEqual(run.provider, "resend")
-        self.assertEqual(run.provider_message_id, "msg_123")
-        send_email.assert_called_once()
-        kwargs = send_email.call_args.kwargs
-        self.assertEqual(sorted(kwargs["recipients"]), ["ops@example.com", "owner@example.com"])
-        self.assertEqual(kwargs["attachments"][0]["filename"], "production_daily-2026-03-05.pdf")
-        self.assertEqual(kwargs["attachments"][0]["content_type"], "application/pdf")
+        self.assertEqual(run.recipients, ["OWNER", "ADMIN"])
+        self.assertEqual(run.provider, "")
+        self.assertEqual(run.provider_message_id, "")
+        emit_event.assert_called_once()
+        self.assertEqual(emit_event.call_args.kwargs["event_key"], "reports.daily_pack_generated")
+        self.assertEqual(emit_event.call_args.kwargs["related_object_id"], str(run.id))
 
-    @patch("apps.analytics.report_delivery.EmailDeliveryService.send_email")
     @patch("apps.analytics.report_delivery.ReportDistributionService.render_report")
-    def test_send_profile_skips_when_no_recipients_exist(self, render_report, send_email):
-        render_report.return_value = self._rendered("stock_standing_daily")
-        stock_profile = next(
-            profile
-            for profile in ReportDistributionService.list_profiles()
-            if profile.report_code == "stock_standing_daily"
-        )
-        stock_profile.target_roles = []
-        stock_profile.extra_recipients = []
-        stock_profile.save(update_fields=["target_roles", "extra_recipients"])
-
-        run = ReportDistributionService.send_profile(stock_profile, report_date=date(2026, 3, 5))
-
-        self.assertEqual(run.status, ReportDispatchRun.Status.SKIPPED)
-        self.assertIn("No recipients configured.", run.warning_text)
-        send_email.assert_not_called()
-
-    @patch("apps.analytics.report_delivery.EmailDeliveryService.send_email")
-    @patch("apps.analytics.report_delivery.EmailDeliveryService.configuration_status")
-    @patch("apps.analytics.report_delivery.ReportDistributionService.render_report")
-    def test_send_profile_marks_skipped_email_when_provider_not_configured(self, render_report, configuration_status, send_email):
+    @patch("apps.users.services.notification_service.NotificationService.emit_event")
+    def test_send_profile_keeps_detail_attachment_and_succeeds_without_email_provider(self, emit_event, render_report):
         rendered = self._rendered("stock_standing_daily")
         rendered.detail_attachments = [
             RenderedAttachment(
@@ -164,17 +129,12 @@ class ReportDeliveryTests(TestCase):
             )
         ]
         render_report.return_value = rendered
-        configuration_status.return_value = (False, "RESEND_API_KEY is not configured")
-        self.production_profile.target_roles = ["OWNER"]
-        self.production_profile.extra_recipients = ["ops@example.com"]
-        self.production_profile.save(update_fields=["target_roles", "extra_recipients"])
 
         run = ReportDistributionService.send_profile(self.production_profile, report_date=date(2026, 3, 5))
 
-        self.assertEqual(run.status, ReportDispatchRun.Status.SKIPPED_EMAIL)
+        self.assertEqual(run.status, ReportDispatchRun.Status.SUCCEEDED)
         self.assertEqual(run.detail_file_name, "stock-standing-detail-2026-03-05.xlsx")
-        self.assertIn("RESEND_API_KEY is not configured", run.warning_text)
-        send_email.assert_not_called()
+        emit_event.assert_called_once()
 
     @patch("apps.analytics.views.ReportDistributionService.send_profile")
     @patch("apps.analytics.views.ReportDistributionService.render_report")
@@ -196,7 +156,7 @@ class ReportDeliveryTests(TestCase):
             report_date=date(2026, 3, 5),
             window_start=timezone.now() - timezone.timedelta(days=1),
             window_end=timezone.now(),
-            recipients=["owner@example.com"],
+            recipients=["OWNER", "ADMIN"],
             recipient_count=1,
             pdf_file_name="production_daily-2026-03-05.pdf",
             pdf_checksum_sha1="abc123",
@@ -233,7 +193,7 @@ class ReportDeliveryTests(TestCase):
             report_date=date(2026, 3, 5),
             window_start=timezone.now() - timezone.timedelta(days=1),
             window_end=timezone.now(),
-            recipients=["owner@example.com"],
+            recipients=["OWNER", "ADMIN"],
             recipient_count=1,
             pdf_file_name="production_daily-2026-03-05.pdf",
             pdf_checksum_sha1="abc123",
@@ -291,8 +251,8 @@ class ReportDeliveryTests(TestCase):
         payload = response.json()
         self.assertIn("sections", payload)
         self.assertEqual(
-            {section["status"] for section in payload["sections"]},
-            {"SUPPORTED_NOW", "CONFIG_ONLY", "NEW_LOGIC_REQUIRED"},
+            {section["label"] for section in payload["sections"]},
+            {"Supported Today", "Config Only Extensions", "Needs New Physical Logic"},
         )
 
     @patch("apps.analytics.report_delivery.InventoryAuditService.create_snapshot")

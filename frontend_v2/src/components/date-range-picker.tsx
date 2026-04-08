@@ -1,65 +1,47 @@
 "use client"
 
 import * as React from "react"
-import { CalendarIcon } from "lucide-react"
-import { addDays, format } from "date-fns"
-import { DateRange } from "react-day-picker"
+import { CalendarIcon, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
+
+function formatInputDate(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
 
 export function CalendarDateRangePicker({
-    className,
+  className,
 }: React.HTMLAttributes<HTMLDivElement>) {
-    const [date, setDate] = React.useState<DateRange | undefined>({
-        from: new Date(),
-        to: addDays(new Date(), 7),
-    })
+  const [from, setFrom] = React.useState(() => formatInputDate(new Date()))
+  const [to, setTo] = React.useState(() => {
+    const value = new Date()
+    value.setDate(value.getDate() + 7)
+    return formatInputDate(value)
+  })
 
-    return (
-        <div className={cn("grid gap-2", className)}>
-            <Popover>
-                <PopoverTrigger asChild>
-                    <Button
-                        id="date"
-                        variant={"outline"}
-                        className={cn(
-                            "w-[260px] justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
-                        )}
-                    >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? (
-                            date.to ? (
-                                <>
-                                    {format(date.from, "LLL dd, y")} -{" "}
-                                    {format(date.to, "LLL dd, y")}
-                                </>
-                            ) : (
-                                format(date.from, "LLL dd, y")
-                            )
-                        ) : (
-                            <span>Pick a date</span>
-                        )}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={date?.from}
-                        selected={date}
-                        onSelect={setDate}
-                        numberOfMonths={2}
-                    />
-                </PopoverContent>
-            </Popover>
-        </div>
-    )
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <CalendarIcon className="h-4 w-4 text-indigo-500" />
+        <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Window</span>
+      </div>
+      <Input
+        type="date"
+        value={from}
+        onChange={(event) => setFrom(event.target.value)}
+        className="h-10 w-[148px] rounded-xl border-slate-200 bg-white"
+      />
+      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+        <ChevronRight className="h-3.5 w-3.5" />
+        To
+      </div>
+      <Input
+        type="date"
+        value={to}
+        onChange={(event) => setTo(event.target.value)}
+        className="h-10 w-[148px] rounded-xl border-slate-200 bg-white"
+      />
+    </div>
+  )
 }

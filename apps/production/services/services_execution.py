@@ -7395,22 +7395,7 @@ class ExecutionService:
                     raise ValueError("output_pcs is required for PCS-tracked bulk output when unit-weight conversion is unavailable.")
 
                 fg_batch = None
-                if terminal_pouch_fg_bulk:
-                    fg_batch = FinishedGoodsBatch.objects.create(
-                        batch_number=batch_no,
-                        qty_kg=output_weight_kg,  # Always capture weight
-                        qty_pcs=output_pcs or 0,  # Always capture pieces
-                        geometry_override=order_geometry_override,
-                        meta_json=internal_stock_meta if internal_stock_meta else {},
-                        completed_step_index=job.current_step_index,
-                        production_job=job,
-                        sales_order_item=job.sales_order_item,
-                        status='AVAILABLE',
-                        location_id=output_location_id,
-                        template=job.template
-                    )
-
-                # Primary inner-pack consumption is enforced only when terminal FG pouches are produced.
+                primary_pack_runtime_meta = None
                 if terminal_pouch_fg_bulk and int(output_pcs or 0) > 0:
                     packaging_snapshot = cls._job_packaging_snapshot(job) or {}
                     primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
@@ -7425,25 +7410,59 @@ class ExecutionService:
                         if pcs_per_pack <= 0:
                             raise ValueError("Packaging config primary_inner_pack.pcs_per_pack must be > 0.")
                         packs_needed = (int(output_pcs) + pcs_per_pack - 1) // pcs_per_pack
-                        from apps.inventory.services.packaging_service import PackagingService
-                        so_number = (
-                            job.sales_order_item.sales_order.order_number
-                            if getattr(job, "sales_order_item", None) and getattr(job.sales_order_item, "sales_order", None)
-                            else "N/A"
-                        )
-                        reference = f"SO:{so_number} JOB:{job.job_number} FG_BATCH:{fg_batch.batch_number}"
-                        PackagingService.consume_packaging_stock(
-                            material_id=material_id,
-                            qty=packs_needed,
-                            input_uom="PCS",
-                            location_id=output_location_id,
-                            job_id=job.id,
-                            sales_order_item_id=getattr(job, "sales_order_item_id", None),
-                            mts_order_id=getattr(job, "mts_order_id", None),
-                            reference=reference,
-                            basis="PER_PACK",
-                            meta_json={"fg_batch_id": str(fg_batch.id)},
-                        )
+                        primary_pack_runtime_meta = {
+                            "enabled": True,
+                            "material_id": str(material_id),
+                            "pcs_per_pack": pcs_per_pack,
+                            "pack_count": packs_needed,
+                            "consumed_at_fg": True,
+                            "source": "FINAL_STEP",
+                        }
+
+                if terminal_pouch_fg_bulk:
+                    fg_batch_meta = dict(internal_stock_meta or {})
+                    if primary_pack_runtime_meta:
+                        fg_batch_meta["primary_inner_pack"] = primary_pack_runtime_meta
+                    fg_batch = FinishedGoodsBatch.objects.create(
+                        batch_number=batch_no,
+                        qty_kg=output_weight_kg,  # Always capture weight
+                        qty_pcs=output_pcs or 0,  # Always capture pieces
+                        geometry_override=order_geometry_override,
+                        meta_json=fg_batch_meta,
+                        completed_step_index=job.current_step_index,
+                        production_job=job,
+                        sales_order_item=job.sales_order_item,
+                        status='AVAILABLE',
+                        location_id=output_location_id,
+                        template=job.template
+                    )
+
+                # Primary inner-pack consumption is enforced at terminal pouch FG creation.
+                if fg_batch and primary_pack_runtime_meta:
+                    from apps.inventory.services.packaging_service import PackagingService
+
+                    so_number = (
+                        job.sales_order_item.sales_order.order_number
+                        if getattr(job, "sales_order_item", None) and getattr(job.sales_order_item, "sales_order", None)
+                        else "N/A"
+                    )
+                    reference = f"SO:{so_number} JOB:{job.job_number} FG_BATCH:{fg_batch.batch_number}"
+                    PackagingService.consume_packaging_stock(
+                        material_id=primary_pack_runtime_meta["material_id"],
+                        qty=primary_pack_runtime_meta["pack_count"],
+                        input_uom="PCS",
+                        location_id=output_location_id,
+                        job_id=job.id,
+                        sales_order_item_id=getattr(job, "sales_order_item_id", None),
+                        mts_order_id=getattr(job, "mts_order_id", None),
+                        reference=reference,
+                        basis="PER_PACK",
+                        meta_json={
+                            "fg_batch_id": str(fg_batch.id),
+                            "applied_at": "FG_CREATION",
+                            "pack_count": primary_pack_runtime_meta["pack_count"],
+                        },
+                    )
 
             # 4. Scrap log (operator input)
             if scrap_qty and scrap_qty > 0:

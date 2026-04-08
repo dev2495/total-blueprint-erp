@@ -5,7 +5,7 @@ from .models import ReportDispatchRun, ReportDistributionProfile
 
 @admin.register(ReportDistributionProfile)
 class ReportDistributionProfileAdmin(admin.ModelAdmin):
-    list_display = ("report_code", "active", "schedule_hour", "schedule_minute", "updated_at")
+    list_display = ("report_code", "active", "updated_at")
     list_filter = ("report_code", "active")
     search_fields = ("report_code",)
 

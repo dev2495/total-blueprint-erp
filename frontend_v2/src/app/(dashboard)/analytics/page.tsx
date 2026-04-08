@@ -141,6 +141,12 @@ export default function AnalyticsPage() {
     { label: "Revenue", value: `₹${fmt(metrics.revenue, 0)}`, hint: "From live control-tower metrics" },
     { label: "Output", value: `${fmt(metrics.production_output_kg, 0)} KG`, hint: "Current production period" },
   ]
+  const operationalPulse = [
+    { label: "OEE", value: Number(metrics.oee || 0), target: 85, tone: "bg-indigo-500" },
+    { label: "Utilization", value: Number(metrics.utilization || 0), target: 90, tone: "bg-cyan-500" },
+    { label: "Efficiency", value: Number(metrics.efficiency || 0), target: 92, tone: "bg-emerald-500" },
+    { label: "Scrap", value: Number(metrics.scrap_rate || 0), target: 2.5, inverse: true, tone: "bg-rose-500" },
+  ]
 
   return (
     <div className="space-y-8 pb-8">
@@ -387,24 +393,49 @@ export default function AnalyticsPage() {
 
         <Card className="rounded-[1.85rem] border border-slate-200/80 bg-white/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-slate-900">Scrap Reason Mix</CardTitle>
+            <CardTitle className="text-xl font-black tracking-tight text-slate-900">Operational KPI Pulse</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {operationalPulse.map((metric) => {
+              const normalizedTarget = metric.inverse ? metric.target : 100
+              const pct = metric.inverse
+                ? Math.max(0, Math.min(100, 100 - (metric.value / Math.max(metric.target, 1)) * 100))
+                : Math.max(0, Math.min(100, (metric.value / Math.max(normalizedTarget, 1)) * 100))
+              return (
+                <div key={metric.label} className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-slate-900">{metric.label}</div>
+                      <div className="text-xs font-semibold text-slate-500">
+                        {metric.inverse ? `Target <= ${metric.target}%` : `Target ${metric.target}%`}
+                      </div>
+                    </div>
+                    <div className="text-lg font-black text-slate-900">
+                      {metric.value.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
+                    <div className={metric.tone} style={{ width: `${pct}%`, height: "100%" }} />
+                  </div>
+                </div>
+              )
+            })}
             {scrapReasons.length ? (
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={scrapReasons}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <Tooltip />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#e11d48" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="rounded-[1.2rem] border border-slate-200 bg-white p-4">
+                <div className="mb-3 text-sm font-black text-slate-900">Quality-loss mix</div>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={scrapReasons.slice(0, 5)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                      <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                      <Tooltip />
+                      <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#e11d48" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            ) : (
-              <EmptyPanel text="No scrap reasons are available for the current period." />
-            )}
+            ) : null}
           </CardContent>
         </Card>
       </section>
@@ -465,7 +496,7 @@ export default function AnalyticsPage() {
               </div>
             )) : (
               <div className="rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500">
-                No report runs are recorded yet. Seeded report smoke and manual sends will appear here after the next release validation pass.
+                No report runs are recorded yet. Daily archive generations will appear here after the next release validation pass.
               </div>
             )}
           </CardContent>
@@ -475,13 +506,13 @@ export default function AnalyticsPage() {
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="rounded-[1.85rem] border border-slate-200/80 bg-white/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-slate-900">Report Dispatch Control</CardTitle>
+            <CardTitle className="text-xl font-black tracking-tight text-slate-900">Report Generation Control</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {reportAdminLocked ? (
-              <EmptyPanel text="Report dispatch controls are restricted to admin and owner roles." />
+              <EmptyPanel text="Report generation controls are restricted to admin and owner roles." />
             ) : supportDegraded ? (
-              <EmptyPanel text="Report distribution profiles or report-run history are temporarily degraded. The dashboard keeps the failure explicit instead of pretending the workspace is empty." />
+              <EmptyPanel text="Report profiles or report-run history are temporarily degraded. The dashboard keeps the failure explicit instead of pretending the workspace is empty." />
             ) : profiles.length ? (
               profiles.map((profile: any) => (
                 <div key={profile.report_code} className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
@@ -489,7 +520,7 @@ export default function AnalyticsPage() {
                     <div>
                       <div className="text-sm font-black text-slate-900">{profile.label}</div>
                       <div className="text-xs font-semibold text-slate-500">
-                        {profile.active ? "Active distribution profile" : "Paused distribution profile"} · {String(profile.schedule_hour).padStart(2, "0")}:{String(profile.schedule_minute).padStart(2, "0")}
+                        {profile.active ? "Active daily archive profile" : "Paused daily archive profile"} · Owner/Admin inbox notice
                       </div>
                     </div>
                     <Button
@@ -500,13 +531,13 @@ export default function AnalyticsPage() {
                       onClick={() => sendMutation.mutate(profile.report_code)}
                     >
                       <Send className="mr-2 h-4 w-4" />
-                      {`Send ${profile.label} now`}
+                      {`Generate ${profile.label} now`}
                     </Button>
                   </div>
                 </div>
               ))
             ) : (
-              <EmptyPanel text="No report distribution profiles are configured for the current workspace." />
+              <EmptyPanel text="No report archive profiles are configured for the current workspace." />
             )}
           </CardContent>
         </Card>
@@ -554,10 +585,10 @@ function EmptyPanel({ text }: { text: string }) {
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <Card className="rounded-[1.7rem] border border-slate-200/70 bg-white/90 shadow-sm">
-      <CardContent className="p-5">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
-        <div className="mt-2 text-3xl font-black text-slate-900">{value}</div>
-        <div className="mt-1 text-xs font-semibold text-slate-500">{hint}</div>
+      <CardContent className="min-w-0 p-4 md:p-5">
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
+        <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-slate-900 md:text-[1.95rem]">{value}</div>
+        <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">{hint}</div>
       </CardContent>
     </Card>
   )
@@ -567,8 +598,8 @@ function SignalRow({ title, value, hint }: { title: string; value: string; hint:
   return (
     <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
       <div className="text-sm font-black text-slate-900">{title}</div>
-      <div className="mt-2 text-2xl font-black text-indigo-700">{value}</div>
-      <div className="mt-1 text-xs font-semibold text-slate-500">{hint}</div>
+      <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-indigo-700">{value}</div>
+      <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">{hint}</div>
     </div>
   )
 }

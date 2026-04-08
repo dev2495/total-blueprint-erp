@@ -94,7 +94,9 @@ class PlatformOpsP0Tests(TestCase):
         self.assertTrue(Role.objects.filter(code="SUPER_ADMIN").exists())
         self.assertTrue(CommercialFamily.objects.filter(code="PET_PRINT_WEB").exists())
         self.assertEqual(InventoryMaterial.objects.filter(category="POD").count(), 2)
-        self.assertTrue(NotificationRule.objects.filter(event_key="reports.daily_pack_sent").exists())
+        self.assertTrue(NotificationRule.objects.filter(event_key="reports.daily_pack_generated").exists())
+        self.assertTrue(NotificationRule.objects.filter(event_key="inventory.transfer_created").exists())
+        self.assertTrue(NotificationRule.objects.filter(event_key="production.next_step_ready").exists())
         self.assertEqual(Notification.objects.count(), 0)
 
     def test_bootstrap_render_launch_users_creates_named_access_accounts(self):

@@ -56,6 +56,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/production/machine-selector",
   "/production/planner",
   "/production/planner/heatmap",
+  "/production/planner/sku-catalog",
   "/production/planner/stock-orders/create",
   "/production/work-center",
   "/sales/customers",

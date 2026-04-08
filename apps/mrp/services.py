@@ -112,7 +112,7 @@ class MRPService:
 
         # 1. Sales Orders (commercially confirmed onward)
         so_items = SalesOrderItem.objects.filter(
-            sales_order__status__in=['PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'DISPATCH_READY']
+            sales_order__status__in=['PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'PACKING_READY', 'DISPATCH_READY']
         ).select_related('template', 'sales_order')
 
         for item in so_items:

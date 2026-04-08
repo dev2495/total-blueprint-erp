@@ -65,6 +65,12 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
       },
       {
+        title: "Planner SKU Library",
+        href: "/production/planner/sku-catalog",
+        icon: Package,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
+      },
+      {
         title: "Visual Factory",
         href: "/factory/overview",
         icon: Factory,

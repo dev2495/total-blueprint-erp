@@ -20,42 +20,32 @@ def _is_production_like() -> bool:
 
 
 class Command(BaseCommand):
-    help = "Append a smoke recipient for daily report packs and optionally send both packs through the audited pipeline."
+    help = "Prepare daily report packs for smoke validation and optionally generate them through the audited pipeline."
 
     def add_arguments(self, parser):
-        parser.add_argument("--email", default="dvrshthakkar@gmail.com", help="Smoke recipient email.")
         parser.add_argument("--username", default="admin", help="Admin username to align for smoke verification.")
-        parser.add_argument("--send-now", action="store_true", help="Immediately send both report packs.")
+        parser.add_argument("--send-now", action="store_true", help="Immediately generate all active report packs.")
         parser.add_argument("--allow-production", action="store_true", help="Allow execution in production-like environments.")
 
     def handle(self, *args, **options):
         if _is_production_like() and not options["allow_production"]:
             raise CommandError("Refusing to bootstrap report smoke in production-like environment without --allow-production.")
 
-        smoke_email = str(options["email"] or "").strip().lower()
-        if not smoke_email:
-            raise CommandError("--email is required.")
-
         ReportDistributionService.ensure_defaults()
 
         updated_profiles = []
         with transaction.atomic():
-            admin_user = User.objects.filter(username=options["username"]).first()
-            if admin_user and admin_user.email != smoke_email:
-                admin_user.email = smoke_email
-                admin_user.save(update_fields=["email"])
-
             for profile in ReportDistributionProfile.objects.order_by("report_code"):
-                recipients = [str(value or "").strip().lower() for value in (profile.extra_recipients or []) if str(value or "").strip()]
-                if smoke_email not in recipients:
-                    recipients.append(smoke_email)
-                    profile.extra_recipients = recipients
-                    profile.save(update_fields=["extra_recipients"])
+                desired_roles = list(ReportDistributionService.serialize_profile(profile).get("target_roles") or ["OWNER", "ADMIN"])
+                if list(profile.target_roles or []) != desired_roles:
+                    profile.target_roles = desired_roles
+                    profile.extra_recipients = []
+                    profile.save(update_fields=["target_roles", "extra_recipients"])
                     updated_profiles.append(profile.report_code)
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Report smoke recipient prepared for {len(updated_profiles)} profile(s): {smoke_email}"
+                f"Report smoke profiles aligned for {len(updated_profiles)} profile(s)."
             )
         )
 

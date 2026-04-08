@@ -288,6 +288,7 @@ class PlannedStockOrder(models.Model):
     addons_snapshot = models.JSONField(default=list, blank=True)
     packaging_snapshot = models.JSONField(default=dict, blank=True)
     bom_snapshot = models.JSONField(default=dict, blank=True)
+    planner_origin_meta = models.JSONField(default=dict, blank=True)
     spec_signature = models.CharField(max_length=128, blank=True, default='')
     invariant_signature = models.CharField(max_length=128, blank=True, default='')
     unit_weight_g = models.DecimalField(max_digits=12, decimal_places=4, default=0)
@@ -338,8 +339,10 @@ class PlannedStockOrder(models.Model):
         return _next_year_scoped_sequence(cls, "order_number", "STK", current_time.year)
 
     def save(self, *args, **kwargs):
+        generated_order_number = False
         if not self.order_number:
             self.order_number = self._next_order_number()
+            generated_order_number = True
         if not self.planner_stock_class:
             self.planner_stock_class = self.derive_planner_stock_class()
         for attempt in range(3):
@@ -347,11 +350,12 @@ class PlannedStockOrder(models.Model):
                 super().save(*args, **kwargs)
                 return
             except IntegrityError as exc:
-                if self.pk or not self.order_number or "order_number" not in str(exc):
+                if self.pk or not self.order_number or not generated_order_number:
                     raise
                 if attempt == 2:
                     raise
                 self.order_number = self._next_order_number()
+                generated_order_number = True
 
     def __str__(self):
         return f"{self.order_number} | {self.internal_name or self.template.name}"
@@ -396,6 +400,143 @@ class PlannedStockOrder(models.Model):
         if fg_type == 'ROLL':
             return 'FINAL_PLAIN_ROLL'
         return 'FINAL_PRODUCT'
+
+
+class PlannerSku(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=255)
+    template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, related_name="planner_skus")
+    default_plant = models.ForeignKey(
+        'factory.Plant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='planner_skus',
+    )
+    active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planner_skus',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "production_planner_skus"
+        ordering = ["name", "code"]
+
+    def __str__(self):
+        return f"{self.code} | {self.name}"
+
+
+class PlannerSkuVariant(models.Model):
+    LAUNCH_KIND_CHOICES = [
+        ('FINAL_ROLL', 'Final Roll'),
+        ('SHARED_INVARIANT_ROLL', 'Shared Invariant Roll'),
+        ('BASE_UPSTREAM_ROLL', 'Base / Upstream Roll'),
+        ('PACKAGING_STOCK', 'Packaging Stock'),
+        ('POD_STOCK', 'POD Stock'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sku = models.ForeignKey(PlannerSku, on_delete=models.CASCADE, related_name="variants")
+    code = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=255)
+    active = models.BooleanField(default=True)
+    launch_kind = models.CharField(max_length=32, choices=LAUNCH_KIND_CHOICES)
+    template = models.ForeignKey(
+        TemplateBlueprint,
+        on_delete=models.PROTECT,
+        related_name="planner_sku_variants",
+        null=True,
+        blank=True,
+    )
+    default_plant = models.ForeignKey(
+        'factory.Plant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='planner_sku_variants',
+    )
+    default_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    quantity_uom = models.CharField(max_length=10, choices=PlannedStockOrder.QUANTITY_UOM_CHOICES, default='KG')
+    stock_purpose = models.CharField(max_length=20, choices=PlannedStockOrder.STOCK_PURPOSE_CHOICES, default='PRODUCT')
+    stock_strategy = models.CharField(max_length=30, choices=PlannedStockOrder.STOCK_STRATEGY_CHOICES, default='FINAL_STOCK')
+    planner_stock_class = models.CharField(
+        max_length=30,
+        choices=PlannedStockOrder.PLANNER_STOCK_CLASS_CHOICES,
+        blank=True,
+        default='',
+    )
+    start_step_index = models.IntegerField(default=0)
+    stop_step_index = models.IntegerField(null=True, blank=True)
+    geometry_snapshot = models.JSONField(default=dict, blank=True)
+    layer_snapshot = models.JSONField(default=list, blank=True)
+    printing_snapshot = models.JSONField(default=dict, blank=True)
+    addons_snapshot = models.JSONField(default=list, blank=True)
+    packaging_snapshot = models.JSONField(default=dict, blank=True)
+    packaging_material = models.ForeignKey(
+        'materials.InventoryMaterial',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='planner_sku_variants',
+    )
+    pod_sku_variant = models.ForeignKey(
+        'materials.PodSkuVariant',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='planner_variants',
+    )
+    planner_origin_meta = models.JSONField(default=dict, blank=True)
+    spec_signature = models.CharField(max_length=128, blank=True, default='')
+    invariant_signature = models.CharField(max_length=128, blank=True, default='')
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planner_sku_variants',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "production_planner_sku_variants"
+        ordering = ["sku__name", "name", "code"]
+
+    def clean(self):
+        if self.launch_kind == 'PACKAGING_STOCK':
+            if self.stock_purpose != 'PACKAGING':
+                raise ValidationError({'stock_purpose': 'Packaging planner presets must use stock_purpose=PACKAGING.'})
+            if not self.packaging_material:
+                raise ValidationError({'packaging_material': 'Packaging planner presets require packaging_material.'})
+        if self.launch_kind == 'POD_STOCK' and not self.pod_sku_variant:
+            raise ValidationError({'pod_sku_variant': 'POD planner presets require pod_sku_variant.'})
+
+    def save(self, *args, **kwargs):
+        if not self.template_id and self.sku_id:
+            self.template_id = self.sku.template_id
+        if not self.default_plant_id and self.sku_id and self.sku.default_plant_id:
+            self.default_plant_id = self.sku.default_plant_id
+        if not self.planner_stock_class and self.launch_kind != 'POD_STOCK':
+            synthetic = PlannedStockOrder(
+                template=self.template or self.sku.template,
+                stock_purpose=self.stock_purpose,
+                stock_strategy=self.stock_strategy,
+                stop_step_index=self.stop_step_index,
+            )
+            self.planner_stock_class = synthetic.derive_planner_stock_class()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.code} | {self.name}"
 
 
 class PlannedBulkStockOrder(models.Model):
@@ -449,18 +590,21 @@ class PlannedBulkStockOrder(models.Model):
         return _next_year_scoped_sequence(cls, "order_number", "PBK", current_time.year)
 
     def save(self, *args, **kwargs):
+        generated_order_number = False
         if not self.order_number:
             self.order_number = self._next_order_number()
+            generated_order_number = True
         for attempt in range(3):
             try:
                 super().save(*args, **kwargs)
                 return
             except IntegrityError as exc:
-                if self.pk or not self.order_number or "order_number" not in str(exc):
+                if self.pk or not self.order_number or not generated_order_number:
                     raise
                 if attempt == 2:
                     raise
                 self.order_number = self._next_order_number()
+                generated_order_number = True
 
     def clean(self):
         if str(getattr(self.material, 'category', '') or '').upper() != 'POD':

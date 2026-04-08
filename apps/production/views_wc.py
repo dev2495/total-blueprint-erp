@@ -20,7 +20,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             WorkCenterAssignment.objects.filter(
                 work_center_id=wc_id,
-                status__in=['WC_READY', 'ASSIGNED']
+                status__in=['WC_READY', 'ASSIGNED', 'EXECUTION_READY']
             ).exclude(
                 production_job__job_state__in=['COMPLETED', 'CANCELLED', 'EXECUTING']
             ).exclude(

@@ -35,6 +35,12 @@ class PackingService:
         return cfg or {}
 
     @staticmethod
+    def _batch_primary_inner_cfg(fg_batch: FinishedGoodsBatch) -> dict:
+        payload = dict(getattr(fg_batch, "meta_json", {}) or {})
+        cfg = payload.get("primary_inner_pack") if isinstance(payload.get("primary_inner_pack"), dict) else {}
+        return cfg or {}
+
+    @staticmethod
     def _packing_qty_totals(fg_batch: FinishedGoodsBatch) -> int:
         try:
             packed_qty = sum(int(getattr(unit, "qty_pcs", 0) or 0) for unit in fg_batch.packing_units.all())
@@ -144,12 +150,16 @@ class PackingService:
         packaging_snapshot = PackingService._snapshot_for_batch(fg_batch)
         secondary_cfg = PackingService._legacy_secondary_cfg(packaging_snapshot)
         primary_cfg = PackingService._primary_inner_cfg(packaging_snapshot)
+        batch_primary_cfg = PackingService._batch_primary_inner_cfg(fg_batch)
+        resolved_primary_cfg = dict(primary_cfg or {})
+        resolved_primary_cfg.update({key: value for key, value in batch_primary_cfg.items() if value not in (None, "")})
         selected_gonny_material_id = gonny_material_id or secondary_cfg.get("material_id")
         if not selected_gonny_material_id:
             raise ValueError("gonny_material_id is required for gonny creation.")
 
-        inner_pack_enabled = bool(primary_cfg.get("enabled", False))
-        pcs_per_pack = int(primary_cfg.get("pcs_per_pack") or 0) if inner_pack_enabled else 0
+        inner_pack_enabled = bool(resolved_primary_cfg.get("enabled", False))
+        pcs_per_pack = int(resolved_primary_cfg.get("pcs_per_pack") or 0) if inner_pack_enabled else 0
+        primary_pack_consumed_at_fg = bool(batch_primary_cfg.get("consumed_at_fg"))
         resolved_content_mode = str(content_mode or "").upper() or (
             "PRIMARY_PACKS" if inner_pack_enabled else "LOOSE_POUCHES"
         )
@@ -164,12 +174,32 @@ class PackingService:
                 resolved_primary_pack_count = int(ceil(effective_qty_pcs / pcs_per_pack))
             else:
                 raise ValueError("primary_pack_count is required when content_mode is PRIMARY_PACKS and no sales primary pack default exists.")
-            if not primary_cfg.get("material_id"):
+            if not resolved_primary_cfg.get("material_id"):
                 raise ValueError("primary_inner_pack.material_id is required when content_mode is PRIMARY_PACKS.")
+
+            if primary_pack_consumed_at_fg:
+                total_prepacked = int(batch_primary_cfg.get("pack_count") or 0)
+                if total_prepacked > 0:
+                    try:
+                        existing_primary_units = fg_batch.packing_units.filter(content_mode="PRIMARY_PACKS")
+                        assigned_primary_pack_count = sum(
+                            int(getattr(unit, "primary_pack_count", 0) or 0) for unit in existing_primary_units
+                        )
+                    except Exception:
+                        assigned_primary_pack_count = 0
+                    if assigned_primary_pack_count + resolved_primary_pack_count > total_prepacked:
+                        remaining_packs = max(total_prepacked - assigned_primary_pack_count, 0)
+                        raise ValueError(
+                            f"Only {remaining_packs} pre-packed inner packs remain available for this batch."
+                        )
 
         net_product_weight_kg = PackingService._net_product_weight_kg(fg_batch, effective_qty_pcs)
         inner_pack_tare_kg = (
-            PackingService._packaging_mass_kg(primary_cfg.get("material_id"), resolved_primary_pack_count or 0, input_uom="PCS")
+            PackingService._packaging_mass_kg(
+                resolved_primary_cfg.get("material_id"),
+                resolved_primary_pack_count or 0,
+                input_uom="PCS",
+            )
             if resolved_content_mode == "PRIMARY_PACKS"
             else Decimal("0")
         )
@@ -205,9 +235,9 @@ class PackingService:
             meta_json={"fg_batch_id": str(fg_batch.id)},
         )
 
-        if resolved_content_mode == "PRIMARY_PACKS" and resolved_primary_pack_count:
+        if resolved_content_mode == "PRIMARY_PACKS" and resolved_primary_pack_count and not primary_pack_consumed_at_fg:
             PackagingService.consume_packaging_stock(
-                material_id=primary_cfg.get("material_id"),
+                material_id=resolved_primary_cfg.get("material_id"),
                 qty=resolved_primary_pack_count,
                 input_uom="PCS",
                 location_id=location.id,
@@ -245,6 +275,8 @@ class PackingService:
                 "default_content_mode": "PRIMARY_PACKS" if inner_pack_enabled else "LOOSE_POUCHES",
                 "sales_primary_pack_enabled": inner_pack_enabled,
                 "sales_pcs_per_pack": pcs_per_pack or None,
+                "primary_packs_prepacked": primary_pack_consumed_at_fg,
+                "primary_pack_source": "FINAL_STEP" if primary_pack_consumed_at_fg else "PACKING_YARD",
                 "weight_breakdown": tare_breakdown,
             },
         )

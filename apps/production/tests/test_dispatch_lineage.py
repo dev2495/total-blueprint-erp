@@ -75,3 +75,75 @@ class DispatchLineageTests(SimpleTestCase):
                     gonny_ids=["gonny-1"],
                     user=None,
                 )
+
+    def test_create_challan_rejects_roll_not_released_from_packing_yard(self):
+        challan = SimpleNamespace(id="dc-1", dc_no="DC-1")
+        roll = SimpleNamespace(
+            id="roll-1",
+            label_id="ROLL-1",
+            sales_order_item_id="so-item-1",
+            sales_order_item=SimpleNamespace(sales_order_id="so-1"),
+            weight_kg=10,
+        )
+
+        roll_qs = [roll]
+        record_filter = SimpleNamespace(first=lambda: SimpleNamespace(meta_json={"released_to_dispatch": False}))
+
+        with patch("apps.factory.models.Plant.objects.get", return_value=SimpleNamespace(id="plant-1")), \
+             patch("apps.production.services.dispatch_service.DeliveryChallan.objects.count", return_value=0), \
+             patch("apps.production.services.dispatch_service.DeliveryChallan.objects.create", return_value=challan), \
+             patch("apps.production.services.dispatch_service.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter", return_value=record_filter):
+            with self.assertRaisesMessage(ValueError, "is not released to Dispatch Bay yet"):
+                FGDispatchService.create_challan.__wrapped__(
+                    customer_name="Test Customer",
+                    plant_id="plant-1",
+                    sales_order_id="so-1",
+                    roll_ids=["roll-1"],
+                    user=None,
+                )
+
+    def test_release_gonny_to_dispatch_marks_release_meta(self):
+        gonny = SimpleNamespace(
+            id="gonny-1",
+            label_id="G-1",
+            status="SEALED",
+            meta_json={},
+            save=lambda **kwargs: None,
+        )
+
+        with patch("apps.production.services.dispatch_service.PackingUnit.objects.select_related") as select_related:
+            select_related.return_value.get.return_value = gonny
+            result = FGDispatchService.release_gonny_to_dispatch.__wrapped__("gonny-1", user=None)
+
+        self.assertIs(result, gonny)
+        self.assertTrue(gonny.meta_json["released_to_dispatch"])
+
+    def test_release_roll_to_dispatch_allows_unpacked_release(self):
+        roll = SimpleNamespace(
+            id="roll-1",
+            label_id="ROLL-1",
+            sales_order_item_id="so-item-1",
+            sales_order_item=SimpleNamespace(sales_order=SimpleNamespace(order_number="SO-1")),
+            status="AVAILABLE",
+        )
+
+        def build_record(**kwargs):
+            return SimpleNamespace(save=lambda **save_kwargs: None, **kwargs)
+
+        with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
+             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter, \
+             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.create", side_effect=build_record):
+            select_related.return_value.get.return_value = roll
+            existing_filter.return_value.first.return_value = None
+
+            record = FGDispatchService.release_roll_to_dispatch.__wrapped__(
+                "roll-1",
+                user=None,
+                lines=[],
+                release_mode="UNPACKED",
+            )
+
+        self.assertEqual(record.lines, [])
+        self.assertTrue(record.meta_json["released_to_dispatch"])
+        self.assertEqual(record.meta_json["release_mode"], "UNPACKED")

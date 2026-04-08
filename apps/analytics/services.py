@@ -554,6 +554,7 @@ class AnalyticsService:
 
         order_health = {
             "dispatch_ready_count": SalesOrder.objects.filter(status='DISPATCH_READY').count(),
+            "packing_ready_count": SalesOrder.objects.filter(status='PACKING_READY').count(),
             "overdue_count": SalesOrder.objects.filter(
                 delivery_date__lt=today
             ).exclude(status__in=['COMPLETED', 'CANCELLED', 'SHORT_CLOSED']).count(),
@@ -921,7 +922,7 @@ class AnalyticsService:
         orders_today = SalesOrder.objects.filter(created_at__date=today).count()
         
         # 2. Pipeline Volume (KG) - active orders not yet completed/cancelled
-        pipeline_statuses = ['DRAFT', 'CONFIRMED', 'PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'DISPATCH_READY']
+        pipeline_statuses = ['DRAFT', 'CONFIRMED', 'PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'PACKING_READY', 'DISPATCH_READY']
         pipeline_kg = SalesOrderItem.objects.filter(
             sales_order__status__in=pipeline_statuses
         ).aggregate(total=Sum('total_weight_kg'))['total'] or Decimal('0')
@@ -1308,7 +1309,7 @@ class AnalyticsService:
 
         from apps.costing.models import OrderCost
         order_cost_scope = OrderCost.objects.filter(
-            sales_order_item__sales_order__status__in=['CONFIRMED', 'PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'DISPATCH_READY']
+            sales_order_item__sales_order__status__in=['CONFIRMED', 'PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'PACKING_READY', 'DISPATCH_READY']
         )
         costing_summary = order_cost_scope.aggregate(
             avg_coverage=Avg('actual_cost_coverage_pct'),
@@ -1606,7 +1607,20 @@ class AnalyticsService:
 
         jobs = list(
             ProductionJob.objects.filter(sales_order_item_id__in=so_item_ids)
-            .select_related('machine', 'current_process', 'process', 'template', 'sales_order_item')
+            .select_related(
+                'machine',
+                'work_center',
+                'operator',
+                'closed_by',
+                'current_process',
+                'process',
+                'template',
+                'sales_order_item',
+                'assignment',
+                'assignment__work_center',
+                'assignment__assigned_machine',
+                'assignment__assigned_by',
+            )
             .order_by('created_at')
         )
         job_ids = [job.id for job in jobs]
@@ -2078,7 +2092,19 @@ class AnalyticsService:
                 "state": job.job_state,
                 "process_code": process_obj.code if process_obj else None,
                 "step_name": process_obj.name if process_obj else None,
+                "work_center": job.work_center.name if job.work_center else None,
+                "work_center_code": job.work_center.code if job.work_center else None,
                 "machine": job.machine.name if job.machine else None,
+                "machine_code": job.machine.code if job.machine else None,
+                "operator": _actor_name(job.operator),
+                "operator_username": getattr(job.operator, "username", None) if job.operator else None,
+                "closed_by": _actor_name(job.closed_by),
+                "closed_by_username": getattr(job.closed_by, "username", None) if job.closed_by else None,
+                "assignment_status": job.assignment.status if getattr(job, "assignment", None) else None,
+                "assigned_machine": job.assignment.assigned_machine.name if getattr(job, "assignment", None) and job.assignment.assigned_machine else None,
+                "assigned_machine_code": job.assignment.assigned_machine.code if getattr(job, "assignment", None) and job.assignment.assigned_machine else None,
+                "assigned_by": _actor_name(job.assignment.assigned_by) if getattr(job, "assignment", None) else None,
+                "assigned_at": job.assignment.assigned_at.isoformat() if getattr(job, "assignment", None) and job.assignment.assigned_at else None,
                 "created_at": job.created_at.isoformat() if job.created_at else None,
                 "start_date": job.start_date.isoformat() if job.start_date else None,
                 "end_date": job.end_date.isoformat() if job.end_date else None,
@@ -4134,6 +4160,153 @@ class ReportingService:
         }
 
     @staticmethod
+    @safe_service(default_value={"counts": {}, "modes": {}, "generated_at": None})
+    def get_audit_console():
+        login_qs = PermissionAuditLog.objects.select_related("user").filter(
+            action__in=["USER_LOGIN", "USER_LOGOUT"]
+        ).order_by("-created_at")
+        permission_qs = PermissionAuditLog.objects.select_related("user").exclude(
+            action__in=["USER_LOGIN", "USER_LOGOUT"]
+        ).order_by("-created_at")
+        operational_logs = ReportingService.get_operational_logs("all", 60)
+        report_runs = ReportDispatchRun.objects.order_by("-created_at")[:20]
+
+        def _permission_row(row: PermissionAuditLog):
+            details = row.details or {}
+            return {
+                "id": str(row.id),
+                "action": str(row.action or ""),
+                "label": _audit_log_description(row.action, details),
+                "value": _audit_log_value(row),
+                "effective_role": _audit_log_effective_role(row),
+                "user": getattr(getattr(row, "user", None), "username", None) or "system",
+                "required_permission": str(row.required_permission or ""),
+                "path": str(row.path or ""),
+                "method": str(row.method or ""),
+                "reference": _audit_log_reference(row),
+                "details": details,
+                "created_at": row.created_at.isoformat(),
+            }
+
+        def _session_row(row: PermissionAuditLog):
+            details = row.details or {}
+            return {
+                "id": str(row.id),
+                "action": str(row.action or ""),
+                "event_type": str(row.action or ""),
+                "desc": _audit_log_description(row.action, details),
+                "label": _audit_log_description(row.action, details),
+                "status": str(details.get("status") or ""),
+                "user": getattr(getattr(row, "user", None), "username", None) or "system",
+                "effective_role": _audit_log_effective_role(row),
+                "ip": str(details.get("ip") or details.get("client_ip") or ""),
+                "reference": _audit_log_reference(row),
+                "date": row.created_at.isoformat(),
+                "created_at": row.created_at.isoformat(),
+            }
+
+        production_logs = ReportingService.get_operational_logs("production", 40)
+        
+        # Pull master data changes (approximated conceptually via exclude queries)
+        master_data_logs = PermissionAuditLog.objects.select_related("user").filter(
+            action__in=["CUSTOMER_CREATE", "CUSTOMER_UPDATE", "VENDOR_CREATE", "VENDOR_UPDATE", "TEMPLATE_CREATE", "TEMPLATE_UPDATE"]
+        ).order_by("-created_at")
+        
+        system_config_logs = PermissionAuditLog.objects.select_related("user").filter(
+            action__contains="CONFIG"
+        ).order_by("-created_at")
+        
+        # For inventory movement, fetch Roll Movements
+        from apps.inventory.models import RollMovement
+        inventory_move_qs = RollMovement.objects.select_related("roll", "from_location", "to_location", "moved_by").order_by("-timestamp")
+        
+        def _inventory_row(m: RollMovement):
+            return {
+                "id": str(m.id),
+                "action": "INVENTORY_MOVEMENT",
+                "label": f"Moved {m.roll.label_id if m.roll else 'Stock'}",
+                "desc": f"Reason: {m.get_reason_display() if hasattr(m, 'get_reason_display') else m.reason}",
+                "val": m.reason,
+                "user": getattr(getattr(m, "moved_by", None), "username", None) or "system",
+                "reference": getattr(m.roll, "label_id", None) or "Movement",
+                "date": m.timestamp.isoformat(),
+                "created_at": m.timestamp.isoformat(),
+                "href": "/inventory/roll-explorer",
+            }
+
+        return {
+            "counts": {
+                "operational_logs": len(operational_logs),
+                "login_entries": login_qs.count(),
+                "permission_audit": permission_qs.count(),
+                "report_runs": ReportDispatchRun.objects.count(),
+                "inventory_audit": inventory_move_qs.count(),
+                "production_audit": len(production_logs),
+                "master_data_audit": master_data_logs.count(),
+                "system_config_audit": system_config_logs.count(),
+            },
+            "modes": {
+                "sessions": {
+                    "items": [_session_row(row) for row in login_qs[:40]],
+                    "latest": _session_row(login_qs[0]) if login_qs.exists() else None,
+                },
+                "permissions": {
+                    "items": [_permission_row(row) for row in permission_qs[:80]],
+                    "latest": _permission_row(permission_qs[0]) if permission_qs.exists() else None,
+                },
+                "operations": {
+                    "items": operational_logs[:40],
+                    "latest": operational_logs[0] if operational_logs else None,
+                },
+                "reports": {
+                    "items": [
+                        {
+                            "id": str(run.id),
+                            "report_code": run.report_code,
+                            "status": run.status,
+                            "report_date": run.report_date.isoformat(),
+                            "created_at": run.created_at.isoformat(),
+                            "sent_at": run.sent_at.isoformat() if run.sent_at else None,
+                            "recipient_count": int(run.recipient_count or 0),
+                            "triggered_manually": bool(run.triggered_manually),
+                            "pdf_file_name": run.pdf_file_name,
+                            "detail_file_name": run.detail_file_name,
+                        }
+                        for run in report_runs
+                    ],
+                    "latest": (
+                        {
+                            "id": str(report_runs[0].id),
+                            "report_code": report_runs[0].report_code,
+                            "status": report_runs[0].status,
+                            "report_date": report_runs[0].report_date.isoformat(),
+                            "created_at": report_runs[0].created_at.isoformat(),
+                        }
+                        if report_runs
+                        else None
+                    ),
+                },
+                "inventory": {
+                    "items": [_inventory_row(m) for m in inventory_move_qs[:40]],
+                    "latest": _inventory_row(inventory_move_qs[0]) if inventory_move_qs.exists() else None,
+                },
+                "production": {
+                    "items": production_logs[:40],
+                    "latest": production_logs[0] if production_logs else None,
+                },
+                "master_data": {
+                    "items": [_permission_row(row) for row in master_data_logs[:40]],
+                    "latest": _permission_row(master_data_logs[0]) if master_data_logs.exists() else None,
+                },
+                "system_config": {
+                    "items": [_permission_row(row) for row in system_config_logs[:40]],
+                    "latest": _permission_row(system_config_logs[0]) if system_config_logs.exists() else None,
+                },
+            },
+            "generated_at": timezone.now().isoformat(),
+        }
+
+    @staticmethod
     @safe_service(default_value={"kpis": {}, "charts": {}, "logs": []})
     def get_machine_performance_report(machine_id, filters=None):
         """
@@ -4822,6 +4995,7 @@ class ReportingService:
         
         rows = []
         global_availability = []
+        global_performance = []
         global_quality = []
         
         for m in machines:
@@ -4837,6 +5011,7 @@ class ReportingService:
             
             downtime_val = downtime.total_seconds() if downtime else 0
             availability = max(0, (total_seconds - downtime_val) / total_seconds)
+            available_hours = max((total_seconds - downtime_val) / 3600.0, 0)
             
             # 2. Quality
             produced = JobExecutionLog.objects.filter(
@@ -4853,26 +5028,83 @@ class ReportingService:
             
             quality = (float(produced) / float(produced + scrap)) if (produced + scrap) > 0 else 1.0
             
-            # 3. OEE (Assuming 100% performance for now as we don't track theoretical max everywhere yet)
-            oee = availability * quality * 1.0
-            
+            standard_rate = float(m.standard_rate_kg_per_hour or 0)
+            theoretical_output = standard_rate * available_hours if standard_rate > 0 else 0
+            performance = (float(produced) / theoretical_output) if theoretical_output > 0 else 1.0
+            oee = availability * quality * performance
+
             rows.append({
                 "machine_id": str(m.id),
                 "machine_name": m.name,
                 "work_center": m.work_center.name,
                 "availability": round(availability * 100, 1),
+                "performance": round(performance * 100, 1),
                 "quality": round(quality * 100, 1),
                 "oee": round(oee * 100, 1),
                 "downtime_hours": round(downtime_val / 3600.0, 1),
                 "produced_kg": float(produced),
-                "scrap_kg": float(scrap)
+                "scrap_kg": float(scrap),
+                "theoretical_output_kg": round(theoretical_output, 3),
             })
             
             global_availability.append(availability)
+            global_performance.append(performance)
             global_quality.append(quality)
             
-        avg_oee = (sum(global_availability)/len(global_availability) if global_availability else 0) * \
-                  (sum(global_quality)/len(global_quality) if global_quality else 0) * 100
+        avg_availability = (sum(global_availability) / len(global_availability)) if global_availability else 0
+        avg_performance = (sum(global_performance) / len(global_performance)) if global_performance else 0
+        avg_quality = (sum(global_quality) / len(global_quality)) if global_quality else 0
+        avg_oee = avg_availability * avg_performance * avg_quality * 100
+        total_output_kg = sum(float(row["produced_kg"] or 0) for row in rows)
+        total_scrap_kg = sum(float(row["scrap_kg"] or 0) for row in rows)
+
+        work_center_map = {}
+        for row in rows:
+            bucket = work_center_map.setdefault(
+                row["work_center"],
+                {
+                    "work_center": row["work_center"],
+                    "machine_count": 0,
+                    "oee_total": 0.0,
+                    "availability_total": 0.0,
+                    "performance_total": 0.0,
+                    "quality_total": 0.0,
+                    "output_total": 0.0,
+                    "scrap_total": 0.0,
+                },
+            )
+            bucket["machine_count"] += 1
+            bucket["oee_total"] += float(row["oee"] or 0)
+            bucket["availability_total"] += float(row["availability"] or 0)
+            bucket["performance_total"] += float(row["performance"] or 0)
+            bucket["quality_total"] += float(row["quality"] or 0)
+            bucket["output_total"] += float(row["produced_kg"] or 0)
+            bucket["scrap_total"] += float(row["scrap_kg"] or 0)
+
+        work_center_rows = sorted(
+            [
+                {
+                    "work_center": value["work_center"],
+                    "machines": value["machine_count"],
+                    "avg_oee": round(value["oee_total"] / value["machine_count"], 1),
+                    "avg_availability": round(value["availability_total"] / value["machine_count"], 1),
+                    "avg_performance": round(value["performance_total"] / value["machine_count"], 1),
+                    "avg_quality": round(value["quality_total"] / value["machine_count"], 1),
+                    "output_kg": round(value["output_total"], 3),
+                    "scrap_kg": round(value["scrap_total"], 3),
+                }
+                for value in work_center_map.values()
+            ],
+            key=lambda row: row["avg_oee"],
+            reverse=True,
+        )
+
+        oee_band_rows = [
+            {"band": "World Class", "machines": len([row for row in rows if float(row["oee"] or 0) >= 85]), "threshold": ">= 85%"},
+            {"band": "Stable", "machines": len([row for row in rows if 60 <= float(row["oee"] or 0) < 85]), "threshold": "60-84.9%"},
+            {"band": "Attention", "machines": len([row for row in rows if float(row["oee"] or 0) < 60]), "threshold": "< 60%"},
+        ]
+        oee_band_rows = [row for row in oee_band_rows if row["machines"] > 0]
 
         # Chart Data
         # 1. OEE Trend
@@ -4933,6 +5165,10 @@ class ReportingService:
             {"name": r["machine_name"], "value": r["oee"]} for r in rows
         ]
 
+        rows = sorted(rows, key=lambda row: float(row["oee"] or 0), reverse=True)
+        top_machine = rows[0] if rows else None
+        bottom_machine = rows[-1] if rows else None
+
         return {
             "tab": "oee",
             "filters": {
@@ -4940,19 +5176,34 @@ class ReportingService:
                 "date_from": date_from.isoformat(),
                 "date_to": date_to.isoformat(),
             },
+            "summary": {
+                "avg_oee": round(avg_oee, 1),
+                "machines_tracked": len(machines),
+                "global_availability": round(avg_availability * 100, 1) if global_availability else 100,
+                "global_performance": round(avg_performance * 100, 1) if global_performance else 100,
+                "global_quality": round(avg_quality * 100, 1) if global_quality else 100,
+                "output_kg": round(total_output_kg, 3),
+                "scrap_kg": round(total_scrap_kg, 3),
+                "top_machine": top_machine["machine_name"] if top_machine else "—",
+                "lowest_machine": bottom_machine["machine_name"] if bottom_machine else "—",
+            },
             "kpis": {
                 "avg_oee": round(avg_oee, 1),
                 "machines_tracked": len(machines),
-                "global_quality": round(sum(global_quality)/len(global_quality)*100, 1) if global_quality else 100,
-                "global_availability": round(sum(global_availability)/len(global_availability)*100, 1) if global_availability else 100,
+                "global_quality": round(avg_quality * 100, 1) if global_quality else 100,
+                "global_availability": round(avg_availability * 100, 1) if global_availability else 100,
+                "global_performance": round(avg_performance * 100, 1) if global_performance else 100,
+            },
+            "breakdowns": {
+                "by_machine": rows,
+                "by_work_center": work_center_rows,
+                "oee_bands": oee_band_rows,
             },
             "charts": {
                 "trend": trend_data,
                 "distribution": distribution_data,
             },
-            "series": [
-                {"name": r["machine_name"], "value": r["oee"]} for r in rows
-            ],
+            "series": trend_data,
             "rows": rows,
             "generated_at": timezone.now().isoformat(),
         }

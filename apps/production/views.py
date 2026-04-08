@@ -1,15 +1,17 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import FileResponse
 from django.db import connection
 from .models import ProductionJob, WorkCenterAssignment
 from .serializers import (
     ProductionJobSerializer, JobAssignmentSerializer, JobCompletionSerializer,
-    WorkCenterAssignmentSerializer, PlannedStockOrderSerializer, PlannedBulkStockOrderSerializer
+    WorkCenterAssignmentSerializer, PlannedStockOrderSerializer, PlannedBulkStockOrderSerializer,
+    PlannerSkuSerializer, PlannerSkuVariantSerializer,
 )
-from .models import PlannedStockOrder, PlannedBulkStockOrder
+from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, PlannerSkuVariant
 from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
 
@@ -32,6 +34,9 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        job_number_filter = (self.request.query_params.get('job_number') or '').strip()
+        if job_number_filter:
+            queryset = queryset.filter(job_number=job_number_filter)
         return queryset
     serializer_class = ProductionJobSerializer
 
@@ -180,6 +185,10 @@ class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
         wc_id = self.request.query_params.get('work_center')
         if wc_id:
             queryset = queryset.filter(work_center_id=wc_id)
+
+        job_number_filter = (self.request.query_params.get('job_number') or '').strip()
+        if job_number_filter:
+            queryset = queryset.filter(production_job__job_number=job_number_filter)
         
         status_filter = self.request.query_params.get('status')
         if status_filter:
@@ -355,6 +364,31 @@ class PackingViewSet(viewsets.ViewSet):
     API for packing operations (Gonny creation).
     """
     queryset = ProductionJob.objects.none() # Dummy for DRF consistency
+
+    @action(detail=False, methods=['get'])
+    def orders(self, request):
+        """List sales orders that currently have goods in Packing Yard."""
+        from .services.dispatch_service import FGDispatchService
+        try:
+            result = FGDispatchService.get_sales_orders_for_packing()
+            return Response(list(result))
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def so_summary(self, request):
+        """Order-centric packing summary for FG batches, rolls, and gonnies."""
+        from .services.dispatch_service import FGDispatchService
+
+        so_id = request.query_params.get('sales_order_id')
+        if not so_id:
+            return Response({"error": "sales_order_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = FGDispatchService.get_packing_units_by_so(so_id)
+            return Response(result)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
     def batches(self, request):
@@ -449,6 +483,9 @@ class PackingViewSet(viewsets.ViewSet):
             }, status=status.HTTP_201_CREATED)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as e:
+            message = "; ".join(getattr(e, "messages", []) or []) or str(e)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
     def seal(self, request, pk=None):
@@ -487,6 +524,58 @@ class PackingViewSet(viewsets.ViewSet):
                 "message": f"Gonny {gonny.label_id} sealed at {weight_kg} kg"
             })
         except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as e:
+            message = "; ".join(getattr(e, "messages", []) or []) or str(e)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='release')
+    def release(self, request, pk=None):
+        """Release a sealed gonny to Dispatch Bay."""
+        from .services.dispatch_service import FGDispatchService
+
+        try:
+            gonny = FGDispatchService.release_gonny_to_dispatch(pk, request.user)
+            return Response({
+                "id": str(gonny.id),
+                "label_id": gonny.label_id,
+                "status": gonny.status,
+                "released_to_dispatch": True,
+                "message": f"Gonny {gonny.label_id} sent to Dispatch Bay",
+            })
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='release-roll')
+    def release_roll(self, request):
+        """Pack/release a finished roll from Packing Yard to Dispatch Bay."""
+        from .services.dispatch_service import FGDispatchService
+
+        roll_id = request.data.get('roll_id')
+        release_mode = request.data.get('release_mode', 'PACKED')
+        lines = request.data.get('lines', [])
+        if not roll_id:
+            return Response({"error": "roll_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            record = FGDispatchService.release_roll_to_dispatch(
+                roll_id=str(roll_id),
+                user=request.user if request.user.is_authenticated else None,
+                lines=lines if isinstance(lines, list) else [],
+                release_mode=str(release_mode or 'PACKED'),
+            )
+            return Response({
+                "id": str(record.id),
+                "roll_id": str(record.roll_id),
+                "sales_order_item_id": str(record.sales_order_item_id),
+                "packed_at": record.packed_at.isoformat() if record.packed_at else None,
+                "lines": record.lines,
+                "tx_ids": record.tx_ids,
+                "released_to_dispatch": True,
+                "release_mode": str((record.meta_json or {}).get("release_mode") or ("PACKED" if record.lines else "UNPACKED")).upper(),
+                "message": "Roll sent to Dispatch Bay",
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
@@ -544,7 +633,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['get'])
     def so_with_fg(self, request):
-        """List Sales Orders that have goods ready for dispatch."""
+        """List Sales Orders that have units already released from Packing Yard."""
         from .services.dispatch_service import FGDispatchService
         try:
             result = FGDispatchService.get_sales_orders_with_fg()
@@ -854,6 +943,53 @@ class PlannedBulkStockOrderViewSet(viewsets.ModelViewSet):
     queryset = PlannedBulkStockOrder.objects.all().order_by('-created_at')
     serializer_class = PlannedBulkStockOrderSerializer
     filterset_fields = ['status', 'plant', 'bulk_class', 'material']
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class PlannerSkuViewSet(viewsets.ModelViewSet):
+    serializer_class = PlannerSkuSerializer
+    search_fields = ["code", "name", "template__name"]
+    filterset_fields = ["active", "template", "default_plant"]
+
+    def get_queryset(self):
+        queryset = PlannerSku.objects.select_related("template", "default_plant").prefetch_related("variants").order_by("name", "code")
+        template_id = str(self.request.query_params.get("template_id") or "").strip()
+        active = self.request.query_params.get("active")
+        if template_id:
+            queryset = queryset.filter(template_id=template_id)
+        if active in {"true", "false"}:
+            queryset = queryset.filter(active=active == "true")
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class PlannerSkuVariantViewSet(viewsets.ModelViewSet):
+    serializer_class = PlannerSkuVariantSerializer
+    search_fields = ["code", "name", "sku__code", "sku__name"]
+    filterset_fields = ["active", "sku", "launch_kind", "template", "default_plant"]
+
+    def get_queryset(self):
+        queryset = PlannerSkuVariant.objects.select_related(
+            "sku",
+            "template",
+            "default_plant",
+            "packaging_material",
+            "pod_sku_variant",
+        ).order_by("sku__name", "name", "code")
+        sku_id = str(self.request.query_params.get("sku_id") or "").strip()
+        launch_kind = str(self.request.query_params.get("launch_kind") or "").strip().upper()
+        active = self.request.query_params.get("active")
+        if sku_id:
+            queryset = queryset.filter(sku_id=sku_id)
+        if launch_kind:
+            queryset = queryset.filter(launch_kind=launch_kind)
+        if active in {"true", "false"}:
+            queryset = queryset.filter(active=active == "true")
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

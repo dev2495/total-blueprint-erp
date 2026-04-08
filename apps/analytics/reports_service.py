@@ -178,14 +178,31 @@ class ReportService:
         # Base queries
         logs = JobExecutionLog.objects.select_related(
             'production_job__machine', 'production_job__work_center',
-            'production_job__current_process', 'production_job__process'
+            'production_job__current_process', 'production_job__process',
+            'production_job__template', 'production_job__sales_order_item__sales_order',
+            'logged_by'
         )
         logs = ReportService._apply_filters(logs, filters, date_field='logged_at')
 
-        scrap_logs = ScrapLog.objects.select_related('production_job__machine')
+        scrap_logs = ScrapLog.objects.select_related(
+            'production_job__machine',
+            'production_job__work_center',
+            'production_job__current_process',
+            'production_job__template',
+            'logged_by',
+        )
         scrap_logs = ReportService._apply_filters(scrap_logs, filters, date_field='logged_at')
 
-        jobs = ProductionJob.objects.all()
+        jobs = ProductionJob.objects.select_related(
+            'template',
+            'sales_order_item__sales_order',
+            'current_process',
+            'process',
+            'work_center',
+            'machine',
+            'operator',
+            'closed_by',
+        )
         jobs = ReportService._apply_filters(jobs, filters, date_field='created_at')
 
         # ── Aggregates ──
@@ -215,7 +232,15 @@ class ReportService:
         total_jobs = jobs.count()
         completed_jobs = jobs.filter(status='COMPLETED').count()
         running_jobs = jobs.filter(job_state='EXECUTING').count()
+        planned_jobs = jobs.filter(job_state='PLANNED').count()
+        released_jobs = jobs.filter(job_state='RELEASED').count()
+        paused_jobs = jobs.filter(job_state='PAUSED').count()
         completion_rate = ReportService._pct(completed_jobs, total_jobs)
+        active_work_centers = jobs.exclude(work_center__isnull=True).values('work_center_id').distinct().count()
+        active_machines = jobs.exclude(machine__isnull=True).values('machine_id').distinct().count()
+        avg_job_size = float(jobs.aggregate(avg=Avg('quantity'))['avg'] or 0)
+        avg_output_per_machine = round(total_output / active_machines, 2) if active_machines else 0
+        jobs_with_scrap = scrap_logs.values('production_job_id').distinct().count()
 
         # ── Machine Breakdown ──
         machine_stats = logs.values(
@@ -246,6 +271,7 @@ class ReportService:
                 "actual_output": round(actual, 2),
                 "standard_rate": std_rate,
                 "earned_hours": round(earned_hours, 2),
+                "log_count": m['log_count'] or 0,
                 "scrap_kg": round(m_scrap, 2),
                 "yield_pct": m_yield,
             })
@@ -263,12 +289,87 @@ class ReportService:
             for p in by_process
         ]
 
+        # ── Work-center / shift / state / scrap reason splits ──
+        by_work_center = logs.values(
+            wc_name=Coalesce('production_job__work_center__name', Value('Unassigned')),
+        ).annotate(
+            output_kg=Sum('quantity'),
+            log_count=Count('id'),
+            job_count=Count('production_job_id', distinct=True),
+        ).order_by('-output_kg')[:10]
+        work_center_dist = [
+            {
+                "work_center": row['wc_name'],
+                "output_kg": round(float(row['output_kg'] or 0), 2),
+                "log_count": row['log_count'] or 0,
+                "job_count": row['job_count'] or 0,
+            }
+            for row in by_work_center
+        ]
+
+        shift_output_map = {
+            str(row['shift_code'] or 'UNSPECIFIED'): round(float(row['output_kg'] or 0), 2)
+            for row in logs.values('shift_code').annotate(output_kg=Sum('quantity'))
+        }
+        shift_scrap_map = {
+            str(row['shift_code'] or 'UNSPECIFIED'): round(float(row['scrap_kg'] or 0), 2)
+            for row in scrap_logs.values('shift_code').annotate(scrap_kg=Sum('quantity'))
+        }
+        by_shift = []
+        for shift_code in sorted(set(shift_output_map) | set(shift_scrap_map)):
+            output_kg = float(shift_output_map.get(shift_code) or 0)
+            scrap_kg = float(shift_scrap_map.get(shift_code) or 0)
+            by_shift.append({
+                "shift_code": shift_code,
+                "output_kg": round(output_kg, 2),
+                "scrap_kg": round(scrap_kg, 2),
+                "yield_pct": ReportService._pct(output_kg, output_kg + scrap_kg),
+            })
+        by_shift.sort(key=lambda row: row["output_kg"], reverse=True)
+
+        by_job_state = jobs.values('job_state').annotate(count=Count('id')).order_by('-count')
+        state_dist = [
+            {"state": row['job_state'] or 'UNKNOWN', "count": row['count'] or 0}
+            for row in by_job_state
+        ]
+
+        scrap_reason_dist = [
+            {
+                "reason": row['reason'] or 'OTHER',
+                "scrap_kg": round(float(row['scrap_kg'] or 0), 2),
+                "event_count": row['event_count'] or 0,
+            }
+            for row in scrap_logs.values('reason').annotate(scrap_kg=Sum('quantity'), event_count=Count('id')).order_by('-scrap_kg')[:10]
+        ]
+
+        operator_dist = [
+            {
+                "operator": row['operator_name'],
+                "output_kg": round(float(row['output_kg'] or 0), 2),
+                "log_count": row['log_count'] or 0,
+            }
+            for row in logs.values(
+                operator_name=Coalesce('logged_by__username', Value('Unassigned'))
+            ).annotate(output_kg=Sum('quantity'), log_count=Count('id')).order_by('-output_kg')[:10]
+        ]
+
         # ── Daily Trend ──
+        trend_scrap_map = {
+            row['date']: round(float(row['scrap_kg'] or 0), 2)
+            for row in scrap_logs.annotate(date=TruncDate('logged_at')).values('date').annotate(
+                scrap_kg=Sum('quantity')
+            ).order_by('date')
+        }
         trend_qs = logs.annotate(date=TruncDate('logged_at')).values('date').annotate(
-            output=Sum('quantity')
+            output_kg=Sum('quantity')
         ).order_by('date')
         trend = [
-            {"date": t['date'].strftime("%Y-%m-%d"), "value": round(float(t['output']), 2)}
+            {
+                "date": t['date'].strftime("%Y-%m-%d"),
+                "output_kg": round(float(t['output_kg'] or 0), 2),
+                "scrap_kg": float(trend_scrap_map.get(t['date']) or 0),
+                "yield_pct": ReportService._pct(float(t['output_kg'] or 0), float(t['output_kg'] or 0) + float(trend_scrap_map.get(t['date']) or 0)),
+            }
             for t in trend_qs
         ]
 
@@ -276,23 +377,93 @@ class ReportService:
         avg_daily = total_output / max(len(trend), 1)
         target_daily = round(avg_daily * 1.1, 2)
 
+        # ── Row-level production truth ──
+        job_output_map = {
+            row['production_job_id']: round(float(row['output_kg'] or 0), 2)
+            for row in logs.values('production_job_id').annotate(output_kg=Sum('quantity'))
+        }
+        job_last_log_map = {
+            row['production_job_id']: row['last_logged_at']
+            for row in logs.values('production_job_id').annotate(last_logged_at=Max('logged_at'))
+        }
+        job_scrap_map = {
+            row['production_job_id']: round(float(row['scrap_kg'] or 0), 2)
+            for row in scrap_logs.values('production_job_id').annotate(scrap_kg=Sum('quantity'))
+        }
+        recent_jobs = []
+        for job in jobs.order_by('-updated_at', '-created_at')[:60]:
+            produced_kg = float(job_output_map.get(job.id) or job.produced_qty or 0)
+            scrap_kg = float(job_scrap_map.get(job.id) or 0)
+            planned_kg = float(job.quantity or 0)
+            recent_jobs.append({
+                "job_number": job.job_number,
+                "source": job.source_type,
+                "customer": getattr(getattr(job.sales_order_item, 'sales_order', None), 'customer_name', '') or 'Internal',
+                "template": getattr(job.template, 'name', '') or 'Custom',
+                "process": getattr(job.current_process, 'name', '') or getattr(job.process, 'name', '') or 'Pending',
+                "work_center": getattr(job.work_center, 'name', '') or 'Unassigned',
+                "machine": getattr(job.machine, 'name', '') or 'Unassigned',
+                "operator": getattr(job.operator, 'username', '') or '—',
+                "job_state": job.job_state,
+                "status": job.status,
+                "planned_qty_kg": round(planned_kg, 2),
+                "produced_qty_kg": round(produced_kg, 2),
+                "remaining_qty_kg": round(float(job.remaining_qty or max(planned_kg - produced_kg, 0)), 2),
+                "scrap_kg": round(scrap_kg, 2),
+                "yield_pct": ReportService._pct(produced_kg, produced_kg + scrap_kg),
+                "last_log_at": job_last_log_map.get(job.id).isoformat() if job_last_log_map.get(job.id) else None,
+            })
+
+        warnings = []
+        if total_jobs and not total_output:
+            warnings.append("Jobs exist in the selected window but no execution output was logged.")
+        if total_scrap > total_output and total_scrap > 0:
+            warnings.append("Scrap exceeded good output in the selected production window.")
+
+        breakdowns = {
+            "by_process": process_dist,
+            "by_work_center": work_center_dist,
+            "by_shift": by_shift,
+            "by_machine": breakdown,
+            "by_job_state": state_dist,
+            "scrap_reasons": scrap_reason_dist,
+            "by_operator": operator_dist,
+        }
+
         return {
             "summary": {
                 "total_output_kg": round(total_output, 2),
                 "total_scrap_kg": round(total_scrap, 2),
                 "yield_pct": yield_pct,
                 "scrap_rate": scrap_rate,
-                "active_machines": len(breakdown),
+                "active_machines": active_machines,
+                "active_work_centers": active_work_centers,
                 "total_jobs": total_jobs,
                 "completed_jobs": completed_jobs,
                 "running_jobs": running_jobs,
+                "planned_jobs": planned_jobs,
+                "released_jobs": released_jobs,
+                "paused_jobs": paused_jobs,
+                "jobs_with_scrap": jobs_with_scrap,
                 "completion_rate": completion_rate,
                 "output_trend_pct": output_trend_pct,
                 "target_daily_output": target_daily,
+                "avg_job_size_kg": round(avg_job_size, 2),
+                "avg_output_per_machine_kg": avg_output_per_machine,
             },
             "trend": trend,
+            "series": trend,
             "breakdown": breakdown,
+            "breakdowns": breakdowns,
             "by_process": process_dist,
+            "by_work_center": work_center_dist,
+            "by_shift": by_shift,
+            "by_machine": breakdown,
+            "by_job_state": state_dist,
+            "scrap_reasons": scrap_reason_dist,
+            "by_operator": operator_dist,
+            "rows": recent_jobs,
+            "warnings": warnings,
             "benchmarks": {
                 "target_scrap_rate": TARGET_SCRAP_RATE,
                 "target_fpy": TARGET_FPY,
@@ -305,108 +476,227 @@ class ReportService:
     @staticmethod
     def get_oee_deep_dive(filters=None):
         filters = ReportService._default_date_range(filters or {})
-        start_date = filters.get('start_date')
-        end_date = filters.get('end_date')
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
 
-        machines = Machine.objects.filter(status='ACTIVE')
-        if filters.get('plant_id'):
-            machines = machines.filter(work_center__plant_id=filters['plant_id'])
+        machines = Machine.objects.select_related("work_center").filter(status="ACTIVE")
+        if filters.get("plant_id"):
+            machines = machines.filter(work_center__plant_id=filters["plant_id"])
+        if filters.get("machine_id"):
+            machines = machines.filter(id=filters["machine_id"])
 
-        total_time_hours = max((end_date - start_date).days * 24, 24)
-        machine_data = []
+        machine_list = list(machines)
+        days_in_window = max((end_date - start_date).days + 1, 1)
+        total_window_hours = float(days_in_window * 24)
+        rows = []
+        global_availability = []
+        global_performance = []
+        global_quality = []
 
-        for machine in machines:
-            # Downtime
-            dt_duration = DowntimeLog.objects.filter(
+        for machine in machine_list:
+            downtime = DowntimeLog.objects.filter(
                 production_job__machine=machine,
                 start_time__date__gte=start_date,
                 start_time__date__lte=end_date,
             ).aggregate(
-                total=Sum(ExpressionWrapper(F('end_time') - F('start_time'), output_field=DurationField()))
-            )['total']
-            downtime_hours = dt_duration.total_seconds() / 3600 if dt_duration else 0
-            run_time = max(0, total_time_hours - downtime_hours)
-            availability = run_time / total_time_hours if total_time_hours > 0 else 0
+                total=Sum(ExpressionWrapper(F("end_time") - F("start_time"), output_field=DurationField()))
+            )["total"]
+            downtime_hours = float(downtime.total_seconds() / 3600) if downtime else 0.0
+            available_hours = max(total_window_hours - downtime_hours, 0.0)
+            availability = (available_hours / total_window_hours) if total_window_hours > 0 else 0.0
 
-            # Output
-            actual_output = float(JobExecutionLog.objects.filter(
-                production_job__machine=machine,
-                logged_at__date__gte=start_date,
-                logged_at__date__lte=end_date,
-            ).aggregate(total=Sum('quantity'))['total'] or 0)
+            produced = float(
+                JobExecutionLog.objects.filter(
+                    production_job__machine=machine,
+                    logged_at__date__gte=start_date,
+                    logged_at__date__lte=end_date,
+                ).aggregate(total=Sum("quantity"))["total"]
+                or 0
+            )
+            scrap = float(
+                ScrapLog.objects.filter(
+                    production_job__machine=machine,
+                    logged_at__date__gte=start_date,
+                    logged_at__date__lte=end_date,
+                ).aggregate(total=Sum("quantity"))["total"]
+                or 0
+            )
 
-            std_rate = float(machine.standard_rate_kg_per_hour or 0)
-            earned_hours = actual_output / std_rate if std_rate > 0 else 0
-            performance = earned_hours / run_time if run_time > 0 else 0
-
-            # Quality
-            scrap_qty = float(ScrapLog.objects.filter(
-                production_job__machine=machine,
-                logged_at__date__gte=start_date,
-                logged_at__date__lte=end_date,
-            ).aggregate(total=Sum('quantity'))['total'] or 0)
-
-            total_processed = actual_output + scrap_qty
-            quality = actual_output / total_processed if total_processed > 0 else 0
+            standard_rate = float(machine.standard_rate_kg_per_hour or 0)
+            theoretical_output = standard_rate * available_hours if standard_rate > 0 else 0.0
+            performance = (produced / theoretical_output) if theoretical_output > 0 else 0.0
+            total_processed = produced + scrap
+            quality = (produced / total_processed) if total_processed > 0 else 0.0
             oee = availability * performance * quality
 
-            machine_data.append({
-                "machine": machine.name,
+            row = {
+                "machine_id": str(machine.id),
+                "machine_name": machine.name,
                 "machine_code": machine.code,
+                "work_center": machine.work_center.name if machine.work_center else "Unassigned",
                 "availability": round(availability * 100, 1),
                 "performance": round(performance * 100, 1),
                 "quality": round(quality * 100, 1),
                 "oee": round(oee * 100, 1),
-                "downtime_hours": round(downtime_hours, 1),
-                "output_kg": round(actual_output, 2),
-                "scrap_kg": round(scrap_qty, 2),
-                "earned_hours": round(earned_hours, 1),
-            })
+                "downtime_hours": round(downtime_hours, 2),
+                "produced_kg": round(produced, 3),
+                "scrap_kg": round(scrap, 3),
+                "theoretical_output_kg": round(theoretical_output, 3),
+            }
+            rows.append(row)
+            global_availability.append(availability)
+            global_performance.append(performance)
+            global_quality.append(quality)
 
-        if not machine_data:
-            return {"global": {"oee": 0, "availability": 0, "performance": 0, "quality": 0}, "breakdown": [], "trend": [], "benchmarks": {"world_class_oee": WORLD_CLASS_OEE}}
+        rows.sort(key=lambda row: float(row["oee"] or 0), reverse=True)
+        top_machine = rows[0] if rows else None
+        bottom_machine = rows[-1] if rows else None
 
-        avg = lambda key: round(sum(d[key] for d in machine_data) / len(machine_data), 1)
-        best = max(machine_data, key=lambda d: d['oee'])
-        worst = min(machine_data, key=lambda d: d['oee'])
+        work_center_rollup = {}
+        for row in rows:
+            bucket = work_center_rollup.setdefault(
+                row["work_center"],
+                {
+                    "work_center": row["work_center"],
+                    "machine_count": 0,
+                    "oee_total": 0.0,
+                    "availability_total": 0.0,
+                    "performance_total": 0.0,
+                    "quality_total": 0.0,
+                    "output_total": 0.0,
+                    "scrap_total": 0.0,
+                },
+            )
+            bucket["machine_count"] += 1
+            bucket["oee_total"] += float(row["oee"] or 0)
+            bucket["availability_total"] += float(row["availability"] or 0)
+            bucket["performance_total"] += float(row["performance"] or 0)
+            bucket["quality_total"] += float(row["quality"] or 0)
+            bucket["output_total"] += float(row["produced_kg"] or 0)
+            bucket["scrap_total"] += float(row["scrap_kg"] or 0)
 
-        # OEE daily trend (global)
-        oee_trend = []
+        work_center_rows = sorted(
+            [
+                {
+                    "work_center": value["work_center"],
+                    "machines": value["machine_count"],
+                    "avg_oee": round(value["oee_total"] / value["machine_count"], 1),
+                    "avg_availability": round(value["availability_total"] / value["machine_count"], 1),
+                    "avg_performance": round(value["performance_total"] / value["machine_count"], 1),
+                    "avg_quality": round(value["quality_total"] / value["machine_count"], 1),
+                    "output_kg": round(value["output_total"], 3),
+                    "scrap_kg": round(value["scrap_total"], 3),
+                }
+                for value in work_center_rollup.values()
+            ],
+            key=lambda row: row["avg_oee"],
+            reverse=True,
+        )
+
+        oee_band_rows = [
+            {"band": "World Class", "machines": len([row for row in rows if float(row["oee"] or 0) >= 85]), "threshold": ">= 85%"},
+            {"band": "Stable", "machines": len([row for row in rows if 60 <= float(row["oee"] or 0) < 85]), "threshold": "60-84.9%"},
+            {"band": "Attention", "machines": len([row for row in rows if float(row["oee"] or 0) < 60]), "threshold": "< 60%"},
+        ]
+        oee_band_rows = [row for row in oee_band_rows if row["machines"] > 0]
+
+        trend_data = []
+        machine_ids = [machine.id for machine in machine_list]
         cursor = start_date
         while cursor <= end_date:
-            day_output = float(JobExecutionLog.objects.filter(
-                logged_at__date=cursor,
-            ).aggregate(t=Sum('quantity'))['t'] or 0)
-            day_scrap = float(ScrapLog.objects.filter(
-                logged_at__date=cursor,
-            ).aggregate(t=Sum('quantity'))['t'] or 0)
-            day_total = day_output + day_scrap
-            day_quality = day_output / day_total if day_total > 0 else 0
-            oee_trend.append({
-                "date": cursor.strftime("%Y-%m-%d"),
-                "output": round(day_output, 2),
-                "scrap": round(day_scrap, 2),
-                "quality_pct": round(day_quality * 100, 1),
-            })
+            day_output = Decimal(
+                str(
+                    JobExecutionLog.objects.filter(
+                        production_job__machine_id__in=machine_ids,
+                        logged_at__date=cursor,
+                    ).aggregate(total=Sum("quantity"))["total"]
+                    or 0
+                )
+            )
+            day_scrap = Decimal(
+                str(
+                    ScrapLog.objects.filter(
+                        production_job__machine_id__in=machine_ids,
+                        logged_at__date=cursor,
+                    ).aggregate(total=Sum("quantity"))["total"]
+                    or 0
+                )
+            )
+            day_downtime = DowntimeLog.objects.filter(
+                production_job__machine_id__in=machine_ids,
+                start_time__date=cursor,
+            ).aggregate(
+                total=Sum(ExpressionWrapper(F("end_time") - F("start_time"), output_field=DurationField()))
+            )["total"]
+            day_downtime_hours = Decimal(str(day_downtime.total_seconds() / 3600.0 if day_downtime else 0))
+            total_machine_hours = Decimal(str(max(len(machine_ids), 1) * 24))
+            available_hours = max(Decimal("0"), total_machine_hours - day_downtime_hours)
+            std_rate_total = Decimal(str(sum(Decimal(str(machine.standard_rate_kg_per_hour or 0)) for machine in machine_list)))
+            earned_hours = (day_output / std_rate_total) if std_rate_total > 0 else Decimal("0")
+            availability = (available_hours / total_machine_hours) if total_machine_hours > 0 else Decimal("0")
+            performance = (earned_hours / available_hours) if available_hours > 0 else Decimal("0")
+            total_processed = day_output + day_scrap
+            quality = (day_output / total_processed) if total_processed > 0 else Decimal("0")
+            day_oee = availability * performance * quality * Decimal("100")
+            trend_data.append(
+                {
+                    "date": cursor.strftime("%Y-%m-%d"),
+                    "value": float(round(day_oee, 2)),
+                    "output_kg": float(round(day_output, 3)),
+                    "scrap_kg": float(round(day_scrap, 3)),
+                    "downtime_hours": float(round(day_downtime_hours, 3)),
+                }
+            )
             cursor += timedelta(days=1)
 
+        avg_availability = (sum(global_availability) / len(global_availability)) if global_availability else 0.0
+        avg_performance = (sum(global_performance) / len(global_performance)) if global_performance else 0.0
+        avg_quality = (sum(global_quality) / len(global_quality)) if global_quality else 0.0
+        avg_oee = avg_availability * avg_performance * avg_quality * 100
+        total_output = sum(float(row["produced_kg"] or 0) for row in rows)
+        total_scrap = sum(float(row["scrap_kg"] or 0) for row in rows)
+
         return {
-            "global": {
-                "oee": avg('oee'),
-                "availability": avg('availability'),
-                "performance": avg('performance'),
-                "quality": avg('quality'),
+            "summary": {
+                "avg_oee": round(avg_oee, 1),
+                "machines_tracked": len(rows),
+                "global_availability": round(avg_availability * 100, 1),
+                "global_performance": round(avg_performance * 100, 1),
+                "global_quality": round(avg_quality * 100, 1),
+                "output_kg": round(total_output, 3),
+                "scrap_kg": round(total_scrap, 3),
+                "top_machine": top_machine["machine_name"] if top_machine else "—",
+                "lowest_machine": bottom_machine["machine_name"] if bottom_machine else "—",
             },
-            "breakdown": machine_data,
-            "best_machine": {"name": best['machine'], "oee": best['oee']},
-            "worst_machine": {"name": worst['machine'], "oee": worst['oee']},
-            "trend": oee_trend,
+            "kpis": {
+                "avg_oee": round(avg_oee, 1),
+                "machines_tracked": len(rows),
+                "global_availability": round(avg_availability * 100, 1),
+                "global_performance": round(avg_performance * 100, 1),
+                "global_quality": round(avg_quality * 100, 1),
+            },
+            "breakdown": rows,
+            "breakdowns": {
+                "by_machine": rows,
+                "by_work_center": work_center_rows,
+                "oee_bands": oee_band_rows,
+            },
+            "trend": trend_data,
+            "series": trend_data,
+            "charts": {
+                "trend": trend_data,
+                "distribution": [{"name": row["machine_name"], "value": row["oee"]} for row in rows],
+            },
+            "rows": rows,
+            "best_machine": {"name": top_machine["machine_name"], "oee": top_machine["oee"]} if top_machine else None,
+            "worst_machine": {"name": bottom_machine["machine_name"], "oee": bottom_machine["oee"]} if bottom_machine else None,
             "benchmarks": {
                 "world_class_oee": WORLD_CLASS_OEE,
                 "target_availability": 90.0,
                 "target_performance": 95.0,
                 "target_quality": 99.0,
             },
+            "warnings": [] if rows else ["No machine telemetry found in the selected window."],
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -499,11 +789,19 @@ class ReportService:
         good_logs = JobExecutionLog.objects.all()
         good_logs = ReportService._apply_filters(good_logs, filters, date_field='logged_at')
 
+        consumption_logs = MaterialConsumptionLog.objects.select_related(
+            'production_job', 'material'
+        )
+        consumption_logs = ReportService._apply_filters(consumption_logs, filters, date_field='logged_at')
+
         total_scrap = float(scrap_logs.aggregate(total=Sum('quantity'))['total'] or 0)
         total_good = float(good_logs.aggregate(total=Sum('quantity'))['total'] or 0)
+        total_consumed = float(consumption_logs.aggregate(total=Sum('quantity'))['total'] or 0)
         total_processed = total_good + total_scrap
         yield_pct = ReportService._pct(total_good, total_processed)
         scrap_rate = round(100 - yield_pct, 2)
+        jobs_with_scrap = scrap_logs.values('production_job_id').distinct().count()
+        total_events = scrap_logs.count()
 
         # Cost of scrap (use material cost snapshots if available)
         try:
@@ -582,25 +880,114 @@ class ReportService:
             "cost": round(float(d['scrap'] or 0) * avg_cost, 2),
         } for d in daily]
 
+        scrap_by_job = {
+            row['production_job_id']: {
+                'scrap_kg': float(row['scrap'] or 0),
+                'events': int(row['events'] or 0),
+            }
+            for row in scrap_logs.values('production_job_id').annotate(
+                scrap=Sum('quantity'),
+                events=Count('id'),
+            )
+        }
+        good_by_job = {
+            row['production_job_id']: float(row['good'] or 0)
+            for row in good_logs.values('production_job_id').annotate(good=Sum('quantity'))
+        }
+        job_ids = list(scrap_by_job.keys())
+        jobs = {
+            job.id: job
+            for job in ProductionJob.objects.filter(id__in=job_ids).select_related(
+                'machine',
+                'current_process',
+                'process',
+                'template',
+            )
+        }
+        top_jobs = []
+        for job_id, totals in sorted(scrap_by_job.items(), key=lambda item: item[1]['scrap_kg'], reverse=True)[:15]:
+            job = jobs.get(job_id)
+            good_qty = float(good_by_job.get(job_id, 0))
+            total_qty = good_qty + totals['scrap_kg']
+            top_jobs.append({
+                "job_id": str(job_id),
+                "job_number": job.job_number if job else "Unknown",
+                "template_name": job.template.name if job and job.template else "Custom",
+                "machine_name": job.machine.name if job and job.machine else "Unassigned",
+                "process_name": (
+                    job.current_process.name if job and job.current_process else
+                    (job.process.name if job and job.process else "Other")
+                ),
+                "good_kg": round(good_qty, 2),
+                "scrap_kg": round(totals['scrap_kg'], 2),
+                "events": totals['events'],
+                "yield_pct": ReportService._pct(good_qty, total_qty),
+            })
+
+        recent_events = [{
+            "timestamp": log.logged_at.isoformat() if log.logged_at else None,
+            "reason": log.reason,
+            "quantity_kg": round(float(log.quantity or 0), 2),
+            "job_number": log.production_job.job_number if log.production_job else None,
+            "machine_name": (
+                log.production_job.machine.name
+                if log.production_job and log.production_job.machine
+                else "Unassigned"
+            ),
+            "process_name": (
+                log.production_job.current_process.name
+                if log.production_job and log.production_job.current_process
+                else (
+                    log.production_job.process.name
+                    if log.production_job and log.production_job.process
+                    else "Other"
+                )
+            ),
+            "logged_by": log.logged_by.username if log.logged_by else "System",
+        } for log in scrap_logs.order_by('-logged_at')[:60]]
+
+        top_reason = reasons_data[0]["name"] if reasons_data else "None"
+        top_machine = machine_data[0]["machine"] if machine_data else "Unknown"
+        avg_scrap_per_event = round((total_scrap / total_events), 2) if total_events else 0.0
+
         return {
             "summary": {
                 "total_scrap_kg": round(total_scrap, 2),
                 "total_good_kg": round(total_good, 2),
+                "total_processed_kg": round(total_processed, 2),
+                "total_output_kg": round(total_good, 2),
+                "total_consumed_kg": round(total_consumed, 2),
                 "yield_pct": yield_pct,
                 "scrap_rate": scrap_rate,
                 "cost_of_scrap": cost_of_scrap,
                 "avg_cost_per_kg": avg_cost,
-                "total_events": scrap_logs.count(),
+                "total_events": total_events,
+                "avg_scrap_per_event_kg": avg_scrap_per_event,
+                "jobs_with_scrap": jobs_with_scrap,
+                "top_reason": top_reason,
+                "top_machine": top_machine,
+            },
+            "series": daily_trend,
+            "rows": recent_events,
+            "breakdowns": {
+                "by_reason": reasons_data,
+                "by_machine": machine_data,
+                "by_process": process_yield,
+                "by_operator": operator_scrap,
+                "top_jobs": top_jobs,
             },
             "by_reason": reasons_data,
             "by_machine": machine_data,
             "by_process": process_yield,
             "by_operator": operator_scrap,
             "daily_trend": daily_trend,
+            "top_jobs": top_jobs,
+            "recent_events": recent_events,
             "benchmarks": {
                 "target_scrap_rate": TARGET_SCRAP_RATE,
                 "target_yield": TARGET_FPY,
             },
+            "warnings": [] if total_events else ["No scrap events were logged for the selected filter window."],
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -610,10 +997,11 @@ class ReportService:
     def get_inventory_health(filters=None):
         filters = filters or {}
         now = timezone.now()
+        plant_filter = filters.get('plant_id') or filters.get('plant')
 
         rolls = InventoryRoll.objects.select_related('material', 'location', 'location__plant')
-        if filters.get('plant_id'):
-            rolls = rolls.filter(location__plant_id=filters['plant_id'])
+        if plant_filter:
+            rolls = rolls.filter(Q(location__plant_id=plant_filter) | Q(plant_id=plant_filter))
 
         # Total weight & count
         agg = rolls.aggregate(total_weight=Sum('weight_kg'), count=Count('id'))
@@ -690,13 +1078,34 @@ class ReportService:
                 }
             )
 
+        # By inventory item type
+        item_type_totals = defaultdict(lambda: {"count": 0, "weight_kg": Decimal("0")})
+        for roll in rolls:
+            if roll.is_fg:
+                item_type = "FG_ROLL"
+            elif roll.stage_index is None or int(roll.stage_index or 0) <= 0:
+                item_type = "RAW_ROLL"
+            else:
+                item_type = "WIP_ROLL"
+            item_type_totals[item_type]["count"] += 1
+            item_type_totals[item_type]["weight_kg"] += Decimal(str(roll.weight_kg or 0))
+
         # By material
-        by_material = rolls.values('material__name').annotate(
+        by_material = rolls.values('material__name', 'material__code').annotate(
             weight=Sum('weight_kg'), count=Count('id'),
         ).order_by('-weight')[:10]
         material_data = [{
             "name": m['material__name'] or "Unknown",
+            "code": m['material__code'] or "",
             "weight": round(float(m['weight'] or 0), 2),
+            "count": m['count'],
+        } for m in by_material]
+
+        by_variant = [{
+            "variant": f"{m['material__code'] or '—'} · {m['material__name'] or 'Unknown'}",
+            "material_code": m['material__code'] or "",
+            "material_name": m['material__name'] or "Unknown",
+            "weight_kg": round(float(m['weight'] or 0), 2),
             "count": m['count'],
         } for m in by_material]
 
@@ -710,11 +1119,47 @@ class ReportService:
             "count": l['count'],
         } for l in by_location]
 
+        by_plant = rolls.values('location__plant__name', 'plant__name').annotate(
+            weight=Sum('weight_kg'), count=Count('id'),
+        ).order_by('-weight')[:10]
+        plant_data = [{
+            "plant": p['location__plant__name'] or p['plant__name'] or "Unknown",
+            "weight_kg": round(float(p['weight'] or 0), 2),
+            "count": p['count'],
+        } for p in by_plant]
+
+        oldest_rolls = []
+        for roll in rolls.order_by('created_at')[:40]:
+            age_days = max((now - roll.created_at).days, 0) if roll.created_at else 0
+            oldest_rolls.append({
+                "label_id": roll.label_id,
+                "material_code": roll.material.code if roll.material else "",
+                "material_name": roll.material.name if roll.material else "Unknown",
+                "plant_name": roll.location.plant.name if roll.location and roll.location.plant else (roll.plant.name if roll.plant else None),
+                "location_name": roll.location.name if roll.location else None,
+                "stage_name": "FG" if roll.is_fg else ("RAW" if roll.stage_index is None or int(roll.stage_index or 0) <= 0 else f"WIP_STEP_{int(roll.stage_index)}"),
+                "weight_kg": round(float(roll.weight_kg or 0), 2),
+                "age_days": age_days,
+                "created_at": roll.created_at.isoformat() if roll.created_at else None,
+            })
+
         # Bulk materials summary
         bulk_agg = InventoryBulk.objects.aggregate(
             total_weight=Sum('qty_kg'), count=Count('id')
         )
         bulk_weight = round(float(bulk_agg['total_weight'] or 0), 2)
+        item_type_totals["BULK"]["count"] = int(bulk_agg['count'] or 0)
+        item_type_totals["BULK"]["weight_kg"] = Decimal(str(bulk_weight or 0))
+
+        item_type_data = [
+            {
+                "item_type": key,
+                "count": value["count"],
+                "weight_kg": round(float(value["weight_kg"] or 0), 2),
+            }
+            for key, value in item_type_totals.items()
+        ]
+        item_type_data.sort(key=lambda row: row["weight_kg"], reverse=True)
 
         return {
             "summary": {
@@ -729,7 +1174,11 @@ class ReportService:
             "aging": aging_data,
             "by_stage": stage_dist,
             "by_material": material_data,
+            "by_item_type": item_type_data,
+            "by_variant": by_variant,
             "by_location": location_data,
+            "by_plant": plant_data,
+            "rows": oldest_rolls,
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -1771,7 +2220,12 @@ class ReportService:
                 "by_customer",
                 "aging",
                 "by_stage",
+                "by_item_type",
+                "by_variant",
+                "by_material",
                 "by_location",
+                "by_plant",
+                "job_variance",
             ):
                 if key_name in payload:
                     breakdowns[key_name] = payload.get(key_name)

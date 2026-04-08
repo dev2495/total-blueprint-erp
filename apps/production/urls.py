@@ -1,6 +1,6 @@
 from django.urls import path, include
 from config.routers import OptionalSlashRouter
-from .views import ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorViewSet, PackingViewSet, DeliveryChallanViewSet, PlannedStockOrderViewSet, PlannedBulkStockOrderViewSet, ExecutionViewSet
+from .views import ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorViewSet, PackingViewSet, DeliveryChallanViewSet, PlannedStockOrderViewSet, PlannedBulkStockOrderViewSet, ExecutionViewSet, PlannerSkuViewSet, PlannerSkuVariantViewSet
 
 from .views_wc import WCQueueViewSet, JobAllocationViewSet
 from .views_planner import PlannerViewSet
@@ -23,6 +23,8 @@ router.register(r'packing', PackingViewSet, basename='packing')
 router.register(r'challans', DeliveryChallanViewSet, basename='challan')
 router.register(r'stock-orders', PlannedStockOrderViewSet, basename='stock-order')
 router.register(r'bulk-stock-orders', PlannedBulkStockOrderViewSet, basename='bulk-stock-order')
+router.register(r'planner/sku-catalog', PlannerSkuViewSet, basename='planner-sku')
+router.register(r'planner/sku-variants', PlannerSkuVariantViewSet, basename='planner-sku-variant')
 router.register(r'wc/(?P<wc_id>[^/.]+)', WCQueueViewSet, basename='wc-queue')
 router.register(r'wc-allocation', JobAllocationViewSet, basename='wc-allocation')
 router.register(r'planner', PlannerViewSet, basename='planner')

@@ -61,6 +61,10 @@ const INLINE_HELP_CRITICAL_PATTERNS = new Set<string>([
   "/profile",
 ]);
 
+const INLINE_HELP_SUPPRESSED_PATTERNS = new Set<string>([
+  "/production/planner",
+])
+
 function normalizePath(pathname: string): string {
   if (!pathname) return "/";
   const trimmed = pathname.trim();
@@ -78,6 +82,10 @@ function patternToRegex(pattern: string): RegExp {
 
 export function shouldShowInlineHelp(pathname: string): boolean {
   const normalized = normalizePath(pathname);
+
+  if (INLINE_HELP_SUPPRESSED_PATTERNS.has(normalized)) {
+    return false;
+  }
 
   if (MAIN_NAV_ROUTES.has(normalized)) {
     return true;
