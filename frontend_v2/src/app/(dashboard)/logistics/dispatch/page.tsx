@@ -32,6 +32,8 @@ export default function DispatchPage() {
   const [challans, setChallans] = useState<DeliveryChallan[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingSummary, setLoadingSummary] = useState(false)
+  const [ledgerTab, setLedgerTab] = useState<"open" | "history">("open")
+  const [ledgerSearch, setLedgerSearch] = useState("")
 
   const [selectedRolls, setSelectedRolls] = useState<Set<string>>(new Set())
   const [selectedGonnies, setSelectedGonnies] = useState<Set<string>>(new Set())
@@ -94,6 +96,43 @@ export default function DispatchPage() {
     if (!summary) return 0
     return Number(summary.available_for_dispatch.rolls_kg || 0) + Number(summary.available_for_dispatch.gonnies_gross_kg || 0)
   }, [summary])
+
+  const sortedChallans = useMemo(() => {
+    return [...challans].sort((left, right) => {
+      const leftTime = left.dispatch_date ? new Date(left.dispatch_date).getTime() : 0
+      const rightTime = right.dispatch_date ? new Date(right.dispatch_date).getTime() : 0
+      if (rightTime !== leftTime) return rightTime - leftTime
+      return String(right.dc_no || "").localeCompare(String(left.dc_no || ""))
+    })
+  }, [challans])
+
+  const historyStatuses = useMemo(() => new Set(["DISPATCHED", "DELIVERED", "COMPLETED"]), [])
+
+  const filteredChallans = useMemo(() => {
+    const query = ledgerSearch.trim().toLowerCase()
+    return sortedChallans.filter((challan) => {
+      const status = String(challan.status || "").toUpperCase()
+      const inHistory = historyStatuses.has(status)
+      const matchesTab = ledgerTab === "history" ? inHistory : !inHistory
+      if (!matchesTab) return false
+      if (!query) return true
+      const haystack = [
+        challan.dc_no,
+        challan.customer_name,
+        challan.vehicle_no,
+        challan.sales_order__order_number,
+        challan.plant__name,
+        challan.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [historyStatuses, ledgerSearch, ledgerTab, sortedChallans])
+
+  const openChallanCount = useMemo(() => sortedChallans.filter((challan) => !historyStatuses.has(String(challan.status || "").toUpperCase())).length, [historyStatuses, sortedChallans])
+  const historyChallanCount = useMemo(() => sortedChallans.filter((challan) => historyStatuses.has(String(challan.status || "").toUpperCase())).length, [historyStatuses, sortedChallans])
 
   const toggleRoll = (rollId: string) => {
     const next = new Set(selectedRolls)
@@ -383,26 +422,62 @@ export default function DispatchPage() {
       )}
 
       <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-        <CardHeader>
-          <CardTitle>Dispatch Ledger</CardTitle>
-          <CardDescription>Created challans, printable PDFs, and final dispatch releases.</CardDescription>
+        <CardHeader className="gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <CardTitle>Dispatch Ledger</CardTitle>
+            <CardDescription>Created challans, printable PDFs, and final dispatch releases.</CardDescription>
+          </div>
+          <div className="flex w-full flex-col gap-3 md:max-w-md md:items-end">
+            <div className="inline-flex w-full rounded-full border border-slate-200 bg-slate-50 p-1 md:w-auto">
+              <Button
+                type="button"
+                size="sm"
+                variant={ledgerTab === "open" ? "default" : "ghost"}
+                className="flex-1 rounded-full md:flex-none"
+                onClick={() => setLedgerTab("open")}
+              >
+                Open challans {openChallanCount}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={ledgerTab === "history" ? "default" : "ghost"}
+                className="flex-1 rounded-full md:flex-none"
+                onClick={() => setLedgerTab("history")}
+              >
+                History {historyChallanCount}
+              </Button>
+            </div>
+            <Input
+              value={ledgerSearch}
+              onChange={(event) => setLedgerSearch(event.target.value)}
+              placeholder={ledgerTab === "history" ? "Search challan, customer, SO, vehicle..." : "Search open challans..."}
+              className="md:w-80"
+            />
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {challans.length === 0 ? (
+          {filteredChallans.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-              No challans created yet.
+              {ledgerTab === "history" ? "No dispatched challans match this search yet." : "No open challans match this search."}
             </div>
-          ) : challans.map((challan) => (
+          ) : filteredChallans.map((challan) => (
             <div key={challan.id} data-testid={`dispatch-challan-row-${challan.id}`} className="rounded-2xl border border-slate-100 bg-white p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
                   <div className="font-mono text-sm font-black text-slate-900">{challan.dc_no}</div>
-                  <div className="mt-1 text-xs text-slate-500">{challan.customer_name} · {challan.vehicle_no || "Vehicle pending"}</div>
+                  <div className="text-xs text-slate-500">{challan.customer_name} · {challan.vehicle_no || "Vehicle pending"}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    {challan.sales_order__order_number || "Sales order pending"} · {challan.plant__name || "Plant pending"}
+                  </div>
+                  {challan.dispatch_date ? (
+                    <div className="text-xs text-slate-500">Dispatched {new Date(challan.dispatch_date).toLocaleString()}</div>
+                  ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <SemanticBadge kind="dispatchStatus" value={challan.status} />
                   <Button size="sm" variant="ghost" data-testid={`dispatch-print-${challan.id}`} onClick={() => handlePrintList(challan.id)}>
-                    <Printer className="mr-2 h-4 w-4" /> Print
+                    <Printer className="mr-2 h-4 w-4" /> Challan
                   </Button>
                   {challan.status === "DRAFT" ? (
                     <Button size="sm" data-testid={`dispatch-send-${challan.id}`} onClick={() => handleDispatch(challan.id)}>

@@ -20,6 +20,7 @@ export function GradeMasterDialog() {
     const queryClient = useQueryClient()
     const [isOpen, setIsOpen] = useState(false)
     const [newName, setNewName] = useState("")
+    const [createError, setCreateError] = useState<string | null>(null)
     const [editingGrade, setEditingGrade] = useState<RecipeGrade | null>(null)
 
     const { data: grades, isLoading } = useQuery({
@@ -33,7 +34,13 @@ export function GradeMasterDialog() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["recipe-grades"] })
             setNewName("")
+            setCreateError(null)
             toast({ title: "Success", description: "Grade created" })
+        },
+        onError: (err: any) => {
+            const msg = err.response?.data?.detail || err.message || "Failed to create grade"
+            setCreateError(msg)
+            toast({ title: "Error", description: msg, variant: "destructive" })
         }
     })
 
@@ -43,6 +50,10 @@ export function GradeMasterDialog() {
             queryClient.invalidateQueries({ queryKey: ["recipe-grades"] })
             setEditingGrade(null)
             toast({ title: "Success", description: "Grade updated" })
+        },
+        onError: (err: any) => {
+            const msg = err.response?.data?.detail || err.message || "Failed to update grade"
+            toast({ title: "Error", description: msg, variant: "destructive" })
         }
     })
 
@@ -59,8 +70,13 @@ export function GradeMasterDialog() {
     })
 
     const handleCreate = () => {
-        if (!newName.trim()) return
-        createMutation.mutate({ name: newName })
+        const trimmedName = newName.trim()
+        if (!trimmedName) {
+            setCreateError("Enter a grade name before adding it.")
+            return
+        }
+        setCreateError(null)
+        createMutation.mutate({ name: trimmedName })
     }
 
     const handleUpdate = () => {
@@ -86,13 +102,21 @@ export function GradeMasterDialog() {
                         <Input
                             placeholder="New Grade Name..."
                             value={newName}
-                            onChange={(e) => setNewName(e.target.value)}
+                            onChange={(e) => {
+                                setNewName(e.target.value)
+                                if (createError) setCreateError(null)
+                            }}
                             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                         />
-                        <Button size="icon" onClick={handleCreate} disabled={createMutation.isPending}>
+                        <Button type="button" size="icon" onClick={handleCreate} disabled={createMutation.isPending}>
                             {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                         </Button>
                     </div>
+                    {createError ? (
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+                            {createError}
+                        </div>
+                    ) : null}
 
                     <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
                         {isLoading ? (

@@ -105,7 +105,7 @@ export function NotificationBell() {
             return `/sales/orders/${notification.related_object_id}/tracking`
         }
         if (notification.related_object_type === "ProductionJob") return "/production/planner"
-        if (notification.related_object_type === "DeliveryChallan") return "/logistics/dispatch-bay"
+        if (notification.related_object_type === "DeliveryChallan") return "/logistics/dispatch"
         if (notification.event_key?.startsWith("reports.")) return "/system/report-center"
         if (notification.type === "ORDER_CREATED") return "/sales/orders"
         if (notification.type === "LOW_STOCK") return "/inventory/inventory-health"

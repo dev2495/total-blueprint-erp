@@ -162,7 +162,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Packing Yard", href: "/logistics/packing", icon: Package, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
       {
         title: "Dispatch Bay",
-        href: "/dashboard/logistics",
+        href: "/logistics/dispatch",
         icon: MoveRight,
         roles: ["ADMIN", "OWNER", "DISPATCH"],
         permissions: ["inventory.view", "inventory.manage"],
@@ -184,9 +184,9 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["sales.view", "sales.manage"],
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
-      { title: "SKU Catalog", href: "/sales/sku-catalog", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
-      { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
-      { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
+      { title: "SKU Catalog", href: "/sales/sku-catalog", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
+      { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
+      { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
     ],
   },
   {
