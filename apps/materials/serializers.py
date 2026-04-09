@@ -72,12 +72,10 @@ class FilmVariantSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
     def validate(self, attrs):
-        is_extrudable = attrs.get('is_extrudable', getattr(self.instance, 'is_extrudable', False))
-        grade = attrs.get('grade', getattr(self.instance, 'grade', None))
-        if is_extrudable and not grade:
-            raise serializers.ValidationError({'grade': "Grade is required for extrudable film variants."})
-        if not is_extrudable:
-            attrs['grade'] = None
+        # Grade is a transaction-level physical spec: sales/order layer, GRN roll,
+        # produced roll, and recipe selector own it. The variant master remains
+        # a reusable material identity such as Milky, Metalized, or Transparent.
+        attrs['grade'] = None
         return attrs
 
     def create(self, validated_data):

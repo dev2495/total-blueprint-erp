@@ -33,11 +33,6 @@ export const getColumns = ({ onEdit, onDelete }: ColumnsProps): ColumnDef<FilmVa
         cell: ({ row }) => <div>{(row.getValue("commercial_family_name") as string) || "—"}</div>,
     },
     {
-        accessorKey: "grade_name",
-        header: "Grade",
-        cell: ({ row }) => <div>{row.getValue("grade_name")}</div>,
-    },
-    {
         accessorKey: "is_extrudable",
         header: "Extrudable",
         cell: ({ row }) => (

@@ -12,15 +12,9 @@ class RecipeGradeViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        variant_id = self.request.query_params.get('variant_id')
-        if variant_id:
-            # Filter grades that have an active recipe for this variant
-            queryset = queryset.filter(
-                extrusionrecipe__film_variant_id=variant_id,
-                extrusionrecipe__is_active=True
-            ).distinct()
-        return queryset
+        # Grade master is global. A grade is picked on sales/order snapshots and
+        # roll GRNs before recipe resolution checks variant + grade + thickness.
+        return super().get_queryset().order_by('name')
 
 class ExtrusionRecipeViewSet(viewsets.ModelViewSet):
     queryset = ExtrusionRecipe.objects.all().select_related('film_variant', 'grade').prefetch_related('components', 'components__granule')

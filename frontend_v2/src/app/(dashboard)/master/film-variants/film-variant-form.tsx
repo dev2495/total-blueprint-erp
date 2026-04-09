@@ -33,18 +33,9 @@ const formSchema = z.object({
     code: z.string().min(1, "Variant Code is required"),
     name: z.string().min(1, "Name is required"),
     parent_family: z.string().min(1, "Family is required"),
-    grade: z.string().optional(),
     commercial_family: z.string().optional(),
     is_extrudable: z.boolean().default(false),
     is_purchasable: z.boolean().default(true),
-}).superRefine((val, ctx) => {
-    if (val.is_extrudable && !String(val.grade || "").trim()) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Grade is required for extrudable variants.",
-            path: ["grade"],
-        })
-    }
 })
 
 interface FilmVariantFormProps {
@@ -60,14 +51,11 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
             code: "",
             name: "",
             parent_family: "",
-            grade: "",
             commercial_family: "",
             is_extrudable: false,
             is_purchasable: true,
         },
     })
-    const isExtrudable = form.watch("is_extrudable")
-
     // Fetch Families for Dropdown
     const { data: families } = useQuery({
         queryKey: ["film-families"],
@@ -78,35 +66,18 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
         queryFn: commercialFamilyService.getAll,
     })
 
-    // Fetch Grades for Dropdown
-    const { data: grades } = useQuery({
-        queryKey: ["recipe-grades"],
-        queryFn: async () => {
-            const { api } = await import("@/lib/api")
-            const response = await api.get<{ id: string, name: string }[]>("/api/master/film-variants/grades/")
-            return response.data
-        }
-    })
-
     useEffect(() => {
         if (initialData) {
             form.reset({
                 code: initialData.code,
                 name: initialData.name,
                 parent_family: initialData.parent_family,
-                grade: initialData.grade ?? "",
                 commercial_family: initialData.commercial_family ?? "__NONE__",
                 is_extrudable: initialData.is_extrudable,
                 is_purchasable: initialData.is_purchasable,
             })
         }
     }, [initialData, form])
-
-    useEffect(() => {
-        if (!isExtrudable && form.getValues("grade")) {
-            form.setValue("grade", "")
-        }
-    }, [isExtrudable, form])
 
     return (
         <Form {...form}>
@@ -196,38 +167,6 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="grade"
-                    render={({ field }) => (
-                        <FormItem>
-                                <FormLabel>Grade</FormLabel>
-                            <Select
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                                value={field.value}
-                                disabled={!isExtrudable}
-                            >
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={isExtrudable ? "Select a grade" : "Not required"} />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {grades?.map((grade) => (
-                                        <SelectItem key={grade.id} value={grade.id}>
-                                            {grade.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <FormDescription>
-                                Grade is mandatory only when variant is marked extrudable.
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
 
                 <FormField
                     control={form.control}
@@ -245,7 +184,7 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                                     Extrudable
                                 </FormLabel>
                                 <FormDescription>
-                                    Check if this variant is produced via extrusion recipes.
+                                    Make in-house via recipe. Grade is chosen on sales order, GRN, and recipe; not on this master.
                                 </FormDescription>
                             </div>
                         </FormItem>
@@ -268,7 +207,7 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                                     Purchasable
                                 </FormLabel>
                                 <FormDescription>
-                                    Check if this variant can be purchased directly from vendors.
+                                    Allow purchase inward. If this is also extrudable, GRN will ask for the physical roll grade.
                                 </FormDescription>
                             </div>
                         </FormItem>

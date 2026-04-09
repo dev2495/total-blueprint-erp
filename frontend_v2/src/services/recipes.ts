@@ -33,9 +33,10 @@ export interface CreateExtrusionRecipeDto {
 }
 
 export const recipeService = {
-    getGrades: async (variant_id?: string) => {
-        const params = variant_id ? { variant_id } : {};
-        const response = await api.get<RecipeGrade[]>("/api/recipes/grades/", { params });
+    getGrades: async (_variant_id?: string) => {
+        // Grade master is intentionally global. Recipe matching is resolved later
+        // with variant + selected grade + thickness.
+        const response = await api.get<RecipeGrade[]>("/api/recipes/grades/");
         return response.data;
     },
     createGrade: async (data: { name: string }) => {

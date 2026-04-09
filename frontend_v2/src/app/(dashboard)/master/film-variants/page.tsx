@@ -48,6 +48,7 @@ export default function FilmVariantsPage() {
         mutationFn: (data: any) => filmVariantService.create({
             ...data,
             commercial_family: !data?.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
+            grade: null,
         }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["film-variants"] })
@@ -64,6 +65,7 @@ export default function FilmVariantsPage() {
         mutationFn: ({ id, data }: { id: string, data: any }) => filmVariantService.update(id, {
             ...data,
             commercial_family: !data?.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
+            grade: null,
         }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["film-variants"] })
@@ -119,7 +121,7 @@ export default function FilmVariantsPage() {
                         <DialogHeader>
                             <DialogTitle>Create Film Variant</DialogTitle>
                             <DialogDescription>
-                                Define a new variant with specific grade and properties.
+                                Define a reusable film identity. Pick grade later on sales orders, roll inward, and recipes.
                             </DialogDescription>
                         </DialogHeader>
                         <FilmVariantForm
@@ -149,7 +151,7 @@ export default function FilmVariantsPage() {
                     <DialogHeader>
                         <DialogTitle>Edit Film Variant</DialogTitle>
                         <DialogDescription>
-                            Update the properties and grade of the selected variant.
+                            Update the reusable material identity. Physical grade stays on sales/order, recipe, and roll records.
                         </DialogDescription>
                     </DialogHeader>
                     {editingVariant && (
