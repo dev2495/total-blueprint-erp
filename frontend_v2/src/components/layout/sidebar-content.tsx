@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Zap } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import { getLandingPage } from "@/lib/roles";
-import { NAV_ITEMS } from "@/lib/sidebar-nav";
+import { NAV_ITEMS, canAccessNavTarget } from "@/lib/sidebar-nav";
 
 function navTestId(value: string) {
   return String(value || "")
@@ -23,33 +23,35 @@ function useSidebarAuth() {
 
   const userRoleCode = effectiveRole || user?.entitlements?.role || user?.role_info?.code || "GUEST";
   const baseRoleCode = user?.role_info?.code || "GUEST";
-  const isEmulating = userRoleCode !== baseRoleCode;
+  const accessContext = useMemo(
+    () => ({
+      currentRoleCode: userRoleCode,
+      baseRoleCode,
+      isOwner: user?.is_owner,
+      grantedPermissions: user?.entitlements?.permissions || [],
+      grantedPermissionMap: user?.entitlements?.permission_map || {},
+    }),
+    [baseRoleCode, user?.entitlements?.permission_map, user?.entitlements?.permissions, user?.is_owner, userRoleCode],
+  );
 
-  const isAuthorized = (roles: string[] | undefined) => {
-    if (!roles || roles.length === 0) return true;
+  const authorizedItems = useMemo(
+    () =>
+      NAV_ITEMS.filter((item) => {
+        if (canAccessNavTarget(item, accessContext)) return true;
+        return item.children?.some((child) => canAccessNavTarget(child, accessContext)) ?? false;
+      }),
+    [accessContext],
+  );
 
-    const currentRole = userRoleCode.toUpperCase();
-    const masterRoles = ["ADMIN", "OWNER", "SUPER_ADMIN"];
-    const isMaster = masterRoles.includes(baseRoleCode.toUpperCase()) || user?.is_owner;
-
-    if (isEmulating) return roles.includes(currentRole);
-    if (roles.includes(currentRole)) return true;
-    if (currentRole === "ADMIN") return false;
-    if (
-      isMaster &&
-      (roles.includes("ADMIN") || roles.includes("OWNER") || roles.includes("SUPER_ADMIN"))
-    ) {
-      return true;
-    }
-
-    return false;
-  };
+  const isAuthorized = (
+    item: Parameters<typeof canAccessNavTarget>[0],
+  ) => canAccessNavTarget(item, accessContext);
 
   return {
     user,
     pathname,
     userRoleCode,
-    authorizedItems: NAV_ITEMS.filter((item) => isAuthorized(item.roles)),
+    authorizedItems,
     isAuthorized,
   };
 }
@@ -108,14 +110,14 @@ export function SidebarNavContent({
     >
       {authorizedItems.map((item, index) => {
         const authorizedChildren = item.children?.filter((child) => {
-          const isAuth = isAuthorized(child.roles);
+          const isAuth = isAuthorized(child);
           if (child.href === "/dashboard/sales" && userRoleCode === "SALES") {
             return false;
           }
           return isAuth;
         });
 
-        if (item.children && authorizedChildren?.length === 0 && !item.href) return null;
+        if (item.children && authorizedChildren?.length === 0 && !isAuthorized(item)) return null;
 
         const isDirectLink = !item.children;
         const isActive = isDirectLink ? pathname === item.href : pathname.startsWith(item.href);
