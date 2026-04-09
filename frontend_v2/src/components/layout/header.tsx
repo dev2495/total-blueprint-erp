@@ -34,7 +34,7 @@ export function Header() {
     }
 
     return (
-        <header className="sticky top-0 z-50 mx-0 border-b border-white/80 bg-white/95 px-3 py-2 shadow-premium backdrop-blur-xl transition-all duration-300 md:top-3 md:mx-4 md:rounded-[1.75rem] md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:top-4 lg:mx-8 lg:px-6">
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/80 bg-white/95 px-3 py-2 shadow-premium backdrop-blur-xl transition-all duration-300 md:left-4 md:right-4 md:top-3 md:rounded-[1.75rem] md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:sticky lg:left-auto lg:right-auto lg:top-4 lg:mx-8 lg:px-6">
             <div className="flex w-full flex-col gap-2.5 lg:hidden">
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">

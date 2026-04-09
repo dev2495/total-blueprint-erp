@@ -55,7 +55,7 @@ export default function DashboardLayout({
             <Sidebar />
             <div className="relative z-10 flex min-w-0 flex-col lg:ml-[270px]">
                 <Header />
-                <main className="z-10 mx-auto flex w-full max-w-[1720px] min-w-0 flex-col overflow-x-hidden px-3 pb-6 pt-3 sm:px-4 sm:pb-8 sm:pt-4 lg:px-6 lg:pb-10 lg:pt-5 xl:px-8">
+                <main className="z-10 mx-auto flex w-full max-w-[1720px] min-w-0 flex-col overflow-x-hidden px-3 pb-6 pt-[10.75rem] sm:px-4 sm:pb-8 sm:pt-[11rem] lg:px-6 lg:pb-10 lg:pt-5 xl:px-8">
                     <HelpPageBanner />
                     <div className="w-full min-w-0">
                         {children}

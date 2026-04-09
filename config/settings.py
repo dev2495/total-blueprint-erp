@@ -16,7 +16,12 @@ from config.runtime_env import (
     normalize_django_env,
 )
 
-if os.getenv("ENABLE_CELERY_IMPORT") != "1" or os.getenv("SKIP_CELERY_IMPORT") == "1":
+COMMAND_LINE = " ".join(sys.argv).lower()
+IS_CELERY_PROCESS = "celery" in COMMAND_LINE
+
+if (not IS_CELERY_PROCESS) and (
+    os.getenv("ENABLE_CELERY_IMPORT") != "1" or os.getenv("SKIP_CELERY_IMPORT") == "1"
+):
     # Lightweight Django bootstrap paths do not need live Celery schedule objects.
     def crontab(*args, **kwargs):
         return {"args": args, "kwargs": kwargs}
@@ -90,8 +95,6 @@ IS_LOCAL_DEV = is_local_dev_env(DJANGO_ENV)
 IS_PRODUCTION = is_production_env(DJANGO_ENV)
 IS_HOSTED_SECURE = is_hosted_secure_env(DJANGO_ENV)
 
-COMMAND_LINE = " ".join(sys.argv).lower()
-IS_CELERY_PROCESS = "celery" in COMMAND_LINE
 IS_HTTP_PROCESS = (not IS_CELERY_PROCESS) and any(
     token in COMMAND_LINE for token in ("gunicorn", "runserver", "uvicorn", "daphne")
 )
