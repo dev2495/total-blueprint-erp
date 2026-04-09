@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, ArrowLeft, Shield, Key, Building2, Cog, Save, Search, Circle, CheckCircle2, Info } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
-import { useForm, type UseFormReturn } from "react-hook-form"
+import { FieldErrors, useForm, type UseFormReturn } from "react-hook-form"
 import * as z from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"
@@ -60,6 +60,27 @@ function permissionTitle(entry: PermissionCatalogEntry) {
     return `${moduleName} - ${actionName}`
 }
 
+function formatServerErrorValue(value: unknown): string {
+    if (Array.isArray(value)) return value.map(formatServerErrorValue).filter(Boolean).join(", ")
+    if (value && typeof value === "object") {
+        return Object.entries(value as Record<string, unknown>)
+            .map(([key, nestedValue]) => `${humanize(key)}: ${formatServerErrorValue(nestedValue)}`)
+            .filter(Boolean)
+            .join(" | ")
+    }
+    return String(value ?? "").trim()
+}
+
+function extractApiErrorMap(err: unknown): Record<string, string> {
+    const payload = (err as { response?: { data?: unknown } } | null | undefined)?.response?.data
+    if (!payload || typeof payload !== "object") return {}
+    return Object.entries(payload as Record<string, unknown>).reduce<Record<string, string>>((acc, [key, value]) => {
+        const message = formatServerErrorValue(value)
+        if (message) acc[key] = message
+        return acc
+    }, {})
+}
+
 function errorDetail(err: unknown) {
     const typedError = err as {
         code?: string
@@ -72,7 +93,29 @@ function errorDetail(err: unknown) {
     const detailPayload = typedError?.response?.data?.detail
     if (typeof detailPayload === "string") return detailPayload
     if (detailPayload) return JSON.stringify(detailPayload)
+    const fieldErrors = extractApiErrorMap(err)
+    const fieldErrorSummary = Object.entries(fieldErrors)
+        .map(([field, message]) => `${humanize(field)}: ${message}`)
+        .join(" | ")
+    if (fieldErrorSummary) return fieldErrorSummary
     return typedError?.message || "Request failed"
+}
+
+function firstValidationMessage(errors: FieldErrors<UserFormValues>) {
+    const entries = Object.entries(errors)
+    if (!entries.length) return "Complete the highlighted required fields, then save again."
+    return entries
+        .map(([field, value]) => {
+            const message = typeof value?.message === "string" ? value.message : "Invalid value"
+            return `${humanize(field)}: ${message}`
+        })
+        .join(" | ")
+}
+
+function tabForInvalidField(errors: FieldErrors<UserFormValues>): string {
+    if (errors.username || errors.email || errors.password || errors.first_name || errors.last_name || errors.is_active) return "basic"
+    if (errors.role_id || errors.extra_permissions) return "role"
+    return "assignments"
 }
 
 export default function UserDetailPage() {
@@ -108,6 +151,8 @@ export default function UserDetailPage() {
     const [showSelectedOnly, setShowSelectedOnly] = useState(false)
     const [showBasePermissions, setShowBasePermissions] = useState(false)
     const [showAdvancedAccess, setShowAdvancedAccess] = useState(false)
+    const [permissionOverridesAllowed, setPermissionOverridesAllowed] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
 
     const form: UseFormReturn<UserFormValues> = useForm<UserFormValues>({
         resolver: zodResolver(formSchema) as any,
@@ -128,6 +173,7 @@ export default function UserDetailPage() {
     // Populate form when user data loads
     useEffect(() => {
         if (user) {
+            const existingExtraPermissions = user.extra_permissions || []
             form.reset({
                 username: user.username || "",
                 first_name: user.first_name || "",
@@ -138,8 +184,10 @@ export default function UserDetailPage() {
                 is_active: user.is_active ?? true,
                 work_center_ids: user.entitlements?.context?.work_centers || [],
                 machine_ids: user.entitlements?.context?.machines || [],
-                extra_permissions: user.extra_permissions || [],
+                extra_permissions: existingExtraPermissions,
             })
+            setPermissionOverridesAllowed(existingExtraPermissions.length > 0)
+            setShowAdvancedAccess(existingExtraPermissions.length > 0)
         }
     }, [user, form])
 
@@ -246,6 +294,15 @@ export default function UserDetailPage() {
         [form, selectedRoleId, selectedWcIds.length, showWcSelect],
     )
 
+    const setPermissionOverrides = (allowed: boolean) => {
+        setPermissionOverridesAllowed(allowed)
+        setShowAdvancedAccess(allowed)
+        if (!allowed) {
+            setShowSelectedOnly(false)
+            form.setValue("extra_permissions", [])
+        }
+    }
+
     useEffect(() => {
         if (!showWcSelect) {
             form.setValue("work_center_ids", [])
@@ -277,7 +334,42 @@ export default function UserDetailPage() {
         }
     }, [availableMachines, machines, showMachineSelect, form])
 
+    const applyApiErrorsToForm = (err: unknown) => {
+        const apiErrors = extractApiErrorMap(err)
+        const writableFields = new Set([
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "password",
+            "role_id",
+            "is_active",
+            "work_center_ids",
+            "machine_ids",
+            "extra_permissions",
+        ])
+        Object.entries(apiErrors).forEach(([field, message]) => {
+            if (!writableFields.has(field)) return
+            form.setError(field as keyof UserFormValues, { type: "server", message })
+        })
+    }
+
+    const handleInvalidSubmit = (errors: FieldErrors<UserFormValues>) => {
+        const message = firstValidationMessage(errors)
+        setSubmitError(message)
+        const targetTab = tabForInvalidField(errors)
+        setActiveTab(targetTab)
+        toast({
+            title: "Cannot save user yet",
+            description: message,
+            variant: "destructive",
+        })
+    }
+
     const saveMutation = useMutation({
+        onMutate: () => {
+            setSubmitError(null)
+        },
         mutationFn: async (data: UserFormValues) => {
             if (isNew) {
                 const newUser = await systemUserService.createUser({
@@ -311,13 +403,19 @@ export default function UserDetailPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["users"] })
+            setSubmitError(null)
             toast({ title: "Success", description: isNew ? "User created." : "User updated." })
             router.push("/system/users")
         },
         onError: (err: unknown) => {
-            toast({ title: "Error", description: errorDetail(err), variant: "destructive" })
+            const message = errorDetail(err)
+            setSubmitError(message)
+            applyApiErrorsToForm(err)
+            toast({ title: "User save failed", description: message, variant: "destructive" })
         }
     })
+
+    const handleSave = form.handleSubmit((data) => saveMutation.mutate(data), handleInvalidSubmit)
 
     if (userLoading && !isNew) {
         return (
@@ -339,7 +437,7 @@ export default function UserDetailPage() {
                         <Button variant="outline" onClick={() => router.push("/system/users")}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
-                        <Button onClick={form.handleSubmit((data) => saveMutation.mutate(data))} disabled={saveMutation.isPending}>
+                        <Button onClick={handleSave} disabled={saveMutation.isPending}>
                             {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             <Save className="mr-2 h-4 w-4" /> Save User
                         </Button>
@@ -383,8 +481,43 @@ export default function UserDetailPage() {
                 </CardContent>
             </Card>
 
+            {submitError ? (
+                <Alert variant="destructive" data-testid="user-save-error">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>User was not saved</AlertTitle>
+                    <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
+            ) : null}
+
+            <Card className="border-slate-200 bg-white" data-testid="user-access-contract">
+                <CardContent className="grid gap-4 pt-5 md:grid-cols-4">
+                    <button type="button" onClick={() => setActiveTab("role")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-indigo-300">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Base role assigned</div>
+                        <div className="mt-2 text-base font-black text-slate-950">{selectedRole ? getCanonicalRoleLabel(selectedRole.code, selectedRole.name) : "Not selected"}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedRole ? <Badge className="bg-indigo-600">{selectedRole.code}</Badge> : <Badge variant="outline">Required before save</Badge>}
+                        </div>
+                    </button>
+                    <button type="button" onClick={() => { setActiveTab("role"); setShowBasePermissions(true); setShowAdvancedAccess(permissionOverridesAllowed) }} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-indigo-300">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Base permissions</div>
+                        <div className="mt-2 text-2xl font-black text-slate-950">{roleDefaultPermissions.length}</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">Included from the selected role baseline.</div>
+                    </button>
+                    <button type="button" onClick={() => { setActiveTab("role"); setPermissionOverrides(true) }} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left transition hover:border-amber-400">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Overrides allowed</div>
+                        <div className="mt-2 text-2xl font-black text-slate-950">{permissionOverridesAllowed ? "ON" : "OFF"}</div>
+                        <div className="mt-1 text-xs font-semibold text-amber-800">{selectedExtraPermissions.length} user-level extra permission(s).</div>
+                    </button>
+                    <button type="button" onClick={() => setActiveTab("assignments")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-indigo-300">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Floor scope</div>
+                        <div className="mt-2 text-base font-black text-slate-950">{selectedWcIds.length} WC / {selectedMachineIds.length} machines</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">Required for WCM, Planner, and Operator roles.</div>
+                    </button>
+                </CardContent>
+            </Card>
+
             <Form {...form}>
-                <form className="space-y-6">
+                <form className="space-y-6" onSubmit={handleSave}>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="w-full justify-start border-b bg-transparent p-0">
                             <TabsTrigger value="basic" className="data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 rounded-none">
@@ -560,20 +693,43 @@ export default function UserDetailPage() {
                                             type="button"
                                             variant="outline"
                                             size="sm"
+                                            disabled={!permissionOverridesAllowed}
                                             onClick={() => setShowAdvancedAccess((value) => !value)}
                                         >
-                                            {showAdvancedAccess ? "Hide advanced" : "Open advanced"}
+                                            {showAdvancedAccess ? "Hide permission list" : "Review permission list"}
                                         </Button>
                                     </div>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="space-y-4">
+                                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                        <Checkbox
+                                            checked={permissionOverridesAllowed}
+                                            disabled={!selectedRoleId}
+                                            onCheckedChange={(checked) => setPermissionOverrides(Boolean(checked))}
+                                        />
+                                        <div>
+                                            <div className="text-sm font-black text-slate-950">Allow extra permission overrides for this user</div>
+                                            <div className="mt-1 text-xs font-semibold leading-relaxed text-amber-900">
+                                                Base role stays assigned. Turn this on only when this single user needs access beyond {selectedRole?.code || "the selected role"}.
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                <Badge variant="outline">Base role grants {roleDefaultPermissions.length}</Badge>
+                                                <Badge className="bg-amber-600">Extra overrides {selectedExtraPermissions.length}</Badge>
+                                            </div>
+                                        </div>
+                                    </label>
+
                                     {!selectedRoleId ? (
                                         <div className="rounded-md border border-dashed p-8 text-center text-sm text-slate-500">
                                             Choose a role first to unlock extra access controls.
                                         </div>
+                                    ) : !permissionOverridesAllowed ? (
+                                        <div className="rounded-md border border-dashed p-8 text-center text-sm text-slate-500">
+                                            Overrides are off. The user will receive exactly the selected base role permissions.
+                                        </div>
                                     ) : !showAdvancedAccess ? (
                                         <div className="rounded-md border border-dashed p-8 text-center text-sm text-slate-500">
-                                            Advanced access is collapsed by default. Open it only when the base role is not enough.
+                                            Overrides are enabled. Press “Review permission list” to choose the exact extra permissions.
                                         </div>
                                     ) : (
                                         <FormField
@@ -881,7 +1037,7 @@ export default function UserDetailPage() {
                                 {" • "}
                                 Machines: <span className="font-semibold text-slate-900">{selectedMachineIds.length}</span>
                             </div>
-                            <Button type="button" onClick={form.handleSubmit((data) => saveMutation.mutate(data))} disabled={saveMutation.isPending}>
+                            <Button type="submit" disabled={saveMutation.isPending}>
                                 {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 <Save className="mr-2 h-4 w-4" /> Save User
                             </Button>
