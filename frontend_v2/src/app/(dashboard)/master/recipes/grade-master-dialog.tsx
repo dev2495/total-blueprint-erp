@@ -23,11 +23,15 @@ export function GradeMasterDialog() {
     const [createError, setCreateError] = useState<string | null>(null)
     const [editingGrade, setEditingGrade] = useState<RecipeGrade | null>(null)
 
-    const { data: grades, isLoading } = useQuery({
+    const { data: grades, isLoading, isError, error: gradeLoadError } = useQuery({
         queryKey: ["recipe-grades"],
         queryFn: () => recipeService.getGrades(),
         enabled: isOpen
     })
+
+    const gradeLoadErrorMessage = isError
+        ? ((gradeLoadError as any)?.response?.data?.detail || (gradeLoadError as Error)?.message || "Failed to load grades")
+        : null
 
     const createMutation = useMutation({
         mutationFn: recipeService.createGrade,
@@ -85,7 +89,12 @@ export function GradeMasterDialog() {
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+            setIsOpen(open)
+            if (open) {
+                setCreateError(null)
+            }
+        }}>
             <DialogTrigger asChild>
                 <Button variant="outline">
                     <Settings2 className="mr-2 h-4 w-4" /> Grade Master
@@ -119,7 +128,11 @@ export function GradeMasterDialog() {
                     ) : null}
 
                     <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
-                        {isLoading ? (
+                        {gradeLoadErrorMessage ? (
+                            <div className="m-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+                                {gradeLoadErrorMessage}
+                            </div>
+                        ) : isLoading ? (
                             <div className="p-4 text-center text-slate-500">Loading...</div>
                         ) : grades?.length === 0 ? (
                             <div className="p-4 text-center text-slate-500">No grades found</div>

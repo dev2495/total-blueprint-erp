@@ -23,7 +23,8 @@ export default function MasterDataPage() {
     const { data: filmVariants } = useQuery({ queryKey: ["master-film-variants"], queryFn: masterDataService.getFilmVariants, staleTime: 60_000 })
     const { data: inks } = useQuery({ queryKey: ["master-inks"], queryFn: masterDataService.getInks, staleTime: 60_000 })
     const { data: adhesives } = useQuery({ queryKey: ["master-adhesives"], queryFn: () => masterDataService.getAdhesivesSolvents(), staleTime: 60_000 })
-    const { data: recipes } = useQuery({ queryKey: ["master-recipes"], queryFn: recipeService.getAll, staleTime: 60_000 })
+    const recipesQuery = useQuery({ queryKey: ["master-recipes"], queryFn: recipeService.getAll, staleTime: 60_000 })
+    const recipes = recipesQuery.data
     const { data: granules } = useQuery({ queryKey: ["master-granules"], queryFn: masterDataService.getGranules, staleTime: 60_000 })
     const { data: customers } = useQuery({ queryKey: ["master-customers"], queryFn: masterDataService.getCustomers, staleTime: 60_000 })
     const { data: vendors } = useQuery({ queryKey: ["master-vendors"], queryFn: masterDataService.getVendors, staleTime: 60_000 })
@@ -84,6 +85,7 @@ export default function MasterDataPage() {
             href: "/master/recipes",
             icon: Palette,
             count: count(recipes),
+            status: recipesQuery.isError ? "error" : undefined,
             description: "Extrusion and mixing formulations",
             color: "text-purple-600",
             bg: "bg-purple-50"
@@ -201,6 +203,10 @@ export default function MasterDataPage() {
                                         {master.count !== null ? (
                                             <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600 text-[11px] font-bold tabular-nums">
                                                 {master.count} Records
+                                            </span>
+                                        ) : master.status === "error" ? (
+                                            <span className="bg-rose-50 px-2.5 py-1 rounded-lg text-rose-600 text-[11px] font-bold">
+                                                Access error
                                             </span>
                                         ) : (
                                             <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg text-slate-400 text-[11px]">
