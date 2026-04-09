@@ -151,6 +151,14 @@ class ProfileAuthP0Tests(TestCase):
         self.assertEqual(audit.details.get("status"), "authenticated")
         self.assertEqual(audit.effective_role, "SALES")
 
+    def test_successful_login_updates_last_login(self):
+        self.assertIsNone(self.user.last_login)
+
+        self._login("sales1", "userpass123")
+
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.last_login)
+
     def test_cookie_refresh_rotates_access_cookie(self):
         self._login("sales1", "userpass123")
         old_access = str(self.client.cookies.get("access").value)

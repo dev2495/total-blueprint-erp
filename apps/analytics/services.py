@@ -738,7 +738,17 @@ class AnalyticsService:
         
         # 1. Active Users (Last 24h)
         last_24h = timezone.now() - timedelta(hours=24)
-        active_users = User.objects.filter(last_login__gte=last_24h).count()
+        last_login_users = set(
+            User.objects.filter(last_login__gte=last_24h).values_list("id", flat=True)
+        )
+        audit_login_users = set(
+            PermissionAuditLog.objects.filter(
+                action="USER_LOGIN",
+                created_at__gte=last_24h,
+                user__isnull=False,
+            ).values_list("user_id", flat=True)
+        )
+        active_users = len(last_login_users | audit_login_users)
         
         # 2. DB Connection Check
         db_start = time.time()

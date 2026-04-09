@@ -1,6 +1,7 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, List
 
+from django.conf import settings
 from rest_framework import serializers
 
 from .models import Artwork
@@ -23,7 +24,27 @@ def _coerce_list(value: Any) -> List[str]:
     return []
 
 
+def _absolute_media_url(request, field_value) -> str | None:
+    if not field_value:
+        return None
+    try:
+        url = str(getattr(field_value, "url", field_value) or "").strip()
+    except Exception:
+        url = str(field_value or "").strip()
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if request is not None:
+        return request.build_absolute_uri(url)
+    fallback = str(getattr(settings, "PUBLIC_BACKEND_URL", "") or "").strip().rstrip("/")
+    if fallback and url.startswith("/"):
+        return f"{fallback}{url}"
+    return url
+
+
 class ArtworkSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
     total_side_colors = serializers.IntegerField(read_only=True)
     cylinder_ready = serializers.SerializerMethodField()
 
@@ -31,6 +52,9 @@ class ArtworkSerializer(serializers.ModelSerializer):
         model = Artwork
         fields = "__all__"
         read_only_fields = ("approved_by", "approved_at")
+
+    def get_image(self, obj):
+        return _absolute_media_url(self.context.get("request"), getattr(obj, "image", None))
 
     def get_cylinder_ready(self, obj):
         front_required = int(obj.front_colors_count or 0)
@@ -90,7 +114,5 @@ class ArtworkSerializer(serializers.ModelSerializer):
         attrs["back_colors_count"] = back_count
         attrs["color_list"] = color_list
         attrs["colors_count"] = front_count + back_count if (front_count + back_count) > 0 else len(color_list)
-        # V2: artwork stores side-color identity only; PET/POLY ink SKU mapping
-        # is derived later from stack density + ink master.
         attrs["color_mapping"] = {}
         return attrs

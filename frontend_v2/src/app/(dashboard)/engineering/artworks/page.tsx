@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import { useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, Eye, Image as ImageIcon, Palette, Plus, Search, ShieldCheck, UploadCloud } from "lucide-react"
@@ -95,7 +94,7 @@ export default function EngineeringArtworksPage() {
               >
                 <div className="relative h-52 w-full overflow-hidden bg-slate-100">
                   {artwork.image ? (
-                    <Image src={artwork.image} alt={artwork.name} fill className="object-cover" unoptimized />
+                    <img src={artwork.image} alt={artwork.name} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-pink-50 text-slate-400">
                       <ImageIcon className="h-12 w-12" />

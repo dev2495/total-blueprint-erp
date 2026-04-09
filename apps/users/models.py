@@ -282,6 +282,7 @@ class PermissionAuditLog(models.Model):
         ('PASSWORD_CHANGED', 'Password Changed'),
         ('PROFILE_CHANGE_REQUESTED', 'Profile Change Requested'),
         ('PROFILE_CHANGE_REVIEWED', 'Profile Change Reviewed'),
+        ('USER_LOGIN', 'User Login'),
         ('USER_LOGOUT', 'User Logout'),
     ]
 

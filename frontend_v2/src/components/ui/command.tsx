@@ -30,7 +30,7 @@ const CommandDialog = ({
     return (
         <CommandPrimitive.Dialog
             {...props}
-            className="fixed left-[50%] top-[30%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-0 border border-white/40 bg-white/70 backdrop-blur-2xl p-0 shadow-premium-hover duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[30%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[30%] sm:rounded-2xl"
+            className="fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-0 overflow-hidden border border-white/40 bg-white/70 p-0 shadow-premium-hover backdrop-blur-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         >
             <DialogTitle className="sr-only">Command Palette</DialogTitle>
             <DialogDescription className="sr-only">Search for anything across the system.</DialogDescription>

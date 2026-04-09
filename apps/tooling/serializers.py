@@ -1,16 +1,40 @@
+from django.conf import settings
 from rest_framework import serializers
 
 from .models import Cylinder, ToolAsset
 
+
+def _absolute_media_url(request, field_value) -> str | None:
+    if not field_value:
+        return None
+    try:
+        url = str(getattr(field_value, "url", field_value) or "").strip()
+    except Exception:
+        url = str(field_value or "").strip()
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if request is not None:
+        return request.build_absolute_uri(url)
+    fallback = str(getattr(settings, "PUBLIC_BACKEND_URL", "") or "").strip().rstrip("/")
+    if fallback and url.startswith("/"):
+        return f"{fallback}{url}"
+    return url
+
+
 class CylinderSerializer(serializers.ModelSerializer):
     artwork_name = serializers.CharField(source='artwork.name', read_only=True)
-    artwork_image = serializers.ImageField(source='artwork.image', read_only=True)
+    artwork_image = serializers.SerializerMethodField()
     vendor_name = serializers.CharField(source='engraving_vendor.name', read_only=True)
     location_name = serializers.CharField(source='storage_location.name', read_only=True)
-    
+
     class Meta:
         model = Cylinder
         fields = '__all__'
+
+    def get_artwork_image(self, obj):
+        return _absolute_media_url(self.context.get("request"), getattr(getattr(obj, "artwork", None), "image", None))
 
     def validate(self, attrs):
         instance = self.instance
@@ -34,7 +58,6 @@ class CylinderSerializer(serializers.ModelSerializer):
             )
         attrs["lifecycle_status"] = lifecycle_status
 
-        # Any non-draft lifecycle requires full technical details.
         if (not is_draft) or lifecycle_status != "DRAFT":
             missing = []
             code = str(_value("code", "") or "").strip()

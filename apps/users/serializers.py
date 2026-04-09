@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
@@ -215,6 +216,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         if user is None or not user.is_active:
             raise serializers.ValidationError("No active account found with the given credentials.")
 
+        update_last_login(None, user)
         refresh = self.get_token(user)
         self.user = user
         return {

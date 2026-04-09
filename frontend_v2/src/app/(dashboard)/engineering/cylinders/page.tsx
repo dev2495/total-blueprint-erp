@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Disc, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react"
@@ -89,7 +88,7 @@ export default function CylinderManagementPage() {
             <Card key={row.id} className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
               <div className="relative h-40 overflow-hidden bg-slate-100">
                 {row.artwork_image ? (
-                  <Image src={row.artwork_image} alt={row.artwork_name || row.name} fill className="object-cover" unoptimized />
+                  <img src={row.artwork_image} alt={row.artwork_name || row.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-indigo-50 text-slate-400">
                     <Disc className="h-12 w-12" />

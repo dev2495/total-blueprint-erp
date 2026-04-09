@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -136,21 +136,14 @@ export default function GRNPage() {
 
 function BulkGRNForm() {
     const queryClient = useQueryClient()
+    const [materialLane, setMaterialLane] = useState<"GRANULE" | "INK" | "ADHESIVE" | "SOLVENT" | "POD">("GRANULE")
 
-    // Data Queries
     const { data: plants } = useQuery({ queryKey: ['plants'], queryFn: factoryService.getPlants })
     const { data: vendors = [] } = useQuery({ queryKey: ['vendors'], queryFn: inventoryService.getVendors })
     const { data: granules } = useQuery({ queryKey: ['materials', 'granules'], queryFn: () => masterDataService.getGranules() })
     const { data: inks } = useQuery({ queryKey: ['materials', 'inks'], queryFn: () => masterDataService.getInks() })
     const { data: adhesivesSolvents } = useQuery({ queryKey: ['materials', 'adhesives-solvents'], queryFn: () => masterDataService.getAdhesivesSolvents() })
     const { data: podMaterials } = useQuery({ queryKey: ['materials', 'pod'], queryFn: () => masterDataService.getPODMaterials() })
-
-    const materials = [
-        ...(Array.isArray(granules) ? granules.map(m => ({ ...m, category: 'GRANULE' })) : []),
-        ...(Array.isArray(inks) ? inks.map(m => ({ ...m, category: 'INK' })) : []),
-        ...(Array.isArray(adhesivesSolvents) ? adhesivesSolvents.map(m => ({ ...m, category: 'SOLVENT' })) : []),
-        ...(Array.isArray(podMaterials) ? podMaterials.map(m => ({ ...m, category: 'POD' })) : [])
-    ]
 
     const form = useForm<z.infer<typeof bulkSchema>>({
         resolver: zodResolver(bulkSchema) as any,
@@ -160,12 +153,46 @@ function BulkGRNForm() {
             vendor_id: "",
             material_id: "",
             quantity: 0,
-            cost: 0, // Phase 56: Cost field
-            reference: ""
+            cost: 0,
+            reference: "",
         }
     })
 
     const selectedPlantId = form.watch('plant_id')
+    const selectedMaterialId = form.watch('material_id')
+
+    const adhesiveMaster = useMemo(() => {
+        const rows = Array.isArray(adhesivesSolvents) ? adhesivesSolvents : []
+        return rows.find((item: any) => item.code === 'AD-ADHESIVE') || rows.find((item: any) => item.category === 'ADHESIVE') || null
+    }, [adhesivesSolvents])
+
+    const solventMaster = useMemo(() => {
+        const rows = Array.isArray(adhesivesSolvents) ? adhesivesSolvents : []
+        return rows.find((item: any) => item.code === 'AD-SOLVENT') || rows.find((item: any) => item.category === 'SOLVENT') || null
+    }, [adhesivesSolvents])
+
+    const materialPools = useMemo(() => ({
+        GRANULE: Array.isArray(granules) ? granules.map((item: any) => ({ ...item, category: 'GRANULE' })) : [],
+        INK: Array.isArray(inks) ? inks.map((item: any) => ({ ...item, category: 'INK' })) : [],
+        ADHESIVE: adhesiveMaster ? [{ ...adhesiveMaster, category: 'ADHESIVE' }] : [],
+        SOLVENT: solventMaster ? [{ ...solventMaster, category: 'SOLVENT' }] : [],
+        POD: Array.isArray(podMaterials) ? podMaterials.map((item: any) => ({ ...item, category: 'POD' })) : [],
+    }), [adhesiveMaster, granules, inks, podMaterials, solventMaster])
+
+    const selectedMaterials = materialPools[materialLane] || []
+    const lockedMaterial = materialLane === 'ADHESIVE' ? adhesiveMaster : materialLane === 'SOLVENT' ? solventMaster : null
+
+    useEffect(() => {
+        if (lockedMaterial) {
+            if (selectedMaterialId !== lockedMaterial.id) {
+                form.setValue('material_id', lockedMaterial.id, { shouldDirty: true, shouldValidate: true })
+            }
+            return
+        }
+        if (selectedMaterialId && !selectedMaterials.some((item: any) => item.id === selectedMaterialId)) {
+            form.setValue('material_id', '', { shouldDirty: true, shouldValidate: true })
+        }
+    }, [form, lockedMaterial, selectedMaterialId, selectedMaterials])
 
     const { data: locations } = useQuery({
         queryKey: ['locations', 'all'],
@@ -182,7 +209,16 @@ function BulkGRNForm() {
         mutationFn: inventoryService.createBulkGRN,
         onSuccess: () => {
             toast.success("Bulk GRN Created")
-            form.reset()
+            setMaterialLane('GRANULE')
+            form.reset({
+                plant_id: '',
+                location_id: '',
+                vendor_id: '',
+                material_id: '',
+                quantity: 0,
+                cost: 0,
+                reference: '',
+            })
             queryClient.invalidateQueries({ queryKey: ['stock'] })
         },
         onError: (error: AxiosError<{ detail: string }>) => {
@@ -196,6 +232,14 @@ function BulkGRNForm() {
         mutation.mutate(data)
     }
 
+    const laneLabel = {
+        GRANULE: 'Granule',
+        INK: 'Ink',
+        ADHESIVE: 'Adhesive',
+        SOLVENT: 'Solvent',
+        POD: 'POD',
+    }[materialLane]
+
     return (
         <Card className="border-none shadow-premium rounded-[2.5rem] bg-white/70 backdrop-blur-md overflow-hidden max-w-4xl mx-auto">
             <CardHeader className="p-8 pb-2 border-b border-slate-50 bg-slate-50/30">
@@ -204,7 +248,7 @@ function BulkGRNForm() {
                     Inward Bulk Material
                 </CardTitle>
                 <CardDescription className="text-[10px] font-bold uppercase text-slate-400 tracking-widest pl-9">
-                    Granules, Inks, Solvents, Adhesives, POD
+                    Granules, inks, fixed adhesive / solvent masters, and POD
                 </CardDescription>
             </CardHeader>
             <CardContent className="p-8">
@@ -242,7 +286,7 @@ function BulkGRNForm() {
                                         <Select
                                             onValueChange={(val) => {
                                                 field.onChange(val)
-                                                const loc = filteredLocations.find(l => l.id === val)
+                                                const loc = filteredLocations.find((l: any) => l.id === val)
                                                 if (loc) form.setValue('plant_id', loc.plant)
                                             }}
                                             value={field.value}
@@ -292,21 +336,65 @@ function BulkGRNForm() {
                             />
                         </div>
 
+                        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Material lane</div>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { value: 'GRANULE', label: 'Granule' },
+                                    { value: 'INK', label: 'Ink' },
+                                    { value: 'ADHESIVE', label: 'Adhesive' },
+                                    { value: 'SOLVENT', label: 'Solvent' },
+                                    { value: 'POD', label: 'POD' },
+                                ].map((lane) => (
+                                    <button
+                                        key={lane.value}
+                                        type="button"
+                                        onClick={() => setMaterialLane(lane.value as any)}
+                                        className={cn(
+                                            'rounded-full border px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] transition-colors',
+                                            materialLane === lane.value
+                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                                        )}
+                                    >
+                                        {lane.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                                Adhesive and solvent inward are locked to the system chemistry masters, so only vendor, location, quantity, cost, and reference stay operator-editable.
+                            </div>
+                        </div>
+
                         <FormField
                             control={form.control}
                             name="material_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Material Definition</FormLabel>
+                                    <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                                        {lockedMaterial ? 'Locked Material' : `${laneLabel} Material`}
+                                    </FormLabel>
                                     <FormControl>
-                                        <MaterialPicker
-                                            items={materials}
-                                            value={field.value}
-                                            onValueChange={field.onChange}
-                                            placeholder="Search and Match Material..."
-                                            testId="bulk-grn-material"
-                                        />
+                                        {lockedMaterial ? (
+                                            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4" data-testid="bulk-grn-locked-material">
+                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">{lockedMaterial.category}</div>
+                                                <div className="mt-2 text-lg font-black tracking-tight text-slate-900">{lockedMaterial.name}</div>
+                                                <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{lockedMaterial.code}</div>
+                                                <div className="mt-3 text-xs text-slate-500">System-managed chemistry master. No alternate adhesive or solvent can be picked here.</div>
+                                            </div>
+                                        ) : (
+                                            <MaterialPicker
+                                                items={selectedMaterials}
+                                                value={field.value}
+                                                onValueChange={field.onChange}
+                                                placeholder={`Search ${laneLabel} material...`}
+                                                testId="bulk-grn-material"
+                                            />
+                                        )}
                                     </FormControl>
+                                    {!lockedMaterial && !selectedMaterials.length ? (
+                                        <div className="text-xs text-amber-600">No {laneLabel.toLowerCase()} masters are available yet.</div>
+                                    ) : null}
                                     <FormMessage />
                                 </FormItem>
                             )}

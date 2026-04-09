@@ -106,11 +106,14 @@ class InkViewSet(viewsets.ModelViewSet):
                 raise ValidationError({"detail": f"Ink with this Base Type and Color Name already exists."})
             raise e
 
-class AdhesiveSolventViewSet(viewsets.ModelViewSet):
+class AdhesiveSolventViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Combined viewset for Adhesives and Solvents as they are often managed together in lamination.
+    System-managed adhesive and solvent masters.
     """
-    queryset = InventoryMaterial.objects.filter(category__in=['ADHESIVE', 'SOLVENT']).order_by('category', 'name')
+    queryset = InventoryMaterial.objects.filter(
+        code__in=['AD-ADHESIVE', 'AD-SOLVENT'],
+        category__in=['ADHESIVE', 'SOLVENT'],
+    ).order_by('category', 'name')
     serializer_class = AdhesiveSolventSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['category']

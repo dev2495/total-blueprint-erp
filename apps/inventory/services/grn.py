@@ -81,6 +81,12 @@ class GRNService:
             raise ValidationError(
                 f"Bulk GRN requires bulk material type. Got: {material.category}"
             )
+
+        material_code = str(material.code or '').upper()
+        if material.category == 'ADHESIVE' and material_code != 'AD-ADHESIVE':
+            raise ValidationError('Adhesive inward is locked to the AD-ADHESIVE system master.')
+        if material.category == 'SOLVENT' and material_code != 'AD-SOLVENT':
+            raise ValidationError('Solvent inward is locked to the AD-SOLVENT system master.')
         
         # Use BulkService for proper tracking
         return BulkService.add_bulk(
