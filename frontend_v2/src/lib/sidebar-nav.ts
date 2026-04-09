@@ -138,7 +138,7 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
       },
-      { title: "Roll Explorer", href: "/inventory/roll-explorer", icon: Archive, permissions: ["inventory.view", "inventory.manage"] },
+      { title: "Roll Explorer", href: "/inventory/roll-explorer", icon: Archive, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"], permissions: ["inventory.view", "inventory.manage"] },
       { title: "Bulk Inventory", href: "/inventory/bulk", icon: Package, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
       {
         title: "Packaging Stock",
@@ -149,7 +149,7 @@ export const NAV_ITEMS: NavItem[] = [
       },
       { title: "GRN Desk", href: "/inventory/grn", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
       { title: "Job Work", href: "/inventory/job-work", icon: Layers, roles: ["ADMIN", "OWNER", "STORE", "PLANNER"], permissions: ["inventory.view", "inventory.manage"] },
-      { title: "Inter-Plant", href: "/inventory/inter-plant", icon: Plane, permissions: ["inventory.view", "inventory.manage"] },
+      { title: "Inter-Plant", href: "/inventory/inter-plant", icon: Plane, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"], permissions: ["inventory.view", "inventory.manage"] },
     ],
   },
   {
@@ -159,7 +159,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "OWNER", "DISPATCH"],
     permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"],
     children: [
-      { title: "Packing Yard", href: "/logistics/packing", icon: Package, permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
+      { title: "Packing Yard", href: "/logistics/packing", icon: Package, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
       {
         title: "Dispatch Bay",
         href: "/dashboard/logistics",
@@ -183,10 +183,10 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "SALES"],
         permissions: ["sales.view", "sales.manage"],
       },
-      { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, permissions: ["sales.view", "sales.manage"] },
-      { title: "SKU Catalog", href: "/sales/sku-catalog", icon: Package, permissions: ["sales.view", "sales.manage"] },
-      { title: "Customers", href: "/sales/customers", icon: Users, permissions: ["sales.view", "sales.manage"] },
-      { title: "Quotations", href: "/sales/quotations", icon: FileText, permissions: ["sales.view", "sales.manage"] },
+      { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
+      { title: "SKU Catalog", href: "/sales/sku-catalog", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
+      { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
+      { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
     ],
   },
   {
@@ -239,7 +239,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Owner Dashboard", href: "/dashboard/owner", icon: LayoutDashboard, roles: ["OWNER", "SUPER_ADMIN"] },
       { title: "System Health", href: "/dashboard/admin", icon: Activity, roles: ["ADMIN", "SUPER_ADMIN"], permissions: ["dashboard.view"] },
-      { title: "User Management", href: "/system/users", icon: Users, permissions: ["users.view", "users.manage"] },
+      { title: "User Management", href: "/system/users", icon: Users, roles: ["ADMIN", "OWNER", "SUPER_ADMIN"], permissions: ["users.view", "users.manage"] },
       {
         title: "Role Matrix",
         href: "/system/role-matrix",
@@ -278,11 +278,11 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "OWNER"],
     permissionModules: ["master", "factory"],
     children: [
-      { title: "Plants", href: "/factory/plants", icon: Factory, permissions: ["factory.view", "factory.manage"] },
-      { title: "Locations", href: "/factory/locations", icon: MapPin, permissions: ["factory.view", "factory.manage"] },
-      { title: "Work Centers", href: "/factory/work-centers", icon: Cpu, permissions: ["factory.view", "factory.manage"] },
-      { title: "Machines", href: "/factory/machines", icon: Settings, permissions: ["factory.view", "factory.manage"] },
-      { title: "Master Data", href: "/master", icon: Database, permissions: ["master.view", "master.manage"] },
+      { title: "Plants", href: "/factory/plants", icon: Factory, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
+      { title: "Locations", href: "/factory/locations", icon: MapPin, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
+      { title: "Work Centers", href: "/factory/work-centers", icon: Cpu, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
+      { title: "Machines", href: "/factory/machines", icon: Settings, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
+      { title: "Master Data", href: "/master", icon: Database, roles: ["ADMIN", "OWNER"], permissions: ["master.view", "master.manage"] },
     ],
   },
 ]

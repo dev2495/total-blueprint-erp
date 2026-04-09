@@ -28,7 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
 import { resolveNavigableRoute } from "@/lib/navigation-routes"
-import { NAV_ITEMS } from "@/lib/sidebar-nav"
+import { NAV_ITEMS, canAccessNavTarget } from "@/lib/sidebar-nav"
 import { cn } from "@/lib/utils"
 
 type SearchResultType = "route" | "order" | "job" | "customer" | "machine" | "work_center"
@@ -61,8 +61,6 @@ interface RouteIndexItem {
     status: string
     score: number
 }
-
-const MASTER_ROLES = ["ADMIN", "OWNER", "SUPER_ADMIN"]
 
 function toStableTestSlug(value: string) {
     return String(value || "")
@@ -117,23 +115,22 @@ export function CommandPalette({ compact = false }: { compact?: boolean }) {
 
     const roleCode = String(effectiveRole || user?.entitlements?.role || user?.role_info?.code || "GUEST").toUpperCase()
     const baseRoleCode = String(user?.role_info?.code || "GUEST").toUpperCase()
-    const isMasterActor = Boolean(user?.is_owner) || MASTER_ROLES.includes(baseRoleCode)
-
-    const canAccessRoute = React.useCallback(
-        (roles?: string[]) => {
-            if (!roles || roles.length === 0) return true
-            if (roles.includes(roleCode)) return true
-            if (isMasterActor && roles.some((role) => MASTER_ROLES.includes(role))) return true
-            return false
-        },
-        [isMasterActor, roleCode],
+    const extraPermissions = user?.extra_permissions || user?.entitlements?.extra_overrides || []
+    const accessContext = React.useMemo(
+        () => ({
+            currentRoleCode: roleCode,
+            baseRoleCode,
+            isOwner: user?.is_owner,
+            grantedPermissions: extraPermissions,
+        }),
+        [baseRoleCode, extraPermissions, roleCode, user?.is_owner],
     )
 
     const routeIndex = React.useMemo<RouteIndexItem[]>(() => {
         const entries = new Map<string, RouteIndexItem>()
         NAV_ITEMS.forEach((item) => {
             const parentTarget = resolveNavigableRoute(item.href)
-            if (canAccessRoute(item.roles) && parentTarget) {
+            if (canAccessNavTarget(item, accessContext) && parentTarget) {
                 entries.set(parentTarget, {
                     id: `route:${parentTarget}`,
                     type: "route",
@@ -146,7 +143,7 @@ export function CommandPalette({ compact = false }: { compact?: boolean }) {
                 })
             }
             ;(item.children || []).forEach((child) => {
-                if (!canAccessRoute(child.roles || item.roles)) return
+                if (!canAccessNavTarget(child, accessContext)) return
                 const childTarget = resolveNavigableRoute(child.href)
                 if (!childTarget) return
                 entries.set(childTarget, {
@@ -162,7 +159,7 @@ export function CommandPalette({ compact = false }: { compact?: boolean }) {
             })
         })
         return Array.from(entries.values())
-    }, [canAccessRoute])
+    }, [accessContext])
 
     const localRouteMatches = React.useMemo<RouteIndexItem[]>(() => {
         const q = query.trim().toLowerCase()

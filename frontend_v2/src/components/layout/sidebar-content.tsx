@@ -23,15 +23,15 @@ function useSidebarAuth() {
 
   const userRoleCode = effectiveRole || user?.entitlements?.role || user?.role_info?.code || "GUEST";
   const baseRoleCode = user?.role_info?.code || "GUEST";
+  const extraPermissions = user?.extra_permissions || user?.entitlements?.extra_overrides || [];
   const accessContext = useMemo(
     () => ({
       currentRoleCode: userRoleCode,
       baseRoleCode,
       isOwner: user?.is_owner,
-      grantedPermissions: user?.entitlements?.permissions || [],
-      grantedPermissionMap: user?.entitlements?.permission_map || {},
+      grantedPermissions: extraPermissions,
     }),
-    [baseRoleCode, user?.entitlements?.permission_map, user?.entitlements?.permissions, user?.is_owner, userRoleCode],
+    [baseRoleCode, extraPermissions, user?.is_owner, userRoleCode],
   );
 
   const authorizedItems = useMemo(

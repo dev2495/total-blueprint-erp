@@ -19,12 +19,14 @@ interface User {
     role_info?: { id: string; code: string; name: string };
     full_name: string;
     is_owner: boolean;
+    extra_permissions?: string[];
     entitlements?: {
         role: string;
         landing_page: string;
         permissions: string[];
         permission_map?: Record<string, string[]>;
         module_permissions?: Array<{ module: string; actions: string[] }>;
+        extra_overrides?: string[];
         context?: {
             work_centers: string[];
             machines: string[];
