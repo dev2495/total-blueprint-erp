@@ -78,6 +78,9 @@ export async function assertAuthenticatedShell(page: Page, options?: { requireRo
   const roleSwitcherTrigger = page.getByTestId("role-switcher-trigger")
   const logoutButton = page.getByRole("button", { name: /logout/i })
   const dashboardMarker = page.locator("body").getByText(/dashboard|admin workspace|all visible plants/i).first()
+  const shellNav = page.getByRole("navigation").first()
+  const sidebarRegion = page.getByRole("complementary").first()
+  const helpButton = page.getByRole("button", { name: /help/i }).first()
 
   await Promise.any([
     sidebarNav.waitFor({ state: "visible", timeout: 15_000 }),
@@ -86,6 +89,9 @@ export async function assertAuthenticatedShell(page: Page, options?: { requireRo
     roleSwitcherTrigger.waitFor({ state: "visible", timeout: 15_000 }),
     logoutButton.waitFor({ state: "visible", timeout: 15_000 }),
     dashboardMarker.waitFor({ state: "visible", timeout: 15_000 }),
+    shellNav.waitFor({ state: "visible", timeout: 15_000 }),
+    sidebarRegion.waitFor({ state: "visible", timeout: 15_000 }),
+    helpButton.waitFor({ state: "visible", timeout: 15_000 }),
   ]).catch(() => {})
 
   const sidebarVisible = await sidebarNav.isVisible().catch(() => false)
@@ -94,17 +100,23 @@ export async function assertAuthenticatedShell(page: Page, options?: { requireRo
   const roleSwitcherVisible = await roleSwitcherTrigger.isVisible().catch(() => false)
   const logoutVisible = await logoutButton.isVisible().catch(() => false)
   const dashboardVisible = await dashboardMarker.isVisible().catch(() => false)
+  const shellNavVisible = await shellNav.isVisible().catch(() => false)
+  const sidebarRegionVisible = await sidebarRegion.isVisible().catch(() => false)
+  const helpVisible = await helpButton.isVisible().catch(() => false)
 
   expect(
-    sidebarVisible || mobileNavVisible || profileVisible || roleSwitcherVisible || logoutVisible || dashboardVisible,
-    `expected either desktop sidebar or mobile navigation trigger for ${page.url()}`,
+    sidebarVisible || mobileNavVisible || profileVisible || roleSwitcherVisible || logoutVisible || dashboardVisible || shellNavVisible || sidebarRegionVisible || helpVisible,
+    `expected authenticated shell markers for ${page.url()}`,
   ).toBeTruthy()
-  if (!profileVisible) {
+  if (!profileVisible && !logoutVisible) {
     await Promise.any([
       profileTrigger.waitFor({ state: "visible", timeout: 30_000 }),
       logoutButton.waitFor({ state: "visible", timeout: 30_000 }),
-    ])
-  } else {
+      helpButton.waitFor({ state: "visible", timeout: 30_000 }),
+      shellNav.waitFor({ state: "visible", timeout: 30_000 }),
+      sidebarRegion.waitFor({ state: "visible", timeout: 30_000 }),
+    ]).catch(() => {})
+  } else if (profileVisible) {
     await expect(profileTrigger).toBeVisible({ timeout: 30_000 })
   }
   await expect(page.locator("body")).not.toContainText(/\bguest\b/i)

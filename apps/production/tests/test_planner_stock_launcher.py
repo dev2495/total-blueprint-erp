@@ -1,12 +1,13 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from apps.production.views_planner import PlannerViewSet
 
 
-class PlannerStockLauncherTests(SimpleTestCase):
+class PlannerStockLauncherTests(TestCase):
+    @patch.object(PlannerViewSet, "_prime_stock_order_for_release", return_value=[object()])
     @patch("apps.production.views_planner.PlannedStockOrder.objects.create")
     @patch("apps.production.views_planner.build_invariant_signature", return_value="inv-1")
     @patch("apps.production.views_planner.build_invariant_payload", return_value={"layers": 2})
@@ -31,6 +32,7 @@ class PlannerStockLauncherTests(SimpleTestCase):
         _build_invariant_payload,
         _build_invariant_signature,
         create_order,
+        _prime_stock_order_for_release,
     ):
         sales_variant = SimpleNamespace(
             id="variant-1",
@@ -83,6 +85,8 @@ class PlannerStockLauncherTests(SimpleTestCase):
             start_step_index=0,
             stop_step_index=2,
             spec_signature="spec-1",
+            invariant_signature="inv-1",
+            status="PLANNED",
         )
 
         response = PlannerViewSet().create_stock_order(request)

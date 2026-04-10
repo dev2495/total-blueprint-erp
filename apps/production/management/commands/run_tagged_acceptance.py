@@ -288,8 +288,8 @@ class Command(BaseCommand):
         # GRN seed through service paths (bulk + roll) for both plants.
         granule = InventoryMaterial.objects.filter(category="GRANULE", status="ACTIVE").order_by("created_at").first()
         ink = InventoryMaterial.objects.filter(category="INK", status="ACTIVE").order_by("created_at").first()
-        adhesive = InventoryMaterial.objects.filter(category="ADHESIVE", status="ACTIVE").order_by("created_at").first()
-        solvent = InventoryMaterial.objects.filter(category="SOLVENT", status="ACTIVE").order_by("created_at").first()
+        adhesive = InventoryMaterial.objects.filter(code="AD-ADHESIVE", category="ADHESIVE", status="ACTIVE").first()
+        solvent = InventoryMaterial.objects.filter(code="AD-SOLVENT", category="SOLVENT", status="ACTIVE").first()
         if granule and primary_rm_location:
             GRNService.create_bulk_grn(
                 material=granule,

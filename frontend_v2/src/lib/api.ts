@@ -46,6 +46,52 @@ const normalizeApiUrl = (url: string): string => {
     return normalizedPath + (query ? `?${query}` : "");
 };
 
+const flattenApiErrorValue = (value: unknown, fieldLabel?: string): string[] => {
+    if (value === null || value === undefined || value === "") return [];
+
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        const message = String(value).trim();
+        if (!message) return [];
+        return [fieldLabel ? `${fieldLabel}: ${message}` : message];
+    }
+
+    if (Array.isArray(value)) {
+        return value.flatMap((item) => flattenApiErrorValue(item, fieldLabel));
+    }
+
+    if (typeof value === "object") {
+        return Object.entries(value as Record<string, unknown>).flatMap(([key, nested]) => {
+            const normalizedLabel = key === "non_field_errors"
+                ? fieldLabel
+                : key.replace(/_/g, " ");
+            return flattenApiErrorValue(nested, normalizedLabel);
+        });
+    }
+
+    return [];
+};
+
+export const describeApiError = (error: unknown, fallback = "Request failed."): string => {
+    const axiosError = error as AxiosError<{ detail?: unknown; error?: unknown; message?: unknown }> | undefined;
+    const payload = axiosError?.response?.data;
+
+    const messages = [
+        ...flattenApiErrorValue(payload?.detail),
+        ...flattenApiErrorValue(payload?.error),
+        ...flattenApiErrorValue(payload?.message),
+        ...((payload && typeof payload === "object") ? flattenApiErrorValue(payload) : []),
+    ].filter(Boolean);
+
+    const uniqueMessages = Array.from(new Set(messages.map((message) => String(message).trim()).filter(Boolean)));
+    if (uniqueMessages.length > 0) {
+        return uniqueMessages.join(" • ");
+    }
+
+    const rawMessage = String(axiosError?.message || "").trim();
+    if (rawMessage) return rawMessage;
+    return fallback;
+};
+
 export const getApiErrorStatus = (error: unknown): number | null => {
     const response = (error as { response?: { status?: unknown } } | null | undefined)?.response;
     const status = response?.status;
@@ -217,6 +263,11 @@ api.interceptors.response.use(
                 originalRequest.url = normalizeApiUrl(originalRequest.url);
             }
             return api(originalRequest);
+        }
+
+        const normalizedMessage = describeApiError(error, String(error?.message || "").trim() || "Request failed.");
+        if (normalizedMessage) {
+            error.message = normalizedMessage;
         }
 
         return Promise.reject(error);

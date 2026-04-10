@@ -26,6 +26,9 @@ export const test = base.extend<{ autoAuth: boolean }>({
           page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout }),
           page.getByTestId("profile-menu-trigger").waitFor({ state: "visible", timeout }),
           page.getByRole("button", { name: /logout/i }).waitFor({ state: "visible", timeout }),
+          page.getByRole("navigation").first().waitFor({ state: "visible", timeout }),
+          page.getByRole("complementary").first().waitFor({ state: "visible", timeout }),
+          page.getByRole("button", { name: /help/i }).first().waitFor({ state: "visible", timeout }),
           page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout }),
         ])
       }
@@ -128,7 +131,7 @@ export const test = base.extend<{ autoAuth: boolean }>({
       ])
       const submitButton = await resolveVisibleLocator([
         () => page.getByTestId("login-submit"),
-        () => page.getByRole("button", { name: /open erp|sign in|login/i }),
+        () => page.getByRole("button", { name: /enter workspace|open erp|sign in|login/i }),
       ])
 
       await identifierField.fill(identifier)

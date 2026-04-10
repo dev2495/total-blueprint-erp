@@ -10,6 +10,14 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
     return [];
 }
 
+function normalizeNullableSelectValue(value?: string | null): string | null {
+    const normalized = String(value ?? "").trim();
+    if (!normalized || normalized === "NONE" || normalized === "__NONE__") {
+        return null;
+    }
+    return normalized;
+}
+
 export interface Plant {
     id: string;
     name: string;
@@ -165,13 +173,21 @@ export const factoryService = {
         return unwrapList<WorkCenter>(response.data);
     },
     createWorkCenter: async (data: { code: string; name: string; plant: string; processes?: string[]; default_cost_absorption_group?: string | null }) => {
-        const { processes, ...rest } = data;
-        const response = await api.post<WorkCenter>("/api/factory/work-centers/", { ...rest, process_ids_input: processes });
+        const { processes, default_cost_absorption_group, ...rest } = data;
+        const response = await api.post<WorkCenter>("/api/factory/work-centers/", {
+            ...rest,
+            default_cost_absorption_group: normalizeNullableSelectValue(default_cost_absorption_group),
+            process_ids_input: processes,
+        });
         return response.data;
     },
     updateWorkCenter: async (id: string, data: { code: string; name: string; plant: string; processes?: string[]; default_cost_absorption_group?: string | null }) => {
-        const { processes, ...rest } = data;
-        const response = await api.put<WorkCenter>(`/api/factory/work-centers/${id}/`, { ...rest, process_ids_input: processes });
+        const { processes, default_cost_absorption_group, ...rest } = data;
+        const response = await api.put<WorkCenter>(`/api/factory/work-centers/${id}/`, {
+            ...rest,
+            default_cost_absorption_group: normalizeNullableSelectValue(default_cost_absorption_group),
+            process_ids_input: processes,
+        });
         return response.data;
     },
     deleteWorkCenter: async (id: string) => {
@@ -184,11 +200,17 @@ export const factoryService = {
         return unwrapList<Machine>(response.data);
     },
     createMachine: async (data: { code: string; name: string; work_center: string; cost_absorption_group?: string | null }) => {
-        const response = await api.post<Machine>("/api/factory/machines/", data);
+        const response = await api.post<Machine>("/api/factory/machines/", {
+            ...data,
+            cost_absorption_group: normalizeNullableSelectValue(data.cost_absorption_group),
+        });
         return response.data;
     },
     updateMachine: async (id: string, data: { code: string; name: string; work_center: string; cost_absorption_group?: string | null }) => {
-        const response = await api.put<Machine>(`/api/factory/machines/${id}/`, data);
+        const response = await api.put<Machine>(`/api/factory/machines/${id}/`, {
+            ...data,
+            cost_absorption_group: normalizeNullableSelectValue(data.cost_absorption_group),
+        });
         return response.data;
     },
     deleteMachine: async (id: string) => {
