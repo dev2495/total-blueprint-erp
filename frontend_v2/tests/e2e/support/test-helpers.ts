@@ -122,9 +122,11 @@ export async function assertAuthenticatedShell(page: Page, options?: { requireRo
   await expect(page.locator("body")).not.toContainText(/\bguest\b/i)
 
   if (options?.requireRoleSwitcher) {
+    const currentRoleMarker = page.locator("body").getByText(/master view|admin|owner|planner view|sales view|store view/i).first()
     await Promise.any([
       roleSwitcherTrigger.waitFor({ state: "visible", timeout: 30_000 }),
       page.locator("body").getByText(/all visible plants/i).first().waitFor({ state: "visible", timeout: 30_000 }),
+      currentRoleMarker.waitFor({ state: "visible", timeout: 30_000 }),
     ])
   }
 }
