@@ -1019,8 +1019,23 @@ class ReportService:
         filters = filters or {}
         now = timezone.now()
         plant_filter = filters.get('plant_id') or filters.get('plant')
+        from apps.inventory.serializers import resolve_roll_role, resolve_roll_stage_name
+        from apps.inventory.services.roll_naming import build_roll_naming_payload
 
-        rolls = InventoryRoll.objects.select_related('material', 'location', 'location__plant')
+        rolls = InventoryRoll.objects.select_related(
+            'material',
+            'material__commercial_family',
+            'material__parent_family',
+            'material__parent_family__commercial_family',
+            'template',
+            'template__commercial_family',
+            'location',
+            'location__plant',
+            'plant',
+            'grade',
+            'created_process',
+            'parent_roll',
+        )
         if plant_filter:
             rolls = rolls.filter(Q(location__plant_id=plant_filter) | Q(plant_id=plant_filter))
 
@@ -1099,8 +1114,22 @@ class ReportService:
                 }
             )
 
-        # By inventory item type
+        # By inventory item type and business family
         item_type_totals = defaultdict(lambda: {"count": 0, "weight_kg": Decimal("0")})
+        family_totals = defaultdict(lambda: {
+            "family": "Unknown",
+            "reporting_group": "OTHER",
+            "form_label": "Roll",
+            "count": 0,
+            "weight_kg": Decimal("0"),
+            "available_kg": Decimal("0"),
+            "reserved_kg": Decimal("0"),
+            "blocked_kg": Decimal("0"),
+            "raw_kg": Decimal("0"),
+            "wip_kg": Decimal("0"),
+            "fg_kg": Decimal("0"),
+            "oldest_age_days": 0,
+        })
         for roll in rolls:
             if roll.is_fg:
                 item_type = "FG_ROLL"
@@ -1108,8 +1137,63 @@ class ReportService:
                 item_type = "RAW_ROLL"
             else:
                 item_type = "WIP_ROLL"
+            weight = Decimal(str(roll.weight_kg or 0))
             item_type_totals[item_type]["count"] += 1
-            item_type_totals[item_type]["weight_kg"] += Decimal(str(roll.weight_kg or 0))
+            item_type_totals[item_type]["weight_kg"] += weight
+
+            role = resolve_roll_role(roll) or ""
+            stage_name = resolve_roll_stage_name(roll) or ("FG" if roll.is_fg else item_type.replace("_ROLL", ""))
+            try:
+                naming = build_roll_naming_payload(roll, role=role, stage_name=stage_name)
+            except Exception:
+                naming = {
+                    "family_display_name": getattr(getattr(roll, "material", None), "name", "Unknown") or "Unknown",
+                    "reporting_group": "OTHER",
+                    "form_label": "Roll",
+                }
+            family_name = str(naming.get("family_display_name") or "Unknown").strip() or "Unknown"
+            reporting_group = str(naming.get("reporting_group") or "OTHER").strip().upper() or "OTHER"
+            family_key = f"{reporting_group}:{family_name}"
+            bucket = family_totals[family_key]
+            bucket["family"] = family_name
+            bucket["reporting_group"] = reporting_group
+            bucket["form_label"] = str(naming.get("form_label") or bucket["form_label"] or "Roll")
+            bucket["count"] += 1
+            bucket["weight_kg"] += weight
+            status_name = str(getattr(roll, "status", "") or "").upper()
+            if status_name == "AVAILABLE":
+                bucket["available_kg"] += weight
+            elif status_name == "RESERVED":
+                bucket["reserved_kg"] += weight
+            else:
+                bucket["blocked_kg"] += weight
+            if item_type == "FG_ROLL":
+                bucket["fg_kg"] += weight
+            elif item_type == "RAW_ROLL":
+                bucket["raw_kg"] += weight
+            else:
+                bucket["wip_kg"] += weight
+            age_days = max((now - roll.created_at).days, 0) if roll.created_at else 0
+            bucket["oldest_age_days"] = max(int(bucket["oldest_age_days"] or 0), age_days)
+
+        by_family = [
+            {
+                "family": value["family"],
+                "reporting_group": value["reporting_group"],
+                "form_label": value["form_label"],
+                "count": value["count"],
+                "weight_kg": round(float(value["weight_kg"] or 0), 2),
+                "available_kg": round(float(value["available_kg"] or 0), 2),
+                "reserved_kg": round(float(value["reserved_kg"] or 0), 2),
+                "blocked_kg": round(float(value["blocked_kg"] or 0), 2),
+                "raw_kg": round(float(value["raw_kg"] or 0), 2),
+                "wip_kg": round(float(value["wip_kg"] or 0), 2),
+                "fg_kg": round(float(value["fg_kg"] or 0), 2),
+                "oldest_age_days": value["oldest_age_days"],
+            }
+            for value in family_totals.values()
+        ]
+        by_family.sort(key=lambda row: row["weight_kg"], reverse=True)
 
         # By material
         by_material = rolls.values('material__name', 'material__code').annotate(
@@ -1196,6 +1280,7 @@ class ReportService:
             "by_stage": stage_dist,
             "by_material": material_data,
             "by_item_type": item_type_data,
+            "by_family": by_family,
             "by_variant": by_variant,
             "by_location": location_data,
             "by_plant": plant_data,
@@ -2243,6 +2328,7 @@ class ReportService:
                 "by_stage",
                 "by_item_type",
                 "by_variant",
+                "by_family",
                 "by_material",
                 "by_location",
                 "by_plant",
@@ -2254,11 +2340,12 @@ class ReportService:
         warnings = list(payload.get("warnings") or [])
         coverage = ReportService._coverage(normalized)
         material_evidence = _has_material_evidence(summary, rows, breakdowns)
-        if coverage.get("execution_log_coverage", 0) <= 0:
+        telemetry_required_tabs = {"production", "oee", "downtime", "scrap", "operator", "material-variance", "ink-intelligence", "mrp", "shift-performance"}
+        if coverage.get("execution_log_coverage", 0) <= 0 and key in telemetry_required_tabs:
             warnings.append("No telemetry in selected period.")
         if coverage.get("material_actual_coverage", 0) <= 0 and key in {"production", "material-variance", "ink-intelligence", "mrp"} and not material_evidence:
             warnings.append("No material actuals captured.")
-        if coverage.get("shift_coverage", 0) <= 0:
+        if coverage.get("shift_coverage", 0) <= 0 and key in telemetry_required_tabs:
             shift_qs = PlantShiftDefinition.objects.filter(is_active=True)
             if normalized.get("plant_id"):
                 shift_qs = shift_qs.filter(plant_id=normalized.get("plant_id"))

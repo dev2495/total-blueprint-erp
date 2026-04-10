@@ -13,6 +13,7 @@ import {
   Gauge,
   LineChart as LineChartIcon,
   Package,
+  PieChart as PieChartIcon,
   RefreshCw,
   Rows3,
   Scissors,
@@ -45,6 +46,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { describeApiError } from "@/lib/api"
 import { ReportStateBanner, formatMaybeCurrency, formatMaybeNumber, hasMeaningfulData, hasTruthyValue } from "@/components/analytics/report-state"
 
 type FilterPreset = "daily" | "weekly" | "custom"
@@ -256,7 +258,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
   const isOeeTab = tab === "oee"
   const isMrpTab = tab === "mrp"
   const isInterplantTab = tab === "interplant"
-  const prefersWideDefaultWindow = ["scrap", "mrp", "interplant"].includes(tab)
+  const isInventoryTab = tab === "inventory" || tab === "inventory-lineage"
+  const prefersWideDefaultWindow = ["scrap", "mrp", "interplant", "inventory", "inventory-lineage"].includes(tab)
   const [preset, setPreset] = useState<FilterPreset>(prefersWideDefaultWindow ? "custom" : "weekly")
   const [dateFrom, setDateFrom] = useState(prefersWideDefaultWindow ? todayIso(-30) : todayIso(-6))
   const [dateTo, setDateTo] = useState(todayIso(0))
@@ -431,6 +434,30 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       { label: "Execution coverage", value: `${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}%`, hint: "Transfer telemetry linked to execution", tone: "border-slate-200 bg-slate-50 text-slate-700" },
     ]
   }, [isInterplantTab, normalizedSummary, payload.coverage])
+  const inventoryBreakdowns = useMemo(() => {
+    if (!isInventoryTab) return { byFamily: [], byVariant: [], byStage: [], byItemType: [], aging: [], rows: [] }
+    const raw = payload.breakdowns || {}
+    const asRows = (value: unknown) => Array.isArray(value) ? value.filter((row): row is Record<string, any> => !!row && typeof row === "object") : []
+    return {
+      byFamily: sortRowsByKey(asRows(raw.by_family), "weight_kg"),
+      byVariant: sortRowsByKey(asRows(raw.by_variant), "weight_kg"),
+      byStage: sortRowsByKey(asRows(raw.by_stage), "weight_kg"),
+      byItemType: sortRowsByKey(asRows(raw.by_item_type), "weight_kg"),
+      aging: sortRowsByKey(asRows(raw.aging), "weight_kg"),
+      rows: tableRows,
+    }
+  }, [isInventoryTab, payload.breakdowns, tableRows])
+  const inventoryKpis = useMemo(() => {
+    if (!isInventoryTab) return []
+    return [
+      { label: "Roll stock", value: formatMetricValue("total_weight_kg", normalizedSummary.total_weight_kg), hint: `${formatMetricValue("total_items", normalizedSummary.total_items)} physical rolls`, tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
+      { label: "Families", value: formatMetricValue("count", inventoryBreakdowns.byFamily.length), hint: "Business-facing stock groups", tone: "border-indigo-200 bg-indigo-50 text-indigo-700" },
+      { label: "Variants", value: formatMetricValue("count", inventoryBreakdowns.byVariant.length), hint: "Material variants currently visible", tone: "border-slate-200 bg-slate-50 text-slate-700" },
+      { label: "Aged 90d+", value: formatMetricValue("aged_stock_weight_kg", normalizedSummary.aged_stock_weight_kg), hint: `${formatMetricValue("count", normalizedSummary.aged_stock_items)} aged rolls`, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Bulk stock", value: formatMetricValue("bulk_stock_kg", normalizedSummary.bulk_stock_kg), hint: `${formatMetricValue("count", normalizedSummary.bulk_items)} bulk rows`, tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Stock value", value: formatMetricValue("estimated_value", normalizedSummary.estimated_value), hint: "Estimated live valuation", tone: "border-violet-200 bg-violet-50 text-violet-700" },
+    ]
+  }, [isInventoryTab, inventoryBreakdowns.byFamily.length, inventoryBreakdowns.byVariant.length, normalizedSummary])
   const scrapBreakdowns = useMemo(() => {
     const raw = payload.breakdowns || {}
     return {
@@ -503,6 +530,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         : [],
     [isScrapTab, scrapBreakdowns],
   )
+
+  const reportErrorMessage = reportQuery.isError ? describeApiError(reportQuery.error, "Report request failed.") : ""
 
   const handleExport = () => {
     const url = analyticsApi.getReportTabPdfDownloadUrl(tab, filters)
@@ -622,6 +651,16 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
           </div>
         </div>
       </section>
+
+      {reportQuery.isError ? (
+        <ReportStateBanner
+          title="Report failed to load"
+          message={reportErrorMessage}
+          tone="degraded"
+          actionLabel="Refresh"
+          onAction={() => reportQuery.refetch()}
+        />
+      ) : null}
 
       {!reportPending && payload.warnings?.length ? (
         <ReportStateBanner
@@ -1080,6 +1119,138 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
             </Card>
           </section>
         </>
+      ) : isInventoryTab ? (
+        <>
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            {inventoryKpis.map((metric) => (
+              <Card key={metric.label} className={cn("overflow-hidden border shadow-sm", metric.tone)}>
+                <CardContent className="p-4">
+                  <div className="text-[11px] font-black uppercase tracking-[0.18em]">{metric.label}</div>
+                  <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-900">{metric.value}</div>
+                  <div className="mt-2 text-xs font-semibold text-slate-500">{metric.hint}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+
+          <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr] xl:items-start">
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <BarChart3 className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Family stock standing
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="h-[380px] min-w-0">
+                  {inventoryBreakdowns.byFamily.length ? (
+                    <ResponsiveContainer width="100%" height={380}>
+                      <BarChart data={inventoryBreakdowns.byFamily.slice(0, 10)} layout="vertical" margin={{ top: 8, right: 12, left: 26, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <YAxis type="category" dataKey="family" width={154} tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <Tooltip formatter={(value, name) => [formatMetricValue("kg", value), toLabel(String(name || ""))]} />
+                        <Legend />
+                        <Bar dataKey="available_kg" name="Available" stackId="stock" fill="#0f766e" radius={[0, 8, 8, 0]} />
+                        <Bar dataKey="reserved_kg" name="Reserved" stackId="stock" fill="#f59e0b" radius={[0, 8, 8, 0]} />
+                        <Bar dataKey="blocked_kg" name="Blocked" stackId="stock" fill="#e11d48" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : reportPending ? (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">Loading inventory family stock...</div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">No family stock is visible for this filter window.</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <PieChartIcon className={cn("h-5 w-5 rounded-full p-1 text-white", accentStyle.badge)} />
+                  Stage posture
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 pt-4 md:grid-cols-[0.95fr_1.05fr] xl:grid-cols-1">
+                <div className="h-[230px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={inventoryBreakdowns.byStage} dataKey="weight_kg" nameKey="stage" innerRadius={58} outerRadius={92} stroke="none" paddingAngle={4}>
+                        {inventoryBreakdowns.byStage.map((row, index) => (
+                          <Cell key={String(row.stage || index)} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatMetricValue("kg", value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-3">
+                  {inventoryBreakdowns.byStage.slice(0, 5).map((row) => (
+                    <div key={String(row.stage)} className="flex items-center justify-between rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-black text-slate-900">{String(row.stage || "Unknown")}</div>
+                        <div className="text-xs text-slate-500">{formatMetricValue("count", row.count)} rolls</div>
+                      </div>
+                      <Badge className="rounded-full border border-cyan-200 bg-cyan-50 text-cyan-700">{formatMetricValue("kg", row.weight_kg)}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr] xl:items-start">
+            <Card className="rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="text-xl font-black text-slate-900">Aging pressure</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="h-[280px] min-w-0">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={inventoryBreakdowns.aging} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="range" tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(value, name) => [String(name) === "count" ? formatMetricValue("count", value) : formatMetricValue("kg", value), toLabel(String(name || ""))]} />
+                      <Legend />
+                      <Bar dataKey="weight_kg" name="Weight kg" fill="#0ea5e9" radius={[10, 10, 0, 0]} />
+                      <Bar dataKey="count" name="Roll count" fill="#6366f1" radius={[10, 10, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden rounded-[1.85rem] border-slate-200 shadow-sm">
+              <CardHeader className="pb-0">
+                <CardTitle className="text-xl font-black text-slate-900">Variant ledger</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="max-h-[360px] overflow-auto rounded-[1.2rem] border border-slate-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-50">
+                      <tr>
+                        {["variant", "weight_kg", "count"].map((column) => (
+                          <th key={`inventory-variant-${column}`} className="border-b border-slate-200 px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{toLabel(column)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inventoryBreakdowns.byVariant.slice(0, 18).map((row, index) => (
+                        <tr key={`${row.variant || index}`} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/80">
+                          <td className="px-4 py-3 font-semibold text-slate-900">{String(row.variant || row.material_name || "Unknown")}</td>
+                          <td className="px-4 py-3 text-slate-700">{formatMetricValue("kg", row.weight_kg)}</td>
+                          <td className="px-4 py-3 text-slate-700">{formatMetricValue("count", row.count)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        </>
       ) : (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {visibleSummaryEntries.map(([key, value]) => (
@@ -1124,7 +1295,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         </section>
       ) : null}
 
-      {!isMrpTab && !isInterplantTab ? (
+      {!isMrpTab && !isInterplantTab && !isInventoryTab ? (
       <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr] xl:items-start">
         <Card className="rounded-[1.75rem] border-slate-200 shadow-sm">
           <CardHeader className="pb-0">
@@ -1201,7 +1372,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       </section>
       ) : null}
 
-      {!isMrpTab && !isInterplantTab ? (
+      {!isMrpTab && !isInterplantTab && !isInventoryTab ? (
       <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
         <Card className="rounded-[1.75rem] border-slate-200 shadow-sm">
           <CardHeader className="pb-0">
@@ -1286,7 +1457,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       </section>
       ) : null}
 
-      {visibleBreakdowns.length && !isMrpTab && !isInterplantTab ? (
+      {visibleBreakdowns.length && !isMrpTab && !isInterplantTab && !isInventoryTab ? (
         <section className="grid gap-5 xl:grid-cols-2 xl:items-start">
           {visibleBreakdowns.map((group) => {
             const columns = inferTableColumns(group.rows)
@@ -1327,7 +1498,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         </section>
       ) : null}
 
-      {!isMrpTab && !isInterplantTab ? (
+      {!isMrpTab && !isInterplantTab && !isInventoryTab ? (
       <Card className="overflow-hidden rounded-[1.85rem] border-slate-200 shadow-sm">
         <CardHeader className="pb-0">
           <CardTitle className="text-xl font-black text-slate-900">Detailed Rows</CardTitle>

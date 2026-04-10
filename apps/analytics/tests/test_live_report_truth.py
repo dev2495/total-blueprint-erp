@@ -12,7 +12,7 @@ from apps.inventory.models import (
     InventoryLocation,
     InventoryRoll,
 )
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import CommercialFamily, InventoryMaterial
 from apps.production.models import DeliveryChallan, DeliveryChallanItem, JobExecutionLog, ProductionJob, ScrapLog
 from apps.routing.models import RoutingRule
 from apps.users.models import Role
@@ -151,11 +151,17 @@ class LiveReportTruthTests(TestCase):
         self.assertEqual(payload["rows"][0]["dc_no"], "IPC-LIVE-001")
 
     def test_inventory_report_exposes_item_type_variant_and_roll_rows(self):
+        family = CommercialFamily.objects.create(
+            code="LIVE-FILMS",
+            name="Live Flexible Films",
+            default_reporting_group="FILM",
+        )
         film = InventoryMaterial.objects.create(
             code="FILM-LIVE-001",
             name="Live Film Variant",
             category="FILM_VARIANT",
             base_uom="KG",
+            commercial_family=family,
             status="ACTIVE",
         )
         InventoryRoll.objects.create(
@@ -180,9 +186,11 @@ class LiveReportTruthTests(TestCase):
         breakdowns = payload.get("breakdowns", {})
         self.assertIn("by_item_type", breakdowns)
         self.assertIn("by_variant", breakdowns)
+        self.assertIn("by_family", breakdowns)
         self.assertIn("by_material", breakdowns)
         self.assertIn("by_plant", breakdowns)
         self.assertTrue(any(row["item_type"] == "WIP_ROLL" for row in breakdowns["by_item_type"]))
+        self.assertTrue(any(row["family"] == "Live Flexible Films" and row["wip_kg"] == 85.5 for row in breakdowns["by_family"]))
         self.assertEqual(payload["rows"][0]["label_id"], "ROLL-LIVE-001")
 
     def test_scrap_report_exposes_live_kpis_breakdowns_and_recent_rows(self):

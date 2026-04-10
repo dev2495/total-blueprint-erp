@@ -43,6 +43,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartSurface } from "@/components/ui-custom/chart-surface";
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge";
 import { humanizeToken } from "@/lib/visual-semantics";
+import { describeApiError } from "@/lib/api";
 import { toast } from "sonner";
 
 import { factoryService } from "@/services/factory";
@@ -387,6 +388,42 @@ export default function RollExplorerPage() {
         remainder_weight_kg: 0,
     };
 
+    const visibleStockRows = useMemo(() => (
+        mode === "variant"
+            ? variantFamilies.flatMap((family) => family.variants.flatMap((variant) => variant.rolls || []))
+            : rows
+    ), [mode, rows, variantFamilies])
+
+    const stockPosture = useMemo(() => {
+        const families = new Set<string>()
+        const variants = new Set<string>()
+        const stages = new Set<string>()
+        let availableKg = 0
+        let reservedKg = 0
+        let blockedKg = 0
+        for (const row of visibleStockRows) {
+            const family = String(row.family_display_name || (row as any).family_name || row.material_name || "Unknown").trim()
+            const variant = String(row.variant_display_name || row.variant_summary || row.display_name || row.material_name || row.label_id || "Unknown").trim()
+            const stageName = stageBadgeLabel(row)
+            if (family) families.add(family)
+            if (variant) variants.add(variant)
+            if (stageName) stages.add(stageName)
+            const weight = toNumber(row.weight_kg, 0)
+            const statusName = String(row.status || "").toUpperCase()
+            if (statusName === "AVAILABLE") availableKg += weight
+            else if (statusName === "RESERVED") reservedKg += weight
+            else blockedKg += weight
+        }
+        return {
+            familyCount: families.size,
+            variantCount: variants.size,
+            stageCount: stages.size,
+            availableKg,
+            reservedKg,
+            blockedKg,
+        }
+    }, [visibleStockRows])
+
     const variantSummaryCharts = useMemo(() => {
         const familyContribution = variantFamilies
             .map((family) => ({
@@ -505,6 +542,7 @@ export default function RollExplorerPage() {
     const canUnquarantine = Boolean(selected && selected.is_quarantined);
     const isLoadingData = mode === "variant" ? variantQuery.isLoading : explorerQuery.isLoading
     const dataError = mode === "variant" ? variantQuery.error : explorerQuery.error
+    const dataErrorMessage = dataError ? describeApiError(dataError, "Roll explorer request failed.") : ""
 
     return (
         <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
@@ -533,37 +571,59 @@ export default function RollExplorerPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+                <Card className="border-0 bg-white shadow-[0_1px_6px_rgba(0,0,0,0.02)] ring-1 ring-slate-100 rounded-2xl overflow-hidden">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><PieChartIcon className="w-4 h-4" /> Rolls In View</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><Layers className="w-4 h-4 text-indigo-500" /> Families</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900">{totals.roll_count}</div>
+                        <div className="text-3xl font-black tracking-tighter text-slate-900">{stockPosture.familyCount}</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">Business stock groups</div>
                     </CardContent>
                 </Card>
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden group hover:shadow-md transition-shadow">
+                <Card className="border-0 bg-white shadow-[0_1px_6px_rgba(0,0,0,0.02)] ring-1 ring-slate-100 rounded-2xl overflow-hidden">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 group-hover:text-indigo-500 transition-colors"><Layers className="w-4 h-4" /> Total KG</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><PieChartIcon className="w-4 h-4 text-cyan-500" /> Variants</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900 flex items-baseline gap-1.5">{toNumber(totals.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold tracking-wide text-slate-400">kg</span></div>
+                        <div className="text-3xl font-black tracking-tighter text-slate-900">{stockPosture.variantCount}</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">Distinct physical specs</div>
                     </CardContent>
                 </Card>
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden border-b-4 border-b-amber-400 group hover:shadow-md transition-shadow">
+                <Card className="border-0 bg-white shadow-[0_1px_6px_rgba(0,0,0,0.02)] ring-1 ring-slate-100 rounded-2xl overflow-hidden">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2"><Split className="w-4 h-4" /> Free Remainders</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><Package className="w-4 h-4 text-emerald-500" /> Available</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900">{totals.remainder_roll_count}</div>
+                        <div className="text-3xl font-black tracking-tighter text-emerald-700">{stockPosture.availableKg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm">kg</span></div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">Ready for allocation</div>
                     </CardContent>
                 </Card>
-                <Card className="border-0 shadow-[0_1px_6px_rgba(0,0,0,0.02)] bg-white rounded-2xl overflow-hidden border-b-4 border-b-amber-400 group hover:shadow-md transition-shadow">
+                <Card className="border-0 bg-white shadow-[0_1px_6px_rgba(0,0,0,0.02)] ring-1 ring-slate-100 rounded-2xl overflow-hidden">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2"><Tag className="w-4 h-4" /> Remainder KG</CardTitle>
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><Tag className="w-4 h-4 text-amber-500" /> Reserved</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-4xl font-black tracking-tighter text-slate-900 flex items-baseline gap-1.5">{toNumber(totals.remainder_weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm font-semibold tracking-wide text-amber-600/50">kg</span></div>
+                        <div className="text-3xl font-black tracking-tighter text-amber-700">{stockPosture.reservedKg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm">kg</span></div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">Committed to work</div>
+                    </CardContent>
+                </Card>
+                <Card className="border-0 bg-white shadow-[0_1px_6px_rgba(0,0,0,0.02)] ring-1 ring-slate-100 rounded-2xl overflow-hidden">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-rose-500" /> Blocked</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black tracking-tighter text-rose-700">{stockPosture.blockedKg.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm">kg</span></div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">In process or held</div>
+                    </CardContent>
+                </Card>
+                <Card className="border-0 bg-white shadow-[0_1px_6px_rgba(0,0,0,0.02)] ring-1 ring-slate-100 rounded-2xl overflow-hidden">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><Split className="w-4 h-4 text-indigo-500" /> Total</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-black tracking-tighter text-slate-900">{toNumber(totals.weight_kg, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm">kg</span></div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">{totals.roll_count} rolls across {stockPosture.stageCount} stage(s)</div>
                     </CardContent>
                 </Card>
             </div>
@@ -911,7 +971,7 @@ export default function RollExplorerPage() {
                         <AlertCircle className="h-5 w-5 mt-0.5" />
                         <div>
                             <div className="font-semibold">Failed to load roll explorer</div>
-                            <div className="text-sm text-red-500">Try refreshing after checking filters.</div>
+                            <div className="text-sm text-red-500">{dataErrorMessage}</div>
                         </div>
                     </CardContent>
                 </Card>

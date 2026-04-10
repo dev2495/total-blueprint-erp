@@ -7,7 +7,7 @@ export default function InventoryReportPage() {
     <ReportTabPage
       tab="inventory"
       title="Inventory Health"
-      description="Aging, stage mix, material concentration, and location spread with date and plant filters."
+      description="Family, variant, stage, aging, and roll-level stock posture with date and plant filters."
       accent="cyan"
     />
   )
