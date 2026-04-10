@@ -83,6 +83,35 @@ def _has_material_evidence(summary, rows, breakdowns):
     return False
 
 
+def _has_report_evidence(summary, rows, series, breakdowns):
+    if rows or series:
+        return True
+    for value in (breakdowns or {}).values():
+        if isinstance(value, list) and value:
+            return True
+        if isinstance(value, dict) and value:
+            return True
+    for value in (summary or {}).values():
+        if isinstance(value, (int, float, Decimal)) and float(value or 0) != 0:
+            return True
+        if isinstance(value, str) and value.strip() and value.strip() not in {"0", "0.0", "0.00"}:
+            return True
+    return False
+
+
+def _is_generic_coverage_warning(message):
+    text = str(message or "").lower()
+    markers = (
+        "no telemetry",
+        "no machine telemetry",
+        "no shift-tagged telemetry",
+        "no shift tags",
+        "no shift schedule",
+        "no material actuals captured",
+    )
+    return any(marker in text for marker in markers)
+
+
 class ReportService:
     """
     Enterprise-grade report generation with deep drill-downs,
@@ -2358,12 +2387,13 @@ class ReportService:
         warnings = list(payload.get("warnings") or [])
         coverage = ReportService._coverage(normalized)
         material_evidence = _has_material_evidence(summary, rows, breakdowns)
+        report_evidence = _has_report_evidence(summary, rows, series, breakdowns)
         telemetry_required_tabs = {"production", "oee", "downtime", "scrap", "operator", "material-variance", "ink-intelligence", "mrp", "shift-performance"}
-        if coverage.get("execution_log_coverage", 0) <= 0 and key in telemetry_required_tabs:
+        if coverage.get("execution_log_coverage", 0) <= 0 and key in telemetry_required_tabs and not report_evidence:
             warnings.append("No telemetry in selected period.")
-        if coverage.get("material_actual_coverage", 0) <= 0 and key in {"production", "material-variance", "ink-intelligence", "mrp"} and not material_evidence:
+        if coverage.get("material_actual_coverage", 0) <= 0 and key in {"material-variance", "ink-intelligence", "mrp"} and not material_evidence:
             warnings.append("No material actuals captured.")
-        if coverage.get("shift_coverage", 0) <= 0 and key in telemetry_required_tabs:
+        if coverage.get("shift_coverage", 0) <= 0 and key in telemetry_required_tabs and not report_evidence:
             shift_qs = PlantShiftDefinition.objects.filter(is_active=True)
             if normalized.get("plant_id"):
                 shift_qs = shift_qs.filter(plant_id=normalized.get("plant_id"))
@@ -2371,6 +2401,8 @@ class ReportService:
                 warnings.append("No shift tags captured in selected telemetry.")
             else:
                 warnings.append("No shift schedule configured.")
+        if report_evidence:
+            warnings = [warning for warning in warnings if not _is_generic_coverage_warning(warning)]
         warnings = list(dict.fromkeys(warnings))
         # Preserve resolver-native keys (trend, breakdown, by_process, etc.)
         # for existing report pages while also returning the normalized contract.

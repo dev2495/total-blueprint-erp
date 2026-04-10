@@ -248,6 +248,39 @@ function asRecordRows(value: unknown) {
   return Array.isArray(value) ? value.filter((row): row is Record<string, any> => !!row && typeof row === "object") : []
 }
 
+function compactAxisLabel(value: unknown, max = 18) {
+  const text = String(value || "")
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+function isGenericCoverageWarning(message: unknown) {
+  const text = String(message || "").toLowerCase()
+  return [
+    "no telemetry",
+    "no machine telemetry",
+    "no shift-tagged telemetry",
+    "no shift tags",
+    "no shift schedule",
+    "no material actuals captured",
+  ].some((marker) => text.includes(marker))
+}
+
+function hasReportEvidence(values: unknown[]): boolean {
+  const visit = (value: unknown): boolean => {
+    if (value === null || value === undefined || value === "") return false
+    if (typeof value === "number") return Number.isFinite(value) && value !== 0
+    if (typeof value === "boolean") return value
+    if (typeof value === "string") {
+      const text = value.trim()
+      return text.length > 0 && !["0", "0.0", "0.00"].includes(text)
+    }
+    if (Array.isArray(value)) return value.length > 0 && value.some(visit)
+    if (typeof value === "object") return Object.values(value as Record<string, unknown>).some(visit)
+    return false
+  }
+  return values.some(visit)
+}
+
 function scrapSignalTone(label: string) {
   const key = label.toLowerCase()
   if (key.includes("reason")) return "border-rose-200 bg-rose-50 text-rose-700"
@@ -356,12 +389,17 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     return firstBreakdown?.rows || []
   }, [payload.rows, firstBreakdown])
   const tableColumns = useMemo(() => inferTableColumns(tableRows), [tableRows])
-  const degraded = !reportPending && (!hasMeaningfulData([normalizedSummary, seriesSource, payload.rows, payload.breakdowns, payload.charts]) || Boolean((payload as any)?.degraded))
-  const degradedMessage = isInventoryTab || isInterplantTab || isSalesTab || isDispatchTab || isCostingTab
+  const reportHasVisibleEvidence = hasReportEvidence([normalizedSummary, seriesSource, payload.rows, payload.breakdowns, payload.charts])
+  const degraded = !reportPending && (!reportHasVisibleEvidence || Boolean((payload as any)?.degraded))
+  const degradedMessage = suppressGenericSharedShell
     ? "The current filter window returned limited report evidence. Expand the date range, plant, or process filters to surface more live activity."
     : isMrpTab || isInkTab
     ? "The current filter window returned limited material evidence. Expand the date range or run jobs with issue and return actuals to widen the view."
-    : "The current filter window returned limited telemetry. Change the date lens or process filters to widen the view."
+    : "The current filter window returned limited operating evidence. Change the date lens or process filters to widen the view."
+  const visibleWarnings = useMemo(() => {
+    const warnings = payload.warnings || []
+    return reportHasVisibleEvidence ? warnings.filter((warning) => !isGenericCoverageWarning(warning)) : warnings
+  }, [payload.warnings, reportHasVisibleEvidence])
   const scrapPrimaryKeys = useMemo(
     () =>
       new Set([
@@ -876,15 +914,15 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
             <Card className="border-slate-200 bg-slate-50">
               <CardContent className="flex h-full flex-col justify-center gap-1 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                  {isInventoryTab || isInterplantTab || isSalesTab || isDispatchTab || isCostingTab ? "Data lens" : "Coverage"}
+                  {suppressGenericSharedShell ? "Data lens" : "Coverage"}
                 </div>
                 <div className="text-sm font-semibold text-slate-900">
-                  {isInventoryTab || isInterplantTab || isSalesTab || isDispatchTab || isCostingTab
+                  {suppressGenericSharedShell
                     ? `Rows ${tableRows.length} · Splits ${breakdownGroups.length}`
                     : `Exec ${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}% · Material ${formatMaybeNumber(payload.coverage?.material_actual_coverage, 0)}%`}
                 </div>
                 <div className="text-xs text-slate-500">
-                  {isInventoryTab || isInterplantTab || isSalesTab || isDispatchTab || isCostingTab
+                  {suppressGenericSharedShell
                     ? "Telemetry is not the gating source for this report."
                     : `Shift ${formatMaybeNumber(payload.coverage?.shift_coverage, 0)}%`}
                 </div>
@@ -904,10 +942,10 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
         />
       ) : null}
 
-      {!reportPending && payload.warnings?.length ? (
+      {!reportPending && visibleWarnings.length ? (
         <ReportStateBanner
           title="Report needs attention"
-          message={payload.warnings.join(" ")}
+          message={visibleWarnings.join(" ")}
           tone="degraded"
           actionLabel="Refresh"
           onAction={() => reportQuery.refetch()}
@@ -1585,7 +1623,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                       <BarChart data={productionBreakdowns.byWorkCenter.slice(0, 8)} layout="vertical" margin={{ top: 8, right: 8, left: 18, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                         <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
-                        <YAxis type="category" dataKey="work_center" width={138} tick={{ fontSize: 11 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                        <YAxis type="category" dataKey="work_center" width={112} tickFormatter={(value) => compactAxisLabel(value, 16)} tick={{ fontSize: 10 }} stroke="#94a3b8" tickLine={false} axisLine={false} />
                         <Tooltip formatter={(value, name) => [String(name).includes("job") ? formatMetricValue("count", value) : formatMetricValue("kg", value), toLabel(String(name || ""))]} />
                         <Legend />
                         <Bar dataKey="output_kg" name="Output kg" fill="#2563eb" radius={[0, 8, 8, 0]} />
