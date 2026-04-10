@@ -2300,6 +2300,11 @@ class ReportService:
                 or payload.get("by_material")
                 or payload.get("job_variance")
                 or payload.get("recent_challans")
+                or payload.get("leaderboard")
+                or payload.get("overdue_orders")
+                or payload.get("pareto")
+                or payload.get("top_machines")
+                or payload.get("sku_breakdown")
                 or []
             )
         series = payload.get("series")
@@ -2307,6 +2312,8 @@ class ReportService:
             series = (
                 payload.get("trend")
                 or payload.get("daily_trend")
+                or payload.get("monthly_trend")
+                or payload.get("cost_per_kg_trend")
                 or payload.get("comparison_chart")
                 or []
             )
@@ -2333,6 +2340,17 @@ class ReportService:
                 "by_location",
                 "by_plant",
                 "job_variance",
+                "pareto",
+                "top_machines",
+                "leaderboard",
+                "sku_breakdown",
+                "overdue_orders",
+                "daily_trend",
+                "monthly_trend",
+                "overhead_trend",
+                "cost_per_kg_trend",
+                "recent_challans",
+                "shift_oee_like",
             ):
                 if key_name in payload:
                     breakdowns[key_name] = payload.get(key_name)
