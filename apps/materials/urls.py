@@ -3,7 +3,8 @@ from config.routers import OptionalSlashRouter
 from .views import (
     FilmFamilyViewSet, 
     FilmVariantViewSet, 
-    GranuleViewSet, 
+    GranuleViewSet,
+    GranuleQualityCodeViewSet,
     InkViewSet, 
     AdhesiveSolventViewSet, 
     AddonViewSet,
@@ -19,6 +20,7 @@ router = OptionalSlashRouter()
 router.register(r'film-families', FilmFamilyViewSet, basename='film-family')
 router.register(r'film-variants', FilmVariantViewSet, basename='film-variant')
 router.register(r'granules', GranuleViewSet, basename='granule')
+router.register(r'granule-codes', GranuleQualityCodeViewSet, basename='granule-code')
 router.register(r'inks', InkViewSet, basename='ink')
 router.register(r'adhesives-solvents', AdhesiveSolventViewSet, basename='adhesive-solvent')
 router.register(r'addons', AddonViewSet, basename='addon')

@@ -5828,6 +5828,7 @@ class ExecutionService:
             current_consumed = Decimal(str(req.consumed_qty or 0)).quantize(Decimal("0.0001"))
             return_mode = "EXACT_COLOR_RETURN"
             remix_target_material_id = None
+            granule_code_allocations = []
 
             if capture_mode == "AUTO_FROM_OUTPUT":
                 desired_issued = Decimal(str(req.actual_issued_qty or 0)).quantize(Decimal("0.0001"))
@@ -5854,6 +5855,18 @@ class ExecutionService:
                     estimated_flag = bool(confirmation.get("is_estimated"))
                     return_mode = str(confirmation.get("return_mode") or "EXACT_COLOR_RETURN").strip().upper()
                     remix_target_material_id = str(confirmation.get("target_ink_material_id") or "").strip() or None
+                    raw_allocations = confirmation.get("granule_code_allocations") or confirmation.get("code_allocations") or []
+                    if raw_allocations:
+                        if str(getattr(req.material, "category", "") or "").upper() != "GRANULE":
+                            raise ValueError(f"Granule code allocation is only allowed for granule material rows, not {req.material.name}.")
+                        for allocation in raw_allocations:
+                            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
+                            allocation_qty = Decimal(str(allocation.get("qty_kg") or allocation.get("quantity") or 0)).quantize(Decimal("0.0001"))
+                            if code_id and allocation_qty > 0:
+                                granule_code_allocations.append({
+                                    "granule_code_id": code_id,
+                                    "qty": allocation_qty,
+                                })
                     if return_mode not in {"EXACT_COLOR_RETURN", "REMIXED_RETURN"}:
                         raise ValueError(f"Invalid return_mode for {req.material.name}.")
                     if return_mode == "REMIXED_RETURN" and desired_returned > 0 and not remix_target_material_id:
@@ -5869,20 +5882,44 @@ class ExecutionService:
                 if not consumption_location_id:
                     raise ValueError(f"Cannot reconcile actual usage for {req.material.name}: source location is missing.")
                 if delta > 0:
-                    BulkService.consume_bulk(
-                        material_id=req.material_id,
-                        qty=delta,
-                        location_id=consumption_location_id,
-                        job_id=job.id,
-                        reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
-                    )
-                    MaterialConsumptionLog.objects.create(
-                        production_job=job,
-                        material=req.material,
-                        quantity=delta,
-                        uom=req.uom,
-                        is_estimated=estimated_flag,
-                    )
+                    if granule_code_allocations:
+                        allocated_total = sum((row["qty"] for row in granule_code_allocations), Decimal("0")).quantize(Decimal("0.0001"))
+                        if allocated_total != delta:
+                            raise ValueError(
+                                f"Granule code allocations for {req.material.name} must total {delta} kg, got {allocated_total} kg."
+                            )
+                        for allocation in granule_code_allocations:
+                            BulkService.consume_bulk(
+                                material_id=req.material_id,
+                                granule_code_id=allocation["granule_code_id"],
+                                qty=allocation["qty"],
+                                location_id=consumption_location_id,
+                                job_id=job.id,
+                                reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                            )
+                            MaterialConsumptionLog.objects.create(
+                                production_job=job,
+                                material=req.material,
+                                granule_code_id=allocation["granule_code_id"],
+                                quantity=allocation["qty"],
+                                uom=req.uom,
+                                is_estimated=estimated_flag,
+                            )
+                    else:
+                        BulkService.consume_bulk(
+                            material_id=req.material_id,
+                            qty=delta,
+                            location_id=consumption_location_id,
+                            job_id=job.id,
+                            reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                        )
+                        MaterialConsumptionLog.objects.create(
+                            production_job=job,
+                            material=req.material,
+                            quantity=delta,
+                            uom=req.uom,
+                            is_estimated=estimated_flag,
+                        )
                 else:
                     return_qty = abs(delta)
                     if not location:
@@ -6121,6 +6158,33 @@ class ExecutionService:
             if other_plants_available < 0:
                 other_plants_available = Decimal('0')
 
+            granule_code_options = []
+            if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
+                code_stock = (
+                    InventoryBulk.objects
+                    .select_related("granule_code__vendor", "location", "plant")
+                    .filter(material=req.material, granule_code__isnull=False, qty_kg__gt=0)
+                )
+                if location_id:
+                    code_stock = code_stock.filter(location_id=location_id)
+                elif plant_id:
+                    code_stock = code_stock.filter(plant_id=plant_id)
+                for stock in code_stock.order_by("granule_code__code", "location__name", "plant__name"):
+                    granule_code = stock.granule_code
+                    vendor = getattr(granule_code, "vendor", None)
+                    granule_code_options.append({
+                        "granule_code_id": str(granule_code.id),
+                        "code": granule_code.code,
+                        "vendor_id": str(vendor.id) if vendor else None,
+                        "vendor_name": vendor.name if vendor else "",
+                        "vendor_code": vendor.code if vendor else "",
+                        "available_qty_kg": float(stock.qty_kg or 0),
+                        "location_id": str(stock.location_id),
+                        "location_name": stock.location.name if stock.location else "",
+                        "plant_id": str(stock.plant_id),
+                        "plant_name": stock.plant.name if stock.plant else "",
+                    })
+
             preview.append({
                 'material_id': str(req.material_id),
                 'material_name': req.material.name,
@@ -6150,6 +6214,7 @@ class ExecutionService:
                 'variance_qty_kg': float(variance_qty),
                 'capture_mode': capture_mode,
                 'estimated_actual_qty_kg': float(estimated_actual_qty),
+                'granule_code_options': granule_code_options,
             })
 
         return preview

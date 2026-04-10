@@ -4217,9 +4217,9 @@ class ReportingService:
 
         production_logs = ReportingService.get_operational_logs("production", 40)
         
-        # Pull master data changes (approximated conceptually via exclude queries)
+        # Pull master data changes written by the master-data audit mixin.
         master_data_logs = PermissionAuditLog.objects.select_related("user").filter(
-            action__in=["CUSTOMER_CREATE", "CUSTOMER_UPDATE", "VENDOR_CREATE", "VENDOR_UPDATE", "TEMPLATE_CREATE", "TEMPLATE_UPDATE"]
+            action="MASTER_DATA_CHANGED"
         ).order_by("-created_at")
         
         system_config_logs = PermissionAuditLog.objects.select_related("user").filter(

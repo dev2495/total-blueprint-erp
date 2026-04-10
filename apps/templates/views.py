@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.db import OperationalError, ProgrammingError
 
 from apps.factory.models import Process
+from apps.users.audit_mixins import MasterDataAuditMixin
 
 from .models import TemplateBlueprint, TemplateProcessStep, TemplateProcessStepMaterial, TemplateProcessStepRollSpec
 from .serializers import (
@@ -69,7 +70,8 @@ def _default_roll_handling_for_step(step):
     return defaults
 
 
-class TemplateBlueprintViewSet(viewsets.ModelViewSet):
+class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_TEMPLATE"
     queryset = TemplateBlueprint.objects.all().order_by("-created_at")
     lookup_value_regex = r"[0-9a-fA-F-]{36}"
 
@@ -93,7 +95,8 @@ class TemplateBlueprintViewSet(viewsets.ModelViewSet):
         return TemplateBlueprintSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        instance = serializer.save(created_by=self.request.user)
+        self._audit_master_change("CREATE", instance)
 
     def _schema_error_response(self, exc):
         return Response(

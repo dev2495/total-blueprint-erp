@@ -564,6 +564,7 @@ export const machineService = {
                 is_estimated?: boolean;
                 return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
                 target_ink_material_id?: string;
+                granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: number }>;
             }>;
         }
     ): Promise<MachineCompleteResponse> => {

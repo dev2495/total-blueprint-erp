@@ -57,6 +57,11 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
         cell: ({ row }) => <div className="text-xs text-slate-500 font-mono">{row.original.gst_no || "-"}</div>,
     },
     {
+        accessorKey: "phone_number",
+        header: "Phone",
+        cell: ({ row }) => <div className="text-xs text-slate-500 font-mono">{row.original.phone_number || "-"}</div>,
+    },
+    {
         accessorKey: "lead_time_days",
         header: "Lead Time",
         cell: ({ row }) => <div className="text-xs text-slate-500">{row.original.lead_time_days} Days</div>,
@@ -64,12 +69,17 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
     {
         accessorKey: "turnaround_hours",
         header: "JW TAT",
-        cell: ({ row }) => <div className="text-xs text-slate-500">{row.original.turnaround_hours ?? 48}h</div>,
+        cell: ({ row }) => {
+            const isJobwork = row.original.type === "JOBWORK" || row.original.type === "BOTH"
+            return <div className="text-xs text-slate-500">{isJobwork ? `${row.original.turnaround_hours ?? 0}h` : "-"}</div>
+        },
     },
     {
         id: "jobwork_caps",
         header: "Jobwork Capabilities",
         cell: ({ row }) => {
+            const isJobwork = row.original.type === "JOBWORK" || row.original.type === "BOTH"
+            if (!isJobwork) return <div className="text-xs text-slate-400">Not jobwork</div>
             const caps = row.original.jobwork_capabilities || []
             if (!caps.length) return <div className="text-xs text-slate-400">All Processes</div>
             return (
@@ -85,11 +95,15 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
     {
         id: "qc_required",
         header: "QC",
-        cell: ({ row }) => (
-            <Badge variant="outline" className={`text-[10px] font-bold ${row.original.qc_required ? "text-indigo-700 bg-indigo-50 border-indigo-200" : "text-slate-500 bg-slate-50 border-slate-200"}`}>
-                {row.original.qc_required ? "REQUIRED" : "OPTIONAL"}
-            </Badge>
-        ),
+        cell: ({ row }) => {
+            const isJobwork = row.original.type === "JOBWORK" || row.original.type === "BOTH"
+            if (!isJobwork) return <div className="text-xs text-slate-400">-</div>
+            return (
+                <Badge variant="outline" className={`text-[10px] font-bold ${row.original.qc_required ? "text-indigo-700 bg-indigo-50 border-indigo-200" : "text-slate-500 bg-slate-50 border-slate-200"}`}>
+                    {row.original.qc_required ? "REQUIRED" : "OPTIONAL"}
+                </Badge>
+            )
+        },
     },
     {
         accessorKey: "status",

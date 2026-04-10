@@ -61,7 +61,16 @@ export default function BulkInventoryPage() {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return bulkStock
     return bulkStock.filter((item) => {
-      const blob = [item.material_name, item.material_code, item.material_category, item.plant_name, item.location_name]
+      const blob = [
+        item.material_name,
+        item.material_code,
+        item.material_category,
+        item.granule_quality_code,
+        item.granule_quality_vendor_name,
+        item.granule_quality_vendor_code,
+        item.plant_name,
+        item.location_name,
+      ]
         .map((value) => String(value || "").toLowerCase())
         .join(" ")
       return blob.includes(q)
@@ -109,6 +118,20 @@ export default function BulkInventoryPage() {
     const bucket = new Map<string, { name: string; value: number }>()
     for (const row of filteredStock) {
       const key = `${row.plant_name || "Unknown"} • ${row.location_name || "No location"}`
+      const current = bucket.get(key) || { name: key, value: 0 }
+      current.value += Number(row.qty_kg || 0)
+      bucket.set(key, current)
+    }
+    return Array.from(bucket.values()).sort((a, b) => b.value - a.value).slice(0, 8)
+  }, [filteredStock])
+
+  const granuleCodeData = useMemo(() => {
+    const bucket = new Map<string, { name: string; value: number }>()
+    for (const row of filteredStock) {
+      if (String(row.material_category || "").toUpperCase() !== "GRANULE") continue
+      const key = row.granule_quality_code
+        ? `${row.material_name} / ${row.granule_quality_code}${row.granule_quality_vendor_name ? ` / ${row.granule_quality_vendor_name}` : ""}`
+        : `${row.material_name} / No code`
       const current = bucket.get(key) || { name: key, value: 0 }
       current.value += Number(row.qty_kg || 0)
       bucket.set(key, current)
@@ -298,6 +321,11 @@ export default function BulkInventoryPage() {
                 <div key={row.id} className="rounded-2xl border border-slate-100 bg-white p-4">
                   <div className="text-sm font-black tracking-tight text-slate-900">{row.material_name}</div>
                   <div className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{row.material_code}</div>
+                  {row.granule_quality_code ? (
+                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                      {row.granule_quality_code}{row.granule_quality_vendor_name ? ` / ${row.granule_quality_vendor_name}` : ""}
+                    </div>
+                  ) : null}
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <SemanticBadge kind="materialCategory" value={row.material_category} />
                     <div className="text-right">
@@ -311,6 +339,24 @@ export default function BulkInventoryPage() {
           </Card>
         </div>
 
+        <Card className="border-0 bg-emerald-50/30 shadow-sm ring-1 ring-emerald-100">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-emerald-700">
+              <Boxes className="h-4 w-4" /> Granule Code Stock Split
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {granuleCodeData.length === 0 ? (
+              <div className="text-sm font-semibold text-slate-500">No coded granule stock in the current filter.</div>
+            ) : granuleCodeData.map((item) => (
+              <div key={item.name} className="rounded-2xl border border-emerald-100 bg-white p-4">
+                <div className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">{item.name}</div>
+                <div className="mt-2 text-lg font-black text-emerald-700">{formatKg(item.value)}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
         <Card className="border-0 shadow-sm ring-1 ring-slate-100">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
@@ -319,10 +365,11 @@ export default function BulkInventoryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0 overflow-auto">
-            <table className="min-w-[1080px] w-full text-sm">
+            <table className="min-w-[1180px] w-full text-sm">
               <thead className="bg-slate-50/70 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Material</th>
+                  <th className="px-5 py-3">Granule Code</th>
                   <th className="px-5 py-3">Category</th>
                   <th className="px-5 py-3">Plant / Location</th>
                   <th className="px-5 py-3 text-right">Quantity</th>
@@ -335,12 +382,12 @@ export default function BulkInventoryPage() {
                 {isLoading ? (
                   Array.from({ length: 6 }).map((_, index) => (
                     <tr key={index}>
-                      <td className="px-5 py-4" colSpan={7}><Skeleton className="h-10 w-full" /></td>
+                      <td className="px-5 py-4" colSpan={8}><Skeleton className="h-10 w-full" /></td>
                     </tr>
                   ))
                 ) : filteredStock.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-slate-400">No bulk material matches the current search.</td>
+                    <td colSpan={8} className="px-5 py-10 text-center text-slate-400">No bulk material matches the current search.</td>
                   </tr>
                 ) : (
                   filteredStock.map((row: InventoryBulk) => {
@@ -351,6 +398,16 @@ export default function BulkInventoryPage() {
                         <td className="px-5 py-4">
                           <div className="font-black tracking-tight text-slate-900">{row.material_name}</div>
                           <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.material_code}</div>
+                        </td>
+                        <td className="px-5 py-4">
+                          {row.granule_quality_code ? (
+                            <div>
+                              <div className="font-mono text-xs font-black uppercase text-emerald-700">{row.granule_quality_code}</div>
+                              <div className="mt-1 text-[11px] font-semibold text-slate-500">{row.granule_quality_vendor_name || "No vendor linked"}</div>
+                            </div>
+                          ) : (
+                            <div className="text-xs font-semibold text-slate-400">-</div>
+                          )}
                         </td>
                         <td className="px-5 py-4"><SemanticBadge kind="materialCategory" value={row.material_category} /></td>
                         <td className="px-5 py-4 text-slate-600">

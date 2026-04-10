@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user]);
 
-    const getLandingPageForUser = (userData: User): string => {
+    const getLandingPageForUser = (userData: User, resolvedRole?: string | null): string => {
         // Use backend landing_page if available, but guard against legacy/non-existent paths.
         const entitlementLanding = userData.entitlements?.landing_page;
         if (entitlementLanding) {
@@ -160,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Use the effective role (considering override) for landing page
-        const role = effectiveRole || userData.role_info?.code;
+        const role = resolvedRole || effectiveRole || userData.role_info?.code;
         return getLandingPage(role);
     };
 
@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const role = getEffectiveRole(userData);
         setEffectiveRole(role);
 
-        const landing = getLandingPageForUser(userData);
+        const landing = getLandingPageForUser(userData, role);
         router.replace(landing);
     };
 

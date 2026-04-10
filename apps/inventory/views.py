@@ -437,11 +437,13 @@ class GRNViewSet(viewsets.ViewSet):
                 quantity=float(data['quantity']),
                 plant=plant,
                 cost=float(data.get('cost', 0)),  # Phase 56: Cost for avg calculation
-                reference=data.get('reference', "")
+                reference=data.get('reference', ""),
+                granule_code_id=str(data.get('granule_code_id')) if data.get('granule_code_id') else None,
+                granule_code=data.get('granule_code', ""),
             )
             return Response({"status": "success"}, status=status.HTTP_201_CREATED)
         except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": str(getattr(e, "message", "") or e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='roll')
     def create_roll(self, request):
@@ -1454,12 +1456,12 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
     Unified Bulk Inventory view (pooled).
     """
     queryset = InventoryBulk.objects.all().select_related(
-        'material', 'location', 'plant'
+        'material', 'granule_code__vendor', 'location', 'plant'
     ).order_by('material__name')
     serializer_class = InventoryBulkSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['plant', 'location', 'material']
+    filterset_fields = ['plant', 'location', 'material', 'granule_code']
 
     @action(detail=False, methods=['post'])
     def inward(self, request):
@@ -1472,11 +1474,12 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 plant_id=data['plant_id'],
                 location_id=data['location_id'],
                 cost=Decimal(str(data.get('avg_cost', 0))),
-                reference=data.get('reference', '')
+                reference=data.get('reference', ''),
+                granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
             )
             return Response(BulkTransactionSerializer(tx).data, status=status.HTTP_201_CREATED)
         except Exception as e:
-            return Response({"error": "Request failed"}, status=400)
+            return Response({"error": str(getattr(e, "message", "") or e)}, status=400)
 
     @action(detail=False, methods=['post'])
     def consume(self, request):
@@ -1488,11 +1491,12 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 qty=Decimal(str(data['qty_kg'])),
                 location_id=data['location_id'],
                 job_id=data.get('job_id'),
-                reference=data.get('reference', '')
+                reference=data.get('reference', ''),
+                granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
             )
             return Response(BulkTransactionSerializer(tx).data)
         except Exception as e:
-            return Response({"error": "Request failed"}, status=400)
+            return Response({"error": str(getattr(e, "message", "") or e)}, status=400)
 
     @action(detail=False, methods=['post'])
     def transfer(self, request):
@@ -1504,21 +1508,22 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 qty=Decimal(str(data['qty_kg'])),
                 from_location_id=data['from_location_id'],
                 to_location_id=data['to_location_id'],
-                reference=data.get('reference', '')
+                reference=data.get('reference', ''),
+                granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
             )
             return Response({"status": "transferred"})
         except Exception as e:
-            return Response({"error": "Request failed"}, status=400)
+            return Response({"error": str(getattr(e, "message", "") or e)}, status=400)
 
 class BulkTransactionListView(generics.ListAPIView):
     """Audit log for Bulk Transactions."""
     queryset = BulkTransaction.objects.all().select_related(
-        'material', 'location', 'job'
+        'material', 'granule_code__vendor', 'location', 'job'
     ).order_by('-created_at')
     serializer_class = BulkTransactionSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['material', 'location', 'type']
+    filterset_fields = ['material', 'granule_code', 'location', 'type']
 
 
 class PackagingStockViewSet(viewsets.ReadOnlyModelViewSet):

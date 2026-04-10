@@ -49,6 +49,7 @@ const bulkSchema = z.object({
     location_id: z.string().min(1, "Location Required"),
     vendor_id: z.string().min(1, "Vendor Required"),
     material_id: z.string().min(1, "Material Required"),
+    granule_code: z.string().optional(),
     quantity: z.coerce.number().min(0.001, "Quantity must be > 0"),
     cost: z.coerce.number().min(0).optional(), // Phase 56: Cost for avg calculation
     reference: z.string().optional(),
@@ -152,6 +153,7 @@ function BulkGRNForm() {
             location_id: "",
             vendor_id: "",
             material_id: "",
+            granule_code: "",
             quantity: 0,
             cost: 0,
             reference: "",
@@ -215,6 +217,7 @@ function BulkGRNForm() {
                 location_id: '',
                 vendor_id: '',
                 material_id: '',
+                granule_code: '',
                 quantity: 0,
                 cost: 0,
                 reference: '',
@@ -229,7 +232,17 @@ function BulkGRNForm() {
     })
 
     function onSubmit(data: z.infer<typeof bulkSchema>) {
-        mutation.mutate(data)
+        const payload = {
+            ...data,
+            granule_code: materialLane === "GRANULE" ? String(data.granule_code || "").trim().toUpperCase() : "",
+        }
+        if (materialLane === "GRANULE" && !payload.granule_code) {
+            toast.error("Granule code required", {
+                description: "Enter the vendor quality code printed or supplied for this granule inward.",
+            })
+            return
+        }
+        mutation.mutate(payload)
     }
 
     const laneLabel = {
@@ -399,6 +412,33 @@ function BulkGRNForm() {
                                 </FormItem>
                             )}
                         />
+
+                        {materialLane === 'GRANULE' && (
+                            <FormField
+                                control={form.control}
+                                name="granule_code"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                                            Vendor Quality Code
+                                        </FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                data-testid="bulk-grn-granule-code"
+                                                placeholder="e.g. 1005, SP-22, GP-12A"
+                                                className="h-12 border-2 border-emerald-100 bg-white rounded-xl focus:border-emerald-600 font-black uppercase tracking-wide"
+                                                {...field}
+                                                onChange={(event) => field.onChange(event.target.value.toUpperCase())}
+                                            />
+                                        </FormControl>
+                                        <div className="text-xs text-slate-500">
+                                            Same granule master can have multiple vendor quality codes. This is used for stock, issue, and consumption reporting only.
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <FormField

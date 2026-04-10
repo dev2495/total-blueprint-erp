@@ -26,6 +26,7 @@ export interface Vendor {
     type: 'RM' | 'JOBWORK' | 'SERVICE' | 'BOTH'
     gst_no?: string
     address?: string
+    phone_number?: string
     payment_terms?: string
     lead_time_days: number
     jobwork_capabilities?: string[]
@@ -60,6 +61,10 @@ export interface InventoryBulk {
     material_name: string
     material_code: string
     material_category: string
+    granule_quality_code?: string | null
+    granule_quality_code_id?: string | null
+    granule_quality_vendor_name?: string | null
+    granule_quality_vendor_code?: string | null
     plant: string
     plant_name: string
     location: string
@@ -76,6 +81,9 @@ export interface BulkTransaction {
     material: string
     material_name: string
     material_code: string
+    granule_quality_code?: string | null
+    granule_quality_code_id?: string | null
+    granule_quality_vendor_name?: string | null
     location: string
     location_name: string
     type: 'INWARD' | 'CONSUME' | 'TRANSFER' | 'ADJUST'

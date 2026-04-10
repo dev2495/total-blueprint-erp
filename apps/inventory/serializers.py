@@ -430,6 +430,8 @@ class BulkGRNSerializer(serializers.Serializer):
     quantity = serializers.DecimalField(max_digits=15, decimal_places=4)
     cost = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, default=0)  # Phase 56: Cost for avg calculation
     reference = serializers.CharField(required=False, allow_blank=True)
+    granule_code_id = serializers.UUIDField(required=False, allow_null=True)
+    granule_code = serializers.CharField(required=False, allow_blank=True)
 
 class RollGRNSerializer(serializers.Serializer):
     material_id = serializers.UUIDField()
@@ -615,6 +617,10 @@ class InventoryBulkSerializer(serializers.ModelSerializer):
     material_name = serializers.CharField(source='material.name', read_only=True)
     material_code = serializers.CharField(source='material.code', read_only=True)
     material_category = serializers.CharField(source='material.category', read_only=True)
+    granule_quality_code = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
+    granule_quality_code_id = serializers.CharField(source='granule_code.id', read_only=True, allow_null=True)
+    granule_quality_vendor_name = serializers.CharField(source='granule_code.vendor.name', read_only=True, allow_null=True)
+    granule_quality_vendor_code = serializers.CharField(source='granule_code.vendor.code', read_only=True, allow_null=True)
     location_name = serializers.CharField(source='location.name', read_only=True)
     plant_name = serializers.CharField(source='plant.name', read_only=True)
     
@@ -625,6 +631,9 @@ class InventoryBulkSerializer(serializers.ModelSerializer):
 class BulkTransactionSerializer(serializers.ModelSerializer):
     material_name = serializers.CharField(source='material.name', read_only=True)
     material_code = serializers.CharField(source='material.code', read_only=True)
+    granule_quality_code = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
+    granule_quality_code_id = serializers.CharField(source='granule_code.id', read_only=True, allow_null=True)
+    granule_quality_vendor_name = serializers.CharField(source='granule_code.vendor.name', read_only=True, allow_null=True)
     location_name = serializers.CharField(source='location.name', read_only=True)
     job_no = serializers.CharField(source='job.job_no', read_only=True, allow_null=True)
     

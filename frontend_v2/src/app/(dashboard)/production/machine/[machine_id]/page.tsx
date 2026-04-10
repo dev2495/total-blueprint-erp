@@ -58,6 +58,7 @@ type MaterialConfirmationDraft = {
     is_estimated: boolean;
     return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
     target_ink_material_id?: string;
+    granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: string }>;
 };
 
 const POLL_MS = 8000;
@@ -884,6 +885,12 @@ export default function MachineExecutionPage() {
                     const issued = Math.max(0, toNumber(draft.actual_issued_qty, 0));
                     const returned = Math.max(0, toNumber(draft.actual_returned_qty, 0));
                     const scrap = Math.max(0, toNumber(draft.actual_scrap_qty, 0));
+                    const granuleCodeAllocations = (draft.granule_code_allocations || [])
+                        .map((allocation) => ({
+                            granule_code_id: allocation.granule_code_id,
+                            qty_kg: Math.max(0, toNumber(allocation.qty_kg, 0)),
+                        }))
+                        .filter((allocation) => allocation.granule_code_id && allocation.qty_kg > 0);
                     return {
                         requirement_id: requirementId,
                         material_id: draft.material_id,
@@ -893,6 +900,7 @@ export default function MachineExecutionPage() {
                         is_estimated: draft.is_estimated,
                         return_mode: draft.return_mode || 'EXACT_COLOR_RETURN',
                         target_ink_material_id: draft.return_mode === 'REMIXED_RETURN' ? draft.target_ink_material_id : undefined,
+                        granule_code_allocations: granuleCodeAllocations.length ? granuleCodeAllocations : undefined,
                     };
                 })
                 .filter(Boolean) as Array<{
@@ -904,6 +912,7 @@ export default function MachineExecutionPage() {
                     is_estimated?: boolean;
                     return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
                     target_ink_material_id?: string;
+                    granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: number }>;
                 }>;
             const payload =
                 forceReason.trim() || confirmationPayload.length
@@ -957,6 +966,7 @@ export default function MachineExecutionPage() {
                         row?.actual_issued_qty_kg ?? row?.estimated_actual_qty_kg ?? row?.actual_consumed_qty_kg,
                         0
                     );
+                    const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : [];
                     next[requirementId] = {
                         requirement_id: requirementId,
                         material_id: row?.material_id ? String(row.material_id) : undefined,
@@ -966,6 +976,10 @@ export default function MachineExecutionPage() {
                         is_estimated: true,
                         return_mode: 'EXACT_COLOR_RETURN',
                         target_ink_material_id: '',
+                        granule_code_allocations:
+                            String(row?.category || '').toUpperCase() === 'GRANULE' && codeOptions.length > 0
+                                ? [{ granule_code_id: String(codeOptions[0].granule_code_id), qty_kg: estimated > 0 ? estimated.toFixed(3) : '' }]
+                                : [],
                     };
                     changed = true;
                 }
@@ -1411,6 +1425,13 @@ export default function MachineExecutionPage() {
                                                                         target_ink_material_id: "",
                                                                     }
                                                                     const estimate = toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0)
+                                                                    const granuleCodeOptions = Array.isArray(req?.granule_code_options) ? req.granule_code_options : []
+                                                                    const granuleAllocations =
+                                                                        draft.granule_code_allocations && draft.granule_code_allocations.length > 0
+                                                                            ? draft.granule_code_allocations
+                                                                            : (String(req?.category || '').toUpperCase() === 'GRANULE' && granuleCodeOptions.length > 0
+                                                                                ? [{ granule_code_id: String(granuleCodeOptions[0].granule_code_id), qty_kg: estimate > 0 ? estimate.toFixed(3) : '' }]
+                                                                                : [])
 
                                                                     return (
                                                                         <div key={req.requirement_id || req.material_id || idx} className="rounded-2xl border border-amber-200 bg-white/90 p-4 space-y-3">
@@ -1435,6 +1456,10 @@ export default function MachineExecutionPage() {
                                                                                         is_estimated: true,
                                                                                         return_mode: "EXACT_COLOR_RETURN",
                                                                                         target_ink_material_id: "",
+                                                                                        granule_code_allocations:
+                                                                                            String(req?.category || '').toUpperCase() === 'GRANULE' && granuleCodeOptions.length > 0
+                                                                                                ? [{ granule_code_id: String(granuleCodeOptions[0].granule_code_id), qty_kg: estimate.toFixed(3) }]
+                                                                                                : [],
                                                                                     })}
                                                                                     disabled={!requirementId}
                                                                                 >
@@ -1519,6 +1544,107 @@ export default function MachineExecutionPage() {
                                                                                     />
                                                                                 </div>
                                                                             </div>
+                                                                            {String(req?.category || '').toUpperCase() === 'GRANULE' && (
+                                                                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-3">
+                                                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                                        <div>
+                                                                                            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-800">
+                                                                                                Granule vendor code issue
+                                                                                            </div>
+                                                                                            <p className="text-[10px] font-semibold text-emerald-900">
+                                                                                                Split this material issue by vendor quality code for stock and consumption reporting.
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="outline"
+                                                                                            size="sm"
+                                                                                            className="h-8 rounded-xl border-emerald-200 bg-white text-[10px] font-black uppercase tracking-widest"
+                                                                                            disabled={!requirementId || granuleCodeOptions.length === 0}
+                                                                                            onClick={() => updateMaterialConfirmation(requirementId, {
+                                                                                                granule_code_allocations: [
+                                                                                                    ...granuleAllocations,
+                                                                                                    { granule_code_id: String(granuleCodeOptions[0]?.granule_code_id || ''), qty_kg: '' },
+                                                                                                ],
+                                                                                                is_estimated: false,
+                                                                                            })}
+                                                                                        >
+                                                                                            <Plus className="mr-1 h-3 w-3" /> Add Code
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                    {granuleCodeOptions.length === 0 ? (
+                                                                                        <div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-[10px] font-bold text-amber-800">
+                                                                                            No granule quality-code stock is available at the selected issue location. Inward this granule with a code first.
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="space-y-2">
+                                                                                            {granuleAllocations.map((allocation, allocationIndex) => (
+                                                                                                <div key={`${requirementId}-granule-code-${allocationIndex}`} className="grid gap-2 md:grid-cols-[1fr_140px_40px]">
+                                                                                                    <Select
+                                                                                                        value={allocation.granule_code_id || String(granuleCodeOptions[0]?.granule_code_id || '')}
+                                                                                                        onValueChange={(value) => {
+                                                                                                            const nextAllocations = granuleAllocations.map((row, rowIndex) =>
+                                                                                                                rowIndex === allocationIndex ? { ...row, granule_code_id: value } : row
+                                                                                                            )
+                                                                                                            updateMaterialConfirmation(requirementId, {
+                                                                                                                granule_code_allocations: nextAllocations,
+                                                                                                                is_estimated: false,
+                                                                                                            })
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <SelectTrigger
+                                                                                                            data-testid={`machine-granule-code-${requirementId}-${allocationIndex}`}
+                                                                                                            className="h-10 rounded-xl border-emerald-200 bg-white font-bold text-[11px]"
+                                                                                                        >
+                                                                                                            <SelectValue placeholder="Select granule code" />
+                                                                                                        </SelectTrigger>
+                                                                                                        <SelectContent>
+                                                                                                            {granuleCodeOptions.map((option: any) => (
+                                                                                                                <SelectItem key={`${requirementId}-${option.granule_code_id}`} value={String(option.granule_code_id)}>
+                                                                                                                    {option.code}
+                                                                                                                    {option.vendor_name ? ` / ${option.vendor_name}` : ''}
+                                                                                                                    {` / ${toNumber(option.available_qty_kg, 0).toFixed(3)} kg`}
+                                                                                                                </SelectItem>
+                                                                                                            ))}
+                                                                                                        </SelectContent>
+                                                                                                    </Select>
+                                                                                                    <Input
+                                                                                                        data-testid={`machine-granule-code-qty-${requirementId}-${allocationIndex}`}
+                                                                                                        value={allocation.qty_kg}
+                                                                                                        onChange={(e) => {
+                                                                                                            const nextAllocations = granuleAllocations.map((row, rowIndex) =>
+                                                                                                                rowIndex === allocationIndex ? { ...row, qty_kg: e.target.value } : row
+                                                                                                            )
+                                                                                                            updateMaterialConfirmation(requirementId, {
+                                                                                                                granule_code_allocations: nextAllocations,
+                                                                                                                is_estimated: false,
+                                                                                                            })
+                                                                                                        }}
+                                                                                                        placeholder="KG"
+                                                                                                        className="h-10 rounded-xl border-emerald-200 bg-white font-bold"
+                                                                                                    />
+                                                                                                    <Button
+                                                                                                        type="button"
+                                                                                                        variant="ghost"
+                                                                                                        size="icon"
+                                                                                                        className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600"
+                                                                                                        disabled={granuleAllocations.length <= 1}
+                                                                                                        onClick={() => updateMaterialConfirmation(requirementId, {
+                                                                                                            granule_code_allocations: granuleAllocations.filter((_, rowIndex) => rowIndex !== allocationIndex),
+                                                                                                            is_estimated: false,
+                                                                                                        })}
+                                                                                                    >
+                                                                                                        <Trash2 className="h-4 w-4" />
+                                                                                                    </Button>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                            <div className="text-[10px] font-bold text-emerald-900">
+                                                                                                Allocated {granuleAllocations.reduce((sum, row) => sum + toNumber(row.qty_kg, 0), 0).toFixed(3)} KG. It must match net consumed KG on close.
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
                                                                             {String(req?.category || '').toUpperCase() === 'INK' && (
                                                                                 <div className="grid gap-3 md:grid-cols-2">
                                                                                     <div className="space-y-2">

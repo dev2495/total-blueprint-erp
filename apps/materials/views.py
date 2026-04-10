@@ -2,12 +2,14 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant
 from apps.inventory.models import InkMaterial
+from apps.users.audit_mixins import MasterDataAuditMixin
 from .serializers import (
     FilmFamilySerializer, 
     FilmVariantSerializer, 
     GranuleSerializer, 
+    GranuleQualityCodeSerializer,
     InkSerializer, 
     AdhesiveSolventSerializer,
     AddonSerializer,
@@ -28,7 +30,8 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'code']
 
 
-class CommercialFamilyViewSet(viewsets.ModelViewSet):
+class CommercialFamilyViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_COMMERCIAL_FAMILY"
     queryset = CommercialFamily.objects.all().order_by('name')
     serializer_class = CommercialFamilySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -64,13 +67,15 @@ class PODViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
-class FilmFamilyViewSet(viewsets.ModelViewSet):
+class FilmFamilyViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_FILM_FAMILY"
     queryset = InventoryMaterial.objects.filter(category='FILM_FAMILY').order_by('name')
     serializer_class = FilmFamilySerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name']
 
-class FilmVariantViewSet(viewsets.ModelViewSet):
+class FilmVariantViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_FILM_VARIANT"
     queryset = InventoryMaterial.objects.filter(category='FILM_VARIANT').order_by('name')
     serializer_class = FilmVariantSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -85,13 +90,24 @@ class FilmVariantViewSet(viewsets.ModelViewSet):
         grades = RecipeGrade.objects.all()
         return Response([{"id": str(g.id), "name": g.name} for g in grades])
 
-class GranuleViewSet(viewsets.ModelViewSet):
-    queryset = InventoryMaterial.objects.filter(category='GRANULE').order_by('name')
+class GranuleViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_GRANULE"
+    queryset = InventoryMaterial.objects.filter(category='GRANULE').prefetch_related('quality_codes__vendor').order_by('name')
     serializer_class = GranuleSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
 
-class InkViewSet(viewsets.ModelViewSet):
+
+class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_GRANULE_CODE"
+    queryset = GranuleQualityCode.objects.select_related('granule', 'vendor').order_by('granule__name', 'code')
+    serializer_class = GranuleQualityCodeSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['granule', 'vendor', 'status']
+    search_fields = ['code', 'granule__name', 'granule__code', 'vendor__name', 'vendor__code']
+
+class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_INK"
     queryset = InkMaterial.objects.all().order_by('color_name')
     serializer_class = InkSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
@@ -119,14 +135,16 @@ class AdhesiveSolventViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['category']
     search_fields = ['name', 'code']
 
-class AddonViewSet(viewsets.ModelViewSet):
+class AddonViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_ADDON"
     queryset = InventoryMaterial.objects.filter(category='ADDON').order_by('name')
     serializer_class = AddonSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
 
 
-class PackagingViewSet(viewsets.ModelViewSet):
+class PackagingViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_PACKAGING"
     queryset = InventoryMaterial.objects.filter(category='PACKAGING').order_by('name')
     serializer_class = PackagingSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -134,7 +152,8 @@ class PackagingViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code']
 
 
-class PodSkuViewSet(viewsets.ModelViewSet):
+class PodSkuViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_POD_SKU"
     queryset = PodSku.objects.prefetch_related('variants__material').order_by('name', 'code')
     serializer_class = PodSkuSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -142,7 +161,8 @@ class PodSkuViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'family']
 
 
-class PodSkuVariantViewSet(viewsets.ModelViewSet):
+class PodSkuVariantViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_POD_SKU_VARIANT"
     serializer_class = PodSkuVariantSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['active', 'pod_sku', 'material']

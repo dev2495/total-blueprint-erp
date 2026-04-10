@@ -210,6 +210,7 @@ export interface SatisfactionStatus {
 }
 
 export interface BulkConsumptionPreview {
+    requirement_id?: string;
     material_id?: string;
     material_name?: string;
     category: string;
@@ -224,6 +225,20 @@ export interface BulkConsumptionPreview {
     current_plant_available_qty_kg?: number;
     other_plants_available_qty_kg?: number;
     available_qty?: number;
+    capture_mode?: string;
+    strategy?: string;
+    granule_code_options?: Array<{
+        granule_code_id: string;
+        code: string;
+        vendor_id?: string | null;
+        vendor_name?: string;
+        vendor_code?: string;
+        available_qty_kg: number;
+        location_id?: string;
+        location_name?: string;
+        plant_id?: string;
+        plant_name?: string;
+    }>;
     is_auto_deduct: boolean;
 }
 

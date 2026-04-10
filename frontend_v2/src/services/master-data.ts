@@ -30,6 +30,23 @@ export interface Material {
     pod_panel_count?: number | null;
     pod_is_inhouse_produced?: boolean;
     density_gcm3?: number | null;
+    quality_codes?: GranuleQualityCode[];
+    quality_code_count?: number;
+}
+
+export interface GranuleQualityCode {
+    id: string;
+    granule: string;
+    granule_name?: string;
+    granule_material_code?: string;
+    code: string;
+    vendor?: string | null;
+    vendor_name?: string;
+    vendor_code?: string;
+    status: 'ACTIVE' | 'INACTIVE';
+    notes?: string;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface Addon extends Material {
@@ -106,6 +123,7 @@ export interface Vendor {
     type: string;
     gst_no: string;
     address: string;
+    phone_number?: string;
     payment_terms: string;
     lead_time_days: number;
     status: string;
@@ -123,8 +141,8 @@ export interface Location {
 export const masterDataService = {
     // Granules
     getGranules: async () => {
-        const { data } = await api.get<Material[]>("/api/master/granules/");
-        return data;
+        const { data } = await api.get<MaybePaginated<Material>>("/api/master/granules/");
+        return unwrapList<Material>(data);
     },
     createGranule: async (data: { code: string; name: string }) => {
         const { data: res } = await api.post<Material>("/api/master/granules/", data);
@@ -136,6 +154,21 @@ export const masterDataService = {
     },
     deleteGranule: async (id: string) => {
         await api.delete(`/api/master/granules/${id}/`);
+    },
+    getGranuleCodes: async (params?: { granule?: string; vendor?: string; status?: string }) => {
+        const { data } = await api.get<MaybePaginated<GranuleQualityCode>>("/api/master/granule-codes/", { params });
+        return unwrapList<GranuleQualityCode>(data);
+    },
+    createGranuleCode: async (payload: { granule: string; code: string; vendor?: string | null; status?: string; notes?: string }) => {
+        const { data } = await api.post<GranuleQualityCode>("/api/master/granule-codes/", payload);
+        return data;
+    },
+    updateGranuleCode: async (id: string, payload: Partial<{ granule: string; code: string; vendor: string | null; status: string; notes: string }>) => {
+        const { data } = await api.patch<GranuleQualityCode>(`/api/master/granule-codes/${id}/`, payload);
+        return data;
+    },
+    deleteGranuleCode: async (id: string) => {
+        await api.delete(`/api/master/granule-codes/${id}/`);
     },
 
     // Inks

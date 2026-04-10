@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant
 from apps.inventory.models import InkMaterial
 import uuid
 
@@ -84,11 +84,54 @@ class FilmVariantSerializer(serializers.ModelSerializer):
         validated_data['base_uom'] = 'KG' 
         return super().create(validated_data)
 
+class GranuleQualityCodeSerializer(serializers.ModelSerializer):
+    granule_name = serializers.CharField(source="granule.name", read_only=True)
+    granule_material_code = serializers.CharField(source="granule.code", read_only=True)
+    vendor_name = serializers.CharField(source="vendor.name", read_only=True, allow_null=True)
+    vendor_code = serializers.CharField(source="vendor.code", read_only=True, allow_null=True)
+
+    class Meta:
+        model = GranuleQualityCode
+        fields = [
+            "id",
+            "granule",
+            "granule_name",
+            "granule_material_code",
+            "code",
+            "vendor",
+            "vendor_name",
+            "vendor_code",
+            "status",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "granule_name", "granule_material_code", "vendor_name", "vendor_code"]
+
+    def validate_code(self, value):
+        value = str(value or "").strip().upper()
+        if not value:
+            raise serializers.ValidationError("Quality code is required.")
+        return value
+
+    def validate(self, attrs):
+        granule = attrs.get("granule") or getattr(self.instance, "granule", None)
+        if granule and str(getattr(granule, "category", "") or "").upper() != "GRANULE":
+            raise serializers.ValidationError({"granule": "Quality code can only be attached to a granule."})
+        return attrs
+
+
 class GranuleSerializer(serializers.ModelSerializer):
+    quality_codes = GranuleQualityCodeSerializer(many=True, read_only=True)
+    quality_code_count = serializers.SerializerMethodField()
+
     class Meta:
         model = InventoryMaterial
-        fields = ['id', 'code', 'name', 'status', 'created_at']
+        fields = ['id', 'code', 'name', 'status', 'created_at', 'quality_codes', 'quality_code_count']
         read_only_fields = ['id', 'created_at']
+
+    def get_quality_code_count(self, obj):
+        return obj.quality_codes.count()
 
     def create(self, validated_data):
         validated_data['category'] = 'GRANULE'

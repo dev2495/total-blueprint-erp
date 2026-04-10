@@ -53,7 +53,9 @@ class GRNService:
                         quantity: float, 
                         plant,
                         cost: float = 0,
-                        reference: str = ""):
+                        reference: str = "",
+                        granule_code_id: str | None = None,
+                        granule_code: str | None = None):
         """
         Phase 56: Record a Bulk Goods Receipt.
         Uses BulkService.add_bulk() for proper inventory tracking.
@@ -87,6 +89,31 @@ class GRNService:
             raise ValidationError('Adhesive inward is locked to the AD-ADHESIVE system master.')
         if material.category == 'SOLVENT' and material_code != 'AD-SOLVENT':
             raise ValidationError('Solvent inward is locked to the AD-SOLVENT system master.')
+
+        resolved_granule_code_id = None
+        if material.category == 'GRANULE':
+            from apps.materials.models import GranuleQualityCode
+            if granule_code_id:
+                code_obj = GranuleQualityCode.objects.filter(id=granule_code_id, granule=material).first()
+                if not code_obj:
+                    raise ValidationError("Selected granule quality code does not belong to this granule.")
+                if code_obj.vendor_id and str(code_obj.vendor_id) != str(vendor.id):
+                    raise ValidationError("Selected granule quality code belongs to a different vendor.")
+                if not code_obj.vendor_id:
+                    code_obj.vendor = vendor
+                    code_obj.save(update_fields=["vendor", "updated_at"])
+                resolved_granule_code_id = str(code_obj.id)
+            elif granule_code:
+                code_value = str(granule_code or "").strip().upper()
+                if not code_value:
+                    raise ValidationError("Granule quality code cannot be blank.")
+                code_obj, _ = GranuleQualityCode.objects.get_or_create(
+                    granule=material,
+                    code=code_value,
+                    vendor=vendor,
+                    defaults={"status": "ACTIVE"},
+                )
+                resolved_granule_code_id = str(code_obj.id)
         
         # Use BulkService for proper tracking
         return BulkService.add_bulk(
@@ -95,7 +122,8 @@ class GRNService:
             plant_id=str(plant.id),
             location_id=str(location.id),
             cost=cost,
-            reference=f"VENDOR:{vendor.code} | {reference or 'GRN'}"
+            reference=f"VENDOR:{vendor.code} | {reference or 'GRN'}",
+            granule_code_id=resolved_granule_code_id,
         )
 
     @classmethod

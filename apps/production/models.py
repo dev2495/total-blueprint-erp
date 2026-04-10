@@ -743,6 +743,14 @@ class MaterialConsumptionLog(models.Model):
     
     # Generic Link to Material (for aggregation)
     material = models.ForeignKey('materials.InventoryMaterial', on_delete=models.PROTECT)
+    granule_code = models.ForeignKey(
+        'materials.GranuleQualityCode',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='consumption_logs',
+        help_text='Optional granule vendor quality code used for consumption reporting.',
+    )
     
     # Specific Link to Roll (if applicable)
     roll = models.ForeignKey('inventory.InventoryRoll', on_delete=models.PROTECT, null=True, blank=True)

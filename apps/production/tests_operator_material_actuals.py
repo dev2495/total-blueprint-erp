@@ -124,3 +124,62 @@ class ReconcileStepMaterialActualsTests(SimpleTestCase):
         self.assertFalse(req.is_estimated)
         self.assertTrue(req._saved)
         mock_log_create.assert_not_called()
+
+    @patch("apps.production.services.services_execution.MaterialConsumptionLog.objects.create")
+    @patch("apps.production.services.services_execution.BulkService.consume_bulk")
+    @patch("apps.production.services.services_execution.ExecutionService._resolve_requirement_capture_mode")
+    @patch("apps.production.services.services_execution.InventoryLocation.objects.filter")
+    @patch("apps.production.services.services_execution.JobMaterialRequirement.objects.select_related")
+    def test_granule_code_allocations_split_issue_and_log_by_code(
+        self,
+        mock_select_related,
+        mock_location_filter,
+        mock_capture_mode,
+        mock_consume_bulk,
+        mock_log_create,
+    ):
+        req = _FakeRequirement(
+            material_id="granule-1",
+            material=SimpleNamespace(id="granule-1", category="GRANULE", name="Milky Granule"),
+            theoretical_qty=Decimal("4.0000"),
+            planned_issue_qty=Decimal("4.0000"),
+        )
+        mock_capture_mode.return_value = "MANUAL_CONFIRM"
+        mock_select_related.return_value.filter.return_value = _FakeRequirementQuerySet([req])
+        mock_location_filter.return_value.first.return_value = SimpleNamespace(id="loc-1", plant_id="plant-1")
+
+        ExecutionService.reconcile_step_material_actuals(
+            self._job(),
+            material_confirmations=[
+                {
+                    "requirement_id": req.id,
+                    "material_id": req.material_id,
+                    "actual_issued_qty": "4.0000",
+                    "actual_returned_qty": "0.0000",
+                    "actual_scrap_qty": "0.0000",
+                    "is_estimated": False,
+                    "granule_code_allocations": [
+                        {"granule_code_id": "code-a", "qty_kg": "1.2500"},
+                        {"granule_code_id": "code-b", "qty_kg": "2.7500"},
+                    ],
+                }
+            ],
+            consumption_location_id="loc-1",
+            strict=True,
+        )
+
+        self.assertEqual(req.actual_issued_qty, Decimal("4.0000"))
+        self.assertEqual(req.actual_returned_qty, Decimal("0.0000"))
+        self.assertEqual(req.actual_scrap_qty, Decimal("0.0000"))
+        self.assertEqual(req.consumed_qty, Decimal("4.0000"))
+        self.assertEqual(req.variance_qty, Decimal("0.0000"))
+        self.assertFalse(req.is_estimated)
+        self.assertTrue(req._saved)
+        self.assertEqual(mock_consume_bulk.call_count, 2)
+        first_call = mock_consume_bulk.call_args_list[0].kwargs
+        second_call = mock_consume_bulk.call_args_list[1].kwargs
+        self.assertEqual(first_call["granule_code_id"], "code-a")
+        self.assertEqual(first_call["qty"], Decimal("1.2500"))
+        self.assertEqual(second_call["granule_code_id"], "code-b")
+        self.assertEqual(second_call["qty"], Decimal("2.7500"))
+        self.assertEqual(mock_log_create.call_count, 2)

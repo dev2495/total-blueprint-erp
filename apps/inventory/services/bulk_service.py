@@ -1,13 +1,30 @@
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from django.db.models import F
+from django.db.models import F, Sum
 from apps.inventory.models import InventoryBulk, BulkTransaction, InventoryLocation
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import GranuleQualityCode, InventoryMaterial
 
 class BulkService:
     @classmethod
+    def _resolve_granule_code(cls, material_id, granule_code_id=None):
+        if not granule_code_id:
+            return None
+        material = InventoryMaterial.objects.only("id", "category").get(id=material_id)
+        if str(material.category or "").upper() != "GRANULE":
+            raise ValidationError("Quality codes are only valid for granule materials.")
+        try:
+            quality_code = GranuleQualityCode.objects.select_related("granule").get(id=granule_code_id)
+        except (GranuleQualityCode.DoesNotExist, ValueError, TypeError):
+            raise ValidationError("Selected granule quality code does not exist.")
+        if str(quality_code.granule_id) != str(material_id):
+            raise ValidationError("Selected granule quality code does not belong to the selected granule.")
+        if str(quality_code.status or "").upper() != "ACTIVE":
+            raise ValidationError("Selected granule quality code is inactive.")
+        return quality_code
+
+    @classmethod
     @transaction.atomic
-    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None):
+    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None, granule_code_id=None):
         """
         Increase bulk quantity and update average cost.
         Used by GRN and manual adjustments.
@@ -18,9 +35,11 @@ class BulkService:
         
         if qty <= 0:
             raise ValidationError("Quantity to add must be positive.")
+        quality_code = cls._resolve_granule_code(material_id, granule_code_id)
 
         bulk, created = InventoryBulk.objects.get_or_create(
             material_id=material_id,
+            granule_code_id=quality_code.id if quality_code else None,
             plant_id=plant_id,
             location_id=location_id,
             defaults={'qty_kg': 0, 'avg_cost': 0}
@@ -40,6 +59,7 @@ class BulkService:
         # Create Transaction
         return BulkTransaction.objects.create(
             material_id=material_id,
+            granule_code_id=quality_code.id if quality_code else None,
             location_id=location_id,
             type=tx_type,
             qty_kg=qty,
@@ -50,7 +70,7 @@ class BulkService:
 
     @classmethod
     @transaction.atomic
-    def consume_bulk(cls, material_id, qty, location_id, job_id=None, reference=""):
+    def consume_bulk(cls, material_id, qty, location_id, job_id=None, reference="", granule_code_id=None):
         """
         Deduct bulk quantity. Used by production.
         """
@@ -59,33 +79,46 @@ class BulkService:
         
         if qty <= 0:
             raise ValidationError("Quantity to consume must be positive.")
+        quality_code = cls._resolve_granule_code(material_id, granule_code_id)
 
-        try:
-            # We filter by location_id only as plant is implied by location
-            bulk = InventoryBulk.objects.get(material_id=material_id, location_id=location_id)
-        except InventoryBulk.DoesNotExist:
+        qs = InventoryBulk.objects.select_for_update().filter(material_id=material_id, location_id=location_id)
+        if quality_code:
+            qs = qs.filter(granule_code=quality_code)
+        qs = qs.filter(qty_kg__gt=0).order_by("granule_code__code", "updated_at", "id")
+        available = qs.aggregate(total=Sum("qty_kg")).get("total") or Decimal("0")
+        if available <= 0:
             raise ValidationError(f"No stock found for material {material_id} at location {location_id}.")
+        if available < qty:
+            code_label = f" / code {quality_code.code}" if quality_code else ""
+            raise ValidationError(f"Insufficient stock for {material_id}{code_label}. Requested: {qty}, Available: {available}")
 
-        if bulk.qty_kg < qty:
-            raise ValidationError(f"Insufficient stock for {material_id}. Requested: {qty}, Available: {bulk.qty_kg}")
+        remaining = qty
+        last_tx = None
+        for bulk in qs:
+            take = min(remaining, Decimal(str(bulk.qty_kg or 0))).quantize(Decimal("0.0001"))
+            if take <= 0:
+                continue
+            bulk.qty_kg = F('qty_kg') - take
+            bulk.save(update_fields=['qty_kg', 'updated_at'])
+            last_tx = BulkTransaction.objects.create(
+                material_id=material_id,
+                granule_code_id=bulk.granule_code_id,
+                location_id=location_id,
+                type='CONSUME',
+                qty_kg=-take,
+                avg_cost=bulk.avg_cost,
+                reference=reference,
+                job_id=job_id
+            )
+            remaining = (remaining - take).quantize(Decimal("0.0001"))
+            if remaining <= 0:
+                break
 
-        bulk.qty_kg = F('qty_kg') - qty
-        bulk.save()
-
-        # Create Transaction
-        return BulkTransaction.objects.create(
-            material_id=material_id,
-            location_id=location_id,
-            type='CONSUME',
-            qty_kg=-qty,
-            avg_cost=bulk.avg_cost,
-            reference=reference,
-            job_id=job_id
-        )
+        return last_tx
 
     @classmethod
     @transaction.atomic
-    def transfer_bulk(cls, material_id, qty, from_location_id, to_location_id, reference=""):
+    def transfer_bulk(cls, material_id, qty, from_location_id, to_location_id, reference="", granule_code_id=None):
         """
         Transfer bulk between locations.
         """
@@ -93,16 +126,20 @@ class BulkService:
             raise ValidationError("Quantity to transfer must be positive.")
 
         # Deduct from source
-        cls.consume_bulk(material_id, qty, from_location_id, reference=f"Transfer Out: {reference}")
+        cls.consume_bulk(material_id, qty, from_location_id, reference=f"Transfer Out: {reference}", granule_code_id=granule_code_id)
 
         # Add to destination
         from_loc = InventoryLocation.objects.get(id=from_location_id)
         to_loc = InventoryLocation.objects.get(id=to_location_id)
         
         # Get source cost for destination (simplification: assume cost follows movement)
-        source_bulk = InventoryBulk.objects.get(material_id=material_id, location_id=from_location_id)
+        source_qs = InventoryBulk.objects.filter(material_id=material_id, location_id=from_location_id)
+        if granule_code_id:
+            source_qs = source_qs.filter(granule_code_id=granule_code_id)
+        source_bulk = source_qs.order_by("-updated_at").first()
+        source_cost = source_bulk.avg_cost if source_bulk else 0
         
-        cls.add_bulk(material_id, qty, to_loc.plant_id, to_location_id, cost=source_bulk.avg_cost, reference=f"Transfer In: {reference}")
+        cls.add_bulk(material_id, qty, to_loc.plant_id, to_location_id, cost=source_cost, reference=f"Transfer In: {reference}", granule_code_id=granule_code_id)
 
     @classmethod
     @transaction.atomic

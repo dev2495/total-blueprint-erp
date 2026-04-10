@@ -840,7 +840,7 @@ class ReportService:
         good_logs = ReportService._apply_filters(good_logs, filters, date_field='logged_at')
 
         consumption_logs = MaterialConsumptionLog.objects.select_related(
-            'production_job', 'material'
+            'production_job', 'material', 'granule_code', 'granule_code__vendor'
         )
         consumption_logs = ReportService._apply_filters(consumption_logs, filters, date_field='logged_at')
 
@@ -918,6 +918,25 @@ class ReportService:
             "scrap_kg": round(float(o['quantity'] or 0), 2),
             "events": o['count'],
         } for o in by_operator]
+
+        by_granule_code = consumption_logs.filter(
+            material__category='GRANULE',
+            granule_code__isnull=False,
+        ).values(
+            'material__name',
+            'granule_code__code',
+            'granule_code__vendor__name',
+        ).annotate(
+            consumed_kg=Sum('quantity'),
+            events=Count('id'),
+        ).order_by('-consumed_kg')[:12]
+        granule_code_consumption = [{
+            "material": row['material__name'] or "Granule",
+            "code": row['granule_code__code'] or "",
+            "vendor": row['granule_code__vendor__name'] or "",
+            "consumed_kg": round(float(row['consumed_kg'] or 0), 3),
+            "events": int(row['events'] or 0),
+        } for row in by_granule_code]
 
         # Daily trend
         daily = scrap_logs.annotate(date=TruncDate('logged_at')).values('date').annotate(
@@ -1025,11 +1044,13 @@ class ReportService:
                 "by_process": process_yield,
                 "by_operator": operator_scrap,
                 "top_jobs": top_jobs,
+                "granule_code_consumption": granule_code_consumption,
             },
             "by_reason": reasons_data,
             "by_machine": machine_data,
             "by_process": process_yield,
             "by_operator": operator_scrap,
+            "granule_code_consumption": granule_code_consumption,
             "daily_trend": daily_trend,
             "top_jobs": top_jobs,
             "recent_events": recent_events,

@@ -28,6 +28,7 @@ class Vendor(models.Model):
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='RM')
     
     gst_no = models.CharField(max_length=20, blank=True)
+    phone_number = models.CharField(max_length=30, blank=True, default="")
     address = models.TextField(blank=True)
     
     payment_terms = models.CharField(max_length=100, blank=True, help_text="e.g. Net 30")
@@ -261,6 +262,14 @@ class InventoryBulk(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, related_name='bulk_stock')
+    granule_code = models.ForeignKey(
+        'materials.GranuleQualityCode',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='bulk_stock',
+        help_text='Optional vendor quality code used only for granule stock reporting and issue control.',
+    )
     plant = models.ForeignKey('factory.Plant', on_delete=models.CASCADE, related_name='bulk_inventory')
     location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name='bulk_inventory')
 
@@ -271,10 +280,17 @@ class InventoryBulk(models.Model):
 
     class Meta:
         db_table = 'inventory_bulk'
-        unique_together = ('material', 'plant', 'location')
+        constraints = [
+            UniqueConstraint(
+                fields=['material', 'granule_code', 'plant', 'location'],
+                name='uniq_bulk_material_code_plant_location',
+                nulls_distinct=False,
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.material.name} @ {self.location.name}: {self.qty_kg}kg"
+        code = f" / {self.granule_code.code}" if self.granule_code_id else ""
+        return f"{self.material.name}{code} @ {self.location.name}: {self.qty_kg}kg"
 
 class BulkTransaction(models.Model):
     """
@@ -290,6 +306,13 @@ class BulkTransaction(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, related_name='bulk_transactions')
+    granule_code = models.ForeignKey(
+        'materials.GranuleQualityCode',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='bulk_transactions',
+    )
     location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name='bulk_transactions')
 
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
