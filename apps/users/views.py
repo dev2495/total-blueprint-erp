@@ -538,6 +538,47 @@ class UserViewSet(viewsets.ModelViewSet):
             qs = qs.exclude(Q(email__isnull=True) | Q(email__exact=""))
         return qs
 
+    def _deny_if_not_admin(self, request):
+        if _is_admin_actor(request.user):
+            return None
+        return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+    def list(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=False, methods=['get'])
     def me(self, request):
         serializer = self.get_serializer(request.user)

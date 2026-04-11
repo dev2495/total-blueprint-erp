@@ -440,6 +440,48 @@ class ProfileAuthP0Tests(TestCase):
         created_user = get_user_model().objects.get(username="secureuser")
         self.assertTrue(created_user.check_password("StrongPass!234"))
 
+    def test_admin_can_update_own_username_and_email_from_user_management(self):
+        self._login("admin1", "adminpass123")
+
+        response = self.client.patch(
+            f"/api/users/users/{self.admin.id}/",
+            {
+                "username": "admin1-updated",
+                "email": "admin1-updated@example.com",
+            },
+            format="json",
+            **self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.username, "admin1-updated")
+        self.assertEqual(self.admin.email, "admin1-updated@example.com")
+
+    def test_non_admin_cannot_manage_other_users(self):
+        self._login("sales1", "userpass123")
+
+        create_response = self.client.post(
+            "/api/users/users/",
+            {
+                "username": "blockeduser",
+                "email": "blocked@example.com",
+                "password": "StrongPass!234",
+                "role_id": str(self.sales_role.id),
+            },
+            format="json",
+            **self._csrf_headers(),
+        )
+        self.assertEqual(create_response.status_code, 403, create_response.content)
+
+        patch_response = self.client.patch(
+            f"/api/users/users/{self.admin.id}/",
+            {"first_name": "Blocked"},
+            format="json",
+            **self._csrf_headers(),
+        )
+        self.assertEqual(patch_response.status_code, 403, patch_response.content)
+
     def test_requestor_can_cancel_own_pending_request(self):
         self._login("sales1", "userpass123")
 

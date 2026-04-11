@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { factoryService, Machine, WorkCenter } from "@/services/factory"
 import { costingService } from "@/services/costing"
-import { AxiosError } from "axios"
 import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Button } from "@/components/ui/button"
 import { Plus, Loader2, RefreshCw, Zap, Settings2, Trash2, Activity, AlertTriangle, CheckCircle2 } from "lucide-react"
@@ -15,7 +14,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,6 +33,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { describeApiError, extractApiErrorMap } from "@/lib/api"
 
 
 // --- Form Component ---
@@ -43,9 +44,45 @@ const formSchema = z.object({
     work_center: z.string().min(1, "Work Center is required"),
     cost_absorption_group: z.string().optional(),
 })
+type MachineFormValues = z.infer<typeof formSchema>
 
-function MachineForm({ initialData, workCenters, costGroups, onSubmit, isLoading }: { initialData?: Machine, workCenters: WorkCenter[], costGroups: Array<{ id: string; code: string; label: string }>, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
-    const form = useForm({
+function summarizeMachineErrors(errors: Record<string, { message?: string } | undefined>) {
+    return Object.entries(errors)
+        .map(([field, value]) => `${field.replace(/_/g, " ")}: ${value?.message || "Invalid value"}`)
+        .join(" | ")
+}
+
+function pickMachineFieldErrors(error: unknown): Partial<Record<keyof MachineFormValues, string>> {
+    const fieldErrors = extractApiErrorMap(error)
+    const allowed = new Set<keyof MachineFormValues>(["code", "name", "work_center", "cost_absorption_group"])
+    return Object.entries(fieldErrors).reduce<Partial<Record<keyof MachineFormValues, string>>>((acc, [field, message]) => {
+        if (allowed.has(field as keyof MachineFormValues)) {
+            acc[field as keyof MachineFormValues] = message
+        }
+        return acc
+    }, {})
+}
+
+function MachineForm({
+    initialData,
+    workCenters,
+    costGroups,
+    onSubmit,
+    isLoading,
+    serverError,
+    apiFieldErrors,
+    onInvalid,
+}: {
+    initialData?: Machine,
+    workCenters: WorkCenter[],
+    costGroups: Array<{ id: string; code: string; label: string }>,
+    onSubmit: (data: MachineFormValues) => void,
+    isLoading: boolean,
+    serverError?: string | null,
+    apiFieldErrors?: Partial<Record<keyof MachineFormValues, string>>,
+    onInvalid?: (message: string) => void,
+}) {
+    const form = useForm<MachineFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             code: initialData?.code || "",
@@ -55,9 +92,35 @@ function MachineForm({ initialData, workCenters, costGroups, onSubmit, isLoading
         },
     })
 
+    useEffect(() => {
+        form.reset({
+            code: initialData?.code || "",
+            name: initialData?.name || "",
+            work_center: initialData?.work_center || "",
+            cost_absorption_group: initialData?.cost_absorption_group || "NONE",
+        })
+    }, [form, initialData])
+
+    useEffect(() => {
+        form.clearErrors()
+        Object.entries(apiFieldErrors || {}).forEach(([field, message]) => {
+            if (!message) return
+            form.setError(field as keyof MachineFormValues, { type: "server", message })
+        })
+    }, [apiFieldErrors, form])
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form
+                onSubmit={form.handleSubmit(onSubmit, (errors) => onInvalid?.(summarizeMachineErrors(errors as Record<string, { message?: string } | undefined>)))}
+                className="space-y-4"
+            >
+                {serverError ? (
+                    <Alert variant="destructive">
+                        <AlertTitle>Machine was not saved</AlertTitle>
+                        <AlertDescription>{serverError}</AlertDescription>
+                    </Alert>
+                ) : null}
                 <FormField
                     control={form.control}
                     name="work_center"
@@ -173,6 +236,10 @@ export default function MachinesPage() {
     const [editingItem, setEditingItem] = useState<Machine | null>(null)
     const [itemToDelete, setItemToDelete] = useState<Machine | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
+    const [createSubmitError, setCreateSubmitError] = useState<string | null>(null)
+    const [createFieldErrors, setCreateFieldErrors] = useState<Partial<Record<keyof MachineFormValues, string>>>({})
+    const [editSubmitError, setEditSubmitError] = useState<string | null>(null)
+    const [editFieldErrors, setEditFieldErrors] = useState<Partial<Record<keyof MachineFormValues, string>>>({})
 
     const { data: machines } = useQuery({
         queryKey: ["machines"],
@@ -192,20 +259,34 @@ export default function MachinesPage() {
         mutationFn: factoryService.createMachine,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["machines"] })
+            setCreateSubmitError(null)
+            setCreateFieldErrors({})
             toast({ title: "Success", description: "Machine created." })
             setIsCreateOpen(false)
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: unknown) => {
+            const message = describeApiError(err, "Machine could not be created.")
+            setCreateSubmitError(message)
+            setCreateFieldErrors(pickMachineFieldErrors(err))
+            toast({ title: "Machine create failed", description: message, variant: "destructive" })
+        }
     })
 
     const updateMutation = useMutation({
         mutationFn: ({ id, data }: { id: string, data: z.infer<typeof formSchema> }) => factoryService.updateMachine(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["machines"] })
+            setEditSubmitError(null)
+            setEditFieldErrors({})
             toast({ title: "Success", description: "Machine updated." })
             setEditingItem(null)
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: unknown) => {
+            const message = describeApiError(err, "Machine could not be updated.")
+            setEditSubmitError(message)
+            setEditFieldErrors(pickMachineFieldErrors(err))
+            toast({ title: "Machine update failed", description: message, variant: "destructive" })
+        }
     })
 
     const deleteMutation = useMutation({
@@ -214,7 +295,9 @@ export default function MachinesPage() {
             queryClient.invalidateQueries({ queryKey: ["machines"] })
             toast({ title: "Success", description: "Machine deleted." })
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: unknown) => {
+            toast({ title: "Machine delete failed", description: describeApiError(err, "Machine could not be deleted."), variant: "destructive" })
+        }
     })
 
     const filteredMachines = machines?.filter(machine =>
@@ -230,7 +313,13 @@ export default function MachinesPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search machines..."
             actions={
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <Dialog open={isCreateOpen} onOpenChange={(open) => {
+                    setIsCreateOpen(open)
+                    if (!open) {
+                        setCreateSubmitError(null)
+                        setCreateFieldErrors({})
+                    }
+                }}>
                     <DialogTrigger asChild>
                         <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
                             <Plus className="mr-2 h-4 w-4" /> Add Machine
@@ -243,8 +332,18 @@ export default function MachinesPage() {
                         <MachineForm
                             workCenters={workCenters || []}
                             costGroups={costGroups || []}
-                            onSubmit={(data) => createMutation.mutate(data)}
+                            onSubmit={(data) => {
+                                setCreateSubmitError(null)
+                                setCreateFieldErrors({})
+                                createMutation.mutate(data)
+                            }}
                             isLoading={createMutation.isPending}
+                            serverError={createSubmitError}
+                            apiFieldErrors={createFieldErrors}
+                            onInvalid={(message) => {
+                                setCreateSubmitError(message)
+                                toast({ title: "Cannot save machine yet", description: message, variant: "destructive" })
+                            }}
                         />
                     </DialogContent>
                 </Dialog>
@@ -311,7 +410,13 @@ export default function MachinesPage() {
                 })}
             </div >
 
-            <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+            <Dialog open={!!editingItem} onOpenChange={(open) => {
+                if (!open) {
+                    setEditingItem(null)
+                    setEditSubmitError(null)
+                    setEditFieldErrors({})
+                }
+            }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit Machine</DialogTitle>
@@ -321,8 +426,18 @@ export default function MachinesPage() {
                             workCenters={workCenters || []}
                             costGroups={costGroups || []}
                             initialData={editingItem}
-                            onSubmit={(data) => updateMutation.mutate({ id: editingItem.id, data })}
+                            onSubmit={(data) => {
+                                setEditSubmitError(null)
+                                setEditFieldErrors({})
+                                updateMutation.mutate({ id: editingItem.id, data })
+                            }}
                             isLoading={updateMutation.isPending}
+                            serverError={editSubmitError}
+                            apiFieldErrors={editFieldErrors}
+                            onInvalid={(message) => {
+                                setEditSubmitError(message)
+                                toast({ title: "Cannot update machine yet", description: message, variant: "destructive" })
+                            }}
                         />
                     )}
                 </DialogContent>

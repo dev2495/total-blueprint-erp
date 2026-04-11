@@ -13,6 +13,11 @@ from .serializers import (
     MachineShiftOverrideSerializer,
 )
 
+
+def _is_admin_actor(user) -> bool:
+    role_code = str(getattr(getattr(user, 'role', None), 'code', '') or '').upper()
+    return bool(user.is_authenticated and (user.is_superuser or user.is_owner or role_code in {'ADMIN', 'SUPER_ADMIN', 'OWNER'}))
+
 class PlantViewSet(viewsets.ModelViewSet):
     queryset = Plant.objects.select_related('legal_profile').all()
     serializer_class = PlantSerializer
@@ -65,6 +70,35 @@ class MachineViewSet(viewsets.ModelViewSet):
         if work_center:
             queryset = queryset.filter(work_center_id=work_center)
         return queryset
+
+    def _deny_if_not_admin(self, request):
+        if _is_admin_actor(request.user):
+            return None
+        return Response({"detail": "Forbidden"}, status=403)
+
+    def create(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], url_path='my-machines')
     def my_machines(self, request):

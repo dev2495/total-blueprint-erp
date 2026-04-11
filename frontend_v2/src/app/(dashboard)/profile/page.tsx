@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -335,24 +336,21 @@ export default function ProfilePage() {
                         <CardContent className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-slate-600">Current password</label>
-                                <Input
-                                    type="password"
+                                <PasswordInput
                                     value={security.current_password}
                                     onChange={(e) => setSecurity((prev) => ({ ...prev, current_password: e.target.value }))}
                                 />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-slate-600">New password</label>
-                                <Input
-                                    type="password"
+                                <PasswordInput
                                     value={security.new_password}
                                     onChange={(e) => setSecurity((prev) => ({ ...prev, new_password: e.target.value }))}
                                 />
                             </div>
                             <div className="space-y-1.5 md:col-span-2">
                                 <label className="text-xs font-semibold text-slate-600">Confirm new password</label>
-                                <Input
-                                    type="password"
+                                <PasswordInput
                                     value={security.confirm_password}
                                     onChange={(e) => setSecurity((prev) => ({ ...prev, confirm_password: e.target.value }))}
                                 />

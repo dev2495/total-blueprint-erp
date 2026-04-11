@@ -7,6 +7,7 @@ import { factoryService, Machine, WorkCenter } from "@/services/factory"
 import { PageHeader } from "@/components/ui-custom/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Loader2, ArrowLeft, Shield, Key, Building2, Cog, Save, Search, Circle, CheckCircle2, Info } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { FieldErrors, useForm, type UseFormReturn } from "react-hook-form"
@@ -22,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { getCanonicalRoleLabel } from "@/lib/roles"
+import { describeApiError, extractApiErrorMap as extractSharedApiErrorMap } from "@/lib/api"
 
 const formSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
@@ -72,6 +74,8 @@ function formatServerErrorValue(value: unknown): string {
 }
 
 function extractApiErrorMap(err: unknown): Record<string, string> {
+    const shared = extractSharedApiErrorMap(err)
+    if (Object.keys(shared).length > 0) return shared
     const payload = (err as { response?: { data?: unknown } } | null | undefined)?.response?.data
     if (!payload || typeof payload !== "object") return {}
     return Object.entries(payload as Record<string, unknown>).reduce<Record<string, string>>((acc, [key, value]) => {
@@ -90,9 +94,8 @@ function errorDetail(err: unknown) {
     if (typedError?.code === "ERR_NETWORK") {
         return "Backend API is not reachable. Start backend server (expected on http://127.0.0.1:8000) and retry."
     }
-    const detailPayload = typedError?.response?.data?.detail
-    if (typeof detailPayload === "string") return detailPayload
-    if (detailPayload) return JSON.stringify(detailPayload)
+    const described = describeApiError(err, "")
+    if (described) return described
     const fieldErrors = extractApiErrorMap(err)
     const fieldErrorSummary = Object.entries(fieldErrors)
         .map(([field, message]) => `${humanize(field)}: ${message}`)
@@ -602,7 +605,7 @@ export default function UserDetailPage() {
                                                 <FormItem>
                                                     <FormLabel>Password {!isNew && "(Leave blank to keep current)"}</FormLabel>
                                                     <FormControl>
-                                                        <Input type="password" {...field} />
+                                                        <PasswordInput {...field} />
                                                     </FormControl>
                                                     <FormDescription>
                                                         New passwords must be at least 8 characters and still pass the server security policy.

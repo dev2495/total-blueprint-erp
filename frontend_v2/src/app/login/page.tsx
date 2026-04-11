@@ -16,6 +16,7 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle2, Loader2, ShieldCheck, Sparkles, Workflow, Factory, ArrowRight } from "lucide-react"
 
@@ -210,9 +211,8 @@ export default function LoginPage() {
                                                     <FormItem>
                                                         <FormLabel className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Password</FormLabel>
                                                         <FormControl>
-                                                            <Input
+                                                            <PasswordInput
                                                                 data-testid="login-password"
-                                                                type="password"
                                                                 placeholder="••••••••"
                                                                 autoComplete="current-password"
                                                                 className="h-12 rounded-2xl border-slate-200 bg-slate-50/70"

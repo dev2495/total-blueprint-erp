@@ -7,6 +7,11 @@ from .models import User, Role, UserProfileChangeRequest
 from .permission_registry import is_assignable_permission, normalize_permission_code
 from .permission_service import PermissionService
 
+
+def _is_admin_request_actor(user) -> bool:
+    role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+    return bool(getattr(user, "is_authenticated", False) and (user.is_superuser or user.is_owner or role_code in {"ADMIN", "SUPER_ADMIN", "OWNER"}))
+
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
@@ -117,7 +122,7 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password": "Password is required for new users."})
         if attrs.get("password"):
             self._validate_candidate_password(str(attrs["password"]), attrs)
-        if not is_create and request and request.user == self.instance and "email" in attrs:
+        if not is_create and request and request.user == self.instance and "email" in attrs and not _is_admin_request_actor(request.user):
             raise serializers.ValidationError({"email": "Self email updates must go through profile change approval."})
         return attrs
 

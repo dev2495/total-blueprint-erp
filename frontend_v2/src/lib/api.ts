@@ -71,6 +71,23 @@ const flattenApiErrorValue = (value: unknown, fieldLabel?: string): string[] => 
     return [];
 };
 
+export const extractApiErrorMap = (error: unknown): Record<string, string> => {
+    const payload = (error as AxiosError<{ detail?: unknown; error?: unknown; message?: unknown }> | undefined)?.response?.data;
+    if (!payload || typeof payload !== "object") return {};
+
+    const source = payload && typeof payload.detail === "object" && payload.detail !== null
+        ? payload.detail as Record<string, unknown>
+        : payload as Record<string, unknown>;
+
+    return Object.entries(source).reduce<Record<string, string>>((acc, [key, value]) => {
+        const messages = flattenApiErrorValue(value).map((message) => String(message).trim()).filter(Boolean);
+        if (messages.length > 0) {
+            acc[key] = Array.from(new Set(messages)).join(" • ");
+        }
+        return acc;
+    }, {});
+};
+
 export const describeApiError = (error: unknown, fallback = "Request failed."): string => {
     const axiosError = error as AxiosError<{ detail?: unknown; error?: unknown; message?: unknown }> | undefined;
     const payload = axiosError?.response?.data;
@@ -82,7 +99,8 @@ export const describeApiError = (error: unknown, fallback = "Request failed."): 
         ...((payload && typeof payload === "object") ? flattenApiErrorValue(payload) : []),
     ].filter(Boolean);
 
-    const uniqueMessages = Array.from(new Set(messages.map((message) => String(message).trim()).filter(Boolean)));
+    const fieldMessages = Object.values(extractApiErrorMap(error));
+    const uniqueMessages = Array.from(new Set([...messages, ...fieldMessages].map((message) => String(message).trim()).filter(Boolean)));
     if (uniqueMessages.length > 0) {
         return uniqueMessages.join(" • ");
     }
