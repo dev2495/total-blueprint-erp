@@ -162,6 +162,16 @@ function BulkGRNForm() {
 
     const selectedPlantId = form.watch('plant_id')
     const selectedMaterialId = form.watch('material_id')
+    const selectedGranule = useMemo(
+        () => (Array.isArray(granules) ? granules.find((item: any) => String(item.id) === String(selectedMaterialId || "")) : null),
+        [granules, selectedMaterialId]
+    )
+    const selectedGranuleCodes = useMemo(
+        () => ((selectedGranule?.quality_codes || []) as any[])
+            .filter((code: any) => String(code?.status || "ACTIVE").toUpperCase() === "ACTIVE")
+            .sort((left: any, right: any) => String(left?.code || "").localeCompare(String(right?.code || ""))),
+        [selectedGranule]
+    )
 
     const adhesiveMaster = useMemo(() => {
         const rows = Array.isArray(adhesivesSolvents) ? adhesivesSolvents : []
@@ -195,6 +205,14 @@ function BulkGRNForm() {
             form.setValue('material_id', '', { shouldDirty: true, shouldValidate: true })
         }
     }, [form, lockedMaterial, selectedMaterialId, selectedMaterials])
+
+    useEffect(() => {
+        const currentCodeId = String(form.getValues('granule_code') || '')
+        if (!currentCodeId) return
+        if (!selectedGranuleCodes.some((code: any) => String(code.id) === currentCodeId)) {
+            form.setValue('granule_code', '', { shouldDirty: true, shouldValidate: true })
+        }
+    }, [form, selectedGranuleCodes])
 
     const { data: locations } = useQuery({
         queryKey: ['locations', 'all'],
@@ -234,11 +252,11 @@ function BulkGRNForm() {
     function onSubmit(data: z.infer<typeof bulkSchema>) {
         const payload = {
             ...data,
-            granule_code: materialLane === "GRANULE" ? String(data.granule_code || "").trim().toUpperCase() : "",
+            granule_code: materialLane === "GRANULE" ? String(data.granule_code || "").trim() : "",
         }
         if (materialLane === "GRANULE" && !payload.granule_code) {
             toast.error("Granule code required", {
-                description: "Enter the vendor quality code printed or supplied for this granule inward.",
+                description: "Select the quality code from the selected granule master before inward.",
             })
             return
         }
@@ -420,20 +438,28 @@ function BulkGRNForm() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                                            Vendor Quality Code
+                                            Granule Code
                                         </FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                data-testid="bulk-grn-granule-code"
-                                                placeholder="e.g. 1005, SP-22, GP-12A"
-                                                className="h-12 border-2 border-emerald-100 bg-white rounded-xl focus:border-emerald-600 font-black uppercase tracking-wide"
-                                                {...field}
-                                                onChange={(event) => field.onChange(event.target.value.toUpperCase())}
-                                            />
-                                        </FormControl>
+                                        <Select onValueChange={field.onChange} value={field.value || ""} disabled={!selectedGranule}>
+                                            <FormControl>
+                                                <SelectTrigger data-testid="bulk-grn-granule-code" className="h-12 border-2 border-emerald-100 bg-white rounded-xl focus:border-emerald-600 font-black uppercase tracking-wide">
+                                                    <SelectValue placeholder={selectedGranule ? "Select granule code" : "Select granule first"} />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="rounded-xl border-none shadow-2xl">
+                                                {selectedGranuleCodes.map((code: any) => (
+                                                    <SelectItem key={code.id} value={code.id} className="font-bold text-xs uppercase tracking-wide">
+                                                        {code.code}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                         <div className="text-xs text-slate-500">
-                                            Same granule master can have multiple vendor quality codes. This is used for stock, issue, and consumption reporting only.
+                                            Codes come from the granule master only. Vendor is captured separately for this inward.
                                         </div>
+                                        {selectedGranule && !selectedGranuleCodes.length ? (
+                                            <div className="text-xs text-amber-600">No active codes exist for this granule yet. Add codes in Granule Master first.</div>
+                                        ) : null}
                                         <FormMessage />
                                     </FormItem>
                                 )}

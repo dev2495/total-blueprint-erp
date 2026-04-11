@@ -66,8 +66,6 @@ export default function BulkInventoryPage() {
         item.material_code,
         item.material_category,
         item.granule_quality_code,
-        item.granule_quality_vendor_name,
-        item.granule_quality_vendor_code,
         item.plant_name,
         item.location_name,
       ]
@@ -130,7 +128,7 @@ export default function BulkInventoryPage() {
     for (const row of filteredStock) {
       if (String(row.material_category || "").toUpperCase() !== "GRANULE") continue
       const key = row.granule_quality_code
-        ? `${row.material_name} / ${row.granule_quality_code}${row.granule_quality_vendor_name ? ` / ${row.granule_quality_vendor_name}` : ""}`
+        ? `${row.material_name} / ${row.granule_quality_code}`
         : `${row.material_name} / No code`
       const current = bucket.get(key) || { name: key, value: 0 }
       current.value += Number(row.qty_kg || 0)
@@ -323,7 +321,7 @@ export default function BulkInventoryPage() {
                   <div className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{row.material_code}</div>
                   {row.granule_quality_code ? (
                     <div className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
-                      {row.granule_quality_code}{row.granule_quality_vendor_name ? ` / ${row.granule_quality_vendor_name}` : ""}
+                      {row.granule_quality_code}
                     </div>
                   ) : null}
                   <div className="mt-3 flex items-center justify-between gap-3">
@@ -403,7 +401,7 @@ export default function BulkInventoryPage() {
                           {row.granule_quality_code ? (
                             <div>
                               <div className="font-mono text-xs font-black uppercase text-emerald-700">{row.granule_quality_code}</div>
-                              <div className="mt-1 text-[11px] font-semibold text-slate-500">{row.granule_quality_vendor_name || "No vendor linked"}</div>
+                              <div className="mt-1 text-[11px] font-semibold text-slate-500">Granule code tracked independently from vendor</div>
                             </div>
                           ) : (
                             <div className="text-xs font-semibold text-slate-400">-</div>

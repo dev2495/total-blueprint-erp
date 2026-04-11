@@ -63,8 +63,6 @@ export interface InventoryBulk {
     material_category: string
     granule_quality_code?: string | null
     granule_quality_code_id?: string | null
-    granule_quality_vendor_name?: string | null
-    granule_quality_vendor_code?: string | null
     plant: string
     plant_name: string
     location: string
@@ -83,7 +81,6 @@ export interface BulkTransaction {
     material_code: string
     granule_quality_code?: string | null
     granule_quality_code_id?: string | null
-    granule_quality_vendor_name?: string | null
     location: string
     location_name: string
     type: 'INWARD' | 'CONSUME' | 'TRANSFER' | 'ADJUST'

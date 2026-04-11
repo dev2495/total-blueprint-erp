@@ -6162,7 +6162,7 @@ class ExecutionService:
             if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
                 code_stock = (
                     InventoryBulk.objects
-                    .select_related("granule_code__vendor", "location", "plant")
+                    .select_related("granule_code", "location", "plant")
                     .filter(material=req.material, granule_code__isnull=False, qty_kg__gt=0)
                 )
                 if location_id:
@@ -6171,13 +6171,9 @@ class ExecutionService:
                     code_stock = code_stock.filter(plant_id=plant_id)
                 for stock in code_stock.order_by("granule_code__code", "location__name", "plant__name"):
                     granule_code = stock.granule_code
-                    vendor = getattr(granule_code, "vendor", None)
                     granule_code_options.append({
                         "granule_code_id": str(granule_code.id),
                         "code": granule_code.code,
-                        "vendor_id": str(vendor.id) if vendor else None,
-                        "vendor_name": vendor.name if vendor else "",
-                        "vendor_code": vendor.code if vendor else "",
                         "available_qty_kg": float(stock.qty_kg or 0),
                         "location_id": str(stock.location_id),
                         "location_name": stock.location.name if stock.location else "",

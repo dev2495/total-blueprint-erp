@@ -87,8 +87,6 @@ class FilmVariantSerializer(serializers.ModelSerializer):
 class GranuleQualityCodeSerializer(serializers.ModelSerializer):
     granule_name = serializers.CharField(source="granule.name", read_only=True)
     granule_material_code = serializers.CharField(source="granule.code", read_only=True)
-    vendor_name = serializers.CharField(source="vendor.name", read_only=True, allow_null=True)
-    vendor_code = serializers.CharField(source="vendor.code", read_only=True, allow_null=True)
 
     class Meta:
         model = GranuleQualityCode
@@ -98,15 +96,12 @@ class GranuleQualityCodeSerializer(serializers.ModelSerializer):
             "granule_name",
             "granule_material_code",
             "code",
-            "vendor",
-            "vendor_name",
-            "vendor_code",
             "status",
             "notes",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "granule_name", "granule_material_code", "vendor_name", "vendor_code"]
+        read_only_fields = ["id", "created_at", "updated_at", "granule_name", "granule_material_code"]
 
     def validate_code(self, value):
         value = str(value or "").strip().upper()

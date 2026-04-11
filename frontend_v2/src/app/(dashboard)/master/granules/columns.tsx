@@ -25,7 +25,7 @@ export const getColumns = ({ onEdit, onDelete, onManageCodes }: ColumnsProps): C
     },
     {
         id: "quality_codes",
-        header: "Vendor Quality Codes",
+        header: "Granule Codes",
         cell: ({ row }) => {
             const codes = row.original.quality_codes || []
             if (!codes.length) return <div className="text-xs font-semibold text-slate-400">No code stock yet</div>
@@ -33,7 +33,7 @@ export const getColumns = ({ onEdit, onDelete, onManageCodes }: ColumnsProps): C
                 <div className="flex max-w-[360px] flex-wrap gap-1.5">
                     {codes.slice(0, 4).map((code) => (
                         <Badge key={code.id} variant="outline" className="bg-emerald-50 text-[10px] font-black text-emerald-700">
-                            {code.code}{code.vendor_name ? ` / ${code.vendor_name}` : ""}
+                            {code.code}
                         </Badge>
                     ))}
                     {codes.length > 4 ? (

@@ -274,9 +274,10 @@ class InventoryMaterial(models.Model):
 
 class GranuleQualityCode(models.Model):
     """
-    Vendor-facing quality code for a granule master.
+    Quality code registry for a granule master.
     The physical material remains the same granule; this code adds a reporting
     and issue-control layer for inward, WCM issue, and consumption analytics.
+    Vendors stay transaction-level metadata on GRN, not an owner of the code.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     granule = models.ForeignKey(
@@ -286,13 +287,6 @@ class GranuleQualityCode(models.Model):
         limit_choices_to={"category": "GRANULE"},
     )
     code = models.CharField(max_length=80, db_index=True)
-    vendor = models.ForeignKey(
-        "inventory.Vendor",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="granule_quality_codes",
-    )
     status = models.CharField(max_length=10, default="ACTIVE", choices=[("ACTIVE", "Active"), ("INACTIVE", "Inactive")])
     notes = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -302,7 +296,7 @@ class GranuleQualityCode(models.Model):
         db_table = "material_granule_quality_codes"
         ordering = ["granule__name", "code"]
         constraints = [
-            models.UniqueConstraint(fields=["granule", "code", "vendor"], name="uniq_granule_quality_code_vendor"),
+            models.UniqueConstraint(fields=["granule", "code"], name="uniq_granule_quality_code"),
         ]
 
     def clean(self):
@@ -314,8 +308,7 @@ class GranuleQualityCode(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        vendor_name = getattr(self.vendor, "name", "") or "No vendor"
-        return f"{self.granule.name} / {self.code} ({vendor_name})"
+        return f"{self.granule.name} / {self.code}"
 
 
 class PodSku(models.Model):

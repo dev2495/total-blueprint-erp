@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { masterDataService, Material, type GranuleQualityCode } from "@/services/master-data"
-import { inventoryService, type Vendor } from "@/services/inventory"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
@@ -43,8 +42,7 @@ const formSchema = z.object({
 })
 
 const qualityCodeSchema = z.object({
-    code: z.string().trim().min(1, "Vendor quality code is required"),
-    vendor: z.string().optional(),
+    code: z.string().trim().min(1, "Granule code is required"),
     status: z.enum(["ACTIVE", "INACTIVE"]),
     notes: z.string().optional(),
 })
@@ -100,12 +98,10 @@ function GranuleForm({ initialData, onSubmit, isLoading }: { initialData?: Mater
 
 function GranuleQualityCodeForm({
     initialData,
-    vendors,
     onSubmit,
     isLoading,
 }: {
     initialData?: GranuleQualityCode | null
-    vendors: Vendor[]
     onSubmit: (data: z.infer<typeof qualityCodeSchema>) => void
     isLoading: boolean
 }) {
@@ -113,7 +109,6 @@ function GranuleQualityCodeForm({
         resolver: zodResolver(qualityCodeSchema),
         defaultValues: {
             code: initialData?.code || "",
-            vendor: initialData?.vendor || "none",
             status: initialData?.status || "ACTIVE",
             notes: initialData?.notes || "",
         },
@@ -126,7 +121,6 @@ function GranuleQualityCodeForm({
                     onSubmit({
                         ...values,
                         code: values.code.trim().toUpperCase(),
-                        vendor: values.vendor === "none" ? undefined : values.vendor,
                     })
                 )}
                 className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4"
@@ -137,7 +131,7 @@ function GranuleQualityCodeForm({
                         name="code"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Vendor quality code</FormLabel>
+                                <FormLabel>Granule code</FormLabel>
                                 <FormControl>
                                     <Input placeholder="e.g. GP-101 / 45A / PRIME7" {...field} />
                                 </FormControl>
@@ -145,31 +139,9 @@ function GranuleQualityCodeForm({
                             </FormItem>
                         )}
                     />
-                    <FormField
-                        control={form.control}
-                        name="vendor"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Vendor</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Optional vendor link" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="none">No vendor selected</SelectItem>
-                                        {vendors.map((vendor) => (
-                                            <SelectItem key={vendor.id} value={vendor.id}>
-                                                {vendor.code} · {vendor.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-500">
+                        This code belongs to the granule only. Vendors are selected later at GRN inward.
+                    </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-[180px_1fr]">
                     <FormField
@@ -200,7 +172,7 @@ function GranuleQualityCodeForm({
                             <FormItem>
                                 <FormLabel>Notes</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Optional quality remark or supplier shorthand" {...field} />
+                                    <Input placeholder="Optional quality remark or handling note" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -233,10 +205,6 @@ export default function GranulesPage() {
     const { data: granules } = useQuery({
         queryKey: ["granules"],
         queryFn: masterDataService.getGranules,
-    })
-    const { data: vendors } = useQuery({
-        queryKey: ["vendors"],
-        queryFn: inventoryService.getVendors,
     })
 
     const createMutation = useMutation({
@@ -273,7 +241,6 @@ export default function GranulesPage() {
             return masterDataService.createGranuleCode({
                 granule: selectedGranule.id,
                 code: data.code,
-                vendor: data.vendor || null,
                 status: data.status,
                 notes: data.notes || "",
             })
@@ -281,7 +248,7 @@ export default function GranulesPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["granules"] })
             queryClient.invalidateQueries({ queryKey: ["granule-codes"] })
-            toast({ title: "Success", description: "Granule quality code added." })
+            toast({ title: "Success", description: "Granule code added." })
         },
         onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
     })
@@ -289,14 +256,13 @@ export default function GranulesPage() {
         mutationFn: ({ id, data }: { id: string; data: z.infer<typeof qualityCodeSchema> }) =>
             masterDataService.updateGranuleCode(id, {
                 code: data.code,
-                vendor: data.vendor || null,
                 status: data.status,
                 notes: data.notes || "",
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["granules"] })
             queryClient.invalidateQueries({ queryKey: ["granule-codes"] })
-            toast({ title: "Success", description: "Granule quality code updated." })
+            toast({ title: "Success", description: "Granule code updated." })
             setEditingCode(null)
         },
         onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -306,7 +272,7 @@ export default function GranulesPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["granules"] })
             queryClient.invalidateQueries({ queryKey: ["granule-codes"] })
-            toast({ title: "Success", description: "Granule quality code deleted." })
+            toast({ title: "Success", description: "Granule code deleted." })
             setCodeToDelete(null)
         },
         onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -327,7 +293,7 @@ export default function GranulesPage() {
     return (
         <MasterRegistryShell
             title="Granules"
-            description="Manage extrusion granules plus vendor quality codes that are selected during WCM issue and carried through inventory and analytics."
+            description="Manage extrusion granules plus reusable quality codes that are selected during GRN, WCM issue splits, inventory, and analytics."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search granules..."
@@ -335,13 +301,13 @@ export default function GranulesPage() {
                 { label: "Granules", value: (granules || []).length, subLabel: "Raw material masters", icon: Package, toneClassName: "bg-emerald-50 text-emerald-700" },
                 { label: "Visible", value: filteredGranules.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
                 { label: "Granule masters", value: new Set((granules || []).map((item) => item.code)).size, subLabel: "Master identifiers", icon: Tag, toneClassName: "bg-indigo-50 text-indigo-700" },
-                { label: "Quality codes", value: totalQualityCodes, subLabel: `${activeQualityCodes} active vendor-linked codes`, icon: Tags, toneClassName: "bg-cyan-50 text-cyan-700" },
+                { label: "Granule codes", value: totalQualityCodes, subLabel: `${activeQualityCodes} active code options`, icon: Tags, toneClassName: "bg-cyan-50 text-cyan-700" },
             ]}
             chips={[
                 { kind: "materialCategory", value: "GRANULE" },
                 { kind: "processState", value: "EXTRUDED", label: "Extrusion feed" },
                 { kind: "approval", value: "APPROVED", label: "Recipe compatible" },
-                { kind: "origin", value: "PURCHASED", label: "Vendor code traceable" },
+                { kind: "origin", value: "PURCHASED", label: "Code traceable" },
             ]}
             actions={
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -427,16 +393,15 @@ export default function GranulesPage() {
             }}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>Granule quality codes</DialogTitle>
+                        <DialogTitle>Granule codes</DialogTitle>
                         <DialogDescription>
-                            Track vendor-specific quality codes for <strong>{selectedGranule?.code}</strong>. These codes are available at GRN and selectable during WCM issue overrides.
+                            Track reusable quality codes for <strong>{selectedGranule?.code}</strong>. These codes are available at GRN and selectable during WCM issue overrides, regardless of vendor.
                         </DialogDescription>
                     </DialogHeader>
                     {selectedGranule ? (
                         <div className="space-y-4">
                             <GranuleQualityCodeForm
                                 initialData={editingCode}
-                                vendors={vendors || []}
                                 onSubmit={(data) => {
                                     if (editingCode) {
                                         updateCodeMutation.mutate({ id: editingCode.id, data })
@@ -447,9 +412,8 @@ export default function GranulesPage() {
                                 isLoading={createCodeMutation.isPending || updateCodeMutation.isPending}
                             />
                             <div className="max-h-[360px] overflow-y-auto rounded-2xl border border-slate-200 bg-white">
-                                <div className="grid grid-cols-[1.4fr_1.6fr_120px_1.6fr_120px] gap-3 border-b border-slate-100 px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+                                <div className="grid grid-cols-[1.4fr_120px_1.6fr_120px] gap-3 border-b border-slate-100 px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
                                     <span>Code</span>
-                                    <span>Vendor</span>
                                     <span>Status</span>
                                     <span>Notes</span>
                                     <span className="text-right">Actions</span>
@@ -458,10 +422,9 @@ export default function GranulesPage() {
                                     (selectedGranule.quality_codes || []).map((code) => (
                                         <div
                                             key={code.id}
-                                            className="grid grid-cols-[1.4fr_1.6fr_120px_1.6fr_120px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                                            className="grid grid-cols-[1.4fr_120px_1.6fr_120px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
                                         >
                                             <div className="font-mono font-semibold text-slate-900">{code.code}</div>
-                                            <div className="text-slate-600">{code.vendor_name || "Any vendor"}</div>
                                             <div>
                                                 <Badge variant="outline" className={code.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}>
                                                     {code.status}
@@ -480,7 +443,7 @@ export default function GranulesPage() {
                                     ))
                                 ) : (
                                     <div className="px-4 py-10 text-center text-sm text-slate-500">
-                                        No vendor quality codes exist for this granule yet. Add the codes your suppliers actually deliver so WCM can issue the right split.
+                                        No granule codes exist for this granule yet. Add the codes your inward team and WCM operators need for split reporting.
                                     </div>
                                 )}
                             </div>
@@ -492,7 +455,7 @@ export default function GranulesPage() {
             <AlertDialog open={!!codeToDelete} onOpenChange={(open) => !open && setCodeToDelete(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete quality code?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete granule code?</AlertDialogTitle>
                         <AlertDialogDescription>
                             This removes <strong>{codeToDelete?.code}</strong> from the granule code registry. Historical GRN, inventory, and consumption records will continue to show past transactions, but new inward and WCM issue selections will stop using this code.
                         </AlertDialogDescription>

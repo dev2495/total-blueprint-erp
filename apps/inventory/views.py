@@ -1456,7 +1456,7 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
     Unified Bulk Inventory view (pooled).
     """
     queryset = InventoryBulk.objects.all().select_related(
-        'material', 'granule_code__vendor', 'location', 'plant'
+        'material', 'granule_code', 'location', 'plant'
     ).order_by('material__name')
     serializer_class = InventoryBulkSerializer
     permission_classes = [IsAuthenticated]
@@ -1518,7 +1518,7 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
 class BulkTransactionListView(generics.ListAPIView):
     """Audit log for Bulk Transactions."""
     queryset = BulkTransaction.objects.all().select_related(
-        'material', 'granule_code__vendor', 'location', 'job'
+        'material', 'granule_code', 'location', 'job'
     ).order_by('-created_at')
     serializer_class = BulkTransactionSerializer
     permission_classes = [IsAuthenticated]

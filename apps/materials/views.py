@@ -92,7 +92,7 @@ class FilmVariantViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
 class GranuleViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_GRANULE"
-    queryset = InventoryMaterial.objects.filter(category='GRANULE').prefetch_related('quality_codes__vendor').order_by('name')
+    queryset = InventoryMaterial.objects.filter(category='GRANULE').prefetch_related('quality_codes').order_by('name')
     serializer_class = GranuleSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
@@ -100,11 +100,11 @@ class GranuleViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
 class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_GRANULE_CODE"
-    queryset = GranuleQualityCode.objects.select_related('granule', 'vendor').order_by('granule__name', 'code')
+    queryset = GranuleQualityCode.objects.select_related('granule').order_by('granule__name', 'code')
     serializer_class = GranuleQualityCodeSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['granule', 'vendor', 'status']
-    search_fields = ['code', 'granule__name', 'granule__code', 'vendor__name', 'vendor__code']
+    filterset_fields = ['granule', 'status']
+    search_fields = ['code', 'granule__name', 'granule__code']
 
 class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_INK"

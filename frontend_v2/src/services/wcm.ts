@@ -230,9 +230,6 @@ export interface BulkConsumptionPreview {
     granule_code_options?: Array<{
         granule_code_id: string;
         code: string;
-        vendor_id?: string | null;
-        vendor_name?: string;
-        vendor_code?: string;
         available_qty_kg: number;
         location_id?: string;
         location_name?: string;

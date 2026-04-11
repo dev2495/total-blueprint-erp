@@ -40,9 +40,6 @@ export interface GranuleQualityCode {
     granule_name?: string;
     granule_material_code?: string;
     code: string;
-    vendor?: string | null;
-    vendor_name?: string;
-    vendor_code?: string;
     status: 'ACTIVE' | 'INACTIVE';
     notes?: string;
     created_at?: string;
@@ -155,15 +152,15 @@ export const masterDataService = {
     deleteGranule: async (id: string) => {
         await api.delete(`/api/master/granules/${id}/`);
     },
-    getGranuleCodes: async (params?: { granule?: string; vendor?: string; status?: string }) => {
+    getGranuleCodes: async (params?: { granule?: string; status?: string }) => {
         const { data } = await api.get<MaybePaginated<GranuleQualityCode>>("/api/master/granule-codes/", { params });
         return unwrapList<GranuleQualityCode>(data);
     },
-    createGranuleCode: async (payload: { granule: string; code: string; vendor?: string | null; status?: string; notes?: string }) => {
+    createGranuleCode: async (payload: { granule: string; code: string; status?: string; notes?: string }) => {
         const { data } = await api.post<GranuleQualityCode>("/api/master/granule-codes/", payload);
         return data;
     },
-    updateGranuleCode: async (id: string, payload: Partial<{ granule: string; code: string; vendor: string | null; status: string; notes: string }>) => {
+    updateGranuleCode: async (id: string, payload: Partial<{ granule: string; code: string; status: string; notes: string }>) => {
         const { data } = await api.patch<GranuleQualityCode>(`/api/master/granule-codes/${id}/`, payload);
         return data;
     },

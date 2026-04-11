@@ -840,7 +840,7 @@ class ReportService:
         good_logs = ReportService._apply_filters(good_logs, filters, date_field='logged_at')
 
         consumption_logs = MaterialConsumptionLog.objects.select_related(
-            'production_job', 'material', 'granule_code', 'granule_code__vendor'
+            'production_job', 'material', 'granule_code'
         )
         consumption_logs = ReportService._apply_filters(consumption_logs, filters, date_field='logged_at')
 
@@ -925,7 +925,6 @@ class ReportService:
         ).values(
             'material__name',
             'granule_code__code',
-            'granule_code__vendor__name',
         ).annotate(
             consumed_kg=Sum('quantity'),
             events=Count('id'),
@@ -933,7 +932,6 @@ class ReportService:
         granule_code_consumption = [{
             "material": row['material__name'] or "Granule",
             "code": row['granule_code__code'] or "",
-            "vendor": row['granule_code__vendor__name'] or "",
             "consumed_kg": round(float(row['consumed_kg'] or 0), 3),
             "events": int(row['events'] or 0),
         } for row in by_granule_code]

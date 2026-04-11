@@ -1151,7 +1151,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
         rows = []
         select_related = ["material", "plant", "location"]
         if model is InventoryBulk:
-            select_related.extend(["granule_code", "granule_code__vendor"])
+            select_related.extend(["granule_code"])
         qs = (
             model.objects.filter(plant_id__in=plant_ids)
             .exclude(**({"qty_kg__lte": 0} if model is InventoryBulk else {"qty__lte": 0}))
@@ -1165,7 +1165,6 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 {
                     "material": getattr(row.material, "name", "-"),
                     "granule_code": getattr(getattr(row, "granule_code", None), "code", "") if model is InventoryBulk else "",
-                    "granule_code_vendor": getattr(getattr(getattr(row, "granule_code", None), "vendor", None), "name", "") if model is InventoryBulk else "",
                     "category": getattr(row.material, "category", "-"),
                     "plant": getattr(row.plant, "name", "-"),
                     "location": getattr(row.location, "name", "-"),
@@ -1341,7 +1340,6 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 {
                     "Material": row["material"],
                     "Granule Code": row.get("granule_code", ""),
-                    "Code Vendor": row.get("granule_code_vendor", ""),
                     "Category": row["category"],
                     "Plant": row["plant"],
                     "Location": row["location"],
@@ -1352,7 +1350,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                 }
                 for row in [*bulk_rows, *packaging_rows]
             ],
-            ["Material", "Granule Code", "Code Vendor", "Category", "Plant", "Location", "Qty", "UOM", "Avg Cost", "Value"],
+            ["Material", "Granule Code", "Category", "Plant", "Location", "Qty", "UOM", "Avg Cost", "Value"],
         )
 
         exceptions_ws = workbook.create_sheet("Exceptions")

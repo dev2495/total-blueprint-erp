@@ -1549,10 +1549,10 @@ export default function MachineExecutionPage() {
                                                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                                                         <div>
                                                                                             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-800">
-                                                                                                Granule vendor code issue
+                                                                                                Granule code issue
                                                                                             </div>
                                                                                             <p className="text-[10px] font-semibold text-emerald-900">
-                                                                                                Split this material issue by vendor quality code for stock and consumption reporting.
+                                                                                                Split this material issue by granule code for stock and consumption reporting before release closes the step.
                                                                                             </p>
                                                                                         </div>
                                                                                         <Button
@@ -1602,7 +1602,6 @@ export default function MachineExecutionPage() {
                                                                                                             {granuleCodeOptions.map((option: any) => (
                                                                                                                 <SelectItem key={`${requirementId}-${option.granule_code_id}`} value={String(option.granule_code_id)}>
                                                                                                                     {option.code}
-                                                                                                                    {option.vendor_name ? ` / ${option.vendor_name}` : ''}
                                                                                                                     {` / ${toNumber(option.available_qty_kg, 0).toFixed(3)} kg`}
                                                                                                                 </SelectItem>
                                                                                                             ))}
