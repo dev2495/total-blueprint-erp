@@ -7,7 +7,7 @@ installServerConsoleFilters();
 
 export const metadata: Metadata = {
   title: "Total Poly Print ERP",
-  description: "Next Gen ERP System",
+  description: "Total Poly Print ERP",
 };
 
 export default async function RootLayout({

@@ -68,8 +68,8 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
         <Zap className="h-4 w-4 fill-white" strokeWidth={1.5} />
       </div>
       <div className="flex flex-col leading-none">
-        <span className="text-[15px] font-bold tracking-tight text-slate-900 transition-colors group-hover:text-slate-700">
-          TOTAL POLY
+        <span className="text-[13px] font-bold tracking-[0.08em] text-slate-900 transition-colors group-hover:text-slate-700">
+          TOTAL POLY PRINT
         </span>
         <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-500">
           ERP System

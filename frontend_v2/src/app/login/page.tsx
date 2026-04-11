@@ -67,7 +67,7 @@ export default function LoginPage() {
             if (!user || typeof user !== "object") {
                 throw new Error("Login succeeded but the user session could not be hydrated.")
             }
-            login(user)
+            await login(user)
         } catch (err: unknown) {
             const error = err as any
             const status = error.response?.status

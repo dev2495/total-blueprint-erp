@@ -3,6 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.users.models import PermissionAuditLog, Role, UserProfileChangeRequest
+from apps.users.views import _jwt_lifetime_seconds
 
 
 class ProfileAuthP0Tests(TestCase):
@@ -171,6 +172,17 @@ class ProfileAuthP0Tests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         new_access = str(self.client.cookies.get("access").value)
         self.assertNotEqual(old_access, new_access)
+
+    def test_login_cookies_follow_configured_20_minute_policy(self):
+        response = self.client.post(
+            "/api/users/login/",
+            {"identifier": "sales1", "password": "userpass123"},
+            format="json",
+            **self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(int(response.cookies["access"]["max-age"]), _jwt_lifetime_seconds("ACCESS_TOKEN_LIFETIME", 900))
+        self.assertEqual(int(response.cookies["refresh"]["max-age"]), _jwt_lifetime_seconds("REFRESH_TOKEN_LIFETIME", 86400))
 
     def test_refresh_requires_csrf_when_only_refresh_cookie_is_present(self):
         strict_client = APIClient(enforce_csrf_checks=True)

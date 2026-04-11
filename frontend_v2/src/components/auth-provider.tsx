@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useState } from "react";
 import Cookies from "js-cookie";
 import { useRouter, usePathname } from "next/navigation";
 import { api, ensureCsrfToken } from "@/lib/api";
@@ -38,7 +38,7 @@ interface AuthContextType {
     user: User | null;
     loading: boolean;
     effectiveRole: string | null;
-    login: (user: User) => void;
+    login: (user: User) => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -51,27 +51,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
-    const hydrateSession = async () => {
+    const hydrateSession = useCallback(async (options?: { attempts?: number; clearOnFailure?: boolean }) => {
+        const attempts = Math.max(1, Number(options?.attempts ?? 5));
+        const clearOnFailure = options?.clearOnFailure ?? true;
         await ensureCsrfToken();
 
-        for (let attempt = 0; attempt < 5; attempt += 1) {
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
             try {
-                const { data } = await api.get("/api/users/me");
+                const { data } = await api.get<User>("/api/users/me");
                 setUser(data);
                 setEffectiveRole(getEffectiveRole(data));
-                return true;
+                return data;
             } catch (error) {
-                if (attempt < 4) {
+                if (attempt < attempts - 1) {
                     await ensureCsrfToken().catch(() => undefined);
                     await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
                 }
             }
         }
 
-        setUser(null);
-        setEffectiveRole(null);
-        return false;
-    };
+        if (clearOnFailure) {
+            setUser(null);
+            setEffectiveRole(null);
+        }
+        return null;
+    }, []);
 
     // Get the effective role considering role override
     const getEffectiveRole = (userData: User | null): string | null => {
@@ -92,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const initialPath = typeof window !== "undefined" ? String(window.location.pathname || "").toLowerCase() : "";
             if (initialPath === "/login" || initialPath.startsWith("/login/")) {
                 await ensureCsrfToken();
+                await hydrateSession({ attempts: 1, clearOnFailure: false });
                 setLoading(false);
                 return;
             }
@@ -104,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         initAuth();
-    }, []);
+    }, [hydrateSession]);
 
     useEffect(() => {
         const currentPath = String(pathname || "").toLowerCase();
@@ -115,10 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let cancelled = false;
         const rehydrate = async () => {
             setLoading(true);
-            const ok = await hydrateSession();
+            const hydratedUser = await hydrateSession();
             if (cancelled) return;
             setLoading(false);
-            if (!ok) {
+            if (!hydratedUser) {
                 router.replace("/login");
             }
         };
@@ -164,15 +169,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return getLandingPage(role);
     };
 
-    const login = (userData: User) => {
-        setUser(userData);
-        
-        // Set effective role from login
-        const role = getEffectiveRole(userData);
-        setEffectiveRole(role);
+    const login = async (userData: User) => {
+        setLoading(true);
 
-        const landing = getLandingPageForUser(userData, role);
-        router.replace(landing);
+        const hydratedUser = await hydrateSession({ attempts: 3, clearOnFailure: false });
+        const resolvedUser = hydratedUser || userData || null;
+
+        if (!resolvedUser) {
+            setUser(null);
+            setEffectiveRole(null);
+            setLoading(false);
+            startTransition(() => {
+                router.replace("/login");
+                router.refresh();
+            });
+            return;
+        }
+
+        setUser(resolvedUser);
+        const role = getEffectiveRole(resolvedUser);
+        setEffectiveRole(role);
+        setLoading(false);
+
+        const landing = getLandingPageForUser(resolvedUser, role);
+        startTransition(() => {
+            router.replace(landing);
+            router.refresh();
+        });
     };
 
     const logout = async () => {

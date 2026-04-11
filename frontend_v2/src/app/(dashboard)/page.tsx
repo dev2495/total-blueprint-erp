@@ -11,17 +11,18 @@ import { getLandingPage } from "@/lib/roles"
  */
 export default function RootRedirect() {
     const router = useRouter()
-    const { user, effectiveRole } = useAuth()
+    const { user, effectiveRole, loading } = useAuth()
 
     useEffect(() => {
+        if (loading) return
         if (user) {
             const userRoleCode = effectiveRole || user.entitlements?.role || user.role_info?.code || "GUEST"
             const landingPage = getLandingPage(userRoleCode)
-            router.push(landingPage)
+            router.replace(landingPage)
         } else {
-            router.push("/login")
+            router.replace("/login")
         }
-    }, [user, effectiveRole, router])
+    }, [user, effectiveRole, loading, router])
 
     return (
         <div className="flex h-screen w-full items-center justify-center bg-slate-50">
