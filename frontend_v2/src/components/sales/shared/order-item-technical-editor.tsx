@@ -959,7 +959,7 @@ export default function OrderItemTechnicalEditor({
                             <div className="flex items-center justify-between">
                                 <div>
                                     <Label>Roll Dispatch Packaging</Label>
-                                    <p className="text-xs text-slate-500">Pack-roll materials only.</p>
+                                    <p className="text-xs text-slate-500">Select allowed roll-pack materials here. Actual qty is captured later in Packing Yard.</p>
                                 </div>
                                 <Switch
                                     checked={item.packaging_snapshot.roll_dispatch_pack.enabled}
@@ -982,12 +982,15 @@ export default function OrderItemTechnicalEditor({
                                 <div className="mt-4 space-y-3">
                                     {item.packaging_snapshot.roll_dispatch_pack.lines.map((packLine, index) => (
                                         <div key={`${item.localId}-pack-${index}`} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                                <div className="space-y-2 xl:col-span-2">
+                                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+                                                <div className="space-y-2">
                                                     <Label>Packaging Material</Label>
                                                     <Select
                                                         value={packLine.material_id || "__NONE__"}
-                                                        onValueChange={(value) =>
+                                                        onValueChange={(value) => {
+                                                            const nextMaterialId = value === "__NONE__" ? "" : value
+                                                            const selectedMaterial = packagingMaterials.find((row: any) => String(row.id) === nextMaterialId)
+                                                            const inferredUom = String(selectedMaterial?.base_uom || packLine.uom || "PCS").toUpperCase() as PackagingLine["uom"]
                                                             updateItem((current) => ({
                                                                 ...current,
                                                                 packaging_snapshot: {
@@ -995,13 +998,13 @@ export default function OrderItemTechnicalEditor({
                                                                     roll_dispatch_pack: {
                                                                         ...current.packaging_snapshot.roll_dispatch_pack,
                                                                         lines: current.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) =>
-                                                                            rowIndex === index ? { ...row, material_id: value === "__NONE__" ? "" : value } : row
+                                                                            rowIndex === index ? { ...row, material_id: nextMaterialId, uom: inferredUom, qty: 0 } : row
                                                                         ),
                                                                     },
                                                                 },
                                                                 savedPreview: null,
                                                             }))
-                                                        }
+                                                        }}
                                                     >
                                                         <SelectTrigger className="bg-white"><SelectValue placeholder="Packaging material" /></SelectTrigger>
                                                         <SelectContent>
@@ -1015,54 +1018,13 @@ export default function OrderItemTechnicalEditor({
                                                     </Select>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>Quantity</Label>
-                                                    <Input
-                                                        type="number"
-                                                        value={String(packLine.qty)}
-                                                        onChange={(event) =>
-                                                            updateItem((current) => ({
-                                                                ...current,
-                                                                packaging_snapshot: {
-                                                                    ...current.packaging_snapshot,
-                                                                    roll_dispatch_pack: {
-                                                                        ...current.packaging_snapshot.roll_dispatch_pack,
-                                                                        lines: current.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) =>
-                                                                            rowIndex === index ? { ...row, qty: asNumber(event.target.value, 0) } : row
-                                                                        ),
-                                                                    },
-                                                                },
-                                                                savedPreview: null,
-                                                            }))
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>UOM</Label>
-                                                    <Select
-                                                        value={packLine.uom}
-                                                        onValueChange={(value) =>
-                                                            updateItem((current) => ({
-                                                                ...current,
-                                                                packaging_snapshot: {
-                                                                    ...current.packaging_snapshot,
-                                                                    roll_dispatch_pack: {
-                                                                        ...current.packaging_snapshot.roll_dispatch_pack,
-                                                                        lines: current.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) =>
-                                                                            rowIndex === index ? { ...row, uom: value as PackagingLine["uom"] } : row
-                                                                        ),
-                                                                    },
-                                                                },
-                                                                savedPreview: null,
-                                                            }))
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="PCS">PCS</SelectItem>
-                                                            <SelectItem value="KG">KG</SelectItem>
-                                                            <SelectItem value="METER">METER</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <Label>Consumption Basis</Label>
+                                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                                                        {packLine.material_id
+                                                            ? `${packLine.uom} actual at packing`
+                                                            : "Select material first"}
+                                                    </div>
+                                                    <p className="text-xs text-slate-500">Sales marks what can be used. Packing Yard enters the real qty consumed per roll.</p>
                                                 </div>
                                             </div>
                                             <div className="flex justify-end">
@@ -1099,7 +1061,7 @@ export default function OrderItemTechnicalEditor({
                                                         ...current.packaging_snapshot.roll_dispatch_pack,
                                                         lines: [
                                                             ...current.packaging_snapshot.roll_dispatch_pack.lines,
-                                                            { material_id: "", qty: 1, uom: "PCS", basis: "PER_ROLL" },
+                                                            { material_id: "", qty: 0, uom: "PCS", basis: "PER_ROLL" },
                                                         ],
                                                     },
                                                 },
@@ -1107,7 +1069,7 @@ export default function OrderItemTechnicalEditor({
                                             }))
                                         }
                                     >
-                                        <Plus className="mr-2 h-4 w-4" /> Add Roll Pack Line
+                                        <Plus className="mr-2 h-4 w-4" /> Add Allowed Material
                                     </Button>
                                 </div>
                             ) : null}

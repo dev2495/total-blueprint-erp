@@ -1,5 +1,6 @@
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -123,6 +124,24 @@ class SalesOrderListSummaryTests(SimpleTestCase):
         self.assertEqual(fulfillment["dispatched_kg"], 40.0)
         self.assertEqual(fulfillment["remaining_kg"], 210.0)
         self.assertIsNone(fulfillment["produced_pcs"])
+
+    def test_roll_packaging_summary_marks_actual_consumption_capture_for_zero_qty_lines(self):
+        roll_item = SimpleNamespace(
+            packaging_snapshot={
+                "roll_dispatch_pack": {
+                    "enabled": True,
+                    "lines": [
+                        {"material_id": "sheet-1", "qty": 0, "uom": "KG", "basis": "PER_ROLL"},
+                    ],
+                }
+            }
+        )
+
+        serializer = self._serializer()
+        with patch.object(serializer, "_get_material", return_value=SimpleNamespace(code="WRAP-SHEET")):
+            summary = serializer._packaging_summary(roll_item)
+
+        self.assertEqual(summary, "WRAP-SHEET actual at packing")
 
     def test_serializer_derives_piece_counts_for_kg_entered_pouch_orders(self):
         pouch_item = SimpleNamespace(

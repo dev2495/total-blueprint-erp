@@ -1,3 +1,5 @@
+from decimal import Decimal, ROUND_HALF_UP
+
 from rest_framework import serializers
 from .models import RecipeGrade, ExtrusionRecipe, ExtrusionRecipeComponent
 from apps.materials.models import InventoryMaterial
@@ -25,16 +27,21 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
         fields = ['id', 'film_variant', 'film_variant_name', 'grade', 'grade_name', 'thickness_min_micron', 'thickness_max_micron', 'is_active', 'created_at', 'components']
         read_only_fields = ['id', 'created_at']
 
+    @staticmethod
+    def _round_percentage(value):
+        return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     def validate_components(self, value):
-        total = sum(c['percentage'] for c in value)
-        if abs(total - 100) > 0.01:
-            raise serializers.ValidationError(f"Total percentage must be 100%. Current: {total}%")
+        total = sum(self._round_percentage(c['percentage']) for c in value)
+        if abs(total - Decimal("100.00")) > Decimal("0.05"):
+            raise serializers.ValidationError(f"Total percentage must be 100.00%. Current: {total}%")
         return value
 
     def create(self, validated_data):
         components_data = validated_data.pop('components')
         recipe = ExtrusionRecipe.objects.create(**validated_data)
         for comp_data in components_data:
+            comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
             ExtrusionRecipeComponent.objects.create(recipe=recipe, **comp_data)
         return recipe
 
@@ -50,6 +57,7 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
             # Replace components strategy
             instance.components.all().delete()
             for comp_data in components_data:
+                comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
                 ExtrusionRecipeComponent.objects.create(recipe=instance, **comp_data)
         
         return instance

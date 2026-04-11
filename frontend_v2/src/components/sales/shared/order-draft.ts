@@ -277,7 +277,7 @@ export function normalizePackagingSnapshot(snapshot: any): OrderItemDraft["packa
             lines: Array.isArray(rollDispatch?.lines)
                 ? rollDispatch.lines.map((row: any) => ({
                     material_id: String(row?.material_id || ""),
-                    qty: asNumber(row?.qty, 1),
+                    qty: asNumber(row?.qty, 0),
                     uom: (String(row?.uom || "PCS").toUpperCase() as PackagingLine["uom"]),
                     basis: "PER_ROLL",
                 }))
@@ -602,7 +602,7 @@ export function buildOrderItemPayload(item: OrderItemDraft, families: any[], var
                 enabled: fgType === "ROLL" ? Boolean(item.packaging_snapshot.roll_dispatch_pack.enabled) : false,
                 lines: fgType === "ROLL"
                     ? item.packaging_snapshot.roll_dispatch_pack.lines
-                        .filter((row) => row.material_id && asNumber(row.qty, 0) > 0)
+                        .filter((row) => row.material_id)
                         .map((row) => ({
                             material_id: row.material_id,
                             qty: asNumber(row.qty, 0),

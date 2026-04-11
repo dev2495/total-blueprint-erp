@@ -164,7 +164,7 @@ def _normalize_packaging_snapshot(raw):
             continue
         material_id = _safe_uuid_str(line.get("material_id")) or str(line.get("material_id") or "").strip() or None
         qty = Decimal(str(line.get("qty") or 0))
-        if not material_id or qty <= 0:
+        if not material_id:
             continue
         lines.append(
             {

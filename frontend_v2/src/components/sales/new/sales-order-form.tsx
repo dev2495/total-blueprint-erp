@@ -473,7 +473,7 @@ export default function SalesOrderForm() {
                 enabled: formValues.fg_type === "ROLL" ? Boolean(rollDispatchPackEnabled) : false,
                 lines: formValues.fg_type === "ROLL"
                     ? (rollDispatchLines || [])
-                        .filter((line) => line.material_id && Number(line.qty || 0) > 0)
+                        .filter((line) => line.material_id)
                         .map((line) => ({
                             material_id: line.material_id,
                             qty: Number(line.qty || 0),
@@ -633,7 +633,7 @@ export default function SalesOrderForm() {
             const lines = payload.packaging_snapshot?.roll_dispatch_pack?.lines || []
             if (!lines.length) return "Add at least one roll dispatch packaging line."
             for (const [idx, line] of lines.entries()) {
-                if (!line.material_id || Number(line.qty || 0) <= 0) {
+                if (!line.material_id) {
                     return `Roll packaging line ${idx + 1} is incomplete.`
                 }
             }
@@ -1832,21 +1832,34 @@ export default function SalesOrderForm() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="rounded-lg border border-slate-200 p-3 space-y-3">
-                                                    <div className="flex items-center justify-between">
-                                                        <div>
-                                                            <p className="text-xs font-bold">Roll Dispatch Packaging</p>
-                                                            <p className="text-[10px] text-slate-500">Pack-roll is mandatory before challan.</p>
+                                                    <div className="rounded-lg border border-slate-200 p-3 space-y-3">
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <p className="text-xs font-bold">Roll Dispatch Packaging</p>
+                                                                <p className="text-[10px] text-slate-500">Select allowed materials here. Actual quantities are captured later in Packing Yard and dispatch.</p>
+                                                            </div>
+                                                            <Switch checked={rollDispatchPackEnabled} onCheckedChange={setRollDispatchPackEnabled} />
                                                         </div>
-                                                        <Switch checked={rollDispatchPackEnabled} onCheckedChange={setRollDispatchPackEnabled} />
-                                                    </div>
-                                                    {rollDispatchPackEnabled && (
-                                                        <div className="space-y-2">
-                                                            {(rollDispatchLines || []).map((line, idx) => (
-                                                                <div key={`roll-line-${idx}`} className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                                                        {rollDispatchPackEnabled && (
+                                                            <div className="space-y-2">
+                                                                {(rollDispatchLines || []).map((line, idx) => (
+                                                                <div key={`roll-line-${idx}`} className="grid grid-cols-1 md:grid-cols-[1.6fr_0.9fr_auto] gap-2">
                                                                     <Select
                                                                         value={line.material_id}
-                                                                        onValueChange={(val) => setRollDispatchLines((prev) => prev.map((it, i) => i === idx ? { ...it, material_id: val } : it))}
+                                                                        onValueChange={(val) => setRollDispatchLines((prev) => prev.map((it, i) => {
+                                                                            if (i !== idx) return it
+                                                                            const selected = (packagingMaterials || []).find((m: any) => String(m.id) === String(val))
+                                                                            const baseUom = String(selected?.base_uom || it.uom || "PCS").toUpperCase()
+                                                                            const normalizedUom = ["PCS", "KG", "METER"].includes(baseUom)
+                                                                                ? (baseUom as "PCS" | "KG" | "METER")
+                                                                                : "PCS"
+                                                                            return {
+                                                                                ...it,
+                                                                                material_id: val,
+                                                                                qty: 0,
+                                                                                uom: normalizedUom,
+                                                                            }
+                                                                        }))}
                                                                     >
                                                                         <SelectTrigger className="h-8 text-xs bg-white md:col-span-2">
                                                                             <SelectValue placeholder="Packaging material" />
@@ -1859,33 +1872,16 @@ export default function SalesOrderForm() {
                                                                             ))}
                                                                         </SelectContent>
                                                                     </Select>
-                                                                    <Input
-                                                                        type="number"
-                                                                        className="h-8 text-xs bg-white"
-                                                                        value={String(line.qty)}
-                                                                        onChange={(e) => setRollDispatchLines((prev) => prev.map((it, i) => i === idx ? { ...it, qty: Number(e.target.value || 0) } : it))}
-                                                                        placeholder="Qty"
-                                                                    />
-                                                                    <Select
-                                                                        value={line.uom}
-                                                                        onValueChange={(val: "PCS" | "KG" | "METER") => setRollDispatchLines((prev) => prev.map((it, i) => i === idx ? { ...it, uom: val } : it))}
-                                                                    >
-                                                                        <SelectTrigger className="h-8 text-xs bg-white">
-                                                                            <SelectValue />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="PCS">PCS</SelectItem>
-                                                                            <SelectItem value="KG">KG</SelectItem>
-                                                                            <SelectItem value="METER">METER</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
+                                                                    <div className="flex h-8 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold text-slate-600">
+                                                                        {line.material_id ? `${line.uom} actual at packing` : "Select material first"}
+                                                                    </div>
                                                                     <Button type="button" variant="ghost" size="sm" className="h-8 text-red-500" onClick={() => setRollDispatchLines((prev) => prev.filter((_, i) => i !== idx))}>
                                                                         Remove
                                                                     </Button>
                                                                 </div>
                                                             ))}
-                                                            <Button type="button" variant="outline" size="sm" onClick={() => setRollDispatchLines((prev) => [...prev, { material_id: "", qty: 1, uom: "PCS", basis: "PER_ROLL" }])}>
-                                                                + Add Roll Pack Line
+                                                            <Button type="button" variant="outline" size="sm" onClick={() => setRollDispatchLines((prev) => [...prev, { material_id: "", qty: 0, uom: "PCS", basis: "PER_ROLL" }])}>
+                                                                + Add Allowed Material
                                                             </Button>
                                                         </div>
                                                     )}

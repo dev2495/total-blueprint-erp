@@ -28,6 +28,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { describeApiError } from "@/lib/api"
 
 export default function RecipesPage() {
     const { toast } = useToast()
@@ -50,10 +51,7 @@ export default function RecipesPage() {
             setIsCreateOpen(false)
         },
         onError: (error: unknown) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const err = error as any
-            const msg = err.response?.data?.non_field_errors?.[0] || err.message || "Failed to create"
-            toast({ title: "Error", description: msg, variant: "destructive" })
+            toast({ title: "Error", description: describeApiError(error, "Failed to create recipe."), variant: "destructive" })
         }
     })
 
@@ -66,10 +64,7 @@ export default function RecipesPage() {
             setEditingRecipe(null)
         },
         onError: (error: unknown) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const err = error as any
-            const msg = err.response?.data?.non_field_errors?.[0] || err.message || "Failed to update"
-            toast({ title: "Error", description: msg, variant: "destructive" })
+            toast({ title: "Error", description: describeApiError(error, "Failed to update recipe."), variant: "destructive" })
         }
     })
 
@@ -80,9 +75,7 @@ export default function RecipesPage() {
             toast({ title: "Success", description: "Recipe deleted successfully." })
         },
         onError: (error: unknown) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const err = error as any
-            toast({ title: "Error", description: err.message || "Failed to delete", variant: "destructive" })
+            toast({ title: "Error", description: describeApiError(error, "Failed to delete recipe."), variant: "destructive" })
         }
     })
 

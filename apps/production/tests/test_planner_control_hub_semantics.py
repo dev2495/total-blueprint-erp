@@ -381,8 +381,7 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
 
         self.assertEqual(requirements[("inner-pack-1", "PCS")], Decimal("3"))
         self.assertEqual(requirements[("sheet-1", "KG")], Decimal("2.5"))
-        self.assertEqual(len(warnings), 1)
-        self.assertIn("PER_ROLL", warnings[0])
+        self.assertEqual(warnings, [])
         self.assertNotIn(("tape-1", "PCS"), requirements)
 
     @patch("apps.production.views_planner.PlannedBulkStockOrder.objects.create")

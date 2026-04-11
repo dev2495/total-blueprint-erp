@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Settings2, Pencil, Trash2, Plus, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { describeApiError } from "@/lib/api"
 
 export function GradeMasterDialog() {
     const { toast } = useToast()
@@ -30,7 +31,7 @@ export function GradeMasterDialog() {
     })
 
     const gradeLoadErrorMessage = isError
-        ? ((gradeLoadError as any)?.response?.data?.detail || (gradeLoadError as Error)?.message || "Failed to load grades")
+        ? describeApiError(gradeLoadError, "Failed to load grades.")
         : null
 
     const createMutation = useMutation({
@@ -42,7 +43,7 @@ export function GradeMasterDialog() {
             toast({ title: "Success", description: "Grade created" })
         },
         onError: (err: any) => {
-            const msg = err.response?.data?.detail || err.message || "Failed to create grade"
+            const msg = describeApiError(err, "Failed to create grade.")
             setCreateError(msg)
             toast({ title: "Error", description: msg, variant: "destructive" })
         }
@@ -56,7 +57,7 @@ export function GradeMasterDialog() {
             toast({ title: "Success", description: "Grade updated" })
         },
         onError: (err: any) => {
-            const msg = err.response?.data?.detail || err.message || "Failed to update grade"
+            const msg = describeApiError(err, "Failed to update grade.")
             toast({ title: "Error", description: msg, variant: "destructive" })
         }
     })
@@ -68,7 +69,7 @@ export function GradeMasterDialog() {
             toast({ title: "Success", description: "Grade deleted" })
         },
         onError: (err: any) => {
-            const msg = err.response?.data?.detail || err.message || "Failed to delete"
+            const msg = describeApiError(err, "Failed to delete grade.")
             toast({ title: "Error", description: msg, variant: "destructive" })
         }
     })

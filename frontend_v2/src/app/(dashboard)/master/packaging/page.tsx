@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 
-const kinds = ["INNER_POUCH", "GONNY", "TAPE", "SHEET", "FILM", "BOX", "LABEL", "TAG", "OTHER"] as const
+const kinds = ["INNER_POUCH", "GONNY", "TAPE", "SHEET", "BOX", "LABEL", "TAG", "OTHER"] as const
 const supplyModes = ["PURCHASED", "IN_HOUSE", "BOTH"] as const
 const uoms = ["PCS", "KG", "METER"] as const
 
@@ -47,11 +47,11 @@ function PackagingForm({
   const [perSheet, setPerSheet] = useState(initial?.per_sheet_base_qty ? String(initial.per_sheet_base_qty) : "")
   const [status, setStatus] = useState(initial?.status || "ACTIVE")
   const [productionTemplate, setProductionTemplate] = useState(initial?.production_template || "__NONE__")
-  const [tareWeightKg, setTareWeightKg] = useState(initial?.tare_weight_kg != null ? String(initial.tare_weight_kg) : "")
   const [brandName, setBrandName] = useState(String(initial?.packaging_defaults_json?.brand_name || ""))
   const [defaultPcsPerPack, setDefaultPcsPerPack] = useState(initial?.packaging_defaults_json?.pcs_per_pack != null ? String(initial.packaging_defaults_json?.pcs_per_pack) : "")
 
-  const allowInHouse = ["INNER_POUCH", "SHEET", "FILM"].includes(kind)
+  const allowInHouse = ["INNER_POUCH", "SHEET"].includes(kind)
+  const needsSheetConversion = kind === "SHEET" && baseUom !== "PCS"
   const visibleTemplates = templates.filter((template) => {
     if (kind === "INNER_POUCH") return template.fg_type === "POUCH"
     return true
@@ -69,12 +69,11 @@ function PackagingForm({
           packaging_kind: kind,
           packaging_supply_mode: supplyMode,
           production_template: supplyMode === "PURCHASED" || productionTemplate === "__NONE__" ? null : productionTemplate,
-          tare_weight_kg: tareWeightKg ? Number(tareWeightKg) : null,
           packaging_defaults_json: {
             brand_name: brandName || undefined,
             pcs_per_pack: defaultPcsPerPack ? Number(defaultPcsPerPack) : undefined,
           },
-          per_sheet_base_qty: perSheet ? Number(perSheet) : null,
+          per_sheet_base_qty: needsSheetConversion && perSheet ? Number(perSheet) : null,
           status,
         })
       }}
@@ -114,14 +113,30 @@ function PackagingForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Tare Weight (kg)</Label>
-          <Input type="number" step="0.0001" value={tareWeightKg} onChange={(e) => setTareWeightKg(e.target.value)} />
-        </div>
-        <div>
-          <Label>Per Sheet Qty</Label>
-          <Input type="number" step="0.000001" value={perSheet} onChange={(e) => setPerSheet(e.target.value)} />
+          <Label>{kind === "SHEET" ? `Base Qty per Sheet (${baseUom})` : "Sheet Conversion"}</Label>
+          {kind === "SHEET" ? (
+            <>
+              <Input
+                type="number"
+                step="0.000001"
+                value={perSheet}
+                onChange={(e) => setPerSheet(e.target.value)}
+                placeholder={needsSheetConversion ? `Enter ${baseUom.toLowerCase()} represented by one sheet` : "Not needed when base UOM is PCS"}
+                disabled={!needsSheetConversion}
+              />
+              <div className="mt-1 text-xs text-slate-500">
+                {needsSheetConversion
+                  ? "This is the stock conversion rule used later when actual sheet consumption is entered in Packing Yard."
+                  : "PCS-based sheet stock does not need a conversion factor."}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              Conversion is only needed for sheet stock that is stored in KG or meter and consumed in pieces.
+            </div>
+          )}
         </div>
         <div>
           <Label>Status</Label>
@@ -148,7 +163,9 @@ function PackagingForm({
             </SelectContent>
           </Select>
           <div className="mt-1 text-xs text-slate-500">
-            {allowInHouse ? "This kind can be produced in-house if supply mode is IN_HOUSE or BOTH." : "This kind is purchased-only in this phase."}
+            {allowInHouse
+              ? "This packaging SKU owns its production template. Planner stock orders only choose this SKU and the qty to make."
+              : "This kind is purchased-only in this phase."}
           </div>
         </div>
         <div>
@@ -159,7 +176,7 @@ function PackagingForm({
 
       <div>
         <Label>Default PCS per Inner Pack</Label>
-        <Input type="number" value={defaultPcsPerPack} onChange={(e) => setDefaultPcsPerPack(e.target.value)} placeholder="Optional default for packing yard" />
+        <Input type="number" value={defaultPcsPerPack} onChange={(e) => setDefaultPcsPerPack(e.target.value)} placeholder="Optional default for known inner-pack consumption" />
       </div>
 
       <div className="flex justify-end">
@@ -225,7 +242,7 @@ export default function PackagingMasterPage() {
   return (
     <MasterRegistryShell
       title="Packaging Master"
-      description="Control purchased versus in-house packaging SKUs, default tare math, and linked production templates."
+      description="Control purchased versus in-house packaging SKUs, sheet conversion math, and linked production templates."
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search packaging code, name, kind, or supply mode"
@@ -250,7 +267,6 @@ export default function PackagingMasterPage() {
         { kind: "packagingKind", value: "INNER_POUCH" },
         { kind: "packagingKind", value: "GONNY" },
         { kind: "packagingKind", value: "SHEET" },
-        { kind: "packagingKind", value: "FILM" },
       ]}
     >
       {isError ? (
@@ -285,8 +301,14 @@ export default function PackagingMasterPage() {
                   <div className="mt-1 font-bold text-slate-900">{row.base_uom}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Tare / Unit</div>
-                  <div className="mt-1 font-bold text-slate-900">{row.tare_weight_kg != null ? `${row.tare_weight_kg} kg` : "Not set"}</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Sheet Conversion</div>
+                  <div className="mt-1 font-bold text-slate-900">
+                    {row.packaging_kind === "SHEET" && row.base_uom !== "PCS" && row.per_sheet_base_qty != null
+                      ? `${row.per_sheet_base_qty} ${row.base_uom}/sheet`
+                      : row.packaging_kind === "SHEET"
+                        ? "No conversion needed"
+                        : "N/A"}
+                  </div>
                 </div>
                 <div className="col-span-2">
                   <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Linked Production Template</div>

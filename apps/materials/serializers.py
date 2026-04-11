@@ -229,7 +229,6 @@ class PackagingSerializer(serializers.ModelSerializer):
             'production_template',
             'production_template_name',
             'packaging_defaults_json',
-            'tare_weight_kg',
             'per_sheet_base_qty',
             'status',
             'created_at',
@@ -243,7 +242,7 @@ class PackagingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'packaging_kind': 'packaging_kind is required for packaging materials.'})
         if not supply_mode:
             raise serializers.ValidationError({'packaging_supply_mode': 'packaging_supply_mode is required for packaging materials.'})
-        in_house_kinds = {"INNER_POUCH", "SHEET", "FILM"}
+        in_house_kinds = {"INNER_POUCH", "SHEET"}
         if supply_mode in {'IN_HOUSE', 'BOTH'} and kind not in in_house_kinds:
             raise serializers.ValidationError({'packaging_supply_mode': f'{kind} cannot be IN_HOUSE in this phase.'})
         if supply_mode in {'IN_HOUSE', 'BOTH'} and not attrs.get('production_template', getattr(self.instance, 'production_template', None)):

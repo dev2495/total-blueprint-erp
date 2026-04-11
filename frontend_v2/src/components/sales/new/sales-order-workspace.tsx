@@ -381,7 +381,7 @@ function normalizePackagingSnapshot(snapshot: any): OrderLineDraft["packaging_sn
             lines: Array.isArray(rollDispatch?.lines)
                 ? rollDispatch.lines.map((row: any) => ({
                     material_id: String(row?.material_id || ""),
-                    qty: asNumber(row?.qty, 1),
+                    qty: asNumber(row?.qty, 0),
                     uom: (String(row?.uom || "PCS").toUpperCase() as PackagingLine["uom"]),
                     basis: "PER_ROLL",
                 }))
@@ -1234,15 +1234,38 @@ export default function SalesOrderWorkspace() {
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
                                                                         <Label>Roll Dispatch Packaging</Label>
-                                                                        <p className="text-xs text-slate-500">Pack-roll materials only.</p>
+                                                                        <p className="text-xs text-slate-500">Select allowed materials here. Actual quantities are captured later in Packing Yard and dispatch.</p>
                                                                     </div>
                                                                     <Switch checked={activeLine.packaging_snapshot.roll_dispatch_pack.enabled} onCheckedChange={(checked) => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, enabled: checked } }, savedPreview: null }))} />
                                                                 </div>
                                                                 {activeLine.packaging_snapshot.roll_dispatch_pack.enabled ? (
                                                                     <div className="mt-4 space-y-3">
                                                                         {activeLine.packaging_snapshot.roll_dispatch_pack.lines.map((packLine, index) => (
-                                                                            <div key={`${activeLine.localId}-pack-${index}`} className="grid gap-2 md:grid-cols-[1.4fr_100px_100px_100px]">
-                                                                                <Select value={packLine.material_id || "__NONE__"} onValueChange={(value) => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, lines: line.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) => rowIndex === index ? { ...row, material_id: value === "__NONE__" ? "" : value } : row) } }, savedPreview: null }))}>
+                                                                            <div key={`${activeLine.localId}-pack-${index}`} className="grid gap-2 md:grid-cols-[1.6fr_0.9fr_100px]">
+                                                                                <Select value={packLine.material_id || "__NONE__"} onValueChange={(value) => updateLine(activeLine.localId, (line) => ({
+                                                                                    ...line,
+                                                                                    packaging_snapshot: {
+                                                                                        ...line.packaging_snapshot,
+                                                                                        roll_dispatch_pack: {
+                                                                                            ...line.packaging_snapshot.roll_dispatch_pack,
+                                                                                            lines: line.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) => {
+                                                                                                if (rowIndex !== index) return row
+                                                                                                const selected = packagingMaterials.find((material: any) => String(material.id) === String(value))
+                                                                                                const baseUom = String(selected?.base_uom || row.uom || "PCS").toUpperCase()
+                                                                                                const normalizedUom = ["PCS", "KG", "METER"].includes(baseUom)
+                                                                                                    ? (baseUom as PackagingLine["uom"])
+                                                                                                    : "PCS"
+                                                                                                return {
+                                                                                                    ...row,
+                                                                                                    material_id: value === "__NONE__" ? "" : value,
+                                                                                                    qty: 0,
+                                                                                                    uom: normalizedUom,
+                                                                                                }
+                                                                                            })
+                                                                                        }
+                                                                                    },
+                                                                                    savedPreview: null,
+                                                                                }))}>
                                                                                     <SelectTrigger className="bg-white"><SelectValue placeholder="Packaging material" /></SelectTrigger>
                                                                                     <SelectContent>
                                                                                         <SelectItem value="__NONE__">Select packaging material</SelectItem>
@@ -1253,22 +1276,16 @@ export default function SalesOrderWorkspace() {
                                                                                         ))}
                                                                                     </SelectContent>
                                                                                 </Select>
-                                                                                <Input type="number" value={String(packLine.qty)} onChange={(event) => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, lines: line.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) => rowIndex === index ? { ...row, qty: asNumber(event.target.value, 0) } : row) } }, savedPreview: null }))} />
-                                                                                <Select value={packLine.uom} onValueChange={(value) => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, lines: line.packaging_snapshot.roll_dispatch_pack.lines.map((row, rowIndex) => rowIndex === index ? { ...row, uom: value as PackagingLine["uom"] } : row) } }, savedPreview: null }))}>
-                                                                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                                                                                    <SelectContent>
-                                                                                        <SelectItem value="PCS">PCS</SelectItem>
-                                                                                        <SelectItem value="KG">KG</SelectItem>
-                                                                                        <SelectItem value="METER">METER</SelectItem>
-                                                                                    </SelectContent>
-                                                                                </Select>
+                                                                                <div className="flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold text-slate-600">
+                                                                                    {packLine.material_id ? `${packLine.uom} actual at packing` : "Select material first"}
+                                                                                </div>
                                                                                 <Button variant="outline" className="text-rose-600" onClick={() => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, lines: line.packaging_snapshot.roll_dispatch_pack.lines.filter((_, rowIndex) => rowIndex !== index) } }, savedPreview: null }))}>
                                                                                     Remove
                                                                                 </Button>
                                                                             </div>
                                                                         ))}
-                                                                        <Button variant="outline" onClick={() => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, lines: [...line.packaging_snapshot.roll_dispatch_pack.lines, { material_id: "", qty: 1, uom: "PCS", basis: "PER_ROLL" }] } }, savedPreview: null }))}>
-                                                                            <Plus className="mr-2 h-4 w-4" /> Add Roll Pack Line
+                                                                        <Button variant="outline" onClick={() => updateLine(activeLine.localId, (line) => ({ ...line, packaging_snapshot: { ...line.packaging_snapshot, roll_dispatch_pack: { ...line.packaging_snapshot.roll_dispatch_pack, lines: [...line.packaging_snapshot.roll_dispatch_pack.lines, { material_id: "", qty: 0, uom: "PCS", basis: "PER_ROLL" }] } }, savedPreview: null }))}>
+                                                                            <Plus className="mr-2 h-4 w-4" /> Add Allowed Material
                                                                         </Button>
                                                                     </div>
                                                                 ) : null}
@@ -1732,7 +1749,7 @@ function buildOrderItemPayload(line: OrderLineDraft, families: any[], variants: 
                 enabled: fgType === "ROLL" ? Boolean(line.packaging_snapshot.roll_dispatch_pack.enabled) : false,
                 lines: fgType === "ROLL"
                     ? line.packaging_snapshot.roll_dispatch_pack.lines
-                        .filter((row) => row.material_id && asNumber(row.qty, 0) > 0)
+                        .filter((row) => row.material_id)
                         .map((row) => ({
                             material_id: row.material_id,
                             qty: asNumber(row.qty, 0),

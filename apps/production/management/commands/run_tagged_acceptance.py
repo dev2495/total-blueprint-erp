@@ -213,7 +213,6 @@ class Command(BaseCommand):
                 "pcs_per_pack": 100,
                 "brand_label": "Acceptance 100 Pack",
             },
-            tare_weight_kg=Decimal("0.0500"),
         )
         gonny_mat = self._upsert_packaging_material(
             code="TEST_GONNY_PCS",
@@ -1289,7 +1288,6 @@ class Command(BaseCommand):
                     "kind": inner_pouch.packaging_kind,
                     "supply_mode": inner_pouch.packaging_supply_mode,
                     "template": getattr(inner_pouch.production_template, "name", None),
-                    "tare_weight_kg": float(inner_pouch.tare_weight_kg or 0),
                 },
                 {
                     "code": sheet_mat.code,
@@ -1297,7 +1295,6 @@ class Command(BaseCommand):
                     "kind": sheet_mat.packaging_kind,
                     "supply_mode": sheet_mat.packaging_supply_mode,
                     "template": getattr(sheet_mat.production_template, "name", None),
-                    "tare_weight_kg": float(sheet_mat.tare_weight_kg or 0),
                 },
             ],
             "orders": {
@@ -2801,7 +2798,6 @@ class Command(BaseCommand):
         packaging_supply_mode="PURCHASED",
         production_template=None,
         packaging_defaults_json=None,
-        tare_weight_kg=None,
         per_sheet_base_qty=None,
     ):
         material, _ = InventoryMaterial.objects.update_or_create(
@@ -2814,7 +2810,6 @@ class Command(BaseCommand):
                 "packaging_supply_mode": packaging_supply_mode,
                 "production_template": production_template,
                 "packaging_defaults_json": packaging_defaults_json or {},
-                "tare_weight_kg": tare_weight_kg,
                 "per_sheet_base_qty": per_sheet_base_qty,
                 "status": "ACTIVE",
                 "is_purchasable": packaging_supply_mode in {"PURCHASED", "BOTH"},

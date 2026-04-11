@@ -23,7 +23,7 @@ import {
 import { ExtrusionRecipe, recipeService } from "@/services/recipes"
 import { filmVariantService } from "@/services/film-variants"
 import { useQuery } from "@tanstack/react-query"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { Loader2, Trash2, Plus } from "lucide-react"
 import { api } from "@/lib/api"
 
@@ -37,6 +37,25 @@ const useGranules = () => {
     })
 }
 
+const roundPercentage = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
+
+const normalizeRecipePayload = (data: z.infer<typeof formSchema>) => {
+    const components = data.components.map((component) => ({
+        ...component,
+        percentage: roundPercentage(component.percentage),
+    }))
+    const total = roundPercentage(components.reduce((acc, item) => acc + item.percentage, 0))
+    const delta = roundPercentage(100 - total)
+    if (components.length > 0 && Math.abs(delta) <= 0.05) {
+        const lastIndex = components.length - 1
+        components[lastIndex] = {
+            ...components[lastIndex],
+            percentage: roundPercentage(components[lastIndex].percentage + delta),
+        }
+    }
+    return { ...data, components }
+}
+
 const formSchema = z.object({
     film_variant: z.string().min(1, "Variant is required"),
     grade: z.string().min(1, "Grade is required"),
@@ -46,9 +65,9 @@ const formSchema = z.object({
         granule: z.string().min(1, "Granule is required"),
         percentage: z.coerce.number().min(0).max(100),
     })).min(1, "At least one component is required").refine((items) => {
-        const total = items.reduce((acc, item) => acc + item.percentage, 0);
-        return Math.abs(total - 100) < 0.1;
-    }, { message: "Total percentage must be 100%" }),
+        const total = roundPercentage(items.reduce((acc, item) => acc + roundPercentage(item.percentage), 0));
+        return Math.abs(total - 100) <= 0.05;
+    }, { message: "Total percentage must be 100.00%" }),
 })
 
 interface RecipeFormProps {
@@ -73,6 +92,12 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
         control: form.control,
         name: "components",
     })
+    const watchedComponents = form.watch("components")
+    const percentageTotal = useMemo(
+        () => roundPercentage((watchedComponents || []).reduce((acc, curr) => acc + roundPercentage(Number(curr?.percentage) || 0), 0)),
+        [watchedComponents]
+    )
+    const percentageRemaining = roundPercentage(100 - percentageTotal)
 
     // Data Queries
     const { data: variants } = useQuery({
@@ -106,9 +131,23 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
         }
     }, [initialData, form])
 
+    const balanceRecipeToHundred = () => {
+        const current = form.getValues("components")
+        if (!current.length) return
+        const total = roundPercentage(current.reduce((acc, item) => acc + roundPercentage(Number(item?.percentage) || 0), 0))
+        const delta = roundPercentage(100 - total)
+        const lastIndex = current.length - 1
+        const currentValue = roundPercentage(Number(current[lastIndex]?.percentage) || 0)
+        form.setValue(`components.${lastIndex}.percentage`, roundPercentage(currentValue + delta), {
+            shouldDirty: true,
+            shouldTouch: true,
+            shouldValidate: true,
+        })
+    }
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit((data) => onSubmit(normalizeRecipePayload(data)))} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
@@ -193,9 +232,14 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
                 <div className="space-y-4 border rounded-md p-4 bg-slate-50">
                     <div className="flex items-center justify-between">
                         <h3 className="font-medium text-sm">Formulation</h3>
-                        <Button type="button" variant="outline" size="sm" onClick={() => append({ granule: "", percentage: 0 })}>
-                            <Plus className="h-4 w-4 mr-2" /> Add Component
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={balanceRecipeToHundred}>
+                                Balance To 100
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => append({ granule: "", percentage: 0 })}>
+                                <Plus className="h-4 w-4 mr-2" /> Add Component
+                            </Button>
+                        </div>
                     </div>
 
                     {fields.map((field, index) => (
@@ -233,9 +277,11 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
                                         <FormControl>
                                             <Input
                                                 type="number"
+                                                step="0.01"
                                                 {...field}
                                                 value={field.value as number}
                                                 onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                                                onBlur={(event) => field.onChange(roundPercentage(parseFloat(event.target.value) || 0))}
                                             />
                                         </FormControl>
                                         <FormMessage />
@@ -257,9 +303,18 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
                     {form.formState.errors.components?.root && (
                         <p className="text-sm font-medium text-destructive">{form.formState.errors.components.root.message}</p>
                     )}
-                    {/* Show total percentage */}
-                    <div className="text-right text-sm">
-                        Total: {form.watch("components").reduce((acc, curr) => acc + (Number(curr.percentage) || 0), 0)}%
+                    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <div className="text-slate-600">
+                            {Math.abs(percentageRemaining) <= 0.05
+                                ? "Recipe will auto-balance the last component to land exactly at 100.00%."
+                                : "Use Balance To 100 or adjust the last row until the remaining value reaches zero."}
+                        </div>
+                        <div className="text-right font-semibold text-slate-900">
+                            <div>Total: {percentageTotal.toFixed(2)}%</div>
+                            <div className={Math.abs(percentageRemaining) <= 0.05 ? "text-emerald-600" : "text-amber-600"}>
+                                Remaining: {percentageRemaining.toFixed(2)}%
+                            </div>
+                        </div>
                     </div>
                 </div>
 

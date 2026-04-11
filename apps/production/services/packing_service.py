@@ -76,10 +76,6 @@ class PackingService:
         if base_uom == "KG":
             return Decimal(str(base_qty or 0))
 
-        tare_per_unit = Decimal(str(getattr(material, "tare_weight_kg", 0) or 0))
-        if tare_per_unit > 0:
-            return tare_per_unit * Decimal(str(qty or 0))
-
         defaults = dict(getattr(material, "packaging_defaults_json", {}) or {})
         per_meter = Decimal(str(defaults.get("tare_kg_per_meter") or 0))
         if base_uom == "METER" and per_meter > 0:

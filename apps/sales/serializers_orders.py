@@ -379,7 +379,10 @@ class SalesOrderSerializer(serializers.ModelSerializer):
                 material_label = str(getattr(material, "code", "") or getattr(material, "name", "") or "Sheet").strip()
                 qty = Decimal(str(line.get("qty") or 0))
                 uom = str(line.get("uom") or "PCS").upper()
-                line_parts.append(f"{material_label} {qty.normalize()} {uom}/roll")
+                if qty > 0:
+                    line_parts.append(f"{material_label} {qty.normalize()} {uom}/roll")
+                else:
+                    line_parts.append(f"{material_label} actual at packing")
             if line_parts:
                 parts.extend(line_parts)
 

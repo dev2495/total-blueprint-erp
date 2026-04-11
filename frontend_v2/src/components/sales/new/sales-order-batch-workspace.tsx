@@ -266,7 +266,11 @@ function itemPackagingLabels(item: OrderItemDraft, packagingMaterials: any[]) {
         for (const line of item.packaging_snapshot.roll_dispatch_pack.lines.slice(0, 3)) {
             const material = resolveMaterialMeta(line.material_id, [], [], packagingMaterials)
             const materialLabel = String(material?.code || material?.name || "Sheet").trim()
-            labels.push(`${materialLabel} ${asNumber(line.qty, 0)} ${line.uom}/roll`)
+            if (asNumber(line.qty, 0) > 0) {
+                labels.push(`${materialLabel} ${asNumber(line.qty, 0)} ${line.uom}/roll`)
+            } else {
+                labels.push(`${materialLabel} actual at packing`)
+            }
         }
     }
     return labels.length ? labels : ["Standard pack"]

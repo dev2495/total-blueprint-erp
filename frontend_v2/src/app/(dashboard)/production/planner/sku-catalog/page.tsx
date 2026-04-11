@@ -207,7 +207,7 @@ function makeAddon(): AddonDraft {
 }
 
 function makePackagingLine(): PackagingLineDraft {
-  return { material_id: "", qty: 1, uom: "PCS", basis: "PER_ROLL" }
+  return { material_id: "", qty: 0, uom: "PCS", basis: "PER_ROLL" }
 }
 
 function derivePlannerStockClass(
@@ -332,7 +332,7 @@ function variantDraftFromPreset(preset: PlannerSkuVariantPreset): VariantDraft {
     roll_dispatch_pack_lines: Array.isArray(packaging.roll_dispatch_pack?.lines)
       ? packaging.roll_dispatch_pack.lines.map((line: any) => ({
           material_id: String(line.material_id || ""),
-          qty: asNumber(line.qty, 1),
+          qty: asNumber(line.qty, 0),
           uom: (String(line.uom || "PCS").toUpperCase() as PackagingLineDraft["uom"]),
           basis: "PER_ROLL",
         }))
@@ -1438,7 +1438,7 @@ export default function PlannerSkuCatalogPage() {
                   <div className={styles.inlineSwitchRow}>
                     <div>
                       <div className={styles.metaLabel}>Roll dispatch pack</div>
-                      <div className={styles.inlineHint}>Carry dispatch-pack lines for repeatable roll or pouch launches.</div>
+                      <div className={styles.inlineHint}>Mark which pack materials can be used. Actual qty is captured later in Packing Yard or dispatch release.</div>
                     </div>
                     <Switch checked={variantDraft.roll_dispatch_pack_enabled} onCheckedChange={(checked) => patchVariant({ roll_dispatch_pack_enabled: checked })} />
                   </div>
@@ -1447,8 +1447,11 @@ export default function PlannerSkuCatalogPage() {
                       {variantDraft.roll_dispatch_pack_lines.map((line, index) => (
                         <div key={`pack-${index}`} className={styles.stackRow}>
                           <Select value={line.material_id || "NONE"} onValueChange={(value) => {
+                            const nextMaterialId = value === "NONE" ? "" : value
+                            const selectedMaterial = packagingMaterials.find((material: any) => String(material.id) === nextMaterialId)
+                            const inferredUom = (String(selectedMaterial?.base_uom || line.uom || "PCS").toUpperCase() as PackagingLineDraft["uom"])
                             const next = [...variantDraft.roll_dispatch_pack_lines]
-                            next[index] = { ...next[index], material_id: value === "NONE" ? "" : value }
+                            next[index] = { ...next[index], material_id: nextMaterialId, qty: 0, uom: inferredUom }
                             patchVariant({ roll_dispatch_pack_lines: next })
                           }}>
                             <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
@@ -1461,23 +1464,9 @@ export default function PlannerSkuCatalogPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          <Input type="number" value={line.qty} onChange={(event) => {
-                            const next = [...variantDraft.roll_dispatch_pack_lines]
-                            next[index] = { ...next[index], qty: Number(event.target.value || 0) }
-                            patchVariant({ roll_dispatch_pack_lines: next })
-                          }} placeholder="Qty" />
-                          <Select value={line.uom} onValueChange={(value: PackagingLineDraft["uom"]) => {
-                            const next = [...variantDraft.roll_dispatch_pack_lines]
-                            next[index] = { ...next[index], uom: value }
-                            patchVariant({ roll_dispatch_pack_lines: next })
-                          }}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="PCS">PCS</SelectItem>
-                              <SelectItem value="KG">KG</SelectItem>
-                              <SelectItem value="METER">METER</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className={styles.stackRowMeta}>
+                            {line.material_id ? `${line.uom} actual at packing` : "Select material first"}
+                          </div>
                           <Button variant="ghost" size="sm" onClick={() => patchVariant({ roll_dispatch_pack_lines: variantDraft.roll_dispatch_pack_lines.filter((_, rowIndex) => rowIndex !== index) })}>
                             Remove
                           </Button>
@@ -1485,7 +1474,7 @@ export default function PlannerSkuCatalogPage() {
                       ))}
                       <Button variant="outline" size="sm" className="rounded-full" onClick={() => patchVariant({ roll_dispatch_pack_lines: [...variantDraft.roll_dispatch_pack_lines, makePackagingLine()] })}>
                         <Plus className="mr-2 h-3.5 w-3.5" />
-                        Add dispatch line
+                        Add allowed material
                       </Button>
                     </div>
                   ) : null}

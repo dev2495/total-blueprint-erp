@@ -281,7 +281,6 @@ def _ensure_packaging_assets(admin, plant: Plant):
             "packaging_supply_mode": "IN_HOUSE",
             "production_template": template,
             "packaging_defaults_json": {"label": "2-layer non-printed packaging pouch"},
-            "tare_weight_kg": Decimal("0.0150"),
             "status": "ACTIVE",
         },
     )

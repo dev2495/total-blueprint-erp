@@ -71,7 +71,6 @@ class InventoryMaterial(models.Model):
         ('GONNY', 'Gonny'),
         ('TAPE', 'Tape'),
         ('SHEET', 'Sheet'),
-        ('FILM', 'Film'),
         ('BOX', 'Box'),
         ('LABEL', 'Label'),
         ('TAG', 'Tag'),
@@ -153,14 +152,7 @@ class InventoryMaterial(models.Model):
     packaging_defaults_json = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Optional branded packaging defaults and tare settings used by packing-yard flows.",
-    )
-    tare_weight_kg = models.DecimalField(
-        max_digits=10,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text="Default tare weight per packaging unit used for packing and dispatch gross-weight math.",
+        help_text="Optional branded packaging defaults used by packing-yard flows.",
     )
     per_sheet_base_qty = models.DecimalField(
         max_digits=12,
@@ -212,7 +204,7 @@ class InventoryMaterial(models.Model):
                 raise ValidationError({'packaging_kind': "Packaging material must have a packaging kind."})
             if not self.packaging_supply_mode:
                 raise ValidationError({'packaging_supply_mode': "Packaging material must have a packaging supply mode."})
-            in_house_kinds = {"INNER_POUCH", "SHEET", "FILM"}
+            in_house_kinds = {"INNER_POUCH", "SHEET"}
             if self.packaging_supply_mode in {"IN_HOUSE", "BOTH"}:
                 if self.packaging_kind not in in_house_kinds:
                     raise ValidationError(
@@ -232,8 +224,6 @@ class InventoryMaterial(models.Model):
                 invalid_fields['production_template'] = "production_template must be null for non-PACKAGING materials."
             if self.packaging_defaults_json:
                 invalid_fields['packaging_defaults_json'] = "packaging_defaults_json must be empty for non-PACKAGING materials."
-            if self.tare_weight_kg is not None:
-                invalid_fields['tare_weight_kg'] = "tare_weight_kg must be null for non-PACKAGING materials."
             if self.per_sheet_base_qty is not None:
                 invalid_fields['per_sheet_base_qty'] = "per_sheet_base_qty must be null for non-PACKAGING materials."
             if invalid_fields:

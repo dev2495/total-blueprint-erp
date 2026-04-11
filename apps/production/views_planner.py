@@ -4066,10 +4066,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 qty = Decimal(str(line.get("qty") or 0))
                 uom = str(line.get("uom") or "PCS").upper()
                 basis = str(line.get("basis") or "PER_ROLL").upper()
-                if not material_id or qty <= 0:
+                if not material_id:
                     continue
-                if basis != "PER_ORDER":
-                    warnings.append(f"Packaging material {material_id} uses unsupported auto-planning basis {basis}.")
+                if basis != "PER_ORDER" or qty <= 0:
                     continue
                 key = (material_id, uom)
                 requirements[key] = requirements.get(key, Decimal("0")) + qty

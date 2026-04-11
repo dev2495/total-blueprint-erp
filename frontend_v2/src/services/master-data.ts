@@ -53,12 +53,11 @@ export interface Addon extends Material {
 
 export interface PackagingMaterial extends Material {
     base_uom: 'PCS' | 'KG' | 'METER';
-    packaging_kind: 'INNER_POUCH' | 'GONNY' | 'TAPE' | 'SHEET' | 'FILM' | 'BOX' | 'LABEL' | 'TAG' | 'OTHER';
+    packaging_kind: 'INNER_POUCH' | 'GONNY' | 'TAPE' | 'SHEET' | 'BOX' | 'LABEL' | 'TAG' | 'OTHER';
     packaging_supply_mode: 'PURCHASED' | 'IN_HOUSE' | 'BOTH';
     production_template?: string | null;
     production_template_name?: string | null;
     packaging_defaults_json?: Record<string, any>;
-    tare_weight_kg?: number | null;
     per_sheet_base_qty?: number | null;
 }
 
