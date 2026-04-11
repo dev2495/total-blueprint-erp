@@ -209,7 +209,7 @@ class Machine(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     work_center = models.ForeignKey(WorkCenter, on_delete=models.CASCADE, related_name='machines')
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=50)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
     cost_absorption_group = models.ForeignKey(
         'costing.CostAbsorptionGroup',
@@ -242,3 +242,6 @@ class Machine(models.Model):
 
     class Meta:
         db_table = 'factory_machines'
+        constraints = [
+            models.UniqueConstraint(fields=['work_center', 'code'], name='factory_machine_wc_code_unique'),
+        ]

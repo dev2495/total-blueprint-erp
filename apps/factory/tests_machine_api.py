@@ -31,6 +31,11 @@ class MachineApiTests(TestCase):
             code="WC-MAC",
             name="Machine Work Center",
         )
+        self.secondary_work_center = WorkCenter.objects.create(
+            plant=self.plant,
+            code="WC-MAC-2",
+            name="Second Machine Work Center",
+        )
 
     def _csrf_headers(self, client: APIClient | None = None) -> dict:
         target = client or self.client
@@ -81,3 +86,39 @@ class MachineApiTests(TestCase):
 
         self.assertEqual(response.status_code, 403, response.content)
         self.assertFalse(Machine.objects.filter(code="MACHINE-API-02").exists())
+
+    def test_admin_can_reuse_machine_code_in_different_work_center(self):
+        Machine.objects.create(work_center=self.work_center, code="MC-02", name="First MC-02")
+        self._login("admin-machine", "AdminPass123!")
+
+        response = self.client.post(
+            "/api/factory/machines/",
+            {
+                "code": "MC-02",
+                "name": "Second MC-02",
+                "work_center": str(self.secondary_work_center.id),
+            },
+            format="json",
+            **self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(Machine.objects.filter(code="MC-02").count(), 2)
+
+    def test_admin_cannot_reuse_machine_code_in_same_work_center(self):
+        Machine.objects.create(work_center=self.work_center, code="MC-02", name="Existing MC-02")
+        self._login("admin-machine", "AdminPass123!")
+
+        response = self.client.post(
+            "/api/factory/machines/",
+            {
+                "code": "MC-02",
+                "name": "Duplicate MC-02",
+                "work_center": str(self.work_center.id),
+            },
+            format="json",
+            **self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("already belongs to", str(response.content))

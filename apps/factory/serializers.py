@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 from .models import (
     Plant,
@@ -10,6 +12,12 @@ from .models import (
     MachineShiftOverride,
 )
 from apps.inventory.serializers import InventoryLocationSerializer
+
+
+def normalize_machine_code(value: str) -> str:
+    normalized = re.sub(r"\s*-\s*", "-", str(value or "").strip())
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.upper()
 
 
 class PlantLegalProfileSerializer(serializers.ModelSerializer):
@@ -146,6 +154,30 @@ class MachineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Machine
         fields = ['id', 'work_center', 'work_center_name', 'name', 'code', 'status', 'cost_absorption_group', 'cost_absorption_group_code']
+        validators = []
+
+    def validate_code(self, value):
+        normalized = normalize_machine_code(value)
+        if not normalized:
+            raise serializers.ValidationError("Machine code is required.")
+        return normalized
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        work_center = attrs.get("work_center") or getattr(self.instance, "work_center", None)
+        code = attrs.get("code") or getattr(self.instance, "code", None)
+        if not work_center or not code:
+            return attrs
+
+        existing = Machine.objects.select_related("work_center").filter(work_center=work_center, code=code)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        duplicate = existing.first()
+        if duplicate:
+            raise serializers.ValidationError({
+                "code": f"Machine code '{code}' already belongs to {duplicate.name} in {duplicate.work_center.name}.",
+            })
+        return attrs
 
 
 class PlantShiftDefinitionSerializer(serializers.ModelSerializer):

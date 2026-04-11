@@ -46,6 +46,14 @@ const formSchema = z.object({
 })
 type MachineFormValues = z.infer<typeof formSchema>
 
+function normalizeMachineCode(value: string) {
+    return String(value || "")
+        .replace(/\s*-\s*/g, "-")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase()
+}
+
 function summarizeMachineErrors(errors: Record<string, { message?: string } | undefined>) {
     return Object.entries(errors)
         .map(([field, value]) => `${field.replace(/_/g, " ")}: ${value?.message || "Invalid value"}`)
@@ -66,21 +74,25 @@ function pickMachineFieldErrors(error: unknown): Partial<Record<keyof MachineFor
 function MachineForm({
     initialData,
     workCenters,
+    existingMachines,
     costGroups,
     onSubmit,
     isLoading,
     serverError,
     apiFieldErrors,
     onInvalid,
+    onOpenExisting,
 }: {
     initialData?: Machine,
     workCenters: WorkCenter[],
+    existingMachines: Machine[],
     costGroups: Array<{ id: string; code: string; label: string }>,
     onSubmit: (data: MachineFormValues) => void,
     isLoading: boolean,
     serverError?: string | null,
     apiFieldErrors?: Partial<Record<keyof MachineFormValues, string>>,
     onInvalid?: (message: string) => void,
+    onOpenExisting?: (machine: Machine) => void,
 }) {
     const form = useForm<MachineFormValues>({
         resolver: zodResolver(formSchema),
@@ -109,16 +121,55 @@ function MachineForm({
         })
     }, [apiFieldErrors, form])
 
+    const watchedCode = form.watch("code")
+    const watchedWorkCenter = form.watch("work_center")
+    const normalizedCode = normalizeMachineCode(watchedCode)
+    const duplicateMachine = existingMachines.find((machine) =>
+        machine.id !== initialData?.id &&
+        machine.work_center === watchedWorkCenter &&
+        normalizeMachineCode(machine.code) === normalizedCode
+    )
+    const duplicateMessage = duplicateMachine
+        ? `Machine code '${normalizedCode}' already belongs to ${duplicateMachine.name} in ${duplicateMachine.work_center_name}.`
+        : null
+
     return (
         <Form {...form}>
             <form
-                onSubmit={form.handleSubmit(onSubmit, (errors) => onInvalid?.(summarizeMachineErrors(errors as Record<string, { message?: string } | undefined>)))}
+                onSubmit={form.handleSubmit((data) => {
+                    const normalized = normalizeMachineCode(data.code)
+                    if (duplicateMachine) {
+                        form.setError("code", { type: "manual", message: duplicateMessage || "Machine code already exists in this work center." })
+                        onInvalid?.(duplicateMessage || "Machine code already exists in this work center.")
+                        return
+                    }
+                    onSubmit({ ...data, code: normalized })
+                }, (errors) => onInvalid?.(summarizeMachineErrors(errors as Record<string, { message?: string } | undefined>)))}
                 className="space-y-4"
             >
                 {serverError ? (
                     <Alert variant="destructive">
                         <AlertTitle>Machine was not saved</AlertTitle>
                         <AlertDescription>{serverError}</AlertDescription>
+                    </Alert>
+                ) : null}
+                {duplicateMachine ? (
+                    <Alert>
+                        <AlertTitle>Code already used in this work center</AlertTitle>
+                        <AlertDescription className="space-y-3">
+                            <p>{duplicateMessage}</p>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                <Badge variant="secondary" className="bg-slate-100 text-slate-700">{duplicateMachine.code}</Badge>
+                                <span>{duplicateMachine.name}</span>
+                                <span>•</span>
+                                <span>{duplicateMachine.work_center_name}</span>
+                            </div>
+                            {onOpenExisting ? (
+                                <Button type="button" variant="outline" size="sm" onClick={() => onOpenExisting(duplicateMachine)}>
+                                    Open existing machine
+                                </Button>
+                            ) : null}
+                        </AlertDescription>
                     </Alert>
                 ) : null}
                 <FormField
@@ -180,8 +231,21 @@ function MachineForm({
                         <FormItem>
                             <FormLabel>Machine Code</FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. MC-01" {...field} />
+                                <Input
+                                    placeholder="e.g. MC-01"
+                                    {...field}
+                                    onBlur={(event) => {
+                                        field.onBlur()
+                                        const normalized = normalizeMachineCode(event.target.value)
+                                        if (normalized && normalized !== event.target.value) {
+                                            form.setValue("code", normalized, { shouldDirty: true, shouldValidate: true })
+                                        }
+                                    }}
+                                />
                             </FormControl>
+                            <div className="text-[0.8rem] text-muted-foreground">
+                                Machine codes are unique inside the selected work center.
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -300,10 +364,21 @@ export default function MachinesPage() {
         }
     })
 
-    const filteredMachines = machines?.filter(machine =>
-        machine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        machine.code.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || []
+    const sortedMachines = [...(machines || [])].sort((left, right) => {
+        const codeCompare = normalizeMachineCode(left.code).localeCompare(normalizeMachineCode(right.code))
+        if (codeCompare !== 0) return codeCompare
+        const workCenterCompare = String(left.work_center_name || "").localeCompare(String(right.work_center_name || ""))
+        if (workCenterCompare !== 0) return workCenterCompare
+        return left.name.localeCompare(right.name)
+    })
+    const query = searchQuery.trim().toLowerCase()
+    const filteredMachines = sortedMachines.filter((machine) =>
+        !query ||
+        machine.name.toLowerCase().includes(query) ||
+        machine.code.toLowerCase().includes(query) ||
+        normalizeMachineCode(machine.code).toLowerCase().includes(query) ||
+        String(machine.work_center_name || "").toLowerCase().includes(query)
+    )
 
     return (
         <FactoryPageLayout
@@ -311,7 +386,7 @@ export default function MachinesPage() {
             description="Manage specific production units and equipment within your work centers."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            searchPlaceholder="Search machines..."
+            searchPlaceholder="Search by code, name, or work center..."
             actions={
                 <Dialog open={isCreateOpen} onOpenChange={(open) => {
                     setIsCreateOpen(open)
@@ -331,6 +406,7 @@ export default function MachinesPage() {
                         </DialogHeader>
                         <MachineForm
                             workCenters={workCenters || []}
+                            existingMachines={machines || []}
                             costGroups={costGroups || []}
                             onSubmit={(data) => {
                                 setCreateSubmitError(null)
@@ -343,6 +419,12 @@ export default function MachinesPage() {
                             onInvalid={(message) => {
                                 setCreateSubmitError(message)
                                 toast({ title: "Cannot save machine yet", description: message, variant: "destructive" })
+                            }}
+                            onOpenExisting={(machine) => {
+                                setIsCreateOpen(false)
+                                setCreateSubmitError(null)
+                                setCreateFieldErrors({})
+                                setEditingItem(machine)
                             }}
                         />
                     </DialogContent>
@@ -388,12 +470,16 @@ export default function MachinesPage() {
                                             <Zap className="h-6 w-6" />
                                         </div>
                                         <div>
-                                            <h3 className="font-semibold text-lg text-slate-900 leading-tight">{machine.name}</h3>
-                                            <div className="flex items-center text-xs text-slate-500 mt-1">
-                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-slate-100 text-slate-600">
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary" className="h-6 bg-slate-900 px-2.5 text-[11px] font-bold tracking-[0.18em] text-white">
                                                     {machine.code}
                                                 </Badge>
-                                                <span className="mx-2 text-slate-300">|</span>
+                                                <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                                                    {wc?.code || "NO-WC"}
+                                                </span>
+                                            </div>
+                                            <h3 className="mt-2 font-semibold text-lg text-slate-900 leading-tight">{machine.name}</h3>
+                                            <div className="flex items-center text-xs text-slate-500 mt-1">
                                                 <span className="text-slate-500">{wc?.name || "No WC"}</span>
                                             </div>
                                             <div className="mt-2">
@@ -424,6 +510,7 @@ export default function MachinesPage() {
                     {editingItem && (
                         <MachineForm
                             workCenters={workCenters || []}
+                            existingMachines={machines || []}
                             costGroups={costGroups || []}
                             initialData={editingItem}
                             onSubmit={(data) => {
@@ -437,6 +524,9 @@ export default function MachinesPage() {
                             onInvalid={(message) => {
                                 setEditSubmitError(message)
                                 toast({ title: "Cannot update machine yet", description: message, variant: "destructive" })
+                            }}
+                            onOpenExisting={(machine) => {
+                                setEditingItem(machine)
                             }}
                         />
                     )}

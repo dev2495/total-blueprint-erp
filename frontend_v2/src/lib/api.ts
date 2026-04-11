@@ -71,6 +71,24 @@ const flattenApiErrorValue = (value: unknown, fieldLabel?: string): string[] => 
     return [];
 };
 
+const errorFieldBlacklist = new Set([
+    "status",
+    "code",
+    "message",
+    "count",
+    "request_id",
+    "results",
+    "data",
+    "detail",
+    "error",
+]);
+
+const genericErrorMessages = new Set([
+    "Request failed.",
+    "Bad request.",
+    "An error occurred.",
+]);
+
 export const extractApiErrorMap = (error: unknown): Record<string, string> => {
     const payload = (error as AxiosError<{ detail?: unknown; error?: unknown; message?: unknown }> | undefined)?.response?.data;
     if (!payload || typeof payload !== "object") return {};
@@ -80,6 +98,7 @@ export const extractApiErrorMap = (error: unknown): Record<string, string> => {
         : payload as Record<string, unknown>;
 
     return Object.entries(source).reduce<Record<string, string>>((acc, [key, value]) => {
+        if (errorFieldBlacklist.has(key)) return acc;
         const messages = flattenApiErrorValue(value).map((message) => String(message).trim()).filter(Boolean);
         if (messages.length > 0) {
             acc[key] = Array.from(new Set(messages)).join(" • ");
@@ -96,11 +115,17 @@ export const describeApiError = (error: unknown, fallback = "Request failed."): 
         ...flattenApiErrorValue(payload?.detail),
         ...flattenApiErrorValue(payload?.error),
         ...flattenApiErrorValue(payload?.message),
-        ...((payload && typeof payload === "object") ? flattenApiErrorValue(payload) : []),
     ].filter(Boolean);
 
     const fieldMessages = Object.values(extractApiErrorMap(error));
-    const uniqueMessages = Array.from(new Set([...messages, ...fieldMessages].map((message) => String(message).trim()).filter(Boolean)));
+    const uniqueMessages = Array.from(
+        new Set(
+            [...messages, ...fieldMessages]
+                .map((message) => String(message).trim())
+                .filter(Boolean)
+                .filter((message) => !(fieldMessages.length > 0 && genericErrorMessages.has(message)))
+        )
+    );
     if (uniqueMessages.length > 0) {
         return uniqueMessages.join(" • ");
     }

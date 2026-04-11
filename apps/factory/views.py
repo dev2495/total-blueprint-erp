@@ -65,7 +65,7 @@ class MachineViewSet(viewsets.ModelViewSet):
     serializer_class = MachineSerializer
 
     def get_queryset(self):
-        queryset = Machine.objects.all()
+        queryset = Machine.objects.select_related('work_center', 'work_center__plant').order_by('work_center__code', 'code', 'name')
         work_center = self.request.query_params.get('work_center')
         if work_center:
             queryset = queryset.filter(work_center_id=work_center)
