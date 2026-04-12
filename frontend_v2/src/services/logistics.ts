@@ -66,6 +66,7 @@ export interface DispatchableRoll {
     source_stock_order_no?: string | null;
     remaining_stock_pool_kg?: number;
     split_parent_label?: string | null;
+    roll_pack_enabled?: boolean;
     default_pack_lines?: Array<{ material_id: string; qty: number; uom?: string; basis?: string }>;
     released_to_dispatch?: boolean;
     release_mode?: 'PACKED' | 'UNPACKED' | string;

@@ -13,7 +13,7 @@ class DispatchLineageTests(SimpleTestCase):
             label_id="ROLL-1",
             sales_order_item_id="so-item-1",
             sales_order_item=SimpleNamespace(
-                packaging_snapshot={"roll_dispatch_pack": {"enabled": True, "lines": [{"material_id": "default-1", "qty": 1}]}},
+                packaging_snapshot={"roll_dispatch_pack": {"enabled": True, "lines": [{"material_id": "sheet-1", "qty": 0, "uom": "PCS", "basis": "PER_ROLL"}]}},
                 sales_order=SimpleNamespace(order_number="SO-1"),
             ),
             location_id="loc-1",
@@ -37,6 +37,54 @@ class DispatchLineageTests(SimpleTestCase):
 
         self.assertEqual(record.lines[0]["material_id"], "sheet-1")
         self.assertFalse(record.meta_json["defaulted_from_snapshot"])
+
+    def test_pack_roll_rejects_material_outside_snapshot(self):
+        roll = SimpleNamespace(
+            id="roll-1",
+            label_id="ROLL-1",
+            sales_order_item_id="so-item-1",
+            sales_order_item=SimpleNamespace(
+                packaging_snapshot={"roll_dispatch_pack": {"enabled": True, "lines": [{"material_id": "sheet-1", "qty": 0, "uom": "PCS", "basis": "PER_ROLL"}]}},
+                sales_order=SimpleNamespace(order_number="SO-1"),
+            ),
+            location_id="loc-1",
+        )
+
+        with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
+             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter:
+            select_related.return_value.get.return_value = roll
+            existing_filter.return_value.first.return_value = None
+
+            with self.assertRaisesMessage(ValueError, "is not allowed for roll"):
+                FGDispatchService.pack_roll.__wrapped__(
+                    "roll-1",
+                    [{"material_id": "tape-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
+                    user=None,
+                )
+
+    def test_pack_roll_rejects_packed_release_when_snapshot_not_configured(self):
+        roll = SimpleNamespace(
+            id="roll-1",
+            label_id="ROLL-1",
+            sales_order_item_id="so-item-1",
+            sales_order_item=SimpleNamespace(
+                packaging_snapshot={"roll_dispatch_pack": {"enabled": False, "lines": []}},
+                sales_order=SimpleNamespace(order_number="SO-1"),
+            ),
+            location_id="loc-1",
+        )
+
+        with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
+             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter:
+            select_related.return_value.get.return_value = roll
+            existing_filter.return_value.first.return_value = None
+
+            with self.assertRaisesMessage(ValueError, "has no allowed packing materials"):
+                FGDispatchService.pack_roll.__wrapped__(
+                    "roll-1",
+                    [{"material_id": "sheet-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
+                    user=None,
+                )
 
     def test_create_challan_rejects_direct_batch_dispatch_for_sales_order(self):
         with self.assertRaisesMessage(

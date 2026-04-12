@@ -238,6 +238,7 @@ class PackagingSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         kind = attrs.get('packaging_kind', getattr(self.instance, 'packaging_kind', None))
         supply_mode = attrs.get('packaging_supply_mode', getattr(self.instance, 'packaging_supply_mode', None))
+        production_template = attrs.get('production_template', getattr(self.instance, 'production_template', None))
         if not kind:
             raise serializers.ValidationError({'packaging_kind': 'packaging_kind is required for packaging materials.'})
         if not supply_mode:
@@ -245,8 +246,10 @@ class PackagingSerializer(serializers.ModelSerializer):
         in_house_kinds = {"INNER_POUCH", "SHEET"}
         if supply_mode in {'IN_HOUSE', 'BOTH'} and kind not in in_house_kinds:
             raise serializers.ValidationError({'packaging_supply_mode': f'{kind} cannot be IN_HOUSE in this phase.'})
-        if supply_mode in {'IN_HOUSE', 'BOTH'} and not attrs.get('production_template', getattr(self.instance, 'production_template', None)):
+        if supply_mode in {'IN_HOUSE', 'BOTH'} and not production_template:
             raise serializers.ValidationError({'production_template': 'In-house packaging materials require a linked production template.'})
+        if supply_mode == 'PURCHASED' and production_template:
+            raise serializers.ValidationError({'production_template': 'Purchased-only packaging must not carry a production template.'})
         return attrs
 
     def create(self, validated_data):

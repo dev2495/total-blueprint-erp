@@ -212,6 +212,7 @@ class Command(BaseCommand):
             packaging_defaults_json={
                 "pcs_per_pack": 100,
                 "brand_label": "Acceptance 100 Pack",
+                "weight_kg_per_base_uom": 0.04,
             },
         )
         gonny_mat = self._upsert_packaging_material(
@@ -219,12 +220,18 @@ class Command(BaseCommand):
             name="TEST Gonny",
             base_uom="PCS",
             packaging_kind="GONNY",
+            packaging_defaults_json={
+                "weight_kg_per_base_uom": 0.22,
+            },
         )
         tape_mat = self._upsert_packaging_material(
             code="TEST_TAPE_PCS",
             name="TEST Tape",
             base_uom="PCS",
             packaging_kind="TAPE",
+            packaging_defaults_json={
+                "weight_kg_per_base_uom": 0.015,
+            },
         )
         sheet_mat = self._upsert_packaging_material(
             code="PACK_ROLL_SHEET_INHOUSE",

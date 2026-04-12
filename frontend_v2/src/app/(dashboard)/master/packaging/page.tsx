@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, Factory, Package, PackageOpen, Plus, ShoppingBag, Ticket } from "lucide-react"
 
@@ -49,19 +49,69 @@ function PackagingForm({
   const [productionTemplate, setProductionTemplate] = useState(initial?.production_template || "__NONE__")
   const [brandName, setBrandName] = useState(String(initial?.packaging_defaults_json?.brand_name || ""))
   const [defaultPcsPerPack, setDefaultPcsPerPack] = useState(initial?.packaging_defaults_json?.pcs_per_pack != null ? String(initial.packaging_defaults_json?.pcs_per_pack) : "")
+  const [weightPerBaseUnit, setWeightPerBaseUnit] = useState(
+    initial?.packaging_defaults_json?.weight_kg_per_base_uom != null
+      ? String(initial.packaging_defaults_json?.weight_kg_per_base_uom)
+      : "",
+  )
 
   const allowInHouse = ["INNER_POUCH", "SHEET"].includes(kind)
-  const needsSheetConversion = kind === "SHEET" && baseUom !== "PCS"
+  const supplyModeOptions = allowInHouse ? supplyModes : (["PURCHASED"] as const)
+  const usesUnitBasedConsumption = kind !== "TAPE"
+  const needsUnitConversion = usesUnitBasedConsumption && baseUom !== "PCS"
+  const showUnitWeight = usesUnitBasedConsumption && baseUom === "PCS" && kind !== "SHEET"
+  const showProductionTemplate = allowInHouse && supplyMode !== "PURCHASED"
+  const unitLabel = kind.replaceAll("_", " ").toLowerCase()
   const visibleTemplates = templates.filter((template) => {
     if (kind === "INNER_POUCH") return template.fg_type === "POUCH"
     return true
   })
+
+  useEffect(() => {
+    if (!allowInHouse && supplyMode !== "PURCHASED") {
+      setSupplyMode("PURCHASED")
+    }
+  }, [allowInHouse, supplyMode])
+
+  useEffect(() => {
+    if (supplyMode === "PURCHASED") {
+      setProductionTemplate("__NONE__")
+    }
+  }, [supplyMode])
+
+  useEffect(() => {
+    if (kind !== "INNER_POUCH") {
+      setDefaultPcsPerPack("")
+    }
+  }, [kind])
+
+  useEffect(() => {
+    if (!showUnitWeight) {
+      setWeightPerBaseUnit("")
+    }
+  }, [showUnitWeight])
 
   return (
     <form
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
+        const packagingDefaults = { ...(initial?.packaging_defaults_json || {}) }
+        if (brandName) {
+          packagingDefaults.brand_name = brandName
+        } else {
+          delete packagingDefaults.brand_name
+        }
+        if (defaultPcsPerPack) {
+          packagingDefaults.pcs_per_pack = Number(defaultPcsPerPack)
+        } else {
+          delete packagingDefaults.pcs_per_pack
+        }
+        if (showUnitWeight && weightPerBaseUnit) {
+          packagingDefaults.weight_kg_per_base_uom = Number(weightPerBaseUnit)
+        } else {
+          delete packagingDefaults.weight_kg_per_base_uom
+        }
         onSubmit({
           code,
           name,
@@ -69,11 +119,8 @@ function PackagingForm({
           packaging_kind: kind,
           packaging_supply_mode: supplyMode,
           production_template: supplyMode === "PURCHASED" || productionTemplate === "__NONE__" ? null : productionTemplate,
-          packaging_defaults_json: {
-            brand_name: brandName || undefined,
-            pcs_per_pack: defaultPcsPerPack ? Number(defaultPcsPerPack) : undefined,
-          },
-          per_sheet_base_qty: needsSheetConversion && perSheet ? Number(perSheet) : null,
+          packaging_defaults_json: packagingDefaults,
+          per_sheet_base_qty: needsUnitConversion && perSheet ? Number(perSheet) : null,
           status,
         })
       }}
@@ -101,7 +148,7 @@ function PackagingForm({
           <Label>Supply Mode</Label>
           <Select value={supplyMode} onValueChange={(value) => setSupplyMode(value as PackagingSupplyMode)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{supplyModes.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            <SelectContent>{supplyModeOptions.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div>
@@ -115,26 +162,25 @@ function PackagingForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>{kind === "SHEET" ? `Base Qty per Sheet (${baseUom})` : "Sheet Conversion"}</Label>
-          {kind === "SHEET" ? (
+          <Label>{needsUnitConversion ? `Base Qty per ${unitLabel} (${baseUom})` : "Base Qty per Unit"}</Label>
+          {needsUnitConversion ? (
             <>
               <Input
                 type="number"
                 step="0.000001"
                 value={perSheet}
                 onChange={(e) => setPerSheet(e.target.value)}
-                placeholder={needsSheetConversion ? `Enter ${baseUom.toLowerCase()} represented by one sheet` : "Not needed when base UOM is PCS"}
-                disabled={!needsSheetConversion}
+                placeholder={`Enter ${baseUom.toLowerCase()} represented by one ${unitLabel}`}
               />
               <div className="mt-1 text-xs text-slate-500">
-                {needsSheetConversion
-                  ? "This is the stock conversion rule used later when actual sheet consumption is entered in Packing Yard."
-                  : "PCS-based sheet stock does not need a conversion factor."}
+                This is the stock conversion rule used later when actual {unitLabel} consumption is entered in Packing Yard.
               </div>
             </>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              Conversion is only needed for sheet stock that is stored in KG or meter and consumed in pieces.
+              {usesUnitBasedConsumption
+                ? "Not needed when this packaging stock is already tracked directly in PCS."
+                : "This packaging kind is normally consumed directly in its base UOM, so no unit conversion is needed."}
             </div>
           )}
         </div>
@@ -150,23 +196,45 @@ function PackagingForm({
         </div>
       </div>
 
+      {showUnitWeight ? (
+        <div>
+          <Label>Weight per {unitLabel} (kg)</Label>
+          <Input
+            type="number"
+            step="0.000001"
+            value={weightPerBaseUnit}
+            onChange={(e) => setWeightPerBaseUnit(e.target.value)}
+            placeholder={`Optional tare / gross-weight helper per ${unitLabel}`}
+          />
+          <div className="mt-1 text-xs text-slate-500">
+            Used only for gross-weight breakdown in Packing Yard when this packaging item is stocked and consumed in PCS.
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Linked Production Template</Label>
-          <Select value={productionTemplate || "__NONE__"} onValueChange={setProductionTemplate}>
-            <SelectTrigger><SelectValue placeholder="No template" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__NONE__">No template</SelectItem>
-              {visibleTemplates.map((template) => (
-                <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="mt-1 text-xs text-slate-500">
-            {allowInHouse
-              ? "This packaging SKU owns its production template. Planner stock orders only choose this SKU and the qty to make."
-              : "This kind is purchased-only in this phase."}
-          </div>
+          <Label>{showProductionTemplate ? "Linked Production Template" : "Production Template"}</Label>
+          {showProductionTemplate ? (
+            <>
+              <Select value={productionTemplate || "__NONE__"} onValueChange={setProductionTemplate}>
+                <SelectTrigger><SelectValue placeholder="No template" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__NONE__">No template</SelectItem>
+                  {visibleTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="mt-1 text-xs text-slate-500">
+                This packaging SKU owns its production template. Planner stock orders only choose this SKU and the qty to make.
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              Purchased packaging is bought directly. No in-house production template is used for this SKU.
+            </div>
+          )}
         </div>
         <div>
           <Label>Brand / Pack Label</Label>
@@ -174,10 +242,12 @@ function PackagingForm({
         </div>
       </div>
 
-      <div>
-        <Label>Default PCS per Inner Pack</Label>
-        <Input type="number" value={defaultPcsPerPack} onChange={(e) => setDefaultPcsPerPack(e.target.value)} placeholder="Optional default for known inner-pack consumption" />
-      </div>
+      {kind === "INNER_POUCH" ? (
+        <div>
+          <Label>Default PCS per Inner Pack</Label>
+          <Input type="number" value={defaultPcsPerPack} onChange={(e) => setDefaultPcsPerPack(e.target.value)} placeholder="Optional default for known inner-pack consumption" />
+        </div>
+      ) : null}
 
       <div className="flex justify-end">
         <Button type="submit" disabled={busy}>Save</Button>
@@ -297,28 +367,32 @@ export default function PackagingMasterPage() {
 
               <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Base UOM</div>
-                  <div className="mt-1 font-bold text-slate-900">{row.base_uom}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Sheet Conversion</div>
-                  <div className="mt-1 font-bold text-slate-900">
-                    {row.packaging_kind === "SHEET" && row.base_uom !== "PCS" && row.per_sheet_base_qty != null
-                      ? `${row.per_sheet_base_qty} ${row.base_uom}/sheet`
-                      : row.packaging_kind === "SHEET"
-                        ? "No conversion needed"
-                        : "N/A"}
-                  </div>
-                </div>
-                <div className="col-span-2">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Linked Production Template</div>
-                  <div className="mt-1 font-bold text-slate-900">{row.production_template_name || "Purchased-only / no template"}</div>
-                </div>
-                <div className="col-span-2">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Default Brand / Pack Config</div>
-                  <div className="mt-1 text-sm text-slate-700">{row.packaging_defaults_json?.brand_name || "No branded default"}{row.packaging_defaults_json?.pcs_per_pack ? ` • ${row.packaging_defaults_json.pcs_per_pack} pcs/pack` : ""}</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Base UOM</div>
+                <div className="mt-1 font-bold text-slate-900">{row.base_uom}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Unit Conversion</div>
+                <div className="mt-1 font-bold text-slate-900">
+                  {row.base_uom !== "PCS" && row.packaging_kind !== "TAPE" && row.per_sheet_base_qty != null
+                    ? `${row.per_sheet_base_qty} ${row.base_uom}/${row.packaging_kind.replaceAll("_", " ").toLowerCase()}`
+                    : row.base_uom === "PCS"
+                      ? "Tracked directly in PCS"
+                      : "N/A"}
                 </div>
               </div>
+              <div className="col-span-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Linked Production Template</div>
+                <div className="mt-1 font-bold text-slate-900">{row.production_template_name || "Purchased-only / no template"}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Default Brand / Pack Config</div>
+                <div className="mt-1 text-sm text-slate-700">
+                  {row.packaging_defaults_json?.brand_name || "No branded default"}
+                  {row.packaging_defaults_json?.pcs_per_pack ? ` • ${row.packaging_defaults_json.pcs_per_pack} pcs/pack` : ""}
+                  {row.packaging_defaults_json?.weight_kg_per_base_uom ? ` • ${row.packaging_defaults_json.weight_kg_per_base_uom} kg/${row.base_uom.toLowerCase()}` : ""}
+                </div>
+              </div>
+            </div>
 
               <div className="flex items-center justify-between gap-3">
                 <Button size="sm" variant="outline" onClick={() => setEditing(row)}>Edit</Button>

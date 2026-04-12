@@ -41,7 +41,7 @@ class PackagingService:
             factor = cls._as_decimal(getattr(material, "per_sheet_base_qty", None))
             if factor <= 0:
                 raise ValidationError(
-                    f"Packaging material {material.code} requires per_sheet_base_qty for PCS->{base_uom} conversion."
+                    f"Packaging material {material.code} requires a base qty per consumed unit for PCS->{base_uom} conversion."
                 )
             base_qty = incoming_qty * factor
             return base_qty, {

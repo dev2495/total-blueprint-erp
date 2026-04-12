@@ -38,6 +38,36 @@ class PackagingMasterValidationTests(SimpleTestCase):
 
         self.assertIn("production template", str(exc.exception).lower())
 
+    def test_purchased_packaging_without_template_is_valid(self):
+        material = InventoryMaterial(
+            code="PK-TAPE-001",
+            name="Dispatch Tape",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="TAPE",
+            packaging_supply_mode="PURCHASED",
+            status="ACTIVE",
+        )
+
+        material.clean()
+
+    def test_purchased_packaging_with_template_is_invalid(self):
+        material = InventoryMaterial(
+            code="PK-TAPE-002",
+            name="Dispatch Tape With Template",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="TAPE",
+            packaging_supply_mode="PURCHASED",
+            production_template=TemplateBlueprint(name="Should Not Attach"),
+            status="ACTIVE",
+        )
+
+        with self.assertRaises(ValidationError) as exc:
+            material.clean()
+
+        self.assertIn("must not carry a production template", str(exc.exception))
+
     def test_in_house_inner_pouch_with_template_is_valid(self):
         material = InventoryMaterial(
             code="PK-INNER-VALID",

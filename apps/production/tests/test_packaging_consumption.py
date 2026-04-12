@@ -9,6 +9,30 @@ from apps.production.services.packing_service import PackingService
 
 
 class PackagingConsumptionTests(SimpleTestCase):
+    def test_packaging_mass_kg_uses_weight_per_piece_for_pcs_stock(self):
+        material = SimpleNamespace(
+            base_uom="PCS",
+            packaging_defaults_json={"weight_kg_per_base_uom": "0.150000"},
+        )
+
+        with patch("apps.production.services.packing_service.InventoryMaterial.objects.get", return_value=material), \
+             patch("apps.production.services.packing_service.PackagingService._resolve_base_qty", return_value=(Decimal("2"), {})):
+            mass = PackingService._packaging_mass_kg("gonny-1", 2, input_uom="PCS")
+
+        self.assertEqual(mass, Decimal("0.300000"))
+
+    def test_packaging_mass_kg_uses_converted_meter_qty(self):
+        material = SimpleNamespace(
+            base_uom="METER",
+            packaging_defaults_json={"weight_kg_per_base_uom": "0.020000"},
+        )
+
+        with patch("apps.production.services.packing_service.InventoryMaterial.objects.get", return_value=material), \
+             patch("apps.production.services.packing_service.PackagingService._resolve_base_qty", return_value=(Decimal("6.5"), {})):
+            mass = PackingService._packaging_mass_kg("tape-1", 2, input_uom="PCS")
+
+        self.assertEqual(mass, Decimal("0.130000"))
+
     def test_create_gonny_consumes_selected_gonny_material(self):
         batch = SimpleNamespace(
             id="batch-1",
@@ -262,7 +286,15 @@ class PackagingConsumptionTests(SimpleTestCase):
             label_id="ROLL-1",
             sales_order_item_id="so-item-1",
             sales_order_item=SimpleNamespace(
-                packaging_snapshot={"roll_dispatch_pack": {"enabled": True, "lines": []}},
+                packaging_snapshot={
+                    "roll_dispatch_pack": {
+                        "enabled": True,
+                        "lines": [
+                            {"material_id": "sheet-1", "qty": 0, "uom": "PCS", "basis": "PER_ROLL"},
+                            {"material_id": "tape-1", "qty": 0, "uom": "PCS", "basis": "PER_ROLL"},
+                        ],
+                    }
+                },
                 sales_order=SimpleNamespace(order_number="SO-1"),
             ),
             location_id="loc-1",

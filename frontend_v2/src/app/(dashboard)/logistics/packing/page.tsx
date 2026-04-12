@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowRight, CheckCircle2, Package, PackageOpen, Scale, Send, ShoppingBag, Truck } from "lucide-react"
+import { AlertTriangle, ArrowRight, CheckCircle2, Package, PackageOpen, Scale, Send, ShoppingBag, Truck, X } from "lucide-react"
 
 import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,26 @@ function formatPcs(value: number | null | undefined) {
 }
 
 type ReleaseMode = "PACKED" | "UNPACKED"
+type PackLineDraft = { material_id: string; qty: number; uom?: string; basis?: string }
+
+function collapsePackLines(lines: PackLineDraft[]) {
+  const grouped = new Map<string, PackLineDraft>()
+  for (const line of lines) {
+    const materialId = String(line.material_id || "").trim()
+    const qty = Number(line.qty || 0)
+    if (!materialId || qty <= 0) continue
+    const uom = String(line.uom || "PCS").toUpperCase()
+    const basis = String(line.basis || "PER_ROLL").toUpperCase()
+    const key = `${materialId}::${uom}::${basis}`
+    const existing = grouped.get(key)
+    if (existing) {
+      existing.qty = Number(existing.qty || 0) + qty
+      continue
+    }
+    grouped.set(key, { material_id: materialId, qty, uom, basis })
+  }
+  return Array.from(grouped.values())
+}
 
 export default function PackingPage() {
   const { toast } = useToast()
@@ -48,11 +68,13 @@ export default function PackingPage() {
   const [sealDialogOpen, setSealDialogOpen] = useState(false)
   const [selectedGonnyId, setSelectedGonnyId] = useState<string>("")
   const [weightKg, setWeightKg] = useState<number>(0)
+  const [sealExtras, setSealExtras] = useState<PackLineDraft[]>([])
+  const [sealExtraStocks, setSealExtraStocks] = useState<PackagingStockRow[]>([])
 
   const [rollDialogOpen, setRollDialogOpen] = useState(false)
   const [selectedRoll, setSelectedRoll] = useState<any | null>(null)
   const [releaseMode, setReleaseMode] = useState<ReleaseMode>("PACKED")
-  const [packLines, setPackLines] = useState<Array<{ material_id: string; qty: number; uom?: string; basis?: string }>>([])
+  const [packLines, setPackLines] = useState<PackLineDraft[]>([])
 
   const fetchBaseData = async () => {
     try {
@@ -103,6 +125,14 @@ export default function PackingPage() {
     () => summary?.batches.find((batch) => batch.id === selectedBatchId) || null,
     [summary, selectedBatchId],
   )
+  const selectedGonny = useMemo(
+    () => summary?.gonnies.find((gonny) => gonny.id === selectedGonnyId) || null,
+    [summary, selectedGonnyId],
+  )
+  const packagingMaterialById = useMemo(
+    () => new Map((packagingMaterials || []).map((material) => [String(material.id), material])),
+    [packagingMaterials],
+  )
 
   useEffect(() => {
     let active = true
@@ -129,6 +159,35 @@ export default function PackingPage() {
       active = false
     }
   }, [selectedBatch?.location?.id])
+
+  useEffect(() => {
+    let active = true
+    const locationId = selectedGonny?.location?.id
+    if (!sealDialogOpen || !locationId) {
+      setSealExtraStocks([])
+      return () => {
+        active = false
+      }
+    }
+    inventoryService
+      .getPackagingStock({ location: locationId })
+      .then((rows) => {
+        if (!active) return
+        setSealExtraStocks(
+          rows.filter((row) => {
+            const kind = String(row.packaging_kind || "").toUpperCase()
+            return Number(row.qty || 0) > 0 && !["GONNY", "INNER_POUCH", "SHEET"].includes(kind)
+          }),
+        )
+      })
+      .catch(() => {
+        if (!active) return
+        setSealExtraStocks([])
+      })
+    return () => {
+      active = false
+    }
+  }, [sealDialogOpen, selectedGonny?.location?.id])
 
   useEffect(() => {
     if (!selectedBatch) {
@@ -188,6 +247,17 @@ export default function PackingPage() {
     )
   }, [summary])
 
+  const sealExtraOptions = useMemo(
+    () =>
+      sealExtraStocks.map((row) => ({
+        material_id: String(row.material || ""),
+        label: `${row.material_code} · ${row.material_name}`,
+        available: `${Number(row.qty || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${String(row.base_uom || "").toUpperCase()}`,
+        uom: String(row.base_uom || "PCS").toUpperCase(),
+      })),
+    [sealExtraStocks],
+  )
+
   const refreshAll = async () => {
     await fetchBaseData()
     if (selectedSOId) {
@@ -230,6 +300,7 @@ export default function PackingPage() {
   const openSealDialog = (gonnyId: string) => {
     setSelectedGonnyId(gonnyId)
     setWeightKg(0)
+    setSealExtras([])
     setSealDialogOpen(true)
   }
 
@@ -239,11 +310,20 @@ export default function PackingPage() {
       return
     }
     try {
-      const result = await logisticsService.sealGonny(selectedGonnyId, weightKg)
+      const extras = collapsePackLines(
+        sealExtras.map((line) => ({
+          material_id: String(line.material_id || "").trim(),
+          qty: Number(line.qty || 0),
+          uom: String(line.uom || "PCS").toUpperCase(),
+          basis: "PER_GONNY",
+        })),
+      )
+      const result = await logisticsService.sealGonny(selectedGonnyId, weightKg, extras)
       toast({ title: "Gonny Sealed", description: result.message })
       setSealDialogOpen(false)
       setSelectedGonnyId("")
       setWeightKg(0)
+      setSealExtras([])
       await refreshAll()
     } catch (error: any) {
       toast({ title: "Error", description: error.response?.data?.error || "Failed to seal gonny", variant: "destructive" })
@@ -262,27 +342,42 @@ export default function PackingPage() {
 
   const openRollDialog = (roll: any) => {
     setSelectedRoll(roll)
+    const snapshotLines = Array.isArray(roll.default_pack_lines) ? (roll.default_pack_lines as Array<{ material_id?: string; qty?: number; uom?: string; basis?: string }>) : []
+    const defaultLines =
+      snapshotLines.length > 0
+        ? snapshotLines.reduce((acc: PackLineDraft[], line) => {
+            const materialId = String(line.material_id || "").trim()
+            if (!materialId || acc.some((row) => row.material_id === materialId)) return acc
+            const material = packagingMaterialById.get(materialId)
+            acc.push({
+              material_id: materialId,
+              qty: Number(line.qty || 0),
+              uom: String(line.uom || material?.base_uom || "PCS").toUpperCase(),
+              basis: String(line.basis || "PER_ROLL").toUpperCase(),
+            })
+            return acc
+          }, [])
+        : []
     const inferredMode = String(roll.release_mode || "").toUpperCase() === "UNPACKED" ? "UNPACKED" : "PACKED"
-    setReleaseMode(inferredMode)
-    setPackLines(
-      Array.isArray(roll.default_pack_lines) && roll.default_pack_lines.length > 0
-        ? roll.default_pack_lines.map((line: any) => ({
-            material_id: String(line.material_id || ""),
-            qty: Number(line.qty || 0),
-            uom: String(line.uom || "PCS").toUpperCase(),
-            basis: String(line.basis || "PER_ROLL").toUpperCase(),
-          }))
-        : [{ material_id: "", qty: 0, uom: "PCS", basis: "PER_ROLL" }],
-    )
+    setReleaseMode(defaultLines.length > 0 ? inferredMode : "UNPACKED")
+    setPackLines(defaultLines)
     setRollDialogOpen(true)
   }
 
   const handleReleaseRoll = async () => {
     if (!selectedRoll) return
     try {
+      if (releaseMode === "PACKED" && !selectedRoll.roll_pack_enabled) {
+        toast({
+          title: "Packing snapshot required",
+          description: "This roll has no allowed packing materials in the sales/SKU snapshot. Update the order packaging or release it unpacked.",
+          variant: "destructive",
+        })
+        return
+      }
       const lines =
         releaseMode === "PACKED"
-          ? packLines.filter((line) => line.material_id && Number(line.qty || 0) > 0)
+          ? collapsePackLines(packLines.filter((line) => line.material_id && Number(line.qty || 0) > 0))
           : []
       if (releaseMode === "PACKED" && lines.length === 0) {
         toast({ title: "Pack lines required", description: "Add at least one roll packing line or choose unpacked release.", variant: "destructive" })
@@ -587,6 +682,86 @@ export default function PackingPage() {
               <Label>Gross sealed weight (kg)</Label>
               <Input data-testid="packing-gonny-seal-weight" type="number" step="0.001" value={weightKg || ""} onChange={(event) => setWeightKg(Number(event.target.value))} />
             </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              Gross weight must cover net product weight, inner-pack tare, gonny tare, and any seal extras such as tape or labels.
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label>Seal extras</Label>
+                  <div className="text-xs text-slate-500">Optional per-gonny materials consumed during sealing.</div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSealExtras((prev) => [...prev, { material_id: "", qty: 0, uom: "PCS", basis: "PER_GONNY" }])}
+                  disabled={sealExtraOptions.length === 0}
+                >
+                  Add extra
+                </Button>
+              </div>
+              {sealExtraOptions.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
+                  No extra packaging stock is available at this gonny location.
+                </div>
+              ) : sealExtras.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
+                  No seal extras selected. Use this only when tape, labels, or similar items are actually consumed.
+                </div>
+              ) : (
+                sealExtras.map((line, index) => (
+                  <div key={`seal-extra-${index}`} className="grid gap-3 rounded-2xl border border-slate-100 bg-white p-3 md:grid-cols-[minmax(0,1fr)_120px_56px]">
+                    <div className="space-y-1">
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={line.material_id || ""}
+                        onChange={(event) => {
+                          const next = [...sealExtras]
+                          const selectedOption = sealExtraOptions.find((option) => option.material_id === event.target.value)
+                          next[index] = {
+                            ...next[index],
+                            material_id: event.target.value,
+                            uom: selectedOption?.uom || "PCS",
+                            basis: "PER_GONNY",
+                          }
+                          setSealExtras(next)
+                        }}
+                      >
+                        <option value="">Select extra material</option>
+                        {sealExtraOptions.map((option) => (
+                          <option key={option.material_id} value={option.material_id}>
+                            {option.label} · {option.available}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="text-[11px] text-slate-500">
+                        {sealExtraOptions.find((option) => option.material_id === line.material_id)?.available || "Choose stocked material"}
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      value={line.qty || ""}
+                      onChange={(event) => {
+                        const next = [...sealExtras]
+                        next[index] = { ...next[index], qty: Number(event.target.value || 0) }
+                        setSealExtras(next)
+                      }}
+                      placeholder="Qty"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSealExtras((prev) => prev.filter((_, rowIndex) => rowIndex !== index))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSealDialogOpen(false)}>Cancel</Button>
@@ -617,18 +792,43 @@ export default function PackingPage() {
 
             {releaseMode === "PACKED" ? (
               <div className="space-y-3">
-                <div className="text-xs font-semibold text-slate-500">Packing lines to consume from packaging stock</div>
-                {packLines.map((line, idx) => (
-                  <div key={`${line.material_id}-${idx}`} className="grid grid-cols-4 gap-3">
-                    <Input data-testid={`packing-roll-material-${idx}`} value={line.material_id} onChange={(e) => { const next = [...packLines]; next[idx] = { ...next[idx], material_id: e.target.value }; setPackLines(next) }} placeholder="material_id" />
-                    <Input data-testid={`packing-roll-qty-${idx}`} type="number" step="0.001" value={line.qty} onChange={(e) => { const next = [...packLines]; next[idx] = { ...next[idx], qty: Number(e.target.value || 0) }; setPackLines(next) }} placeholder="qty" />
-                    <Input data-testid={`packing-roll-uom-${idx}`} value={line.uom || ""} onChange={(e) => { const next = [...packLines]; next[idx] = { ...next[idx], uom: e.target.value.toUpperCase() }; setPackLines(next) }} placeholder="uom" />
-                    <Input data-testid={`packing-roll-basis-${idx}`} value={line.basis || ""} onChange={(e) => { const next = [...packLines]; next[idx] = { ...next[idx], basis: e.target.value.toUpperCase() }; setPackLines(next) }} placeholder="basis" />
+                <div className="text-xs font-semibold text-slate-500">Only materials allowed in the sales / SKU packing snapshot can be consumed here.</div>
+                {packLines.length === 0 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        No roll packing materials are configured for this roll. Update the sales or planner packaging snapshot, or release the roll unpacked.
+                      </div>
+                    </div>
                   </div>
-                ))}
-                <Button data-testid="packing-roll-add-line" variant="outline" onClick={() => setPackLines((prev) => [...prev, { material_id: "", qty: 0, uom: "PCS", basis: "PER_ROLL" }])}>
-                  Add line
-                </Button>
+                ) : (
+                  packLines.map((line, idx) => {
+                    const material = packagingMaterialById.get(String(line.material_id || ""))
+                    return (
+                      <div key={`${line.material_id}-${idx}`} className="grid gap-3 rounded-2xl border border-slate-100 bg-white p-3 md:grid-cols-[minmax(0,1fr)_140px]">
+                        <div className="space-y-1">
+                          <div className="font-semibold text-slate-900">{material ? `${material.code} · ${material.name}` : line.material_id}</div>
+                          <div className="text-[11px] text-slate-500">
+                            {String(line.basis || "PER_ROLL").toUpperCase()} · {String(line.uom || material?.base_uom || "PCS").toUpperCase()}
+                          </div>
+                        </div>
+                        <Input
+                          data-testid={`packing-roll-qty-${idx}`}
+                          type="number"
+                          step="0.001"
+                          value={line.qty || ""}
+                          onChange={(e) => {
+                            const next = [...packLines]
+                            next[idx] = { ...next[idx], qty: Number(e.target.value || 0) }
+                            setPackLines(next)
+                          }}
+                          placeholder="Actual qty"
+                        />
+                      </div>
+                    )
+                  })
+                )}
               </div>
             ) : (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">

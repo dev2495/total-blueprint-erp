@@ -66,6 +66,22 @@ class FGDispatchService:
         return payload
 
     @staticmethod
+    def _roll_pack_config(snapshot: dict | None) -> tuple[dict, list[dict], set[str]]:
+        payload = dict(snapshot or {})
+        roll_pack_cfg = payload.get("roll_dispatch_pack") if isinstance(payload.get("roll_dispatch_pack"), dict) else {}
+        default_lines = (
+            roll_pack_cfg.get("lines")
+            if bool(roll_pack_cfg.get("enabled", False)) and isinstance(roll_pack_cfg.get("lines"), list)
+            else []
+        )
+        allowed_material_ids = {
+            str(line.get("material_id") or "").strip()
+            for line in default_lines
+            if isinstance(line, dict) and str(line.get("material_id") or "").strip()
+        }
+        return roll_pack_cfg, default_lines, allowed_material_ids
+
+    @staticmethod
     def _set_sales_order_status(sales_order, status_value: str):
         if not sales_order:
             return
@@ -634,22 +650,12 @@ class FGDispatchService:
             'packed_for_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("packed_for_dispatch")),
             'released_to_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("released_to_dispatch")),
             'release_mode': str(roll_dispatch_map.get(str(r.id), {}).get("release_mode") or "UNPACKED").upper(),
-            'default_pack_lines': (
-                (
-                    (
-                        (getattr(r.sales_order_item, "packaging_snapshot", {}) or {}).get("roll_dispatch_pack")
-                        or {}
-                    ).get("lines")
-                    or []
-                )
-                if bool(
-                    (
-                        (getattr(r.sales_order_item, "packaging_snapshot", {}) or {}).get("roll_dispatch_pack")
-                        or {}
-                    ).get("enabled", False)
-                )
-                else []
-            ),
+            'roll_pack_enabled': FGDispatchService._roll_pack_config(
+                getattr(r.sales_order_item, "packaging_snapshot", {}) or {}
+            )[0].get("enabled", False),
+            'default_pack_lines': FGDispatchService._roll_pack_config(
+                getattr(r.sales_order_item, "packaging_snapshot", {}) or {}
+            )[1],
             'dispatch_lineage': str(((getattr(r, "meta_json", None) or {}).get("dispatch_mode") or "MTO")).upper(),
             'source_stock_order_id': ((getattr(r, "meta_json", None) or {}).get("claimed_from_stock_order_id")),
             'source_stock_order_no': ((getattr(r, "meta_json", None) or {}).get("claimed_from_stock_order_no")),
@@ -762,8 +768,11 @@ class FGDispatchService:
             raise ValueError(f"Roll {roll.label_id} is already packed for dispatch.")
 
         snapshot = dict(getattr(roll.sales_order_item, "packaging_snapshot", {}) or {})
-        roll_pack_cfg = (snapshot or {}).get("roll_dispatch_pack") or {}
-        default_lines = (roll_pack_cfg.get("lines") or []) if bool(roll_pack_cfg.get("enabled", False)) else []
+        roll_pack_cfg, default_lines, allowed_material_ids = FGDispatchService._roll_pack_config(snapshot)
+        if not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids:
+            raise ValueError(
+                f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging or release unpacked."
+            )
         pack_lines = lines if isinstance(lines, list) and len(lines) > 0 else default_lines
         if not pack_lines:
             raise ValueError(
@@ -788,6 +797,10 @@ class FGDispatchService:
                 continue
             if not material_id:
                 raise ValueError(f"Pack line {idx + 1}: material_id is required.")
+            if str(material_id).strip() not in allowed_material_ids:
+                raise ValueError(
+                    f"Pack line {idx + 1}: material {material_id} is not allowed for roll {roll.label_id}. Use only materials from the sales/SKU packing snapshot."
+                )
             input_uom = str(line.get("uom") or "").upper() or None
             basis = str(line.get("basis") or "PER_ROLL").upper()
             tx = PackagingService.consume_packaging_stock(

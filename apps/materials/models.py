@@ -159,7 +159,7 @@ class InventoryMaterial(models.Model):
         decimal_places=6,
         null=True,
         blank=True,
-        help_text="Base-UOM qty represented by one sheet (used when a sheet line is entered in PCS).",
+        help_text="Base-UOM qty represented by one consumed unit when operators enter packaging usage in PCS.",
     )
 
     # POD profile (formula-driven, master-authoritative)
@@ -214,6 +214,10 @@ class InventoryMaterial(models.Model):
                     raise ValidationError(
                         {"production_template": "In-house packaging materials must be linked to a production template."}
                     )
+            elif self.production_template_id:
+                raise ValidationError(
+                    {"production_template": "Purchased-only packaging must not carry a production template."}
+                )
         else:
             invalid_fields = {}
             if self.packaging_kind:
