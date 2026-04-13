@@ -41,6 +41,9 @@ export default function TemplateStudioPage() {
         mutationFn: (data: any) => templateService.updateTemplate(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["template", id] })
+            queryClient.invalidateQueries({ queryKey: ["template-steps", id] })
+            queryClient.invalidateQueries({ queryKey: ["template-route-steps", id] })
+            queryClient.invalidateQueries({ queryKey: ["template-sync-preview", id] })
             toast({ title: "Saved", description: "Template route updated." })
         },
         onError: (err: any) => toast({ title: "Error", description: err?.response?.data?.detail || err?.message, variant: "destructive" }),
@@ -50,9 +53,21 @@ export default function TemplateStudioPage() {
         mutationFn: () => templateService.approveTemplate(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["template", id] })
-            toast({ title: "Template Live", description: "Template is ready for production route usage." })
+            toast({ title: "Template Approved", description: "Template remains editable until you publish it LIVE." })
         },
         onError: (err: any) => toast({ title: "Approval Failed", description: err?.response?.data?.detail || err?.message, variant: "destructive" }),
+    })
+
+    const publishMutation = useMutation({
+        mutationFn: () => templateService.makeLive(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["template", id] })
+            queryClient.invalidateQueries({ queryKey: ["template-steps", id] })
+            queryClient.invalidateQueries({ queryKey: ["template-route-steps", id] })
+            queryClient.invalidateQueries({ queryKey: ["template-sync-preview", id] })
+            toast({ title: "Template Live", description: "Workflow was validated and the template is now ready for production route usage." })
+        },
+        onError: (err: any) => toast({ title: "Publish Failed", description: err?.response?.data?.detail || err?.message, variant: "destructive" }),
     })
 
     if (isLoading) return <div className="p-8 text-sm text-slate-500">Loading template...</div>
@@ -71,6 +86,17 @@ export default function TemplateStudioPage() {
         )
     }
     if (!template) return <div className="p-8 text-sm text-red-500">Template not found.</div>
+
+    const nextActionLabel =
+        template.status === "LIVE"
+            ? "LIVE"
+            : template.status === "OBSOLETE"
+                ? "READ ONLY"
+                : template.status === "APPROVED"
+                    ? "Publish LIVE"
+                    : "Approve"
+    const nextActionPending = approveMutation.isPending || publishMutation.isPending
+    const canActOnTemplate = template.status !== "LIVE" && template.status !== "OBSOLETE"
 
     return (
         <div className="p-6 space-y-6">
@@ -99,11 +125,17 @@ export default function TemplateStudioPage() {
                         Status: {template.status}
                     </div>
                     <Button
-                        onClick={() => approveMutation.mutate()}
-                        disabled={approveMutation.isPending || template.status === "LIVE" || template.status === "OBSOLETE"}
+                        onClick={() => {
+                            if (template.status === "APPROVED") {
+                                publishMutation.mutate()
+                                return
+                            }
+                            approveMutation.mutate()
+                        }}
+                        disabled={nextActionPending || !canActOnTemplate}
                     >
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        {template.status === "LIVE" ? "LIVE" : template.status === "OBSOLETE" ? "READ ONLY" : "Approve / Publish"}
+                        {nextActionPending ? "Working..." : nextActionLabel}
                     </Button>
                 </div>
             </div>
@@ -111,6 +143,12 @@ export default function TemplateStudioPage() {
             {template.status === "OBSOLETE" ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
                     This template is obsolete and hidden from active selectors. It remains readable for historical traceability, but it should not be used for new planning.
+                </div>
+            ) : null}
+
+            {template.status === "APPROVED" ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+                    Template is approved. Sync and verify the workflow, then publish it LIVE when the route contract is correct.
                 </div>
             ) : null}
 

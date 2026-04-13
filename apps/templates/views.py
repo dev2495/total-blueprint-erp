@@ -32,42 +32,7 @@ def _template_bad_request(message, *, field_errors=None, detail=None):
 
 
 def _default_roll_handling_for_step(step):
-    process = step.process
-    behavior = (getattr(process, "roll_behavior", None) or "NONE").upper()
-    input_form = (getattr(process, "input_form", None) or "BULK").upper()
-    output_form = (getattr(process, "output_form", None) or "ROLL").upper()
-
-    defaults = {
-        "input_roll_count": 0,
-        "thickness_rule": "TEMPLATE_DEFAULT",
-        "width_rule": "TEMPLATE_DEFAULT",
-        "operator_entry_mode": "PROCESS_DEFAULT",
-        "notes": "",
-    }
-
-    if behavior == "CREATE_NEW":
-        defaults["input_roll_count"] = 1 if input_form == "ROLL" else 0
-        defaults["thickness_rule"] = "FIXED"
-        defaults["width_rule"] = "OPERATOR"
-        defaults["operator_entry_mode"] = "ROLL_MULTI"
-    elif behavior == "MODIFY_EXISTING":
-        defaults["input_roll_count"] = 1
-        defaults["thickness_rule"] = "INHERIT_INPUT"
-        defaults["width_rule"] = "LOCK_INPUT"
-    elif behavior == "MULTI_INPUT_COMBINE":
-        defaults["input_roll_count"] = 2
-        defaults["thickness_rule"] = "SUM_INPUTS"
-        defaults["width_rule"] = "MIN_INPUT"
-    elif behavior == "SPLIT":
-        defaults["input_roll_count"] = 1
-        defaults["thickness_rule"] = "INHERIT_INPUT"
-        defaults["width_rule"] = "OPERATOR_GRID"
-        defaults["operator_entry_mode"] = "GRID_SPLIT"
-    elif behavior == "NONE" and input_form == "ROLL" and output_form == "BULK":
-        # Pouching-style roll->bulk steps consume at least one reserved roll by default.
-        defaults["input_roll_count"] = 1
-        defaults["operator_entry_mode"] = "DISCRETE_ONLY"
-    return defaults
+    return TemplateGovernanceService.default_roll_handling_for_step(step)
 
 
 class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
@@ -158,7 +123,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         try:
             template = TemplateGovernanceService.approve_template(pk, request.user)
-            return Response({"status": "template approved", "id": template.id})
+            return Response({"status": "template approved", "id": template.id, "template_status": template.status})
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -166,145 +131,18 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     def publish(self, request, pk=None):
         try:
             template = TemplateGovernanceService.publish_template(pk)
-            return Response({"status": "template is now LIVE", "id": template.id})
+            return Response({"status": "template is now LIVE", "id": template.id, "template_status": template.status})
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     def _route_sync_plan(self, template):
-        ordered_codes = list(template.routing_rule.ordered_processes if template.routing_rule else [])
-        processes = {p.code: p for p in Process.objects.filter(code__in=ordered_codes)}
-        existing_steps = list(template.process_steps.select_related("process").all().order_by("sequence_number", "created_at"))
-        active_steps = [step for step in existing_steps if not step.is_removed_from_route]
-        unmatched_existing = list(active_steps)
-        matched_steps = []
-        created_defs = []
-
-        for seq, code in enumerate(ordered_codes, start=1):
-            proc = processes.get(code)
-            chosen = None
-            exact = next((step for step in unmatched_existing if step.sequence_number == seq and step.process_id == getattr(proc, "id", None)), None)
-            if exact:
-                chosen = exact
-            elif proc is not None:
-                same_process = next((step for step in unmatched_existing if step.process_id == proc.id), None)
-                if same_process:
-                    chosen = same_process
-
-            if chosen:
-                unmatched_existing.remove(chosen)
-                matched_steps.append(
-                    {
-                        "existing_step": chosen,
-                        "target_sequence": seq,
-                        "process": proc,
-                    }
-                )
-            elif proc is not None:
-                created_defs.append(
-                    {
-                        "target_sequence": seq,
-                        "process": proc,
-                    }
-                )
-
-        stale_steps = unmatched_existing
-        return {
-            "matched_steps": matched_steps,
-            "created_defs": created_defs,
-            "stale_steps": stale_steps,
-            "ordered_codes": ordered_codes,
-        }
+        return TemplateGovernanceService.route_sync_plan(template)
 
     def _serialize_route_sync_preview(self, plan):
-        return {
-            "steps_to_keep": [
-                {
-                    "step_id": str(row["existing_step"].id),
-                    "from_sequence": row["existing_step"].sequence_number,
-                    "to_sequence": row["target_sequence"],
-                    "process_name": row["process"].name,
-                    "process_code": row["process"].code,
-                    "will_reorder": row["existing_step"].sequence_number != row["target_sequence"],
-                }
-                for row in plan["matched_steps"]
-            ],
-            "steps_to_create": [
-                {
-                    "target_sequence": row["target_sequence"],
-                    "process_name": row["process"].name,
-                    "process_code": row["process"].code,
-                }
-                for row in plan["created_defs"]
-            ],
-            "steps_to_mark_removed": [
-                {
-                    "step_id": str(step.id),
-                    "sequence_number": step.sequence_number,
-                    "process_name": step.process.name,
-                    "process_code": step.process.code,
-                }
-                for step in plan["stale_steps"]
-            ],
-        }
+        return TemplateGovernanceService.serialize_route_sync_preview(plan)
 
     def _apply_route_sync(self, template, *, destructive=False):
-        plan = self._route_sync_plan(template)
-        created_steps = []
-        kept_steps = []
-        if destructive:
-            template.process_steps.all().delete()
-            for row in plan["created_defs"] + plan["matched_steps"]:
-                proc = row["process"]
-                seq = row["target_sequence"]
-                step = TemplateProcessStep.objects.create(
-                    template=template,
-                    sequence_number=seq,
-                    process=proc,
-                    is_removed_from_route=False,
-                )
-                TemplateProcessStepRollSpec.objects.get_or_create(
-                    template_step=step,
-                    defaults=_default_roll_handling_for_step(step),
-                )
-                created_steps.append(step)
-            return {"created_steps": created_steps, "kept_steps": kept_steps, "stale_steps": []}
-
-        for row in plan["matched_steps"]:
-            step = row["existing_step"]
-            step.sequence_number = row["target_sequence"]
-            step.process = row["process"]
-            step.is_removed_from_route = False
-            step.save(update_fields=["sequence_number", "process", "is_removed_from_route", "updated_at"])
-            TemplateProcessStepRollSpec.objects.get_or_create(
-                template_step=step,
-                defaults=_default_roll_handling_for_step(step),
-            )
-            kept_steps.append(step)
-
-        for row in plan["created_defs"]:
-            step = TemplateProcessStep.objects.create(
-                template=template,
-                sequence_number=row["target_sequence"],
-                process=row["process"],
-                is_removed_from_route=False,
-            )
-            TemplateProcessStepRollSpec.objects.get_or_create(
-                template_step=step,
-                defaults=_default_roll_handling_for_step(step),
-            )
-            created_steps.append(step)
-
-        for step in plan["stale_steps"]:
-            step.is_removed_from_route = True
-            if "[STALE ROUTE STEP]" not in step.notes:
-                step.notes = f"[STALE ROUTE STEP] {step.notes}".strip()
-            step.save(update_fields=["is_removed_from_route", "notes", "updated_at"])
-
-        return {
-            "created_steps": created_steps,
-            "kept_steps": kept_steps,
-            "stale_steps": plan["stale_steps"],
-        }
+        return TemplateGovernanceService.apply_route_sync(template, destructive=destructive)
 
     @action(detail=True, methods=["get"], url_path="route-steps")
     def route_steps(self, request, pk=None):

@@ -16,9 +16,15 @@ class Command(BaseCommand):
             action="store_true",
             help="Apply the cleanup. Without this flag, the command runs in dry-run mode.",
         )
+        parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Treat all templates as legacy: delete unreferenced templates and mark referenced ones obsolete.",
+        )
 
     def handle(self, *args, **options):
         apply_changes = bool(options.get("apply"))
+        apply_all = bool(options.get("all"))
 
         legacy_name_prefixes = ("Auto V2 Template", "API CHECK", "SMOKE")
         qs = (
@@ -47,7 +53,8 @@ class Command(BaseCommand):
                 ]
             )
             is_legacy = (
-                not template.routing_rule_id
+                apply_all
+                or not template.routing_rule_id
                 or template.status == "OBSOLETE"
                 or template.name.startswith(legacy_name_prefixes)
                 or template.process_steps.count() == 0

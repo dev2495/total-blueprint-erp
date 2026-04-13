@@ -29,7 +29,7 @@ export default function EngineeringApprovalsPage() {
         mutationFn: templateService.approveTemplate,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["templates"] })
-            toast({ title: "Approved", description: "Template is now LIVE." })
+            toast({ title: "Approved", description: "Template is approved and ready for workflow review before going LIVE." })
         },
         onError: (err: any) => {
             toast({

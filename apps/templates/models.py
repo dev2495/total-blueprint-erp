@@ -85,6 +85,8 @@ class TemplateBlueprint(models.Model):
         # 1. LIVE requires Routing
         if self.status == 'LIVE' and not self.routing_rule:
             raise ValidationError({'routing_rule': "Template cannot be LIVE without a Routing Rule."})
+        if self.status == 'LIVE' and self.pk and not self.process_steps.filter(is_removed_from_route=False).exists():
+            raise ValidationError({'status': "Template cannot be LIVE without active route steps."})
 
     def approve(self, user):
         """Transition from ENGINEERING -> APPROVED"""
@@ -103,6 +105,8 @@ class TemplateBlueprint(models.Model):
             raise ValidationError(f"Cannot publish template. Current status: {self.status}. Must be APPROVED first.")
         if not self.routing_rule:
             raise ValidationError("Cannot publish template without a Routing Rule.")
+        if not self.process_steps.filter(is_removed_from_route=False).exists():
+            raise ValidationError("Cannot publish template without active route steps. Sync workflow first.")
         self.status = 'LIVE'
         self.save()
 

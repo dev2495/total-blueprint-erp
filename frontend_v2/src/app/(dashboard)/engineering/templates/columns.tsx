@@ -64,7 +64,7 @@ export const getColumns = ({ onEdit, onDelete, onApprove, onMakeLive }: ColumnsP
                     label: "Approve",
                     icon: CheckCircle,
                     onClick: () => onApprove(row.original),
-                    show: status === 'DRAFT'
+                    show: status === 'DRAFT' || status === 'ENGINEERING'
                 },
                 {
                     label: "Make LIVE",
