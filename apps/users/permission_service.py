@@ -64,8 +64,10 @@ class PermissionService:
             if role:
                 perms.update(role.default_permissions)
 
-        if not perms and active_role_code:
-            # Canonical fallback matrix for deny-by-default mode.
+        # Always apply the canonical matrix as the baseline so newly added
+        # permissions take effect on deploy without requiring a database re-sync.
+        # The database can only extend beyond the matrix, never silently restrict it.
+        if active_role_code:
             perms.update(effective_permissions_for_role(active_role_code))
 
         if user.extra_permissions:
