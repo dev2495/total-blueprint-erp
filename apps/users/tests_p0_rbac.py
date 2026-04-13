@@ -51,8 +51,26 @@ class RbacP0Tests(TestCase):
             role=self.role_dispatch,
         )
 
+        self.role_engineering = Role.objects.create(
+            code="ENGINEERING",
+            name="Engineering",
+            default_permissions=["templates.view"],
+        )
+        self.user_engineering = User.objects.create_user(
+            username="eng1",
+            email="eng1@example.com",
+            password="pass1234",
+            role=self.role_engineering,
+        )
+
     def test_public_health_endpoint_allows_anonymous(self):
         request = self.factory.get("/api/health/live/")
+        request.user = AnonymousUser()
+        allowed = self.permission.has_permission(request, self.view)
+        self.assertTrue(allowed)
+
+    def test_public_auth_endpoint_without_trailing_slash_allows_anonymous(self):
+        request = self.factory.get("/api/auth/csrf")
         request.user = AnonymousUser()
         allowed = self.permission.has_permission(request, self.view)
         self.assertTrue(allowed)
@@ -78,5 +96,11 @@ class RbacP0Tests(TestCase):
     def test_notification_mark_read_allowed_with_notifications_view(self):
         request = self.factory.post("/api/users/notifications/mark-all-read/")
         request.user = self.user_dispatch
+        allowed = self.permission.has_permission(request, self.view)
+        self.assertTrue(allowed)
+
+    def test_templates_route_without_trailing_slash_allows_templates_view(self):
+        request = self.factory.get("/api/templates")
+        request.user = self.user_engineering
         allowed = self.permission.has_permission(request, self.view)
         self.assertTrue(allowed)

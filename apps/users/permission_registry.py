@@ -218,15 +218,35 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
 }
 
 
+def _candidate_paths(path: str) -> List[str]:
+    raw_path = str(path or "").strip()
+    if not raw_path:
+        return [""]
+
+    canonical = raw_path.split("?", 1)[0].strip() or "/"
+    if not canonical.startswith("/"):
+        canonical = f"/{canonical}"
+
+    base = canonical.rstrip("/") or "/"
+    with_slash = base if base == "/" else f"{base}/"
+
+    candidates: List[str] = []
+    for value in (canonical, base, with_slash):
+        if value not in candidates:
+            candidates.append(value)
+    return candidates
+
+
 def is_public_endpoint(path: str) -> bool:
-    return any(path.startswith(prefix) for prefix in PUBLIC_ENDPOINT_PREFIXES)
+    return any(candidate.startswith(prefix) for candidate in _candidate_paths(path) for prefix in PUBLIC_ENDPOINT_PREFIXES)
 
 
 def resolve_required_permission(path: str, method: str) -> Optional[str]:
     method = str(method or "").upper()
-    for map_method, prefix, permission in ROUTE_PERMISSION_MAP:
-        if method == map_method and path.startswith(prefix):
-            return permission
+    for candidate in _candidate_paths(path):
+        for map_method, prefix, permission in ROUTE_PERMISSION_MAP:
+            if method == map_method and candidate.startswith(prefix):
+                return permission
     return None
 
 
