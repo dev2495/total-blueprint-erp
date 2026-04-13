@@ -37,6 +37,8 @@ export default function RecipesPage() {
     const [editingRecipe, setEditingRecipe] = useState<ExtrusionRecipe | null>(null)
     const [recipeToDelete, setRecipeToDelete] = useState<ExtrusionRecipe | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
+    const [createSubmitError, setCreateSubmitError] = useState<string | null>(null)
+    const [updateSubmitError, setUpdateSubmitError] = useState<string | null>(null)
 
     const { data: recipes } = useQuery({
         queryKey: ["recipes"],
@@ -48,10 +50,13 @@ export default function RecipesPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["recipes"] })
             toast({ title: "Success", description: "Recipe created successfully." })
+            setCreateSubmitError(null)
             setIsCreateOpen(false)
         },
         onError: (error: unknown) => {
-            toast({ title: "Error", description: describeApiError(error, "Failed to create recipe."), variant: "destructive" })
+            const description = describeApiError(error, "Failed to create recipe.")
+            setCreateSubmitError(description)
+            toast({ title: "Error", description, variant: "destructive" })
         }
     })
 
@@ -61,10 +66,13 @@ export default function RecipesPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["recipes"] })
             toast({ title: "Success", description: "Recipe updated successfully." })
+            setUpdateSubmitError(null)
             setEditingRecipe(null)
         },
         onError: (error: unknown) => {
-            toast({ title: "Error", description: describeApiError(error, "Failed to update recipe."), variant: "destructive" })
+            const description = describeApiError(error, "Failed to update recipe.")
+            setUpdateSubmitError(description)
+            toast({ title: "Error", description, variant: "destructive" })
         }
     })
 
@@ -109,7 +117,15 @@ export default function RecipesPage() {
             actions={
                 <div className="flex gap-2">
                     <GradeMasterDialog />
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <Dialog
+                        open={isCreateOpen}
+                        onOpenChange={(open) => {
+                            setIsCreateOpen(open)
+                            if (open) {
+                                setCreateSubmitError(null)
+                            }
+                        }}
+                    >
                         <DialogTrigger asChild>
                             <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
                                 <Plus className="mr-2 h-4 w-4" /> Add Recipe
@@ -120,8 +136,12 @@ export default function RecipesPage() {
                                 <DialogTitle>Create Extrusion Recipe</DialogTitle>
                             </DialogHeader>
                             <RecipeForm
-                                onSubmit={(data) => createMutation.mutate(data)}
+                                onSubmit={(data) => {
+                                    setCreateSubmitError(null)
+                                    createMutation.mutate(data)
+                                }}
                                 isLoading={createMutation.isPending}
+                                submitError={createSubmitError}
                             />
                         </DialogContent>
                     </Dialog>
@@ -130,7 +150,10 @@ export default function RecipesPage() {
         >
             <DataTable
                 columns={getColumns({
-                    onEdit: setEditingRecipe,
+                    onEdit: (recipe) => {
+                        setUpdateSubmitError(null)
+                        setEditingRecipe(recipe)
+                    },
                     onDelete: (recipe) => setRecipeToDelete(recipe)
                 })}
                 data={filteredRecipes}
@@ -138,7 +161,16 @@ export default function RecipesPage() {
                 filterPlaceholder="Filter by variant..."
             />
 
-            <Dialog open={!!editingRecipe} onOpenChange={(open) => !open && setEditingRecipe(null)}>
+            <Dialog
+                open={!!editingRecipe}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingRecipe(null)
+                    } else {
+                        setUpdateSubmitError(null)
+                    }
+                }}
+            >
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Edit Recipe</DialogTitle>
@@ -146,8 +178,12 @@ export default function RecipesPage() {
                     {editingRecipe && (
                         <RecipeForm
                             initialData={editingRecipe}
-                            onSubmit={(data) => updateMutation.mutate({ id: editingRecipe.id, data })}
+                            onSubmit={(data) => {
+                                setUpdateSubmitError(null)
+                                updateMutation.mutate({ id: editingRecipe.id, data })
+                            }}
                             isLoading={updateMutation.isPending}
+                            submitError={updateSubmitError}
                         />
                     )}
                 </DialogContent>

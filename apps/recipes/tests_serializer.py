@@ -1,7 +1,7 @@
 from django.test import TestCase
 
 from apps.materials.models import InventoryMaterial
-from apps.recipes.models import RecipeGrade
+from apps.recipes.models import RecipeGrade, ExtrusionRecipe
 from apps.recipes.serializers import ExtrusionRecipeSerializer
 
 
@@ -71,3 +71,83 @@ class ExtrusionRecipeSerializerTests(TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn("Total percentage must be 100.00%", str(serializer.errors))
+
+    def test_rejects_duplicate_granule_rows(self):
+        serializer = ExtrusionRecipeSerializer(data={
+            "film_variant": str(self.variant.id),
+            "grade": str(self.grade.id),
+            "thickness_min_micron": 40,
+            "thickness_max_micron": 60,
+            "is_active": True,
+            "components": [
+                {"granule": str(self.granule_a.id), "percentage": "50.00"},
+                {"granule": str(self.granule_a.id), "percentage": "50.00"},
+            ],
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Each granule can be used only once", str(serializer.errors))
+
+    def test_rejects_inverted_thickness_range(self):
+        serializer = ExtrusionRecipeSerializer(data={
+            "film_variant": str(self.variant.id),
+            "grade": str(self.grade.id),
+            "thickness_min_micron": 60,
+            "thickness_max_micron": 40,
+            "is_active": True,
+            "components": [
+                {"granule": str(self.granule_a.id), "percentage": "50.00"},
+                {"granule": str(self.granule_b.id), "percentage": "50.00"},
+            ],
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Max thickness must be greater than or equal to min thickness.", str(serializer.errors))
+
+    def test_rejects_exact_duplicate_active_recipe(self):
+        ExtrusionRecipe.objects.create(
+            film_variant=self.variant,
+            grade=self.grade,
+            thickness_min_micron=40,
+            thickness_max_micron=60,
+            is_active=True,
+        )
+
+        serializer = ExtrusionRecipeSerializer(data={
+            "film_variant": str(self.variant.id),
+            "grade": str(self.grade.id),
+            "thickness_min_micron": 40,
+            "thickness_max_micron": 60,
+            "is_active": True,
+            "components": [
+                {"granule": str(self.granule_a.id), "percentage": "50.00"},
+                {"granule": str(self.granule_b.id), "percentage": "50.00"},
+            ],
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("An active recipe already exists", str(serializer.errors))
+
+    def test_rejects_overlapping_active_recipe_range(self):
+        ExtrusionRecipe.objects.create(
+            film_variant=self.variant,
+            grade=self.grade,
+            thickness_min_micron=30,
+            thickness_max_micron=50,
+            is_active=True,
+        )
+
+        serializer = ExtrusionRecipeSerializer(data={
+            "film_variant": str(self.variant.id),
+            "grade": str(self.grade.id),
+            "thickness_min_micron": 45,
+            "thickness_max_micron": 65,
+            "is_active": True,
+            "components": [
+                {"granule": str(self.granule_a.id), "percentage": "50.00"},
+                {"granule": str(self.granule_b.id), "percentage": "50.00"},
+            ],
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Thickness range overlaps", str(serializer.errors))

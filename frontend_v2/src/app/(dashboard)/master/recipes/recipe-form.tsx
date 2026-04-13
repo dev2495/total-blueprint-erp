@@ -1,6 +1,6 @@
 "use client"
 
-import { useForm, useFieldArray } from "react-hook-form"
+import { useForm, useFieldArray, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ import {
 import { ExtrusionRecipe, recipeService } from "@/services/recipes"
 import { filmVariantService } from "@/services/film-variants"
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo } from "react"
+import { useEffect } from "react"
 import { Loader2, Trash2, Plus } from "lucide-react"
 import { api } from "@/lib/api"
 
@@ -74,9 +74,10 @@ interface RecipeFormProps {
     initialData?: ExtrusionRecipe
     onSubmit: (data: z.infer<typeof formSchema>) => void
     isLoading?: boolean
+    submitError?: string | null
 }
 
-export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps) {
+export function RecipeForm({ initialData, onSubmit, isLoading, submitError }: RecipeFormProps) {
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -92,12 +93,22 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
         control: form.control,
         name: "components",
     })
-    const watchedComponents = form.watch("components")
-    const percentageTotal = useMemo(
-        () => roundPercentage((watchedComponents || []).reduce((acc, curr) => acc + roundPercentage(Number(curr?.percentage) || 0), 0)),
-        [watchedComponents]
+    const watchedComponents = useWatch({
+        control: form.control,
+        name: "components",
+    }) || []
+    const percentageTotal = roundPercentage(
+        watchedComponents.reduce((acc, curr) => acc + roundPercentage(Number(curr?.percentage) || 0), 0)
     )
     const percentageRemaining = roundPercentage(100 - percentageTotal)
+    const totalWithinTolerance = Math.abs(percentageRemaining) <= 0.05
+    const componentsError =
+        form.formState.errors.components?.root?.message ||
+        form.formState.errors.components?.message
+    const formLevelError =
+        typeof form.formState.errors.root?.message === "string"
+            ? form.formState.errors.root.message
+            : null
 
     // Data Queries
     const { data: variants } = useQuery({
@@ -147,7 +158,15 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit((data) => onSubmit(normalizeRecipePayload(data)))} className="space-y-4">
+            <form
+                onSubmit={form.handleSubmit(
+                    (data) => onSubmit(normalizeRecipePayload(data)),
+                    async () => {
+                        await form.trigger()
+                    }
+                )}
+                className="space-y-4"
+            >
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
@@ -300,18 +319,20 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
                             </Button>
                         </div>
                     ))}
-                    {form.formState.errors.components?.root && (
-                        <p className="text-sm font-medium text-destructive">{form.formState.errors.components.root.message}</p>
+                    {(componentsError || formLevelError || submitError) && (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-medium text-destructive">
+                            {submitError || componentsError || formLevelError}
+                        </div>
                     )}
                     <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                         <div className="text-slate-600">
-                            {Math.abs(percentageRemaining) <= 0.05
+                            {totalWithinTolerance
                                 ? "Recipe will auto-balance the last component to land exactly at 100.00%."
                                 : "Use Balance To 100 or adjust the last row until the remaining value reaches zero."}
                         </div>
                         <div className="text-right font-semibold text-slate-900">
                             <div>Total: {percentageTotal.toFixed(2)}%</div>
-                            <div className={Math.abs(percentageRemaining) <= 0.05 ? "text-emerald-600" : "text-amber-600"}>
+                            <div className={totalWithinTolerance ? "text-emerald-600" : "text-amber-600"}>
                                 Remaining: {percentageRemaining.toFixed(2)}%
                             </div>
                         </div>
@@ -319,7 +340,7 @@ export function RecipeForm({ initialData, onSubmit, isLoading }: RecipeFormProps
                 </div>
 
                 <div className="flex justify-end gap-2">
-                    <Button type="submit" disabled={isLoading}>
+                    <Button type="submit" disabled={isLoading || !totalWithinTolerance}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save Recipe
                     </Button>
