@@ -212,7 +212,7 @@ export const ensureCsrfToken = async (): Promise<string | null> => {
     }
 };
 
-const refreshSession = async (): Promise<boolean> => {
+export const refreshSessionCookie = async (): Promise<boolean> => {
     const csrfToken = await ensureCsrfToken();
     try {
         await csrfClient.post(
@@ -289,7 +289,7 @@ api.interceptors.response.use(
             markRetryHeader(originalRequest.headers);
 
             if (!refreshPromise) {
-                refreshPromise = refreshSession().finally(() => {
+                refreshPromise = refreshSessionCookie().finally(() => {
                     refreshPromise = null;
                 });
             }

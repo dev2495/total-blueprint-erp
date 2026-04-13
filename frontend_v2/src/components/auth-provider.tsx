@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, startTransition, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Cookies from "js-cookie";
 import { useRouter, usePathname } from "next/navigation";
-import { api, ensureCsrfToken } from "@/lib/api";
+import { api, ensureCsrfToken, refreshSessionCookie } from "@/lib/api";
 import { getLandingPage, ROLE_LANDING_PAGES } from "@/lib/roles";
 import { systemUserService } from "@/services/system-users";
 
@@ -43,11 +43,16 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const SESSION_IDLE_WINDOW_MS = 20 * 60 * 1000;
+const SESSION_KEEPALIVE_INTERVAL_MS = 60 * 1000;
+const SESSION_KEEPALIVE_GRACE_MS = 5 * 60 * 1000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [effectiveRole, setEffectiveRole] = useState<string | null>(null);
+    const lastActivityAtRef = useRef<number>(Date.now());
+    const lastRefreshAtRef = useRef<number>(Date.now());
     const router = useRouter();
     const pathname = usePathname();
 
@@ -61,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const { data } = await api.get<User>("/api/users/me");
                 setUser(data);
                 setEffectiveRole(getEffectiveRole(data));
+                lastRefreshAtRef.current = Date.now();
                 return data;
             } catch (error) {
                 if (attempt < attempts - 1) {
@@ -112,6 +118,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [hydrateSession]);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const markActive = () => {
+            lastActivityAtRef.current = Date.now();
+        };
+
+        const events: Array<keyof WindowEventMap> = [
+            "pointerdown",
+            "keydown",
+            "touchstart",
+            "mousemove",
+            "scroll",
+            "focus",
+        ];
+
+        events.forEach((eventName) => window.addEventListener(eventName, markActive, { passive: true }));
+        document.addEventListener("visibilitychange", markActive);
+
+        return () => {
+            events.forEach((eventName) => window.removeEventListener(eventName, markActive));
+            document.removeEventListener("visibilitychange", markActive);
+        };
+    }, []);
+
+    useEffect(() => {
         const currentPath = String(pathname || "").toLowerCase();
         if (loading) return;
         if (!currentPath || currentPath === "/login" || currentPath.startsWith("/login/")) return;
@@ -131,6 +162,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         rehydrate();
         return () => {
             cancelled = true;
+        };
+    }, [loading, pathname, router, user]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (loading || !user) return;
+        const currentPath = String(pathname || "").toLowerCase();
+        if (currentPath === "/login" || currentPath.startsWith("/login/")) return;
+
+        let cancelled = false;
+        const keepalive = async () => {
+            const now = Date.now();
+            const idleFor = now - lastActivityAtRef.current;
+            const refreshedAgo = now - lastRefreshAtRef.current;
+            if (idleFor >= SESSION_IDLE_WINDOW_MS) return;
+            if (refreshedAgo < SESSION_KEEPALIVE_GRACE_MS) return;
+
+            const ok = await refreshSessionCookie();
+            if (cancelled) return;
+            if (ok) {
+                lastRefreshAtRef.current = Date.now();
+                return;
+            }
+
+            setUser(null);
+            setEffectiveRole(null);
+            router.replace("/login");
+        };
+
+        const interval = window.setInterval(() => {
+            void keepalive();
+        }, SESSION_KEEPALIVE_INTERVAL_MS);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
         };
     }, [loading, pathname, router, user]);
 
@@ -189,6 +256,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(resolvedUser);
         const role = getEffectiveRole(resolvedUser);
         setEffectiveRole(role);
+        lastActivityAtRef.current = Date.now();
+        lastRefreshAtRef.current = Date.now();
         setLoading(false);
 
         const landing = getLandingPageForUser(resolvedUser, role);
