@@ -5,7 +5,7 @@ import { masterDataService, Customer } from "@/services/master-data"
 import { DataTable } from "@/components/ui/data-table"
 import { getColumns } from "./columns"
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2, Zap, Activity, Filter, Search, Globe, ShieldCheck } from "lucide-react"
+import { Plus, Loader2, Activity, Globe, ShieldCheck, MapPin, Trash2 } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
-import { useForm } from "react-hook-form"
+import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -32,44 +32,115 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Card } from "@/components/ui/card"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 
 // --- Form Component ---
-const formSchema = z.object({
-    code: z.string().min(1, "Code is required"),
-    name: z.string().min(1, "Name is required"),
-    gst_no: z.string().optional(),
+const addressSchema = z.object({
+    label: z.string().optional(),
+    name: z.string().optional(),
+    address: z.string().optional(),
+    state: z.string().optional(),
+    country: z.string().optional(),
+    pincode: z.string().optional(),
     contact_person: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
+})
+
+const formSchema = z.object({
+    code: z.string().min(1, "Code is required"),
+    name: z.string().min(1, "Name is required"),
+    under_group: z.string().optional(),
+    gst_no: z.string().optional(),
+    pan_no: z.string().optional(),
+    contact_person: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional().or(z.literal("")),
+    contact_details: z.string().optional(),
     billing_address: z.string().optional(),
     shipping_address: z.string().optional(),
+    mailing_name: z.string().optional(),
+    mailing_state: z.string().optional(),
+    mailing_country: z.string().optional(),
+    mailing_pincode: z.string().optional(),
+    additional_addresses: z.array(addressSchema).default([]),
     credit_days: z.coerce.number().min(0).optional(),
     credit_limit: z.coerce.number().min(0).optional(),
+    interest_calculation: z.string().optional(),
+    bank_details: z.string().optional(),
+    tds_deductable: z.boolean().default(false),
+    tcs_deductable: z.boolean().default(false),
     status: z.string().default('ACTIVE'),
 })
 
-function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Customer, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
-    const form = useForm({
+type CustomerFormInput = z.input<typeof formSchema>
+type CustomerFormValues = z.output<typeof formSchema>
+
+function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Customer, onSubmit: (data: CustomerFormValues) => void, isLoading: boolean }) {
+    const blankAddress = () => ({
+        label: "",
+        name: "",
+        address: "",
+        state: "",
+        country: "",
+        pincode: "",
+        contact_person: "",
+        phone: "",
+        email: "",
+    })
+    const normalizeAddresses = (entries: z.infer<typeof addressSchema>[]) =>
+        entries.filter((entry) => Object.values(entry).some((value) => String(value || "").trim()))
+
+    const form = useForm<CustomerFormInput, any, CustomerFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             code: initialData?.code || "",
             name: initialData?.name || "",
+            under_group: initialData?.under_group || "",
             gst_no: initialData?.gst_no || "",
+            pan_no: initialData?.pan_no || "",
             contact_person: initialData?.contact_person || "",
             phone: initialData?.phone || "",
             email: initialData?.email || "",
+            contact_details: initialData?.contact_details || "",
             billing_address: initialData?.billing_address || "",
             shipping_address: initialData?.shipping_address || "",
+            mailing_name: initialData?.mailing_name || "",
+            mailing_state: initialData?.mailing_state || "",
+            mailing_country: initialData?.mailing_country || "",
+            mailing_pincode: initialData?.mailing_pincode || "",
+            additional_addresses: initialData?.additional_addresses?.length ? initialData.additional_addresses : [],
             credit_days: initialData?.credit_days || 0,
             credit_limit: initialData?.credit_limit || 0,
+            interest_calculation: initialData?.interest_calculation || "",
+            bank_details: initialData?.bank_details || "",
+            tds_deductable: Boolean(initialData?.tds_deductable),
+            tcs_deductable: Boolean(initialData?.tcs_deductable),
             status: initialData?.status || 'ACTIVE',
         },
+    })
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "additional_addresses",
     })
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
-                <div className="grid grid-cols-2 gap-6">
+            <form
+                onSubmit={form.handleSubmit((values) => onSubmit({
+                    ...values,
+                    additional_addresses: normalizeAddresses(values.additional_addresses || []),
+                }))}
+                className="space-y-6 py-4"
+            >
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <FormField
                         control={form.control}
                         name="code"
@@ -96,9 +167,22 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             </FormItem>
                         )}
                     />
+                    <FormField
+                        control={form.control}
+                        name="under_group"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Under Group</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Sundry Debtors" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-semibold" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <FormField
                         control={form.control}
                         name="contact_person"
@@ -107,6 +191,19 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Principal Liaison</FormLabel>
                                 <FormControl>
                                     <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Digital Correspondence</FormLabel>
+                                <FormControl>
+                                    <Input type="email" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -127,20 +224,21 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                    <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Digital Correspondence</FormLabel>
-                                <FormControl>
-                                    <Input type="email" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                <FormField
+                    control={form.control}
+                    name="contact_details"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Contact Details</FormLabel>
+                            <FormControl>
+                                <Textarea placeholder="Department, alternate numbers, escalation notes..." className="min-h-[88px] rounded-xl border-slate-200 bg-slate-50/50 pt-3 font-medium" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <FormField
                         control={form.control}
                         name="gst_no"
@@ -154,21 +252,247 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             </FormItem>
                         )}
                     />
+                    <FormField
+                        control={form.control}
+                        name="pan_no"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">PAN No.</FormLabel>
+                                <FormControl>
+                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-black uppercase italic" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                 </div>
 
-                <FormField
-                    control={form.control}
-                    name="billing_address"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Registered Headquarters</FormLabel>
-                            <FormControl>
-                                <Textarea className="h-24 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-medium pt-3" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-5 space-y-5">
+                    <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-indigo-600" />
+                        <div>
+                            <div className="text-sm font-black text-slate-900">Primary Mailing Address</div>
+                            <div className="text-xs font-medium text-slate-500">Default legal and communication address for this customer.</div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name="mailing_name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Mailing Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Accounts / Dispatch / HO" className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="mailing_pincode"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Pincode</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="400001" className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="billing_address"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Primary Address</FormLabel>
+                                <FormControl>
+                                    <Textarea className="h-24 rounded-xl border-slate-200 bg-white pt-3 font-medium" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name="mailing_state"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">State</FormLabel>
+                                    <FormControl>
+                                        <Input className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="mailing_country"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Country</FormLabel>
+                                    <FormControl>
+                                        <Input className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 space-y-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <div className="text-sm font-black text-slate-900">Additional Addresses</div>
+                            <div className="text-xs font-medium text-slate-500">Store extra delivery or branch addresses against the same customer ledger.</div>
+                        </div>
+                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => append(blankAddress())}>
+                            <Plus className="mr-2 h-4 w-4" /> Add Address
+                        </Button>
+                    </div>
+                    {fields.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">
+                            No additional addresses yet.
+                        </div>
+                    ) : fields.map((field, index) => (
+                        <div key={field.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Address {index + 1}</div>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                                    <Trash2 className="h-4 w-4 text-rose-500" />
+                                </Button>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <Input placeholder="Label (e.g. Surat DC)" {...form.register(`additional_addresses.${index}.label`)} />
+                                <Input placeholder="Mailing name" {...form.register(`additional_addresses.${index}.name`)} />
+                                <Textarea placeholder="Address" className="min-h-[88px] md:col-span-2" {...form.register(`additional_addresses.${index}.address`)} />
+                                <Input placeholder="State" {...form.register(`additional_addresses.${index}.state`)} />
+                                <Input placeholder="Country" {...form.register(`additional_addresses.${index}.country`)} />
+                                <Input placeholder="Pincode" {...form.register(`additional_addresses.${index}.pincode`)} />
+                                <Input placeholder="Contact person" {...form.register(`additional_addresses.${index}.contact_person`)} />
+                                <Input placeholder="Phone" {...form.register(`additional_addresses.${index}.phone`)} />
+                                <Input placeholder="Email" className="md:col-span-2" {...form.register(`additional_addresses.${index}.email`)} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    <FormField
+                        control={form.control}
+                        name="credit_days"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Credit Period (Days)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" min={0} className="h-12 rounded-xl border-slate-200 bg-slate-50/50 font-semibold" value={Number(field.value ?? 0)} onChange={(event) => field.onChange(Number(event.target.value || 0))} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="credit_limit"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Credit Limit</FormLabel>
+                                <FormControl>
+                                    <Input type="number" min={0} className="h-12 rounded-xl border-slate-200 bg-slate-50/50 font-semibold" value={Number(field.value ?? 0)} onChange={(event) => field.onChange(Number(event.target.value || 0))} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="interest_calculation"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Interest Calculation</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Monthly / Simple / None" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 font-semibold" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <FormField
+                        control={form.control}
+                        name="bank_details"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Bank Details</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Bank name, branch, account, IFSC..." className="min-h-[88px] rounded-xl border-slate-200 bg-slate-50/50 pt-3 font-medium" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="grid gap-4">
+                        <FormField
+                            control={form.control}
+                            name="tds_deductable"
+                            render={({ field }) => (
+                                <FormItem className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <div>
+                                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">TDS Deductable</FormLabel>
+                                        <div className="text-xs text-slate-500">Enable if tax should be deducted for this customer ledger.</div>
+                                    </div>
+                                    <FormControl>
+                                        <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="tcs_deductable"
+                            render={({ field }) => (
+                                <FormItem className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <div>
+                                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">TCS Deductable</FormLabel>
+                                        <div className="text-xs text-slate-500">Enable if tax should be collected for this customer ledger.</div>
+                                    </div>
+                                    <FormControl>
+                                        <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="status"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Status</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger className="h-12 rounded-xl border-slate-200 bg-slate-50/50 font-semibold">
+                                                <SelectValue placeholder="Select status" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="ACTIVE">Active</SelectItem>
+                                            <SelectItem value="INACTIVE">Inactive</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </div>
 
                 <div className="flex justify-end gap-3 pt-4">
                     <Button type="button" variant="ghost" onClick={() => form.reset()} className="rounded-xl px-6 font-bold uppercase text-[10px] tracking-widest">Reset</Button>
@@ -248,7 +572,7 @@ export default function CustomersPage() {
                                 <Plus className="h-4 w-4 mr-2" /> Register New Account
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-8 bg-white">
+                        <DialogContent className="max-w-5xl rounded-[2rem] border-none shadow-2xl p-8 bg-white max-h-[92vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle className="text-2xl font-black tracking-tight italic uppercase">Account Registration</DialogTitle>
                             </DialogHeader>
@@ -293,7 +617,7 @@ export default function CustomersPage() {
 
             {/* Edit Dialog */}
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
-                <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-8 bg-white">
+                <DialogContent className="max-w-5xl rounded-[2rem] border-none shadow-2xl p-8 bg-white max-h-[92vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black tracking-tight italic uppercase">Modify Account Topology</DialogTitle>
                     </DialogHeader>

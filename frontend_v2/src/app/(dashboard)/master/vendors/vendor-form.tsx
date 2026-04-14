@@ -1,6 +1,6 @@
 "use client"
 
-import { useForm } from "react-hook-form"
+import { useFieldArray, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Vendor } from "@/services/inventory"
@@ -23,16 +23,44 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { MapPin, Plus, Trash2 } from "lucide-react"
+
+const addressSchema = z.object({
+    label: z.string().optional(),
+    name: z.string().optional(),
+    address: z.string().optional(),
+    state: z.string().optional(),
+    country: z.string().optional(),
+    pincode: z.string().optional(),
+    contact_person: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional().or(z.literal("")),
+})
 
 const vendorSchema = z.object({
     name: z.string().min(1, "Name is required"),
     code: z.string().min(1, "Code is required"),
     type: z.enum(['RM', 'JOBWORK', 'SERVICE', 'BOTH']),
     status: z.enum(['ACTIVE', 'INACTIVE', 'BLACKLISTED']),
+    under_group: z.string().optional(),
     gst_no: z.string().optional(),
+    pan_no: z.string().optional(),
     phone_number: z.string().optional(),
+    email: z.string().email().optional().or(z.literal("")),
+    contact_person: z.string().optional(),
+    contact_details: z.string().optional(),
     payment_terms: z.string().optional(),
     address: z.string().optional(),
+    mailing_name: z.string().optional(),
+    mailing_state: z.string().optional(),
+    mailing_country: z.string().optional(),
+    mailing_pincode: z.string().optional(),
+    additional_addresses: z.array(addressSchema).default([]),
+    credit_days: z.number().min(0, "Credit period must be zero or positive").default(0),
+    interest_calculation: z.string().optional(),
+    bank_details: z.string().optional(),
+    tds_deductable: z.boolean().default(false),
+    tcs_deductable: z.boolean().default(false),
     lead_time_days: z.number().min(0, "Lead time must be positive").default(0),
     turnaround_hours: z.number().min(0, "Turnaround must be zero or positive").default(0),
     qc_required: z.boolean().default(false),
@@ -55,6 +83,19 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
             .split(",")
             .map((token) => token.trim())
             .filter(Boolean)
+    const blankAddress = () => ({
+        label: "",
+        name: "",
+        address: "",
+        state: "",
+        country: "",
+        pincode: "",
+        contact_person: "",
+        phone: "",
+        email: "",
+    })
+    const normalizeAddresses = (entries: z.infer<typeof addressSchema>[]) =>
+        entries.filter((entry) => Object.values(entry).some((value) => String(value || "").trim()))
 
     const form = useForm<VendorFormInput, any, VendorFormValues>({
         resolver: zodResolver(vendorSchema),
@@ -63,16 +104,35 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
             code: initialData?.code || "",
             type: (initialData?.type as any) || "RM",
             status: (initialData?.status as any) || "ACTIVE",
+            under_group: initialData?.under_group || "",
             gst_no: initialData?.gst_no || "",
+            pan_no: initialData?.pan_no || "",
             phone_number: initialData?.phone_number || "",
+            email: initialData?.email || "",
+            contact_person: initialData?.contact_person || "",
+            contact_details: initialData?.contact_details || "",
             payment_terms: initialData?.payment_terms || "",
             address: initialData?.address || "",
+            mailing_name: initialData?.mailing_name || "",
+            mailing_state: initialData?.mailing_state || "",
+            mailing_country: initialData?.mailing_country || "",
+            mailing_pincode: initialData?.mailing_pincode || "",
+            additional_addresses: initialData?.additional_addresses?.length ? initialData.additional_addresses : [],
+            credit_days: Number(initialData?.credit_days || 0),
+            interest_calculation: initialData?.interest_calculation || "",
+            bank_details: initialData?.bank_details || "",
+            tds_deductable: Boolean(initialData?.tds_deductable),
+            tcs_deductable: Boolean(initialData?.tcs_deductable),
             lead_time_days: Number(initialData?.lead_time_days || 0),
             turnaround_hours: Number(initialData?.turnaround_hours || 0),
             qc_required: initialData?.qc_required ?? false,
             jobwork_capabilities_text: (initialData?.jobwork_capabilities || []).join(", "),
             jobwork_plants_text: (initialData?.jobwork_plants || []).join(", "),
         }
+    })
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "additional_addresses",
     })
     const vendorType = form.watch("type")
     const isJobworkVendor = vendorType === "JOBWORK" || vendorType === "BOTH"
@@ -83,6 +143,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                 onSubmit={form.handleSubmit((values) =>
                     onSubmit({
                         ...values,
+                        additional_addresses: normalizeAddresses(values.additional_addresses || []),
                         turnaround_hours: isJobworkVendor ? Number(values.turnaround_hours || 0) : 0,
                         qc_required: isJobworkVendor ? Boolean(values.qc_required) : false,
                         jobwork_capabilities: isJobworkVendor ? parseCsv(values.jobwork_capabilities_text) : [],
@@ -91,7 +152,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                 )}
                 className="space-y-4"
             >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <FormField
                         control={form.control}
                         name="code"
@@ -118,9 +179,22 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                             </FormItem>
                         )}
                     />
+                    <FormField
+                        control={form.control}
+                        name="under_group"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Under Group</Label>
+                                <FormControl>
+                                    <Input placeholder="Sundry Creditors" className="text-sm font-semibold" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <FormField
                         control={form.control}
                         name="type"
@@ -168,7 +242,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <FormField
                         control={form.control}
                         name="gst_no"
@@ -177,6 +251,48 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                                 <Label className="text-xs font-bold text-slate-500 uppercase">GST No (Optional)</Label>
                                 <FormControl>
                                     <Input placeholder="27XXXX" className="text-sm font-mono" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="pan_no"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">PAN No (Optional)</Label>
+                                <FormControl>
+                                    <Input placeholder="ABCDE1234F" className="text-sm font-mono" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <FormField
+                        control={form.control}
+                        name="contact_person"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Contact Person</Label>
+                                <FormControl>
+                                    <Input placeholder="Primary contact" className="text-sm font-semibold" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Email (Optional)</Label>
+                                <FormControl>
+                                    <Input placeholder="accounts@vendor.com" className="text-sm" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -203,19 +319,241 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                     />
                 </div>
 
-                <FormField
-                    control={form.control}
-                    name="phone_number"
-                    render={({ field }) => (
-                        <FormItem>
-                            <Label className="text-xs font-bold text-slate-500 uppercase">Phone Number (Optional)</Label>
-                            <FormControl>
-                                <Input placeholder="+91..." className="text-sm font-mono" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField
+                        control={form.control}
+                        name="phone_number"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Phone Number (Optional)</Label>
+                                <FormControl>
+                                    <Input placeholder="+91..." className="text-sm font-mono" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="contact_details"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Contact Details</Label>
+                                <FormControl>
+                                    <Input placeholder="Department or alternate contact note" className="text-sm" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-indigo-600" />
+                        <div>
+                            <p className="text-sm font-black text-slate-900">Primary Mailing Address</p>
+                            <p className="text-xs font-semibold text-slate-500">Main commercial/contact address for this vendor.</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name="mailing_name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Mailing Name</Label>
+                                    <FormControl>
+                                        <Input placeholder="Purchase / Accounts / Plant" className="text-sm font-semibold bg-white" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="mailing_pincode"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Pincode</Label>
+                                    <FormControl>
+                                        <Input placeholder="400001" className="text-sm font-semibold bg-white" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <FormField
+                        control={form.control}
+                        name="address"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Primary Address</Label>
+                                <FormControl>
+                                    <Textarea placeholder="Full address" className="text-sm resize-none bg-white" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name="mailing_state"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">State</Label>
+                                    <FormControl>
+                                        <Input className="text-sm font-semibold bg-white" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="mailing_country"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Country</Label>
+                                    <FormControl>
+                                        <Input className="text-sm font-semibold bg-white" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-sm font-black text-slate-900">Additional Mailing Details</p>
+                            <p className="text-xs font-semibold text-slate-500">Optional branch, plant, or alternate billing addresses.</p>
+                        </div>
+                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => append(blankAddress())}>
+                            <Plus className="mr-2 h-4 w-4" /> Add Address
+                        </Button>
+                    </div>
+                    {fields.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">
+                            No additional mailing details yet.
+                        </div>
+                    ) : fields.map((field, index) => (
+                        <div key={field.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Address {index + 1}</div>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                                    <Trash2 className="h-4 w-4 text-rose-500" />
+                                </Button>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <Input placeholder="Label" {...form.register(`additional_addresses.${index}.label`)} />
+                                <Input placeholder="Mailing name" {...form.register(`additional_addresses.${index}.name`)} />
+                                <Textarea placeholder="Address" className="min-h-[88px] md:col-span-2" {...form.register(`additional_addresses.${index}.address`)} />
+                                <Input placeholder="State" {...form.register(`additional_addresses.${index}.state`)} />
+                                <Input placeholder="Country" {...form.register(`additional_addresses.${index}.country`)} />
+                                <Input placeholder="Pincode" {...form.register(`additional_addresses.${index}.pincode`)} />
+                                <Input placeholder="Contact person" {...form.register(`additional_addresses.${index}.contact_person`)} />
+                                <Input placeholder="Phone" {...form.register(`additional_addresses.${index}.phone`)} />
+                                <Input placeholder="Email" className="md:col-span-2" {...form.register(`additional_addresses.${index}.email`)} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <FormField
+                        control={form.control}
+                        name="credit_days"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Credit Period (Days)</Label>
+                                <FormControl>
+                                    <Input type="number" min={0} className="text-sm" value={field.value ?? 0} onChange={(e) => field.onChange(Number(e.target.value || 0))} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="payment_terms"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Payment Terms</Label>
+                                <FormControl>
+                                    <Input placeholder="Net 30, 45 days, advance" className="text-sm" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="interest_calculation"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Interest Calculation</Label>
+                                <FormControl>
+                                    <Input placeholder="Monthly / Simple / None" className="text-sm" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField
+                        control={form.control}
+                        name="bank_details"
+                        render={({ field }) => (
+                            <FormItem>
+                                <Label className="text-xs font-bold text-slate-500 uppercase">Bank Details</Label>
+                                <FormControl>
+                                    <Textarea placeholder="Bank name, branch, account, IFSC..." className="text-sm resize-none" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="grid gap-4">
+                        <FormField
+                            control={form.control}
+                            name="tds_deductable"
+                            render={({ field }) => (
+                                <FormItem className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                    <div>
+                                        <Label className="text-xs font-bold text-slate-500 uppercase">TDS Deductable</Label>
+                                        <p className="text-xs text-slate-400 mt-1">Enable if deduction applies for this vendor.</p>
+                                    </div>
+                                    <FormControl>
+                                        <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="tcs_deductable"
+                            render={({ field }) => (
+                                <FormItem className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                    <div>
+                                        <Label className="text-xs font-bold text-slate-500 uppercase">TCS Deductable</Label>
+                                        <p className="text-xs text-slate-400 mt-1">Enable if collection applies for this vendor.</p>
+                                    </div>
+                                    <FormControl>
+                                        <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </div>
 
                 {isJobworkVendor && (
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-4">
@@ -291,34 +629,6 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                         />
                     </div>
                 )}
-
-                <FormField
-                    control={form.control}
-                    name="payment_terms"
-                    render={({ field }) => (
-                        <FormItem>
-                            <Label className="text-xs font-bold text-slate-500 uppercase">Payment Terms (Optional)</Label>
-                            <FormControl>
-                                <Input placeholder="Net 30, Advance 50%" className="text-sm" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-
-                <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                        <FormItem>
-                            <Label className="text-xs font-bold text-slate-500 uppercase">Address (Optional)</Label>
-                            <FormControl>
-                                <Textarea placeholder="Full address" className="text-sm resize-none" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
 
                 <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={isLoading} className="font-bold shadow-md">

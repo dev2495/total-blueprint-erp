@@ -41,7 +41,14 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
     {
         accessorKey: "name",
         header: "Vendor Name",
-        cell: ({ row }) => <div className="font-bold text-slate-800">{row.original.name}</div>,
+        cell: ({ row }) => (
+            <div className="flex flex-col">
+                <div className="font-bold text-slate-800">{row.original.name}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    {row.original.contact_person || row.original.under_group || "Primary contact pending"}
+                </div>
+            </div>
+        ),
     },
     {
         accessorKey: "type",
@@ -52,9 +59,14 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
         },
     },
     {
-        accessorKey: "gst_no",
-        header: "GST No",
-        cell: ({ row }) => <div className="text-xs text-slate-500 font-mono">{row.original.gst_no || "-"}</div>,
+        id: "tax",
+        header: "Tax",
+        cell: ({ row }) => (
+            <div className="flex flex-col">
+                <div className="text-xs text-slate-500 font-mono">{row.original.gst_no || "-"}</div>
+                <div className="text-[10px] text-slate-400 font-mono">{row.original.pan_no || "PAN pending"}</div>
+            </div>
+        ),
     },
     {
         accessorKey: "phone_number",
@@ -64,7 +76,12 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
     {
         accessorKey: "lead_time_days",
         header: "Lead Time",
-        cell: ({ row }) => <div className="text-xs text-slate-500">{row.original.lead_time_days} Days</div>,
+        cell: ({ row }) => (
+            <div className="flex flex-col">
+                <div className="text-xs text-slate-500">{row.original.lead_time_days} Days</div>
+                <div className="text-[10px] text-slate-400">{row.original.credit_days || 0} credit days</div>
+            </div>
+        ),
     },
     {
         accessorKey: "turnaround_hours",

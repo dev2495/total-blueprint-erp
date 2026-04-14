@@ -25,15 +25,20 @@ export const getColumns = ({ onEdit, onDelete }: {
             cell: ({ row }) => (
                 <div className="flex flex-col">
                     <span className="text-sm font-black text-slate-700 uppercase tracking-tight">{row.getValue("name")}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">{row.original.contact_person || "PRIMARY CONTACT PENDING"}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">
+                        {row.original.contact_person || row.original.under_group || "PRIMARY CONTACT PENDING"}
+                    </span>
                 </div>
             )
         },
         {
-            accessorKey: "gst_no",
+            id: "tax_identity",
             header: () => <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Tax Identity</span>,
             cell: ({ row }) => (
-                <span className="font-mono text-[11px] font-bold text-slate-500">{row.getValue("gst_no") || "NON-GST"}</span>
+                <div className="flex flex-col">
+                    <span className="font-mono text-[11px] font-bold text-slate-500">{row.original.gst_no || "NON-GST"}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">{row.original.pan_no || "PAN pending"}</span>
+                </div>
             )
         },
         {
@@ -47,7 +52,19 @@ export const getColumns = ({ onEdit, onDelete }: {
             cell: ({ row }) => (
                 <div className="flex flex-col">
                     <span className="text-[11px] font-black text-indigo-600">LIMIT: ₹{Number(row.original.credit_limit || 0).toLocaleString()}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">{row.original.credit_days || 0} DAYS TERM</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">{row.original.credit_days || 0} DAYS TERM · {row.original.interest_calculation || "NO INTEREST RULE"}</span>
+                </div>
+            )
+        },
+        {
+            id: "address_book",
+            header: () => <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Address Book</span>,
+            cell: ({ row }) => (
+                <div className="flex flex-col">
+                    <span className="text-[11px] font-black text-slate-700">{row.original.mailing_state || row.original.mailing_country || "Primary address only"}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">
+                        {(row.original.additional_addresses?.length || 0) > 0 ? `${row.original.additional_addresses?.length || 0} extra addresses` : "No extra addresses"}
+                    </span>
                 </div>
             )
         },

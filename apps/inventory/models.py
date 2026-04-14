@@ -27,11 +27,26 @@ class Vendor(models.Model):
     code = models.CharField(max_length=50, unique=True)
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='RM')
     
+    under_group = models.CharField(max_length=255, blank=True, default="")
     gst_no = models.CharField(max_length=20, blank=True)
+    pan_no = models.CharField(max_length=20, blank=True, default="")
     phone_number = models.CharField(max_length=30, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
+    contact_person = models.CharField(max_length=255, blank=True, default="")
     address = models.TextField(blank=True)
+    mailing_name = models.CharField(max_length=255, blank=True, default="")
+    mailing_state = models.CharField(max_length=100, blank=True, default="")
+    mailing_country = models.CharField(max_length=100, blank=True, default="")
+    mailing_pincode = models.CharField(max_length=20, blank=True, default="")
+    additional_addresses = models.JSONField(default=list, blank=True)
     
     payment_terms = models.CharField(max_length=100, blank=True, help_text="e.g. Net 30")
+    credit_days = models.PositiveIntegerField(default=0)
+    interest_calculation = models.CharField(max_length=255, blank=True, default="")
+    bank_details = models.TextField(blank=True, default="")
+    contact_details = models.TextField(blank=True, default="")
+    tds_deductable = models.BooleanField(default=False)
+    tcs_deductable = models.BooleanField(default=False)
     lead_time_days = models.IntegerField(default=0)
     jobwork_capabilities = models.JSONField(
         default=list,

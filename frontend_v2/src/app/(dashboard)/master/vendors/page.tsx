@@ -110,7 +110,7 @@ export default function VendorsPage() {
                             <Plus className="mr-2 h-4 w-4" /> Add Vendor
                         </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Create Vendor</DialogTitle>
                             <DialogDescription>
@@ -140,7 +140,7 @@ export default function VendorsPage() {
             </Card>
 
             <Dialog open={!!editingVendor} onOpenChange={(open) => !open && setEditingVendor(null)}>
-                <DialogContent>
+                <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Vendor</DialogTitle>
                         <DialogDescription>

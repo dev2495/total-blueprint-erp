@@ -24,10 +24,25 @@ export interface Vendor {
     name: string
     code: string
     type: 'RM' | 'JOBWORK' | 'SERVICE' | 'BOTH'
+    under_group?: string
     gst_no?: string
+    pan_no?: string
     address?: string
+    mailing_name?: string
+    mailing_state?: string
+    mailing_country?: string
+    mailing_pincode?: string
+    additional_addresses?: AddressBookEntry[]
     phone_number?: string
+    email?: string
+    contact_person?: string
+    contact_details?: string
     payment_terms?: string
+    credit_days?: number
+    interest_calculation?: string
+    bank_details?: string
+    tds_deductable?: boolean
+    tcs_deductable?: boolean
     lead_time_days: number
     jobwork_capabilities?: string[]
     jobwork_plants?: string[]
@@ -36,6 +51,18 @@ export interface Vendor {
     status: 'ACTIVE' | 'INACTIVE' | 'BLACKLISTED'
     created_at?: string
     updated_at?: string
+}
+
+export interface AddressBookEntry {
+    label?: string
+    name?: string
+    address?: string
+    state?: string
+    country?: string
+    pincode?: string
+    contact_person?: string
+    phone?: string
+    email?: string
 }
 
 export interface Roll {

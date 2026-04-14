@@ -101,15 +101,39 @@ export interface Customer {
     id: string;
     name: string;
     code: string;
+    under_group?: string;
     gst_no: string;
+    pan_no?: string;
     billing_address: string;
     shipping_address: string;
+    mailing_name?: string;
+    mailing_state?: string;
+    mailing_country?: string;
+    mailing_pincode?: string;
+    additional_addresses?: AddressBookEntry[];
     contact_person: string;
     phone: string;
     email: string;
+    contact_details?: string;
     credit_days: number;
     credit_limit: number;
+    interest_calculation?: string;
+    bank_details?: string;
+    tds_deductable?: boolean;
+    tcs_deductable?: boolean;
     status: string;
+}
+
+export interface AddressBookEntry {
+    label?: string;
+    name?: string;
+    address?: string;
+    state?: string;
+    country?: string;
+    pincode?: string;
+    contact_person?: string;
+    phone?: string;
+    email?: string;
 }
 
 export interface Vendor {
@@ -117,11 +141,30 @@ export interface Vendor {
     name: string;
     code: string;
     type: string;
+    under_group?: string;
     gst_no: string;
+    pan_no?: string;
     address: string;
+    mailing_name?: string;
+    mailing_state?: string;
+    mailing_country?: string;
+    mailing_pincode?: string;
+    additional_addresses?: AddressBookEntry[];
     phone_number?: string;
+    email?: string;
+    contact_person?: string;
+    contact_details?: string;
     payment_terms: string;
+    credit_days?: number;
+    interest_calculation?: string;
+    bank_details?: string;
+    tds_deductable?: boolean;
+    tcs_deductable?: boolean;
     lead_time_days: number;
+    turnaround_hours?: number;
+    qc_required?: boolean;
+    jobwork_capabilities?: string[];
+    jobwork_plants?: string[];
     status: string;
 }
 
