@@ -192,6 +192,7 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "users.self_manage",
         "inventory.view",
         "inventory.manage",
+        "factory.view",
         "mrp.view",
         "dashboard.view",
         "notifications.view",

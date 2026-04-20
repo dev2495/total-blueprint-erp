@@ -81,6 +81,12 @@ class RbacP0Tests(TestCase):
         allowed = self.permission.has_permission(request, self.view)
         self.assertTrue(allowed)
 
+    def test_store_can_read_factory_plants_for_grn_inward(self):
+        request = self.factory.get("/api/factory/plants/")
+        request.user = self.user_inventory
+        allowed = self.permission.has_permission(request, self.view)
+        self.assertTrue(allowed)
+
     def test_mapped_permission_denies_when_missing(self):
         request = self.factory.get("/api/inventory/health/")
         request.user = self.user_sales
