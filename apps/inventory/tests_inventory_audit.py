@@ -157,7 +157,7 @@ class InventoryAuditServiceTests(TestCase):
         card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id))
         self.assertGreaterEqual(card["opening_qty"], 12)
         self.assertTrue(any(row["source"] == "OPENING_STOCK" for row in card["rows"]))
-        self.assertTrue(any(row["source"] == "BULK_ADJUST" for row in card["rows"]))
+        self.assertFalse(any(row["source"] == "BULK_ADJUST" for row in card["rows"] if row["reference"].startswith("OPENING_STOCK")))
 
 
 class InventoryAuditPermissionTests(TestCase):

@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -53,6 +53,8 @@ def financial_year_dates(financial_year: str) -> tuple[date, date]:
 
 
 class InventoryAuditService:
+    AUDIT_REFERENCE_PREFIXES = ("OPENING_STOCK:", "PHYSICAL_COUNT:", "FY_CLOSE:", "FY_CORRECTION:")
+
     @classmethod
     def ensure_default_period(cls) -> InventoryFinancialPeriod:
         fy = current_indian_financial_year()
@@ -692,6 +694,8 @@ class InventoryAuditService:
         if date_to:
             bulk = bulk.filter(created_at__date__lte=date_to)
         for tx in bulk:
+            if str(tx.reference or "").startswith(cls.AUDIT_REFERENCE_PREFIXES):
+                continue
             qty = _dec(tx.qty_kg)
             movement_total += qty
             rows.append(cls._stock_card_row(tx.created_at, f"BULK_{tx.type}", tx.reference or str(tx.id), tx.material, tx.location, qty, "KG", {"transaction_id": str(tx.id)}))
@@ -708,9 +712,55 @@ class InventoryAuditService:
         if date_to:
             packaging = packaging.filter(created_at__date__lte=date_to)
         for tx in packaging:
+            if str(tx.reference or "").startswith(cls.AUDIT_REFERENCE_PREFIXES):
+                continue
             qty = _dec(tx.qty)
             movement_total += qty
             rows.append(cls._stock_card_row(tx.created_at, f"PACKAGING_{tx.type}", tx.reference or str(tx.id), tx.material, tx.location, qty, getattr(tx.material, "base_uom", ""), {"transaction_id": str(tx.id)}))
+
+        rolls = RollMovement.objects.select_related("roll__material", "from_location", "to_location").all()
+        if material_id:
+            rolls = rolls.filter(roll__material_id=material_id)
+        if location_id:
+            rolls = rolls.filter(models.Q(from_location_id=location_id) | models.Q(to_location_id=location_id))
+        elif plant_id:
+            rolls = rolls.filter(models.Q(from_location__plant_id=plant_id) | models.Q(to_location__plant_id=plant_id))
+        if date_from:
+            rolls = rolls.filter(timestamp__date__gte=date_from)
+        if date_to:
+            rolls = rolls.filter(timestamp__date__lte=date_to)
+        for mv in rolls:
+            if str(mv.reason_note or "").startswith(cls.AUDIT_REFERENCE_PREFIXES):
+                continue
+            qty = Decimal("0")
+            weight = _dec(getattr(mv.roll, "weight_kg", 0))
+            if location_id:
+                if str(mv.to_location_id or "") == str(location_id) and str(mv.from_location_id or "") != str(location_id):
+                    qty = weight
+                elif str(mv.from_location_id or "") == str(location_id) and str(mv.to_location_id or "") != str(location_id):
+                    qty = -weight
+            elif plant_id:
+                from_same = bool(mv.from_location_id and str(getattr(mv.from_location, "plant_id", "")) == str(plant_id))
+                to_same = bool(mv.to_location_id and str(getattr(mv.to_location, "plant_id", "")) == str(plant_id))
+                if to_same and not from_same:
+                    qty = weight
+                elif from_same and not to_same:
+                    qty = -weight
+            if qty == 0:
+                continue
+            movement_total += qty
+            rows.append(
+                cls._stock_card_row(
+                    mv.timestamp,
+                    f"ROLL_{mv.reason}",
+                    mv.reason_note or str(mv.id),
+                    mv.roll.material if mv.roll_id else None,
+                    mv.to_location if qty > 0 else mv.from_location,
+                    qty,
+                    "KG",
+                    {"movement_id": str(mv.id), "roll_label": getattr(mv.roll, "label_id", "")},
+                )
+            )
 
         rows.sort(key=lambda row: row["at"])
         return {
