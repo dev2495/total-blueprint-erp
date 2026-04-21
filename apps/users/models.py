@@ -285,6 +285,7 @@ class PermissionAuditLog(models.Model):
         ('USER_LOGIN', 'User Login'),
         ('USER_LOGOUT', 'User Logout'),
         ('MASTER_DATA_CHANGED', 'Master Data Changed'),
+        ('SALES_ORDER_CHANGED', 'Sales Order Changed'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -82,6 +82,9 @@ class SalesOrder(models.Model):
     
     # Linked Customer (New Phase 19)
     customer = models.ForeignKey('Customer', on_delete=models.PROTECT, null=True, blank=True, related_name='sales_orders')
+    ship_to_customer = models.ForeignKey('Customer', on_delete=models.PROTECT, null=True, blank=True, related_name='ship_to_sales_orders')
+    ship_to_customer_name = models.CharField(max_length=255, blank=True, default="")
+    remarks = models.TextField(blank=True, default="")
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
     execution_model_version = models.PositiveSmallIntegerField(

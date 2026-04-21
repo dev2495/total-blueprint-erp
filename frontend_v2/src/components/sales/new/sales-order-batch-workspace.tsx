@@ -74,6 +74,7 @@ type BatchQueuedOrder = {
     localId: string
     orderName: string
     deliveryDate: string
+    remarks: string
     sourceType: OrderDraftSource
     sourceMeta: string
     item: OrderItemDraft
@@ -299,6 +300,7 @@ function createQueuedOrder(params: {
     sourceType: OrderDraftSource
     deliveryDate: string
     orderName: string
+    remarks?: string
     sourceMeta: string
     item: OrderItemDraft
 }): BatchQueuedOrder {
@@ -306,6 +308,7 @@ function createQueuedOrder(params: {
         localId: makeId(),
         orderName: params.orderName,
         deliveryDate: params.deliveryDate,
+        remarks: params.remarks || "",
         sourceType: params.sourceType,
         sourceMeta: params.sourceMeta,
         item: { ...params.item, sourceType: params.sourceType },
@@ -422,6 +425,7 @@ export default function SalesOrderBatchWorkspace() {
 
     const [customerId, setCustomerId] = useState("")
     const [customerName, setCustomerName] = useState("")
+    const [shipToCustomerId, setShipToCustomerId] = useState("")
     const [queue, setQueue] = useState<BatchQueuedOrder[]>([])
     const [activeOrderId, setActiveOrderId] = useState("")
     const [previewLoading, setPreviewLoading] = useState(false)
@@ -704,12 +708,17 @@ export default function SalesOrderBatchWorkspace() {
             const payload = {
                 customer: customerId,
                 customer_name: customerName,
+                ship_to_customer: shipToCustomerId || customerId,
+                ship_to_customer_name: customers.find((row) => row.id === (shipToCustomerId || customerId))?.name || customerName,
                 orders: ordersToSend.map((order) => ({
                     client_reference: order.localId,
                     source_type: order.sourceType,
                     order_name: order.orderName,
                     delivery_date: order.deliveryDate,
                     order_type: "MTO",
+                    ship_to_customer: shipToCustomerId || customerId,
+                    ship_to_customer_name: customers.find((row) => row.id === (shipToCustomerId || customerId))?.name || customerName,
+                    remarks: order.remarks,
                     items: [buildOrderItemPayload(order.item, families, variants, addonsMaster)],
                 })),
             }
@@ -788,6 +797,7 @@ export default function SalesOrderBatchWorkspace() {
         }
         setCustomerId(value)
         setCustomerName(customer?.name || "")
+        setShipToCustomerId("")
         setSelectedSkuId("")
         setSelectedSharedVariantId("")
         setSkuSearch("")
@@ -817,6 +827,7 @@ export default function SalesOrderBatchWorkspace() {
                 sourceType: source.sourceType,
                 deliveryDate: source.deliveryDate,
                 orderName: `${source.orderName || source.item.line_name} Copy`,
+                remarks: source.remarks,
                 sourceMeta: source.sourceMeta,
                 item: cloneOrderItemDraft(source.item),
             })
@@ -901,12 +912,29 @@ export default function SalesOrderBatchWorkspace() {
                     </div>
 
                     <div className={styles.customerInline}>
-                        <Label className={styles.inlineLabel}>Customer</Label>
+                        <Label className={styles.inlineLabel}>Bill to customer</Label>
                         <Select value={customerId} onValueChange={handleCustomerChange}>
                             <SelectTrigger data-testid="sales-batch-customer" className={styles.inlineSelect}>
-                                <SelectValue placeholder="Select customer" />
+                                <SelectValue placeholder="Select bill to" />
                             </SelectTrigger>
                             <SelectContent>
+                                {customers.map((customer) => (
+                                    <SelectItem key={customer.id} value={customer.id}>
+                                        {customer.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className={styles.customerInline}>
+                        <Label className={styles.inlineLabel}>Ship to customer</Label>
+                        <Select value={shipToCustomerId || "__SAME__"} onValueChange={(value) => setShipToCustomerId(value === "__SAME__" ? "" : value)} disabled={!customerId}>
+                            <SelectTrigger data-testid="sales-batch-ship-to-customer" className={styles.inlineSelect}>
+                                <SelectValue placeholder="Same as bill to" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__SAME__">Same as bill to</SelectItem>
                                 {customers.map((customer) => (
                                     <SelectItem key={customer.id} value={customer.id}>
                                         {customer.name}
@@ -1135,6 +1163,22 @@ export default function SalesOrderBatchWorkspace() {
                                                     updateQueuedOrder(activeOrder.localId, (order) => ({
                                                         ...order,
                                                         deliveryDate: event.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+
+                                        <div className={styles.fieldBlock}>
+                                            <Label className={styles.compactLabel}>Order remarks</Label>
+                                            <Input
+                                                data-testid="sales-batch-remarks"
+                                                className={styles.compactInput}
+                                                value={activeOrder.remarks}
+                                                placeholder="Optional production, dispatch, or billing note"
+                                                onChange={(event) =>
+                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                        ...order,
+                                                        remarks: event.target.value,
                                                     }))
                                                 }
                                             />

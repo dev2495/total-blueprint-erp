@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useForm, useFieldArray } from "react-hook-form"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Loader2, Plus, Trash2, Package, Layers, Activity, ClipboardCheck, Warehouse, ArrowRight, Dna } from "lucide-react"
+import { Loader2, Plus, Trash2, Package, Layers, Activity, ClipboardCheck, Warehouse, ArrowRight, Dna, ShieldCheck } from "lucide-react"
 import { AxiosError } from "axios"
 
 import { Button } from "@/components/ui/button"
@@ -105,6 +106,34 @@ export default function GRNPage() {
                     </p>
                 </div>
             </div>
+
+            <Card className="mx-auto max-w-5xl rounded-[2rem] border-emerald-100 bg-emerald-50/70 shadow-sm">
+                <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-3">
+                        <div className="rounded-2xl bg-white p-3 text-emerald-700 shadow-sm">
+                            <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <div className="text-sm font-black text-slate-950">Posted GRNs stay locked for audit.</div>
+                            <div className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-600">
+                                If an inward entry needs correction, do not edit the old GRN silently. Store should post a Stock Count variance for current stock, or FY Correction for a closed financial year. The original GRN and correction both remain visible in stock card history.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button asChild variant="outline" className="rounded-2xl bg-white font-bold">
+                            <Link href="/inventory/stock-count">
+                                Correct Current Stock <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="rounded-2xl bg-white font-bold">
+                            <Link href="/inventory/fy-correction">
+                                Closed FY Correction <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
                 <div className="flex justify-center">

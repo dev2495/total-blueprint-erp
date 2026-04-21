@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { type ReactNode, useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type ColumnDef } from "@tanstack/react-table"
-import { Activity, CheckCircle2, Loader2, Plus, Search, SlidersHorizontal } from "lucide-react"
+import { Activity, CheckCircle2, Loader2, Plus, Search, SlidersHorizontal, XCircle } from "lucide-react"
+import { toast } from "sonner"
 
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
@@ -54,6 +55,10 @@ function progressParts(order: SalesOrder) {
 
 function isCompletedOrder(order: SalesOrder) {
     return ["COMPLETED", "CANCELLED"].includes(String(order.status || "").toUpperCase())
+}
+
+function canCancelBeforeRelease(order: SalesOrder) {
+    return ["DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"].includes(String(order.status || "").toUpperCase())
 }
 
 function withinDays(value: string | null | undefined, days: number) {
@@ -113,6 +118,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function SalesOrdersPage() {
+    const queryClient = useQueryClient()
     const [tab, setTab] = useState<OrderTab>("active")
     const [searchText, setSearchText] = useState("")
     const [completedStatus, setCompletedStatus] = useState<CompletedStatusFilter>("ALL")
@@ -121,6 +127,18 @@ export default function SalesOrdersPage() {
     const { data: orders = [], isLoading } = useQuery({
         queryKey: ["sales-orders"],
         queryFn: () => salesService.getOrders(),
+    })
+    const cancelOrder = useMutation({
+        mutationFn: ({ id, reason }: { id: string; reason: string }) => salesService.cancelOrder(id, reason),
+        onSuccess: () => {
+            toast.success("Sales order cancelled")
+            queryClient.invalidateQueries({ queryKey: ["sales-orders"] })
+        },
+        onError: (error: any) => {
+            toast.error("Sales order was not cancelled", {
+                description: error?.response?.data?.detail || error?.message || "Planner may have already released this order.",
+            })
+        },
     })
 
     const activeOrders = useMemo(() => orders.filter((order) => !isCompletedOrder(order)), [orders])
@@ -185,8 +203,12 @@ export default function SalesOrdersPage() {
                 <div>
                     <div className="text-sm font-semibold text-slate-800">{row.original.customer_name}</div>
                     <div className="mt-1 text-[11px] text-slate-500">
+                        Ship to {row.original.ship_to_customer_name || row.original.customer_name}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-500">
                         {row.original.delivery_date ? `Delivery ${formatDate(row.original.delivery_date)}` : "Delivery pending"}
                     </div>
+                    {row.original.remarks ? <div className="mt-1 line-clamp-1 text-[11px] text-amber-700">Note: {row.original.remarks}</div> : null}
                 </div>
             ),
         },
@@ -273,6 +295,22 @@ export default function SalesOrdersPage() {
             header: () => <span className="text-[11px] font-semibold text-slate-500">ACTION</span>,
             cell: ({ row }) => (
                 <div className="flex items-center justify-end gap-2 pr-2">
+                    {canCancelBeforeRelease(row.original) ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg border-rose-200 text-rose-700 hover:bg-rose-50"
+                            disabled={cancelOrder.isPending}
+                            onClick={() => {
+                                const reason = window.prompt("Reason for cancelling this sales order before planner release?")
+                                if (reason === null) return
+                                cancelOrder.mutate({ id: row.original.id, reason })
+                            }}
+                        >
+                            <XCircle className="mr-2 h-3.5 w-3.5" />
+                            Cancel
+                        </Button>
+                    ) : null}
                     <Link href={`/sales/orders/${row.original.id}/tracking`}>
                         <Button variant="outline" size="sm" className="h-8 rounded-lg">
                             <Activity className="mr-2 h-3.5 w-3.5" />

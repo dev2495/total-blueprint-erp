@@ -642,6 +642,8 @@ class SalesOrderService:
         with transaction.atomic():
             customer = None
             customer_name = payload.get("customer_name")
+            ship_to_customer = None
+            ship_to_customer_name = payload.get("ship_to_customer_name")
             if payload.get("customer"):
                 from ..models import Customer
 
@@ -651,11 +653,26 @@ class SalesOrderService:
                         customer_name = customer.name
                 except Customer.DoesNotExist:
                     pass
+            ship_to_id = payload.get("ship_to_customer") or payload.get("ship_to")
+            if ship_to_id:
+                from ..models import Customer
+
+                try:
+                    ship_to_customer = Customer.objects.get(id=ship_to_id)
+                    ship_to_customer_name = ship_to_customer.name
+                except Customer.DoesNotExist:
+                    raise ValidationError("Ship-to customer was not found.")
+            elif customer:
+                ship_to_customer = customer
+                ship_to_customer_name = customer.name
 
             order_geometry_override = sanitize_geometry_override(payload.get("geometry_override") or payload.get("geometry") or {})
             order = SalesOrder.objects.create(
                 customer=customer,
                 customer_name=customer_name or "Unknown Customer",
+                ship_to_customer=ship_to_customer,
+                ship_to_customer_name=ship_to_customer_name or customer_name or "Unknown Customer",
+                remarks=str(payload.get("remarks") or "").strip(),
                 order_name=str(payload.get("order_name") or "").strip(),
                 order_type=payload.get("order_type", "MTO"),
                 delivery_date=payload.get("delivery_date"),
@@ -816,6 +833,9 @@ class SalesOrderService:
             row_payload = {
                 "customer": customer_id,
                 "customer_name": customer_name,
+                "ship_to_customer": row.get("ship_to_customer") or payload.get("ship_to_customer") or payload.get("ship_to"),
+                "ship_to_customer_name": row.get("ship_to_customer_name") or payload.get("ship_to_customer_name"),
+                "remarks": row.get("remarks") or payload.get("remarks") or "",
                 "order_name": str(row.get("order_name") or "").strip(),
                 "order_type": str(row.get("order_type") or "MTO").upper(),
                 "delivery_date": row.get("delivery_date"),
@@ -1147,4 +1167,52 @@ class SalesOrderService:
             order.execution_model_version = 2
             order.commercial_confirmed_at = timezone.now()
             order.save(update_fields=["status", "execution_model_version", "commercial_confirmed_at"])
+            return order
+
+    @staticmethod
+    def cancel_sales_order(order_id, *, user=None, reason=""):
+        with transaction.atomic():
+            order = SalesOrder.objects.select_for_update().prefetch_related("items").get(id=order_id)
+            if order.status in ["RELEASED", "PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED"]:
+                raise ValidationError(f"Order cannot be cancelled from status {order.status}.")
+
+            from apps.production.models import ProductionJob
+
+            jobs = list(ProductionJob.objects.select_for_update().filter(sales_order_item__sales_order=order))
+            blocking = [job for job in jobs if str(job.job_state).upper() in {"RELEASED", "EXECUTING", "PAUSED", "COMPLETED"} or str(job.status).upper() in {"RUNNING", "COMPLETED"}]
+            if blocking:
+                raise ValidationError("Order already has released, executing, paused, or completed production jobs and cannot be cancelled from Sales.")
+
+            for job in jobs:
+                job.job_state = "CANCELLED"
+                job.status = "CANCELLED"
+                job.hold_reason = str(reason or "Sales order cancelled before planner release.")[:255]
+                job.save(update_fields=["job_state", "status", "hold_reason", "updated_at"])
+
+            previous_status = order.status
+            order.status = "CANCELLED"
+            order.save(update_fields=["status"])
+
+            try:
+                from apps.users.models import PermissionAuditLog
+
+                PermissionAuditLog.objects.create(
+                    user=user if getattr(user, "is_authenticated", False) else None,
+                    action="SALES_ORDER_CHANGED",
+                    method="POST",
+                    path=f"/api/sales/orders/{order.id}/cancel/",
+                    required_permission="sales.manage",
+                    effective_role=str(getattr(user, "effective_role_code", "") or getattr(user, "role_code", "") or ""),
+                    details={
+                        "operation": "CANCEL",
+                        "order_id": str(order.id),
+                        "order_number": order.order_number,
+                        "previous_status": previous_status,
+                        "new_status": order.status,
+                        "cancelled_jobs": len(jobs),
+                        "reason": str(reason or ""),
+                    },
+                )
+            except Exception:
+                pass
             return order

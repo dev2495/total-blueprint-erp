@@ -1,8 +1,8 @@
 "use client"
 
-import { ChangeEvent, useMemo, useState } from "react"
+import { ChangeEvent, type ReactNode, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, LockKeyhole, PackageCheck, Plus, RefreshCw, Scale, Search } from "lucide-react"
+import { AlertTriangle, ArrowDownUp, CheckCircle2, Download, FileSpreadsheet, LockKeyhole, PackageCheck, Plus, RefreshCw, Scale, Search } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +21,7 @@ import { recipeService } from "@/services/recipes"
 
 type AuditMode = "OPENING_STOCK" | "PHYSICAL_COUNT" | "FY_CORRECTION"
 type StockClass = "BULK" | "ROLL" | "PACKAGING"
+type LineSortKey = "class" | "material" | "location" | "system" | "entered" | "variance" | "value" | "validation"
 
 const classOptions: Array<{ value: StockClass; label: string; hint: string }> = [
   { value: "BULK", label: "Bulk", hint: "Granules, inks, solvents, adhesives" },
@@ -76,21 +77,63 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
   const [selectedBatchId, setSelectedBatchId] = useState("")
   const [notes, setNotes] = useState("")
   const [line, setLine] = useState<Record<string, any>>({ status: "AVAILABLE", uom: "KG" })
+  const [lineSearch, setLineSearch] = useState("")
+  const [lineSortKey, setLineSortKey] = useState<LineSortKey>("material")
+  const [lineSortDirection, setLineSortDirection] = useState<"asc" | "desc">("asc")
   const copy = {
     OPENING_STOCK: {
       title: "Opening Stock",
-      subtitle: "Post go-live stock without creating fake GRNs. Rates are optional and missing valuation stays visible.",
+      subtitle: "Use once at go-live or when a new financial year opening is approved. This creates real stock but never creates a vendor GRN.",
       action: "Post Opening Stock",
+      sheetLabel: "Opening sheet",
+      createLabel: "Start Opening Sheet",
+      entryLabel: "Opening Lines",
+      qtyLabel: "Opening qty",
+      postNoteTitle: "Posting creates starting balances, not purchases",
+      postNote: "Bulk, rolls, and packaging become real inventory tagged as OPENING. Vendor purchase/inward reports stay clean.",
+      empty: "No opening lines yet. Start a sheet, download the sample if needed, then add/import Bulk, Rolls, or Packaging.",
+      helper: [
+        "Select FY and plant.",
+        "Add/import the physical opening stock.",
+        "Validate row errors.",
+        "Post once approved by store/admin.",
+      ],
     },
     PHYSICAL_COUNT: {
       title: "Physical Stock Count",
       subtitle: "Load live system stock, capture the floor count, and post only the shortage or excess variance.",
       action: "Post Variance",
+      sheetLabel: "Count sheet",
+      createLabel: "Start Count Sheet",
+      entryLabel: "Floor Count Lines",
+      qtyLabel: "Counted qty",
+      postNoteTitle: "Posting adjusts only the difference",
+      postNote: "System stock is preserved as reference. ERP posts shortage or excess only, with user, time, and reason.",
+      empty: "No count lines yet. Start a sheet, click Load Live Stock, then enter counted quantities.",
+      helper: [
+        "Select plant and optional material/location.",
+        "Load live stock into the count sheet.",
+        "Enter counted quantity from floor count.",
+        "Post shortage/excess variance with notes.",
+      ],
     },
     FY_CORRECTION: {
       title: "FY Correction",
-      subtitle: "Enter an audited correction batch against a closed period without hiding the adjustment trail.",
+      subtitle: "Use after year close when an approved backdated correction is required. Normal GRN or stock edits stay blocked for closed periods.",
       action: "Post FY Correction",
+      sheetLabel: "Correction sheet",
+      createLabel: "Start Correction Sheet",
+      entryLabel: "Correction Lines",
+      qtyLabel: "Corrected qty",
+      postNoteTitle: "Posting creates a controlled correction",
+      postNote: "Use this only with a written reason. The correction remains visible in audit registers and stock cards.",
+      empty: "No correction lines yet. Start a correction sheet, write the reason, then add the affected stock rows.",
+      helper: [
+        "Select the closed FY and plant.",
+        "Write the correction reason or source file.",
+        "Add only the affected material rows.",
+        "Post after approval; audit trail is permanent.",
+      ],
     },
   }[mode]
 
@@ -121,6 +164,69 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
   const selectedMaterial = filteredMaterials.find((m: any) => String(m.id) === String(line.material))
   const plantLocations = selectedPlant ? locations.filter((loc: any) => String(loc.plant) === String(selectedPlant)) : locations
+  const visibleLines = useMemo(() => {
+    const rows = currentBatch?.lines || []
+    const q = lineSearch.trim().toLowerCase()
+    const filtered = q
+      ? rows.filter((row) =>
+          [
+            row.stock_class,
+            row.material_code,
+            row.material_name,
+            row.location_name,
+            row.row_errors?.join(" "),
+          ]
+            .map((value) => String(value || "").toLowerCase())
+            .join(" ")
+            .includes(q),
+        )
+      : rows
+
+    function valueFor(row: any, key: LineSortKey) {
+      if (key === "class") return String(row.stock_class || "")
+      if (key === "material") return `${row.material_code || ""} ${row.material_name || ""}`.toLowerCase()
+      if (key === "location") return String(row.location_name || "").toLowerCase()
+      if (key === "system") return Number(row.system_qty || 0)
+      if (key === "entered") return Number(mode === "OPENING_STOCK" ? row.opening_qty : row.counted_qty || 0)
+      if (key === "variance") return Number(row.variance_qty || 0)
+      if (key === "value") return Number(row.value || 0)
+      return row.row_errors?.length ? "error" : "ok"
+    }
+
+    return filtered.slice().sort((left, right) => {
+      const leftValue = valueFor(left, lineSortKey)
+      const rightValue = valueFor(right, lineSortKey)
+      const order = lineSortDirection === "asc" ? 1 : -1
+      if (typeof leftValue === "number" && typeof rightValue === "number") return (leftValue - rightValue) * order
+      return String(leftValue).localeCompare(String(rightValue)) * order
+    })
+  }, [currentBatch?.lines, lineSearch, lineSortDirection, lineSortKey, mode])
+
+  function toggleLineSort(nextKey: LineSortKey) {
+    if (lineSortKey === nextKey) {
+      setLineSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+    setLineSortKey(nextKey)
+    setLineSortDirection(["system", "entered", "variance", "value"].includes(nextKey) ? "desc" : "asc")
+  }
+
+  function LineSortHeader({ id, children, align = "left" }: { id: LineSortKey; children: ReactNode; align?: "left" | "right" }) {
+    const active = lineSortKey === id
+    return (
+      <th className={`px-4 py-3 ${align === "right" ? "text-right" : ""}`}>
+        <button
+          type="button"
+          onClick={() => toggleLineSort(id)}
+          className={`inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white hover:text-slate-950 ${active ? "text-slate-950" : ""}`}
+        >
+          <span>{children}</span>
+          <ArrowDownUp className="h-3 w-3" />
+          {active ? <span className="text-[10px]">{lineSortDirection === "asc" ? "ASC" : "DESC"}</span> : null}
+        </button>
+      </th>
+    )
+  }
 
   const createBatch = useMutation({
     mutationFn: () =>
@@ -133,10 +239,10 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
       }),
     onSuccess: (batch) => {
       setSelectedBatchId(batch.id)
-      toast.success("Audit draft created")
+      toast.success(`${copy.sheetLabel} created`)
       queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
     },
-    onError: (error) => toast.error("Batch was not created", { description: errText(error) }),
+    onError: (error) => toast.error(`${copy.sheetLabel} was not created`, { description: errText(error) }),
   })
 
   const importLines = useMutation({
@@ -144,7 +250,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
     onSuccess: (batch) => {
       setSelectedBatchId(batch.id)
       setLine({ status: "AVAILABLE", uom: "KG" })
-      toast.success("Audit line added")
+      toast.success("Line added to working sheet")
       queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
     },
     onError: (error) => toast.error("Line was not added", { description: errText(error) }),
@@ -186,7 +292,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
       location: line.location,
       uom: line.uom || (selectedMaterial as any)?.base_uom || "KG",
       opening_qty: mode === "OPENING_STOCK" ? toNumber(line.quantity) : 0,
-      counted_qty: mode === "PHYSICAL_COUNT" ? toNumber(line.quantity) : undefined,
+      counted_qty: mode !== "OPENING_STOCK" ? toNumber(line.quantity) : undefined,
       quantity: toNumber(line.quantity),
       width_mm: line.width_mm ? toNumber(line.width_mm) : undefined,
       thickness_micron: line.thickness_micron ? toNumber(line.thickness_micron) : undefined,
@@ -277,12 +383,23 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
         </div>
       </section>
 
+      <section className="grid gap-3 md:grid-cols-4">
+        {copy.helper.map((step, index) => (
+          <div key={step} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-sm font-black text-blue-700">
+              {index + 1}
+            </div>
+            <div className="mt-3 text-sm font-bold leading-5 text-slate-800">{step}</div>
+          </div>
+        ))}
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
         <Card className="rounded-[1.5rem] border-slate-200 bg-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-black">
               <PackageCheck className="h-5 w-5 text-blue-600" />
-              Batch Control
+              {copy.sheetLabel} Control
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -300,7 +417,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Draft / register</Label>
+              <Label>Working sheet</Label>
               <Select value={currentBatch?.id || ""} onValueChange={setSelectedBatchId}>
                 <SelectTrigger><SelectValue placeholder={isFetching ? "Loading..." : "No batch selected"} /></SelectTrigger>
                 <SelectContent>
@@ -310,14 +427,14 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 </SelectContent>
               </Select>
             </div>
-            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes or source file reference" />
+            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={mode === "FY_CORRECTION" ? "Required correction reason, approval note, or source file reference" : "Notes or source file reference"} />
             <Button
               className="w-full rounded-2xl bg-slate-950 py-6 font-bold text-white"
               disabled={!selectedPlant || createBatch.isPending}
               onClick={() => createBatch.mutate()}
             >
               <Plus className="mr-2 h-4 w-4" />
-              Create New Draft
+              {copy.createLabel}
             </Button>
             {currentBatch ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
@@ -326,11 +443,11 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={downloadSample}>
                     <Download className="mr-2 h-4 w-4" />
-                    Sample Template
+                    Download Sample
                   </Button>
                   <Button type="button" variant="outline" size="sm" disabled={!currentBatch} onClick={downloadBatchRegister}>
                     <Download className="mr-2 h-4 w-4" />
-                    Export Register
+                    Export Posted Sheet
                   </Button>
                 </div>
               </div>
@@ -343,7 +460,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <CardTitle className="flex items-center gap-2 text-lg font-black">
                 <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
-                Line Entry
+                {copy.entryLabel}
               </CardTitle>
               <Tabs value={stockClass} onValueChange={(value) => setStockClass(value as StockClass)}>
                 <TabsList className="grid w-full grid-cols-3 rounded-2xl bg-slate-100 lg:w-[360px]">
@@ -375,7 +492,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>{mode === "OPENING_STOCK" ? "Opening qty" : "Counted qty"}</Label>
+                <Label>{copy.qtyLabel}</Label>
                 <Input type="number" value={line.quantity || ""} onChange={(event) => setLine((prev) => ({ ...prev, quantity: event.target.value }))} />
               </div>
               <div className="grid gap-2">
@@ -434,14 +551,14 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-600">
-                Import CSV or Excel. Start from the sample template if operators are filling the register outside the ERP.
+                Import CSV or Excel. Start from the sample file so operators fill the exact ERP format without guessing columns.
               </div>
               <div className="flex gap-2">
                 <Input className="max-w-[220px] bg-white" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
                 {supportsLiveLoad ? (
                   <Button variant="outline" disabled={!canEdit || !currentBatch || preloadLiveStock.isPending} onClick={() => preloadLiveStock.mutate({ batchId: currentBatch!.id })}>
                     <Scale className="mr-2 h-4 w-4" />
-                    Load Live Stock
+                    Load System Stock
                   </Button>
                 ) : null}
                 <Button variant="outline" onClick={downloadSample}>
@@ -459,22 +576,37 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               </div>
             </div>
 
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  className="pl-9"
+                  value={lineSearch}
+                  onChange={(event) => setLineSearch(event.target.value)}
+                  placeholder="Search sheet lines..."
+                />
+              </div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                {visibleLines.length} visible line(s)
+              </div>
+            </div>
+
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="min-w-[940px] w-full text-left text-sm">
                 <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Class</th>
-                    <th className="px-4 py-3">Material</th>
-                    <th className="px-4 py-3">Location</th>
-                    <th className="px-4 py-3 text-right">System</th>
-                    <th className="px-4 py-3 text-right">{mode === "OPENING_STOCK" ? "Opening" : "Counted"}</th>
-                    <th className="px-4 py-3 text-right">Variance</th>
-                    <th className="px-4 py-3 text-right">Value</th>
-                    <th className="px-4 py-3">Validation</th>
+                    <LineSortHeader id="class">Class</LineSortHeader>
+                    <LineSortHeader id="material">Material</LineSortHeader>
+                    <LineSortHeader id="location">Location</LineSortHeader>
+                    <LineSortHeader id="system" align="right">System</LineSortHeader>
+                    <LineSortHeader id="entered" align="right">{mode === "OPENING_STOCK" ? "Opening" : "Counted / Corrected"}</LineSortHeader>
+                    <LineSortHeader id="variance" align="right">Variance</LineSortHeader>
+                    <LineSortHeader id="value" align="right">Value</LineSortHeader>
+                    <LineSortHeader id="validation">Validation</LineSortHeader>
                   </tr>
                 </thead>
                 <tbody>
-                  {(currentBatch?.lines || []).map((row) => (
+                  {visibleLines.map((row) => (
                     <tr key={row.id} className="border-t border-slate-100">
                       <td className="px-4 py-3 font-bold">{row.stock_class}</td>
                       <td className="px-4 py-3">
@@ -496,7 +628,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                     </tr>
                   ))}
                   {!currentBatch?.lines?.length ? (
-                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">No audit lines yet.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">{copy.empty}</td></tr>
                   ) : null}
                 </tbody>
               </table>
@@ -506,8 +638,8 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
                 <div>
-                  <div className="font-black text-amber-950">Posting creates real inventory balances</div>
-                  <div className="text-sm text-amber-800">Opening stock is tagged as opening adjustment. Physical count posts only shortage/excess variance.</div>
+                  <div className="font-black text-amber-950">{copy.postNoteTitle}</div>
+                  <div className="text-sm text-amber-800">{copy.postNote}</div>
                 </div>
               </div>
               <Button

@@ -122,6 +122,19 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        try:
+            order = SalesOrderService.cancel_sales_order(
+                pk,
+                user=request.user,
+                reason=str(request.data.get("reason") or "").strip(),
+            )
+            serializer = self.get_serializer(order)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class SalesOrderBlockReasonView(APIView):
     def get(self, request, pk):

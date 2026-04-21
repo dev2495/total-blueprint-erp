@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { type ReactNode, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
+  ArrowDownUp,
   BarChart3,
   Boxes,
   Coins,
@@ -36,6 +37,8 @@ import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 import { inventoryService, type InventoryBulk } from "@/services/inventory"
 
 const CHART_COLORS = ["#0f766e", "#1d4ed8", "#7c3aed", "#ea580c", "#dc2626", "#0891b2"]
+type SortKey = "material" | "granule" | "category" | "location" | "quantity" | "cost" | "value" | "updated"
+type SortDirection = "asc" | "desc"
 
 function formatKg(value: number) {
   return `${value.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} kg`
@@ -51,6 +54,8 @@ function formatCurrency(value: number) {
 
 export default function BulkInventoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [sortKey, setSortKey] = useState<SortKey>("quantity")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
 
   const { data: bulkStock = [], isLoading } = useQuery({
     queryKey: ["bulk-stock"],
@@ -74,6 +79,55 @@ export default function BulkInventoryPage() {
       return blob.includes(q)
     })
   }, [bulkStock, searchQuery])
+
+  const sortedStock = useMemo(() => {
+    function valueFor(row: InventoryBulk, key: SortKey) {
+      if (key === "material") return `${row.material_name || ""} ${row.material_code || ""}`.toLowerCase()
+      if (key === "granule") return String(row.granule_quality_code || "").toLowerCase()
+      if (key === "category") return String(row.material_category || "").toLowerCase()
+      if (key === "location") return `${row.plant_name || ""} ${row.location_name || ""}`.toLowerCase()
+      if (key === "quantity") return Number(row.qty_kg || 0)
+      if (key === "cost") return Number(row.avg_cost || 0)
+      if (key === "value") return Number(row.qty_kg || 0) * Number(row.avg_cost || 0)
+      return new Date(row.updated_at).getTime() || 0
+    }
+
+    return filteredStock.slice().sort((left, right) => {
+      const leftValue = valueFor(left, sortKey)
+      const rightValue = valueFor(right, sortKey)
+      const order = sortDirection === "asc" ? 1 : -1
+      if (typeof leftValue === "number" && typeof rightValue === "number") {
+        return (leftValue - rightValue) * order
+      }
+      return String(leftValue).localeCompare(String(rightValue)) * order
+    })
+  }, [filteredStock, sortDirection, sortKey])
+
+  function toggleSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSortKey(nextKey)
+    setSortDirection(["quantity", "cost", "value", "updated"].includes(nextKey) ? "desc" : "asc")
+  }
+
+  function SortHeader({ id, children, align = "left" }: { id: SortKey; children: ReactNode; align?: "left" | "right" }) {
+    const active = sortKey === id
+    return (
+      <th className={`px-5 py-3 ${align === "right" ? "text-right" : ""}`}>
+        <button
+          type="button"
+          onClick={() => toggleSort(id)}
+          className={`inline-flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-white hover:text-slate-900 ${align === "right" ? "justify-end" : ""} ${active ? "text-slate-950" : ""}`}
+        >
+          <span>{children}</span>
+          <ArrowDownUp className="h-3 w-3" />
+          {active ? <span className="text-[10px]">{sortDirection === "asc" ? "ASC" : "DESC"}</span> : null}
+        </button>
+      </th>
+    )
+  }
 
   const totals = useMemo(() => {
     return filteredStock.reduce(
@@ -366,14 +420,14 @@ export default function BulkInventoryPage() {
             <table className="min-w-[1180px] w-full text-sm">
               <thead className="bg-slate-50/70 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                 <tr>
-                  <th className="px-5 py-3">Material</th>
-                  <th className="px-5 py-3">Granule Code</th>
-                  <th className="px-5 py-3">Category</th>
-                  <th className="px-5 py-3">Plant / Location</th>
-                  <th className="px-5 py-3 text-right">Quantity</th>
-                  <th className="px-5 py-3 text-right">Moving Avg Cost</th>
-                  <th className="px-5 py-3 text-right">Inventory Value</th>
-                  <th className="px-5 py-3 text-right">Updated</th>
+                  <SortHeader id="material">Material</SortHeader>
+                  <SortHeader id="granule">Granule Code</SortHeader>
+                  <SortHeader id="category">Category</SortHeader>
+                  <SortHeader id="location">Plant / Location</SortHeader>
+                  <SortHeader id="quantity" align="right">Quantity</SortHeader>
+                  <SortHeader id="cost" align="right">Moving Avg Cost</SortHeader>
+                  <SortHeader id="value" align="right">Inventory Value</SortHeader>
+                  <SortHeader id="updated" align="right">Updated</SortHeader>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -388,7 +442,7 @@ export default function BulkInventoryPage() {
                     <td colSpan={8} className="px-5 py-10 text-center text-slate-400">No bulk material matches the current search.</td>
                   </tr>
                 ) : (
-                  filteredStock.map((row: InventoryBulk) => {
+                  sortedStock.map((row: InventoryBulk) => {
                     const qty = Number(row.qty_kg || 0)
                     const avgCost = Number(row.avg_cost || 0)
                     return (

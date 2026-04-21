@@ -15,8 +15,12 @@ export interface SalesOrder {
     order_number: string;
     order_name?: string | null;
     line_name?: string | null;
+    customer?: string;
     customer_name: string;
     customer_id?: string;
+    ship_to_customer?: string | null;
+    ship_to_customer_name?: string | null;
+    remarks?: string | null;
     plant_name?: string | null;
     order_type?: string;
     status:
@@ -159,6 +163,9 @@ export interface BatchCreateOrderRow {
     order_name?: string;
     delivery_date: string;
     order_type?: string;
+    ship_to_customer?: string;
+    ship_to_customer_name?: string;
+    remarks?: string;
     items: any[];
 }
 
@@ -471,6 +478,9 @@ export const salesService = {
     batchCreateOrders: async (payload: {
         customer: string;
         customer_name?: string;
+        ship_to_customer?: string;
+        ship_to_customer_name?: string;
+        remarks?: string;
         orders: BatchCreateOrderRow[];
     }) => {
         const { data } = await api.post<BatchCreateResponse>("/api/sales/orders/batch-create/", payload);
@@ -489,6 +499,11 @@ export const salesService = {
 
     confirmOrder: async (id: string) => {
         const { data } = await api.post(`/api/sales/orders/${id}/confirm/`);
+        return data;
+    },
+
+    cancelOrder: async (id: string, reason?: string) => {
+        const { data } = await api.post<SalesOrder>(`/api/sales/orders/${id}/cancel/`, { reason: reason || "" });
         return data;
     },
 
