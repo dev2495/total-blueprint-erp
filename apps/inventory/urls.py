@@ -10,7 +10,7 @@ from .views import (
     InventoryHealthView, InventoryAlertViewSet, InventorySnapshotViewSet, RollGenealogyView, RollTraceLookupView
 )
 from .views_masters import VendorViewSet
-from .views_audit import InventoryAuditBatchViewSet, InventoryFinancialPeriodViewSet, ClosingPreviewView, StockCardView
+from .views_audit import InventoryAuditBatchViewSet, InventoryFinancialPeriodViewSet, ClosingPreviewView, StockCardView, StockSnapshotView
 
 router = OptionalSlashRouter()
 router.register(r'locations', LocationViewSet, basename='location')
@@ -33,6 +33,7 @@ urlpatterns = [
     path('ledger/', InventoryLedgerView.as_view(), name='inventory-ledger'),
     path('audit/closing-preview/', ClosingPreviewView.as_view(), name='inventory-audit-closing-preview'),
     path('audit/stock-card/', StockCardView.as_view(), name='inventory-audit-stock-card'),
+    path('audit/stock-snapshot/', StockSnapshotView.as_view(), name='inventory-audit-stock-snapshot'),
     # Phase 54 additions
     path('roll-movements/', RollMovementListView.as_view(), name='roll-movement-list'),
     path('roll-consumptions/', RollConsumptionListView.as_view(), name='roll-consumption-list'),

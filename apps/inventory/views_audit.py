@@ -1,4 +1,6 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import FileResponse
+from io import BytesIO
 from django.utils.dateparse import parse_date
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -98,6 +100,9 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         return qs
 
     def create(self, request, *args, **kwargs):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
         try:
             batch = InventoryAuditService.create_batch(payload=request.data, user=request.user)
             return Response(self.get_serializer(batch).data, status=status.HTTP_201_CREATED)
@@ -106,6 +111,9 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="lines/import")
     def lines_import(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
         try:
             batch = self.get_object()
             rows = request.data.get("lines") or []
@@ -117,8 +125,28 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             return _error_response(exc)
 
+    @action(detail=True, methods=["post"], url_path="lines/import-file")
+    def lines_import_file(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
+        try:
+            batch = self.get_object()
+            uploaded = request.FILES.get("file")
+            if not uploaded:
+                return Response({"detail": "Upload a CSV or XLSX file."}, status=status.HTTP_400_BAD_REQUEST)
+            default_stock_class = request.data.get("stock_class")
+            InventoryAuditService.import_file(batch=batch, uploaded_file=uploaded, default_stock_class=default_stock_class)
+            batch.refresh_from_db()
+            return Response(self.get_serializer(batch).data)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
     @action(detail=True, methods=["post"], url_path="lines/validate")
     def lines_validate(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
         try:
             batch = self.get_object()
             result = InventoryAuditService.validate_batch(batch=batch)
@@ -129,8 +157,29 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             return _error_response(exc)
 
+    @action(detail=True, methods=["post"], url_path="load-system-stock")
+    def load_system_stock(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
+        try:
+            batch = InventoryAuditService.load_batch_from_snapshot(
+                batch=self.get_object(),
+                stock_class=request.data.get("stock_class"),
+                location_id=request.data.get("location"),
+                material_id=request.data.get("material"),
+                query=request.data.get("query"),
+                replace_existing=bool(request.data.get("replace_existing", True)),
+            )
+            return Response(self.get_serializer(batch).data)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
     @action(detail=True, methods=["post"], url_path="post")
     def post_batch(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
         try:
             batch = InventoryAuditService.post_batch(batch=self.get_object(), user=request.user)
             return Response(self.get_serializer(batch).data)
@@ -139,6 +188,9 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="void")
     def void(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
         batch = self.get_object()
         if batch.status in {"POSTED", "LOCKED"}:
             return Response({"detail": "Posted or locked batches cannot be voided from the UI."}, status=status.HTTP_400_BAD_REQUEST)
@@ -147,9 +199,65 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         batch.save(update_fields=["status", "notes", "updated_at"])
         return Response(self.get_serializer(batch).data)
 
+    @action(detail=True, methods=["get"], url_path="export")
+    def export(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+        try:
+            batch = self.get_object()
+            content, file_name = InventoryAuditService.build_batch_workbook(batch=batch)
+            return FileResponse(
+                BytesIO(content),
+                as_attachment=True,
+                filename=file_name,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
+    @action(detail=False, methods=["get"], url_path="sample-template")
+    def sample_template(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+        try:
+            batch_type = request.query_params.get("type") or "OPENING_STOCK"
+            stock_class = request.query_params.get("stock_class") or "BULK"
+            content, file_name = InventoryAuditService.build_sample_template(batch_type=batch_type, stock_class=stock_class)
+            return FileResponse(
+                BytesIO(content),
+                as_attachment=True,
+                filename=file_name,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
+
+class StockSnapshotView(APIView):
+    def get(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+        try:
+            payload = InventoryAuditService.stock_snapshot(
+                plant_id=request.query_params.get("plant"),
+                stock_class=request.query_params.get("stock_class"),
+                location_id=request.query_params.get("location"),
+                material_id=request.query_params.get("material"),
+                query=request.query_params.get("query"),
+            )
+            return Response(payload)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
 
 class ClosingPreviewView(APIView):
     def get(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
         try:
             payload = InventoryAuditService.closing_preview(
                 plant_id=request.query_params.get("plant"),
@@ -159,9 +267,32 @@ class ClosingPreviewView(APIView):
         except DjangoValidationError as exc:
             return _error_response(exc)
 
+    def post(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+        try:
+            financial_year = request.data.get("financial_year") or current_indian_financial_year()
+            payload = InventoryAuditService.closing_preview(
+                plant_id=request.data.get("plant"),
+                financial_year=financial_year,
+            )
+            content, file_name = InventoryAuditService.build_closing_preview_workbook(preview=payload, financial_year=financial_year)
+            return FileResponse(
+                BytesIO(content),
+                as_attachment=True,
+                filename=file_name,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
 
 class StockCardView(APIView):
     def get(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
         try:
             payload = InventoryAuditService.stock_card(
                 material_id=request.query_params.get("material"),
@@ -171,5 +302,27 @@ class StockCardView(APIView):
                 date_to=parse_date(request.query_params.get("to")) if request.query_params.get("to") else None,
             )
             return Response(payload)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
+    def post(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+        try:
+            payload = InventoryAuditService.stock_card(
+                material_id=request.data.get("material"),
+                plant_id=request.data.get("plant"),
+                location_id=request.data.get("location"),
+                date_from=parse_date(request.data.get("from")) if request.data.get("from") else None,
+                date_to=parse_date(request.data.get("to")) if request.data.get("to") else None,
+            )
+            content, file_name = InventoryAuditService.build_stock_card_workbook(payload=payload)
+            return FileResponse(
+                BytesIO(content),
+                as_attachment=True,
+                filename=file_name,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
         except DjangoValidationError as exc:
             return _error_response(exc)

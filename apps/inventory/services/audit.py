@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import csv
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from io import BytesIO, TextIOWrapper
 from typing import Any, Dict, Iterable, List, Optional
 
 from django.core.exceptions import ValidationError
@@ -30,6 +32,16 @@ from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.services.roll_service import RollService
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
+
+try:
+    from openpyxl import Workbook, load_workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+except Exception:  # pragma: no cover
+    Workbook = None
+    load_workbook = None
+    Alignment = None
+    Font = None
+    PatternFill = None
 
 
 def _dec(value: Any, fallback: str = "0") -> Decimal:
@@ -147,6 +159,19 @@ class InventoryAuditService:
         return created
 
     @classmethod
+    @transaction.atomic
+    def replace_lines(cls, *, batch: InventoryAuditBatch, rows: Iterable[Dict[str, Any]]) -> List[InventoryAuditLine]:
+        if batch.status != "DRAFT":
+            raise ValidationError("Only draft batches can be edited.")
+        batch.lines.all().delete()
+        return cls.import_lines(batch=batch, rows=rows)
+
+    @classmethod
+    def import_file(cls, *, batch: InventoryAuditBatch, uploaded_file, default_stock_class: Optional[str] = None) -> List[InventoryAuditLine]:
+        rows = cls._parse_upload_rows(uploaded_file, default_stock_class=default_stock_class)
+        return cls.import_lines(batch=batch, rows=rows)
+
+    @classmethod
     def upsert_line(cls, *, batch: InventoryAuditBatch, payload: Dict[str, Any]) -> InventoryAuditLine:
         material = InventoryMaterial.objects.get(id=payload.get("material"))
         location = InventoryLocation.objects.select_related("plant").get(id=payload.get("location"))
@@ -219,6 +244,95 @@ class InventoryAuditService:
         if line.batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"} and line.counted_qty is None:
             errors.append("Counted quantity is required.")
         return errors
+
+    @classmethod
+    def _parse_upload_rows(cls, uploaded_file, default_stock_class: Optional[str] = None) -> List[Dict[str, Any]]:
+        name = str(getattr(uploaded_file, "name", "") or "").lower()
+        if name.endswith(".xlsx"):
+            return cls._parse_xlsx_rows(uploaded_file, default_stock_class=default_stock_class)
+        return cls._parse_csv_rows(uploaded_file, default_stock_class=default_stock_class)
+
+    @classmethod
+    def _parse_csv_rows(cls, uploaded_file, default_stock_class: Optional[str] = None) -> List[Dict[str, Any]]:
+        uploaded_file.seek(0)
+        wrapper = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig")
+        try:
+            reader = csv.DictReader(wrapper)
+            rows = []
+            for row in reader:
+                normalized = cls._normalize_import_row(row, default_stock_class=default_stock_class)
+                if normalized:
+                    rows.append(normalized)
+            return rows
+        finally:
+            wrapper.detach()
+
+    @classmethod
+    def _parse_xlsx_rows(cls, uploaded_file, default_stock_class: Optional[str] = None) -> List[Dict[str, Any]]:
+        if load_workbook is None:
+            raise ValidationError("Excel import is unavailable because openpyxl is not installed.")
+        uploaded_file.seek(0)
+        workbook = load_workbook(uploaded_file, data_only=True)
+        worksheet = workbook.active
+        header_row = next(worksheet.iter_rows(min_row=1, max_row=1, values_only=True), None)
+        if not header_row:
+            return []
+        headers = [str(value or "").strip() for value in header_row]
+        rows = []
+        for raw_row in worksheet.iter_rows(min_row=2, values_only=True):
+            payload = {headers[index]: raw_row[index] for index in range(len(headers))}
+            normalized = cls._normalize_import_row(payload, default_stock_class=default_stock_class)
+            if normalized:
+                rows.append(normalized)
+        return rows
+
+    @classmethod
+    def _normalize_import_row(cls, row: Dict[str, Any], default_stock_class: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        payload = {str(key or "").strip().lower(): value for key, value in (row or {}).items() if str(key or "").strip()}
+        if not any(str(value or "").strip() for value in payload.values()):
+            return None
+        stock_class = str(payload.get("stock_class") or default_stock_class or "").upper().strip()
+        normalized = {
+            "stock_class": stock_class,
+            "material": cls._clean_cell(payload.get("material")),
+            "granule_code": cls._clean_cell(payload.get("granule_code") or payload.get("granule_code_id")),
+            "grade": cls._clean_cell(payload.get("grade") or payload.get("grade_id")),
+            "location": cls._clean_cell(payload.get("location")),
+            "uom": cls._clean_cell(payload.get("uom")),
+            "quantity": cls._clean_cell(payload.get("quantity") or payload.get("opening_qty")),
+            "counted_qty": cls._clean_cell(payload.get("counted_qty")),
+            "rate": cls._clean_cell(payload.get("rate")),
+            "label_id": cls._clean_cell(payload.get("label_id")),
+            "batch_no": cls._clean_cell(payload.get("batch_no")),
+            "width_mm": cls._clean_cell(payload.get("width_mm")),
+            "thickness_micron": cls._clean_cell(payload.get("thickness_micron")),
+            "length_m": cls._clean_cell(payload.get("length_m")),
+            "is_fg": cls._to_bool(payload.get("is_fg")),
+            "stage_index": cls._clean_cell(payload.get("stage_index")),
+            "status": cls._clean_cell(payload.get("status")),
+            "packaging_kind": cls._clean_cell(payload.get("packaging_kind")),
+            "base_uom": cls._clean_cell(payload.get("base_uom")),
+        }
+        return {key: value for key, value in normalized.items() if value not in (None, "")}
+
+    @staticmethod
+    def _clean_cell(value):
+        if value in (None, ""):
+            return None
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, (int, float)):
+            if int(value) == value:
+                return str(int(value))
+            return str(value)
+        return str(value).strip()
+
+    @staticmethod
+    def _to_bool(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        token = str(value or "").strip().lower()
+        return token in {"1", "true", "yes", "y", "fg"}
 
     @classmethod
     def validate_batch(cls, *, batch: InventoryAuditBatch) -> Dict[str, Any]:
@@ -441,6 +555,95 @@ class InventoryAuditService:
             "movements": movements,
             "blockers": blockers,
         }
+
+    @classmethod
+    def stock_snapshot(
+        cls,
+        *,
+        plant_id: Optional[str],
+        stock_class: Optional[str] = None,
+        location_id: Optional[str] = None,
+        material_id: Optional[str] = None,
+        query: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        plant = Plant.objects.filter(id=plant_id).first() if plant_id else Plant.objects.first()
+        if not plant:
+            return {"plant": None, "rows": [], "totals": {}}
+        rows = cls.current_stock_snapshot_rows(plant=plant)
+        stock_class = str(stock_class or "").upper().strip()
+        if stock_class:
+            rows = [row for row in rows if row.get("stock_class") == stock_class]
+        if location_id:
+            rows = [row for row in rows if str(row.get("location")) == str(location_id)]
+        if material_id:
+            rows = [row for row in rows if str(row.get("material")) == str(material_id)]
+        if query:
+            needle = str(query).strip().lower()
+            rows = [
+                row
+                for row in rows
+                if needle in str(row.get("material_code") or "").lower()
+                or needle in str(row.get("material_name") or "").lower()
+                or needle in str(row.get("label_id") or "").lower()
+                or needle in str(row.get("location_name") or "").lower()
+            ]
+        return {
+            "plant": {"id": str(plant.id), "name": plant.name, "code": plant.code},
+            "rows": rows,
+            "totals": cls._snapshot_totals(rows),
+        }
+
+    @classmethod
+    @transaction.atomic
+    def load_batch_from_snapshot(
+        cls,
+        *,
+        batch: InventoryAuditBatch,
+        stock_class: Optional[str] = None,
+        location_id: Optional[str] = None,
+        material_id: Optional[str] = None,
+        query: Optional[str] = None,
+        replace_existing: bool = True,
+    ) -> InventoryAuditBatch:
+        if batch.type not in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
+            raise ValidationError("System stock preload is only available for stock count and FY correction batches.")
+        snapshot = cls.stock_snapshot(
+            plant_id=str(batch.plant_id),
+            stock_class=stock_class,
+            location_id=location_id,
+            material_id=material_id,
+            query=query,
+        )
+        rows = []
+        for row in snapshot["rows"]:
+            rows.append(
+                {
+                    "stock_class": row.get("stock_class"),
+                    "material": row.get("material"),
+                    "granule_code": row.get("granule_code"),
+                    "grade": row.get("grade"),
+                    "location": row.get("location"),
+                    "uom": row.get("uom"),
+                    "counted_qty": row.get("qty"),
+                    "label_id": row.get("label_id"),
+                    "batch_no": row.get("batch_no"),
+                    "width_mm": row.get("width_mm"),
+                    "thickness_micron": row.get("thickness_micron"),
+                    "length_m": row.get("length_m"),
+                    "is_fg": row.get("is_fg"),
+                    "stage_index": row.get("stage_index"),
+                    "status": row.get("status"),
+                    "packaging_kind": row.get("packaging_kind"),
+                    "base_uom": row.get("base_uom"),
+                    "rate": row.get("rate"),
+                }
+            )
+        if replace_existing:
+            cls.replace_lines(batch=batch, rows=rows)
+        else:
+            cls.import_lines(batch=batch, rows=rows)
+        batch.refresh_from_db()
+        return batch
 
     @classmethod
     def current_stock_snapshot_rows(cls, *, plant: Plant) -> List[Dict[str, Any]]:
@@ -769,6 +972,209 @@ class InventoryAuditService:
             "closing_qty": float(opening_total + movement_total),
             "rows": rows,
         }
+
+    @classmethod
+    def build_batch_workbook(cls, *, batch: InventoryAuditBatch):
+        workbook = cls._base_workbook()
+        sheet = workbook.active
+        sheet.title = "Audit Register"
+        metadata = [
+            ["Batch No", batch.batch_no],
+            ["Type", batch.type],
+            ["Plant", getattr(batch.plant, "name", "")],
+            ["Financial Year", batch.financial_year],
+            ["Cutoff", timezone.localtime(batch.cutoff_at).strftime("%d-%b-%Y %H:%M") if batch.cutoff_at else ""],
+            ["Status", batch.status],
+            ["Notes", batch.notes or ""],
+        ]
+        for row in metadata:
+            sheet.append(row)
+        sheet.append([])
+        headers = [
+            "stock_class",
+            "material_code",
+            "material_name",
+            "location_name",
+            "uom",
+            "system_qty",
+            "opening_qty",
+            "counted_qty",
+            "variance_qty",
+            "rate",
+            "value",
+            "granule_code",
+            "grade",
+            "label_id",
+            "batch_no",
+            "width_mm",
+            "thickness_micron",
+            "length_m",
+            "is_fg",
+            "stage_index",
+            "status",
+            "row_errors",
+        ]
+        sheet.append(headers)
+        cls._style_header_row(sheet[sheet.max_row])
+        for line in batch.lines.select_related("material", "location", "granule_code", "grade").all():
+            sheet.append(
+                [
+                    line.stock_class,
+                    getattr(line.material, "code", ""),
+                    getattr(line.material, "name", ""),
+                    getattr(line.location, "name", ""),
+                    line.uom,
+                    float(line.system_qty or 0),
+                    float(line.opening_qty or 0),
+                    float(line.counted_qty or 0) if line.counted_qty is not None else "",
+                    float(line.variance_qty or 0),
+                    float(line.rate or 0) if line.rate is not None else "",
+                    float(line.value or 0),
+                    getattr(line.granule_code, "code", ""),
+                    getattr(line.grade, "name", ""),
+                    line.label_id,
+                    line.batch_no,
+                    float(line.width_mm or 0) if line.width_mm is not None else "",
+                    float(line.thickness_micron or 0) if line.thickness_micron is not None else "",
+                    float(line.length_m or 0) if line.length_m is not None else "",
+                    "YES" if line.is_fg else "NO",
+                    line.stage_index,
+                    line.status,
+                    "; ".join(line.row_errors or []),
+                ]
+            )
+        cls._autosize_columns(sheet)
+        buffer = BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue(), f"{batch.batch_no.lower()}-register.xlsx"
+
+    @classmethod
+    def build_sample_template(cls, *, batch_type: str, stock_class: Optional[str] = None):
+        workbook = cls._base_workbook()
+        sheet = workbook.active
+        sheet.title = "Sample"
+        headers = [
+            "stock_class",
+            "material",
+            "location",
+            "uom",
+            "quantity",
+            "counted_qty",
+            "rate",
+            "granule_code",
+            "grade",
+            "label_id",
+            "batch_no",
+            "width_mm",
+            "thickness_micron",
+            "length_m",
+            "is_fg",
+            "stage_index",
+            "status",
+        ]
+        sheet.append(headers)
+        cls._style_header_row(sheet[1])
+        stock_class = str(stock_class or "BULK").upper()
+        sample_rows = {
+            "BULK": [stock_class, "MATERIAL_UUID", "LOCATION_UUID", "KG", "125.5", "125.5" if batch_type != "OPENING_STOCK" else "", "82.25", "GRANULE_CODE_UUID", "", "", "", "", "", "", "", "", "AVAILABLE"],
+            "ROLL": [stock_class, "FILM_VARIANT_UUID", "LOCATION_UUID", "KG", "50", "50" if batch_type != "OPENING_STOCK" else "", "", "", "GRADE_UUID", "OPEN-ROLL-001", "LOT-001", "500", "50", "1200", "YES", "5", "AVAILABLE"],
+            "PACKAGING": [stock_class, "PACKAGING_UUID", "LOCATION_UUID", "PCS", "2500", "2500" if batch_type != "OPENING_STOCK" else "", "1.25", "", "", "", "", "", "", "", "", "", "AVAILABLE"],
+        }
+        sheet.append(sample_rows.get(stock_class, sample_rows["BULK"]))
+        notes = workbook.create_sheet("Read Me")
+        notes.append(["Field", "Meaning"])
+        cls._style_header_row(notes[1])
+        for field, meaning in [
+            ("material", "Use the UUID from the master record; the picker in the UI still helps for manual entry."),
+            ("location", "Use the UUID of the plant location selected for this audit batch."),
+            ("quantity", "Opening quantity for OPENING_STOCK imports."),
+            ("counted_qty", "Physical quantity for PHYSICAL_COUNT and FY_CORRECTION imports."),
+            ("granule_code", "Only for granule bulk stock when code-level tracking is needed."),
+            ("grade", "Only for rolls that require grade-level trace."),
+            ("width_mm / thickness_micron", "Required for roll imports."),
+        ]:
+            notes.append([field, meaning])
+        cls._autosize_columns(sheet)
+        cls._autosize_columns(notes)
+        buffer = BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue(), f"{str(batch_type).lower()}-{stock_class.lower()}-sample.xlsx"
+
+    @classmethod
+    def build_closing_preview_workbook(cls, *, preview: Dict[str, Any], financial_year: str):
+        workbook = cls._base_workbook()
+        summary = workbook.active
+        summary.title = "Summary"
+        summary.append(["Financial Year", financial_year])
+        summary.append(["Plant", preview.get("plant", {}).get("name", "") if preview.get("plant") else ""])
+        summary.append([])
+        summary.append(["Metric", "Value"])
+        cls._style_header_row(summary[4])
+        for key, value in (preview.get("totals") or {}).items():
+            summary.append([key, value])
+        movements = workbook.create_sheet("Movements")
+        movements.append(["Metric", "Value"])
+        cls._style_header_row(movements[1])
+        for key, value in (preview.get("movements") or {}).items():
+            movements.append([key, value])
+        blockers = workbook.create_sheet("Blockers")
+        blockers.append(["Code", "Label", "Count"])
+        cls._style_header_row(blockers[1])
+        for blocker in preview.get("blockers") or []:
+            blockers.append([blocker.get("code"), blocker.get("label"), blocker.get("count")])
+        stock = workbook.create_sheet("Closing Stock")
+        headers = ["stock_class", "material_code", "material_name", "location_name", "qty", "uom", "grade_name", "granule_code_label", "label_id", "status"]
+        stock.append(headers)
+        cls._style_header_row(stock[1])
+        for row in preview.get("rows") or []:
+            stock.append([row.get("stock_class"), row.get("material_code"), row.get("material_name"), row.get("location_name"), row.get("qty"), row.get("uom"), row.get("grade_name"), row.get("granule_code_label"), row.get("label_id"), row.get("status")])
+        for ws in workbook.worksheets:
+            cls._autosize_columns(ws)
+        buffer = BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue(), f"fy-close-{financial_year}.xlsx"
+
+    @classmethod
+    def build_stock_card_workbook(cls, *, payload: Dict[str, Any]):
+        workbook = cls._base_workbook()
+        summary = workbook.active
+        summary.title = "Ledger Summary"
+        summary.append(["Opening Qty", payload.get("opening_qty", 0)])
+        summary.append(["Movement Qty", payload.get("movement_qty", 0)])
+        summary.append(["Closing Qty", payload.get("closing_qty", 0)])
+        rows_sheet = workbook.create_sheet("Stock Card")
+        headers = ["at", "source", "reference", "material_code", "material_name", "location_name", "qty", "uom"]
+        rows_sheet.append(headers)
+        cls._style_header_row(rows_sheet[1])
+        for row in payload.get("rows") or []:
+            rows_sheet.append([row.get("at"), row.get("source"), row.get("reference"), row.get("material_code"), row.get("material_name"), row.get("location_name"), row.get("qty"), row.get("uom")])
+        cls._autosize_columns(summary)
+        cls._autosize_columns(rows_sheet)
+        buffer = BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue(), "stock-card.xlsx"
+
+    @classmethod
+    def _base_workbook(cls):
+        if Workbook is None:
+            raise ValidationError("Excel export is unavailable because openpyxl is not installed.")
+        return Workbook()
+
+    @classmethod
+    def _style_header_row(cls, cells):
+        if not (Font and PatternFill and Alignment):
+            return
+        for cell in cells:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(fill_type="solid", fgColor="0F172A")
+            cell.alignment = Alignment(horizontal="center")
+
+    @classmethod
+    def _autosize_columns(cls, worksheet):
+        for column in worksheet.columns:
+            values = [str(cell.value or "") for cell in column[: min(len(column), 40)]]
+            width = max((len(value) for value in values), default=10) + 2
+            worksheet.column_dimensions[column[0].column_letter].width = min(max(width, 12), 36)
 
     @classmethod
     def _stock_card_row(cls, at, source: str, reference: str, material, location, qty: Decimal, uom: str, meta: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
@@ -158,6 +159,44 @@ class InventoryAuditServiceTests(TestCase):
         self.assertGreaterEqual(card["opening_qty"], 12)
         self.assertTrue(any(row["source"] == "OPENING_STOCK" for row in card["rows"]))
         self.assertFalse(any(row["source"] == "BULK_ADJUST" for row in card["rows"] if row["reference"].startswith("OPENING_STOCK")))
+
+    def test_load_batch_from_snapshot_replaces_lines_with_live_system_stock(self):
+        InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("18.5000"))
+        batch = self._batch("PHYSICAL_COUNT")
+        InventoryAuditService.load_batch_from_snapshot(batch=batch, stock_class="BULK")
+        line = batch.lines.get()
+        self.assertEqual(line.material, self.granule)
+        self.assertEqual(line.counted_qty, Decimal("18.5000"))
+        self.assertEqual(line.system_qty, Decimal("18.5000"))
+
+    def test_csv_import_file_adds_rows(self):
+        batch = self._batch()
+        uploaded = SimpleUploadedFile(
+            "opening.csv",
+            (
+                "stock_class,material,location,quantity,rate,granule_code\n"
+                f"BULK,{self.granule.id},{self.location.id},25,80,{self.granule_code.id}\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
+        )
+        InventoryAuditService.import_file(batch=batch, uploaded_file=uploaded)
+        line = batch.lines.get()
+        self.assertEqual(line.material, self.granule)
+        self.assertEqual(line.granule_code, self.granule_code)
+        self.assertEqual(line.opening_qty, Decimal("25"))
+
+    def test_batch_export_and_sample_template_generate_xlsx(self):
+        batch = self._batch()
+        InventoryAuditService.import_lines(
+            batch=batch,
+            rows=[{"stock_class": "BULK", "material": str(self.granule.id), "location": str(self.location.id), "quantity": "10"}],
+        )
+        content, file_name = InventoryAuditService.build_batch_workbook(batch=batch)
+        sample_content, sample_name = InventoryAuditService.build_sample_template(batch_type="OPENING_STOCK", stock_class="BULK")
+        self.assertTrue(file_name.endswith(".xlsx"))
+        self.assertTrue(sample_name.endswith(".xlsx"))
+        self.assertGreater(len(content), 100)
+        self.assertGreater(len(sample_content), 100)
 
 
 class InventoryAuditPermissionTests(TestCase):

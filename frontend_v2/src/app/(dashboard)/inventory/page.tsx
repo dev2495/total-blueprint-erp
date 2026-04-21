@@ -71,6 +71,13 @@ const quickActions = [
     badge: "FY Lock",
   },
   {
+    title: "FY Correction",
+    description: "Post auditable corrections after close without hiding the adjustment trail.",
+    href: "/inventory/fy-correction",
+    icon: ClipboardList,
+    badge: "Correction",
+  },
+  {
     title: "Stock Card",
     description: "Opening plus every movement plus closing balance by material and location.",
     href: "/inventory/stock-card",

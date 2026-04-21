@@ -234,6 +234,12 @@ export interface InventoryClosingPreview {
     blockers: Array<{ code: string; label: string; count: number }>
 }
 
+export interface InventoryStockSnapshotPayload {
+    plant?: { id: string; name: string; code: string } | null
+    rows: Array<Record<string, any>>
+    totals: Record<string, number>
+}
+
 export interface StockCardPayload {
     opening_qty: number
     movement_qty: number
@@ -477,8 +483,29 @@ export const inventoryService = {
         return data
     },
 
+    importAuditLinesFile: async (id: string, file: File, stockClass?: string) => {
+        const form = new FormData()
+        form.append("file", file)
+        if (stockClass) form.append("stock_class", stockClass)
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/lines/import-file/`, form, {
+            headers: { "Content-Type": "multipart/form-data" },
+        })
+        return data
+    },
+
     validateAuditBatch: async (id: string) => {
         const { data } = await api.post<InventoryAuditBatch & { validation?: any }>(`/api/inventory/audit/batches/${id}/lines/validate/`)
+        return data
+    },
+
+    loadAuditBatchFromSystemStock: async (id: string, payload: {
+        stock_class?: string
+        location?: string
+        material?: string
+        query?: string
+        replace_existing?: boolean
+    }) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/load-system-stock/`, payload)
         return data
     },
 
@@ -497,10 +524,25 @@ export const inventoryService = {
         return data
     },
 
+    getStockSnapshot: async (params?: { plant?: string; stock_class?: string; location?: string; material?: string; query?: string }) => {
+        const { data } = await api.get<InventoryStockSnapshotPayload>("/api/inventory/audit/stock-snapshot/", { params })
+        return data
+    },
+
     getStockCard: async (params?: { material?: string; plant?: string; location?: string; from?: string; to?: string }) => {
         const { data } = await api.get<StockCardPayload>("/api/inventory/audit/stock-card/", { params })
         return data
     },
+
+    getAuditBatchExportUrl: (id: string) => `/api/inventory/audit/batches/${id}/export/`,
+    getAuditSampleTemplateUrl: (params?: { type?: string; stock_class?: string }) => {
+        const query = new URLSearchParams()
+        if (params?.type) query.set("type", params.type)
+        if (params?.stock_class) query.set("stock_class", params.stock_class)
+        return `/api/inventory/audit/batches/sample-template/${query.toString() ? `?${query.toString()}` : ""}`
+    },
+    getClosingPreviewExportUrl: () => `/api/inventory/audit/closing-preview/`,
+    getStockCardExportUrl: () => `/api/inventory/audit/stock-card/`,
 
     reserveRolls: async (jobId: string, rollIds: string[]) => {
         return await api.post("/api/inventory/rolls/reserve/", {

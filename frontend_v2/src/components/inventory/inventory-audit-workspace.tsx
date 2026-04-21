@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, LockKeyhole, PackageCheck, Plus, RefreshCw, Scale, Search } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, LockKeyhole, PackageCheck, Plus, RefreshCw, Scale, Search } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,12 +13,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { api } from "@/lib/api"
 import { factoryService } from "@/services/factory"
 import { inventoryService, type InventoryAuditBatch } from "@/services/inventory"
 import { masterDataService } from "@/services/master-data"
 import { recipeService } from "@/services/recipes"
 
-type AuditMode = "OPENING_STOCK" | "PHYSICAL_COUNT"
+type AuditMode = "OPENING_STOCK" | "PHYSICAL_COUNT" | "FY_CORRECTION"
 type StockClass = "BULK" | "ROLL" | "PACKAGING"
 
 const classOptions: Array<{ value: StockClass; label: string; hint: string }> = [
@@ -55,6 +56,18 @@ function parseCsv(text: string) {
     .map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])))
 }
 
+async function downloadBlob(url: string, payload: any, fileName: string) {
+  const response = await api.post(url, payload, { responseType: "blob" })
+  const blobUrl = URL.createObjectURL(response.data)
+  const anchor = document.createElement("a")
+  anchor.href = blobUrl
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(blobUrl)
+}
+
 export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
   const queryClient = useQueryClient()
   const [stockClass, setStockClass] = useState<StockClass>("BULK")
@@ -63,12 +76,23 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
   const [selectedBatchId, setSelectedBatchId] = useState("")
   const [notes, setNotes] = useState("")
   const [line, setLine] = useState<Record<string, any>>({ status: "AVAILABLE", uom: "KG" })
-
-  const title = mode === "OPENING_STOCK" ? "Opening Stock" : "Physical Stock Count"
-  const subtitle =
-    mode === "OPENING_STOCK"
-      ? "Post go-live stock without creating fake GRNs. Rates are optional and missing valuation stays visible."
-      : "Compare system stock with floor count and post only the variance as an auditable adjustment."
+  const copy = {
+    OPENING_STOCK: {
+      title: "Opening Stock",
+      subtitle: "Post go-live stock without creating fake GRNs. Rates are optional and missing valuation stays visible.",
+      action: "Post Opening Stock",
+    },
+    PHYSICAL_COUNT: {
+      title: "Physical Stock Count",
+      subtitle: "Load live system stock, capture the floor count, and post only the shortage or excess variance.",
+      action: "Post Variance",
+    },
+    FY_CORRECTION: {
+      title: "FY Correction",
+      subtitle: "Enter an audited correction batch against a closed period without hiding the adjustment trail.",
+      action: "Post FY Correction",
+    },
+  }[mode]
 
   const { data: plants = [] } = useQuery({ queryKey: ["factory-plants"], queryFn: factoryService.getPlants })
   const { data: locations = [] } = useQuery({ queryKey: ["factory-locations"], queryFn: factoryService.getLocations })
@@ -148,6 +172,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
   const summary = currentBatch?.summary_json || {}
   const canEdit = !currentBatch || currentBatch.status === "DRAFT"
+  const supportsLiveLoad = mode !== "OPENING_STOCK"
 
   function addManualLine() {
     if (!currentBatch?.id) {
@@ -174,10 +199,53 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
   async function onCsvFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file || !currentBatch?.id) return
-    const text = await file.text()
-    const rows = parseCsv(text).map((row) => ({ ...row, stock_class: row.stock_class || stockClass }))
-    importLines.mutate({ batchId: currentBatch.id, lines: rows })
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      const text = await file.text()
+      const rows = parseCsv(text).map((row) => ({ ...row, stock_class: row.stock_class || stockClass }))
+      importLines.mutate({ batchId: currentBatch.id, lines: rows })
+    } else {
+      uploadFile.mutate({ batchId: currentBatch.id, file })
+    }
     event.target.value = ""
+  }
+
+  const uploadFile = useMutation({
+    mutationFn: ({ batchId, file }: { batchId: string; file: File }) => inventoryService.importAuditLinesFile(batchId, file, stockClass),
+    onSuccess: (batch) => {
+      setSelectedBatchId(batch.id)
+      toast.success("Audit file imported")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
+    },
+    onError: (error) => toast.error("File import failed", { description: errText(error) }),
+  })
+
+  const preloadLiveStock = useMutation({
+    mutationFn: ({ batchId }: { batchId: string }) =>
+      inventoryService.loadAuditBatchFromSystemStock(batchId, {
+        stock_class: stockClass,
+        location: line.location || undefined,
+        material: line.material || undefined,
+        replace_existing: true,
+      }),
+    onSuccess: (batch) => {
+      setSelectedBatchId(batch.id)
+      toast.success("Live stock loaded into draft")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
+    },
+    onError: (error) => toast.error("Live stock was not loaded", { description: errText(error) }),
+  })
+
+  function downloadSample() {
+    window.open(
+      inventoryService.getAuditSampleTemplateUrl({ type: mode, stock_class: stockClass }),
+      "_blank",
+      "noopener,noreferrer",
+    )
+  }
+
+  function downloadBatchRegister() {
+    if (!currentBatch?.id) return
+    window.open(inventoryService.getAuditBatchExportUrl(currentBatch.id), "_blank", "noopener,noreferrer")
   }
 
   return (
@@ -189,8 +257,8 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               Inventory Audit
             </Badge>
             <div>
-              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{title}</h1>
-              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-blue-100">{subtitle}</p>
+              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{copy.title}</h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-blue-100">{copy.subtitle}</p>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[520px]">
@@ -255,6 +323,16 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
                 <div className="font-black text-slate-950">{currentBatch.batch_no}</div>
                 <div className="mt-1 text-slate-600">{currentBatch.line_count || currentBatch.lines?.length || 0} lines · {currentBatch.status}</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={downloadSample}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Sample Template
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" disabled={!currentBatch} onClick={downloadBatchRegister}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Register
+                  </Button>
+                </div>
               </div>
             ) : null}
           </CardContent>
@@ -356,10 +434,20 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-600">
-                CSV import accepts headers like <span className="font-bold text-slate-900">stock_class,material,location,quantity,rate,label_id,width_mm,thickness_micron</span>.
+                Import CSV or Excel. Start from the sample template if operators are filling the register outside the ERP.
               </div>
               <div className="flex gap-2">
-                <Input className="max-w-[220px] bg-white" type="file" accept=".csv,text/csv" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
+                <Input className="max-w-[220px] bg-white" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
+                {supportsLiveLoad ? (
+                  <Button variant="outline" disabled={!canEdit || !currentBatch || preloadLiveStock.isPending} onClick={() => preloadLiveStock.mutate({ batchId: currentBatch!.id })}>
+                    <Scale className="mr-2 h-4 w-4" />
+                    Load Live Stock
+                  </Button>
+                ) : null}
+                <Button variant="outline" onClick={downloadSample}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Sample
+                </Button>
                 <Button variant="outline" disabled={!currentBatch} onClick={() => validateBatch.mutate(currentBatch!.id)}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Validate
@@ -428,7 +516,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 onClick={() => currentBatch && postBatch.mutate(currentBatch.id)}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {mode === "OPENING_STOCK" ? "Post Opening Stock" : "Post Variance"}
+                {copy.action}
               </Button>
             </div>
           </CardContent>
@@ -459,6 +547,19 @@ export function InventoryYearCloseWorkspace() {
     onError: (error) => toast.error("FY close blocked", { description: errText(error) }),
   })
 
+  async function downloadClosingPreview() {
+    try {
+      await downloadBlob(
+        inventoryService.getClosingPreviewExportUrl(),
+        { plant: selectedPlant, financial_year: financialYear },
+        `fy-close-${financialYear}.xlsx`,
+      )
+      toast.success("Closing preview exported")
+    } catch (error) {
+      toast.error("Closing preview export failed", { description: errText(error) })
+    }
+  }
+
   return (
     <div className="space-y-6 pb-10">
       <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-orange-950 via-slate-950 to-slate-900 p-6 text-white">
@@ -480,6 +581,10 @@ export function InventoryYearCloseWorkspace() {
               <SelectContent>{plants.map((plant: any) => <SelectItem key={plant.id} value={plant.id}>{plant.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <Button variant="outline" className="self-end rounded-2xl py-6" disabled={!selectedPlant} onClick={downloadClosingPreview}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Preview
+          </Button>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Period status</div>
             <div className="mt-2 text-xl font-black">{period?.status || "Not started"}</div>
@@ -534,12 +639,27 @@ export function InventoryStockCardWorkspace() {
     queryKey: ["inventory-stock-card", filters],
     queryFn: () => inventoryService.getStockCard(filters),
   })
+
+  async function downloadLedger() {
+    try {
+      await downloadBlob(inventoryService.getStockCardExportUrl(), filters, "stock-card.xlsx")
+      toast.success("Stock card exported")
+    } catch (error) {
+      toast.error("Stock card export failed", { description: errText(error) })
+    }
+  }
   return (
     <div className="space-y-6 pb-10">
       <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white via-blue-50 to-emerald-50 p-6">
         <Badge className="rounded-full bg-blue-50 text-blue-700">Audit Ledger</Badge>
         <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Material Stock Card</h1>
         <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">Opening rows, every movement, and closing balance in one ledger for audit export and financial review.</p>
+        <div className="mt-4">
+          <Button variant="outline" className="rounded-2xl" onClick={downloadLedger}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Ledger
+          </Button>
+        </div>
       </section>
       <Card className="rounded-[1.5rem]"><CardContent className="grid gap-3 pt-6 md:grid-cols-5">
         <Select value={filters.material || ""} onValueChange={(value) => setFilters((prev) => ({ ...prev, material: value }))}><SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger><SelectContent>{materials.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.code} · {m.name || m.code}</SelectItem>)}</SelectContent></Select>

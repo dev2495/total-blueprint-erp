@@ -67,6 +67,8 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PATCH", "/api/production/", "production.manage"),
     ("DELETE", "/api/production/", "production.manage"),
     ("GET", "/api/inventory/audit/", "inventory.audit.view"),
+    ("POST", "/api/inventory/audit/closing-preview", "inventory.audit.view"),
+    ("POST", "/api/inventory/audit/stock-card", "inventory.audit.view"),
     ("POST", "/api/inventory/audit/periods/start", "inventory.period.close"),
     ("POST", "/api/inventory/audit/periods/", "inventory.audit.manage"),
     ("POST", "/api/inventory/audit/batches/", "inventory.audit.manage"),
