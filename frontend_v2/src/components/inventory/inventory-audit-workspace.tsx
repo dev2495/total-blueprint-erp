@@ -1,0 +1,567 @@
+"use client"
+
+import { ChangeEvent, useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, LockKeyhole, PackageCheck, Plus, RefreshCw, Scale, Search } from "lucide-react"
+import { toast } from "sonner"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { factoryService } from "@/services/factory"
+import { inventoryService, type InventoryAuditBatch } from "@/services/inventory"
+import { masterDataService } from "@/services/master-data"
+import { recipeService } from "@/services/recipes"
+
+type AuditMode = "OPENING_STOCK" | "PHYSICAL_COUNT"
+type StockClass = "BULK" | "ROLL" | "PACKAGING"
+
+const classOptions: Array<{ value: StockClass; label: string; hint: string }> = [
+  { value: "BULK", label: "Bulk", hint: "Granules, inks, solvents, adhesives" },
+  { value: "ROLL", label: "Rolls", hint: "Physical roll labels with width and thickness" },
+  { value: "PACKAGING", label: "Packaging", hint: "Pouches, sheets, gonny, tape, boxes" },
+]
+
+function currentFy() {
+  const now = new Date()
+  const year = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1
+  return `${year}-${year + 1}`
+}
+
+function errText(error: any) {
+  const data = error?.response?.data
+  if (!data) return error?.message || "Request failed"
+  if (typeof data.detail === "string") return data.detail
+  if (Array.isArray(data.detail)) return data.detail.join(", ")
+  return JSON.stringify(data.detail || data)
+}
+
+function toNumber(value: any) {
+  const parsed = Number(value || 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseCsv(text: string) {
+  const [headerLine, ...lines] = text.trim().split(/\r?\n/)
+  const headers = headerLine.split(",").map((h) => h.trim())
+  return lines
+    .map((line) => line.split(",").map((cell) => cell.trim()))
+    .filter((cells) => cells.length > 1)
+    .map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])))
+}
+
+export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
+  const queryClient = useQueryClient()
+  const [stockClass, setStockClass] = useState<StockClass>("BULK")
+  const [financialYear, setFinancialYear] = useState(currentFy())
+  const [selectedPlant, setSelectedPlant] = useState("")
+  const [selectedBatchId, setSelectedBatchId] = useState("")
+  const [notes, setNotes] = useState("")
+  const [line, setLine] = useState<Record<string, any>>({ status: "AVAILABLE", uom: "KG" })
+
+  const title = mode === "OPENING_STOCK" ? "Opening Stock" : "Physical Stock Count"
+  const subtitle =
+    mode === "OPENING_STOCK"
+      ? "Post go-live stock without creating fake GRNs. Rates are optional and missing valuation stays visible."
+      : "Compare system stock with floor count and post only the variance as an auditable adjustment."
+
+  const { data: plants = [] } = useQuery({ queryKey: ["factory-plants"], queryFn: factoryService.getPlants })
+  const { data: locations = [] } = useQuery({ queryKey: ["factory-locations"], queryFn: factoryService.getLocations })
+  const { data: materials = [] } = useQuery({ queryKey: ["master-library"], queryFn: () => masterDataService.getLibrary() })
+  const { data: grades = [] } = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades() })
+  const { data: granuleCodes = [] } = useQuery({ queryKey: ["granule-codes"], queryFn: () => masterDataService.getGranuleCodes({ status: "ACTIVE" }) })
+  const { data: batches = [], isFetching } = useQuery({
+    queryKey: ["inventory-audit-batches", mode, financialYear, selectedPlant],
+    queryFn: () =>
+      inventoryService.getAuditBatches({
+        type: mode,
+        financial_year: financialYear,
+        plant: selectedPlant || undefined,
+      }),
+  })
+
+  const currentBatch = useMemo(() => {
+    return batches.find((batch) => batch.id === selectedBatchId) || batches.find((batch) => batch.status === "DRAFT") || batches[0]
+  }, [batches, selectedBatchId])
+
+  const filteredMaterials = useMemo(() => {
+    if (stockClass === "ROLL") return materials.filter((m: any) => m.category === "FILM_VARIANT")
+    if (stockClass === "PACKAGING") return materials.filter((m: any) => m.category === "PACKAGING")
+    return materials.filter((m: any) => ["GRANULE", "INK", "SOLVENT", "ADHESIVE"].includes(String(m.category || "").toUpperCase()))
+  }, [materials, stockClass])
+
+  const selectedMaterial = filteredMaterials.find((m: any) => String(m.id) === String(line.material))
+  const plantLocations = selectedPlant ? locations.filter((loc: any) => String(loc.plant) === String(selectedPlant)) : locations
+
+  const createBatch = useMutation({
+    mutationFn: () =>
+      inventoryService.createAuditBatch({
+        type: mode,
+        plant: selectedPlant,
+        financial_year: financialYear,
+        cutoff_at: new Date().toISOString(),
+        notes,
+      }),
+    onSuccess: (batch) => {
+      setSelectedBatchId(batch.id)
+      toast.success("Audit draft created")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
+    },
+    onError: (error) => toast.error("Batch was not created", { description: errText(error) }),
+  })
+
+  const importLines = useMutation({
+    mutationFn: ({ batchId, lines }: { batchId: string; lines: any[] }) => inventoryService.importAuditLines(batchId, { lines }),
+    onSuccess: (batch) => {
+      setSelectedBatchId(batch.id)
+      setLine({ status: "AVAILABLE", uom: "KG" })
+      toast.success("Audit line added")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
+    },
+    onError: (error) => toast.error("Line was not added", { description: errText(error) }),
+  })
+
+  const validateBatch = useMutation({
+    mutationFn: (batchId: string) => inventoryService.validateAuditBatch(batchId),
+    onSuccess: (batch) => {
+      toast[batch.validation?.ok ? "success" : "error"](batch.validation?.ok ? "Draft validated" : "Draft has row errors")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
+    },
+    onError: (error) => toast.error("Validation failed", { description: errText(error) }),
+  })
+
+  const postBatch = useMutation({
+    mutationFn: (batchId: string) => inventoryService.postAuditBatch(batchId),
+    onSuccess: () => {
+      toast.success(mode === "OPENING_STOCK" ? "Opening stock posted" : "Stock count variance posted")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-batches"] })
+      queryClient.invalidateQueries({ queryKey: ["bulk-stock"] })
+      queryClient.invalidateQueries({ queryKey: ["packaging-stock"] })
+    },
+    onError: (error) => toast.error("Posting failed", { description: errText(error) }),
+  })
+
+  const summary = currentBatch?.summary_json || {}
+  const canEdit = !currentBatch || currentBatch.status === "DRAFT"
+
+  function addManualLine() {
+    if (!currentBatch?.id) {
+      toast.error("Create or select a draft first")
+      return
+    }
+    const payload = {
+      ...line,
+      stock_class: stockClass,
+      material: line.material,
+      location: line.location,
+      uom: line.uom || (selectedMaterial as any)?.base_uom || "KG",
+      opening_qty: mode === "OPENING_STOCK" ? toNumber(line.quantity) : 0,
+      counted_qty: mode === "PHYSICAL_COUNT" ? toNumber(line.quantity) : undefined,
+      quantity: toNumber(line.quantity),
+      width_mm: line.width_mm ? toNumber(line.width_mm) : undefined,
+      thickness_micron: line.thickness_micron ? toNumber(line.thickness_micron) : undefined,
+      length_m: line.length_m ? toNumber(line.length_m) : undefined,
+      rate: line.rate === "" || line.rate == null ? undefined : toNumber(line.rate),
+    }
+    importLines.mutate({ batchId: currentBatch.id, lines: [payload] })
+  }
+
+  async function onCsvFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file || !currentBatch?.id) return
+    const text = await file.text()
+    const rows = parseCsv(text).map((row) => ({ ...row, stock_class: row.stock_class || stockClass }))
+    importLines.mutate({ batchId: currentBatch.id, lines: rows })
+    event.target.value = ""
+  }
+
+  return (
+    <div className="space-y-6 pb-10">
+      <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.16)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl space-y-3">
+            <Badge className="rounded-full border-white/20 bg-white/10 text-[11px] font-black uppercase tracking-[0.28em] text-white">
+              Inventory Audit
+            </Badge>
+            <div>
+              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{title}</h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-blue-100">{subtitle}</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[520px]">
+            {[
+              ["Bulk kg", summary.bulk_kg || 0],
+              ["Roll kg", summary.roll_kg || 0],
+              ["Packaging", summary.packaging_qty || 0],
+              ["Value", summary.value || 0],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/10 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-100">{label}</div>
+                <div className="mt-2 text-xl font-black">{Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
+        <Card className="rounded-[1.5rem] border-slate-200 bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <PackageCheck className="h-5 w-5 text-blue-600" />
+              Batch Control
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <Label>Financial year</Label>
+              <Input value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} placeholder="2026-2027" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Plant</Label>
+              <Select value={selectedPlant} onValueChange={setSelectedPlant}>
+                <SelectTrigger><SelectValue placeholder="Select plant" /></SelectTrigger>
+                <SelectContent>
+                  {plants.map((plant: any) => <SelectItem key={plant.id} value={plant.id}>{plant.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Draft / register</Label>
+              <Select value={currentBatch?.id || ""} onValueChange={setSelectedBatchId}>
+                <SelectTrigger><SelectValue placeholder={isFetching ? "Loading..." : "No batch selected"} /></SelectTrigger>
+                <SelectContent>
+                  {batches.map((batch: InventoryAuditBatch) => (
+                    <SelectItem key={batch.id} value={batch.id}>{batch.batch_no} · {batch.status}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notes or source file reference" />
+            <Button
+              className="w-full rounded-2xl bg-slate-950 py-6 font-bold text-white"
+              disabled={!selectedPlant || createBatch.isPending}
+              onClick={() => createBatch.mutate()}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create New Draft
+            </Button>
+            {currentBatch ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <div className="font-black text-slate-950">{currentBatch.batch_no}</div>
+                <div className="mt-1 text-slate-600">{currentBatch.line_count || currentBatch.lines?.length || 0} lines · {currentBatch.status}</div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-[1.5rem] border-slate-200 bg-white">
+          <CardHeader>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg font-black">
+                <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                Line Entry
+              </CardTitle>
+              <Tabs value={stockClass} onValueChange={(value) => setStockClass(value as StockClass)}>
+                <TabsList className="grid w-full grid-cols-3 rounded-2xl bg-slate-100 lg:w-[360px]">
+                  {classOptions.map((option) => <TabsTrigger key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-2 xl:col-span-2">
+                <Label>Material</Label>
+                <Select value={line.material || ""} onValueChange={(value) => setLine((prev) => ({ ...prev, material: value }))}>
+                  <SelectTrigger><SelectValue placeholder="Select material" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredMaterials.map((material: any) => (
+                      <SelectItem key={material.id} value={material.id}>{material.code} · {material.name || material.code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Location</Label>
+                <Select value={line.location || ""} onValueChange={(value) => setLine((prev) => ({ ...prev, location: value }))}>
+                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                  <SelectContent>
+                    {plantLocations.map((location: any) => <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>{mode === "OPENING_STOCK" ? "Opening qty" : "Counted qty"}</Label>
+                <Input type="number" value={line.quantity || ""} onChange={(event) => setLine((prev) => ({ ...prev, quantity: event.target.value }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>UOM</Label>
+                <Input value={line.uom || (selectedMaterial as any)?.base_uom || "KG"} onChange={(event) => setLine((prev) => ({ ...prev, uom: event.target.value }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Rate (optional)</Label>
+                <Input type="number" value={line.rate || ""} onChange={(event) => setLine((prev) => ({ ...prev, rate: event.target.value }))} />
+              </div>
+              {stockClass === "BULK" && selectedMaterial?.category === "GRANULE" ? (
+                <div className="grid gap-2">
+                  <Label>Granule code</Label>
+                  <Select value={line.granule_code || ""} onValueChange={(value) => setLine((prev) => ({ ...prev, granule_code: value }))}>
+                    <SelectTrigger><SelectValue placeholder="Optional code" /></SelectTrigger>
+                    <SelectContent>
+                      {granuleCodes.filter((code: any) => String(code.granule) === String(line.material)).map((code: any) => (
+                        <SelectItem key={code.id} value={code.id}>{code.code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              {stockClass === "ROLL" ? (
+                <>
+                  <div className="grid gap-2">
+                    <Label>Label ID</Label>
+                    <Input value={line.label_id || ""} onChange={(event) => setLine((prev) => ({ ...prev, label_id: event.target.value }))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Batch no</Label>
+                    <Input value={line.batch_no || ""} onChange={(event) => setLine((prev) => ({ ...prev, batch_no: event.target.value }))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Grade</Label>
+                    <Select value={line.grade || ""} onValueChange={(value) => setLine((prev) => ({ ...prev, grade: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Grade if required" /></SelectTrigger>
+                      <SelectContent>{grades.map((grade: any) => <SelectItem key={grade.id} value={grade.id}>{grade.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Width mm</Label>
+                    <Input type="number" value={line.width_mm || ""} onChange={(event) => setLine((prev) => ({ ...prev, width_mm: event.target.value }))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Thickness micron</Label>
+                    <Input type="number" value={line.thickness_micron || ""} onChange={(event) => setLine((prev) => ({ ...prev, thickness_micron: event.target.value }))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Stage index</Label>
+                    <Input type="number" value={line.stage_index || 0} onChange={(event) => setLine((prev) => ({ ...prev, stage_index: event.target.value }))} />
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-slate-600">
+                CSV import accepts headers like <span className="font-bold text-slate-900">stock_class,material,location,quantity,rate,label_id,width_mm,thickness_micron</span>.
+              </div>
+              <div className="flex gap-2">
+                <Input className="max-w-[220px] bg-white" type="file" accept=".csv,text/csv" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
+                <Button variant="outline" disabled={!currentBatch} onClick={() => validateBatch.mutate(currentBatch!.id)}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Validate
+                </Button>
+                <Button disabled={!canEdit || !currentBatch} onClick={addManualLine}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Line
+                </Button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-[940px] w-full text-left text-sm">
+                <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Class</th>
+                    <th className="px-4 py-3">Material</th>
+                    <th className="px-4 py-3">Location</th>
+                    <th className="px-4 py-3 text-right">System</th>
+                    <th className="px-4 py-3 text-right">{mode === "OPENING_STOCK" ? "Opening" : "Counted"}</th>
+                    <th className="px-4 py-3 text-right">Variance</th>
+                    <th className="px-4 py-3 text-right">Value</th>
+                    <th className="px-4 py-3">Validation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(currentBatch?.lines || []).map((row) => (
+                    <tr key={row.id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 font-bold">{row.stock_class}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-slate-950">{row.material_code}</div>
+                        <div className="text-xs text-slate-500">{row.material_name}</div>
+                      </td>
+                      <td className="px-4 py-3">{row.location_name}</td>
+                      <td className="px-4 py-3 text-right">{Number(row.system_qty || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">{Number(mode === "OPENING_STOCK" ? row.opening_qty : row.counted_qty || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">{Number(row.variance_qty || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">₹{Number(row.value || 0).toLocaleString("en-IN")}</td>
+                      <td className="px-4 py-3">
+                        {row.row_errors?.length ? (
+                          <Badge variant="destructive" className="max-w-[260px] whitespace-normal">{row.row_errors.join("; ")}</Badge>
+                        ) : (
+                          <Badge className="bg-emerald-50 text-emerald-700">OK</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!currentBatch?.lines?.length ? (
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">No audit lines yet.</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
+                <div>
+                  <div className="font-black text-amber-950">Posting creates real inventory balances</div>
+                  <div className="text-sm text-amber-800">Opening stock is tagged as opening adjustment. Physical count posts only shortage/excess variance.</div>
+                </div>
+              </div>
+              <Button
+                className="rounded-2xl bg-emerald-600 py-6 font-black text-white hover:bg-emerald-700"
+                disabled={!currentBatch || currentBatch.status !== "DRAFT" || postBatch.isPending}
+                onClick={() => currentBatch && postBatch.mutate(currentBatch.id)}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {mode === "OPENING_STOCK" ? "Post Opening Stock" : "Post Variance"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  )
+}
+
+export function InventoryYearCloseWorkspace() {
+  const queryClient = useQueryClient()
+  const [financialYear, setFinancialYear] = useState(currentFy())
+  const [selectedPlant, setSelectedPlant] = useState("")
+  const { data: plants = [] } = useQuery({ queryKey: ["factory-plants"], queryFn: factoryService.getPlants })
+  const { data: periods = [] } = useQuery({ queryKey: ["inventory-audit-periods"], queryFn: inventoryService.getAuditPeriods })
+  const period = periods.find((row) => row.financial_year === financialYear) || periods[0]
+  const { data: preview, isFetching } = useQuery({
+    queryKey: ["inventory-closing-preview", selectedPlant, financialYear],
+    queryFn: () => inventoryService.getClosingPreview({ plant: selectedPlant || undefined, financial_year: financialYear }),
+  })
+  const closePeriod = useMutation({
+    mutationFn: () => inventoryService.closePeriod(period!.id, { plant: selectedPlant }),
+    onSuccess: () => {
+      toast.success("Financial year closed and next opening batch generated")
+      queryClient.invalidateQueries({ queryKey: ["inventory-audit-periods"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory-closing-preview"] })
+    },
+    onError: (error) => toast.error("FY close blocked", { description: errText(error) }),
+  })
+
+  return (
+    <div className="space-y-6 pb-10">
+      <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-orange-950 via-slate-950 to-slate-900 p-6 text-white">
+        <Badge className="rounded-full border-white/20 bg-white/10 text-[11px] font-black uppercase tracking-[0.28em] text-white">Year-End Lock</Badge>
+        <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Financial Year Close</h1>
+        <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-orange-100">Review closing stock, clear blockers, lock the year, and generate next-year opening stock from the approved closing snapshot.</p>
+      </section>
+
+      <Card className="rounded-[1.5rem]">
+        <CardContent className="grid gap-3 pt-6 md:grid-cols-4">
+          <div className="grid gap-2">
+            <Label>Financial year</Label>
+            <Input value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Plant</Label>
+            <Select value={selectedPlant} onValueChange={setSelectedPlant}>
+              <SelectTrigger><SelectValue placeholder="Select plant" /></SelectTrigger>
+              <SelectContent>{plants.map((plant: any) => <SelectItem key={plant.id} value={plant.id}>{plant.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Period status</div>
+            <div className="mt-2 text-xl font-black">{period?.status || "Not started"}</div>
+          </div>
+          <Button className="self-end rounded-2xl bg-slate-950 py-6" disabled={!period || !selectedPlant || closePeriod.isPending || Boolean(preview?.blockers?.length)} onClick={() => closePeriod.mutate()}>
+            <LockKeyhole className="mr-2 h-4 w-4" />
+            Close FY
+          </Button>
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Bulk kg", preview?.totals?.bulk_kg || 0],
+          ["Roll kg", preview?.totals?.roll_kg || 0],
+          ["Packaging", preview?.totals?.packaging_qty || 0],
+          ["Rows", preview?.totals?.rows || 0],
+        ].map(([label, value]) => (
+          <Card key={label} className="rounded-[1.25rem]"><CardContent className="p-5"><div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div><div className="mt-2 text-2xl font-black">{Number(value).toLocaleString()}</div></CardContent></Card>
+        ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1fr_420px]">
+        <Card className="rounded-[1.5rem]">
+          <CardHeader><CardTitle>Closing preview {isFetching ? "loading..." : ""}</CardTitle></CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="min-w-[900px] w-full text-sm">
+              <thead className="text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500"><tr><th className="px-3 py-2">Class</th><th>Material</th><th>Location</th><th className="text-right">Qty</th><th>UOM</th></tr></thead>
+              <tbody>{(preview?.rows || []).slice(0, 150).map((row, index) => <tr key={`${row.stock_class}-${row.material}-${index}`} className="border-t"><td className="px-3 py-2 font-bold">{row.stock_class}</td><td>{row.material_code} · {row.material_name}</td><td>{row.location_name}</td><td className="text-right">{Number(row.qty || 0).toLocaleString()}</td><td>{row.uom}</td></tr>)}</tbody>
+            </table>
+          </CardContent>
+        </Card>
+        <Card className="rounded-[1.5rem]">
+          <CardHeader><CardTitle>Close blockers</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {preview?.blockers?.length ? preview.blockers.map((blocker) => (
+              <div key={blocker.code} className="rounded-2xl border border-rose-200 bg-rose-50 p-4"><div className="font-black text-rose-950">{blocker.label}</div><div className="text-sm text-rose-700">{blocker.count} open item(s)</div></div>
+            )) : <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 font-black text-emerald-800">No close blockers for selected plant.</div>}
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  )
+}
+
+export function InventoryStockCardWorkspace() {
+  const [filters, setFilters] = useState<Record<string, string>>({})
+  const { data: plants = [] } = useQuery({ queryKey: ["factory-plants"], queryFn: factoryService.getPlants })
+  const { data: locations = [] } = useQuery({ queryKey: ["factory-locations"], queryFn: factoryService.getLocations })
+  const { data: materials = [] } = useQuery({ queryKey: ["master-library"], queryFn: () => masterDataService.getLibrary() })
+  const { data: stockCard, isFetching } = useQuery({
+    queryKey: ["inventory-stock-card", filters],
+    queryFn: () => inventoryService.getStockCard(filters),
+  })
+  return (
+    <div className="space-y-6 pb-10">
+      <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white via-blue-50 to-emerald-50 p-6">
+        <Badge className="rounded-full bg-blue-50 text-blue-700">Audit Ledger</Badge>
+        <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Material Stock Card</h1>
+        <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">Opening rows, every movement, and closing balance in one ledger for audit export and financial review.</p>
+      </section>
+      <Card className="rounded-[1.5rem]"><CardContent className="grid gap-3 pt-6 md:grid-cols-5">
+        <Select value={filters.material || ""} onValueChange={(value) => setFilters((prev) => ({ ...prev, material: value }))}><SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger><SelectContent>{materials.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.code} · {m.name || m.code}</SelectItem>)}</SelectContent></Select>
+        <Select value={filters.plant || ""} onValueChange={(value) => setFilters((prev) => ({ ...prev, plant: value }))}><SelectTrigger><SelectValue placeholder="Plant" /></SelectTrigger><SelectContent>{plants.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+        <Select value={filters.location || ""} onValueChange={(value) => setFilters((prev) => ({ ...prev, location: value }))}><SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger><SelectContent>{locations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select>
+        <Input type="date" value={filters.from || ""} onChange={(e) => setFilters((prev) => ({ ...prev, from: e.target.value }))} />
+        <Input type="date" value={filters.to || ""} onChange={(e) => setFilters((prev) => ({ ...prev, to: e.target.value }))} />
+      </CardContent></Card>
+      <section className="grid gap-4 md:grid-cols-3">
+        {[["Opening", stockCard?.opening_qty || 0], ["Movements", stockCard?.movement_qty || 0], ["Closing", stockCard?.closing_qty || 0]].map(([label, value]) => (
+          <Card key={label} className="rounded-[1.25rem]"><CardContent className="p-5"><div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div><div className="mt-2 text-2xl font-black">{Number(value).toLocaleString()}</div></CardContent></Card>
+        ))}
+      </section>
+      <Card className="rounded-[1.5rem]">
+        <CardHeader><CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-blue-600" />Stock card rows {isFetching ? "loading..." : ""}</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="min-w-[980px] w-full text-sm">
+            <thead className="text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-500"><tr><th className="px-3 py-2">Date</th><th>Source</th><th>Reference</th><th>Material</th><th>Location</th><th className="text-right">Qty</th><th>UOM</th></tr></thead>
+            <tbody>{(stockCard?.rows || []).map((row, index) => <tr key={`${row.reference}-${index}`} className="border-t"><td className="px-3 py-2">{new Date(row.at).toLocaleString()}</td><td className="font-bold">{row.source}</td><td>{row.reference}</td><td>{row.material_code} · {row.material_name}</td><td>{row.location_name}</td><td className="text-right">{Number(row.qty || 0).toLocaleString()}</td><td>{row.uom}</td></tr>)}</tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

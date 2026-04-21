@@ -157,6 +157,102 @@ export interface PackagingTransactionRow {
     meta_json?: Record<string, any>
 }
 
+export interface InventoryFinancialPeriod {
+    id: string
+    financial_year: string
+    start_date: string
+    end_date: string
+    status: "OPEN" | "CLOSING_IN_PROGRESS" | "CLOSED"
+    closed_at?: string | null
+    closing_batch?: string | null
+    closing_batch_no?: string | null
+    opening_batch_next_year?: string | null
+    opening_batch_next_year_no?: string | null
+}
+
+export interface InventoryAuditLine {
+    id: string
+    stock_class: "BULK" | "ROLL" | "PACKAGING"
+    material: string
+    material_code?: string
+    material_name?: string
+    material_category?: string
+    granule_code?: string | null
+    granule_code_label?: string | null
+    grade?: string | null
+    grade_name?: string | null
+    plant: string
+    plant_name?: string
+    location: string
+    location_name?: string
+    uom: string
+    system_qty: number
+    counted_qty?: number | null
+    variance_qty: number
+    opening_qty: number
+    rate?: number | null
+    value: number
+    label_id?: string
+    batch_no?: string
+    width_mm?: number | null
+    thickness_micron?: number | null
+    length_m?: number | null
+    is_fg?: boolean
+    stage_index?: number
+    status?: string
+    packaging_kind?: string
+    base_uom?: string
+    row_errors?: string[]
+    posted_reference_json?: Record<string, any>
+}
+
+export interface InventoryAuditBatch {
+    id: string
+    batch_no: string
+    type: "OPENING_STOCK" | "PHYSICAL_COUNT" | "FY_CLOSE" | "FY_CORRECTION"
+    plant: string
+    plant_name?: string
+    plant_code?: string
+    financial_year: string
+    cutoff_at: string
+    status: "DRAFT" | "POSTED" | "LOCKED" | "VOID"
+    notes?: string
+    source_file_name?: string
+    summary_json?: Record<string, any>
+    line_count?: number
+    lines?: InventoryAuditLine[]
+    posted_by_name?: string | null
+    posted_at?: string | null
+}
+
+export interface InventoryClosingPreview {
+    financial_year: string
+    plant?: { id: string; name: string; code: string } | null
+    rows: Array<Record<string, any>>
+    totals: Record<string, number>
+    movements: Record<string, number>
+    blockers: Array<{ code: string; label: string; count: number }>
+}
+
+export interface StockCardPayload {
+    opening_qty: number
+    movement_qty: number
+    closing_qty: number
+    rows: Array<{
+        at: string
+        source: string
+        reference: string
+        material_id?: string | null
+        material_code?: string
+        material_name?: string
+        location_id?: string | null
+        location_name?: string
+        qty: number
+        uom: string
+        meta?: Record<string, any>
+    }>
+}
+
 export interface BulkStock {
     material_id: string
     material_name: string
@@ -338,6 +434,71 @@ export const inventoryService = {
 
     getLedger: async (params?: any) => {
         const { data } = await api.get("/api/inventory/ledger/", { params })
+        return data
+    },
+
+    getAuditPeriods: async () => {
+        const { data } = await api.get<MaybePaginated<InventoryFinancialPeriod>>("/api/inventory/audit/periods/")
+        return unwrapList<InventoryFinancialPeriod>(data)
+    },
+
+    startAuditPeriod: async (payload: { financial_year: string }) => {
+        const { data } = await api.post<InventoryFinancialPeriod>("/api/inventory/audit/periods/start/", payload)
+        return data
+    },
+
+    beginPeriodClose: async (periodId: string) => {
+        const { data } = await api.post<InventoryFinancialPeriod>(`/api/inventory/audit/periods/${periodId}/begin-close/`)
+        return data
+    },
+
+    closePeriod: async (periodId: string, payload: { plant: string }) => {
+        const { data } = await api.post<InventoryFinancialPeriod>(`/api/inventory/audit/periods/${periodId}/close/`, payload)
+        return data
+    },
+
+    getAuditBatches: async (params?: any) => {
+        const { data } = await api.get<MaybePaginated<InventoryAuditBatch>>("/api/inventory/audit/batches/", { params })
+        return unwrapList<InventoryAuditBatch>(data)
+    },
+
+    createAuditBatch: async (payload: Partial<InventoryAuditBatch>) => {
+        const { data } = await api.post<InventoryAuditBatch>("/api/inventory/audit/batches/", payload)
+        return data
+    },
+
+    getAuditBatch: async (id: string) => {
+        const { data } = await api.get<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/`)
+        return data
+    },
+
+    importAuditLines: async (id: string, payload: { lines: any[] }) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/lines/import/`, payload)
+        return data
+    },
+
+    validateAuditBatch: async (id: string) => {
+        const { data } = await api.post<InventoryAuditBatch & { validation?: any }>(`/api/inventory/audit/batches/${id}/lines/validate/`)
+        return data
+    },
+
+    postAuditBatch: async (id: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/post/`)
+        return data
+    },
+
+    voidAuditBatch: async (id: string, reason?: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/void/`, { reason })
+        return data
+    },
+
+    getClosingPreview: async (params?: { plant?: string; financial_year?: string }) => {
+        const { data } = await api.get<InventoryClosingPreview>("/api/inventory/audit/closing-preview/", { params })
+        return data
+    },
+
+    getStockCard: async (params?: { material?: string; plant?: string; location?: string; from?: string; to?: string }) => {
+        const { data } = await api.get<StockCardPayload>("/api/inventory/audit/stock-card/", { params })
         return data
     },
 

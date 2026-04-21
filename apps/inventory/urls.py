@@ -10,6 +10,7 @@ from .views import (
     InventoryHealthView, InventoryAlertViewSet, InventorySnapshotViewSet, RollGenealogyView, RollTraceLookupView
 )
 from .views_masters import VendorViewSet
+from .views_audit import InventoryAuditBatchViewSet, InventoryFinancialPeriodViewSet, ClosingPreviewView, StockCardView
 
 router = OptionalSlashRouter()
 router.register(r'locations', LocationViewSet, basename='location')
@@ -24,10 +25,14 @@ router.register(r'packaging/stock', PackagingStockViewSet, basename='packaging-s
 # Phase 58: Observability
 router.register(r'alerts', InventoryAlertViewSet, basename='inventory-alert')
 router.register(r'snapshots', InventorySnapshotViewSet, basename='inventory-snapshot')
+router.register(r'audit/periods', InventoryFinancialPeriodViewSet, basename='inventory-audit-period')
+router.register(r'audit/batches', InventoryAuditBatchViewSet, basename='inventory-audit-batch')
 
 urlpatterns = [
     path('plants/<uuid:pk>/locations/', PlantLocationListView.as_view(), name='plant-location-list'),
     path('ledger/', InventoryLedgerView.as_view(), name='inventory-ledger'),
+    path('audit/closing-preview/', ClosingPreviewView.as_view(), name='inventory-audit-closing-preview'),
+    path('audit/stock-card/', StockCardView.as_view(), name='inventory-audit-stock-card'),
     # Phase 54 additions
     path('roll-movements/', RollMovementListView.as_view(), name='roll-movement-list'),
     path('roll-consumptions/', RollConsumptionListView.as_view(), name='roll-consumption-list'),

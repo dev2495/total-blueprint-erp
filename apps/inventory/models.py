@@ -393,6 +393,164 @@ class PackagingTransaction(models.Model):
         ordering = ['-created_at']
 
 
+class InventoryAuditBatch(models.Model):
+    TYPE_CHOICES = [
+        ("OPENING_STOCK", "Opening Stock"),
+        ("PHYSICAL_COUNT", "Physical Count"),
+        ("FY_CLOSE", "Financial Year Close"),
+        ("FY_CORRECTION", "Financial Year Correction"),
+    ]
+    STATUS_CHOICES = [
+        ("DRAFT", "Draft"),
+        ("POSTED", "Posted"),
+        ("LOCKED", "Locked"),
+        ("VOID", "Void"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    batch_no = models.CharField(max_length=60, unique=True, blank=True)
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="inventory_audit_batches")
+    financial_year = models.CharField(max_length=20, db_index=True)
+    cutoff_at = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="DRAFT", db_index=True)
+    posted_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="posted_inventory_audit_batches")
+    posted_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="locked_inventory_audit_batches")
+    locked_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    source_file_name = models.CharField(max_length=255, blank=True)
+    summary_json = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="created_inventory_audit_batches")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "inventory_audit_batches"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["type", "status"]),
+            models.Index(fields=["financial_year", "plant"]),
+            models.Index(fields=["cutoff_at"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.batch_no:
+            prefix = {
+                "OPENING_STOCK": "OPEN",
+                "PHYSICAL_COUNT": "COUNT",
+                "FY_CLOSE": "FYC",
+                "FY_CORRECTION": "FYCOR",
+            }.get(self.type, "AUD")
+            self.batch_no = f"{prefix}-{self.financial_year}-{str(uuid.uuid4())[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.batch_no} [{self.status}]"
+
+
+class InventoryAuditLine(models.Model):
+    STOCK_CLASS_CHOICES = [
+        ("BULK", "Bulk"),
+        ("ROLL", "Roll"),
+        ("PACKAGING", "Packaging"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    batch = models.ForeignKey(InventoryAuditBatch, on_delete=models.CASCADE, related_name="lines")
+    stock_class = models.CharField(max_length=20, choices=STOCK_CLASS_CHOICES)
+    material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, related_name="inventory_audit_lines")
+    granule_code = models.ForeignKey("materials.GranuleQualityCode", on_delete=models.PROTECT, null=True, blank=True, related_name="inventory_audit_lines")
+    grade = models.ForeignKey("recipes.RecipeGrade", on_delete=models.PROTECT, null=True, blank=True, related_name="inventory_audit_lines")
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="inventory_audit_lines")
+    location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name="inventory_audit_lines")
+    uom = models.CharField(max_length=20, blank=True, default="KG")
+    system_qty = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    counted_qty = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    variance_qty = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    opening_qty = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    rate = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    value = models.DecimalField(max_digits=16, decimal_places=4, default=0)
+
+    label_id = models.CharField(max_length=80, blank=True)
+    batch_no = models.CharField(max_length=100, blank=True)
+    width_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    thickness_micron = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    length_m = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_fg = models.BooleanField(default=False)
+    stage_index = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, blank=True, default="AVAILABLE")
+
+    packaging_kind = models.CharField(max_length=20, blank=True)
+    base_uom = models.CharField(max_length=20, blank=True)
+    posted_reference_json = models.JSONField(default=dict, blank=True)
+    row_errors = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "inventory_audit_lines"
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["stock_class", "material"]),
+            models.Index(fields=["plant", "location"]),
+            models.Index(fields=["label_id"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        qty_basis = self.opening_qty
+        if self.batch_id and self.batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
+            counted = self.counted_qty if self.counted_qty is not None else 0
+            self.variance_qty = Decimal(str(counted or 0)) - Decimal(str(self.system_qty or 0))
+            qty_basis = abs(self.variance_qty)
+        elif self.batch_id and self.batch.type == "FY_CLOSE":
+            qty_basis = self.counted_qty if self.counted_qty is not None else self.system_qty
+        elif self.opening_qty:
+            self.variance_qty = self.opening_qty
+        rate = Decimal(str(self.rate or 0))
+        self.value = Decimal(str(qty_basis or 0)) * rate if rate > 0 else Decimal("0")
+        if not self.uom and self.material_id:
+            self.uom = getattr(self.material, "base_uom", "") or "KG"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.batch.batch_no} {self.stock_class} {self.material.code}"
+
+
+class InventoryFinancialPeriod(models.Model):
+    STATUS_CHOICES = [
+        ("OPEN", "Open"),
+        ("CLOSING_IN_PROGRESS", "Closing In Progress"),
+        ("CLOSED", "Closed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    financial_year = models.CharField(max_length=20, unique=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="OPEN", db_index=True)
+    closed_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="closed_inventory_periods")
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closing_batch = models.ForeignKey(InventoryAuditBatch, on_delete=models.SET_NULL, null=True, blank=True, related_name="closed_periods")
+    opening_batch_next_year = models.ForeignKey(InventoryAuditBatch, on_delete=models.SET_NULL, null=True, blank=True, related_name="generated_from_periods")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "inventory_financial_periods"
+        ordering = ["-start_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["status"],
+                condition=models.Q(status="OPEN"),
+                name="uniq_open_inventory_financial_period",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.financial_year} [{self.status}]"
+
+
 
 class DeliveryChallan(models.Model):
     STATUS_CHOICES = [

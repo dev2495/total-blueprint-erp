@@ -25,6 +25,8 @@ import {
   BadgePercent,
   Palette,
   Disc,
+  LockKeyhole,
+  Scale,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -121,7 +123,7 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Inventory",
     href: "/inventory",
     icon: Database,
-    roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+    roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
     permissionModules: ["inventory"],
     children: [
       {
@@ -148,6 +150,10 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       { title: "GRN Desk", href: "/inventory/grn", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
+      { title: "Opening Stock", href: "/inventory/opening-stock", icon: Scale, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.audit.view", "inventory.audit.manage"] },
+      { title: "Stock Count", href: "/inventory/stock-count", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.audit.view", "inventory.audit.manage"] },
+      { title: "Year Close", href: "/inventory/year-close", icon: LockKeyhole, roles: ["ADMIN", "OWNER", "PLANT_MANAGER"], permissions: ["inventory.audit.view", "inventory.period.close"] },
+      { title: "Stock Card", href: "/inventory/stock-card", icon: FileText, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"], permissions: ["inventory.audit.view"] },
       { title: "Job Work", href: "/inventory/job-work", icon: Layers, roles: ["ADMIN", "OWNER", "STORE", "PLANNER"], permissions: ["inventory.view", "inventory.manage"] },
       { title: "Inter-Plant", href: "/inventory/inter-plant", icon: Plane, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"], permissions: ["inventory.view", "inventory.manage"] },
     ],

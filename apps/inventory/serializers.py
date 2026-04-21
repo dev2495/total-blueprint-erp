@@ -4,6 +4,7 @@ from .models import (
     InventoryLocation, InventoryRoll, InventoryBulk, BulkTransaction,
     JobWorkOrder, DeliveryChallan, InterPlantChallanItem, RollLink, RollConsumption, RollMovement,
     PackagingStock, PackagingTransaction,
+    InventoryAuditBatch, InventoryAuditLine, InventoryFinancialPeriod,
 )
 from apps.materials.models import InventoryMaterial
 
@@ -157,6 +158,138 @@ class InventoryLocationSerializer(serializers.ModelSerializer):
 
     def validate_code(self, value):
         return value.upper()
+
+
+class InventoryFinancialPeriodSerializer(serializers.ModelSerializer):
+    closing_batch_no = serializers.CharField(source="closing_batch.batch_no", read_only=True, allow_null=True)
+    opening_batch_next_year_no = serializers.CharField(source="opening_batch_next_year.batch_no", read_only=True, allow_null=True)
+    closed_by_name = serializers.CharField(source="closed_by.username", read_only=True, allow_null=True)
+
+    class Meta:
+        model = InventoryFinancialPeriod
+        fields = [
+            "id",
+            "financial_year",
+            "start_date",
+            "end_date",
+            "status",
+            "closed_by",
+            "closed_by_name",
+            "closed_at",
+            "closing_batch",
+            "closing_batch_no",
+            "opening_batch_next_year",
+            "opening_batch_next_year_no",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class InventoryAuditLineSerializer(serializers.ModelSerializer):
+    material_code = serializers.CharField(source="material.code", read_only=True)
+    material_name = serializers.CharField(source="material.name", read_only=True)
+    material_category = serializers.CharField(source="material.category", read_only=True)
+    granule_code_label = serializers.CharField(source="granule_code.code", read_only=True, allow_null=True)
+    grade_name = serializers.CharField(source="grade.name", read_only=True, allow_null=True)
+    plant_name = serializers.CharField(source="plant.name", read_only=True)
+    location_name = serializers.CharField(source="location.name", read_only=True)
+
+    class Meta:
+        model = InventoryAuditLine
+        fields = [
+            "id",
+            "batch",
+            "stock_class",
+            "material",
+            "material_code",
+            "material_name",
+            "material_category",
+            "granule_code",
+            "granule_code_label",
+            "grade",
+            "grade_name",
+            "plant",
+            "plant_name",
+            "location",
+            "location_name",
+            "uom",
+            "system_qty",
+            "counted_qty",
+            "variance_qty",
+            "opening_qty",
+            "rate",
+            "value",
+            "label_id",
+            "batch_no",
+            "width_mm",
+            "thickness_micron",
+            "length_m",
+            "is_fg",
+            "stage_index",
+            "status",
+            "packaging_kind",
+            "base_uom",
+            "posted_reference_json",
+            "row_errors",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "batch", "value", "variance_qty", "posted_reference_json", "row_errors", "created_at", "updated_at"]
+
+
+class InventoryAuditBatchSerializer(serializers.ModelSerializer):
+    plant_name = serializers.CharField(source="plant.name", read_only=True)
+    plant_code = serializers.CharField(source="plant.code", read_only=True)
+    posted_by_name = serializers.CharField(source="posted_by.username", read_only=True, allow_null=True)
+    locked_by_name = serializers.CharField(source="locked_by.username", read_only=True, allow_null=True)
+    created_by_name = serializers.CharField(source="created_by.username", read_only=True, allow_null=True)
+    lines = InventoryAuditLineSerializer(many=True, read_only=True)
+    line_count = serializers.IntegerField(source="lines.count", read_only=True)
+
+    class Meta:
+        model = InventoryAuditBatch
+        fields = [
+            "id",
+            "batch_no",
+            "type",
+            "plant",
+            "plant_name",
+            "plant_code",
+            "financial_year",
+            "cutoff_at",
+            "status",
+            "posted_by",
+            "posted_by_name",
+            "posted_at",
+            "locked_by",
+            "locked_by_name",
+            "locked_at",
+            "notes",
+            "source_file_name",
+            "summary_json",
+            "created_by",
+            "created_by_name",
+            "created_at",
+            "updated_at",
+            "line_count",
+            "lines",
+        ]
+        read_only_fields = [
+            "id",
+            "batch_no",
+            "status",
+            "posted_by",
+            "posted_at",
+            "locked_by",
+            "locked_at",
+            "summary_json",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "line_count",
+            "lines",
+        ]
 
 class InventoryRollSerializer(serializers.ModelSerializer):
     material_name = serializers.CharField(source='material.name', read_only=True)

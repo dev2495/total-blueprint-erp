@@ -252,7 +252,7 @@ class PackagingService:
                 meta_json=meta_json,
             )
 
-        return cls.consume_packaging_stock(
+        tx = cls.consume_packaging_stock(
             material_id=material_id,
             qty=abs(qty_dec),
             location_id=location_id,
@@ -260,3 +260,6 @@ class PackagingService:
             input_uom=input_uom,
             meta_json=meta_json,
         )
+        tx.type = "ADJUST"
+        tx.save(update_fields=["type"])
+        return tx
