@@ -181,7 +181,7 @@ export default function MachineExecutionPage() {
     const [scrapPcs, setScrapPcs] = useState('0');
     const [scrapEntryMode, setScrapEntryMode] = useState<'KG' | 'PCS'>('KG');
     const scrapInputRef = useRef<HTMLInputElement | null>(null);
-    const [stopReason, setStopReason] = useState('Operator stop');
+    const [stopReason, setStopReason] = useState('Execution stop');
     const [remainderLocationId, setRemainderLocationId] = useState(DEFAULT_REMAINDER);
     const [forceReason, setForceReason] = useState('');
     const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '' }]);
@@ -1202,7 +1202,7 @@ export default function MachineExecutionPage() {
                 data-testid="machine-execution-page"
             >
                 <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
-                    <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4">
+                    <div className="flex w-full items-center justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-3">
                             <Button
                                 type="button"
@@ -1285,7 +1285,7 @@ export default function MachineExecutionPage() {
                 </div>
 
                 {activeTab === 'history' ? (
-                    <main className="mx-auto max-w-[1600px] px-5 py-6">
+                    <main className="w-full px-5 py-6">
                         <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                 <div>
@@ -1346,7 +1346,7 @@ export default function MachineExecutionPage() {
                 ) : (
                     <>
                         <div className="sticky top-[65px] z-30 border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
-                            <div className="mx-auto grid max-w-[1800px] gap-4 xl:grid-cols-[1.45fr_0.9fr_0.72fr]">
+                            <div className="grid w-full gap-4 xl:grid-cols-[1.45fr_0.9fr_0.72fr]">
                                 <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">
@@ -1417,7 +1417,7 @@ export default function MachineExecutionPage() {
                             </div>
                         </div>
 
-                        <main className="mx-auto grid max-w-[1800px] gap-5 px-5 py-5 xl:grid-cols-[340px_minmax(0,1fr)_390px]">
+                        <main className="grid w-full gap-5 px-5 py-5 xl:grid-cols-[340px_minmax(0,1fr)_390px]">
                             <aside className="space-y-4">
                                 <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_70px_-60px_rgba(15,23,42,0.65)]">
                                     <div className="flex items-center justify-between gap-3">
@@ -2112,7 +2112,7 @@ export default function MachineExecutionPage() {
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                        <span>Operator: <span className="text-slate-900">{machineDetail?.operator?.name || 'Unassigned'}</span></span>
+                                        <span>Execution owner: <span className="text-slate-900">{machineDetail?.operator?.name || 'Unassigned'}</span></span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-1 h-1 rounded-full bg-slate-300" />
@@ -2343,7 +2343,7 @@ export default function MachineExecutionPage() {
                         <Card className="border border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#eef6ff_100%)] shadow-[0_20px_56px_-44px_rgba(37,99,235,0.16)]">
                             <CardContent className={cn("grid gap-3 p-4", selectedJob ? "md:grid-cols-[1.2fr_repeat(4,1fr)]" : "lg:grid-cols-[1.15fr_1fr_1fr]")}>
                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-                                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Kiosk focus for operators</div>
+                                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Execution focus</div>
                                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
                                     <div className="mt-2 text-base font-black text-slate-900">{operatorNextStep}</div>
                                     <div className="mt-3 flex flex-wrap gap-2">
@@ -2366,7 +2366,7 @@ export default function MachineExecutionPage() {
                                 ) : (
                                     <>
                                         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Operator contract</div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Execution contract</div>
                                             <div className="mt-2 text-sm font-black text-slate-900">Pick one released job, then keep all output and material truth inside the active execution plane.</div>
                                             <div className="mt-2 text-xs leading-5 text-slate-500">This terminal stays step-aware. Output, scrap, WIP routing, and ink/material actuals only expand once a live job is selected.</div>
                                         </div>
@@ -2901,7 +2901,7 @@ export default function MachineExecutionPage() {
                                             </div>
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em]">Execution plane ready</p>
                                             <p className="max-w-xs text-center text-[11px] font-semibold leading-5 text-slate-500">
-                                                Pick one live job and this plane becomes the only place the operator needs for start, pause, output, scrap, and close.
+                                                Pick one live job and this plane becomes the only place the machine team needs for start, pause, output, scrap, and close.
                                             </p>
                                             <div className="mt-3 grid w-full max-w-xl gap-2 md:grid-cols-3">
                                                 {["1. Pick released job", "2. Start or resume", "3. Log output and actuals"].map((item) => (
@@ -3295,7 +3295,7 @@ export default function MachineExecutionPage() {
                                                                     ? (outputEntryMode === 'KG'
                                                                         ? 'KG-led auto-calculates PCS. You can still edit PCS before logging.'
                                                                         : 'PCS-led auto-calculates KG. Switch to KG-led to drive by weight and auto-derive PCS.')
-                                                                    : 'Roll→Bulk requires operator PCS entry for every log.'}
+                                                                    : 'Roll→Bulk requires PCS entry for every log.'}
                                                             </div>
                                                         )}
                                                     </div>
@@ -3365,7 +3365,7 @@ export default function MachineExecutionPage() {
                                                             </div>
                                                         ) : (
                                                             <div className="text-[10px] text-rose-600 font-semibold">
-                                                                Roll-process scrap only. Bulk scrap is not operator-entered.
+                                                                Roll-process scrap only. Bulk scrap is not entered here.
                                                             </div>
                                                         )}
                                                     </div>
@@ -3525,7 +3525,7 @@ export default function MachineExecutionPage() {
                                             <Activity className="h-8 w-8 text-slate-300" />
                                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Telemetry comes alive with the selected job</div>
                                             <div className="max-w-xs text-[11px] font-semibold leading-5 text-slate-500">
-                                                Step progress, material counters, queue health, and live logs appear here as soon as the operator picks a released job.
+                                                Step progress, material counters, queue health, and live logs appear here as soon as a released job is selected.
                                             </div>
                                         </div>
                                     ) : (

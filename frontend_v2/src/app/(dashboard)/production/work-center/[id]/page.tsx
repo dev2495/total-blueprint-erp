@@ -1111,7 +1111,7 @@ export default function WCMTerminal() {
             : !selectedMachineId
                 ? "Choose the machine for this step."
                 : canPushToOperator
-                    ? "Send the job to operator."
+                    ? "Release the job to machine execution."
                     : "Review the last blocker and clear it."
     const wcmStatusSummary = requirementsSatisfied
         ? "Material and roll checks are ready."
@@ -1236,7 +1236,7 @@ export default function WCMTerminal() {
         return (
             <div className="min-h-screen bg-[#f7f8fb] text-slate-900" data-testid="wcm-terminal-page">
                 <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
-                    <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-6">
+                    <div className="flex h-14 w-full items-center gap-4 px-6">
                         <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-sm font-semibold text-white shadow-sm">W</div>
                         <div className="leading-tight">
                             <div className="text-sm font-semibold tracking-tight">ERP · Production</div>
@@ -1268,7 +1268,7 @@ export default function WCMTerminal() {
                     </div>
                 </header>
 
-                <main className="mx-auto max-w-[1440px] px-6 py-6">
+                <main className="w-full px-6 py-6">
                     <section className="flex flex-wrap items-end gap-4">
                         <div className="min-w-[280px] flex-1">
                             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -1717,7 +1717,7 @@ export default function WCMTerminal() {
                         Work Center Terminal - {workCenter?.name || (activeAssignment as any)?.work_center_name || wcId}
                         {workCenter?.code ? <span className="ml-2 text-sm font-semibold text-slate-500">({workCenter.code})</span> : null}
                     </h1>
-                    <p className="text-slate-500">Pick a job, check the step, set the machine, then push it to the operator.</p>
+                    <p className="text-slate-500">Pick a job, check the step, assign the machine, then release it to machine execution.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <SemanticBadge kind="jobState" value="RUNNING" label={`Running ${stats.running}`} className="text-sm px-4 py-2" />
@@ -1744,7 +1744,7 @@ export default function WCMTerminal() {
                                     "1. Pick the job from the left queue.",
                                     "2. Check step requirements and material rule.",
                                     "3. Assign roll and machine if needed.",
-                                    "4. Push the job to operator when ready.",
+                                    "4. Release the job to machine execution when ready.",
                                 ].map((step) => (
                                     <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                                         {step}

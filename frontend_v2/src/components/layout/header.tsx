@@ -4,8 +4,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { useAuth } from "@/components/auth-provider"
+import { useDashboardChrome } from "@/components/layout/dashboard-chrome"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Menu } from "lucide-react"
+import { AlertTriangle, ChevronsLeft, ChevronsRight, Menu } from "lucide-react"
 import { CommandPalette } from "@/components/layout/command-palette"
 import { LocationCapsule } from "@/components/layout/location-capsule"
 import { RoleSwitcher } from "@/components/layout/role-switcher"
@@ -26,6 +27,7 @@ import { SidebarBrand, SidebarFooterProfile, SidebarNavContent } from "@/compone
 
 export function Header() {
     const { user, effectiveRole } = useAuth()
+    const { isPinned, togglePinned } = useDashboardChrome()
     const pathname = usePathname()
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
@@ -113,6 +115,16 @@ export function Header() {
 
             <div className="hidden w-full items-center gap-3 md:gap-4 lg:flex lg:gap-6">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={togglePinned}
+                        title={isPinned ? "Collapse navigation" : "Pin navigation"}
+                        className="h-11 w-11 shrink-0 rounded-2xl border-slate-200 bg-white/95 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300"
+                    >
+                        {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                    </Button>
                     <div className="hidden min-w-0 flex-1 items-center gap-3 sm:flex lg:max-w-[18rem] xl:max-w-[24rem]">
                         <CommandPalette />
                     </div>
