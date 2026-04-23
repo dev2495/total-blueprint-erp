@@ -54,6 +54,29 @@ class RequiredRollCountRulesTests(SimpleTestCase):
 
         self.assertEqual(count, 3)
 
+    def test_lane_group_lamination_requires_two_lanes_not_three_physical_rolls(self):
+        process = SimpleNamespace(input_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
+        sales_order_item = SimpleNamespace(
+            layer_snapshot=[
+                {"variant_id": "v1"},
+                {"variant_id": "v2"},
+                {"variant_id": "v3"},
+            ]
+        )
+        job = self._job(process, sales_order_item=sales_order_item, template=None)
+
+        count = ExecutionService._required_roll_count(
+            job,
+            process=process,
+            step_roll_spec={
+                "input_roll_count": 2,
+                "combine_mode": "LANE_GROUPS",
+                "input_lane_count": 2,
+            },
+        )
+
+        self.assertEqual(count, 2)
+
     def test_modify_existing_is_always_one(self):
         process = SimpleNamespace(input_form="ROLL", roll_behavior="MODIFY_EXISTING")
         job = self._job(process)

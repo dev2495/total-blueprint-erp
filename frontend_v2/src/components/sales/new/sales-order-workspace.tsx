@@ -544,6 +544,8 @@ export default function SalesOrderWorkspace() {
         mutationFn: async () => {
             if (!customerId) throw new Error("Customer is required.")
             if (!lines.length) throw new Error("Add at least one line.")
+            const layerErrors = lines.flatMap((line) => validateLayerStack(line, variants))
+            if (layerErrors.length) throw new Error(layerErrors.slice(0, 3).join(" "))
             const payload = {
                 customer: customerId,
                 customer_name: customerName,
@@ -573,6 +575,8 @@ export default function SalesOrderWorkspace() {
     const saveSkuMutation = useMutation({
         mutationFn: async () => {
             if (!activeLine || !activeLine.template_id) throw new Error("Select a line with a LIVE template first.")
+            const layerErrors = validateLayerStack(activeLine, variants)
+            if (layerErrors.length) throw new Error(layerErrors.slice(0, 3).join(" "))
             let skuId = saveSkuForm.skuId
             if (!skuId || skuId === "__NEW__") {
                 if (!saveSkuForm.newSkuCode.trim() || !saveSkuForm.newSkuName.trim()) {
@@ -1037,8 +1041,27 @@ export default function SalesOrderWorkspace() {
                                                         {activeLine.film_layers.map((layer, index) => {
                                                             const familyVariants = variants.filter((variant: any) => String(variant?.parent_family?.id || variant?.parent_family || "") === String(layer.family_id))
                                                             const selectedVariant = variants.find((variant: any) => String(variant.id) === String(layer.variant_id))
+                                                            const selectedFamily = families.find((family: any) => String(family.id) === String(layer.family_id))
                                                             return (
-                                                                <div key={layer.localId} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-6">
+                                                                <div key={layer.localId} className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 shadow-sm md:grid-cols-2 xl:grid-cols-6">
+                                                                    <div className="md:col-span-2 xl:col-span-6">
+                                                                        <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/80 bg-white/80 px-4 py-3">
+                                                                            <div>
+                                                                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">Layer {index + 1}</div>
+                                                                                <div className="mt-1 text-base font-black text-slate-950">
+                                                                                    {selectedVariant?.name || selectedFamily?.name || "Select film variant"}
+                                                                                </div>
+                                                                                <div className="mt-1 text-xs font-semibold text-slate-500">
+                                                                                    {selectedFamily?.name || "Family pending"} • {selectedVariant?.is_extrudable ? "grade required" : "grade optional"}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex flex-wrap gap-2">
+                                                                                <Badge variant="outline" className="bg-white text-[10px]">Grade {layer.grade_id ? "set" : "pending"}</Badge>
+                                                                                <Badge variant="outline" className="bg-white text-[10px]">{Number(layer.thickness_micron || 0)} μ</Badge>
+                                                                                <Badge variant="outline" className="bg-white text-[10px]">{Number(layer.roll_width_mm || 0)} mm</Badge>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
                                                                     <div className="space-y-2">
                                                                         <Label>Family</Label>
                                                                         <Select value={layer.family_id || "__NONE__"} onValueChange={(value) => updateLine(activeLine.localId, (line) => ({ ...line, film_layers: line.film_layers.map((row, rowIndex) => rowIndex === index ? { ...row, family_id: value === "__NONE__" ? "" : value, variant_id: "", grade_id: null } : row), savedPreview: null }))}>
@@ -1644,6 +1667,20 @@ function buildPreviewPayload(line: OrderLineDraft, families: any[], variants: an
         order_qty: payload.qty_value,
         uom: payload.qty_uom,
     }
+}
+
+function validateLayerStack(line: OrderLineDraft, variants: any[]) {
+    const errors: string[] = []
+    line.film_layers.forEach((layer, index) => {
+        const label = `Line ${line.line_name || line.localId} layer ${index + 1}:`
+        const variant = variants.find((row: any) => String(row.id) === String(layer.variant_id))
+        if (!layer.family_id) errors.push(`${label} film family is required.`)
+        if (!layer.variant_id) errors.push(`${label} film variant is required.`)
+        if (asNumber(layer.thickness_micron, 0) <= 0) errors.push(`${label} thickness is required.`)
+        if (asNumber(layer.roll_width_mm, 0) <= 0) errors.push(`${label} roll width is required.`)
+        if (variant?.is_extrudable && !layer.grade_id) errors.push(`${label} grade is required for extrudable film.`)
+    })
+    return errors
 }
 
 function buildOrderItemPayload(line: OrderLineDraft, families: any[], variants: any[], addonsMaster: any[]) {

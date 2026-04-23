@@ -383,26 +383,37 @@ def _collect_template_issue_policies(template_id):
         return {}
     rows = (
         TemplateProcessStep.objects.filter(template_id=template_id)
-        .prefetch_related("materials", "process")
+        .select_related("process", "roll_spec")
+        .prefetch_related("materials")
         .order_by("sequence_number")
     )
     mapping = {}
     for step in rows:
         for mat in step.materials.all():
             category_code = str(getattr(mat, "category_code", "") or "").strip().upper()
-            if not category_code or category_code in mapping:
+            if not category_code:
                 continue
-            mapping[category_code] = {
+            try:
+                roll_spec = getattr(step, "roll_spec", None)
+            except Exception:
+                roll_spec = None
+            split_pct = Decimal("0")
+            if category_code == "ADHESIVE" and roll_spec is not None:
+                split_pct = Decimal(str(getattr(roll_spec, "adhesive_split_pct", 0) or 0))
+            if category_code == "SOLVENT" and roll_spec is not None:
+                split_pct = Decimal(str(getattr(roll_spec, "solvent_split_pct", 0) or 0))
+            mapping.setdefault(category_code, []).append({
                 "step_id": str(step.id),
                 "step_sequence": int(step.sequence_number or 0),
                 "step_name": str(getattr(step.process, "name", "") or f"Step {step.sequence_number}"),
                 "consumption_basis": str(getattr(mat, "consumption_basis", "FIXED_KG") or "FIXED_KG").upper(),
                 "formula_driver": str(getattr(mat, "formula_driver", "NONE") or "NONE").upper(),
                 "formula_params": dict(getattr(mat, "formula_params", {}) or {}),
+                "split_pct": split_pct,
                 "issue_policy_mode": str(getattr(mat, "issue_policy_mode", "NONE") or "NONE").upper(),
                 "issue_policy_value": Decimal(str(getattr(mat, "issue_policy_value", 0) or 0)),
                 "capture_mode": str(getattr(mat, "capture_mode", "AUTO_FROM_OUTPUT") or "AUTO_FROM_OUTPUT").upper(),
-            }
+            })
     return mapping
 
 
@@ -485,40 +496,63 @@ def _build_material_plan_lines(template_snapshot, bom_result):
             if theoretical_qty <= 0:
                 continue
             category_code = _planning_category_for_row(section_name, row)
-            policy_key = f"{category_code}:{material_id or material_code or material_name}"
-            template_policy = template_policy_map.get(category_code, {})
-            override_policy = override_map.get(policy_key)
-            template_mode = str(template_policy.get("issue_policy_mode", "NONE") or "NONE").upper()
-            template_value = Decimal(str(template_policy.get("issue_policy_value", 0) or 0))
-            effective_mode = str((override_policy or {}).get("issue_policy_mode") or template_mode or "NONE").upper()
-            effective_value = Decimal(str((override_policy or {}).get("issue_policy_value", template_value) or template_value or 0))
-            planned_qty = _planned_issue_qty(theoretical_qty, effective_mode, effective_value)
-            lines.append(
-                {
-                    "policy_key": policy_key,
-                    "category_code": category_code,
-                    "material_id": material_id,
-                    "material_code": material_code,
-                    "material_name": material_name,
-                    "uom": "KG",
-                    "step_id": template_policy.get("step_id"),
-                    "step_sequence": template_policy.get("step_sequence"),
-                    "step_name": template_policy.get("step_name"),
-                    "consumption_basis": template_policy.get("consumption_basis"),
-                    "formula_driver": template_policy.get("formula_driver"),
-                    "formula_params": template_policy.get("formula_params") or {},
-                    "capture_mode": template_policy.get("capture_mode"),
-                    "theoretical_qty": float(theoretical_qty.quantize(Decimal("0.0001"))),
-                    "planned_issue_qty": float(planned_qty),
-                    "template_issue_policy_mode": template_mode,
-                    "template_issue_policy_value": float(template_value),
-                    "override_issue_policy_mode": (override_policy or {}).get("issue_policy_mode"),
-                    "override_issue_policy_value": float((override_policy or {}).get("issue_policy_value", 0)) if override_policy else None,
-                    "effective_issue_policy_mode": effective_mode,
-                    "effective_issue_policy_value": float(effective_value),
-                    "policy_source": "ORDER_OVERRIDE" if override_policy else "TEMPLATE_DEFAULT",
-                }
-            )
+            template_policies = template_policy_map.get(category_code) or [{}]
+            if not isinstance(template_policies, list):
+                template_policies = [template_policies]
+            split_capable = category_code in {"ADHESIVE", "SOLVENT"}
+            if not split_capable:
+                template_policies = template_policies[:1]
+            non_zero_pct = sum((Decimal(str(policy.get("split_pct") or 0)) for policy in template_policies), Decimal("0"))
+            default_pct = Decimal("100") / Decimal(str(max(1, len(template_policies))))
+            for policy_index, template_policy in enumerate(template_policies, start=1):
+                pct = Decimal(str(template_policy.get("split_pct") or 0))
+                if split_capable and len(template_policies) > 1:
+                    pct = pct if pct > 0 else (default_pct if non_zero_pct <= 0 else Decimal("0"))
+                    if pct <= 0:
+                        continue
+                    line_theoretical_qty = (theoretical_qty * pct / Decimal("100")).quantize(Decimal("0.0001"))
+                else:
+                    pct = Decimal("100")
+                    line_theoretical_qty = theoretical_qty
+                policy_key_base = f"{category_code}:{material_id or material_code or material_name}"
+                policy_key = (
+                    f"{policy_key_base}@{template_policy.get('step_id')}"
+                    if split_capable and len(template_policies) > 1 and template_policy.get("step_id")
+                    else policy_key_base
+                )
+                override_policy = override_map.get(policy_key) or override_map.get(policy_key_base)
+                template_mode = str(template_policy.get("issue_policy_mode", "NONE") or "NONE").upper()
+                template_value = Decimal(str(template_policy.get("issue_policy_value", 0) or 0))
+                effective_mode = str((override_policy or {}).get("issue_policy_mode") or template_mode or "NONE").upper()
+                effective_value = Decimal(str((override_policy or {}).get("issue_policy_value", template_value) or template_value or 0))
+                planned_qty = _planned_issue_qty(line_theoretical_qty, effective_mode, effective_value)
+                lines.append(
+                    {
+                        "policy_key": policy_key,
+                        "category_code": category_code,
+                        "material_id": material_id,
+                        "material_code": material_code,
+                        "material_name": material_name,
+                        "uom": "KG",
+                        "step_id": template_policy.get("step_id"),
+                        "step_sequence": template_policy.get("step_sequence"),
+                        "step_name": template_policy.get("step_name"),
+                        "consumption_basis": template_policy.get("consumption_basis"),
+                        "formula_driver": template_policy.get("formula_driver"),
+                        "formula_params": template_policy.get("formula_params") or {},
+                        "capture_mode": template_policy.get("capture_mode"),
+                        "split_pct": float(pct.quantize(Decimal("0.01"))),
+                        "theoretical_qty": float(line_theoretical_qty.quantize(Decimal("0.0001"))),
+                        "planned_issue_qty": float(planned_qty),
+                        "template_issue_policy_mode": template_mode,
+                        "template_issue_policy_value": float(template_value),
+                        "override_issue_policy_mode": (override_policy or {}).get("issue_policy_mode"),
+                        "override_issue_policy_value": float((override_policy or {}).get("issue_policy_value", 0)) if override_policy else None,
+                        "effective_issue_policy_mode": effective_mode,
+                        "effective_issue_policy_value": float(effective_value),
+                        "policy_source": "ORDER_OVERRIDE" if override_policy else "TEMPLATE_DEFAULT",
+                    }
+                )
     return lines
 
 

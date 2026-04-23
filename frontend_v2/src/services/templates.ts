@@ -68,6 +68,13 @@ export interface TemplateProcessStepRollHandlingRule {
     id: string;
     template_step: string;
     input_roll_count: number;
+    combine_mode?: "STRICT_ROLL_COUNT" | "LANE_GROUPS";
+    input_lane_count?: number;
+    lamination_pass_index?: number;
+    active_min_layer_count?: number;
+    adhesive_split_pct?: number;
+    solvent_split_pct?: number;
+    lane_schema?: Array<Record<string, any>>;
     thickness_rule: "INHERIT_INPUT" | "SUM_INPUTS" | "FIXED" | "TEMPLATE_DEFAULT";
     width_rule: "LOCK_INPUT" | "MIN_INPUT" | "FIXED" | "OPERATOR" | "OPERATOR_GRID" | "TEMPLATE_DEFAULT";
     operator_entry_mode?: "PROCESS_DEFAULT" | "ROLL_SINGLE" | "ROLL_MULTI" | "GRID_SPLIT" | "DISCRETE_ONLY";

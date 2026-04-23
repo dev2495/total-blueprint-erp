@@ -40,6 +40,7 @@ export interface ProductionJob {
     layers?: any[];
     printing?: any;
     addons?: any[];
+    product_spec?: any;
 }
 
 export interface StockProductionOrder {

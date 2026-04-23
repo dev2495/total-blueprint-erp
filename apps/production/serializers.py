@@ -16,6 +16,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     process_category = serializers.SerializerMethodField()
     roll_behavior = serializers.SerializerMethodField()
     layer_count = serializers.SerializerMethodField()
+    product_spec = serializers.SerializerMethodField()
 
     def get_process_code(self, obj):
         proc = obj.current_process or obj.process
@@ -145,6 +146,33 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             
         return 0
 
+    def get_product_spec(self, obj):
+        from apps.materials.product_spec import build_product_spec
+
+        sales_item = getattr(obj, "sales_order_item", None)
+        mts_order = getattr(obj, "mts_order", None)
+        geometry = self.get_geometry(obj)
+        layers = self.get_layers(obj)
+        printing = self.get_printing(obj)
+        addons = self.get_addons(obj)
+        packaging = getattr(sales_item, "packaging_snapshot", None) if sales_item else getattr(mts_order, "packaging_snapshot", None) if mts_order else {}
+        variant = getattr(sales_item, "sku_variant", None) if sales_item else None
+        return build_product_spec(
+            geometry=geometry,
+            layers=layers,
+            printing=printing,
+            addons=addons,
+            packaging=packaging or {},
+            customer_name=str(getattr(obj, "customer_name", "") or ""),
+            order_number=str(getattr(obj, "sales_order_no", "") or ""),
+            product_name=str(getattr(obj, "product_name", "") or ""),
+            template_name=str(getattr(getattr(obj, "template", None), "name", "") or ""),
+            variant_code=str(getattr(variant, "code", "") or ""),
+            variant_name=str(getattr(variant, "name", "") or ""),
+            qty_value=getattr(obj, "quantity", None),
+            qty_uom=str(getattr(obj, "uom", "") or ""),
+        )
+
     class Meta:
         model = ProductionJob
         fields = [
@@ -159,7 +187,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'execution_model_version',
             'geometry', 'layers', 'printing', 'addons',
             'bom_snapshot', 'unit_weight_g', 'total_weight_kg',
-            'execution_profile',
+            'execution_profile', 'product_spec',
         ]
         read_only_fields = ['job_number', 'status']
 

@@ -65,7 +65,7 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Operations",
     href: "/production",
     icon: Factory,
-    roles: ["ADMIN", "OWNER", "PLANNER", "WORK_CENTER_MANAGER", "OPERATOR", "PLANT_MANAGER"],
+    roles: ["ADMIN", "OWNER", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
     permissionModules: ["production"],
     children: [
       {
@@ -114,7 +114,7 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Machine Terminal",
         href: "/production/machine-selector",
         icon: Zap,
-        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "OPERATOR"],
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
         permissions: ["production.view", "production.manage"],
       },
     ],

@@ -14,6 +14,7 @@ from .serializers import (
 from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, PlannerSkuVariant
 from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
+from apps.factory.models import Machine
 
 
 def _safe_sales_order_number(so_id):
@@ -251,14 +252,14 @@ class OperatorViewSet(viewsets.ViewSet):
         wc_id = request.query_params.get('work_center_id')
         machine_id = request.query_params.get('machine_id')
         
-        # Determine user's role and assigned machines
+        # Determine user's role and assigned work-center machine scope
         user = request.user
         role_code = getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
         is_admin = role_code in ['ADMIN', 'SUPER_ADMIN', 'OWNER'] or user.is_owner or user.is_superuser
         
-        # Get user's assigned machine IDs
-        from apps.users.models import MachineAssignment
-        user_machine_ids = list(MachineAssignment.objects.filter(user=user).values_list('machine_id', flat=True))
+        from apps.users.models import WorkCenterAssignment
+        user_wc_ids = list(WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True))
+        user_machine_ids = list(Machine.objects.filter(work_center_id__in=user_wc_ids).values_list('id', flat=True))
         machine_scope_ids = user_machine_ids
         if is_admin and len(user_machine_ids) == 0:
             machine_scope_ids = None

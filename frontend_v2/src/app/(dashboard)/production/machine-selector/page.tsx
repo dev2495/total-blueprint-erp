@@ -3,7 +3,7 @@
 /**
  * Machine Selector Page
  * 
- * Shown when operator has multiple assigned machines.
+ * Shown when a Work Center Manager has multiple machines under assigned work centers.
  * Each card shows: machine name, status, current job, queue count.
  * Click navigates to /production/machine/[machine_id]
  */
@@ -26,7 +26,7 @@ export default function MachineSelectorPage() {
     const storageKey = 'tbp:last_machine_terminal';
 
     const { data: machinesData = [], isLoading, error } = useQuery({
-        queryKey: ['operator-machines'],
+        queryKey: ['wcm-machines'],
         queryFn: machineService.getOperatorMachines,
         refetchInterval: 10000,
     });
@@ -87,7 +87,7 @@ export default function MachineSelectorPage() {
                 <div className="text-center">
                     <Server className="w-16 h-16 mx-auto mb-4 text-slate-300" />
                     <h2 className="text-xl font-semibold text-slate-700 mb-2">No Machines Assigned</h2>
-                    <p className="text-slate-500">Contact your supervisor to be assigned to a machine</p>
+                    <p className="text-slate-500">Assign a work center to this manager to unlock its machines.</p>
                 </div>
             </div>
         );
@@ -115,7 +115,7 @@ export default function MachineSelectorPage() {
                         Select Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Machine</span>
                     </h1>
                     <p className="text-slate-500 text-lg max-w-2xl font-medium animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-                        You are currently assigned to {machines.length} active machines. Select a terminal below to begin monitoring and execution.
+                        You can operate {machines.length} active machines across your assigned work centers. Select a terminal to monitor and log execution.
                     </p>
                     <div className="mt-6 mx-auto w-full max-w-xl rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm">
                         <div className="relative">

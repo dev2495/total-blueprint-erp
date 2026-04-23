@@ -84,7 +84,7 @@ class PermissionService:
         Returns { work_centers: [ids], machines: [ids] }
         """
         wc_ids = list(WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True))
-        machine_ids = list(MachineAssignment.objects.filter(user=user).values_list('machine_id', flat=True))
+        machine_ids = list(Machine.objects.filter(work_center_id__in=wc_ids).values_list('id', flat=True))
         
         return {
             "work_centers": wc_ids,
@@ -107,11 +107,6 @@ class PermissionService:
                         f"Unknown work_center_id values: {', '.join(missing_wcs)}"
                     ]
                 }
-            )
-
-        if role_code == "OPERATOR" and len(normalized_wc_ids) != 1:
-            raise ValidationError(
-                {"work_center_ids": ["Operator must be assigned exactly one work center."]}
             )
 
         assigned_machine_ids = [
@@ -151,54 +146,11 @@ class PermissionService:
     @staticmethod
     def assign_machines(user: User, machine_ids: list):
         normalized_machine_ids = PermissionService._normalize_id_list(machine_ids)
-        role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
-        assigned_wc_ids = [
-            str(wc_id)
-            for wc_id in WorkCenterAssignment.objects.filter(user=user).values_list("work_center_id", flat=True)
-        ]
 
-        if normalized_machine_ids and role_code != "OPERATOR":
+        if normalized_machine_ids:
             raise ValidationError(
-                {"machine_ids": ["Machine assignment is allowed only for OPERATOR role users."]}
+                {"machine_ids": ["Direct machine assignment has been removed. Assign work centers to Work Center Manager users; machines are inherited from those work centers."]}
             )
-
-        if role_code == "OPERATOR":
-            if len(assigned_wc_ids) != 1:
-                raise ValidationError(
-                    {"work_center_ids": ["Operator must have exactly one assigned work center before assigning machines."]}
-                )
-
-            existing_machine_map = dict(
-                Machine.objects.filter(id__in=normalized_machine_ids).values_list("id", "work_center_id")
-            )
-            missing_machine_ids = sorted(
-                set(normalized_machine_ids) - {str(machine_id) for machine_id in existing_machine_map.keys()}
-            )
-            if missing_machine_ids:
-                raise ValidationError(
-                    {
-                        "machine_ids": [
-                            f"Unknown machine_id values: {', '.join(missing_machine_ids)}"
-                        ]
-                    }
-                )
-
-            operator_wc_id = str(assigned_wc_ids[0])
-            cross_wc_machines = []
-            for machine_id, wc_id in existing_machine_map.items():
-                if str(wc_id) != operator_wc_id:
-                    cross_wc_machines.append(str(machine_id))
-
-            if cross_wc_machines:
-                invalid_codes = list(
-                    Machine.objects.filter(id__in=cross_wc_machines).values_list("code", flat=True)
-                )
-                messages = ["Operator machines must belong to the single assigned work center."]
-                if invalid_codes:
-                    messages.append(f"Out-of-scope machine codes: {', '.join(sorted(invalid_codes))}")
-                raise ValidationError(
-                    {"machine_ids": messages}
-                )
 
         with transaction.atomic():
             MachineAssignment.objects.filter(user=user).delete()
@@ -255,7 +207,6 @@ class PermissionService:
             # Production terminals
             'PLANNER': '/production/planner',
             'WORK_CENTER_MANAGER': '/production/work-center',
-            'OPERATOR': '/production/machine-selector',
 
             # Ops dashboards
             'STORE': '/inventory/roll-explorer',

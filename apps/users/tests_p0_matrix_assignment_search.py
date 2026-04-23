@@ -6,7 +6,7 @@ from apps.factory.models import Machine, Plant, Process, WorkCenter
 from apps.production.models import ProductionJob
 from apps.routing.models import RoutingRule
 from apps.sales.models import SalesOrder
-from apps.users.models import MachineAssignment, Role, WorkCenterAssignment
+from apps.users.models import Role, WorkCenterAssignment
 
 
 class MatrixAssignmentSearchP0Tests(TestCase):
@@ -14,11 +14,6 @@ class MatrixAssignmentSearchP0Tests(TestCase):
         self.client = APIClient()
 
         self.admin_role = Role.objects.create(code="ADMIN", name="Admin", default_permissions=["*"])
-        self.operator_role = Role.objects.create(
-            code="OPERATOR",
-            name="Operator",
-            default_permissions=["users.self_manage", "dashboard.view", "production.view", "factory.view"],
-        )
         self.wcm_role = Role.objects.create(
             code="WORK_CENTER_MANAGER",
             name="WCM",
@@ -30,12 +25,6 @@ class MatrixAssignmentSearchP0Tests(TestCase):
             email="admin_matrix@example.com",
             password="adminpass123",
             role=self.admin_role,
-        )
-        self.operator = get_user_model().objects.create_user(
-            username="operator_scope",
-            email="operator_scope@example.com",
-            password="operator123",
-            role=self.operator_role,
         )
         self.wcm = get_user_model().objects.create_user(
             username="wcm_scope",
@@ -78,8 +67,8 @@ class MatrixAssignmentSearchP0Tests(TestCase):
     def _as_admin(self):
         self.client.force_authenticate(self.admin)
 
-    def _as_operator(self):
-        self.client.force_authenticate(self.operator)
+    def _as_wcm(self):
+        self.client.force_authenticate(self.wcm)
 
     def test_permission_catalog_endpoint_returns_assignable_and_root_flags(self):
         self._as_admin()
@@ -94,54 +83,40 @@ class MatrixAssignmentSearchP0Tests(TestCase):
 
     def test_matrix_import_rejects_unknown_permissions(self):
         self._as_admin()
-        previous_permissions = list(self.operator_role.default_permissions)
+        previous_permissions = list(self.wcm_role.default_permissions)
 
         response = self.client.post(
             "/api/users/roles/matrix/import/",
             {
                 "matrix": {
-                    "OPERATOR": ["production.view", "unknown.permission"],
+                    "WORK_CENTER_MANAGER": ["production.view", "unknown.permission"],
                 }
             },
             format="json",
         )
         self.assertEqual(response.status_code, 400, response.content)
         self.assertIn("invalid_permissions", response.data)
-        self.assertIn("OPERATOR", response.data["invalid_permissions"])
+        self.assertIn("WORK_CENTER_MANAGER", response.data["invalid_permissions"])
 
-        self.operator_role.refresh_from_db()
-        self.assertEqual(self.operator_role.default_permissions, previous_permissions)
+        self.wcm_role.refresh_from_db()
+        self.assertEqual(self.wcm_role.default_permissions, previous_permissions)
 
-    def test_operator_assignment_enforces_single_wc_and_same_wc_machines(self):
+    def test_direct_machine_assignment_is_removed_from_active_flow(self):
         self._as_admin()
 
         wc_ok = self.client.post(
-            f"/api/users/users/{self.operator.id}/assign-work-centers/",
-            {"work_center_ids": [str(self.wc_a.id)]},
+            f"/api/users/users/{self.wcm.id}/assign-work-centers/",
+            {"work_center_ids": [str(self.wc_a.id), str(self.wc_b.id)]},
             format="json",
         )
         self.assertEqual(wc_ok.status_code, 200, wc_ok.content)
 
-        machine_ok = self.client.post(
-            f"/api/users/users/{self.operator.id}/assign-machines/",
+        machine_denied = self.client.post(
+            f"/api/users/users/{self.wcm.id}/assign-machines/",
             {"machine_ids": [str(self.machine_a.id)]},
             format="json",
         )
-        self.assertEqual(machine_ok.status_code, 200, machine_ok.content)
-
-        machine_cross_wc = self.client.post(
-            f"/api/users/users/{self.operator.id}/assign-machines/",
-            {"machine_ids": [str(self.machine_a.id), str(self.machine_b.id)]},
-            format="json",
-        )
-        self.assertEqual(machine_cross_wc.status_code, 400, machine_cross_wc.content)
-
-        wc_invalid = self.client.post(
-            f"/api/users/users/{self.operator.id}/assign-work-centers/",
-            {"work_center_ids": [str(self.wc_a.id), str(self.wc_b.id)]},
-            format="json",
-        )
-        self.assertEqual(wc_invalid.status_code, 400, wc_invalid.content)
+        self.assertEqual(machine_denied.status_code, 400, machine_denied.content)
 
     def test_wcm_can_have_multiple_wc_but_machine_assignment_is_blocked(self):
         self._as_admin()
@@ -160,11 +135,10 @@ class MatrixAssignmentSearchP0Tests(TestCase):
         )
         self.assertEqual(machine_denied.status_code, 400, machine_denied.content)
 
-    def test_search_v2_scopes_machine_wc_job_for_operator(self):
-        WorkCenterAssignment.objects.create(user=self.operator, work_center=self.wc_a)
-        MachineAssignment.objects.create(user=self.operator, machine=self.machine_a)
+    def test_search_v2_scopes_machine_wc_job_for_wcm(self):
+        WorkCenterAssignment.objects.create(user=self.wcm, work_center=self.wc_a)
 
-        self._as_operator()
+        self._as_wcm()
         response = self.client.get("/api/dashboard/search-v2/?q=TEST")
         self.assertEqual(response.status_code, 200, response.content)
 
@@ -187,6 +161,6 @@ class MatrixAssignmentSearchP0Tests(TestCase):
         self.assertIn(str(self.job_a.id), job_ids)
         self.assertNotIn(str(self.job_b.id), job_ids)
 
-        # Operator role should not see sales entities without sales.view.
+        # WCM role should not see sales entities without sales.view.
         self.assertFalse(any(row.get("type") == "order" for row in results))
         self.assertFalse(any(row.get("type") == "customer" for row in results))

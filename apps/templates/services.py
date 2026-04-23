@@ -38,6 +38,13 @@ class TemplateGovernanceService:
 
         defaults = {
             "input_roll_count": 0,
+            "combine_mode": "STRICT_ROLL_COUNT",
+            "input_lane_count": 0,
+            "lamination_pass_index": 0,
+            "active_min_layer_count": 0,
+            "adhesive_split_pct": 0,
+            "solvent_split_pct": 0,
+            "lane_schema": [],
             "thickness_rule": "TEMPLATE_DEFAULT",
             "width_rule": "TEMPLATE_DEFAULT",
             "operator_entry_mode": "PROCESS_DEFAULT",
@@ -55,6 +62,9 @@ class TemplateGovernanceService:
             defaults["width_rule"] = "LOCK_INPUT"
         elif behavior == "MULTI_INPUT_COMBINE":
             defaults["input_roll_count"] = 2
+            defaults["combine_mode"] = "LANE_GROUPS"
+            defaults["input_lane_count"] = 2
+            defaults["active_min_layer_count"] = 2
             defaults["thickness_rule"] = "SUM_INPUTS"
             defaults["width_rule"] = "MIN_INPUT"
         elif behavior == "SPLIT":

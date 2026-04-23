@@ -433,6 +433,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             return {
                 "line_count": 0,
                 "claimed_stock_order_nos": [],
+                "spec_facets": {},
             }
         item = items[0]
         packaging = item.packaging_snapshot if isinstance(item.packaging_snapshot, dict) else {}
@@ -446,6 +447,23 @@ class SalesOrderSerializer(serializers.ModelSerializer):
                 for source_no in SalesOrderItemSerializer().get_claimed_stock_order_nos(row)
                 if str(source_no).strip()
             }
+        )
+        from apps.materials.product_spec import build_product_spec
+
+        product_spec = build_product_spec(
+            geometry=item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {},
+            layers=item.layer_snapshot or [],
+            printing=item.printing_snapshot if isinstance(item.printing_snapshot, dict) else {},
+            addons=item.addons_snapshot or [],
+            packaging=packaging,
+            customer_name=str(getattr(obj, "customer_name", "") or ""),
+            order_number=str(getattr(obj, "order_number", "") or ""),
+            product_name=str(getattr(item, "line_name", "") or ""),
+            template_name=str(getattr(item.template, "name", "") or ""),
+            variant_code=str(getattr(item.sku_variant, "code", "") or ""),
+            variant_name=str(getattr(item.sku_variant, "name", "") or ""),
+            qty_value=getattr(item, "qty_value", None),
+            qty_uom=str(getattr(item, "qty_uom", "") or ""),
         )
         return {
             "variant_code": str(getattr(item.sku_variant, "code", "") or ""),
@@ -463,6 +481,12 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "claimed_stock_order_nos": claimed_stock_order_nos,
             "line_count": len(items),
             "unit_weight_g": float(Decimal(str(getattr(item, "unit_weight_g", 0) or 0))),
+            "spec_facets": product_spec,
+            "layers": product_spec.get("layers", []),
+            "size": product_spec.get("size", {}),
+            "pod_labels": product_spec.get("pod_labels", []),
+            "addon_labels": product_spec.get("addon_labels", []),
+            "search_text": product_spec.get("search_text", ""),
         }
 
     def get_qty_summary(self, obj):

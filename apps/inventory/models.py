@@ -949,6 +949,17 @@ class InventoryReservation(models.Model):
         blank=True,
         related_name='inventory_reservation_overrides'
     )
+
+    # Lane-based roll assignment truth for lamination and other multi-input flows.
+    target_lane_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
+    target_lane_label = models.CharField(max_length=80, blank=True, default='')
+    target_layer_index = models.PositiveIntegerField(null=True, blank=True)
+    target_variant_id = models.CharField(max_length=64, blank=True, default='')
+    target_grade_id = models.CharField(max_length=64, blank=True, default='')
+    target_thickness_micron = models.DecimalField(max_digits=9, decimal_places=3, null=True, blank=True)
+    target_width_mm = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    target_source_step_index = models.IntegerField(null=True, blank=True)
+    target_lane_meta = models.JSONField(default=dict, blank=True)
     
     created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

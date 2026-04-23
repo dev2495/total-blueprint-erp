@@ -2,7 +2,7 @@
 Machine Terminal API - Machine-Centric Execution
 
 This module provides the API endpoints for the Machine Terminal UI.
-Jobs belong to machines. Operators control machines.
+Jobs belong to machines. Work Center Managers control machines in their assigned work centers.
 """
 import logging
 from collections import defaultdict
@@ -42,9 +42,12 @@ def _is_admin_machine_actor(user) -> bool:
 def _ensure_machine_scope(user, machine_id) -> bool:
     if _is_admin_machine_actor(user):
         return True
-    from apps.users.models import MachineAssignment
+    from apps.users.models import WorkCenterAssignment
 
-    return MachineAssignment.objects.filter(user=user, machine_id=machine_id).exists()
+    return WorkCenterAssignment.objects.filter(
+        user=user,
+        work_center_id__in=Machine.objects.filter(id=machine_id).values("work_center_id"),
+    ).exists()
 
 
 def _scope_denied(machine_id):
@@ -52,7 +55,7 @@ def _scope_denied(machine_id):
         {
             "error": {
                 "code": "MACHINE_SCOPE_DENIED",
-                "message": "You are not assigned to this machine.",
+                "message": "This machine is outside your assigned work centers.",
                 "machine_id": str(machine_id),
             }
         },
@@ -77,6 +80,8 @@ def machine_detail(request, machine_id):
         ).get(id=machine_id)
     except Machine.DoesNotExist:
         return Response({"error": "Machine not found"}, status=status.HTTP_404_NOT_FOUND)
+    if not _ensure_machine_scope(request.user, machine.id):
+        return _scope_denied(machine.id)
     
     # Get current executing job
     current_job = ProductionJob.objects.filter(
@@ -122,6 +127,8 @@ def machine_queue(request, machine_id):
         machine = Machine.objects.get(id=machine_id)
     except Machine.DoesNotExist:
         return Response({"error": "Machine not found"}, status=status.HTTP_404_NOT_FOUND)
+    if not _ensure_machine_scope(request.user, machine.id):
+        return _scope_denied(machine.id)
     
     jobs = ProductionJob.objects.filter(
         machine=machine,
@@ -600,7 +607,7 @@ def operator_machines(request):
     """
     Get list of machines for the current user.
     - Admin/Owner: Returns ALL machines
-    - Operator: Returns only assigned machines
+    - Work Center Manager: Returns active machines under assigned work centers
     Route: GET /api/production/operator/machines/
     """
     user = request.user
@@ -621,14 +628,14 @@ def operator_machines(request):
             status='ACTIVE'
         ).select_related('work_center', 'work_center__plant')
     else:
-        # Operators only see assigned machines
-        from apps.users.models import MachineAssignment
-        assigned_machine_ids = MachineAssignment.objects.filter(
+        from apps.users.models import WorkCenterAssignment
+        assigned_wc_ids = WorkCenterAssignment.objects.filter(
             user=user
-        ).values_list('machine_id', flat=True)
+        ).values_list('work_center_id', flat=True)
         
         machines = Machine.objects.filter(
-            id__in=assigned_machine_ids
+            work_center_id__in=assigned_wc_ids,
+            status='ACTIVE',
         ).select_related('work_center', 'work_center__plant')
     
     result = []

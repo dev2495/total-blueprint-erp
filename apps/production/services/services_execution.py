@@ -319,6 +319,67 @@ class ExecutionService:
         return {}
 
     @classmethod
+    def _job_layer_count(cls, job):
+        layer_snapshot = cls._job_layer_snapshot(job)
+        if not isinstance(layer_snapshot, list):
+            return 0
+        return len([layer for layer in layer_snapshot if isinstance(layer, dict)])
+
+    @classmethod
+    def _is_lane_group_combine_spec(cls, step_roll_spec):
+        return str((step_roll_spec or {}).get("combine_mode") or "").upper() == "LANE_GROUPS"
+
+    @classmethod
+    def _infer_lamination_pass_index(cls, job, process=None):
+        process = process or job.current_process or job.process
+        if not process or str(getattr(process, "roll_behavior", "") or "").upper() != "MULTI_INPUT_COMBINE":
+            return 0
+        current_idx = int(getattr(job, "current_step_index", 0) or 0)
+        pass_index = 0
+        try:
+            ordered_codes = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
+            if ordered_codes:
+                from apps.factory.models import Process
+
+                combine_codes = set(
+                    Process.objects.filter(
+                        code__in=ordered_codes,
+                        roll_behavior="MULTI_INPUT_COMBINE",
+                    ).values_list("code", flat=True)
+                )
+                for idx, code in enumerate(ordered_codes):
+                    if idx > current_idx:
+                        break
+                    if code in combine_codes:
+                        pass_index += 1
+                return max(pass_index, 1)
+        except Exception:
+            pass
+        return 1
+
+    @classmethod
+    def _lane_active_min_layer_count(cls, job, process=None, step_roll_spec=None):
+        step_roll_spec = step_roll_spec or cls._resolve_step_roll_spec(job, process)
+        explicit = int(step_roll_spec.get("active_min_layer_count") or 0)
+        if explicit > 0:
+            return explicit
+        pass_index = int(step_roll_spec.get("lamination_pass_index") or cls._infer_lamination_pass_index(job, process) or 1)
+        return 2 if pass_index <= 1 else pass_index + 1
+
+    @classmethod
+    def _is_step_active_for_layer_count(cls, job, process=None, step_roll_spec=None):
+        process = process or job.current_process or job.process
+        if not process or str(getattr(process, "roll_behavior", "") or "").upper() != "MULTI_INPUT_COMBINE":
+            return True
+        step_roll_spec = step_roll_spec or cls._resolve_step_roll_spec(job, process)
+        if not cls._is_lane_group_combine_spec(step_roll_spec):
+            return True
+        layer_count = cls._job_layer_count(job)
+        if layer_count <= 0:
+            return True
+        return layer_count >= cls._lane_active_min_layer_count(job, process, step_roll_spec)
+
+    @classmethod
     def _resolve_step_roll_spec(cls, job, process=None):
         process = process or job.current_process or job.process
         behavior = (getattr(process, "roll_behavior", None) or "NONE").upper()
@@ -343,6 +404,13 @@ class ExecutionService:
             "width_rule": "TEMPLATE_DEFAULT",
             "fixed_width_mm": None,
             "operator_entry_mode": "PROCESS_DEFAULT",
+            "combine_mode": "LANE_GROUPS" if behavior == "MULTI_INPUT_COMBINE" else "STRICT_ROLL_COUNT",
+            "input_lane_count": 2 if behavior == "MULTI_INPUT_COMBINE" else 0,
+            "lamination_pass_index": 0,
+            "active_min_layer_count": 2 if behavior == "MULTI_INPUT_COMBINE" else 0,
+            "adhesive_split_pct": None,
+            "solvent_split_pct": None,
+            "lane_schema": [],
             "source": "DEFAULT",
         }
 
@@ -388,6 +456,13 @@ class ExecutionService:
                         # identity/dimensions sourced from sales or stock-order snapshots.
                         spec.update({
                             "input_roll_count": int(rs.input_roll_count or 0),
+                            "combine_mode": getattr(rs, "combine_mode", None) or spec.get("combine_mode"),
+                            "input_lane_count": int(getattr(rs, "input_lane_count", 0) or 0),
+                            "lamination_pass_index": int(getattr(rs, "lamination_pass_index", 0) or 0),
+                            "active_min_layer_count": int(getattr(rs, "active_min_layer_count", 0) or 0),
+                            "adhesive_split_pct": getattr(rs, "adhesive_split_pct", None),
+                            "solvent_split_pct": getattr(rs, "solvent_split_pct", None),
+                            "lane_schema": getattr(rs, "lane_schema", None) or [],
                             "thickness_rule": rs.thickness_rule or spec.get("thickness_rule"),
                             "width_rule": rs.width_rule or spec.get("width_rule"),
                             "operator_entry_mode": rs.operator_entry_mode or spec.get("operator_entry_mode"),
@@ -395,6 +470,16 @@ class ExecutionService:
                         })
         except Exception:
             pass
+
+        if behavior == "MULTI_INPUT_COMBINE" and str(spec.get("combine_mode") or "").upper() == "LANE_GROUPS":
+            if int(spec.get("input_lane_count") or 0) <= 0:
+                spec["input_lane_count"] = 2
+            if int(spec.get("input_roll_count") or 0) <= 0:
+                spec["input_roll_count"] = int(spec.get("input_lane_count") or 2)
+            if int(spec.get("lamination_pass_index") or 0) <= 0:
+                spec["lamination_pass_index"] = cls._infer_lamination_pass_index(job, process)
+            if int(spec.get("active_min_layer_count") or 0) <= 0:
+                spec["active_min_layer_count"] = cls._lane_active_min_layer_count(job, process, spec)
 
         return spec
 
@@ -434,6 +519,9 @@ class ExecutionService:
             inferred_layer_count = 0
 
         if behavior == "MULTI_INPUT_COMBINE":
+            if cls._is_lane_group_combine_spec(spec):
+                lanes = int(spec.get("input_lane_count") or 0)
+                return max(2, lanes or configured or 2)
             if configured > 0 and inferred_layer_count > 0:
                 return max(configured, inferred_layer_count)
             if configured > 0:
@@ -2056,6 +2144,18 @@ class ExecutionService:
             if not isinstance(spec, dict):
                 continue
 
+            source_step_index = spec.get("source_step_index")
+            if source_step_index is not None:
+                try:
+                    source_idx = int(source_step_index)
+                    roll_stage_idx = int(getattr(roll, "stage_index", 0) or 0)
+                    roll_current_idx = int(getattr(roll, "current_step_index", 0) or 0)
+                    roll_completed_idx = int(getattr(roll, "completed_step_index", 0) or 0)
+                    if max(roll_stage_idx, roll_current_idx, roll_completed_idx) < source_idx:
+                        continue
+                except Exception:
+                    continue
+
             variant_match = True
             family_match = True
             if spec.get("variant_id"):
@@ -2165,13 +2265,15 @@ class ExecutionService:
 
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
         required_rolls = cls._required_roll_count(job, process, step_roll_spec)
+        lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         is_roll_to_bulk = (
             str(getattr(process, "input_form", "") or "").upper() == "ROLL"
             and str(getattr(process, "output_form", "") or "").upper() == "BULK"
         )
         current_step_index = int(getattr(job, "current_step_index", 0) or 0)
-        target_specs = cls._build_step_target_specs(job, process)
+        lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
+        target_specs = cls._build_step_target_slots(job, process) if lane_group_mode else cls._build_step_target_specs(job, process)
         active_rows = list(
             InventoryReservation.objects.filter(job=job, status='ACTIVE', roll__isnull=False)
             .select_related("roll")
@@ -2218,12 +2320,24 @@ class ExecutionService:
 
         created = 0
         for roll in assignment.allocated_rolls.all().order_by('-weight_kg'):
-            if (not is_roll_to_bulk) and required_rolls and (len(active_roll_ids) + created) >= required_rolls:
+            if (not is_roll_to_bulk) and (not lane_group_mode) and required_rolls and (len(active_roll_ids) + created) >= required_rolls:
                 break
             if roll.id in active_roll_ids:
                 continue
             if roll.status not in ['AVAILABLE', 'RESERVED']:
                 continue
+            selected_lane_slot = None
+            if lane_group_mode:
+                for slot in target_specs:
+                    if cls._is_roll_step_compatible(
+                        job,
+                        process,
+                        roll,
+                        [slot],
+                        allow_input_stock_fallback=True,
+                    ) and cls._roll_matches_target_specs(roll, [slot]):
+                        selected_lane_slot = slot
+                        break
             InventoryReservation.objects.create(
                 job=job,
                 roll=roll,
@@ -2231,6 +2345,15 @@ class ExecutionService:
                 quantity=roll.weight_kg,
                 status='ACTIVE',
                 created_by=assignment.assigned_by,
+                target_lane_key=(selected_lane_slot or {}).get("lane_key"),
+                target_lane_label=(selected_lane_slot or {}).get("lane_label") or "",
+                target_layer_index=(selected_lane_slot or {}).get("layer_index") or None,
+                target_variant_id=str((selected_lane_slot or {}).get("variant_id") or ""),
+                target_grade_id=str((selected_lane_slot or {}).get("grade_id") or ""),
+                target_thickness_micron=(selected_lane_slot or {}).get("thickness_micron"),
+                target_width_mm=(selected_lane_slot or {}).get("min_width_mm"),
+                target_source_step_index=(selected_lane_slot or {}).get("source_step_index"),
+                target_lane_meta=selected_lane_slot or {},
             )
             if roll.status != 'RESERVED':
                 roll.status = 'RESERVED'
@@ -2378,9 +2501,14 @@ class ExecutionService:
         def _slot_payload(raw_spec, slot_index):
             if not isinstance(raw_spec, dict):
                 return None
+            raw_layer_index = raw_spec.get("layer_index")
             payload = {
                 "slot_index": int(slot_index),
-                "layer_index": raw_spec.get("layer_index") or int(slot_index),
+                "layer_index": raw_layer_index if raw_layer_index not in (None, "") else int(slot_index),
+                "lane_key": raw_spec.get("lane_key"),
+                "lane_label": raw_spec.get("lane_label"),
+                "source_step_index": raw_spec.get("source_step_index"),
+                "source_role": raw_spec.get("source_role"),
                 "variant_id": str(raw_spec.get("variant_id")) if raw_spec.get("variant_id") else None,
                 "family_id": str(raw_spec.get("family_id")) if raw_spec.get("family_id") else None,
                 "grade_id": str(raw_spec.get("grade_id")) if raw_spec.get("grade_id") else None,
@@ -2392,6 +2520,70 @@ class ExecutionService:
             return {key: value for key, value in payload.items() if value not in (None, "")}
 
         layer_snapshot = cls._job_layer_snapshot(job)
+        if cls._is_lane_group_combine_spec(step_roll_spec):
+            pass_index = int(step_roll_spec.get("lamination_pass_index") or cls._infer_lamination_pass_index(job, process) or 1)
+            layers = [layer for layer in (layer_snapshot if isinstance(layer_snapshot, list) else []) if isinstance(layer, dict)]
+
+            def _layer_slot(layer, layer_index, slot_index, lane_key, lane_label):
+                layer_req_width = layer.get("roll_width_mm")
+                if layer_req_width in (None, ""):
+                    layer_req_width = layer.get("width_mm")
+                try:
+                    layer_req_width = float(layer_req_width) if layer_req_width is not None else None
+                    if layer_req_width is not None and layer_req_width <= 0:
+                        layer_req_width = None
+                except Exception:
+                    layer_req_width = None
+                effective_req_width = layer_req_width if layer_req_width is not None else req_width_mm
+                return _slot_payload(
+                    {
+                        "slot_index": slot_index,
+                        "lane_key": lane_key,
+                        "lane_label": lane_label,
+                        "layer_index": layer_index,
+                        "variant_id": layer.get("variant_id") or layer.get("material_id"),
+                        "family_id": layer.get("family_id"),
+                        "grade_id": layer.get("grade_id"),
+                        "thickness_micron": (
+                            layer.get("thickness_micron")
+                            if layer.get("thickness_micron") is not None
+                            else layer.get("thickness")
+                        ),
+                        "min_width_mm": effective_req_width,
+                        "max_auto_width_mm": float(effective_req_width) * 1.05 if effective_req_width is not None else None,
+                        "variant_name": layer.get("variant_name") or layer.get("name"),
+                        "source_role": "LAYER",
+                    },
+                    slot_index,
+                )
+
+            if pass_index <= 1:
+                lane_defs = [
+                    (layers[0] if len(layers) >= 1 else {}, 1, 1, "LANE_A", "Lane A · Layer 1"),
+                    (layers[1] if len(layers) >= 2 else {}, 2, 2, "LANE_B", "Lane B · Layer 2"),
+                ]
+                slots = [slot for args in lane_defs if (slot := _layer_slot(*args))]
+            else:
+                prior_source_step = max(0, int(getattr(job, "current_step_index", 0) or 0) - 1)
+                prior_slot = _slot_payload(
+                    {
+                        "slot_index": 1,
+                        "lane_key": "LANE_A",
+                        "lane_label": f"Lane A · Pass {pass_index - 1} laminate",
+                        "layer_index": 0,
+                        "source_step_index": prior_source_step,
+                        "source_role": "LAMINATED_WIP",
+                    },
+                    1,
+                )
+                layer_index = pass_index + 1
+                layer = layers[layer_index - 1] if len(layers) >= layer_index else {}
+                next_layer_slot = _layer_slot(layer, layer_index, 2, "LANE_B", f"Lane B · Layer {layer_index}")
+                slots = [slot for slot in (prior_slot, next_layer_slot) if slot]
+
+            if slots:
+                return slots[: max(2, int(step_roll_spec.get("input_lane_count") or 2))]
+
         if isinstance(layer_snapshot, list):
             for idx, layer in enumerate(layer_snapshot):
                 if not isinstance(layer, dict):
@@ -2536,9 +2728,77 @@ class ExecutionService:
         }
 
     @classmethod
+    def _match_rolls_to_lane_slots(cls, job, process, rolls, target_slots, *, enforce_auto_width_window=False, allow_input_stock_fallback=False):
+        slots = [slot for slot in (target_slots or []) if isinstance(slot, dict)]
+        roll_rows = [roll for roll in (rolls or []) if roll is not None]
+        lane_rows = {}
+        matched_roll_ids = []
+        unmatched_roll_ids = []
+
+        for slot in slots:
+            lane_key = str(slot.get("lane_key") or f"LANE_{slot.get('slot_index') or len(lane_rows) + 1}")
+            lane_rows[lane_key] = {
+                **dict(slot),
+                "lane_key": lane_key,
+                "rolls": [],
+                "weight_kg": 0.0,
+            }
+
+        for roll in roll_rows:
+            matched_lane_key = None
+            for slot in slots:
+                if cls._is_roll_step_compatible(
+                    job,
+                    process,
+                    roll,
+                    [slot],
+                    allow_input_stock_fallback=allow_input_stock_fallback,
+                ) and cls._roll_matches_target_specs(
+                    roll,
+                    [slot],
+                    enforce_auto_width_window=enforce_auto_width_window,
+                ):
+                    matched_lane_key = str(slot.get("lane_key") or f"LANE_{slot.get('slot_index') or 1}")
+                    break
+            if not matched_lane_key:
+                if getattr(roll, "id", None):
+                    unmatched_roll_ids.append(str(roll.id))
+                continue
+            row = lane_rows.setdefault(matched_lane_key, {"lane_key": matched_lane_key, "rolls": [], "weight_kg": 0.0})
+            row["rolls"].append({
+                "roll_id": str(getattr(roll, "id", "")),
+                "roll_label": getattr(roll, "label_id", None),
+                "material_name": getattr(getattr(roll, "material", None), "name", None),
+                "weight_kg": float(getattr(roll, "weight_kg", 0) or 0),
+            })
+            row["weight_kg"] = float(row.get("weight_kg") or 0) + float(getattr(roll, "weight_kg", 0) or 0)
+            if getattr(roll, "id", None):
+                matched_roll_ids.append(str(roll.id))
+
+        matched_target_slots = []
+        unmatched_target_slots = []
+        for slot in slots:
+            lane_key = str(slot.get("lane_key") or f"LANE_{slot.get('slot_index') or 1}")
+            row = lane_rows.get(lane_key) or dict(slot)
+            if row.get("rolls"):
+                matched_target_slots.append(row)
+            else:
+                unmatched_target_slots.append(dict(slot))
+
+        return {
+            "matched_count": len(matched_target_slots),
+            "matched_roll_ids": matched_roll_ids,
+            "matched_target_slots": matched_target_slots,
+            "unmatched_target_slots": unmatched_target_slots,
+            "unmatched_roll_ids": unmatched_roll_ids,
+            "lane_groups": list(lane_rows.values()),
+        }
+
+    @classmethod
     def _summarize_roll_assignment_validation(cls, job, process=None, rolls=None, *, allow_input_stock_fallback=False):
         process = process or job.current_process or job.process
-        required_rolls = cls._required_roll_count(job, process, cls._resolve_step_roll_spec(job, process))
+        step_roll_spec = cls._resolve_step_roll_spec(job, process)
+        required_rolls = cls._required_roll_count(job, process, step_roll_spec)
         behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         assigned_rolls = [roll for roll in (rolls or []) if roll is not None]
         if behavior != "MULTI_INPUT_COMBINE":
@@ -2560,23 +2820,36 @@ class ExecutionService:
             }
 
         target_slots = cls._build_step_target_slots(job, process)
-        match = cls._match_rolls_to_target_slots(
-            job,
-            process,
-            assigned_rolls,
-            target_slots,
-            enforce_auto_width_window=False,
-            allow_input_stock_fallback=allow_input_stock_fallback,
-        )
+        if cls._is_lane_group_combine_spec(step_roll_spec):
+            match = cls._match_rolls_to_lane_slots(
+                job,
+                process,
+                assigned_rolls,
+                target_slots,
+                enforce_auto_width_window=False,
+                allow_input_stock_fallback=allow_input_stock_fallback,
+            )
+        else:
+            match = cls._match_rolls_to_target_slots(
+                job,
+                process,
+                assigned_rolls,
+                target_slots,
+                enforce_auto_width_window=False,
+                allow_input_stock_fallback=allow_input_stock_fallback,
+            )
+        lane_mode = cls._is_lane_group_combine_spec(step_roll_spec)
         return {
             "required_rolls": int(required_rolls or 0),
+            "input_lane_count": int(step_roll_spec.get("input_lane_count") or required_rolls or 0),
             "required_target_specs": target_slots,
             "matched_target_slots": match.get("matched_target_slots") or [],
             "unmatched_target_slots": match.get("unmatched_target_slots") or [],
             "matched_roll_ids": match.get("matched_roll_ids") or [],
             "unmatched_roll_ids": match.get("unmatched_roll_ids") or [],
+            "lane_groups": match.get("lane_groups") or [],
             "assigned_roll_count": len(assigned_rolls),
-            "slot_satisfied": len(match.get("matched_roll_ids") or []) == len(assigned_rolls),
+            "slot_satisfied": len(match.get("unmatched_roll_ids") or []) == 0 if lane_mode else len(match.get("matched_roll_ids") or []) == len(assigned_rolls),
             "is_complete": len(match.get("matched_target_slots") or []) >= int(required_rolls or 0) if required_rolls else True,
         }
 
@@ -2594,6 +2867,11 @@ class ExecutionService:
         roll_meta = dict(getattr(roll, "meta_json", None) or {})
         roll_role = str(roll_meta.get("roll_role") or "").upper()
         is_remainder = bool(roll_meta.get("is_remainder")) or roll_role == "REMAINDER"
+        try:
+            source_stage_index = int(roll_meta.get("source_stage_index") or getattr(roll, "stage_index", 0) or 0)
+        except Exception:
+            source_stage_index = 0
+        is_processed_remainder = is_remainder and source_stage_index > 0 and roll_role != "RAW_REMAINDER"
 
         # Roll->bulk must accept reusable semi-fg rolls carried forward as
         # remainders across orders. Layer-level target specs do not apply here.
@@ -2612,7 +2890,7 @@ class ExecutionService:
 
         # Downstream steps consume forward lineage outputs.
         # Keep stage-0 remainder/raw rolls allocatable, but only for step 0.
-        if current_step_index > 0 and is_remainder and not allow_input_stock_fallback:
+        if current_step_index > 0 and is_remainder and not is_processed_remainder and not allow_input_stock_fallback:
             return False
         if current_step_index > 0 and roll_role in {"RAW_MATERIAL", "RAW"} and not allow_input_stock_fallback:
             return False
@@ -2711,7 +2989,8 @@ class ExecutionService:
         current_step_index = int(getattr(job, "current_step_index", 0) or 0)
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         purchasable_variant_ids = cls._step0_purchasable_variant_ids(job)
-        target_specs = cls._build_step_target_specs(job, process)
+        lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
+        target_specs = cls._build_step_target_slots(job, process) if lane_group_mode else cls._build_step_target_specs(job, process)
         discovery_allowed = required_for_step and cls._allow_non_lineage_roll_discovery(job, process)
 
         lineage_pool = []
@@ -2740,7 +3019,12 @@ class ExecutionService:
         def _is_downstream_visible_roll(roll):
             meta = dict(getattr(roll, "meta_json", None) or {})
             role = str(meta.get("roll_role") or "").upper()
-            if bool(meta.get("is_remainder")) or role == "REMAINDER":
+            try:
+                source_stage_index = int(meta.get("source_stage_index") or getattr(roll, "stage_index", 0) or 0)
+            except Exception:
+                source_stage_index = 0
+            is_processed_remainder = bool(meta.get("is_remainder")) and source_stage_index > 0 and role != "RAW_REMAINDER"
+            if (bool(meta.get("is_remainder")) or role == "REMAINDER") and not is_processed_remainder:
                 return False
             if role in {"RAW_MATERIAL", "RAW"}:
                 return False
@@ -2764,6 +3048,8 @@ class ExecutionService:
                 completed_idx = int(getattr(roll, "completed_step_index", roll_idx) or roll_idx)
             except Exception:
                 completed_idx = roll_idx
+            if roll_behavior == "MULTI_INPUT_COMBINE":
+                return True
             return max(stage_idx, roll_idx, completed_idx) >= current_step_index
 
         def _matches_lineage(roll):
@@ -2923,10 +3209,39 @@ class ExecutionService:
         pool_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in discoverable_pool)
         lineage_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in lineage_pool)
         fallback_weight = sum(Decimal(str(getattr(r, "weight_kg", 0) or 0)) for r in fallback_pool)
-        reserved_rolls = reservations.count()
-        missing_lineage_rolls = max(0, required_rolls - len(lineage_pool)) if required_for_step else 0
-        missing_assignment_rolls = max(0, required_rolls - reserved_rolls) if required_for_step else 0
-        missing_discoverable_rolls = max(0, required_rolls - len(discoverable_pool)) if required_for_step else 0
+        reserved_roll_list = [res.roll for res in reservations if getattr(res, "roll", None)]
+        reserved_rolls = len(reserved_roll_list)
+        lane_groups = []
+        if lane_group_mode and required_for_step:
+            lineage_validation = cls._match_rolls_to_lane_slots(
+                job,
+                process,
+                lineage_pool,
+                target_specs,
+                allow_input_stock_fallback=True,
+            )
+            reservation_validation = cls._match_rolls_to_lane_slots(
+                job,
+                process,
+                reserved_roll_list,
+                target_specs,
+                allow_input_stock_fallback=True,
+            )
+            discoverable_validation = cls._match_rolls_to_lane_slots(
+                job,
+                process,
+                discoverable_pool,
+                target_specs,
+                allow_input_stock_fallback=True,
+            )
+            missing_lineage_rolls = len(lineage_validation.get("unmatched_target_slots") or [])
+            missing_assignment_rolls = len(reservation_validation.get("unmatched_target_slots") or [])
+            missing_discoverable_rolls = len(discoverable_validation.get("unmatched_target_slots") or [])
+            lane_groups = discoverable_validation.get("lane_groups") or []
+        else:
+            missing_lineage_rolls = max(0, required_rolls - len(lineage_pool)) if required_for_step else 0
+            missing_assignment_rolls = max(0, required_rolls - reserved_rolls) if required_for_step else 0
+            missing_discoverable_rolls = max(0, required_rolls - len(discoverable_pool)) if required_for_step else 0
         if required_for_step and missing_assignment_rolls > 0:
             blocked_reasons.append(f"Roll assignment short: {missing_assignment_rolls} more roll(s) must be reserved.")
             action_hints.append("Reserve required rolls before machine start.")
@@ -2955,6 +3270,10 @@ class ExecutionService:
                 "fallback_roll_count": len(fallback_pool),
                 "fallback_total_weight_kg": float(fallback_weight),
                 "required_rolls": required_rolls if required_for_step else 0,
+                "input_lane_count": int(step_roll_spec.get("input_lane_count") or required_rolls or 0) if required_for_step else 0,
+                "lane_group_mode": lane_group_mode,
+                "lane_groups": lane_groups,
+                "required_target_specs": target_specs,
                 "reserved_rolls": reserved_rolls,
                 "missing_rolls": missing_assignment_rolls,
                 "missing_lineage_rolls": missing_lineage_rolls,
@@ -3290,8 +3609,13 @@ class ExecutionService:
                 meta = dict(getattr(roll, "meta_json", None) or {})
                 roll_role = str(meta.get("roll_role") or "").upper()
                 is_remainder = bool(meta.get("is_remainder")) or roll_role == "REMAINDER"
+                try:
+                    source_stage_index = int(meta.get("source_stage_index") or getattr(roll, "stage_index", 0) or 0)
+                except Exception:
+                    source_stage_index = 0
+                is_processed_remainder = is_remainder and source_stage_index > 0 and roll_role != "RAW_REMAINDER"
                 # Downstream steps must not show stage-0 raw/remainder rolls in WIP.
-                if current_step_index > 0 and is_remainder:
+                if current_step_index > 0 and is_remainder and not is_processed_remainder:
                     continue
                 if current_step_index > 0 and roll_role in {"RAW_MATERIAL", "RAW"}:
                     continue
@@ -4299,6 +4623,14 @@ class ExecutionService:
                     'location_name': res.roll.location.name if res.roll.location else '-',
                     'roll_role': roll_role,
                     'is_remainder': bool(roll_meta.get("is_remainder")) or str(roll_role or "").upper() == "REMAINDER",
+                    'target_lane_key': res.target_lane_key,
+                    'target_lane_label': res.target_lane_label,
+                    'target_layer_index': res.target_layer_index,
+                    'target_variant_id': res.target_variant_id,
+                    'target_grade_id': res.target_grade_id,
+                    'target_thickness_micron': float(res.target_thickness_micron) if res.target_thickness_micron is not None else None,
+                    'target_width_mm': float(res.target_width_mm) if res.target_width_mm is not None else None,
+                    'target_lane_meta': res.target_lane_meta or {},
                     'stage_index': int(getattr(res.roll, "stage_index", 0) or 0),
                     'current_step_index': int(getattr(res.roll, "current_step_index", 0) or 0),
                     'completed_step_index': int(getattr(res.roll, "completed_step_index", 0) or 0),
@@ -5387,6 +5719,7 @@ class ExecutionService:
 
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
         required_rolls = cls._required_roll_count(job, process, step_roll_spec)
+        lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
         is_roll_to_bulk = (
             str(getattr(process, "input_form", "") or "").upper() == "ROLL"
             and str(getattr(process, "output_form", "") or "").upper() == "BULK"
@@ -5402,7 +5735,7 @@ class ExecutionService:
             raise ValueError("This process does not accept roll assignments.")
         if active_qs.filter(roll=roll).exists():
             raise ValueError(f"Roll {roll.label_id} is already reserved for this job.")
-        if (not is_roll_to_bulk) and active_count >= required_rolls:
+        if (not is_roll_to_bulk) and (not lane_group_mode) and active_count >= required_rolls:
             raise ValueError(f"Roll assignment already satisfied ({required_rolls} required). Unassign to change selection.")
 
         if cls._is_v2(job):
@@ -5486,6 +5819,27 @@ class ExecutionService:
                 "Assign rolls that cover the required layer/spec set."
             )
 
+        selected_lane_slot = None
+        if lane_group_mode:
+            for slot in cls._build_step_target_slots(job, process):
+                if cls._is_roll_step_compatible(
+                    job,
+                    process,
+                    roll,
+                    [slot],
+                    allow_input_stock_fallback=True,
+                ) and cls._roll_matches_target_specs(roll, [slot]):
+                    selected_lane_slot = slot
+                    break
+
+        def _decimal_or_none(value):
+            if value in (None, ""):
+                return None
+            try:
+                return Decimal(str(value))
+            except Exception:
+                return None
+
         with transaction.atomic():
             # 1. Create Reservation
             InventoryReservation.objects.create(
@@ -5497,6 +5851,15 @@ class ExecutionService:
                 created_by=user,
                 override_reason=(override_reason or "").strip() or None,
                 override_by=user if manual_override else None,
+                target_lane_key=(selected_lane_slot or {}).get("lane_key"),
+                target_lane_label=(selected_lane_slot or {}).get("lane_label") or "",
+                target_layer_index=(selected_lane_slot or {}).get("layer_index") or None,
+                target_variant_id=str((selected_lane_slot or {}).get("variant_id") or ""),
+                target_grade_id=str((selected_lane_slot or {}).get("grade_id") or ""),
+                target_thickness_micron=_decimal_or_none((selected_lane_slot or {}).get("thickness_micron")),
+                target_width_mm=_decimal_or_none((selected_lane_slot or {}).get("min_width_mm")),
+                target_source_step_index=(selected_lane_slot or {}).get("source_step_index"),
+                target_lane_meta=selected_lane_slot or {},
             )
             
             # 2. Update Roll Status
@@ -6380,6 +6743,15 @@ class ExecutionService:
                 .first()
             )
 
+        def _is_processed_remainder_parent(parent_roll):
+            meta = dict(getattr(parent_roll, "meta_json", None) or {})
+            role = str(meta.get("roll_role") or "").upper()
+            try:
+                stage_idx = int(getattr(parent_roll, "stage_index", 0) or 0)
+            except Exception:
+                stage_idx = 0
+            return bool(getattr(parent_roll, "created_by_job_id", None)) and stage_idx > 0 and role not in {"RAW", "RAW_MATERIAL"}
+
         def _resolve_remainder_target_location_id(parent_roll):
             if remainder_override_location_id:
                 return remainder_override_location_id
@@ -6391,8 +6763,11 @@ class ExecutionService:
             )
             default_source_location_id = parent_roll.location_id
 
+            if _is_processed_remainder_parent(parent_roll):
+                return default_source_location_id or output_location_id
+
             # Confirmed policy:
-            # keep remainder in current plant and return it to current plant RM location by default.
+            # keep raw remainder in current plant and return it to current plant RM location by default.
             rm_location = _resolve_rm_location_for_plant(current_plant_id)
             if rm_location:
                 return rm_location.id
@@ -6412,9 +6787,13 @@ class ExecutionService:
                 source_stage_name = None
 
             remainder_meta = dict(parent_roll.meta_json or {})
+            processed_remainder = _is_processed_remainder_parent(parent_roll)
+            parent_stage_index = int(getattr(parent_roll, "stage_index", 0) or 0)
+            parent_current_step_index = int(getattr(parent_roll, "current_step_index", 0) or 0)
+            parent_completed_step_index = int(getattr(parent_roll, "completed_step_index", 0) or 0)
             remainder_meta.update({
                 "is_remainder": True,
-                "roll_role": "REMAINDER",
+                "roll_role": "WIP_REMAINDER" if processed_remainder else "RAW_REMAINDER",
                 "source_behavior": source_behavior,
                 "source_roll_label": parent_roll.label_id,
                 "source_stage_index": parent_roll.stage_index,
@@ -6443,11 +6822,10 @@ class ExecutionService:
                 original_weight_kg=remainder_qty,
                 status='AVAILABLE',
                 location_id=target_location_id,
-                # Remainder Logic: If unused material returns to stock, it resets to Raw (Stage 0).
-                # User Requirement: "whenevr a material is left over from job their step index is always 0"
-                stage_index=0,
-                current_step_index=0,
-                completed_step_index=0,
+                # Raw input leftovers return as raw RM; processed WIP leftovers retain route context.
+                stage_index=parent_stage_index if processed_remainder else 0,
+                current_step_index=parent_current_step_index if processed_remainder else 0,
+                completed_step_index=parent_completed_step_index if processed_remainder else 0,
                 template=parent_roll.template or job.template,
                 # Remainder must stay attached to the current producing order flow
                 # so downstream lineage/audit does not stick to an older source order.
@@ -6870,9 +7248,10 @@ class ExecutionService:
             if is_roll_to_bulk and len(roll_reservations) <= 0:
                 raise ValueError("ROLL->BULK requires at least one reserved input roll.")
 
-            # ROLL->BULK can consume multiple reserved rolls in one completion event.
-            # Other behaviors stay deterministic by required_roll_count policy.
-            if is_roll_to_bulk:
+            # ROLL->BULK and lane-group lamination can consume multiple reserved
+            # physical rolls in one completion event. Strict behaviors stay
+            # deterministic by required_roll_count policy.
+            if is_roll_to_bulk or lane_group_mode:
                 reservations_to_use = roll_reservations
                 extra_reservations = []
             else:
@@ -6896,7 +7275,16 @@ class ExecutionService:
 
             if roll_behavior in ('MODIFY_EXISTING', 'SPLIT') and len(input_rolls) != 1:
                 raise ValueError(f"{roll_behavior} requires exactly one reserved roll.")
-            if roll_behavior == 'MULTI_INPUT_COMBINE' and len(input_rolls) != required_rolls:
+            if roll_behavior == 'MULTI_INPUT_COMBINE' and lane_group_mode:
+                assignment_validation = cls._summarize_roll_assignment_validation(
+                    job,
+                    process,
+                    input_rolls,
+                    allow_input_stock_fallback=True,
+                )
+                if not assignment_validation.get("is_complete") or not assignment_validation.get("slot_satisfied"):
+                    raise ValueError("MULTI_INPUT_COMBINE requires every lamination lane to have compatible reserved rolls.")
+            elif roll_behavior == 'MULTI_INPUT_COMBINE' and len(input_rolls) != required_rolls:
                 raise ValueError(f"MULTI_INPUT_COMBINE requires exactly {required_rolls} reserved rolls.")
 
             def _parse_decimal(value, field_name, allow_zero=False):
@@ -7093,59 +7481,91 @@ class ExecutionService:
                     if not _output_grade_required(material):
                         grade_id = None
 
-                    out_roll = _find_active_output_roll()
-                    if out_roll:
-                        out_roll.weight_kg += output_weight_kg
-                        if internal_stock_meta:
-                            meta = dict(out_roll.meta_json or {})
-                            meta.update(internal_stock_meta)
-                            out_roll.meta_json = meta
-                            out_roll.save(update_fields=['weight_kg', 'meta_json'])
-                        else:
-                            out_roll.save(update_fields=['weight_kg'])
-                    else:
-                        out_roll = InventoryRoll.objects.create(
-                            label_id=_next_job_roll_label(),
-                            material=material,
-                            plant=job.work_center.plant if job.work_center else None,
-                            production_job=job,
-                            created_by_job=job,
-                            created_process=process,
-                            parent_roll=input_rolls[0],
-                            thickness_micron=thickness_micron,
-                            width_mm=width_mm,
-                            density_gcm3=cls._resolve_density_gcm3(material=material, roll=input_rolls[0] if input_rolls else None),
-                            grade_id=grade_id,
-                            weight_kg=output_weight_kg,
-                            original_weight_kg=output_weight_kg,
-                            status='AVAILABLE',
-                            location_id=output_location_id,
-                            stage_index=job.current_step_index + 1,
-                            current_step_index=job.current_step_index + 1,
-                            completed_step_index=job.current_step_index,
-                            template=job.template,
-                            sales_order_item=job.sales_order_item,
-                            meta_json={
-                                **(roll_spec or {}),
-                                "is_remainder": False,
-                                "roll_role": "OUTPUT",
-                                "source_behavior": "MULTI_INPUT_COMBINE",
-                                **internal_stock_meta,
-                            },
-                            is_fg=output_is_fg
-                        )
+                    raw_roll_outputs = kwargs.get("roll_outputs") or []
+                    parsed_roll_outputs = []
+                    if isinstance(raw_roll_outputs, list):
+                        for idx, row in enumerate(raw_roll_outputs, start=1):
+                            if not isinstance(row, dict):
+                                continue
+                            row_width = _parse_decimal(row.get("width_mm"), f"roll_outputs[{idx}].width_mm")
+                            row_weight = _parse_decimal(row.get("weight_kg"), f"roll_outputs[{idx}].weight_kg")
+                            parsed_roll_outputs.append({
+                                "width_mm": row_width,
+                                "weight_kg": row_weight,
+                            })
+                    if parsed_roll_outputs:
+                        total_output_weight = sum((row["weight_kg"] for row in parsed_roll_outputs), Decimal("0"))
+                        if abs(total_output_weight - output_weight_kg) > Decimal("0.001"):
+                            raise ValueError("roll_outputs total weight must match actual output quantity.")
 
-                    for item in usage:
-                        parent = item["parent_roll"]
-                        used_qty = item["used_qty_kg"]
-                        link, created = RollLink.objects.get_or_create(
-                            parent_roll=parent,
-                            child_roll=out_roll,
-                            defaults={'relation_type': 'MERGE', 'qty_used_kg': used_qty}
-                        )
-                        if not created:
-                            link.qty_used_kg += used_qty
-                            link.save(update_fields=['qty_used_kg'])
+                    output_rows = parsed_roll_outputs or [{
+                        "width_mm": width_mm,
+                        "weight_kg": output_weight_kg,
+                    }]
+                    reuse_active_output = not parsed_roll_outputs
+                    created_rolls = []
+
+                    for row in output_rows:
+                        row_width_mm = row["width_mm"]
+                        row_weight_kg = row["weight_kg"]
+                        out_roll = _find_active_output_roll() if reuse_active_output else None
+                        if out_roll:
+                            out_roll.weight_kg += row_weight_kg
+                            if internal_stock_meta:
+                                meta = dict(out_roll.meta_json or {})
+                                meta.update(internal_stock_meta)
+                                out_roll.meta_json = meta
+                                out_roll.save(update_fields=['weight_kg', 'meta_json'])
+                            else:
+                                out_roll.save(update_fields=['weight_kg'])
+                        else:
+                            out_roll = InventoryRoll.objects.create(
+                                label_id=_next_job_roll_label(),
+                                material=material,
+                                plant=job.work_center.plant if job.work_center else None,
+                                production_job=job,
+                                created_by_job=job,
+                                created_process=process,
+                                parent_roll=input_rolls[0],
+                                thickness_micron=thickness_micron,
+                                width_mm=row_width_mm,
+                                density_gcm3=cls._resolve_density_gcm3(material=material, roll=input_rolls[0] if input_rolls else None),
+                                grade_id=grade_id,
+                                weight_kg=row_weight_kg,
+                                original_weight_kg=row_weight_kg,
+                                status='AVAILABLE',
+                                location_id=output_location_id,
+                                stage_index=job.current_step_index + 1,
+                                current_step_index=job.current_step_index + 1,
+                                completed_step_index=job.current_step_index,
+                                template=job.template,
+                                sales_order_item=job.sales_order_item,
+                                meta_json={
+                                    **(roll_spec or {}),
+                                    "is_remainder": False,
+                                    "roll_role": "OUTPUT",
+                                    "source_behavior": "MULTI_INPUT_COMBINE",
+                                    "lamination_pass_index": step_roll_spec.get("lamination_pass_index"),
+                                    **internal_stock_meta,
+                                },
+                                is_fg=output_is_fg
+                            )
+                        created_rolls.append((out_roll, row_weight_kg))
+
+                    total_link_weight = sum((row_weight for _, row_weight in created_rolls), Decimal("0"))
+                    for out_roll, row_weight_kg in created_rolls:
+                        for item in usage:
+                            parent = item["parent_roll"]
+                            used_qty = item["used_qty_kg"]
+                            link_qty = (used_qty * row_weight_kg / total_link_weight) if total_link_weight > 0 else Decimal("0")
+                            link, created = RollLink.objects.get_or_create(
+                                parent_roll=parent,
+                                child_roll=out_roll,
+                                defaults={'relation_type': 'MERGE', 'qty_used_kg': link_qty}
+                            )
+                            if not created:
+                                link.qty_used_kg += link_qty
+                                link.save(update_fields=['qty_used_kg'])
 
                 elif roll_behavior == 'SPLIT':
                     if not isinstance(split_outputs, list) or len(split_outputs) == 0:

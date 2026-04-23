@@ -29,7 +29,7 @@ export function UserProfileMenu() {
     const roleCode = String(effectiveRole || user.role_info?.code || "").toUpperCase();
     const canAccessGovernance = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(roleCode);
     const canAccessAudit = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(roleCode);
-    const canSwitchTerminal = roleCode === "OPERATOR";
+    const canSwitchTerminal = roleCode === "WORK_CENTER_MANAGER";
     const displayName = user.full_name || user.username;
 
     return (

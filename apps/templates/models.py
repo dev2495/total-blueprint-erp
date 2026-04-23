@@ -186,6 +186,11 @@ class TemplateProcessStepRollSpec(models.Model):
         ('DISCRETE_ONLY', 'Discrete Only'),
     ]
 
+    COMBINE_MODE_CHOICES = [
+        ('STRICT_ROLL_COUNT', 'Strict Roll Count'),
+        ('LANE_GROUPS', 'Lane Groups'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     template_step = models.OneToOneField(
         TemplateProcessStep,
@@ -195,6 +200,24 @@ class TemplateProcessStepRollSpec(models.Model):
 
     # Input physics
     input_roll_count = models.PositiveIntegerField(default=0)
+    combine_mode = models.CharField(
+        max_length=24,
+        choices=COMBINE_MODE_CHOICES,
+        default='STRICT_ROLL_COUNT',
+        help_text="For lamination-style combine steps, LANE_GROUPS means each lane can contain many physical rolls.",
+    )
+    input_lane_count = models.PositiveIntegerField(default=0)
+    lamination_pass_index = models.PositiveIntegerField(
+        default=0,
+        help_text="1-based pass number for lane lamination; zero means infer from route order.",
+    )
+    active_min_layer_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Minimum SKU/order layer count needed before this step is active; zero means infer.",
+    )
+    adhesive_split_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    solvent_split_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    lane_schema = models.JSONField(default=list, blank=True)
 
     thickness_rule = models.CharField(
         max_length=20,

@@ -202,8 +202,8 @@ export default function UserDetailPage() {
         [selectedRole],
     )
 
-    const showWcSelect = roleCode === "WORK_CENTER_MANAGER" || roleCode === "PLANNER" || roleCode === "OPERATOR"
-    const showMachineSelect = roleCode === "OPERATOR"
+    const showWcSelect = roleCode === "WORK_CENTER_MANAGER" || roleCode === "PLANNER"
+    const showMachineSelect = false
 
     const watchedWcIds = form.watch("work_center_ids")
     const watchedMachineIds = form.watch("machine_ids")

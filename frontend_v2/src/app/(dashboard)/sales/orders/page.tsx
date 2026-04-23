@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { normalizeProductSpec } from "@/lib/product-spec"
 import { type SalesOrder, salesService } from "@/services/sales"
 
 type OrderTab = "active" | "completed"
@@ -124,6 +125,10 @@ export default function SalesOrdersPage() {
     const [completedStatus, setCompletedStatus] = useState<CompletedStatusFilter>("ALL")
     const [completedType, setCompletedType] = useState<CompletedTypeFilter>("ALL")
     const [completedWindow, setCompletedWindow] = useState<CompletedWindowFilter>("90")
+    const [variantFilter, setVariantFilter] = useState("")
+    const [gradeFilter, setGradeFilter] = useState("")
+    const [thicknessFilter, setThicknessFilter] = useState("")
+    const [sizeFilter, setSizeFilter] = useState("")
     const { data: orders = [], isLoading } = useQuery({
         queryKey: ["sales-orders"],
         queryFn: () => salesService.getOrders(),
@@ -155,6 +160,7 @@ export default function SalesOrdersPage() {
                 order.item_summary?.variant_name,
                 order.item_summary?.template_name,
                 order.item_summary?.template_tag,
+                order.item_summary?.search_text,
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -162,6 +168,28 @@ export default function SalesOrdersPage() {
 
             if (searchText.trim() && !haystack.includes(searchText.trim().toLowerCase())) {
                 return false
+            }
+
+            const spec = normalizeProductSpec(order)
+            if (variantFilter.trim()) {
+                const q = variantFilter.trim().toLowerCase()
+                const match = [spec.variantCode, spec.variantName, ...spec.layers.flatMap((layer) => [layer.variantCode, layer.variantName, layer.label])]
+                    .join(" ")
+                    .toLowerCase()
+                    .includes(q)
+                if (!match) return false
+            }
+            if (gradeFilter.trim()) {
+                const q = gradeFilter.trim().toLowerCase()
+                if (!spec.layers.map((layer) => layer.grade).join(" ").toLowerCase().includes(q)) return false
+            }
+            if (thicknessFilter.trim()) {
+                const q = thicknessFilter.trim().toLowerCase()
+                if (!spec.layers.map((layer) => `${layer.thicknessMicron ?? ""}`).join(" ").toLowerCase().includes(q)) return false
+            }
+            if (sizeFilter.trim()) {
+                const q = sizeFilter.trim().toLowerCase()
+                if (!spec.size.label.toLowerCase().includes(q)) return false
             }
 
             if (tab === "completed") {
@@ -180,7 +208,7 @@ export default function SalesOrdersPage() {
 
             return true
         })
-    }, [activeOrders, completedOrders, completedStatus, completedType, completedWindow, searchText, tab])
+    }, [activeOrders, completedOrders, completedStatus, completedType, completedWindow, gradeFilter, searchText, sizeFilter, tab, thicknessFilter, variantFilter])
 
     const columns: ColumnDef<SalesOrder>[] = [
         {
@@ -217,31 +245,35 @@ export default function SalesOrdersPage() {
             header: () => <span className="text-[11px] font-semibold text-slate-500">SKU / PRODUCT TRUTH</span>,
             cell: ({ row }) => {
                 const summary = row.original.item_summary || {}
+                const spec = normalizeProductSpec(row.original)
                 const claimed = summary.claimed_stock_order_nos || []
-                const layerLabels = summary.layer_labels || []
                 return (
                     <div className="min-w-[360px]">
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-black text-slate-900">{firstLineLabel(row.original)}</span>
+                            <span className="text-sm font-black text-slate-900">{spec.productName || firstLineLabel(row.original)}</span>
                             {(summary.line_count || 0) > 1 ? (
                                 <Pill kind="stock">+{(summary.line_count || 1) - 1} more</Pill>
                             ) : null}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                             {summary.finished_good_type ? <Pill kind="type">{summary.finished_good_type}</Pill> : null}
-                            {summary.size_or_form ? <Pill kind="geometry">{summary.size_or_form}</Pill> : null}
-                            {layerLabels.length
-                                ? layerLabels.map((label) => <Pill key={`${row.original.id}-${label}`} kind="layer">{label}</Pill>)
+                            {spec.size.label ? <Pill kind="geometry">{spec.size.label}</Pill> : null}
+                            {spec.layers.length
+                                ? spec.layers.map((layer) => <Pill key={`${row.original.id}-${layer.index}-${layer.label}`} kind="layer">{layer.label}</Pill>)
                                 : summary.layer_count
                                     ? <Pill kind="layer">{summary.layer_count} layer(s)</Pill>
                                     : null}
-                            {summary.printing_summary ? <Pill kind="printing">{summary.printing_summary}</Pill> : null}
-                            {summary.packaging_summary ? <Pill kind="packaging">{summary.packaging_summary}</Pill> : null}
-                            {summary.pod_enabled ? <Pill kind="pod">POD</Pill> : null}
+                            {spec.podLabels.length ? spec.podLabels.map((label) => <Pill key={`${row.original.id}-pod-${label}`} kind="pod">{label}</Pill>) : summary.printing_summary ? <Pill kind="printing">{summary.printing_summary}</Pill> : null}
+                            {spec.addonLabels.length ? spec.addonLabels.slice(0, 4).map((label) => <Pill key={`${row.original.id}-addon-${label}`} kind="packaging">{label}</Pill>) : summary.packaging_summary ? <Pill kind="packaging">{summary.packaging_summary}</Pill> : null}
                             {summary.template_tag ? <Pill kind="template">{summary.template_tag}</Pill> : null}
                             {claimed.length ? <Pill kind="stock">Stock {claimed.join(", ")}</Pill> : null}
                         </div>
-                        <div className="mt-1 text-[11px] text-slate-500">{summary.template_name || "Template pending"}</div>
+                        <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-black uppercase text-slate-600">
+                            <span className="rounded-lg bg-slate-50 px-2 py-1">Grade {spec.layers.map((layer) => layer.grade).filter(Boolean).slice(0, 2).join(", ") || "—"}</span>
+                            <span className="rounded-lg bg-slate-50 px-2 py-1">Thick {spec.layers.map((layer) => layer.thicknessMicron).filter((value) => value != null).slice(0, 2).join(", ") || "—"}u</span>
+                            <span className="rounded-lg bg-slate-50 px-2 py-1">Width {spec.layers.map((layer) => layer.widthMm).filter((value) => value != null).slice(0, 2).join(", ") || "—"}mm</span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-500">{spec.templateName || "Template pending"}</div>
                     </div>
                 )
             },
@@ -439,12 +471,38 @@ export default function SalesOrdersPage() {
                                     </div>
                                 ) : null}
                             </div>
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                <Input
+                                    value={sizeFilter}
+                                    onChange={(event) => setSizeFilter(event.target.value)}
+                                    placeholder="Size 180 x 240"
+                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
+                                />
+                                <Input
+                                    value={variantFilter}
+                                    onChange={(event) => setVariantFilter(event.target.value)}
+                                    placeholder="Variant LDPE / PET"
+                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
+                                />
+                                <Input
+                                    value={gradeFilter}
+                                    onChange={(event) => setGradeFilter(event.target.value)}
+                                    placeholder="Grade GP / slip"
+                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
+                                />
+                                <Input
+                                    value={thicknessFilter}
+                                    onChange={(event) => setThicknessFilter(event.target.value)}
+                                    placeholder="Thickness 12 / 50"
+                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
+                                />
+                            </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">
                                     <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
                                     {shownOrders.length} visible row{shownOrders.length === 1 ? "" : "s"}
                                 </div>
-                                {tab === "completed" ? (
+                                {(tab === "completed" || searchText || sizeFilter || variantFilter || gradeFilter || thicknessFilter) ? (
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -454,6 +512,10 @@ export default function SalesOrdersPage() {
                                             setCompletedStatus("ALL")
                                             setCompletedType("ALL")
                                             setCompletedWindow("90")
+                                            setSizeFilter("")
+                                            setVariantFilter("")
+                                            setGradeFilter("")
+                                            setThicknessFilter("")
                                         }}
                                     >
                                         Reset filters

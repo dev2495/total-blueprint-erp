@@ -29,6 +29,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { inventoryService } from "@/services/inventory"
+import { normalizeProductSpec } from "@/lib/product-spec"
 
 type StepPolicyDraft = {
     issue_policy_mode: "NONE" | "PERCENT_OVER_THEORY" | "FIXED_EXTRA_KG" | "MINIMUM_ISSUE_KG"
@@ -59,6 +60,118 @@ function formatSmartValue(value: number | null, uom: "KG" | "PCS", digits?: numb
     })
 }
 
+function firstNonEmpty(...values: unknown[]) {
+    for (const value of values) {
+        const text = String(value ?? "").trim()
+        if (text && text !== "—" && text.toLowerCase() !== "null" && text.toLowerCase() !== "undefined") return text
+    }
+    return ""
+}
+
+function productNameFromJob(job: any, context?: any) {
+    return normalizeProductSpec(job, context).productName
+}
+
+function geometryFromJob(job: any, context?: any) {
+    const spec = normalizeProductSpec(job, context)
+    return {
+        width: spec.size.widthMm != null ? String(spec.size.widthMm) : "",
+        height: spec.size.heightMm != null ? String(spec.size.heightMm) : "",
+        gusset: spec.size.gussetMm != null ? String(spec.size.gussetMm) : "",
+        area: "",
+        label: spec.size.label,
+    }
+}
+
+function podLabelFromJob(job: any, context?: any) {
+    const spec = normalizeProductSpec(job, context)
+    return spec.podLabels.length ? spec.podLabels.join(", ") : "No POD"
+}
+
+function addonsLabelFromJob(job: any, context?: any) {
+    const spec = normalizeProductSpec(job, context)
+    return spec.addonLabels.length ? spec.addonLabels.slice(0, 4).join(", ") + (spec.addonLabels.length > 4 ? ` +${spec.addonLabels.length - 4}` : "") : "No add-ons"
+}
+
+function layerHighlightsFromJob(job: any, context?: any) {
+    return normalizeProductSpec(job, context).layers.slice(0, 4).map((layer) => layer.label)
+}
+
+function materialSpecsFromJob(job: any, context?: any) {
+    const specRows = normalizeProductSpec(job, context).layers
+    if (specRows.length) {
+        return specRows.map((layer) => ({
+            material: firstNonEmpty(layer.variantCode, layer.variantName, `Layer ${layer.index}`),
+            code: layer.variantCode,
+            thickness: layer.thicknessMicron != null ? String(layer.thicknessMicron) : "",
+            grade: layer.grade || "Grade not set",
+            width: layer.widthMm != null ? String(layer.widthMm) : "",
+            qty: "",
+            source: "Order spec",
+        }))
+    }
+    const bom = context?.bom_snapshot || job?.bom_snapshot || {}
+    const layers = Array.isArray(context?.bom_layers) && context.bom_layers.length
+        ? context.bom_layers
+        : (Array.isArray(job?.layers) ? job.layers : [])
+    const films = Array.isArray(bom?.films) ? bom.films : []
+    const planningLines = Array.isArray(bom?.planning_lines) ? bom.planning_lines : []
+    const geometry = geometryFromJob(job, context)
+    const rows = layers.map((layer: any, idx: number) => {
+        const film = films.find((item: any) => {
+            const sameVariant = item?.variant_id && layer?.variant_id && String(item.variant_id) === String(layer.variant_id)
+            const sameFamily = item?.family_id && layer?.family_id && String(item.family_id) === String(layer.family_id)
+            const sameThickness = Number(item?.thickness_micron || 0) === Number(layer?.thickness_micron || layer?.thickness || 0)
+            return sameVariant || (sameFamily && (sameThickness || !layer?.thickness_micron))
+        }) || films[idx] || {}
+        const policyKey = firstNonEmpty(film?.code, film?.material_code, layer?.code)
+        const plan = planningLines.find((item: any) => {
+            const code = firstNonEmpty(item?.material_code, item?.policy_key)
+            return policyKey && code.includes(policyKey)
+        }) || planningLines[idx] || {}
+        const material = firstNonEmpty(
+            layer?.variant_name,
+            layer?.material_name,
+            film?.material_name,
+            film?.code,
+            plan?.material_name,
+            plan?.material_code,
+            layer?.name && layer.name !== "Material" ? layer.name : "",
+            `Layer ${idx + 1}`
+        )
+        const width = firstNonEmpty(
+            Number(layer?.roll_width_mm || 0) > 0 ? layer.roll_width_mm : "",
+            layer?.width_mm,
+            film?.width_mm,
+            geometry.width
+        )
+        return {
+            material,
+            code: firstNonEmpty(film?.code, plan?.material_code, layer?.code),
+            thickness: firstNonEmpty(layer?.thickness_micron, layer?.thickness, film?.thickness_micron),
+            grade: firstNonEmpty(layer?.grade_name, layer?.grade, film?.grade_name, "Grade not set"),
+            width,
+            qty: firstNonEmpty(plan?.planned_issue_qty, film?.weight_kg, layer?.weight_kg),
+            source: firstNonEmpty(film?.source, plan?.policy_source, "Template"),
+        }
+    })
+    if (rows.length === 0 && films.length > 0) {
+        return films.map((film: any, idx: number) => {
+            const plan = planningLines.find((item: any) => firstNonEmpty(item?.material_code, item?.policy_key).includes(firstNonEmpty(film?.code))) || planningLines[idx] || {}
+            return {
+                material: firstNonEmpty(film?.material_name, film?.code, plan?.material_name, `Film ${idx + 1}`),
+                code: firstNonEmpty(film?.code, plan?.material_code),
+                thickness: firstNonEmpty(film?.thickness_micron),
+                grade: firstNonEmpty(film?.grade_name, "Grade not set"),
+                width: firstNonEmpty(film?.width_mm, geometry.width),
+                qty: firstNonEmpty(plan?.planned_issue_qty, film?.weight_kg),
+                source: firstNonEmpty(film?.source, plan?.policy_source, "Template"),
+            }
+        })
+    }
+    return rows
+}
+
 export default function WCMTerminal() {
     const params = useParams()
     const wcId = params?.id as string
@@ -74,6 +187,8 @@ export default function WCMTerminal() {
     const [manualOverrideEnabled, setManualOverrideEnabled] = useState(false)
     const [overrideReason, setOverrideReason] = useState("")
     const [stepPolicyDrafts, setStepPolicyDrafts] = useState<Record<string, StepPolicyDraft>>({})
+    const [queueSearch, setQueueSearch] = useState("")
+    const [queueStatusFilter, setQueueStatusFilter] = useState<"ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE">("ALL")
     const autoAssignRef = useRef<Set<string>>(new Set())
 
     // 1. Data Fetching
@@ -136,12 +251,31 @@ export default function WCMTerminal() {
         }),
         [assignmentsList]
     )
-    const visibleQueueAssignments = useMemo(
+    const baseQueueAssignments = useMemo(
         () => activeAssignments.filter((a: any) => {
             const status = String(a?.status || "").toUpperCase()
             return status === "WC_READY" || status === "ASSIGNED" || status === "EXECUTION_READY"
         }),
         [activeAssignments]
+    )
+    const visibleQueueAssignments = useMemo(
+        () => baseQueueAssignments.filter((assignment: any) => {
+            const job = assignment?.job_details || {}
+            const status = String(assignment?.status || "").toUpperCase()
+            const hasMachine = Boolean(assignment?.assigned_machine)
+            if (queueStatusFilter === "READY" && !(status === "WC_READY" || status === "EXECUTION_READY")) return false
+            if (queueStatusFilter === "ASSIGNED" && status !== "ASSIGNED") return false
+            if (queueStatusFilter === "NEEDS_MACHINE" && hasMachine) return false
+
+            const search = queueSearch.trim().toLowerCase()
+            if (!search) return true
+            const spec = normalizeProductSpec(job)
+            return [spec.searchText, job?.job_number, job?.process_code, assignment?.assigned_machine_name]
+                .join(" ")
+                .toLowerCase()
+                .includes(search)
+        }),
+        [baseQueueAssignments, queueSearch, queueStatusFilter]
     )
     const activeAssignment = activeAssignmentId
         ? (visibleQueueAssignments.find((a) => a.id === activeAssignmentId) || null)
@@ -515,6 +649,13 @@ export default function WCMTerminal() {
             stage_index: Number(roll?.stage_index ?? 0),
             current_step_index: Number(roll?.current_step_index ?? 0),
             completed_step_index: Number(roll?.completed_step_index ?? 0),
+            target_lane_key: roll?.target_lane_key || null,
+            target_lane_label: roll?.target_lane_label || null,
+            target_layer_index: roll?.target_layer_index ?? null,
+            target_variant_name: roll?.target_variant_name || null,
+            target_grade_name: roll?.target_grade_name || null,
+            target_thickness_micron: roll?.target_thickness_micron ?? null,
+            target_width_mm: roll?.target_width_mm ?? null,
         })
 
         const ctxRolls = (executionContext as any)?.allocated_rolls
@@ -560,6 +701,10 @@ export default function WCMTerminal() {
         "NONE"
     const rollBehavior = typeof rollBehaviorRaw === "string" ? rollBehaviorRaw : "NONE"
     const assignedRollsForDisplay = useMemo(() => assignedRolls, [assignedRolls])
+    const laneGroups = useMemo(() => {
+        const groups = (executionContext as any)?.wip_pool_meta?.lane_groups
+        return Array.isArray(groups) ? groups : []
+    }, [executionContext])
     const rollBehaviorLabel = rollBehavior.replace(/_/g, " ")
     const rollBehaviorGuidance: Record<string, string> = {
         CREATE_NEW: "Create new output roll from produced size + weight.",
@@ -972,6 +1117,13 @@ export default function WCMTerminal() {
     const targetSpec = (executionContext as any)?.target_roll_invariants || {}
     const currentStepPolicyItems = currentStepPolicy?.items || []
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
+    const selectedProductName = productNameFromJob(selectedJob, executionContext)
+    const selectedGeometry = geometryFromJob(selectedJob, executionContext)
+    const selectedPodLabel = podLabelFromJob(selectedJob, executionContext)
+    const selectedAddonsLabel = addonsLabelFromJob(selectedJob, executionContext)
+    const selectedMaterialSpecs = materialSpecsFromJob(selectedJob, executionContext)
+    const selectedLayerChips = selectedMaterialSpecs.length ? selectedMaterialSpecs : (displayLayers.length ? displayLayers : layerHighlightsFromJob(selectedJob, executionContext)).slice(0, 4)
+    const selectedStepName = firstNonEmpty(currentStepPolicy?.current_process_name, (executionContext as any)?.current_step?.process_name, selectedJob?.process_code, "Current step")
 
     return (
             <div className="space-y-6 bg-slate-50" data-testid="wcm-terminal-page">
@@ -1038,9 +1190,42 @@ export default function WCMTerminal() {
                         </Card>
                         <div className="grid gap-6 xl:grid-cols-12 xl:min-h-[680px]">
                             {/* COLUMN 1: SCHEDULED QUEUE */}
-                            <Card className="flex max-h-[60vh] flex-col overflow-hidden border-none shadow-md xl:col-span-2 xl:max-h-none xl:h-full">
-                                <CardHeader className="bg-slate-100 py-3 shrink-0">
-                                    <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Queue</CardTitle>
+                            <Card className="flex max-h-[60vh] flex-col overflow-hidden border border-slate-200 bg-white shadow-sm xl:col-span-3 xl:max-h-none xl:h-full">
+                                <CardHeader className="bg-white py-3 shrink-0 border-b border-slate-100">
+                                    <CardTitle className="flex items-center justify-between text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                        <span>Queue</span>
+                                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-500">{visibleQueueAssignments.length}/{baseQueueAssignments.length}</span>
+                                    </CardTitle>
+                                    <div className="mt-3 space-y-2">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                            <Input
+                                                value={queueSearch}
+                                                onChange={(event) => setQueueSearch(event.target.value)}
+                                                placeholder="Search customer, size, variant, POD"
+                                                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs font-semibold"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {([
+                                                ["ALL", "All"],
+                                                ["READY", "Ready"],
+                                                ["ASSIGNED", "Assigned"],
+                                                ["NEEDS_MACHINE", "No machine"],
+                                            ] as const).map(([value, label]) => (
+                                                <Button
+                                                    key={value}
+                                                    type="button"
+                                                    variant={queueStatusFilter === value ? "default" : "outline"}
+                                                    size="sm"
+                                                    className="h-8 rounded-lg text-[10px] font-black uppercase tracking-wide"
+                                                    onClick={() => setQueueStatusFilter(value)}
+                                                >
+                                                    {label}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/50">
                                     {visibleQueueAssignments.map((assignment: any) => {
@@ -1081,6 +1266,10 @@ export default function WCMTerminal() {
                                         const queuePrimaryTarget = toNullableNumber(assignment.job_details?.step_target_primary) ?? (
                                             queuePrimaryUom === "PCS" ? queuePcs : queueStepTargetKg
                                         )
+                                        const queueJob = assignment.job_details || {}
+                                        const queueGeometry = geometryFromJob(queueJob)
+                                        const queueLayers = layerHighlightsFromJob(queueJob)
+                                        const queuePod = podLabelFromJob(queueJob)
                                         return (
                                             <div
                                                 key={assignment.id}
@@ -1089,19 +1278,37 @@ export default function WCMTerminal() {
                                                 }}
                                                 data-testid={`wcm-assignment-row-${assignment.id}`}
                                                 className={cn(
-                                                    "p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md",
+                                                    "p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md",
                                                     activeAssignmentId === assignment.id
                                                         ? "bg-white border-indigo-500 shadow-indigo-100 ring-1 ring-indigo-500"
                                                         : "bg-white border-slate-200 hover:border-indigo-300"
                                                 )}
                                             >
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <span className="font-bold text-xs text-slate-900">{assignment.job_details?.job_number || "—"}</span>
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-sm font-black text-slate-900">{assignment.job_details?.customer_name || "—"}</p>
+                                                        <p className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-600">{productNameFromJob(queueJob)}</p>
+                                                    </div>
                                                     <SemanticBadge kind="jobState" value={displayStatus} label={displayStatus === "WC_READY" ? "Ready" : displayStatus} className="text-[10px] h-auto px-2 py-1" />
                                                 </div>
-                                                <div className="text-[11px] text-slate-600 space-y-1">
-                                                    <p className="font-semibold text-slate-700 truncate">{assignment.job_details?.customer_name || "—"}</p>
-                                                    <p className="font-bold text-slate-800">
+                                                <div className="mt-3 space-y-2 text-[11px] text-slate-600">
+                                                    <p className="rounded-lg bg-slate-50 px-2 py-1 font-black text-slate-900">
+                                                        {queueGeometry.label}
+                                                    </p>
+                                                    {queueLayers.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {queueLayers.slice(0, 2).map((layer: string, index: number) => (
+                                                                <span key={`${assignment.id}-layer-${index}`} className="rounded-md bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase text-indigo-700">
+                                                                    {layer}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-1">
+                                                        <span className="rounded-md bg-sky-50 px-2 py-1 text-[9px] font-black uppercase text-sky-700">POD {queuePod}</span>
+                                                        <span className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500">{assignment.job_details?.process_code || "Step"}</span>
+                                                    </div>
+                                                    <p className="font-black text-slate-900">
                                                         {formatSmartValue(queuePrimaryTarget, queuePrimaryUom, queuePrimaryUom === "PCS" ? 0 : 2)} {queuePrimaryUom}
                                                         {assignment.job_details?.process_code ? ` • ${assignment.job_details.process_code}` : ""}
                                                     </p>
@@ -1115,42 +1322,116 @@ export default function WCMTerminal() {
                                         )
                                     })}
                                     {visibleQueueAssignments.length === 0 && (
-                                        <div className="text-center p-8 text-slate-400">No jobs in queue</div>
+                                        <div className="text-center p-8 text-slate-400">No matching jobs in queue</div>
                                     )}
                                 </CardContent>
                             </Card>
 
                             {/* MAIN CONTENT AREA: COLUMN 2 & 3 */}
-                            <div className="grid min-h-0 gap-6 overflow-hidden xl:col-span-10 xl:grid-cols-10 xl:h-full">
+                            <div className="grid min-h-0 gap-6 overflow-hidden xl:col-span-9 xl:grid-cols-9 xl:h-full">
                                 {activeAssignment ? (
                                     <>
                                         {/* COLUMN 2: JOB SPECIFICATION & BOM */}
-                                        <Card className="flex min-h-0 flex-col overflow-hidden border-none bg-white shadow-md xl:col-span-4 xl:h-full">
+                                        <Card className="flex min-h-0 flex-col overflow-hidden border border-slate-200 bg-white shadow-sm xl:col-span-4 xl:h-full">
                                             <CardHeader className="bg-slate-100 py-3 shrink-0 flex flex-row items-center justify-between border-b border-slate-200">
-                                                <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Job Specification</CardTitle>
-                                                <SemanticBadge kind="processState" value={currentStepPolicy?.current_process_name || selectedJob?.job_details?.process_code || "STEP"} label={`Step ${currentStepNumber || "—"}`} className="text-[10px] px-3 py-1" />
+                                                <CardTitle className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sales Product & Step</CardTitle>
+                                                <SemanticBadge kind="processState" value={selectedStepName} label={`Step ${currentStepNumber || "—"}`} className="text-[10px] px-3 py-1" />
                                             </CardHeader>
                                             <CardContent className="flex-1 space-y-6 overflow-y-auto p-4">
                                                 {/* Core Job Info & Prominent Qty */}
-                                                <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                                                    <div className="space-y-1">
-                                                        <div className="text-sm font-black text-slate-400 uppercase tracking-widest leading-none">Job Number</div>
-                                                        <div className="text-2xl font-black text-slate-900 leading-none">{selectedJob?.job_number || "—"}</div>
-                                                        <div className="text-sm font-bold text-slate-600 mt-2">{selectedJob?.customer_name || "—"}</div>
-                                                        <div className="text-xs text-slate-500 font-medium">
-                                                            {selectedJob?.order_number ? `SO: ${selectedJob.order_number}` : "SO: —"} •{" "}
-                                                            {selectedJob?.template_name || "Template: —"}
+                                                <div className="space-y-4 border-b border-slate-100 pb-4">
+                                                    <div className="flex justify-between gap-4">
+                                                        <div className="min-w-0">
+                                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Sales product</div>
+                                                            <div className="mt-1 text-2xl font-black leading-tight text-slate-950">{selectedProductName}</div>
+                                                            <div className="mt-1 text-sm font-bold text-slate-600">{selectedJob?.customer_name || "—"}</div>
+                                                            <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                {selectedJob?.order_number ? `SO ${selectedJob.order_number}` : "SO —"} · Job {selectedJob?.job_number || "—"}
+                                                            </div>
+                                                        </div>
+                                                        <div className="shrink-0 text-right">
+                                                            <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Step Target</div>
+                                                            <div className="text-4xl font-black text-indigo-600 leading-none">
+                                                                {formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)}
+                                                                <span className="text-sm ml-1 text-slate-400 uppercase">{selectedPrimaryUom}</span>
+                                                            </div>
+                                                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">
+                                                                Order Total: {Number(orderTotalKg || 0).toFixed(3)} kg
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    <div className="grid gap-3 md:grid-cols-3">
+                                                        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 md:col-span-2">
+                                                            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Size</div>
+                                                            <div className="mt-1 text-lg font-black text-slate-950">{selectedGeometry.label}</div>
+                                                        </div>
+                                                        <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                                                            <div className="text-[10px] font-black uppercase tracking-widest text-sky-700">POD</div>
+                                                            <div className="mt-1 text-sm font-black text-slate-950">{selectedPodLabel}</div>
+                                                        </div>
+                                                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 md:col-span-3">
+                                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Add-ons</div>
+                                                            <div className="mt-1 text-sm font-black text-slate-900">{selectedAddonsLabel}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                        <div className="mb-3 flex items-center justify-between">
+                                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Material stack</div>
+                                                            <Badge variant="outline" className="bg-slate-50 text-[10px] font-black">{selectedMaterialSpecs.length || displayLayers.length} layers</Badge>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            {selectedMaterialSpecs.length > 0 ? selectedMaterialSpecs.map((row: any, idx: number) => (
+                                                                <div key={`selected-material-${idx}`} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div className="min-w-0">
+                                                                            <div className="text-sm font-black text-slate-950">{row.material}</div>
+                                                                            <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                                                                {row.code || "No code"} · {row.source}
+                                                                            </div>
+                                                                        </div>
+                                                                        {row.qty ? (
+                                                                            <div className="shrink-0 rounded-lg bg-white px-2 py-1 text-right text-[10px] font-black text-slate-700">
+                                                                                {Number(row.qty || 0).toFixed(4)} kg
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
+                                                                    <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-black uppercase">
+                                                                        <div className="rounded-lg bg-white px-2 py-2 text-slate-700">
+                                                                            <div className="text-[8px] text-slate-400">Thickness</div>
+                                                                            {row.thickness ? `${row.thickness} μ` : "—"}
+                                                                        </div>
+                                                                        <div className="rounded-lg bg-white px-2 py-2 text-slate-700">
+                                                                            <div className="text-[8px] text-slate-400">Width</div>
+                                                                            {row.width ? `${row.width} mm` : "—"}
+                                                                        </div>
+                                                                        <div className="rounded-lg bg-white px-2 py-2 text-slate-700">
+                                                                            <div className="text-[8px] text-slate-400">Grade</div>
+                                                                            {row.grade || "—"}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )) : (
+                                                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-xs font-semibold text-slate-400">
+                                                                    No material stack captured for this job.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {selectedLayerChips.length > 0 ? selectedLayerChips.map((layer: any, idx: number) => {
+                                                            const label = typeof layer === "string"
+                                                                ? layer
+                                                                : [layer.material || layer.variant_name || layer.name || `Layer ${idx + 1}`, layer.thickness || layer.thickness_micron ? `${layer.thickness ?? layer.thickness_micron}μ` : "", layer.grade_name || layer.grade || ""].filter(Boolean).join(" · ")
+                                                            return (
+                                                                <span key={`selected-layer-${idx}`} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-700">
+                                                                    {label}
+                                                                </span>
+                                                            )
+                                                        }) : (
+                                                            <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-400">No layer snapshot</span>
+                                                        )}
+                                                    </div>
                                                     <div className="text-right">
-                                                        <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Step Target</div>
-                                                        <div className="text-4xl font-black text-indigo-600 leading-none">
-                                                            {formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)}
-                                                            <span className="text-sm ml-1 text-slate-400 uppercase">{selectedPrimaryUom}</span>
-                                                        </div>
-                                                        <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">
-                                                            Order Total: {Number(orderTotalKg || 0).toFixed(3)} kg
-                                                        </div>
                                                         {showPrimarySupportKg ? (
                                                             <div className="text-[10px] font-semibold text-slate-500 mt-1">
                                                                 Support weight {Number(stepTargetKg || 0).toFixed(3)} kg
@@ -1457,7 +1738,7 @@ export default function WCMTerminal() {
                                         </Card>
 
                                         {/* COLUMN 3: REQUIREMENTS, WIP & ASSIGNMENT */}
-                                        <div className="space-y-6 overflow-y-auto pr-2 xl:col-span-6 xl:h-full">
+                                        <div className="space-y-6 overflow-y-auto pr-2 xl:col-span-5 xl:h-full">
                                             {/* 1. REQUIREMENTS (Current Step) */}
                                             <Card className="border-none shadow-md overflow-hidden bg-white">
                                                 <CardHeader className="bg-slate-100 py-3 flex flex-row justify-between items-center border-b border-slate-200">
@@ -1716,6 +1997,39 @@ export default function WCMTerminal() {
                                                             )}
                                                         </div>
                                                     )}
+                                                    {satisfactionStatus?.input_form === "ROLL" && laneGroups.length > 0 && (
+                                                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                                            {laneGroups.map((lane: any) => (
+                                                                <div key={String(lane?.lane_key || lane?.lane_label)} className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3">
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div>
+                                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">{lane?.lane_label || lane?.lane_key || "Lane"}</div>
+                                                                            <div className="mt-1 text-sm font-black text-slate-900">{lane?.variant_name || lane?.family_name || lane?.source_role || "Required lane"}</div>
+                                                                            <div className="mt-1 text-[11px] font-semibold text-slate-600">
+                                                                                {[lane?.grade_name, lane?.thickness_micron ? `${lane.thickness_micron}μ` : null, lane?.width_mm ? `${lane.width_mm}mm` : null].filter(Boolean).join(" • ") || "Spec comes from layer snapshot"}
+                                                                            </div>
+                                                                        </div>
+                                                                        <Badge variant="outline" className="border-indigo-200 bg-white text-[10px] text-indigo-700">
+                                                                            {(lane?.matched_rolls || lane?.rolls || []).length} roll(s)
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <div className="mt-3 space-y-1.5">
+                                                                        {(lane?.matched_rolls || lane?.rolls || []).map((roll: any) => (
+                                                                            <div key={String(roll?.id || roll?.label_id)} className="flex items-center justify-between rounded-xl border border-white/80 bg-white/70 px-2.5 py-2 text-[10px] font-semibold text-slate-600">
+                                                                                <span className="font-black text-slate-800">{roll?.label_id || String(roll?.id || "").slice(0, 8)}</span>
+                                                                                <span>{Number(roll?.weight_kg || 0).toFixed(2)} kg</span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {(lane?.matched_rolls || lane?.rolls || []).length === 0 ? (
+                                                                            <div className="rounded-xl border border-dashed border-indigo-200 bg-white/50 px-2.5 py-2 text-[10px] font-bold text-indigo-500">
+                                                                                No compatible roll assigned to this lane yet.
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                     <div className="grid grid-cols-2 gap-4">
                                                         {/* Left Sub-Column: Reserved for current step */}
                                                         <div className="space-y-3 border-r border-slate-100 pr-4">
@@ -1738,6 +2052,12 @@ export default function WCMTerminal() {
                                                                                 {roll.thickness_micron ? `${roll.thickness_micron}μ` : "—"} • {roll.width_mm ? `${roll.width_mm}mm` : "—"} • {roll.weight_kg}kg
                                                                                 {roll.grade_name ? ` • ${roll.grade_name}` : ""}
                                                                             </p>
+                                                                            {roll.target_lane_label ? (
+                                                                                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-indigo-600">
+                                                                                    {roll.target_lane_label}
+                                                                                    {roll.target_layer_index ? ` • Layer ${roll.target_layer_index}` : ""}
+                                                                                </p>
+                                                                            ) : null}
                                                                         </div>
                                                                         {roll.reservation_id ? (
                                                                             <Button

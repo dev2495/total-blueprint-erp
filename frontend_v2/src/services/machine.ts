@@ -55,6 +55,7 @@ export interface ProductionJob {
     bom_snapshot: Record<string, any>;
     unit_weight_g: number;
     total_weight_kg: number;
+    product_spec?: any;
     produced_qty: number;
     remaining_qty: number;
     primary_uom?: 'KG' | 'PCS';

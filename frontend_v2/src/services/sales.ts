@@ -62,6 +62,12 @@ export interface SalesOrder {
         claimed_stock_order_nos?: string[];
         line_count?: number;
         unit_weight_g?: number;
+        spec_facets?: any;
+        layers?: any[];
+        size?: any;
+        pod_labels?: string[];
+        addon_labels?: string[];
+        search_text?: string;
     };
     qty_summary?: {
         ordered_kg?: number | null;

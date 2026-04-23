@@ -126,7 +126,7 @@ export default function GovernancePage() {
 
     const availableRoleCodes = useMemo(() => {
         const fromApi = (rolesQuery.data || []).map((r) => String(r.code || "").toUpperCase()).filter(Boolean)
-        const fallback = ["OWNER", "ADMIN", "SALES", "ENGINEERING", "PLANNER", "WORK_CENTER_MANAGER", "OPERATOR", "STORE", "DISPATCH"]
+        const fallback = ["OWNER", "ADMIN", "SALES", "ENGINEERING", "PLANNER", "WORK_CENTER_MANAGER", "STORE", "DISPATCH"]
         const merged = new Set([...fromApi, ...fallback])
         return Array.from(merged).sort()
     }, [rolesQuery.data])

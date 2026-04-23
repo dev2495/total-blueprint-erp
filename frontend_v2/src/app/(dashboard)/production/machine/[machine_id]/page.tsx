@@ -20,6 +20,7 @@ import {
     ChevronRight,
     Package,
     Activity,
+    Search,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { normalizeProductSpec } from '@/lib/product-spec';
 import { toast } from '@/hooks/use-toast';
 import { inventoryService } from '@/services/inventory';
 import { machineService } from '@/services/machine';
@@ -122,6 +124,42 @@ function stateTone(state?: string): 'default' | 'secondary' | 'destructive' | 'o
     return 'outline';
 }
 
+function firstNonEmpty(...values: unknown[]) {
+    for (const value of values) {
+        const text = String(value ?? '').trim();
+        if (text && text !== '—' && text.toLowerCase() !== 'null' && text.toLowerCase() !== 'undefined') return text;
+    }
+    return '';
+}
+
+function productNameFromJob(job: any, context?: any) {
+    return normalizeProductSpec(job, context).productName;
+}
+
+function geometryFromJob(job: any, context?: any) {
+    const spec = normalizeProductSpec(job, context);
+    return {
+        width: spec.size.widthMm != null ? String(spec.size.widthMm) : '',
+        height: spec.size.heightMm != null ? String(spec.size.heightMm) : '',
+        gusset: spec.size.gussetMm != null ? String(spec.size.gussetMm) : '',
+        label: spec.size.label,
+    };
+}
+
+function podLabelFromJob(job: any, context?: any) {
+    const spec = normalizeProductSpec(job, context);
+    return spec.podLabels.length ? spec.podLabels.join(', ') : 'No POD';
+}
+
+function addonsLabelFromJob(job: any, context?: any) {
+    const spec = normalizeProductSpec(job, context);
+    return spec.addonLabels.length ? spec.addonLabels.slice(0, 4).join(', ') + (spec.addonLabels.length > 4 ? ` +${spec.addonLabels.length - 4}` : '') : 'No add-ons';
+}
+
+function layerHighlightsFromJob(job: any, context?: any) {
+    return normalizeProductSpec(job, context).layers.slice(0, 4).map((layer) => layer.label);
+}
+
 export default function MachineExecutionPage() {
     const params = useParams();
     const router = useRouter();
@@ -155,6 +193,8 @@ export default function MachineExecutionPage() {
     const [historyDateFrom, setHistoryDateFrom] = useState('');
     const [historyDateTo, setHistoryDateTo] = useState('');
     const [historyStatus, setHistoryStatus] = useState<'ALL' | 'NORMAL' | 'FORCED_VARIANCE'>('ALL');
+    const [queueSearch, setQueueSearch] = useState('');
+    const [queueStatusFilter, setQueueStatusFilter] = useState<'ALL' | 'RUNNING' | 'READY' | 'PAUSED'>('ALL');
 
     const {
         data: machineDetail,
@@ -194,6 +234,20 @@ export default function MachineExecutionPage() {
         return [];
     }, [queueData]);
     const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
+    const visibleQueueItems = useMemo(
+        () => safeQueueItems.filter((job: any) => {
+            const state = String(job?.job_state || '').toUpperCase();
+            if (queueStatusFilter === 'RUNNING' && state !== 'EXECUTING') return false;
+            if (queueStatusFilter === 'READY' && !(state === 'READY' || state === 'QUEUED' || state === 'EXECUTION_READY')) return false;
+            if (queueStatusFilter === 'PAUSED' && state !== 'PAUSED') return false;
+
+            const search = queueSearch.trim().toLowerCase();
+            if (!search) return true;
+            const spec = normalizeProductSpec(job);
+            return [spec.searchText, job?.job_number, job?.process_code].join(' ').toLowerCase().includes(search);
+        }),
+        [safeQueueItems, queueSearch, queueStatusFilter]
+    );
 
     const isActive = machineDetail?.machine?.status === 'ACTIVE';
 
@@ -260,6 +314,7 @@ export default function MachineExecutionPage() {
         'NONE';
     const behavior = String(behaviorRaw || 'NONE').toUpperCase();
     const behaviorDisplay = behaviorLabel(behavior);
+    const supportsDiscreteOutputRolls = behavior === 'CREATE_NEW' || behavior === 'MULTI_INPUT_COMBINE';
 
     const progressWeight = context?.progress?.weight_kg || context?.execution_profile?.progress?.weight_kg || {};
     const progressPcs = context?.progress?.pcs || context?.execution_profile?.progress?.pcs || {};
@@ -317,6 +372,13 @@ export default function MachineExecutionPage() {
             variant: row.variant || row.material_name || '—',
             grade: row.grade || row.grade_name || '—',
             location_name: row.location_name || '—',
+            target_lane_key: row.target_lane_key || null,
+            target_lane_label: row.target_lane_label || null,
+            target_layer_index: row.target_layer_index ?? null,
+            target_variant_name: row.target_variant_name || null,
+            target_grade_name: row.target_grade_name || null,
+            target_thickness_micron: toNullableNumber(row.target_thickness_micron),
+            target_width_mm: toNullableNumber(row.target_width_mm),
         }));
     const bulkPreview =
         context?.inputs?.bulk_preview_theoretical ||
@@ -343,7 +405,15 @@ export default function MachineExecutionPage() {
         location_name: row.location_name || '—',
         stage: row.stage || '—',
     }));
-    const wipPoolMeta = context?.wip_pool_meta || {};
+    const wipPoolMeta: any = context?.wip_pool_meta || {};
+    const laneGroupMode = Boolean(wipPoolMeta?.lane_group_mode);
+    const requiredLaneCount = Math.max(0, toNumber(wipPoolMeta?.input_lane_count, 0));
+    const reservedLaneCount = new Set(
+        reservedRolls
+            .map((row: any) => String(row?.target_lane_key || '').trim())
+            .filter(Boolean)
+    ).size;
+    const laneGroups = Array.isArray(wipPoolMeta?.lane_groups) ? wipPoolMeta.lane_groups : [];
     const wipRecentLineage = context?.wip_recent_lineage || [];
     const rollInputRequired = Boolean(wipPoolMeta?.required_for_step);
     const displayedWip = rollInputRequired ? wipPool : wipRecentLineage;
@@ -391,6 +461,12 @@ export default function MachineExecutionPage() {
     const effectiveWidthMm = toNullableNumber(effectiveGeometry?.width_mm ?? effectiveGeometry?.width ?? baseWidthMm);
     const effectiveHeightMm = toNullableNumber(effectiveGeometry?.height_mm ?? effectiveGeometry?.height ?? baseHeightMm);
     const effectiveAreaM2 = toNullableNumber(effectiveGeometry?.area_m2 ?? effectiveGeometry?.area ?? baseAreaM2);
+    const selectedProductName = productNameFromJob(selectedJob, context);
+    const selectedCustomerName = firstNonEmpty(selectedJob?.customer_name, context?.job?.customer_name, 'Customer not captured');
+    const selectedGeometry = geometryFromJob(selectedJob, context);
+    const selectedPodLabel = podLabelFromJob(selectedJob, context);
+    const selectedAddonsLabel = addonsLabelFromJob(selectedJob, context);
+    const selectedLayerChips = layerHighlightsFromJob(selectedJob, context);
     const createNewDefaultWidthMm = useMemo(
         () => (behavior === 'CREATE_NEW' ? resolveCreateNewDefaultWidth(context) : null),
         [behavior, context]
@@ -526,7 +602,7 @@ export default function MachineExecutionPage() {
         if (behavior === 'SPLIT') {
             return Math.max(0, splitTotalKg);
         }
-        if (behavior === 'CREATE_NEW' && createRollRowsParsed.length > 0) {
+        if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 0) {
             return Math.max(0, createRollTotalKg);
         }
         if (showPcsEntry && outputEntryMode === 'PCS') {
@@ -544,7 +620,7 @@ export default function MachineExecutionPage() {
             }
         }
         return 0;
-    }, [behavior, splitTotalKg, createRollRowsParsed.length, createRollTotalKg, showPcsEntry, outputEntryMode, outputPcs, unitWeightG, outputWeightKg]);
+    }, [behavior, splitTotalKg, supportsDiscreteOutputRolls, createRollRowsParsed.length, createRollTotalKg, showPcsEntry, outputEntryMode, outputPcs, unitWeightG, outputWeightKg]);
     const previewOutputPcs = useMemo(() => {
         if (!showPcsEntry) return null;
         const pcs = toNumber(outputPcs, NaN);
@@ -588,7 +664,11 @@ export default function MachineExecutionPage() {
 
     const jobState = String(selectedJob?.job_state || '').toUpperCase();
     const isExecuting = jobState === 'EXECUTING';
-    const allocationReservationReady = !allocationRequired || reservedRolls.length === 1;
+    const allocationReservationReady =
+        !allocationRequired ||
+        (laneGroupMode
+            ? (requiredLaneCount <= 0 ? reservedRolls.length > 0 : reservedLaneCount >= requiredLaneCount)
+            : reservedRolls.length === 1);
     const canStart = Boolean(
         selectedJob &&
         !isExecuting &&
@@ -781,7 +861,7 @@ export default function MachineExecutionPage() {
                 payload.split_outputs = splitRowsParsed.map((row) => ({ width_mm: row.width_mm, weight_kg: row.weight_kg }));
                 payload.actual_qty = splitTotalKg;
             } else {
-                if (behavior === 'CREATE_NEW' && createRollRowsParsed.length > 1) {
+                if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1) {
                     if (createRollTotalKg > (maxOutputWithScrapKg + 0.001)) {
                         throw new Error(`Output exceeds physical max for this log (${maxOutputWithScrapKg.toFixed(3)} kg).`);
                     }
@@ -843,10 +923,10 @@ export default function MachineExecutionPage() {
                 payload.actual_qty = qty;
             }
 
-            if (behavior === 'CREATE_NEW') {
+            if (supportsDiscreteOutputRolls) {
                 const width = toNumber(outputWidthMm, NaN);
                 if (!Number.isFinite(width) || width <= 0) {
-                    throw new Error('Output width is required for CREATE_NEW.');
+                    throw new Error('Output width is required for roll output.');
                 }
                 payload.output_width_mm = width;
 
@@ -1131,14 +1211,46 @@ export default function MachineExecutionPage() {
                     <TabsContent value="execution" className="space-y-6 mt-0 outline-none animate-in fade-in duration-500">
                         {/* Horizontal Job Queue */}
                         <Card className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/92 shadow-[0_20px_56px_-44px_rgba(15,23,42,0.2)]">
-                            <CardHeader className="py-3 px-6 border-b border-white/20 bg-white/10">
-                                <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center justify-between">
-                                    <span>Live Job Queue ({safeQueueItems.length})</span>
-                                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-bold tracking-widest lowercase">
-                                        <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
-                                        polling...
+                            <CardHeader className="py-4 px-6 border-b border-slate-100 bg-white">
+                                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                                    <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
+                                        <span>Live Job Queue ({visibleQueueItems.length}/{safeQueueItems.length})</span>
+                                        <span className="flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-blue-600">
+                                            <span className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
+                                            polling
+                                        </span>
+                                    </CardTitle>
+                                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                                        <div className="relative min-w-[280px]">
+                                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                            <Input
+                                                value={queueSearch}
+                                                onChange={(event) => setQueueSearch(event.target.value)}
+                                                placeholder="Search customer, size, variant, POD"
+                                                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs font-semibold"
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {([
+                                                ['ALL', 'All'],
+                                                ['RUNNING', 'Running'],
+                                                ['READY', 'Ready'],
+                                                ['PAUSED', 'Paused'],
+                                            ] as const).map(([value, label]) => (
+                                                <Button
+                                                    key={value}
+                                                    type="button"
+                                                    variant={queueStatusFilter === value ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    className="h-9 rounded-xl text-[10px] font-black uppercase tracking-wide"
+                                                    onClick={() => setQueueStatusFilter(value)}
+                                                >
+                                                    {label}
+                                                </Button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </CardTitle>
+                                </div>
                             </CardHeader>
                             <CardContent className="p-4 flex gap-4 overflow-x-auto scrollbar-hide">
                                 {safeQueueItems.length === 0 && (
@@ -1158,9 +1270,13 @@ export default function MachineExecutionPage() {
                                         </div>
                                     </div>
                                 )}
-                                {safeQueueItems.map((job) => {
+                                {safeQueueItems.length > 0 && visibleQueueItems.length === 0 && (
+                                    <div className="flex w-full items-center justify-center rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-7 text-xs font-bold uppercase tracking-widest text-slate-400">
+                                        No matching jobs
+                                    </div>
+                                )}
+                                {visibleQueueItems.map((job) => {
                                     const isSelected = String(job.id) === String(selectedId);
-                                    const isRunning = String(job.job_state).toUpperCase() === 'EXECUTING';
                                     const queueExecutionVersion = toNumber((job as any).execution_model_version, 1);
                                     const orderTargetKgRaw = toNumber(
                                         (job as any).order_reference_target_kg,
@@ -1191,6 +1307,9 @@ export default function MachineExecutionPage() {
                                         }
                                         return null;
                                     })();
+                                    const queueGeometry = geometryFromJob(job);
+                                    const queueLayers = layerHighlightsFromJob(job);
+                                    const queuePod = podLabelFromJob(job);
 
                                     return (
                                         <button
@@ -1198,23 +1317,42 @@ export default function MachineExecutionPage() {
                                             onClick={() => setSelectedJobId(String(job.id))}
                                             data-testid={`machine-job-card-${job.id}`}
                                             className={cn(
-                                                "group relative min-w-[280px] text-left rounded-2xl border transition-all duration-500 p-4",
+                                                "group relative min-w-[330px] text-left rounded-2xl border transition-all duration-500 p-4",
                                                 isSelected
                                                     ? "border-blue-400/50 bg-white/80 shadow-[0_20px_40px_-15px_rgba(59,130,246,0.3)] -translate-y-2"
                                                     : "border-white/20 bg-white/20 backdrop-blur-sm hover:border-white/40 hover:bg-white/40 hover:shadow-xl hover:-translate-y-1"
                                             )}
                                         >
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className={cn(
-                                                    "text-sm font-black tracking-tight transition-colors",
-                                                    isSelected ? "text-blue-600" : "text-slate-900"
-                                                )}>
-                                                    {job.job_number}
+                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                <div className="min-w-0">
+                                                    <div className={cn(
+                                                        "truncate text-base font-black tracking-tight transition-colors",
+                                                        isSelected ? "text-blue-600" : "text-slate-900"
+                                                    )}>
+                                                        {job.customer_name || "—"}
+                                                    </div>
+                                                    <div className="mt-1 line-clamp-2 text-[11px] font-bold text-slate-600">
+                                                        {productNameFromJob(job)}
+                                                    </div>
                                                 </div>
                                                 <SemanticBadge kind="jobState" value={job.job_state} label={job.job_state || "Queued"} className="text-[9px] px-2 py-1" />
                                             </div>
-                                            <div className="text-[11px] font-black text-slate-900 truncate mb-1">
-                                                {job.template_name || job.product_name}
+                                            <div className="rounded-xl border border-slate-100 bg-white/80 px-3 py-2">
+                                                <div className="text-[9px] font-black uppercase tracking-widest text-blue-600">Size</div>
+                                                <div className="mt-1 text-xs font-black text-slate-900">{queueGeometry.label}</div>
+                                            </div>
+                                            {queueLayers.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                    {queueLayers.slice(0, 2).map((layer: string, index: number) => (
+                                                        <span key={`${job.id}-layer-${index}`} className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase text-indigo-700">
+                                                            {layer}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                <span className="rounded-lg bg-sky-50 px-2 py-1 text-[9px] font-black uppercase text-sky-700">POD {queuePod}</span>
+                                                <span className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500">{job.process_code || 'Step'}</span>
                                             </div>
                                             <div className="flex items-center justify-between mt-4 bg-slate-50/50 rounded-xl px-3 py-2 border border-slate-100/50">
                                                 <div className="flex flex-col">
@@ -1342,6 +1480,12 @@ export default function MachineExecutionPage() {
                                                             <div className="text-[9px] font-semibold text-slate-500 mb-2 truncate">
                                                                 {roll.location_name || '—'}
                                                             </div>
+                                                            {roll.target_lane_label && (
+                                                                <div className="mb-2 rounded-xl border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-indigo-600">
+                                                                    {roll.target_lane_label}
+                                                                    {roll.target_layer_index ? ` • Layer ${roll.target_layer_index}` : ''}
+                                                                </div>
+                                                            )}
                                                             <div className="flex items-center gap-4 text-[9px] font-bold text-slate-500">
                                                                 <span>{formatMm(roll.width_mm)}</span>
                                                                 <span className="text-slate-200">•</span>
@@ -1818,17 +1962,46 @@ export default function MachineExecutionPage() {
                                     ) : (
                                         <>
                                             {/* Main Job Context Card */}
-                                            <Card className="border border-white/10 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-[2rem] overflow-hidden shadow-2xl shadow-indigo-900/20">
+                                            <Card className="sticky top-0 z-20 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white shadow-2xl shadow-indigo-900/20">
                                                 <CardContent className="p-6 space-y-6">
                                                     <div className="flex items-start justify-between">
-                                                        <div>
-                                                            <div className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] mb-1">Production Job</div>
-                                                            <h2 className="text-3xl font-black tracking-tighter">{selectedJob.job_number}</h2>
-                                                            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider line-clamp-1">{context?.display?.template_name || selectedJob.template_name}</p>
+                                                        <div className="min-w-0">
+                                                            <div className="text-[10px] font-black text-blue-300 uppercase tracking-[0.3em] mb-1">Sales product</div>
+                                                            <h2 className="text-3xl font-black tracking-tight leading-tight">{selectedProductName}</h2>
+                                                            <p className="mt-2 text-sm font-bold text-blue-100 line-clamp-1">{selectedCustomerName}</p>
+                                                            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                                                                {selectedJob.order_number ? `SO ${selectedJob.order_number}` : 'SO —'} · {machineDetail?.machine?.name || 'Machine terminal'}
+                                                            </p>
                                                         </div>
                                                         <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 font-black uppercase tracking-widest text-[10px] px-3">
                                                             {behaviorDisplay}
                                                         </Badge>
+                                                    </div>
+
+                                                    <div className="grid gap-3 md:grid-cols-3">
+                                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 md:col-span-2">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-blue-300">Size</span>
+                                                            <div className="mt-1 text-lg font-black text-white">{selectedGeometry.label}</div>
+                                                        </div>
+                                                        <div className="rounded-2xl border border-sky-400/20 bg-sky-400/10 p-3">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-sky-200">POD</span>
+                                                            <div className="mt-1 text-sm font-black text-white">{selectedPodLabel}</div>
+                                                        </div>
+                                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 md:col-span-3">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Add-ons</span>
+                                                            <div className="mt-1 text-sm font-black text-white">{selectedAddonsLabel}</div>
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {selectedLayerChips.length > 0 ? selectedLayerChips.map((layer: string, idx: number) => (
+                                                                    <span key={`machine-selected-layer-${idx}`} className="rounded-lg bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase text-blue-100">
+                                                                        {layer}
+                                                                    </span>
+                                                                )) : (
+                                                                    <span className="rounded-lg bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase text-slate-400">
+                                                                        No layer snapshot
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
 
                                                     <div className="grid grid-cols-3 gap-4">
@@ -1936,7 +2109,7 @@ export default function MachineExecutionPage() {
                                                             <Plus className="h-3 w-3 mr-1" /> Add Split
                                                         </Button>
                                                     )}
-                                                    {behavior === 'CREATE_NEW' && (
+                                                    {supportsDiscreteOutputRolls && (
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
@@ -1951,15 +2124,33 @@ export default function MachineExecutionPage() {
                                                 </div>
                                                 {allocationRequired && (
                                                     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800">
-                                                        <div className="font-black uppercase tracking-wider text-[10px]">Step 1 Allocation Policy</div>
+                                                        <div className="font-black uppercase tracking-wider text-[10px]">Roll Allocation Policy</div>
                                                         <div className="mt-1">
-                                                            Exactly one stage-0 purchasable roll must be reserved before start/log. Reserved now: <span className="font-black">{reservedRolls.length}</span>.
+                                                            {laneGroupMode
+                                                                ? `Reserve at least one compatible roll in each lamination lane. Lanes ready: ${reservedLaneCount}/${requiredLaneCount || 2}.`
+                                                                : "Exactly one compatible roll must be reserved before start/log."} Reserved now: <span className="font-black">{reservedRolls.length}</span>.
                                                         </div>
                                                     </div>
                                                 )}
 
-                                                {behavior === 'CREATE_NEW' && (
+                                                {supportsDiscreteOutputRolls && (
                                                     <div className="p-4 rounded-3xl bg-slate-50/50 border border-slate-100 space-y-4">
+                                                        {laneGroupMode && laneGroups.length > 0 && (
+                                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                                {laneGroups.map((lane: any) => (
+                                                                    <div key={String(lane?.lane_key || lane?.lane_label)} className="rounded-2xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                                                                        <div className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{lane?.lane_label || lane?.lane_key || "Lane"}</div>
+                                                                        <div className="mt-1 text-xs font-black text-slate-900">{lane?.variant_name || lane?.family_name || lane?.source_role || "Required lane"}</div>
+                                                                        <div className="mt-1 text-[10px] font-semibold text-slate-600">
+                                                                            {[lane?.grade_name, lane?.thickness_micron ? `${lane.thickness_micron}μ` : null, lane?.width_mm ? `${lane.width_mm}mm` : null].filter(Boolean).join(" • ") || "Spec from layer snapshot"}
+                                                                        </div>
+                                                                        <div className="mt-1 text-[10px] font-bold text-indigo-700">
+                                                                            {(lane?.matched_rolls || lane?.rolls || []).length} roll(s) reserved
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                         {showPcsEntry && (
                                                             <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 flex items-center justify-between gap-3">
                                                                 <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Output Entry Mode</div>
@@ -2092,13 +2283,13 @@ export default function MachineExecutionPage() {
                                                             ))}
                                                         </div>
                                                         <div className="flex items-center justify-between rounded-2xl bg-blue-50/30 border border-blue-100 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-600">
-                                                            <span>Total Create-New Output</span>
+                                                            <span>{behavior === 'MULTI_INPUT_COMBINE' ? "Total Lamination Output" : "Total Create-New Output"}</span>
                                                             <span>{createRollTotalKg.toFixed(3)} KG</span>
                                                         </div>
                                                     </div>
                                                 )}
 
-                                                {(behavior === 'MODIFY_EXISTING' || behavior === 'MULTI_INPUT_COMBINE' || behavior === 'NONE') && (
+                                                {(behavior === 'MODIFY_EXISTING' || behavior === 'NONE') && (
                                                     <div className="p-4 rounded-3xl bg-slate-50/50 border border-slate-100 space-y-3">
                                                         {showPcsEntry && (
                                                             <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 flex items-center justify-between gap-3">

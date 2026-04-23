@@ -13,6 +13,58 @@ class JobService:
     PARTIAL_SHORTFALL_THRESHOLD_PCT = Decimal("5.0")
 
     @classmethod
+    def _job_layer_count_from_source(cls, source):
+        snapshot = getattr(source, "layer_snapshot", None) or []
+        if not isinstance(snapshot, list):
+            return 0
+        return len([row for row in snapshot if isinstance(row, dict)])
+
+    @classmethod
+    def _lamination_pass_index_for_route(cls, processes, index):
+        pass_index = 0
+        try:
+            combine_codes = set(
+                Process.objects.filter(
+                    code__in=list(processes),
+                    roll_behavior="MULTI_INPUT_COMBINE",
+                ).values_list("code", flat=True)
+            )
+            for idx, code in enumerate(processes):
+                if idx > index:
+                    break
+                if code in combine_codes:
+                    pass_index += 1
+        except Exception:
+            pass_index = 0
+        return max(pass_index, 1)
+
+    @classmethod
+    def _route_step_active_for_source(cls, *, source, template, process, processes, index):
+        if not process or str(getattr(process, "roll_behavior", "") or "").upper() != "MULTI_INPUT_COMBINE":
+            return True
+        layer_count = cls._job_layer_count_from_source(source)
+        if layer_count <= 0:
+            return True
+        active_min = 0
+        try:
+            from apps.templates.models import TemplateProcessStep
+
+            step = (
+                TemplateProcessStep.objects.select_related("roll_spec")
+                .filter(template=template, sequence_number=int(index) + 1)
+                .first()
+            )
+            roll_spec = getattr(step, "roll_spec", None) if step else None
+            if roll_spec and str(getattr(roll_spec, "combine_mode", "") or "").upper() == "LANE_GROUPS":
+                active_min = int(getattr(roll_spec, "active_min_layer_count", 0) or 0)
+        except Exception:
+            active_min = 0
+        pass_index = cls._lamination_pass_index_for_route(processes, index)
+        if active_min <= 0:
+            active_min = 2 if pass_index <= 1 else pass_index + 1
+        return layer_count >= active_min
+
+    @classmethod
     def _resolve_job_plant_id(cls, job):
         if job.work_center_id and job.work_center and job.work_center.plant_id:
             return str(job.work_center.plant_id)
@@ -463,10 +515,8 @@ class JobService:
         setattr(job, "_completion_variance_kg", float(max(variance, Decimal("0"))))
         setattr(job, "_completion_force_reason", (force_reason or "").strip() or None)
 
-        next_step_index = job.current_step_index + 1
         filters = {
             "routing_rule": job.routing_rule,
-            "current_step_index": next_step_index,
             "job_state": "WAITING",
         }
         if job.sales_order_item:
@@ -476,7 +526,9 @@ class JobService:
 
         next_job = (
             ProductionJob.objects.filter(**filters)
+            .filter(current_step_index__gt=job.current_step_index)
             .select_related("work_center__plant", "from_location__plant", "to_location__plant")
+            .order_by("current_step_index", "created_at")
             .first()
         )
         if next_job:
@@ -681,6 +733,14 @@ class JobService:
                 continue
                 
             process = Process.objects.get(code=process_code)
+            if not cls._route_step_active_for_source(
+                source=so_item,
+                template=template,
+                process=process,
+                processes=processes,
+                index=index,
+            ):
+                continue
             wc = cls._resolve_work_center_for_process(process)
 
             # Resolve plant per-step from the resolved work center (future-proof for multi-plant).
@@ -795,6 +855,14 @@ class JobService:
                 continue
                 
             process = Process.objects.get(code=process_code)
+            if not cls._route_step_active_for_source(
+                source=planned_order,
+                template=template,
+                process=process,
+                processes=processes,
+                index=index,
+            ):
+                continue
             wc = cls._resolve_work_center_for_process(process, plant=planned_order.plant)
             
             # Resolve Plant: If order has no plant, take from first work center resolved

@@ -109,9 +109,9 @@ class MachineViewSet(viewsets.ModelViewSet):
         if is_admin:
             return Response(MachineSerializer(self.queryset, many=True).data)
 
-        from apps.users.models import MachineAssignment
-        assigned_ids = MachineAssignment.objects.filter(user=user).values_list('machine_id', flat=True)
-        machines = Machine.objects.filter(id__in=assigned_ids)
+        from apps.users.models import WorkCenterAssignment
+        assigned_wc_ids = WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True)
+        machines = Machine.objects.filter(work_center_id__in=assigned_wc_ids)
         return Response(MachineSerializer(machines, many=True).data)
 
     @action(detail=True, methods=['post'], url_path='downtime')

@@ -75,18 +75,6 @@ class RbacP0Tests(TestCase):
             role=self.role_wcm,
         )
 
-        self.role_operator = Role.objects.create(
-            code="OPERATOR",
-            name="Operator",
-            default_permissions=["production.view"],
-        )
-        self.user_operator = User.objects.create_user(
-            username="operator1",
-            email="operator1@example.com",
-            password="pass1234",
-            role=self.role_operator,
-        )
-
         self.role_engineering = Role.objects.create(
             code="ENGINEERING",
             name="Engineering",
@@ -145,11 +133,10 @@ class RbacP0Tests(TestCase):
         self.assertAllows(self.user_planner, "GET", "/api/templates/")
         self.assertAllows(self.user_planner, "GET", "/api/engineering/artworks/")
 
-    def test_wcm_and_operator_can_read_execution_lookup_data(self):
+    def test_wcm_can_read_execution_lookup_data(self):
         self.assertAllows(self.user_wcm, "GET", "/api/master/granules/")
         self.assertAllows(self.user_wcm, "GET", "/api/templates/")
-        self.assertAllows(self.user_operator, "GET", "/api/inventory/locations/")
-        self.assertAllows(self.user_operator, "GET", "/api/master/granules/")
+        self.assertAllows(self.user_wcm, "GET", "/api/inventory/locations/")
 
     def test_dispatch_can_read_packing_and_dispatch_lookup_data(self):
         self.assertAllows(self.user_dispatch, "GET", "/api/production/packing/orders/")

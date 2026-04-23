@@ -81,6 +81,11 @@ class SalesOrderListSummaryTests(SimpleTestCase):
         self.assertEqual(item_summary["template_tag"], "TPL Courier Bag Template")
         self.assertEqual(item_summary["packaging_summary"], "25 pcs/pack · POD enabled")
         self.assertEqual(item_summary["unit_weight_g"], 3.7)
+        self.assertEqual(item_summary["size"]["label"], "220 x 320 mm")
+        self.assertEqual(len(item_summary["layers"]), 3)
+        self.assertEqual(item_summary["layers"][0]["thickness_micron"], 12.0)
+        self.assertIn("POD", " ".join(item_summary["pod_labels"]))
+        self.assertIn("220 x 320", item_summary["search_text"])
 
         self.assertEqual(qty_summary["ordered_kg"], 24.0)
         self.assertEqual(qty_summary["ordered_pcs"], 6500.0)

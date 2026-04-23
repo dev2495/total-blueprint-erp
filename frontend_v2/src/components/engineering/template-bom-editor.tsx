@@ -19,14 +19,15 @@ interface TemplateBomEditorProps {
     template: TemplateBlueprint
 }
 
+const SUPPORTED_BULK_CATEGORIES = ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON", "POD"] as const
+const MULTI_STEP_CATEGORIES = new Set(["ADHESIVE", "SOLVENT"])
+
 export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
     const { toast } = useToast()
     const queryClient = useQueryClient()
     const [isSyncing, setIsSyncing] = useState(false)
     const [rollSpecDrafts, setRollSpecDrafts] = useState<Record<string, Partial<TemplateProcessStepRollHandlingRule>>>({})
     const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
-    const [manualCategories, setManualCategories] = useState<string[]>([])
-    const [customCategoryCode, setCustomCategoryCode] = useState("")
     const [categoryRowErrors, setCategoryRowErrors] = useState<Record<string, string>>({})
     const [categoryRowPending, setCategoryRowPending] = useState<Record<string, boolean>>({})
 
@@ -167,9 +168,14 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             return { input_roll_count: 1, thickness_rule: "INHERIT_INPUT", width_rule: "LOCK_INPUT", operator_entry_mode: "PROCESS_DEFAULT" }
         }
         if (behavior === "MULTI_INPUT_COMBINE") {
-            // LAM: Default input rolls = number of film layers, thickness = SUM, width = MIN
             return {
-                input_roll_count: filmLayerCount > 0 ? filmLayerCount : 2,
+                input_roll_count: 2,
+                combine_mode: "LANE_GROUPS",
+                input_lane_count: 2,
+                lamination_pass_index: 1,
+                active_min_layer_count: 2,
+                adhesive_split_pct: 50,
+                solvent_split_pct: 50,
                 thickness_rule: "SUM_INPUTS",
                 width_rule: "MIN_INPUT",
                 operator_entry_mode: "PROCESS_DEFAULT",
@@ -193,10 +199,11 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             const saved = step.roll_handling || {}
             const merged = { ...defaults, ...saved }
 
-            // For MULTI_INPUT_COMBINE (LAM), always force input_roll_count from template layer count
             const behavior = String(step.process_roll_behavior || "NONE").toUpperCase()
-            if (behavior === "MULTI_INPUT_COMBINE" && filmLayerCount > 0) {
-                merged.input_roll_count = filmLayerCount
+            if (behavior === "MULTI_INPUT_COMBINE") {
+                merged.input_roll_count = 2
+                merged.combine_mode = "LANE_GROUPS"
+                merged.input_lane_count = Number(merged.input_lane_count || 2)
             }
 
             nextDrafts[step.id] = merged
@@ -240,18 +247,24 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
 
     // Category mapping lookup (V2 primary)
     const mappedByCategory = new Map<string, { stepId: string; stepName: string; matId: string }>()
+    const mappedByCategoryList = new Map<string, Array<{ stepId: string; stepName: string; matId: string }>>()
     for (const s of stepsList) {
         for (const m of (s.materials || [])) {
             const sourceKind = String((m as any).source_kind || ((m as any).material ? "MATERIAL" : "CATEGORY")).toUpperCase()
             if (sourceKind !== "CATEGORY") continue
             const code = String((m as any).category_code || "").trim().toUpperCase()
-            if (!code || mappedByCategory.has(code)) continue
-            mappedByCategory.set(code, { stepId: s.id, stepName: `${s.sequence_number}: ${s.process_name}`, matId: m.id })
+            if (!code) continue
+            const entry = { stepId: s.id, stepName: `${s.sequence_number}: ${s.process_name}`, matId: m.id }
+            if (!mappedByCategory.has(code)) mappedByCategory.set(code, entry)
+            mappedByCategoryList.set(code, [...(mappedByCategoryList.get(code) || []), entry])
         }
     }
 
-    const getMappedMaterial = (categoryCode: string) => {
-        const mapping = mappedByCategory.get(String(categoryCode || "").toUpperCase())
+    const getMappedMaterial = (categoryCode: string, stepId?: string) => {
+        const normalized = String(categoryCode || "").toUpperCase()
+        const mapping = stepId
+            ? (mappedByCategoryList.get(normalized) || []).find((entry) => entry.stepId === stepId)
+            : mappedByCategory.get(normalized)
         if (!mapping) return null
         const step = stepsList.find((s) => s.id === mapping.stepId)
         if (!step) return null
@@ -287,35 +300,39 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
     }, [groupedRequirements])
 
     const categoryOptions = useMemo(() => {
-        const defaults = ["GRANULE", "INK", "CHEMICAL", "ADDON", "POD"]
+        const defaults = [...SUPPORTED_BULK_CATEGORIES]
         const all = new Set<string>(defaults)
         for (const req of theoreticalRequirements) {
             const code = String((req as any).category || "").trim().toUpperCase()
             if (code && !code.startsWith("FILM")) all.add(code)
         }
         for (const key of mappedByCategory.keys()) all.add(String(key || "").toUpperCase())
-        for (const code of manualCategories) {
-            const normalized = String(code || "").trim().toUpperCase()
-            if (normalized) all.add(normalized)
-        }
-        return Array.from(all).sort()
-    }, [theoreticalRequirements, mappedByCategory, manualCategories])
+        return Array.from(all)
+            .filter((code) => SUPPORTED_BULK_CATEGORIES.includes(code as any) || code === "CHEMICAL")
+            .sort()
+    }, [theoreticalRequirements, mappedByCategory])
 
-    const handleAssignCategory = async (categoryCode: string, nextStepId: string | null) => {
+    const handleAssignCategory = async (categoryCode: string, nextStepId: string | null, options?: { replaceExisting?: boolean }) => {
         const normalized = String(categoryCode || "").trim().toUpperCase()
         if (!normalized) return
+        if (!SUPPORTED_BULK_CATEGORIES.includes(normalized as any) && normalized !== "CHEMICAL") {
+            setCategoryRowErrors((prev) => ({ ...prev, [normalized]: "Unsupported category. Use GRANULE, INK, ADHESIVE, SOLVENT, ADDON, or POD." }))
+            return
+        }
         const existing = mappedByCategory.get(normalized)
+        const existingForStep = nextStepId ? (mappedByCategoryList.get(normalized) || []).find((row) => row.stepId === nextStepId) : null
         setCategoryRowErrors((prev) => ({ ...prev, [normalized]: "" }))
         setCategoryRowPending((prev) => ({ ...prev, [normalized]: true }))
         try {
             if (!nextStepId) {
-                if (existing) {
-                    await removeMaterialMutation.mutateAsync({ stepId: existing.stepId, materialId: existing.matId })
+                const mappings = mappedByCategoryList.get(normalized) || []
+                for (const mapping of mappings) {
+                    await removeMaterialMutation.mutateAsync({ stepId: mapping.stepId, materialId: mapping.matId })
                 }
                 return
             }
-            if (existing?.stepId === nextStepId) return
-            if (existing) {
+            if (existingForStep) return
+            if ((options?.replaceExisting ?? true) && existing) {
                 await removeMaterialMutation.mutateAsync({ stepId: existing.stepId, materialId: existing.matId })
             }
             await addMaterialMutation.mutateAsync({
@@ -338,21 +355,6 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
         } finally {
             setCategoryRowPending((prev) => ({ ...prev, [normalized]: false }))
         }
-    }
-
-    const handleAddManualCategory = () => {
-        const normalized = String(customCategoryCode || "").trim().toUpperCase()
-        if (!normalized) return
-        if (normalized.startsWith("FILM")) {
-            toast({
-                title: "Invalid category",
-                description: "Film categories are not step-mapped as bulk consumption.",
-                variant: "destructive",
-            })
-            return
-        }
-        setManualCategories((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]))
-        setCustomCategoryCode("")
     }
 
     if (stepsLoading) return <div className="p-4 text-sm text-slate-400">Loading flow...</div>
@@ -524,6 +526,12 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                 stepId: step.id,
                                                                 payload: {
                                                                     input_roll_count: Number(draft.input_roll_count || 0),
+                                                                    combine_mode: (draft.combine_mode || "STRICT_ROLL_COUNT") as any,
+                                                                    input_lane_count: Number(draft.input_lane_count || 0),
+                                                                    lamination_pass_index: Number(draft.lamination_pass_index || 0),
+                                                                    active_min_layer_count: Number(draft.active_min_layer_count || 0),
+                                                                    adhesive_split_pct: Number(draft.adhesive_split_pct || 0),
+                                                                    solvent_split_pct: Number(draft.solvent_split_pct || 0),
                                                                     thickness_rule: (draft.thickness_rule || "TEMPLATE_DEFAULT") as any,
                                                                     width_rule: (draft.width_rule || "TEMPLATE_DEFAULT") as any,
                                                                     operator_entry_mode: (draft.operator_entry_mode || "PROCESS_DEFAULT") as any,
@@ -611,6 +619,92 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                     <p className="text-[10px] text-slate-500">
                                                         Refinement only: Process defines the physical behavior. Roll handling only tunes input count, width/thickness policy, and operator entry shape.
                                                     </p>
+                                                    {String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE" ? (
+                                                        <div className="rounded-2xl border border-indigo-100 bg-white/80 p-4">
+                                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                                                <div>
+                                                                    <Label className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-500">Lamination Pass Builder</Label>
+                                                                    <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                                                                        Two lanes per pass. Pass 1 combines Layer 1 + Layer 2. Pass 2 combines prior laminate + Layer 3.
+                                                                    </p>
+                                                                </div>
+                                                                <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px]">
+                                                                    Lane based
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                                                                <div>
+                                                                    <Label className="text-[10px] text-slate-500">Pass No.</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        value={String(draft.lamination_pass_index || 1)}
+                                                                        onChange={(e) => setDraft(step.id, { lamination_pass_index: Number(e.target.value || 1) })}
+                                                                        className="mt-1 h-8 text-xs"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <Label className="text-[10px] text-slate-500">Active From Layers</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={2}
+                                                                        value={String(draft.active_min_layer_count || 2)}
+                                                                        onChange={(e) => setDraft(step.id, { active_min_layer_count: Number(e.target.value || 2) })}
+                                                                        className="mt-1 h-8 text-xs"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <Label className="text-[10px] text-slate-500">Input Lanes</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={2}
+                                                                        max={2}
+                                                                        value={String(draft.input_lane_count || 2)}
+                                                                        onChange={(e) => setDraft(step.id, { input_lane_count: Number(e.target.value || 2), input_roll_count: 2 })}
+                                                                        className="mt-1 h-8 text-xs"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <Label className="text-[10px] text-slate-500">Adhesive Split %</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={100}
+                                                                        step="0.01"
+                                                                        value={String(draft.adhesive_split_pct ?? 50)}
+                                                                        onChange={(e) => setDraft(step.id, { adhesive_split_pct: Number(e.target.value || 0) })}
+                                                                        className="mt-1 h-8 text-xs"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <Label className="text-[10px] text-slate-500">Solvent Split %</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={100}
+                                                                        step="0.01"
+                                                                        value={String(draft.solvent_split_pct ?? 50)}
+                                                                        onChange={(e) => setDraft(step.id, { solvent_split_pct: Number(e.target.value || 0) })}
+                                                                        className="mt-1 h-8 text-xs"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Lane A</div>
+                                                                    <div className="mt-1 text-xs font-bold text-slate-700">
+                                                                        {Number(draft.lamination_pass_index || 1) <= 1 ? "Layer 1 rolls" : "Previous laminate WIP"}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Lane B</div>
+                                                                    <div className="mt-1 text-xs font-bold text-slate-700">
+                                                                        Layer {Math.max(2, Number(draft.lamination_pass_index || 1) + 1)} rolls
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
                                                 </div>
 
                                                 <div className="space-y-2">
@@ -648,33 +742,20 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bulk Category Mapping + Policy + Capture</Label>
                                 <Badge variant="outline" className="text-[9px] font-bold border-slate-200">{categoryOptions.length} Categories</Badge>
                             </div>
-                            <div className="mb-4 flex gap-2">
-                                <Input
-                                    value={customCategoryCode}
-                                    onChange={(e) => setCustomCategoryCode(e.target.value)}
-                                    placeholder="Add custom category code"
-                                    className="h-9 text-xs bg-white"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 text-xs"
-                                    onClick={handleAddManualCategory}
-                                    disabled={isReadOnly}
-                                >
-                                    Add Category
-                                </Button>
+                            <div className="mb-4 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-[11px] font-semibold text-slate-500">
+                                Supported issue categories are fixed: GRANULE, INK, ADHESIVE, SOLVENT, ADDON, and POD. Legacy CHEMICAL rows stay visible only for old templates.
                             </div>
                             <div className="space-y-2.5">
                                 {categoryOptions.map((categoryCode) => {
                                     const mapped = mappedByCategory.get(categoryCode)
+                                    const mappedList = mappedByCategoryList.get(categoryCode) || []
                                     const reqMeta = groupedRequirementLookup.get(categoryCode)
                                     const mappedEntry = getMappedMaterial(categoryCode)
                                     const mappedMat = mappedEntry?.material
                                     const isRowPending = Boolean(categoryRowPending[categoryCode])
                                     const rowError = String(categoryRowErrors[categoryCode] || "").trim()
                                     const normalizedCategory = String(categoryCode || "").toUpperCase()
+                                    const isMultiStep = MULTI_STEP_CATEGORIES.has(normalizedCategory)
                                     const isAddon = normalizedCategory === "ADDON"
                                     const isPod = normalizedCategory === "POD"
                                     const isChemLike = ["INK", "INKS", "CHEMICAL", "ADHESIVE", "SOLVENT"].includes(normalizedCategory)
@@ -697,6 +778,10 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                 <div className="flex items-center gap-3">
                                                     {!hasSteps ? (
                                                         <Badge variant="outline" className="text-[9px] border-slate-200">Sync first</Badge>
+                                                    ) : isMultiStep ? (
+                                                        <Badge variant="outline" className="text-[9px] border-indigo-200 bg-indigo-50 text-indigo-700">
+                                                            {mappedList.length} pass step{mappedList.length === 1 ? "" : "s"} mapped
+                                                        </Badge>
                                                     ) : (
                                                         <Select
                                                             value={mapped?.stepId || "__UNASSIGNED__"}
@@ -730,6 +815,39 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                     )}
                                                 </div>
                                             </div>
+                                            {isMultiStep && hasSteps ? (
+                                                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                                    {stepsList.map((s) => {
+                                                        const existingForStep = mappedList.find((entry) => entry.stepId === s.id)
+                                                        const isMappedHere = Boolean(existingForStep)
+                                                        return (
+                                                            <Button
+                                                                key={`${categoryCode}:${s.id}`}
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className={cn(
+                                                                    "h-auto justify-start rounded-xl px-3 py-2 text-left text-[11px]",
+                                                                    isMappedHere
+                                                                        ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                                                                        : "border-slate-100 bg-slate-50 text-slate-500"
+                                                                )}
+                                                                disabled={isReadOnly || isRowPending}
+                                                                onClick={() => {
+                                                                    if (existingForStep) {
+                                                                        void removeMaterialMutation.mutateAsync({ stepId: existingForStep.stepId, materialId: existingForStep.matId })
+                                                                    } else {
+                                                                        void handleAssignCategory(categoryCode, s.id, { replaceExisting: false })
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <span className="font-black">Step {s.sequence_number}</span>
+                                                                <span className="ml-2 truncate">{s.process_name}</span>
+                                                            </Button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            ) : null}
                                             {rowError ? (
                                                 <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-semibold text-rose-700">
                                                     {rowError}

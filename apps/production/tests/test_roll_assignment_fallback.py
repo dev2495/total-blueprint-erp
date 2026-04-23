@@ -79,6 +79,89 @@ class RollAssignmentFallbackTests(SimpleTestCase):
         self.assertEqual(len(valid_summary["matched_target_slots"]), 3)
         self.assertEqual(len(valid_summary["unmatched_target_slots"]), 0)
 
+    @patch.object(ExecutionService, "_job_geometry_snapshot", return_value={"base": {"width_mm": 1000}})
+    @patch.object(
+        ExecutionService,
+        "_resolve_step_roll_spec",
+        return_value={
+            "input_roll_count": 2,
+            "combine_mode": "LANE_GROUPS",
+            "input_lane_count": 2,
+            "lamination_pass_index": 1,
+            "active_min_layer_count": 2,
+        },
+    )
+    def test_lane_group_lamination_allows_many_physical_rolls_per_lane(self, _spec, _geometry):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
+        sales_order_item = SimpleNamespace(
+            layer_snapshot=[
+                {"variant_id": "v1", "thickness_micron": 12, "roll_width_mm": 1000},
+                {"variant_id": "v2", "thickness_micron": 15, "roll_width_mm": 1000},
+                {"variant_id": "v3", "thickness_micron": 20, "roll_width_mm": 1000},
+            ]
+        )
+        job = self._job(process, current_step_index=1, sales_order_item=sales_order_item)
+
+        summary = ExecutionService._summarize_roll_assignment_validation(
+            job,
+            process,
+            [
+                self._roll("a1", "v1", thickness=12),
+                self._roll("a2", "v1", thickness=12),
+                self._roll("a3", "v1", thickness=12),
+                self._roll("a4", "v1", thickness=12),
+                self._roll("a5", "v1", thickness=12),
+                self._roll("b1", "v2", thickness=15),
+            ],
+            allow_input_stock_fallback=True,
+        )
+
+        self.assertTrue(summary["slot_satisfied"])
+        self.assertTrue(summary["is_complete"])
+        self.assertEqual(summary["required_rolls"], 2)
+        self.assertEqual(summary["input_lane_count"], 2)
+        self.assertEqual(len(summary["lane_groups"]), 2)
+        self.assertEqual(len(summary["lane_groups"][0]["rolls"]), 5)
+        self.assertEqual(len(summary["lane_groups"][1]["rolls"]), 1)
+
+    @patch.object(ExecutionService, "_job_geometry_snapshot", return_value={"base": {"width_mm": 1000}})
+    @patch.object(
+        ExecutionService,
+        "_resolve_step_roll_spec",
+        return_value={
+            "input_roll_count": 2,
+            "combine_mode": "LANE_GROUPS",
+            "input_lane_count": 2,
+            "lamination_pass_index": 2,
+            "active_min_layer_count": 3,
+        },
+    )
+    def test_second_lamination_pass_uses_prior_laminate_plus_next_layer(self, _spec, _geometry):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
+        sales_order_item = SimpleNamespace(
+            layer_snapshot=[
+                {"variant_id": "v1", "thickness_micron": 12, "roll_width_mm": 1000},
+                {"variant_id": "v2", "thickness_micron": 15, "roll_width_mm": 1000},
+                {"variant_id": "v3", "thickness_micron": 20, "roll_width_mm": 1000},
+            ]
+        )
+        job = self._job(process, current_step_index=2, sales_order_item=sales_order_item)
+
+        summary = ExecutionService._summarize_roll_assignment_validation(
+            job,
+            process,
+            [
+                self._roll("lam-1", "laminate-v12", thickness=27, stage_index=1, current_step_index=1),
+                self._roll("c1", "v3", thickness=20, stage_index=0, current_step_index=0),
+            ],
+            allow_input_stock_fallback=True,
+        )
+
+        self.assertTrue(summary["slot_satisfied"])
+        self.assertTrue(summary["is_complete"])
+        self.assertEqual(summary["lane_groups"][0]["source_role"], "LAMINATED_WIP")
+        self.assertEqual(summary["lane_groups"][1]["layer_index"], 3)
+
     def test_downstream_raw_roll_is_only_compatible_in_fallback_mode(self):
         process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MODIFY_EXISTING")
         job = self._job(process)

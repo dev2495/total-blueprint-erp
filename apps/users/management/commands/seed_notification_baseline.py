@@ -54,7 +54,7 @@ SAMPLE_INBOX_ROWS = [
     },
     {
         "event_key": "production.machine_ready",
-        "target_role": "OPERATOR",
+        "target_role": "WORK_CENTER_MANAGER",
         "title": "Machine queue has a ready assignment",
         "message": "An assigned machine has a ready job and can be started once setup is complete.",
         "type": "JOB_COMPLETE",
