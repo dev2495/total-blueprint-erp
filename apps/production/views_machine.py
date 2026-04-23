@@ -224,7 +224,7 @@ def machine_stop_job(request, machine_id, job_id):
     if not _ensure_machine_scope(request.user, machine.id):
         return _scope_denied(machine.id)
     try:
-        ProductionJob.objects.get(id=job_id, machine=machine)
+        job_for_completion = ProductionJob.objects.get(id=job_id, machine=machine)
     except ProductionJob.DoesNotExist:
         return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
     
@@ -350,6 +350,8 @@ def machine_complete_job(request, machine_id, job_id):
     try:
         force_reason = (request.data.get("force_reason") or "").strip() if request.data else ""
         material_confirmations = request.data.get("material_confirmations") if request.data else None
+        if material_confirmations is None:
+            material_confirmations = getattr(job_for_completion, "current_step_material_confirmations", None)
         job = OperatorService.complete_step(
             job_id,
             request.user,

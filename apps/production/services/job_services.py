@@ -1600,7 +1600,7 @@ class WCManagerService:
         return chosen
 
     @classmethod
-    def mark_execution_ready(cls, assignment_id):
+    def mark_execution_ready(cls, assignment_id, material_confirmations=None):
         from apps.production.models import WorkCenterAssignment
         from apps.production.services.services_execution import ExecutionService
         from django.utils import timezone
@@ -1656,6 +1656,11 @@ class WCManagerService:
             detail = f" ({'; '.join(pending_rows[:3])})" if pending_rows else ""
             raise ValueError(f"Cannot mark ready: requirements not satisfied{detail}.")
 
+        if material_confirmations is not None:
+            if not isinstance(material_confirmations, list):
+                raise ValueError("material_confirmations must be a list.")
+            job.current_step_material_confirmations = material_confirmations
+
         ready_timestamp = timezone.now()
         updated = WorkCenterAssignment.objects.filter(id=assignment.id).update(
             status='EXECUTION_READY',
@@ -1674,6 +1679,7 @@ class WCManagerService:
         ProductionJob.objects.filter(id=job.id).update(
             status=job.status,
             job_state=job.job_state,
+            current_step_material_confirmations=job.current_step_material_confirmations,
             updated_at=ready_timestamp,
         )
         job.updated_at = ready_timestamp

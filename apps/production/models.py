@@ -108,6 +108,11 @@ class ProductionJob(models.Model):
         blank=True,
         help_text="Current-step WCM overrides for material planning lines.",
     )
+    current_step_material_confirmations = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="WCM-selected current-step material actuals, including granule code split issue rows.",
+    )
 
     # Forms (Physics-Driven)
     INPUT_FORM_CHOICES = [

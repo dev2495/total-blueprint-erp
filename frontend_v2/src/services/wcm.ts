@@ -109,9 +109,10 @@ export const wcmService = {
         return data;
     },
 
-    markReady: async (assignmentId: string) => {
+    markReady: async (assignmentId: string, materialConfirmations?: any[]) => {
         const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/ready/`, {
-            assignment_id: assignmentId
+            assignment_id: assignmentId,
+            material_confirmations: materialConfirmations
         });
         return data;
     },

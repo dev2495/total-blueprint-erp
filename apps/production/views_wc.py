@@ -328,7 +328,11 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            assignment = WCManagerService.mark_execution_ready(assignment_id)
+            material_confirmations = request.data.get("material_confirmations")
+            assignment = WCManagerService.mark_execution_ready(
+                assignment_id,
+                material_confirmations=material_confirmations,
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
         except Exception as e:

@@ -5558,6 +5558,7 @@ class ExecutionService:
             'input_form': job.input_form,
             'output_form': job.output_form,
             'satisfaction': satisfaction_status,
+            'current_step_material_confirmations': getattr(job, 'current_step_material_confirmations', None) or [],
             'execution_profile': execution_profile,
             'execution_model_version': cls._execution_model_version(job),
             'step_target_source': step_profile.get("target_source"),

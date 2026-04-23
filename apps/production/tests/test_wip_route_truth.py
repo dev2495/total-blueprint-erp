@@ -76,3 +76,69 @@ class WipRouteTruthTests(SimpleTestCase):
         auto_satisfy.assert_not_called()
         sync_status.assert_called_once_with(assignment)
         assignment.save.assert_called_once()
+
+    def test_mark_execution_ready_persists_wcm_material_confirmations(self):
+        material_confirmations = [
+            {
+                "requirement_id": "req-1",
+                "material_id": "granule-1",
+                "actual_issued_qty": 4,
+                "actual_returned_qty": 0,
+                "actual_scrap_qty": 0,
+                "is_estimated": False,
+                "granule_code_allocations": [
+                    {"granule_code_id": "code-a", "qty_kg": 1.25},
+                    {"granule_code_id": "code-b", "qty_kg": 2.75},
+                ],
+            }
+        ]
+        job = SimpleNamespace(
+            id="job-1",
+            sales_order_item_id="so-item-1",
+            mts_order_id=None,
+            template_id=None,
+            current_step_index=1,
+            status="PLANNED",
+            job_state="ASSIGNED",
+            current_step_material_confirmations=[],
+        )
+        assignment = SimpleNamespace(
+            id="assignment-1",
+            assigned_machine=SimpleNamespace(id="machine-1"),
+            production_job=job,
+            status="ASSIGNED",
+            updated_at=None,
+        )
+        lineage_qs = MagicMock()
+        lineage_qs.filter.return_value = lineage_qs
+        lineage_qs.exclude.return_value = lineage_qs
+        lineage_qs.order_by.return_value.first.return_value = None
+
+        with patch("apps.production.services.job_services.WorkCenterAssignment.objects.get", return_value=assignment), \
+             patch("apps.production.services.job_services.WorkCenterAssignment.objects.filter") as assignment_filter, \
+             patch("apps.production.services.job_services.ProductionJob.objects.exclude", return_value=lineage_qs), \
+             patch("apps.production.services.job_services.ProductionJob.objects.filter") as job_filter, \
+             patch.object(WCManagerService, "_ensure_job_source_location"), \
+             patch("apps.production.services.services_execution.ExecutionService.top_up_bulk_source_location"), \
+             patch("apps.production.services.services_execution.ExecutionService.auto_satisfy_inputs"), \
+             patch("apps.production.services.services_execution.ExecutionService.get_satisfaction_status", return_value={"is_satisfied": True}), \
+             patch("django.utils.timezone.now", return_value="ready-ts"):
+            assignment_filter.return_value.update.return_value = 1
+
+            result = WCManagerService.mark_execution_ready(
+                "assignment-1",
+                material_confirmations=material_confirmations,
+            )
+
+        self.assertIs(result, assignment)
+        self.assertEqual(job.current_step_material_confirmations, material_confirmations)
+        assignment_filter.return_value.update.assert_called_once_with(
+            status="EXECUTION_READY",
+            updated_at="ready-ts",
+        )
+        job_filter.return_value.update.assert_called_once_with(
+            status="ASSIGNED",
+            job_state="RELEASED",
+            current_step_material_confirmations=material_confirmations,
+            updated_at="ready-ts",
+        )

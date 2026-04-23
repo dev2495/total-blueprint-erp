@@ -1127,6 +1127,822 @@ export default function MachineExecutionPage() {
         );
     }
 
+    const productSpec = normalizeProductSpec(selectedJob, context);
+    const layerGradeLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.grade).filter(Boolean)));
+    const layerThicknessLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.thicknessMicron !== null ? `${layer.thicknessMicron} micron` : '').filter(Boolean)));
+    const layerWidthLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.widthMm !== null ? `${layer.widthMm} mm` : '').filter(Boolean)));
+    const headerSpecChips = [
+        productSpec.size.label ? `Size ${productSpec.size.label}` : null,
+        productSpec.layers.length ? `${productSpec.layers.length} layers` : null,
+        layerGradeLabels.length ? `Grade ${layerGradeLabels.slice(0, 2).join(', ')}` : null,
+        layerThicknessLabels.length ? layerThicknessLabels.slice(0, 2).join(', ') : null,
+        layerWidthLabels.length ? layerWidthLabels.slice(0, 2).join(', ') : null,
+        productSpec.podLabels.length ? `POD ${productSpec.podLabels.join(', ')}` : null,
+        productSpec.addonLabels.length ? `Add-ons ${productSpec.addonLabels.slice(0, 2).join(', ')}` : null,
+    ].filter(Boolean) as string[];
+    const stepName = firstNonEmpty(context?.display?.step_name, context?.current_step?.process_name, selectedJob?.process_code, 'Step');
+    const machineName = firstNonEmpty(machineDetail?.machine?.name, machineDetail?.machine?.code, 'Machine Terminal');
+    const machineCode = firstNonEmpty(machineDetail?.machine?.code, machineDetail?.machine?.name, 'Machine');
+    const targetLabel = primaryTarget !== null ? `${primaryTarget.toFixed(3)} kg` : `${toNumber(selectedJob?.quantity, 0).toFixed(3)} ${selectedJob?.uom || ''}`.trim();
+    const producedLabel = primaryProduced !== null ? `${primaryProduced.toFixed(3)} kg` : `${fallbackProduced.toFixed(3)} kg`;
+    const remainingLabel = primaryRemaining !== null ? `${primaryRemaining.toFixed(3)} kg` : `${fallbackRemaining.toFixed(3)} kg`;
+    const ringPct = Math.round(progressPct);
+    const ringCircumference = 2 * Math.PI * 42;
+    const ringDashOffset = ringCircumference - (ringCircumference * ringPct) / 100;
+    const quickOutputDisabled = !canLogOutput || logOutputMutation.isPending;
+    const currentStepLabel = `${String(currentInputForm || 'NONE').toLowerCase()} to ${String(currentOutputForm || 'ROLL').toLowerCase()}`;
+    const sourceOrder = firstNonEmpty(selectedJob?.order_number, context?.job?.order_number, 'SO not captured');
+    const customerLabel = selectedCustomerName;
+    const layerRows = productSpec.layers.length
+        ? productSpec.layers
+        : selectedLayerChips.map((label, index) => ({ index: index + 1, label }));
+    const timelineRows = [
+        { label: 'WCM released', state: selectedJob ? 'done' : 'pending' },
+        { label: 'Machine ready', state: allocationReservationReady ? 'done' : 'pending' },
+        { label: isExecuting ? 'Running now' : 'Start machine', state: isExecuting ? 'active' : 'pending' },
+        { label: 'Log output', state: toNumber(primaryProduced, 0) > 0 ? 'done' : 'pending' },
+        { label: 'Complete step', state: canComplete ? 'active' : 'pending' },
+    ];
+    const materialSummaryRows = reconcilableBulkRows.slice(0, 4);
+    const rightRailRolls = reservedRolls.length ? reservedRolls : displayedWip.slice(0, 4);
+    const liveLogs = Array.isArray(telemetryLogs) ? telemetryLogs.slice(0, 4) : [];
+    const historyRows = Array.isArray((historyData as any)?.jobs)
+        ? ((historyData as any).jobs as any[])
+        : (Array.isArray(historyData as any) ? (historyData as unknown as any[]) : []);
+
+    if ((activeTab as string) !== 'legacy') {
+        return (
+            <div
+                className="min-h-screen bg-[#f4f7fb] text-slate-950"
+                data-testid="machine-execution-page"
+            >
+                <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
+                    <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-10 rounded-xl border-slate-200 bg-white text-xs font-black uppercase tracking-[0.16em]"
+                                onClick={() => router.push('/production/work-center')}
+                            >
+                                <ChevronRight className="mr-1 h-4 w-4 rotate-180" />
+                                WCM
+                            </Button>
+                            <div className="flex min-w-0 items-center gap-3">
+                                <span className={cn("h-3 w-3 rounded-full", isExecuting ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]" : isActive ? "bg-blue-500" : "bg-rose-500")} />
+                                <div className="min-w-0">
+                                    <div className="truncate text-base font-black tracking-tight text-slate-950">{machineName}</div>
+                                    <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                                        {machineCode} / {machineDetail?.machine?.work_center_name || 'Work center'} / {machineDetail?.machine?.plant_name || 'Plant'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                variant={activeTab === 'execution' ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-10 rounded-xl text-xs font-black uppercase tracking-[0.14em]"
+                                onClick={() => setActiveTab('execution')}
+                            >
+                                <Activity className="mr-2 h-4 w-4" />
+                                Run
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={activeTab === 'history' ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-10 rounded-xl text-xs font-black uppercase tracking-[0.14em]"
+                                onClick={() => setActiveTab('history')}
+                            >
+                                <History className="mr-2 h-4 w-4" />
+                                History
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-10 rounded-xl border-slate-200 bg-white text-xs font-black uppercase tracking-[0.14em]"
+                                onClick={() => refreshAll()}
+                                disabled={machineLoading || queueLoading || contextLoading}
+                            >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Refresh
+                            </Button>
+                            {isExecuting ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-10 rounded-xl border-amber-200 bg-amber-50 text-xs font-black uppercase tracking-[0.14em] text-amber-800"
+                                    onClick={() => stopMutation.mutate()}
+                                    disabled={!canStop || stopMutation.isPending}
+                                >
+                                    <Pause className="mr-2 h-4 w-4" />
+                                    Pause
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-10 rounded-xl bg-emerald-600 text-xs font-black uppercase tracking-[0.14em] hover:bg-emerald-700"
+                                    onClick={() => startMutation.mutate()}
+                                    disabled={!canStart || startMutation.isPending}
+                                >
+                                    <Play className="mr-2 h-4 w-4" />
+                                    Start
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {activeTab === 'history' ? (
+                    <main className="mx-auto max-w-[1600px] px-5 py-6">
+                        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                                <div>
+                                    <div className="text-[10px] font-black uppercase tracking-[0.26em] text-blue-600">Machine history</div>
+                                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Closed and forced jobs</h1>
+                                    <p className="mt-1 text-sm font-semibold text-slate-500">Filter by date and variance status without leaving the terminal.</p>
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                    <Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} className="h-11 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold" />
+                                    <Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} className="h-11 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold" />
+                                    <Select value={historyStatus} onValueChange={(value) => setHistoryStatus(value as 'ALL' | 'NORMAL' | 'FORCED_VARIANCE')}>
+                                        <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">All status</SelectItem>
+                                            <SelectItem value="NORMAL">Normal</SelectItem>
+                                            <SelectItem value="FORCED_VARIANCE">Forced variance</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                                <div className="grid grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    <div>Product</div>
+                                    <div>Customer / SO</div>
+                                    <div>Output</div>
+                                    <div>Variance</div>
+                                    <div>Status</div>
+                                </div>
+                                {historyLoading ? (
+                                    <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Loading history...</div>
+                                ) : historyRows.length ? (
+                                    historyRows.map((row: any, index: number) => {
+                                        const rowSpec = normalizeProductSpec(row?.job || row);
+                                        return (
+                                            <div key={row?.id || index} className="grid grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-4 py-3 text-sm">
+                                                <div className="min-w-0">
+                                                    <div className="truncate font-black text-slate-900">{rowSpec.productName}</div>
+                                                    <div className="truncate text-xs font-semibold text-slate-500">{rowSpec.size.label}</div>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="truncate font-bold text-slate-900">{rowSpec.customerName}</div>
+                                                    <div className="truncate text-xs font-semibold text-slate-500">{rowSpec.orderNumber}</div>
+                                                </div>
+                                                <div className="font-black text-slate-900">{toNumber(row?.actual_qty ?? row?.output_qty_kg, 0).toFixed(3)} kg</div>
+                                                <div className="font-black text-slate-900">{toNumber(row?.variance_kg, 0).toFixed(3)} kg</div>
+                                                <SemanticBadge kind="jobState" value={row?.completion_mode || row?.status || 'NORMAL'} label={row?.completion_mode || row?.status || 'Normal'} />
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">No history rows for this filter.</div>
+                                )}
+                            </div>
+                        </section>
+                    </main>
+                ) : (
+                    <>
+                        <div className="sticky top-[65px] z-30 border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
+                            <div className="mx-auto grid max-w-[1800px] gap-4 xl:grid-cols-[1.45fr_0.9fr_0.72fr]">
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">
+                                            {customerLabel}
+                                        </span>
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+                                            {sourceOrder}
+                                        </span>
+                                        <SemanticBadge kind="jobState" value={jobState || 'PENDING'} label={jobState || 'No job'} className="rounded-full px-3 py-1 text-[10px]" />
+                                    </div>
+                                    <h1 className="mt-2 truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+                                        {selectedProductName || productSpec.productName || 'Pick a released job'}
+                                    </h1>
+                                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                                        {(headerSpecChips.length ? headerSpecChips : ['No sales spec captured']).map((chip) => (
+                                            <span key={chip} className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-700">
+                                                {chip}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Target</div>
+                                        <div className="mt-1 text-lg font-black text-slate-950">{targetLabel}</div>
+                                    </div>
+                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-700">Produced</div>
+                                        <div className="mt-1 text-lg font-black text-emerald-800">{producedLabel}</div>
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-700">Balance</div>
+                                        <div className="mt-1 text-lg font-black text-amber-800">{remainingLabel}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-4">
+                                    <div className="relative h-28 w-28">
+                                        <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100">
+                                            <circle cx="50" cy="50" r="42" stroke="#e2e8f0" strokeWidth="9" fill="none" />
+                                            <circle
+                                                cx="50"
+                                                cy="50"
+                                                r="42"
+                                                stroke={ringPct >= 95 ? '#10b981' : '#2563eb'}
+                                                strokeWidth="9"
+                                                fill="none"
+                                                strokeLinecap="round"
+                                                strokeDasharray={ringCircumference}
+                                                strokeDashoffset={ringDashOffset}
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <div className="text-2xl font-black text-slate-950">{ringPct}%</div>
+                                            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Step</div>
+                                        </div>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Current step</div>
+                                        <div className="mt-1 truncate text-sm font-black text-slate-950">{stepName}</div>
+                                        <div className="mt-1 text-xs font-bold capitalize text-slate-500">{currentStepLabel}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <main className="mx-auto grid max-w-[1800px] gap-5 px-5 py-5 xl:grid-cols-[340px_minmax(0,1fr)_390px]">
+                            <aside className="space-y-4">
+                                <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_70px_-60px_rgba(15,23,42,0.65)]">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600">Queue</div>
+                                            <div className="mt-1 text-xl font-black text-slate-950">{visibleQueueItems.length} visible</div>
+                                        </div>
+                                        <Button type="button" variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => refreshAll()}>
+                                            <RefreshCw className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="relative mt-4">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                        <Input
+                                            value={queueSearch}
+                                            onChange={(event) => setQueueSearch(event.target.value)}
+                                            placeholder="Search customer, size, grade"
+                                            className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs font-bold"
+                                        />
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                        {([
+                                            ['ALL', 'All'],
+                                            ['RUNNING', 'Run'],
+                                            ['READY', 'Ready'],
+                                            ['PAUSED', 'Hold'],
+                                        ] as const).map(([value, label]) => (
+                                            <Button
+                                                key={value}
+                                                type="button"
+                                                variant={queueStatusFilter === value ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="h-9 rounded-xl text-[10px] font-black uppercase tracking-[0.16em]"
+                                                onClick={() => setQueueStatusFilter(value)}
+                                            >
+                                                {label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <div className="mt-4 max-h-[calc(100vh-370px)] space-y-3 overflow-y-auto pr-1">
+                                        {visibleQueueItems.length === 0 ? (
+                                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                No jobs match this filter.
+                                            </div>
+                                        ) : (
+                                            visibleQueueItems.map((job: any) => {
+                                                const queueSpec = normalizeProductSpec(job);
+                                                const queueSelected = String(job.id) === String(selectedId);
+                                                const queueLayers = queueSpec.layers.slice(0, 2);
+                                                return (
+                                                    <button
+                                                        key={job.id}
+                                                        type="button"
+                                                        className={cn(
+                                                            "w-full rounded-2xl border p-3 text-left transition",
+                                                            queueSelected
+                                                                ? "border-blue-400 bg-blue-50 shadow-[0_18px_40px_-32px_rgba(37,99,235,0.6)]"
+                                                                : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50"
+                                                        )}
+                                                        onClick={() => setSelectedJobId(String(job.id))}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-sm font-black text-slate-950">{queueSpec.customerName}</div>
+                                                                <div className="truncate text-[11px] font-bold text-slate-500">{queueSpec.orderNumber}</div>
+                                                            </div>
+                                                            <SemanticBadge kind="jobState" value={job.job_state} label={job.job_state || 'Ready'} className="text-[9px]" />
+                                                        </div>
+                                                        <div className="mt-3 line-clamp-2 text-xs font-black text-slate-900">{queueSpec.productName}</div>
+                                                        <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Size</div>
+                                                            <div className="mt-1 text-xs font-black text-slate-950">{queueSpec.size.label}</div>
+                                                        </div>
+                                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            {queueLayers.map((layer, index) => (
+                                                                <span key={`${job.id}-q-layer-${index}`} className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase text-indigo-700">
+                                                                    {layer.label}
+                                                                </span>
+                                                            ))}
+                                                            {queueSpec.podLabels.slice(0, 1).map((pod) => (
+                                                                <span key={`${job.id}-pod-${pod}`} className="rounded-lg bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase text-emerald-700">
+                                                                    POD {pod}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </section>
+                            </aside>
+
+                            <section className="space-y-5">
+                                <section className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
+                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-white">
+                                                    Product focus
+                                                </span>
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+                                                    {behaviorDisplay}
+                                                </span>
+                                            </div>
+                                            <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950">{selectedProductName || productSpec.productName}</h2>
+                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Size</div>
+                                                    <div className="mt-2 text-2xl font-black text-blue-950">{selectedGeometry.label || productSpec.size.label}</div>
+                                                    <div className="mt-1 text-xs font-bold text-blue-800">
+                                                        Width {selectedGeometry.width || productSpec.size.widthMm || '-'} mm / Height {selectedGeometry.height || productSpec.size.heightMm || '-'} mm / Gusset {selectedGeometry.gusset || productSpec.size.gussetMm || '-'} mm
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">POD and add-ons</div>
+                                                    <div className="mt-2 text-lg font-black text-emerald-950">{selectedPodLabel}</div>
+                                                    <div className="mt-1 text-xs font-bold text-emerald-800">{selectedAddonsLabel}</div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                                                <div className="grid grid-cols-[52px_1.4fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                                    <div>#</div>
+                                                    <div>Variant</div>
+                                                    <div>Grade</div>
+                                                    <div>Thickness</div>
+                                                    <div>Width</div>
+                                                </div>
+                                                {layerRows.length ? (
+                                                    layerRows.map((layer: any, index: number) => (
+                                                        <div key={`${layer.label}-${index}`} className="grid grid-cols-[52px_1.4fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-3 py-3 text-xs">
+                                                            <div className="font-black text-slate-400">{layer.index || index + 1}</div>
+                                                            <div className="min-w-0 truncate font-black text-slate-950">{layer.variant || layer.variantName || layer.label}</div>
+                                                            <div className="truncate font-bold text-slate-600">{layer.grade || layer.gradeName || '-'}</div>
+                                                            <div className="truncate font-bold text-slate-600">{layer.thicknessMicron ? `${layer.thicknessMicron} micron` : '-'}</div>
+                                                            <div className="truncate font-bold text-slate-600">{layer.widthMm ? `${layer.widthMm} mm` : '-'}</div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="border-t border-slate-100 px-3 py-8 text-center text-xs font-bold text-slate-500">No layer spec captured.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Step timeline</div>
+                                            <div className="mt-4 space-y-3">
+                                                {timelineRows.map((step, index) => (
+                                                    <div key={step.label} className="flex items-center gap-3">
+                                                        <div className={cn(
+                                                            "flex h-9 w-9 items-center justify-center rounded-full text-xs font-black",
+                                                            step.state === 'done' && "bg-emerald-600 text-white",
+                                                            step.state === 'active' && "bg-blue-600 text-white",
+                                                            step.state === 'pending' && "bg-white text-slate-400 ring-1 ring-slate-200"
+                                                        )}>
+                                                            {step.state === 'done' ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="truncate text-sm font-black text-slate-950">{step.label}</div>
+                                                            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{step.state}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <Separator className="my-4" />
+                                            <div className="rounded-2xl bg-white p-4">
+                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Next action</div>
+                                                <div className="mt-2 text-lg font-black leading-6 text-slate-950">{operatorNextStep}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-68px_rgba(15,23,42,0.5)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600">Quick output</div>
+                                                <h3 className="mt-1 text-2xl font-black text-slate-950">Log finished qty</h3>
+                                            </div>
+                                            <SemanticBadge kind="jobState" value={canLogOutput ? 'READY' : 'PENDING'} label={canLogOutput ? 'Ready' : 'Locked'} />
+                                        </div>
+                                        <div className="mt-5 grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output kg</Label>
+                                                <Input value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-2xl font-black" placeholder="0.000" />
+                                            </div>
+                                            {showPcsEntry ? (
+                                                <div className="space-y-2">
+                                                    <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output pcs</Label>
+                                                    <Input value={outputPcs} onChange={(event) => handleOutputPcsChange(event.target.value)} className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-2xl font-black" placeholder="0" />
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output width</Label>
+                                                    <Input value={outputWidthMm} onChange={(event) => { setOutputWidthDirty(true); setOutputWidthMm(event.target.value); }} className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-2xl font-black" placeholder="mm" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-4 grid grid-cols-3 gap-2">
+                                            {[25, 50, 100].map((pct) => {
+                                                const kg = maxOutputWithScrapKg > 0 ? (maxOutputWithScrapKg * pct) / 100 : 0;
+                                                return (
+                                                    <Button
+                                                        key={pct}
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="h-11 rounded-xl text-xs font-black uppercase tracking-[0.14em]"
+                                                        onClick={() => {
+                                                            if (kg > 0) handleOutputWeightChange(kg.toFixed(3));
+                                                        }}
+                                                        disabled={kg <= 0}
+                                                    >
+                                                        {pct}%
+                                                    </Button>
+                                                );
+                                            })}
+                                        </div>
+                                        {supportsDiscreteOutputRolls && (
+                                            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="grid gap-3 md:grid-cols-2">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Length m</Label>
+                                                        <Input value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="optional" />
+                                                    </div>
+                                                    <div className="flex items-end">
+                                                        <Button type="button" variant="outline" className="h-10 w-full rounded-xl text-[10px] font-black uppercase tracking-[0.16em]" onClick={addCreateRollRow}>
+                                                            <Plus className="mr-2 h-4 w-4" />
+                                                            Add roll
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                {createRollRows.length > 0 && (
+                                                    <div className="mt-3 space-y-2">
+                                                        {createRollRows.map((row) => (
+                                                            <div key={row.id} className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_40px]">
+                                                                <Input value={row.width_mm} onChange={(event) => updateCreateRollRow(row.id, 'width_mm', event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="Width mm" />
+                                                                <Input value={row.weight_kg} onChange={(event) => updateCreateRollRow(row.id, 'weight_kg', event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="Weight kg" />
+                                                                <Input value={row.length_m} onChange={(event) => updateCreateRollRow(row.id, 'length_m', event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="Length m" />
+                                                                <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600" onClick={() => removeCreateRollRow(row.id)}>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                            <div className="text-xs font-bold text-slate-600">
+                                                Preview: <span className="font-black text-slate-950">{previewOutputKg.toFixed(3)} kg</span>
+                                                {previewOutputPcs !== null ? <span> / <span className="font-black text-slate-950">{previewOutputPcs} pcs</span></span> : null}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                className="h-11 rounded-xl bg-blue-600 px-5 text-xs font-black uppercase tracking-[0.16em] hover:bg-blue-700"
+                                                onClick={() => logOutputMutation.mutate(undefined)}
+                                                disabled={quickOutputDisabled}
+                                            >
+                                                Save output
+                                            </Button>
+                                        </div>
+                                        {exceedsOutputCap && (
+                                            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                                                Output exceeds current physical cap of {maxOutputWithScrapKg.toFixed(3)} kg.
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-68px_rgba(15,23,42,0.5)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-rose-600">Scrap and stop</div>
+                                                <h3 className="mt-1 text-2xl font-black text-slate-950">Exceptions</h3>
+                                            </div>
+                                            <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em]">
+                                                Scrap {scrapValue.toFixed(3)} kg
+                                            </Badge>
+                                        </div>
+                                        <div className="mt-5 grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Scrap mode</Label>
+                                                <Select value={scrapEntryMode} onValueChange={(value) => setScrapEntryMode(value as 'KG' | 'PCS')}>
+                                                    <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-black">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="KG">KG</SelectItem>
+                                                        <SelectItem value="PCS">PCS</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Scrap qty</Label>
+                                                <Input
+                                                    ref={scrapInputRef}
+                                                    value={scrapEntryMode === 'PCS' ? scrapPcs : scrapKg}
+                                                    onChange={(event) => scrapEntryMode === 'PCS' ? setScrapPcs(event.target.value) : setScrapKg(event.target.value)}
+                                                    className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-xl font-black"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 space-y-2">
+                                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Pause reason</Label>
+                                            <Input value={stopReason} onChange={(event) => setStopReason(event.target.value)} className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-bold" />
+                                        </div>
+                                        {needsForceComplete && (
+                                            <div className="mt-4 space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Force complete reason</Label>
+                                                <Input value={forceReason} onChange={(event) => setForceReason(event.target.value)} className="h-11 rounded-xl border-amber-200 bg-white font-bold" placeholder="Explain remaining balance before close" />
+                                            </div>
+                                        )}
+                                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <Button type="button" variant="outline" className="h-12 rounded-xl border-amber-200 bg-amber-50 text-xs font-black uppercase tracking-[0.16em] text-amber-800" onClick={() => stopMutation.mutate()} disabled={!canStop || stopMutation.isPending}>
+                                                Pause machine
+                                            </Button>
+                                            <Button type="button" className="h-12 rounded-xl bg-slate-950 text-xs font-black uppercase tracking-[0.16em] hover:bg-slate-800" onClick={() => completeMutation.mutate()} disabled={!canComplete || completeMutation.isPending}>
+                                                Complete step
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-68px_rgba(15,23,42,0.5)]">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Material actuals</div>
+                                            <h3 className="mt-1 text-2xl font-black text-slate-950">Issued, returned, scrap</h3>
+                                            <p className="mt-1 text-xs font-semibold text-slate-500">Granule code splits released from WCM are visible here and can still be corrected before step close.</p>
+                                        </div>
+                                        <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                                            {reconcilableBulkRows.length} manual rows
+                                        </Badge>
+                                    </div>
+                                    {materialSummaryRows.length === 0 ? (
+                                        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
+                                            No manual bulk material actuals are required for this step.
+                                        </div>
+                                    ) : (
+                                        <div className="mt-5 space-y-4">
+                                            {materialSummaryRows.map((req: any, idx: number) => {
+                                                const requirementId = String(req?.requirement_id || "").trim();
+                                                const draft = materialConfirmations[requirementId];
+                                                const estimate = toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0);
+                                                const granuleCodeOptions = Array.isArray(req?.granule_code_options) ? req.granule_code_options : [];
+                                                const granuleAllocations =
+                                                    draft?.granule_code_allocations && draft.granule_code_allocations.length > 0
+                                                        ? draft.granule_code_allocations
+                                                        : (String(req?.category || '').toUpperCase() === 'GRANULE' && granuleCodeOptions.length > 0
+                                                            ? [{ granule_code_id: String(granuleCodeOptions[0].granule_code_id), qty_kg: estimate > 0 ? estimate.toFixed(3) : '' }]
+                                                            : []);
+                                                return (
+                                                    <div key={req.requirement_id || req.material_id || idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-sm font-black text-slate-950">{req.material_name || req.category || 'Material'}</div>
+                                                                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{String(req.capture_mode || req.strategy || 'Manual confirm').replace(/_/g, ' ')}</div>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-9 rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.16em]"
+                                                                onClick={() => updateMaterialConfirmation(requirementId, {
+                                                                    actual_issued_qty: estimate.toFixed(3),
+                                                                    actual_returned_qty: '0',
+                                                                    actual_scrap_qty: '0',
+                                                                    is_estimated: true,
+                                                                })}
+                                                                disabled={!requirementId}
+                                                            >
+                                                                Use estimate
+                                                            </Button>
+                                                        </div>
+                                                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                                            <div className="space-y-2">
+                                                                <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Issued kg</Label>
+                                                                <Input value={draft?.actual_issued_qty || ''} onChange={(event) => updateMaterialConfirmation(requirementId, { actual_issued_qty: event.target.value, is_estimated: false })} className="h-11 rounded-xl border-slate-200 bg-white font-black" placeholder="0.000" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Returned kg</Label>
+                                                                <Input value={draft?.actual_returned_qty || ''} onChange={(event) => updateMaterialConfirmation(requirementId, { actual_returned_qty: event.target.value, is_estimated: false })} className="h-11 rounded-xl border-slate-200 bg-white font-black" placeholder="0.000" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Scrap kg</Label>
+                                                                <Input value={draft?.actual_scrap_qty || ''} onChange={(event) => updateMaterialConfirmation(requirementId, { actual_scrap_qty: event.target.value, is_estimated: false })} className="h-11 rounded-xl border-slate-200 bg-white font-black" placeholder="0.000" />
+                                                            </div>
+                                                        </div>
+                                                        {String(req?.category || '').toUpperCase() === 'GRANULE' && (
+                                                            <div className="mt-4 rounded-2xl border border-emerald-200 bg-white p-3">
+                                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                    <div>
+                                                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-700">Granule code split</div>
+                                                                        <div className="mt-1 text-xs font-bold text-emerald-900">Select one or more codes of the same granule and assign kg issued to machine.</div>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="h-9 rounded-xl border-emerald-200 bg-emerald-50 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800"
+                                                                        disabled={!requirementId || granuleCodeOptions.length === 0}
+                                                                        onClick={() => updateMaterialConfirmation(requirementId, {
+                                                                            granule_code_allocations: [...granuleAllocations, { granule_code_id: String(granuleCodeOptions[0]?.granule_code_id || ''), qty_kg: '' }],
+                                                                            is_estimated: false,
+                                                                        })}
+                                                                    >
+                                                                        <Plus className="mr-1 h-3 w-3" />
+                                                                        Add code
+                                                                    </Button>
+                                                                </div>
+                                                                {granuleCodeOptions.length === 0 ? (
+                                                                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                                                                        No granule code stock available at the issue location.
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="mt-3 space-y-2">
+                                                                        {granuleAllocations.map((allocation, allocationIndex) => (
+                                                                            <div key={`${requirementId}-new-granule-${allocationIndex}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_130px_40px]">
+                                                                                <Select
+                                                                                    value={allocation.granule_code_id || String(granuleCodeOptions[0]?.granule_code_id || '')}
+                                                                                    onValueChange={(value) => {
+                                                                                        const nextAllocations = granuleAllocations.map((row, rowIndex) => rowIndex === allocationIndex ? { ...row, granule_code_id: value } : row);
+                                                                                        updateMaterialConfirmation(requirementId, { granule_code_allocations: nextAllocations, is_estimated: false });
+                                                                                    }}
+                                                                                >
+                                                                                    <SelectTrigger className="h-10 rounded-xl border-emerald-200 bg-white text-xs font-black">
+                                                                                        <SelectValue placeholder="Select code" />
+                                                                                    </SelectTrigger>
+                                                                                    <SelectContent>
+                                                                                        {granuleCodeOptions.map((option: any) => (
+                                                                                            <SelectItem key={`${requirementId}-${option.granule_code_id}`} value={String(option.granule_code_id)}>
+                                                                                                {option.code} / {toNumber(option.available_qty_kg, 0).toFixed(3)} kg
+                                                                                            </SelectItem>
+                                                                                        ))}
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                                <Input
+                                                                                    value={allocation.qty_kg}
+                                                                                    onChange={(event) => {
+                                                                                        const nextAllocations = granuleAllocations.map((row, rowIndex) => rowIndex === allocationIndex ? { ...row, qty_kg: event.target.value } : row);
+                                                                                        updateMaterialConfirmation(requirementId, { granule_code_allocations: nextAllocations, is_estimated: false });
+                                                                                    }}
+                                                                                    className="h-10 rounded-xl border-emerald-200 bg-white font-black"
+                                                                                    placeholder="kg"
+                                                                                />
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600"
+                                                                                    disabled={granuleAllocations.length <= 1}
+                                                                                    onClick={() => updateMaterialConfirmation(requirementId, {
+                                                                                        granule_code_allocations: granuleAllocations.filter((_, rowIndex) => rowIndex !== allocationIndex),
+                                                                                        is_estimated: false,
+                                                                                    })}
+                                                                                >
+                                                                                    <Trash2 className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </section>
+                            </section>
+
+                            <aside className="space-y-5">
+                                <section className="sticky top-[198px] space-y-5">
+                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-indigo-600">Rolls and WIP</div>
+                                                <h3 className="mt-1 text-xl font-black text-slate-950">Input pool</h3>
+                                            </div>
+                                            <Badge variant="outline" className="rounded-full border-indigo-200 bg-indigo-50 text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">
+                                                {rightRailRolls.length} rows
+                                            </Badge>
+                                        </div>
+                                        <div className="mt-4 space-y-3">
+                                            {rightRailRolls.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                    No roll or WIP input is visible for this step.
+                                                </div>
+                                            ) : (
+                                                rightRailRolls.map((roll: any) => (
+                                                    <div key={roll.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-xs font-black text-slate-950">{roll.label_id || roll.id}</div>
+                                                                <div className="mt-1 truncate text-[10px] font-bold text-slate-500">{roll.variant || roll.material_name || '-'}</div>
+                                                            </div>
+                                                            <div className="text-right text-sm font-black text-slate-950">{toNumber(roll.weight_kg, 0).toFixed(3)} kg</div>
+                                                        </div>
+                                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{formatMm(roll.width_mm)}</span>
+                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{formatMicron(roll.thickness_micron)}</span>
+                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{roll.grade || '-'}</span>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Execution health</div>
+                                        <div className="mt-4 grid grid-cols-2 gap-3">
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Input ready</div>
+                                                <div className="mt-2 text-lg font-black text-slate-950">{allocationReservationReady ? 'Yes' : 'No'}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Roll shortage</div>
+                                                <div className="mt-2 text-lg font-black text-slate-950">{(telemetryHealth as any)?.roll_shortage ?? 0}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Step progress</div>
+                                                <div className="mt-2 text-lg font-black text-slate-950">{stepProducedKg.toFixed(3)} / {stepTotalTargetKg.toFixed(3)}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Remaining</div>
+                                                <div className="mt-2 text-lg font-black text-slate-950">{stepRemainingKg.toFixed(3)} kg</div>
+                                            </div>
+                                        </div>
+                                        <Separator className="my-4" />
+                                        <div className="space-y-2">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Live logs</div>
+                                            {liveLogs.length ? (
+                                                liveLogs.map((log: any, index: number) => (
+                                                    <div key={log?.id || index} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+                                                        {log?.message || log?.event || JSON.stringify(log).slice(0, 80)}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs font-bold text-slate-500">
+                                                    No events yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </section>
+                            </aside>
+                        </main>
+                    </>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div
             className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.12),_transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f6f7fb_100%)] transition-colors duration-1000"
