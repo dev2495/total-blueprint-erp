@@ -22,6 +22,8 @@ export type ProductSpec = {
     heightMm: number | null
     gussetMm: number | null
     label: string
+    formLabel?: string
+    finishedGoodType?: string
   }
   layers: ProductSpecLayer[]
   podLabels: string[]
@@ -53,6 +55,15 @@ function compact(value: number | null): string {
   return fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed
 }
 
+function rollSizeLabel(widthMm: number | null, heightMm: number | null, rollForm: string): string {
+  const width = compact(widthMm)
+  const height = compact(heightMm)
+  const form = text(rollForm)
+  if (width && height && height !== "0") return `${width} x ${height} mm${form ? ` · ${form}` : ""}`
+  if (width) return `${width} mm roll${form ? ` · ${form}` : ""}`
+  return form ? `${form} roll` : "Roll size not captured"
+}
+
 function list(value: unknown): AnyRecord[] {
   return Array.isArray(value) ? value.filter((row) => row && typeof row === "object") as AnyRecord[] : []
 }
@@ -73,14 +84,14 @@ function sizeFrom(rawGeometry: AnyRecord): ProductSpec["size"] {
 
   let label = "Size not captured"
   if (fgType === "ROLL") {
-    label = rollForm || "ROLL"
+    label = rollSizeLabel(widthMm, heightMm, rollForm)
   } else if (widthMm !== null || heightMm !== null) {
     const parts = [compact(widthMm) || "—", compact(heightMm) || "—"]
     if (gussetMm !== null && gussetMm > 0) parts.push(compact(gussetMm))
     label = `${parts.join(" x ")} mm`
   }
 
-  return { widthMm, heightMm, gussetMm, label }
+  return { widthMm, heightMm, gussetMm, label, formLabel: rollForm, finishedGoodType: fgType || undefined }
 }
 
 function layerFrom(row: AnyRecord, index: number, fallbackWidth: number | null): ProductSpecLayer {
@@ -168,12 +179,22 @@ export function normalizeProductSpec(sourceInput: unknown, contextInput?: unknow
   const summarySize = object(summary.size)
   const backendSize = Object.keys(explicitSize).length ? explicitSize : summarySize
   const geometry = object(context.job?.geometry || source.geometry || source.geometry_snapshot || {})
+  const backendFgType = text(backendSize.finished_good_type, backendSize.finishedGoodType, geometry.finished_good_type).toUpperCase()
+  const backendRollForm = text(backendSize.roll_form, backendSize.rollForm, geometry.roll_form)
   const size = backendSize.label
     ? {
         widthMm: num(backendSize.width_mm ?? backendSize.widthMm),
         heightMm: num(backendSize.height_mm ?? backendSize.heightMm),
         gussetMm: num(backendSize.gusset_mm ?? backendSize.gussetMm),
-        label: text(backendSize.label),
+        label: backendFgType === "ROLL"
+          ? rollSizeLabel(
+              num(backendSize.width_mm ?? backendSize.widthMm ?? geometry.base?.width_mm ?? geometry.width_mm ?? geometry.width),
+              num(backendSize.height_mm ?? backendSize.heightMm ?? geometry.base?.height_mm ?? geometry.height_mm ?? geometry.height),
+              backendRollForm
+            )
+          : text(backendSize.label),
+        formLabel: backendRollForm,
+        finishedGoodType: backendFgType || undefined,
       }
     : sizeFrom(geometry)
 

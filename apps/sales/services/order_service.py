@@ -414,6 +414,41 @@ def _collect_template_issue_policies(template_id):
                 "issue_policy_value": Decimal(str(getattr(mat, "issue_policy_value", 0) or 0)),
                 "capture_mode": str(getattr(mat, "capture_mode", "AUTO_FROM_OUTPUT") or "AUTO_FROM_OUTPUT").upper(),
             })
+    if "GRANULE" not in mapping:
+        fallback_step = next(
+            (
+                step
+                for step in rows
+                if str(getattr(getattr(step, "process", None), "input_form", "") or "").upper() == "BULK"
+                and str(getattr(getattr(step, "process", None), "output_form", "") or "").upper() == "ROLL"
+            ),
+            None,
+        )
+        if fallback_step is None:
+            fallback_step = next(
+                (
+                    step
+                    for step in rows
+                    if "EXTR" in str(
+                        getattr(getattr(step, "process", None), "code", "")
+                        or getattr(getattr(step, "process", None), "name", "")
+                    ).upper()
+                ),
+                None,
+            )
+        if fallback_step is not None:
+            mapping["GRANULE"] = [{
+                "step_id": str(fallback_step.id),
+                "step_sequence": int(fallback_step.sequence_number or 0),
+                "step_name": str(getattr(fallback_step.process, "name", "") or f"Step {fallback_step.sequence_number}"),
+                "consumption_basis": "FIXED_KG",
+                "formula_driver": "NONE",
+                "formula_params": {},
+                "split_pct": Decimal("0"),
+                "issue_policy_mode": "NONE",
+                "issue_policy_value": Decimal("0"),
+                "capture_mode": "AUTO_ESTIMATED_CONFIRM",
+            }]
     return mapping
 
 

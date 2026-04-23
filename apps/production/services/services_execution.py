@@ -3929,6 +3929,29 @@ class ExecutionService:
                     if code and code not in category_to_step:
                         category_to_step[code] = step
 
+        if "GRANULE" not in category_to_step:
+            fallback_step = next(
+                (
+                    step for step in steps
+                    if str(getattr(getattr(step, "process", None), "input_form", "") or "").upper() == "BULK"
+                    and str(getattr(getattr(step, "process", None), "output_form", "") or "").upper() == "ROLL"
+                ),
+                None,
+            )
+            if fallback_step is None:
+                fallback_step = next(
+                    (
+                        step for step in steps
+                        if "EXTR" in str(
+                            getattr(getattr(step, "process", None), "code", "")
+                            or getattr(getattr(step, "process", None), "name", "")
+                        ).upper()
+                    ),
+                    None,
+                )
+            if fallback_step is not None:
+                category_to_step["GRANULE"] = fallback_step
+
         bom = cls._job_bom_snapshot(job) or {}
         if not isinstance(bom, dict):
             bom = {}
@@ -4007,6 +4030,11 @@ class ExecutionService:
                     continue
                 material_id = row.get("material_id")
                 step_id = row.get("step_id")
+                category_code = _normalize_category_code(row.get("category_code"))
+                if not step_id and category_code:
+                    fallback_step = category_to_step.get(category_code)
+                    if fallback_step:
+                        step_id = str(fallback_step.id)
                 if not material_id or not step_id:
                     continue
                 step = step_by_id.get(str(step_id))
@@ -6145,6 +6173,8 @@ class ExecutionService:
                         return str(mapped.capture_mode).upper()
             except Exception:
                 pass
+        if category == "GRANULE":
+            return "AUTO_ESTIMATED_CONFIRM"
         if category in {"INK", "CHEMICAL"}:
             return "AUTO_ESTIMATED_CONFIRM"
         return "AUTO_FROM_OUTPUT"

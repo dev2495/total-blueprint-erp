@@ -1131,15 +1131,31 @@ export default function MachineExecutionPage() {
     const layerGradeLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.grade).filter(Boolean)));
     const layerThicknessLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.thicknessMicron !== null ? `${layer.thicknessMicron} micron` : '').filter(Boolean)));
     const layerWidthLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.widthMm !== null ? `${layer.widthMm} mm` : '').filter(Boolean)));
+    const rollFormLabel = firstNonEmpty(productSpec.size.formLabel, context?.job?.geometry?.roll_form, selectedJob?.geometry?.roll_form);
+    const primaryLayer = productSpec.layers[0] || null;
+    const primaryVariantName = firstNonEmpty(productSpec.variantName, primaryLayer?.variantName, primaryLayer?.label, selectedJob?.variant_name);
+    const primaryVariantCode = firstNonEmpty(productSpec.variantCode, primaryLayer?.variantCode, selectedJob?.variant_code);
+    const primaryGradeLabel = layerGradeLabels.length ? layerGradeLabels.slice(0, 2).join(', ') : firstNonEmpty(primaryLayer?.grade, selectedJob?.grade_name);
+    const primaryThicknessLabel = layerThicknessLabels.length ? layerThicknessLabels.slice(0, 2).join(', ') : (primaryLayer?.thicknessMicron !== null && primaryLayer?.thicknessMicron !== undefined ? `${primaryLayer.thicknessMicron} micron` : '');
+    const primaryWidthLabel = layerWidthLabels.length ? layerWidthLabels.slice(0, 2).join(', ') : (productSpec.size.widthMm !== null ? `${productSpec.size.widthMm} mm` : '');
+    const specChipTones = [
+        'border-blue-200 bg-blue-50 text-blue-800',
+        'border-emerald-200 bg-emerald-50 text-emerald-800',
+        'border-violet-200 bg-violet-50 text-violet-800',
+        'border-amber-200 bg-amber-50 text-amber-800',
+        'border-cyan-200 bg-cyan-50 text-cyan-800',
+        'border-rose-200 bg-rose-50 text-rose-800',
+    ];
     const headerSpecChips = [
-        productSpec.size.label ? `Size ${productSpec.size.label}` : null,
-        productSpec.layers.length ? `${productSpec.layers.length} layers` : null,
-        layerGradeLabels.length ? `Grade ${layerGradeLabels.slice(0, 2).join(', ')}` : null,
-        layerThicknessLabels.length ? layerThicknessLabels.slice(0, 2).join(', ') : null,
-        layerWidthLabels.length ? layerWidthLabels.slice(0, 2).join(', ') : null,
-        productSpec.podLabels.length ? `POD ${productSpec.podLabels.join(', ')}` : null,
-        productSpec.addonLabels.length ? `Add-ons ${productSpec.addonLabels.slice(0, 2).join(', ')}` : null,
-    ].filter(Boolean) as string[];
+        productSpec.size.label ? { label: 'Size', value: productSpec.size.label, tone: specChipTones[0] } : null,
+        primaryVariantName ? { label: 'Variant', value: primaryVariantCode && primaryVariantCode !== primaryVariantName ? `${primaryVariantName} / ${primaryVariantCode}` : primaryVariantName, tone: specChipTones[1] } : null,
+        primaryGradeLabel ? { label: 'Grade', value: primaryGradeLabel, tone: specChipTones[2] } : null,
+        primaryThicknessLabel ? { label: 'Thickness', value: primaryThicknessLabel, tone: specChipTones[3] } : null,
+        primaryWidthLabel ? { label: 'Roll width', value: primaryWidthLabel, tone: specChipTones[4] } : null,
+        productSpec.layers.length ? { label: 'Layers', value: String(productSpec.layers.length), tone: specChipTones[5] } : null,
+        productSpec.podLabels.length ? { label: 'POD', value: productSpec.podLabels.join(', '), tone: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800' } : null,
+        productSpec.addonLabels.length ? { label: 'Add-ons', value: productSpec.addonLabels.slice(0, 2).join(', '), tone: 'border-orange-200 bg-orange-50 text-orange-800' } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; tone: string }>;
     const stepName = firstNonEmpty(context?.display?.step_name, context?.current_step?.process_name, selectedJob?.process_code, 'Step');
     const machineName = firstNonEmpty(machineDetail?.machine?.name, machineDetail?.machine?.code, 'Machine Terminal');
     const machineCode = firstNonEmpty(machineDetail?.machine?.code, machineDetail?.machine?.name, 'Machine');
@@ -1165,6 +1181,15 @@ export default function MachineExecutionPage() {
     ];
     const materialSummaryRows = reconcilableBulkRows.slice(0, 4);
     const rightRailRolls = reservedRolls.length ? reservedRolls : displayedWip.slice(0, 4);
+    const laneFocusRows = laneGroupMode && laneGroups.length
+        ? laneGroups.slice(0, 3)
+        : rightRailRolls.slice(0, 3).map((roll: any, index: number) => ({
+            lane_label: roll?.target_lane_label || (roll?.target_layer_index ? `Layer ${roll.target_layer_index}` : `Lane ${index + 1}`),
+            variant_name: roll?.target_variant_name || roll?.variant,
+            grade_name: roll?.target_grade_name || roll?.grade,
+            thickness_micron: roll?.target_thickness_micron ?? roll?.thickness_micron,
+            width_mm: roll?.target_width_mm ?? roll?.width_mm,
+        }));
     const liveLogs = Array.isArray(telemetryLogs) ? telemetryLogs.slice(0, 4) : [];
     const historyRows = Array.isArray((historyData as any)?.jobs)
         ? ((historyData as any).jobs as any[])
@@ -1336,11 +1361,16 @@ export default function MachineExecutionPage() {
                                         {selectedProductName || productSpec.productName || 'Pick a released job'}
                                     </h1>
                                     <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                                        {(headerSpecChips.length ? headerSpecChips : ['No sales spec captured']).map((chip) => (
-                                            <span key={chip} className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-700">
-                                                {chip}
+                                        {headerSpecChips.length ? headerSpecChips.map((chip) => (
+                                            <span key={`${chip.label}-${chip.value}`} className={cn("shrink-0 rounded-xl border px-3 py-2", chip.tone)}>
+                                                <span className="block text-[8px] font-black uppercase tracking-[0.16em] opacity-70">{chip.label}</span>
+                                                <span className="block text-[11px] font-black uppercase tracking-[0.08em]">{chip.value}</span>
                                             </span>
-                                        ))}
+                                        )) : (
+                                            <span className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-700">
+                                                No sales spec captured
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
@@ -1494,18 +1524,26 @@ export default function MachineExecutionPage() {
                                                 </span>
                                             </div>
                                             <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950">{selectedProductName || productSpec.productName}</h2>
-                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <div className="mt-4 grid gap-3 md:grid-cols-4">
                                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
                                                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Size</div>
-                                                    <div className="mt-2 text-2xl font-black text-blue-950">{selectedGeometry.label || productSpec.size.label}</div>
-                                                    <div className="mt-1 text-xs font-bold text-blue-800">
-                                                        Width {selectedGeometry.width || productSpec.size.widthMm || '-'} mm / Height {selectedGeometry.height || productSpec.size.heightMm || '-'} mm / Gusset {selectedGeometry.gusset || productSpec.size.gussetMm || '-'} mm
-                                                    </div>
+                                                    <div className="mt-2 text-xl font-black text-blue-950">{productSpec.size.label || selectedGeometry.label}</div>
+                                                    <div className="mt-1 text-xs font-bold text-blue-800">{rollFormLabel ? `Roll type ${rollFormLabel}` : `Height ${selectedGeometry.height || productSpec.size.heightMm || '-'} mm / Gusset ${selectedGeometry.gusset || productSpec.size.gussetMm || '-'} mm`}</div>
                                                 </div>
                                                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">POD and add-ons</div>
-                                                    <div className="mt-2 text-lg font-black text-emerald-950">{selectedPodLabel}</div>
-                                                    <div className="mt-1 text-xs font-bold text-emerald-800">{selectedAddonsLabel}</div>
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Variant</div>
+                                                    <div className="mt-2 truncate text-lg font-black text-emerald-950">{primaryVariantName || 'Variant not captured'}</div>
+                                                    <div className="mt-1 truncate text-xs font-bold text-emerald-800">{primaryVariantCode && primaryVariantCode !== primaryVariantName ? primaryVariantCode : `${productSpec.layers.length || 0} layer spec`}</div>
+                                                </div>
+                                                <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Grade / thickness</div>
+                                                    <div className="mt-2 truncate text-lg font-black text-violet-950">{primaryGradeLabel || 'Grade not captured'}</div>
+                                                    <div className="mt-1 truncate text-xs font-bold text-violet-800">{primaryThicknessLabel || 'Thickness not captured'}</div>
+                                                </div>
+                                                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">POD and add-ons</div>
+                                                    <div className="mt-2 truncate text-lg font-black text-amber-950">{selectedPodLabel}</div>
+                                                    <div className="mt-1 truncate text-xs font-bold text-amber-800">{selectedAddonsLabel}</div>
                                                 </div>
                                             </div>
                                             <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
@@ -1520,10 +1558,15 @@ export default function MachineExecutionPage() {
                                                     layerRows.map((layer: any, index: number) => (
                                                         <div key={`${layer.label}-${index}`} className="grid grid-cols-[52px_1.4fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-3 py-3 text-xs">
                                                             <div className="font-black text-slate-400">{layer.index || index + 1}</div>
-                                                            <div className="min-w-0 truncate font-black text-slate-950">{layer.variant || layer.variantName || layer.label}</div>
-                                                            <div className="truncate font-bold text-slate-600">{layer.grade || layer.gradeName || '-'}</div>
+                                                            <div className="min-w-0">
+                                                                <div className="truncate font-black text-slate-950">{layer.variantName || layer.variant || layer.label}</div>
+                                                                {layer.variantCode && layer.variantCode !== layer.variantName ? (
+                                                                    <div className="mt-0.5 truncate text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{layer.variantCode}</div>
+                                                                ) : null}
+                                                            </div>
+                                                            <div className="truncate font-bold text-violet-700">{layer.grade || layer.gradeName || '-'}</div>
                                                             <div className="truncate font-bold text-slate-600">{layer.thicknessMicron ? `${layer.thicknessMicron} micron` : '-'}</div>
-                                                            <div className="truncate font-bold text-slate-600">{layer.widthMm ? `${layer.widthMm} mm` : '-'}</div>
+                                                            <div className="truncate font-black text-blue-700">{layer.widthMm ? `${layer.widthMm} mm` : '-'}</div>
                                                         </div>
                                                     ))
                                                 ) : (
@@ -1532,7 +1575,14 @@ export default function MachineExecutionPage() {
                                             </div>
                                         </div>
                                         <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Step timeline</div>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Route step</div>
+                                                    <div className="mt-1 text-sm font-black text-slate-950">{stepName}</div>
+                                                    <div className="mt-1 text-xs font-bold capitalize text-slate-500">{currentStepLabel} / target {targetLabel}</div>
+                                                </div>
+                                                <Badge variant="outline" className="rounded-full border-blue-200 bg-white text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">{stepTargetSource}</Badge>
+                                            </div>
                                             <div className="mt-4 space-y-3">
                                                 {timelineRows.map((step, index) => (
                                                     <div key={step.label} className="flex items-center gap-3">
@@ -1569,6 +1619,36 @@ export default function MachineExecutionPage() {
                                             </div>
                                             <SemanticBadge kind="jobState" value={canLogOutput ? 'READY' : 'PENDING'} label={canLogOutput ? 'Ready' : 'Locked'} />
                                         </div>
+                                        <div className="mt-4 grid gap-2 md:grid-cols-3">
+                                            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-700">Output handling</div>
+                                                <div className="mt-1 text-sm font-black text-blue-950">{behaviorDisplay}</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Max this log</div>
+                                                <div className="mt-1 text-sm font-black text-slate-950">{maxOutputWithScrapKg.toFixed(3)} kg</div>
+                                            </div>
+                                            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-700">Close tolerance</div>
+                                                <div className="mt-1 text-sm font-black text-amber-950">{stepToleranceKg.toFixed(3)} kg</div>
+                                            </div>
+                                        </div>
+                                        {showPcsEntry && (
+                                            <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                                <div>
+                                                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Entry mode</div>
+                                                    <div className="text-xs font-bold text-slate-600">{unitWeightG > 0 ? 'PCS and KG stay linked from unit weight.' : 'PCS is required because unit weight is not available.'}</div>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <Button type="button" size="sm" variant={outputEntryMode === 'PCS' ? 'default' : 'outline'} className="h-8 rounded-xl text-[10px] font-black uppercase tracking-[0.14em]" onClick={() => { setOutputEntryMode('PCS'); setOutputWeightDirty(false); }}>
+                                                        PCS
+                                                    </Button>
+                                                    <Button type="button" size="sm" variant={outputEntryMode === 'KG' ? 'default' : 'outline'} className="h-8 rounded-xl text-[10px] font-black uppercase tracking-[0.14em]" onClick={() => setOutputEntryMode('KG')}>
+                                                        KG
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="mt-5 grid gap-4 md:grid-cols-2">
                                             <div className="space-y-2">
                                                 <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output kg</Label>
@@ -1586,6 +1666,35 @@ export default function MachineExecutionPage() {
                                                 </div>
                                             )}
                                         </div>
+                                        {behavior === 'SPLIT' && (
+                                            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-700">Split output</div>
+                                                        <div className="mt-1 text-xs font-bold text-blue-900">Enter each child roll width and kg. Scrap reduces the physical cap.</div>
+                                                    </div>
+                                                    <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl border-blue-200 bg-white text-[10px] font-black uppercase tracking-[0.16em] text-blue-700" onClick={addSplitRow}>
+                                                        <Plus className="mr-1 h-3 w-3" />
+                                                        Add split
+                                                    </Button>
+                                                </div>
+                                                <div className="mt-3 space-y-2">
+                                                    {splitRows.map((row) => (
+                                                        <div key={row.id} className="grid gap-2 md:grid-cols-[1fr_1fr_40px]">
+                                                            <Input value={row.width_mm} onChange={(event) => updateSplitRow(row.id, 'width_mm', event.target.value)} className="h-10 rounded-xl border-blue-200 bg-white font-black" placeholder="Width mm" />
+                                                            <Input value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="h-10 rounded-xl border-blue-200 bg-white font-black" placeholder="Weight kg" />
+                                                            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600" onClick={() => removeSplitRow(row.id)} disabled={splitRows.length <= 1}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-black text-blue-800">
+                                                    <span>Split total {splitTotalKg.toFixed(3)} kg</span>
+                                                    <span>Remainder {splitRemainder !== null ? splitRemainder.toFixed(3) : '0.000'} kg</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="mt-4 grid grid-cols-3 gap-2">
                                             {[25, 50, 100].map((pct) => {
                                                 const kg = maxOutputWithScrapKg > 0 ? (maxOutputWithScrapKg * pct) / 100 : 0;
@@ -1872,6 +1981,21 @@ export default function MachineExecutionPage() {
                                                 {rightRailRolls.length} rows
                                             </Badge>
                                         </div>
+                                        {laneFocusRows.length > 0 && (
+                                            <div className="mt-4 grid gap-2">
+                                                {laneFocusRows.map((lane: any, index: number) => (
+                                                    <div key={`${lane?.lane_key || lane?.lane_label || index}`} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2">
+                                                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-indigo-600">{lane?.lane_label || lane?.target_lane_label || `Layer ${index + 1}`}</div>
+                                                        <div className="mt-1 truncate text-xs font-black text-slate-950">{lane?.variant_name || lane?.target_variant_name || lane?.family_name || 'Layer variant'}</div>
+                                                        <div className="mt-1 flex flex-wrap gap-1.5">
+                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-indigo-700">{lane?.grade_name || lane?.target_grade_name || '-'}</span>
+                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-indigo-700">{formatMicron(lane?.thickness_micron ?? lane?.target_thickness_micron)}</span>
+                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-indigo-700">{formatMm(lane?.width_mm ?? lane?.target_width_mm)}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                         <div className="mt-4 space-y-3">
                                             {rightRailRolls.length === 0 ? (
                                                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs font-bold text-slate-500">
@@ -1891,7 +2015,19 @@ export default function MachineExecutionPage() {
                                                             <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{formatMm(roll.width_mm)}</span>
                                                             <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{formatMicron(roll.thickness_micron)}</span>
                                                             <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{roll.grade || '-'}</span>
+                                                            {(roll.target_lane_label || roll.target_layer_index) && (
+                                                                <span className="rounded-lg bg-indigo-100 px-2 py-1 text-[9px] font-black text-indigo-700">{roll.target_lane_label || `Layer ${roll.target_layer_index}`}</span>
+                                                            )}
                                                         </div>
+                                                        {(roll.target_variant_name || roll.target_width_mm || roll.target_thickness_micron) && (
+                                                            <div className="mt-2 rounded-xl border border-indigo-100 bg-white px-3 py-2">
+                                                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-indigo-500">Target layer</div>
+                                                                <div className="mt-1 text-[11px] font-black text-slate-900">{roll.target_variant_name || roll.variant || 'Layer variant'}</div>
+                                                                <div className="mt-1 text-[10px] font-bold text-slate-500">
+                                                                    {[roll.target_grade_name, formatMicron(roll.target_thickness_micron), formatMm(roll.target_width_mm)].filter((value) => value && value !== '—').join(' / ') || 'Spec pending'}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ))
                                             )}

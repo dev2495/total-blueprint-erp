@@ -44,6 +44,17 @@ class ReconcileStepMaterialActualsTests(SimpleTestCase):
             work_center=None,
         )
 
+    def test_granule_requirements_default_to_confirm_mode_for_code_issue(self):
+        req = _FakeRequirement(
+            material_id="granule-1",
+            material=SimpleNamespace(id="granule-1", category="GRANULE", name="LDPE Granule"),
+        )
+
+        self.assertEqual(
+            ExecutionService._resolve_requirement_capture_mode(req),
+            "AUTO_ESTIMATED_CONFIRM",
+        )
+
     @patch("apps.production.services.services_execution.MaterialConsumptionLog.objects.create")
     @patch("apps.production.services.services_execution.BulkService.consume_bulk")
     @patch("apps.production.services.services_execution.ExecutionService._resolve_requirement_capture_mode")

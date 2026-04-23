@@ -847,7 +847,7 @@ export default function WCMTerminal() {
     const showRollTransfer = (satisfactionStatus?.input_form === "ROLL" && rollsMissingPool > 0) && rollAllocationCandidates.length === 0
 
     const bulkRows = (satisfactionStatus?.bulk_consumption || []).map((bulk: any) => {
-        const required = Number(bulk.required_qty_kg ?? bulk.estimated_qty_kg ?? 0)
+        const required = Number(bulk.required_qty_kg ?? bulk.estimated_actual_qty_kg ?? bulk.estimated_qty_kg ?? 0)
         const sourceLocationAvailable = Number(
             bulk.source_location_available_qty_kg ??
             bulk.available_qty_kg ??
@@ -948,7 +948,7 @@ export default function WCMTerminal() {
                 const requirementId = String(row?.requirement_id || "").trim()
                 if (!requirementId) return
                 const saved = persisted.find((item: any) => String(item?.requirement_id || "") === requirementId)
-                const estimate = Number(row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
+                const estimate = Number(row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
                 const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : []
                 next[requirementId] = {
                     material_id: String(row?.material_id || saved?.material_id || ""),
@@ -1571,7 +1571,7 @@ export default function WCMTerminal() {
                                             <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-4 text-sm font-medium text-emerald-800">No granule/code-confirmation issue rows are required for this step.</div>
                                         ) : materialIssueRows.map((row: any, index: number) => {
                                             const requirementId = String(row?.requirement_id || "")
-                                            const estimate = Number(row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
+                                            const estimate = Number(row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
                                             const draft = materialIssueDrafts[requirementId] || {
                                                 actual_issued_qty: estimate > 0 ? estimate.toFixed(3) : "",
                                                 actual_returned_qty: "0",
