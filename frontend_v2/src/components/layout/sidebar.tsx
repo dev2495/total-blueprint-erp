@@ -4,7 +4,7 @@ import { SidebarBrand, SidebarFooterProfile, SidebarNavContent } from "@/compone
 import { useAuth } from "@/components/auth-provider";
 import { useDashboardChrome } from "@/components/layout/dashboard-chrome";
 import { cn } from "@/lib/utils";
-import { ChevronsLeft, ChevronsRight, Zap } from "lucide-react";
+import { ChevronsLeft, Pin } from "lucide-react";
 
 export function Sidebar() {
   const { user } = useAuth();
@@ -14,58 +14,75 @@ export function Sidebar() {
 
   return (
     <div className="pointer-events-none fixed inset-y-0 left-0 z-40 hidden lg:block">
-      <div
+      <aside
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
-        className="absolute inset-y-0 left-0 flex items-stretch"
+        style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+        className={cn(
+          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[1.65rem] border border-white bg-white shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-slate-950/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-300",
+          isExpanded
+            ? "w-[284px] shadow-[0_34px_96px_-54px_rgba(15,23,42,0.46)]"
+            : "w-[64px] shadow-[0_22px_64px_-46px_rgba(15,23,42,0.52)]",
+        )}
       >
-        <div className="pointer-events-auto relative w-5">
-          <button
-            type="button"
-            onClick={togglePinned}
-            aria-label={isPinned ? "Collapse navigation" : "Open navigation"}
-            title={isPinned ? "Collapse navigation" : "Open navigation"}
-            className={cn(
-              "absolute left-3 top-6 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-[0_16px_36px_-22px_rgba(15,23,42,0.6)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-950 hover:text-white",
-              isExpanded ? "translate-x-[286px]" : "translate-x-0",
-            )}
-          >
-            {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
-          </button>
-          <div className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-indigo-400/0 via-indigo-500/40 to-emerald-400/0 opacity-70" />
-        </div>
-
-        <aside
-          style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+        <div
           className={cn(
-            "pointer-events-auto ml-4 my-4 flex w-[292px] flex-col overflow-hidden rounded-[1.75rem] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(250,252,255,0.98)_0%,rgba(255,255,255,0.98)_42%,rgba(247,250,252,0.98)_100%)] shadow-[0_30px_86px_-52px_rgba(15,23,42,0.42)] backdrop-blur-2xl transition-all duration-300",
-            isExpanded ? "translate-x-0 opacity-100" : "-translate-x-[324px] opacity-0 pointer-events-none",
+            "flex h-[78px] shrink-0 items-center border-b border-slate-100/90 transition-all duration-300",
+            isExpanded ? "justify-between px-5" : "justify-center px-2",
           )}
         >
-          <div className="flex h-[78px] shrink-0 items-center justify-between border-b border-slate-100/90 px-5">
-            <SidebarBrand />
+          <div className={cn("min-w-0 transition-opacity duration-200", isExpanded ? "opacity-100" : "opacity-100")}>
+            <SidebarBrand compact={!isExpanded} />
+          </div>
+          {isExpanded ? (
             <button
               type="button"
               onClick={togglePinned}
               aria-label={isPinned ? "Unpin navigation" : "Pin navigation"}
               className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl border text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-950",
-                isPinned ? "border-slate-300 bg-slate-950 text-white hover:text-white" : "border-slate-200 bg-white",
+                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-950",
+                isPinned ? "border-slate-300 bg-slate-950 text-white hover:text-white" : "border-slate-200 bg-white shadow-sm",
               )}
             >
-              {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+              {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
             </button>
+          ) : null}
+        </div>
+
+        <div className="relative min-h-0 flex-1">
+          <div
+            className={cn(
+              "scrollbar-elegant absolute inset-0 overflow-y-auto px-2 py-3 transition-opacity duration-150",
+              isExpanded ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+            aria-hidden={isExpanded}
+          >
+            <SidebarNavContent compact />
           </div>
 
-          <div className="scrollbar-elegant flex-1 overflow-y-auto px-3 py-4">
+          <div
+            className={cn(
+              "scrollbar-elegant absolute inset-0 overflow-y-auto px-3 py-4 transition-opacity duration-200",
+              isExpanded ? "opacity-100 delay-75" : "pointer-events-none opacity-0",
+            )}
+            aria-hidden={!isExpanded}
+          >
             <SidebarNavContent />
           </div>
+        </div>
 
-          <div className="shrink-0 border-t border-slate-100/90 bg-white/78 p-3">
-            <SidebarFooterProfile />
-          </div>
-        </aside>
-      </div>
+        <div className="shrink-0 border-t border-slate-100/90 bg-white p-2">
+          {isExpanded ? <SidebarFooterProfile /> : <SidebarFooterProfile compact />}
+        </div>
+      </aside>
+      <div
+        onMouseEnter={() => setHovering(true)}
+        className={cn(
+          "pointer-events-auto absolute inset-y-0 left-[70px] w-5",
+          isExpanded ? "hidden" : "block",
+        )}
+        aria-hidden
+      />
     </div>
   );
 }

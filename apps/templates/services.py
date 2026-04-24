@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 
 from apps.factory.models import Process
@@ -6,11 +7,14 @@ from apps.factory.models import Process
 from .models import (
     TemplateBlueprint,
     TemplateProcessStep,
+    TemplateProcessStepMaterial,
     TemplateProcessStepRollSpec,
 )
 
 
 class TemplateGovernanceService:
+    SUPPORTED_CATEGORY_CODES = {"GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON", "POD"}
+
     @staticmethod
     def lock_field(template_id: str, field_name: str):
         # Legacy lock model removed in V2 hard-cut.
@@ -237,6 +241,68 @@ class TemplateGovernanceService:
         active_steps = template.process_steps.filter(is_removed_from_route=False)
         if not active_steps.exists():
             raise ValidationError("Sync workflow first. A LIVE template must contain at least one active route step.")
+        readiness = TemplateGovernanceService.readiness(template)
+        if not readiness["ready"]:
+            raise ValidationError("; ".join(readiness["blockers"]) or "Template is not ready to publish.")
+
+    @staticmethod
+    def readiness(template: TemplateBlueprint) -> dict:
+        blockers = []
+        warnings = []
+        active_steps = list(
+            template.process_steps.select_related("process").prefetch_related("materials", "roll_spec").filter(
+                is_removed_from_route=False
+            ).order_by("sequence_number")
+        )
+        if not template.routing_rule_id:
+            blockers.append("Select a routing rule before approval or LIVE publish.")
+        if not active_steps:
+            blockers.append("Sync workflow so the template has active route stages.")
+
+        supported = TemplateGovernanceService.SUPPORTED_CATEGORY_CODES
+        has_lamination = False
+        lamination_passes = []
+        for step in active_steps:
+            behavior = str(getattr(step.process, "roll_behavior", "") or "").upper()
+            if behavior == "MULTI_INPUT_COMBINE":
+                has_lamination = True
+                spec = getattr(step, "roll_spec", None)
+                lane_count = int(getattr(spec, "input_lane_count", 0) or 0) if spec else 0
+                if lane_count < 2:
+                    blockers.append(f"Step {step.sequence_number} {step.process.name}: lamination needs two input lanes.")
+                lamination_passes.append(
+                    {
+                        "step_id": str(step.id),
+                        "sequence_number": step.sequence_number,
+                        "process_name": step.process.name,
+                        "pass_index": int(getattr(spec, "lamination_pass_index", 0) or 0) if spec else 0,
+                        "lane_count": lane_count,
+                        "adhesive_split_pct": float(getattr(spec, "adhesive_split_pct", 0) or 0) if spec else 0,
+                        "solvent_split_pct": float(getattr(spec, "solvent_split_pct", 0) or 0) if spec else 0,
+                    }
+                )
+            for material in step.materials.all():
+                code = str(material.category_code or "").upper()
+                if code == "CHEMICAL":
+                    warnings.append(f"Step {step.sequence_number}: legacy CHEMICAL category is readable but should be split into ADHESIVE and SOLVENT.")
+                elif code not in supported:
+                    blockers.append(f"Step {step.sequence_number}: unsupported category {code}.")
+
+        if has_lamination and not any(
+            mat.category_code in {"ADHESIVE", "SOLVENT", "CHEMICAL"}
+            for step in active_steps
+            for mat in step.materials.all()
+        ):
+            warnings.append("Lamination route has no adhesive or solvent category mapping.")
+
+        return {
+            "ready": len(blockers) == 0,
+            "blockers": blockers,
+            "warnings": warnings,
+            "active_steps": len(active_steps),
+            "lamination_passes": lamination_passes,
+            "supported_categories": sorted(supported),
+        }
 
     @staticmethod
     def approve_template(template_id: str, user):
@@ -250,13 +316,32 @@ class TemplateGovernanceService:
         if template.status == "APPROVED":
             return template
 
-        if template.status not in {"DRAFT", "ENGINEERING"}:
-            raise ValidationError(f"Cannot approve template in {template.status} state.")
+        if template.status == "DRAFT":
+            TemplateGovernanceService._ensure_live_ready_workflow(template)
+        elif template.status != "ENGINEERING":
+            raise ValidationError("Template must be in ENGINEERING review before approval.")
 
         template.status = "APPROVED"
         template.approved_by = user
         template.approved_at = timezone.now()
         template.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        return template
+
+    @staticmethod
+    def request_review(template_id: str, user=None):
+        template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
+        if template.status == "OBSOLETE":
+            raise ValidationError("Obsolete templates cannot be sent for review.")
+        if template.status == "LIVE":
+            raise ValidationError("LIVE templates are read-only. Clone a new version first.")
+        if template.status == "APPROVED":
+            return template
+        if template.status != "DRAFT":
+            raise ValidationError(f"Cannot send template in {template.status} state for review.")
+        TemplateGovernanceService._require_routing_rule(template)
+        TemplateGovernanceService._ensure_live_ready_workflow(template)
+        template.status = "ENGINEERING"
+        template.save(update_fields=["status", "updated_at"])
         return template
 
     @staticmethod
@@ -276,3 +361,73 @@ class TemplateGovernanceService:
         TemplateGovernanceService._ensure_live_ready_workflow(template)
         template.publish()
         return template
+
+    @staticmethod
+    def retire_template(template_id: str):
+        template = TemplateBlueprint.objects.get(id=template_id)
+        if template.status == "OBSOLETE":
+            return template
+        template.status = "OBSOLETE"
+        template.save(update_fields=["status", "updated_at"])
+        return template
+
+    @staticmethod
+    @transaction.atomic
+    def clone_template(template_id: str, user=None):
+        source = TemplateBlueprint.objects.get(id=template_id)
+        clone = TemplateBlueprint.objects.create(
+            name=f"{source.name} v{int(source.version or 1) + 1}",
+            fg_type=source.fg_type,
+            status="DRAFT",
+            commercial_family=source.commercial_family,
+            routing_rule=source.routing_rule,
+            default_stock_strategy=source.default_stock_strategy,
+            pouch_style=source.pouch_style,
+            version=int(source.version or 1) + 1,
+            created_by=user,
+        )
+        for step in source.process_steps.select_related("process", "cost_absorption_group").prefetch_related("materials").all():
+            new_step = TemplateProcessStep.objects.create(
+                template=clone,
+                sequence_number=step.sequence_number,
+                process=step.process,
+                cost_absorption_group=step.cost_absorption_group,
+                notes=step.notes,
+                is_removed_from_route=step.is_removed_from_route,
+            )
+            spec = getattr(step, "roll_spec", None)
+            defaults = TemplateGovernanceService.default_roll_handling_for_step(new_step)
+            if spec:
+                defaults.update(
+                    {
+                        "input_roll_count": spec.input_roll_count,
+                        "combine_mode": spec.combine_mode,
+                        "input_lane_count": spec.input_lane_count,
+                        "lamination_pass_index": spec.lamination_pass_index,
+                        "active_min_layer_count": spec.active_min_layer_count,
+                        "adhesive_split_pct": spec.adhesive_split_pct,
+                        "solvent_split_pct": spec.solvent_split_pct,
+                        "lane_schema": spec.lane_schema,
+                        "thickness_rule": spec.thickness_rule,
+                        "width_rule": spec.width_rule,
+                        "operator_entry_mode": spec.operator_entry_mode,
+                        "notes": spec.notes,
+                    }
+                )
+            TemplateProcessStepRollSpec.objects.create(template_step=new_step, **defaults)
+            for mat in step.materials.all():
+                TemplateProcessStepMaterial.objects.create(
+                    template_step=new_step,
+                    source_kind="CATEGORY",
+                    category_code=mat.category_code,
+                    consumption_basis=mat.consumption_basis,
+                    formula_driver=mat.formula_driver,
+                    formula_params=mat.formula_params,
+                    issue_policy_mode=mat.issue_policy_mode,
+                    issue_policy_value=mat.issue_policy_value,
+                    capture_mode=mat.capture_mode,
+                    quantity_mode=mat.quantity_mode,
+                    value=mat.value,
+                    is_optional=mat.is_optional,
+                )
+        return clone

@@ -104,6 +104,7 @@ class PackingService:
             "secondary_pack_tare_kg": float(Decimal(str(secondary_pack_tare_kg or 0))),
             "extras_tare_kg": float(Decimal(str(extras_tare_kg or 0))),
             "gross_weight_kg": float(gross_weight_kg),
+            "expected_gross_weight_kg": float(gross_weight_kg),
         }
 
     @staticmethod
@@ -266,7 +267,8 @@ class PackingService:
             inner_pack_tare_kg=inner_pack_tare_kg,
             secondary_pack_tare_kg=secondary_pack_tare_kg,
             extras_tare_kg=Decimal("0"),
-            gross_weight_kg=Decimal(str(tare_breakdown["gross_weight_kg"])),
+            expected_gross_weight_kg=Decimal(str(tare_breakdown["expected_gross_weight_kg"])),
+            gross_weight_kg=None,
             tare_breakdown_json=tare_breakdown,
             location=location,
             status='OPEN',
@@ -293,7 +295,7 @@ class PackingService:
 
     @staticmethod
     @transaction.atomic
-    def seal_gonny(gonny_id: str, weight_kg: Decimal, user, extras=None) -> PackingUnit:
+    def seal_gonny(gonny_id: str, weight_kg: Decimal, user, extras=None, variance_reason: str = "") -> PackingUnit:
         """
         Seal a packing unit with final weight.
         
@@ -314,6 +316,8 @@ class PackingService:
             raise ValueError(f"Packing unit {gonny.label_id} is already {gonny.status}")
         
         gross_weight_kg = Decimal(str(weight_kg))
+        if gross_weight_kg <= 0:
+            raise ValueError("Actual gross weight must be greater than 0.")
         gonny.status = 'SEALED'
         gonny.sealed_at = timezone.now()
         gonny.meta_json = dict(getattr(gonny, "meta_json", {}) or {})
@@ -364,11 +368,14 @@ class PackingService:
         net_product_weight_kg = Decimal(str(getattr(gonny, "net_product_weight_kg", 0) or 0))
         inner_pack_tare_kg = Decimal(str(getattr(gonny, "inner_pack_tare_kg", 0) or 0))
         secondary_pack_tare_kg = Decimal(str(getattr(gonny, "secondary_pack_tare_kg", 0) or 0))
-        minimum_expected = net_product_weight_kg + inner_pack_tare_kg + secondary_pack_tare_kg + extras_tare_kg
-        if gross_weight_kg < minimum_expected:
-            raise ValueError(
-                f"Gross weight {gross_weight_kg} kg is below calculated minimum {minimum_expected:.4f} kg."
-            )
+        expected_gross_weight_kg = net_product_weight_kg + inner_pack_tare_kg + secondary_pack_tare_kg + extras_tare_kg
+        variance_kg = gross_weight_kg - expected_gross_weight_kg
+        variance_pct = Decimal("0")
+        if expected_gross_weight_kg > 0:
+            variance_pct = (variance_kg / expected_gross_weight_kg) * Decimal("100")
+        normalized_reason = str(variance_reason or "").strip()
+        if abs(variance_pct) > Decimal("2") and not normalized_reason:
+            raise ValueError("Variance reason is required when actual gonny gross weight differs from expected by more than 2%.")
 
         tare_breakdown = PackingService._tare_breakdown(
             net_product_weight_kg=net_product_weight_kg,
@@ -379,9 +386,18 @@ class PackingService:
             primary_pack_count=gonny.primary_pack_count,
         )
         tare_breakdown["gross_weight_kg"] = float(gross_weight_kg)
+        tare_breakdown["actual_gross_weight_kg"] = float(gross_weight_kg)
+        tare_breakdown["expected_gross_weight_kg"] = float(expected_gross_weight_kg)
+        tare_breakdown["gross_variance_kg"] = float(variance_kg)
+        tare_breakdown["gross_variance_pct"] = float(variance_pct)
+        tare_breakdown["gross_variance_reason"] = normalized_reason
 
         gonny.weight_kg = gross_weight_kg
         gonny.gross_weight_kg = gross_weight_kg
+        gonny.expected_gross_weight_kg = expected_gross_weight_kg
+        gonny.gross_variance_kg = variance_kg
+        gonny.gross_variance_pct = variance_pct
+        gonny.gross_variance_reason = normalized_reason
         gonny.extras_tare_kg = extras_tare_kg
         gonny.tare_breakdown_json = tare_breakdown
         gonny.meta_json.update(
@@ -389,12 +405,17 @@ class PackingService:
                 "sealed_weight_kg": float(gonny.weight_kg or 0),
                 "seal_extras": consumed_extras,
                 "weight_breakdown": tare_breakdown,
+                "gross_variance_reason": normalized_reason,
             }
         )
         gonny.save(
             update_fields=[
                 "weight_kg",
                 "gross_weight_kg",
+                "expected_gross_weight_kg",
+                "gross_variance_kg",
+                "gross_variance_pct",
+                "gross_variance_reason",
                 "extras_tare_kg",
                 "tare_breakdown_json",
                 "status",

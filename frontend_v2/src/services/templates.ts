@@ -34,18 +34,38 @@ export interface TemplateBlueprint {
     pod_type?: string | null;
     artwork?: any;
     process_steps?: TemplateProcessStep[];
+    readiness?: TemplateReadiness;
     theoretical_requirements?: {
         step_id: string;
         step_sequence: number;
         category: string;
+        name?: string;
         consumption_basis?: string;
         issue_policy_mode?: string;
         issue_policy_value?: number;
         capture_mode?: string;
         quantity_mode: string;
         value: number;
+        weight_kg?: number;
         is_optional: boolean;
     }[];
+}
+
+export interface TemplateReadiness {
+    ready: boolean;
+    blockers: string[];
+    warnings: string[];
+    active_steps: number;
+    lamination_passes: Array<{
+        step_id: string;
+        sequence_number: number;
+        process_name: string;
+        pass_index: number;
+        lane_count: number;
+        adhesive_split_pct: number;
+        solvent_split_pct: number;
+    }>;
+    supported_categories: string[];
 }
 
 export interface TemplateProcessStep {
@@ -171,8 +191,24 @@ export const templateService = {
         const { data } = await api.post(`/api/templates/${id}/approve/`);
         return data;
     },
+    requestReview: async (id: string) => {
+        const { data } = await api.post(`/api/templates/${id}/request-review/`);
+        return data;
+    },
     makeLive: async (id: string) => {
         const { data } = await api.post(`/api/templates/${id}/publish/`);
+        return data;
+    },
+    retireTemplate: async (id: string) => {
+        const { data } = await api.post(`/api/templates/${id}/retire/`);
+        return data;
+    },
+    cloneTemplate: async (id: string) => {
+        const { data } = await api.post<TemplateBlueprint>(`/api/templates/${id}/clone/`);
+        return data;
+    },
+    getReadiness: async (id: string) => {
+        const { data } = await api.get<TemplateReadiness>(`/api/templates/${id}/readiness/`);
         return data;
     },
     getProcessSteps: async (templateId: string) => {
@@ -216,6 +252,10 @@ export const templateService = {
     },
     updateStepRollHandling: async (templateId: string, stepId: string, payload: Partial<TemplateProcessStepRollHandlingRule>) => {
         const { data } = await api.patch<TemplateProcessStepRollHandlingRule>(`/api/templates/${templateId}/process-steps/${stepId}/roll-handling/`, payload);
+        return data;
+    },
+    reorderProcessSteps: async (templateId: string, steps: Array<{ id: string; sequence_number: number }>) => {
+        const { data } = await api.post<TemplateProcessStep[]>(`/api/templates/${templateId}/process-steps/reorder/`, { steps });
         return data;
     },
 };

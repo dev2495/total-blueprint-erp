@@ -221,23 +221,22 @@ class TemplateStepContractTests(TestCase):
         self.assertEqual(data.get("category_code"), "INK")
 
     def test_approve_marks_template_approved_not_live(self):
+        TemplateGovernanceService.request_review(str(self.template.id), self.user)
         TemplateGovernanceService.approve_template(str(self.template.id), self.user)
         self.template.refresh_from_db()
         self.assertEqual(self.template.status, "APPROVED")
         self.assertIsNotNone(self.template.approved_by)
 
-    def test_publish_requires_synced_steps(self):
+    def test_publish_auto_syncs_route_before_live(self):
+        TemplateGovernanceService.request_review(str(self.template.id), self.user)
         TemplateGovernanceService.approve_template(str(self.template.id), self.user)
-        with self.assertRaisesMessage(Exception, "active route steps"):
-            TemplateGovernanceService.publish_template(str(self.template.id))
-        TemplateGovernanceService.apply_route_sync(self.template, destructive=False)
         TemplateGovernanceService.publish_template(str(self.template.id))
         self.template.refresh_from_db()
         self.assertEqual(self.template.status, "LIVE")
-        self.assertEqual(data.get("consumption_basis"), "SNAPSHOT_GSM")
-        self.assertEqual(data.get("issue_policy_mode"), "NONE")
-        self.assertEqual(float(data.get("issue_policy_value") or 0), 0.0)
-        self.assertEqual(data.get("capture_mode"), "AUTO_ESTIMATED_CONFIRM")
+        self.assertEqual(
+            self.template.process_steps.filter(is_removed_from_route=False).count(),
+            2,
+        )
 
     def test_addon_defaults_to_category_formula_driver(self):
         step = TemplateProcessStep.objects.create(

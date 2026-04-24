@@ -144,8 +144,9 @@ class PackagingConsumptionTests(SimpleTestCase):
         self.assertEqual(payload["net_product_weight_kg"], Decimal("18.5000"))
         self.assertEqual(payload["inner_pack_tare_kg"], Decimal("1.2500"))
         self.assertEqual(payload["secondary_pack_tare_kg"], Decimal("0.7500"))
-        self.assertEqual(payload["gross_weight_kg"], Decimal("20.5000"))
-        self.assertEqual(payload["tare_breakdown_json"]["gross_weight_kg"], 20.5)
+        self.assertIsNone(payload["gross_weight_kg"])
+        self.assertEqual(payload["expected_gross_weight_kg"], Decimal("20.5000"))
+        self.assertEqual(payload["tare_breakdown_json"]["expected_gross_weight_kg"], 20.5)
         self.assertEqual(payload["tare_breakdown_json"]["primary_pack_count"], 3)
         self.assertEqual(payload["meta_json"]["weight_breakdown"]["net_product_weight_kg"], 18.5)
 
@@ -279,6 +280,90 @@ class PackagingConsumptionTests(SimpleTestCase):
         self.assertEqual(gonny.tare_breakdown_json["content_mode"], "PRIMARY_PACKS")
         self.assertEqual(gonny.meta_json["seal_extras"][0]["material_id"], "tape-1")
         self.assertEqual(gonny.meta_json["weight_breakdown"]["extras_tare_kg"], 0.15)
+
+    def test_seal_gonny_requires_reason_when_variance_exceeds_two_percent(self):
+        gonny = SimpleNamespace(
+            id="gonny-variance",
+            label_id="G-VAR",
+            status="OPEN",
+            location_id="loc-1",
+            fg_batch_id="batch-1",
+            fg_batch=SimpleNamespace(production_job_id=None),
+            sales_order_item_id="so-item-1",
+            sales_order_item=SimpleNamespace(packaging_snapshot={}),
+            content_mode="LOOSE_POUCHES",
+            primary_pack_count=None,
+            net_product_weight_kg=Decimal("10.0000"),
+            inner_pack_tare_kg=Decimal("0.0000"),
+            secondary_pack_tare_kg=Decimal("0.0000"),
+            meta_json={},
+            save=MagicMock(),
+        )
+
+        with patch("apps.production.services.packing_service.PackingUnit.objects.select_for_update") as select_for_update, \
+             patch("apps.production.services.packing_service.PackagingService.consume_packaging_stock"):
+            select_for_update.return_value.get.return_value = gonny
+
+            with self.assertRaisesMessage(ValueError, "Variance reason is required"):
+                PackingService.seal_gonny.__wrapped__(
+                    "gonny-variance",
+                    Decimal("10.3000"),
+                    user=None,
+                    extras=[],
+                )
+
+    def test_seal_gonny_records_variance_when_reason_supplied(self):
+        gonny = SimpleNamespace(
+            id="gonny-variance-ok",
+            label_id="G-VAR-OK",
+            status="OPEN",
+            location_id="loc-1",
+            fg_batch_id="batch-1",
+            fg_batch=SimpleNamespace(production_job_id=None),
+            sales_order_item_id="so-item-1",
+            sales_order_item=SimpleNamespace(packaging_snapshot={}),
+            content_mode="LOOSE_POUCHES",
+            primary_pack_count=None,
+            net_product_weight_kg=Decimal("10.0000"),
+            inner_pack_tare_kg=Decimal("0.0000"),
+            secondary_pack_tare_kg=Decimal("0.0000"),
+            meta_json={},
+            save=MagicMock(),
+        )
+
+        with patch("apps.production.services.packing_service.PackingUnit.objects.select_for_update") as select_for_update, \
+             patch("apps.production.services.packing_service.PackagingService.consume_packaging_stock"):
+            select_for_update.return_value.get.return_value = gonny
+
+            PackingService.seal_gonny.__wrapped__(
+                "gonny-variance-ok",
+                Decimal("10.3000"),
+                user=None,
+                extras=[],
+                variance_reason="Scale reading accepted after supervisor check",
+            )
+
+        self.assertEqual(gonny.expected_gross_weight_kg, Decimal("10.0000"))
+        self.assertEqual(gonny.gross_weight_kg, Decimal("10.3000"))
+        self.assertEqual(gonny.gross_variance_kg, Decimal("0.3000"))
+        self.assertEqual(gonny.gross_variance_reason, "Scale reading accepted after supervisor check")
+
+    def test_release_gonny_rejects_missing_actual_gross_weight(self):
+        gonny = SimpleNamespace(
+            id="gonny-no-weight",
+            label_id="G-NO-WEIGHT",
+            status="SEALED",
+            gross_weight_kg=None,
+            meta_json={},
+            sales_order_item=None,
+            save=MagicMock(),
+        )
+
+        with patch("apps.production.services.dispatch_service.PackingUnit.objects.select_related") as select_related:
+            select_related.return_value.get.return_value = gonny
+
+            with self.assertRaisesMessage(ValueError, "no actual sealed gross weight"):
+                FGDispatchService.release_gonny_to_dispatch.__wrapped__("gonny-no-weight", user=None)
 
     def test_pack_roll_persists_explicit_lines_as_consumed_lines(self):
         roll = SimpleNamespace(

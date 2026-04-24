@@ -17,6 +17,28 @@ export interface WorkCenterAssignment {
     assigned_by: string | null;
     assigned_at: string | null;
     created_at: string;
+    audit_events?: Array<{
+        id: string;
+        action: string;
+        actor: string;
+        actor_id?: string | null;
+        reason?: string;
+        before_status?: string;
+        after_status?: string;
+        machine?: string;
+        machine_id?: string | null;
+        payload?: Record<string, any>;
+        occurred_at: string;
+    }>;
+    history_summary?: {
+        output_qty?: number;
+        scrap_qty?: number;
+        material_rows?: any[];
+        downtime_rows?: any[];
+        closed_by?: string;
+        closed_at?: string;
+        force_reason?: string;
+    };
 }
 
 export interface RollOverridePayload {
@@ -53,8 +75,16 @@ export const wcmService = {
         const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`);
         return data;
     },
-    getHistory: async (wcId: string) => {
-        const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/history/`);
+    getHistory: async (
+        wcId: string,
+        filters?: { q?: string; status?: string; days?: number | null; limit?: number }
+    ) => {
+        const params: Record<string, string | number> = {};
+        if (filters?.q) params.q = filters.q;
+        if (filters?.status && filters.status !== "ALL") params.status = filters.status;
+        if (filters && "days" in filters) params.days = filters.days == null ? 0 : filters.days;
+        if (filters?.limit) params.limit = filters.limit;
+        const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/history/`, { params });
         return data;
     },
     getStats: async (wcId: string) => {

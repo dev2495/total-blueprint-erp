@@ -1,14 +1,162 @@
+from collections import defaultdict
+from datetime import timedelta
+from decimal import Decimal
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from .models import WorkCenterAssignment, ProductionJob
+from django.db.models import Q, Sum
+from .models import (
+    WorkCenterAssignment,
+    ProductionJob,
+    ProductionWcmAuditEvent,
+    JobExecutionLog,
+    ScrapLog,
+    DowntimeLog,
+    MaterialConsumptionLog,
+    JobMaterialRequirement,
+)
 from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer
 from .services.job_services import WCManagerService
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
 from apps.inventory.serializers import InventoryRollSerializer
+from apps.inventory.models import InventoryBulk
+
+
+def _actor_label(user):
+    if not user or not getattr(user, "is_authenticated", False):
+        return "system"
+    return (
+        getattr(user, "get_full_name", lambda: "")()
+        or getattr(user, "username", "")
+        or getattr(user, "email", "")
+        or "user"
+    )
+
+
+def _audit_payload_event(event):
+    actor = getattr(event, "actor", None)
+    return {
+        "id": str(event.id),
+        "action": event.action,
+        "actor": _actor_label(actor),
+        "actor_id": str(actor.id) if actor else None,
+        "reason": event.reason or "",
+        "before_status": event.before_status or "",
+        "after_status": event.after_status or "",
+        "machine": event.machine.name if getattr(event, "machine", None) else "",
+        "machine_id": str(event.machine_id) if event.machine_id else None,
+        "payload": event.payload or {},
+        "occurred_at": event.occurred_at,
+    }
+
+
+def _write_wcm_audit(assignment, action, user=None, before_status="", reason="", payload=None, machine=None):
+    job = assignment.production_job
+    return ProductionWcmAuditEvent.objects.create(
+        production_job=job,
+        work_center=assignment.work_center,
+        assignment=assignment,
+        machine=machine or assignment.assigned_machine or job.machine,
+        action=action,
+        actor=user if getattr(user, "is_authenticated", False) else None,
+        reason=reason or "",
+        before_status=before_status or "",
+        after_status=assignment.status or "",
+        payload=payload or {},
+    )
+
+
+def _decimal(value, field_name):
+    try:
+        parsed = Decimal(str(value or 0)).quantize(Decimal("0.0001"))
+    except Exception as exc:
+        raise ValueError(f"{field_name} must be a valid number.") from exc
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be zero or positive.")
+    return parsed
+
+
+def _validate_wcm_material_confirmations(job, material_confirmations):
+    confirmations = material_confirmations or []
+    if not isinstance(confirmations, list):
+        raise ValueError("material_confirmations must be a list.")
+    if not confirmations:
+        return
+
+    step_seq = int(job.current_step_index or 0) + 1
+    reqs = (
+        JobMaterialRequirement.objects
+        .select_related("material", "process_step")
+        .filter(production_job=job, process_step__sequence_number=step_seq)
+    )
+    req_by_id = {str(req.id): req for req in reqs}
+    if not req_by_id:
+        raise ValueError("No current-step material requirements were found for this job.")
+
+    source_location_id = job.from_location_id or (job.work_center.default_wip_location_id if job.work_center else None)
+    source_plant_id = job.work_center.plant_id if job.work_center else None
+
+    for row in confirmations:
+        if not isinstance(row, dict):
+            raise ValueError("Each material confirmation must be an object.")
+        requirement_id = str(row.get("requirement_id") or "").strip()
+        req = req_by_id.get(requirement_id)
+        if not req:
+            raise ValueError("Material confirmation is not for the current step.")
+        material_id = str(row.get("material_id") or req.material_id)
+        if material_id != str(req.material_id):
+            raise ValueError(f"Material confirmation does not match {req.material.name}.")
+
+        issued = _decimal(row.get("actual_issued_qty"), f"{req.material.name} issued kg")
+        returned = _decimal(row.get("actual_returned_qty"), f"{req.material.name} returned kg")
+        scrap = _decimal(row.get("actual_scrap_qty"), f"{req.material.name} scrap kg")
+        if returned > 0 or scrap > 0:
+            raise ValueError(f"WCM can only release issued kg for {req.material.name}; return and scrap are logged on machine output.")
+
+        raw_allocations = row.get("granule_code_allocations") or row.get("code_allocations") or []
+        if raw_allocations and not isinstance(raw_allocations, list):
+            raise ValueError(f"Code allocations for {req.material.name} must be a list.")
+
+        category = str(getattr(req.material, "category", "") or "").upper()
+        if category != "GRANULE":
+            if raw_allocations:
+                raise ValueError(f"Code split is only allowed for granule rows, not {req.material.name}.")
+            continue
+
+        stock_qs = InventoryBulk.objects.filter(material=req.material, granule_code__isnull=False, qty_kg__gt=0)
+        if source_location_id:
+            stock_qs = stock_qs.filter(location_id=source_location_id)
+        elif source_plant_id:
+            stock_qs = stock_qs.filter(plant_id=source_plant_id)
+        available_by_code = {
+            str(row["granule_code_id"]): Decimal(str(row["available"] or 0)).quantize(Decimal("0.0001"))
+            for row in stock_qs.values("granule_code_id").annotate(available=Sum("qty_kg"))
+        }
+        if issued > 0 and not available_by_code:
+            raise ValueError(f"No coded stock is available for {req.material.name}.")
+        if issued > 0 and available_by_code and not raw_allocations:
+            raise ValueError(f"Select at least one code for {req.material.name}.")
+
+        allocated_by_code = defaultdict(lambda: Decimal("0"))
+        for allocation in raw_allocations:
+            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
+            qty = _decimal(allocation.get("qty_kg") or allocation.get("quantity"), f"{req.material.name} code qty")
+            if not code_id or qty <= 0:
+                continue
+            if code_id not in available_by_code:
+                raise ValueError(f"Selected code is not available for {req.material.name}.")
+            allocated_by_code[code_id] += qty
+
+        allocated_total = sum(allocated_by_code.values(), Decimal("0")).quantize(Decimal("0.0001"))
+        if allocated_total != issued:
+            raise ValueError(f"Code split for {req.material.name} must total {issued} kg, got {allocated_total} kg.")
+        for code_id, qty in allocated_by_code.items():
+            if qty > available_by_code[code_id]:
+                raise ValueError(f"Code allocation for {req.material.name} exceeds available coded stock.")
 
 class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -105,55 +253,153 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'], url_path='history')
     def history(self, request, wc_id=None):
         """
-        Fetch historical jobs for this work center (Executing, Completed, Cancelled).
-        Since WorkCenterAssignment records are deleted upon step completion, 
-        we query ProductionJob directly and wrap them to match the expected UI schema.
+        Fetch searchable WCM history for this work center.
+        Defaults to the last 30 days, but search/status filters can inspect older records.
         """
-        import logging
-        logger = logging.getLogger(__name__)
+        search = str(request.query_params.get("q") or request.query_params.get("search") or "").strip()
+        status_filter = str(request.query_params.get("status") or "ALL").strip().upper()
+        try:
+            limit = int(request.query_params.get("limit") or 100)
+        except Exception:
+            limit = 100
+        limit = max(1, min(limit, 300))
+        days_raw = request.query_params.get("days")
+        if days_raw is None or str(days_raw).strip() == "":
+            days = None if search or status_filter != "ALL" else 30
+        else:
+            try:
+                days = int(days_raw)
+            except Exception:
+                days = 30
+            if days <= 0:
+                days = None
 
-        from django.db.models import Q
-        # Fetch jobs sent to machine (EXECUTING) or already done
-        queryset = ProductionJob.objects.filter(
-            Q(work_center_id=wc_id) & 
-            (
-                Q(job_state__in=['EXECUTING', 'COMPLETED', 'CANCELLED']) |
-                Q(status__in=['RUNNING', 'COMPLETED', 'CANCELLED']) |
-                Q(assignment__status='EXECUTION_READY')
+        queryset = (
+            ProductionJob.objects.filter(work_center_id=wc_id)
+            .filter(
+                Q(job_state__in=['RELEASED', 'EXECUTING', 'PAUSED', 'COMPLETED', 'CANCELLED']) |
+                Q(status__in=['ASSIGNED', 'RUNNING', 'COMPLETED', 'CANCELLED']) |
+                Q(assignment__status='EXECUTION_READY') |
+                Q(wcm_audit_events__isnull=False)
             )
-        ).select_related(
-            'current_process',
-            'process',
-            'template',
-            'sales_order_item__sales_order',
-            'machine',
-            'assignment'
-        ).order_by('-updated_at')[:50]
+            .distinct()
+            .select_related(
+                'current_process',
+                'process',
+                'template',
+                'sales_order_item__sales_order',
+                'machine',
+                'operator',
+                'closed_by',
+                'assignment',
+                'assignment__assigned_machine',
+            )
+        )
+
+        if days:
+            since = timezone.now() - timedelta(days=days)
+            queryset = queryset.filter(Q(updated_at__gte=since) | Q(wcm_audit_events__occurred_at__gte=since)).distinct()
+
+        if status_filter != "ALL":
+            queryset = queryset.filter(
+                Q(job_state=status_filter) |
+                Q(status=status_filter) |
+                Q(wcm_audit_events__action=status_filter)
+            ).distinct()
+
+        if search:
+            queryset = queryset.filter(
+                Q(job_number__icontains=search) |
+                Q(template__name__icontains=search) |
+                Q(sales_order_item__sales_order__order_number__icontains=search) |
+                Q(sales_order_item__sales_order__customer_name__icontains=search) |
+                Q(machine__name__icontains=search) |
+                Q(wcm_audit_events__reason__icontains=search) |
+                Q(wcm_audit_events__action__icontains=search) |
+                Q(wcm_audit_events__actor__username__icontains=search) |
+                Q(wcm_audit_events__payload__icontains=search)
+            ).distinct()
+
+        queryset = list(queryset.order_by('-updated_at')[:limit])
 
         from apps.production.serializers import ProductionJobSerializer
-        
-        # Serialize the jobs
+
         jobs_data = ProductionJobSerializer(queryset, many=True).data
         jobs_by_id = {str(j["id"]): j for j in jobs_data}
+        job_ids = [job.id for job in queryset]
+
+        output_by_job = defaultdict(lambda: Decimal("0"))
+        for row in JobExecutionLog.objects.filter(production_job_id__in=job_ids).values("production_job_id", "uom").annotate(total=Sum("quantity")):
+            output_by_job[row["production_job_id"]] += Decimal(str(row.get("total") or 0))
+
+        scrap_by_job = defaultdict(lambda: Decimal("0"))
+        for row in ScrapLog.objects.filter(production_job_id__in=job_ids).values("production_job_id", "uom").annotate(total=Sum("quantity")):
+            scrap_by_job[row["production_job_id"]] += Decimal(str(row.get("total") or 0))
+
+        material_by_job = defaultdict(list)
+        material_rows = (
+            MaterialConsumptionLog.objects
+            .filter(production_job_id__in=job_ids)
+            .select_related("material", "granule_code", "roll")
+            .order_by("-logged_at")[:1000]
+        )
+        for row in material_rows:
+            material_by_job[row.production_job_id].append({
+                "material": row.material.name if row.material else "",
+                "material_code": row.material.code if row.material else "",
+                "granule_code": row.granule_code.code if row.granule_code else "",
+                "roll": row.roll.label_id if row.roll else "",
+                "quantity": float(row.quantity or 0),
+                "uom": row.uom,
+                "is_estimated": row.is_estimated,
+                "logged_at": row.logged_at,
+            })
+
+        downtime_by_job = defaultdict(list)
+        for row in DowntimeLog.objects.filter(production_job_id__in=job_ids).select_related("logged_by").order_by("-created_at")[:500]:
+            downtime_by_job[row.production_job_id].append({
+                "reason": row.reason,
+                "notes": row.notes,
+                "duration_minutes": row.duration_minutes,
+                "logged_by": _actor_label(row.logged_by),
+                "created_at": row.created_at,
+            })
+
+        events_by_job = defaultdict(list)
+        events = (
+            ProductionWcmAuditEvent.objects
+            .filter(production_job_id__in=job_ids)
+            .select_related("actor", "machine")
+            .order_by("-occurred_at")
+        )
+        for event in events:
+            events_by_job[event.production_job_id].append(_audit_payload_event(event))
 
         payload = []
         for job_obj in queryset:
             job_dict = jobs_by_id.get(str(job_obj.id), {})
             assignment = getattr(job_obj, 'assignment', None)
-            
-            # Manually construct the shape expected by the UI (WorkCenterAssignmentSerializer output)
-            # The UI needs: id, status, job_details, assigned_machine_name, updated_at
-            # If an assignment exists, use its ID. Otherwise use job ID to prevent React key collision.
-            
+            machine = getattr(job_obj, "machine", None) or getattr(assignment, "assigned_machine", None)
+
             payload.append({
                 "id": str(assignment.id) if assignment else str(job_obj.id),
                 "production_job": str(job_obj.id),
                 "work_center": str(wc_id),
-                "status": assignment.status if assignment else ("EXECUTION_READY" if job_obj.job_state == "EXECUTING" else "COMPLETED"),
-                "assigned_machine": str(job_obj.machine_id) if job_obj.machine_id else None,
-                "assigned_machine_name": job_obj.machine.name if getattr(job_obj, 'machine', None) else "Machine Assigned",
+                "status": assignment.status if assignment else ("EXECUTION_READY" if job_obj.job_state in {"RELEASED", "EXECUTING", "PAUSED"} else job_obj.job_state),
+                "assigned_machine": str(machine.id) if machine else None,
+                "assigned_machine_name": machine.name if machine else "",
                 "job_details": job_dict,
-                "updated_at": assignment.updated_at if assignment else job_obj.updated_at
+                "updated_at": assignment.updated_at if assignment else job_obj.updated_at,
+                "audit_events": events_by_job.get(job_obj.id, []),
+                "history_summary": {
+                    "output_qty": float(output_by_job[job_obj.id]),
+                    "scrap_qty": float(scrap_by_job[job_obj.id]),
+                    "material_rows": material_by_job.get(job_obj.id, []),
+                    "downtime_rows": downtime_by_job.get(job_obj.id, []),
+                    "closed_by": _actor_label(job_obj.closed_by) if job_obj.closed_by_id else "",
+                    "closed_at": job_obj.closed_at,
+                    "force_reason": job_obj.completion_force_reason or "",
+                },
             })
 
         return Response(payload)
@@ -259,6 +505,9 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id and machine_id are required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
+            before_status = before.status
+            before_machine = before.assigned_machine.name if before.assigned_machine else ""
             assignment = WCManagerService.assign_machine(
                 assignment_id, 
                 machine_id, 
@@ -267,8 +516,23 @@ class JobAllocationViewSet(viewsets.ViewSet):
                 manual_override=manual_override,
                 override_reason=override_reason,
             )
+            _write_wcm_audit(
+                assignment,
+                "ASSIGN_MACHINE",
+                user=request.user,
+                before_status=before_status,
+                reason=override_reason or "",
+                payload={
+                    "before_machine": before_machine,
+                    "after_machine": assignment.assigned_machine.name if assignment.assigned_machine else "",
+                    "roll_ids": roll_ids or [],
+                    "manual_override": manual_override,
+                },
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -282,6 +546,8 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
+            before_status = before.status
             assignment = WCManagerService.assign_rolls(
                 assignment_id,
                 roll_ids,
@@ -289,8 +555,22 @@ class JobAllocationViewSet(viewsets.ViewSet):
                 manual_override=manual_override,
                 override_reason=override_reason,
             )
+            _write_wcm_audit(
+                assignment,
+                "ALLOCATE_ROLLS",
+                user=request.user,
+                before_status=before_status,
+                reason=override_reason or "",
+                payload={
+                    "roll_ids": roll_ids or [],
+                    "allocated_roll_count": assignment.allocated_rolls.count(),
+                    "manual_override": manual_override,
+                },
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -302,9 +582,20 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id and reservation_id are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
+            before_status = before.status
             assignment = WCManagerService.unassign_roll(assignment_id, reservation_id, user=request.user)
+            _write_wcm_audit(
+                assignment,
+                "UNASSIGN_ROLL",
+                user=request.user,
+                before_status=before_status,
+                payload={"reservation_id": str(reservation_id), "allocated_roll_count": assignment.allocated_rolls.count()},
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -316,9 +607,20 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id and roll_id are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
+            before_status = before.status
             assignment = WCManagerService.unassign_roll_by_roll(assignment_id, roll_id, user=request.user)
+            _write_wcm_audit(
+                assignment,
+                "UNASSIGN_ROLL",
+                user=request.user,
+                before_status=before_status,
+                payload={"roll_id": str(roll_id), "allocated_roll_count": assignment.allocated_rolls.count()},
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -330,12 +632,34 @@ class JobAllocationViewSet(viewsets.ViewSet):
         
         try:
             material_confirmations = request.data.get("material_confirmations")
+            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
+            _validate_wcm_material_confirmations(before.production_job, material_confirmations)
             assignment = WCManagerService.mark_execution_ready(
                 assignment_id,
                 material_confirmations=material_confirmations,
             )
+            if material_confirmations:
+                _write_wcm_audit(
+                    assignment,
+                    "MATERIAL_ISSUE",
+                    user=request.user,
+                    before_status=before.status,
+                    payload={"material_confirmations": material_confirmations},
+                )
+            _write_wcm_audit(
+                assignment,
+                "RELEASE_TO_MACHINE",
+                user=request.user,
+                before_status=before.status,
+                payload={
+                    "machine": assignment.assigned_machine.name if assignment.assigned_machine else "",
+                    "material_confirmation_count": len(material_confirmations or []),
+                },
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -354,6 +678,7 @@ class JobAllocationViewSet(viewsets.ViewSet):
         try:
             assignment = WorkCenterAssignment.objects.select_related('production_job').get(id=assignment_id)
             job = assignment.production_job
+            before_status = assignment.status
             now = timezone.now()
             action_label = 'Short closed by WCM' if mode == 'SHORT_CLOSE' else 'Cancelled by WCM'
             job.closed_at = now
@@ -377,6 +702,18 @@ class JobAllocationViewSet(viewsets.ViewSet):
             ])
             assignment.updated_at = now
             assignment.save(update_fields=['updated_at'])
+            _write_wcm_audit(
+                assignment,
+                mode,
+                user=request.user,
+                before_status=before_status,
+                reason=reason,
+                payload={
+                    "job_state": job.job_state,
+                    "job_status": job.status,
+                    "closed_at": now.isoformat(),
+                },
+            )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
         except WorkCenterAssignment.DoesNotExist:

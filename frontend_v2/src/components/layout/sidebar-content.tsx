@@ -201,12 +201,12 @@ export function SidebarNavContent({
                   data-testid={`sidebar-link-${navTestId(item.href || item.title)}`}
                   data-route={item.href}
                   data-active={isActive ? "true" : undefined}
-                  className={cn(
+                    className={cn(
                     "group flex items-center gap-3 rounded-[1rem] px-3 py-2.5 text-[13px] font-medium transition-all duration-150",
                     isActive
                       ? "bg-slate-950 text-white shadow-[0_16px_28px_-20px_rgba(15,23,42,0.8)] font-semibold"
                       : "text-slate-600 hover:bg-white hover:text-slate-950",
-                    mobile ? "px-4 py-3 text-[14px]" : "",
+                    mobile ? "px-3 py-2.5 text-[13px]" : "",
                   )}
                 >
                   <item.icon
@@ -223,7 +223,7 @@ export function SidebarNavContent({
                   <div
                     className={cn(
                       "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400",
-                      mobile ? "mt-6 px-4 text-[11px]" : "",
+                      mobile ? "mt-4 px-3 text-[10px]" : "",
                     )}
                     data-testid={`sidebar-section-${navTestId(item.title)}`}
                   >
@@ -249,7 +249,7 @@ export function SidebarNavContent({
                             isChildActive
                               ? "bg-slate-950 text-white shadow-[0_16px_28px_-20px_rgba(15,23,42,0.8)] font-semibold"
                               : "text-slate-600 hover:bg-white hover:text-slate-950",
-                            mobile ? "px-4 py-3 text-[14px]" : "",
+                            mobile ? "px-3 py-2.5 text-[13px]" : "",
                           )}
                         >
                           <div

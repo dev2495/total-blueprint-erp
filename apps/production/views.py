@@ -376,6 +376,54 @@ class PackingViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='yard-snapshot')
+    def yard_snapshot(self, request):
+        """Board-level packing snapshot used by the Packing Yard UI before an order is selected."""
+        from .services.dispatch_service import FGDispatchService
+
+        try:
+            order_rows = list(FGDispatchService.get_sales_orders_for_packing())
+            cards = []
+            totals = {
+                "orders": 0,
+                "pending_batches": 0,
+                "pending_pcs": 0,
+                "open_gonnies": 0,
+                "sealed_waiting_release": 0,
+                "ready_rolls": 0,
+                "ready_rolls_kg": 0.0,
+                "ready_gonnies": 0,
+                "ready_gonnies_pcs": 0,
+                "ready_gonnies_gross_kg": 0.0,
+            }
+            for row in order_rows:
+                try:
+                    summary = FGDispatchService.get_packing_units_by_so(row["id"])
+                except Exception:
+                    continue
+                pending = summary.get("packing_pending", {})
+                ready = summary.get("ready_for_dispatch", {})
+                card = {
+                    "sales_order": summary.get("sales_order") or row,
+                    "pending": pending,
+                    "ready_for_dispatch": ready,
+                }
+                cards.append(card)
+                totals["orders"] += 1
+                totals["pending_batches"] += int(pending.get("batches_count") or 0)
+                totals["pending_pcs"] += int(pending.get("batches_pcs") or 0)
+                totals["open_gonnies"] += int(pending.get("open_gonnies_count") or 0)
+                totals["sealed_waiting_release"] += int(pending.get("sealed_gonnies_count") or 0)
+                totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
+                totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
+                totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
+                totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
+                totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
+
+            return Response({"totals": totals, "orders": cards})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['get'])
     def so_summary(self, request):
         """Order-centric packing summary for FG batches, rolls, and gonnies."""
@@ -477,7 +525,11 @@ class PackingViewSet(viewsets.ViewSet):
                 "net_product_weight_kg": float(gonny.net_product_weight_kg or 0),
                 "inner_pack_tare_kg": float(gonny.inner_pack_tare_kg or 0),
                 "secondary_pack_tare_kg": float(gonny.secondary_pack_tare_kg or 0),
+                "expected_gross_weight_kg": float(gonny.expected_gross_weight_kg or 0) if gonny.expected_gross_weight_kg is not None else None,
                 "gross_weight_kg": float(gonny.gross_weight_kg or 0) if gonny.gross_weight_kg is not None else None,
+                "gross_variance_kg": float(gonny.gross_variance_kg or 0) if gonny.gross_variance_kg is not None else None,
+                "gross_variance_pct": float(gonny.gross_variance_pct or 0) if gonny.gross_variance_pct is not None else None,
+                "gross_variance_reason": gonny.gross_variance_reason or "",
                 "tare_breakdown_json": gonny.tare_breakdown_json or {},
                 "status": gonny.status,
                 "message": f"Gonny {gonny.label_id} created with {gonny.qty_pcs} pcs"
@@ -495,6 +547,7 @@ class PackingViewSet(viewsets.ViewSet):
         
         weight_kg = request.data.get('weight_kg')
         extras = request.data.get('extras') if 'extras' in request.data else None
+        variance_reason = request.data.get('gross_variance_reason') or request.data.get('variance_reason') or ''
         
         if not weight_kg:
             return Response(
@@ -508,6 +561,7 @@ class PackingViewSet(viewsets.ViewSet):
                 weight_kg,
                 request.user,
                 extras=extras if isinstance(extras, list) else None,
+                variance_reason=variance_reason,
             )
             return Response({
                 "id": str(gonny.id),
@@ -517,7 +571,11 @@ class PackingViewSet(viewsets.ViewSet):
                 "inner_pack_tare_kg": float(gonny.inner_pack_tare_kg or 0),
                 "secondary_pack_tare_kg": float(gonny.secondary_pack_tare_kg or 0),
                 "extras_tare_kg": float(gonny.extras_tare_kg or 0),
+                "expected_gross_weight_kg": float(gonny.expected_gross_weight_kg or 0) if gonny.expected_gross_weight_kg is not None else None,
                 "gross_weight_kg": float(gonny.gross_weight_kg or 0),
+                "gross_variance_kg": float(gonny.gross_variance_kg or 0) if gonny.gross_variance_kg is not None else None,
+                "gross_variance_pct": float(gonny.gross_variance_pct or 0) if gonny.gross_variance_pct is not None else None,
+                "gross_variance_reason": gonny.gross_variance_reason or "",
                 "tare_breakdown_json": gonny.tare_breakdown_json or {},
                 "content_mode": gonny.content_mode,
                 "primary_pack_count": gonny.primary_pack_count,
@@ -608,7 +666,11 @@ class PackingViewSet(viewsets.ViewSet):
                     'inner_pack_tare_kg': float(gonny.inner_pack_tare_kg or 0),
                     'secondary_pack_tare_kg': float(gonny.secondary_pack_tare_kg or 0),
                     'extras_tare_kg': float(gonny.extras_tare_kg or 0),
+                    'expected_gross_weight_kg': float(gonny.expected_gross_weight_kg or 0) if gonny.expected_gross_weight_kg is not None else None,
                     'gross_weight_kg': float(gonny.gross_weight_kg or 0) if gonny.gross_weight_kg is not None else None,
+                    'gross_variance_kg': float(gonny.gross_variance_kg or 0) if gonny.gross_variance_kg is not None else None,
+                    'gross_variance_pct': float(gonny.gross_variance_pct or 0) if gonny.gross_variance_pct is not None else None,
+                    'gross_variance_reason': gonny.gross_variance_reason or '',
                     'tare_breakdown_json': gonny.tare_breakdown_json or {},
                     'status': gonny.status,
                     'content_mode': gonny.content_mode,
@@ -651,6 +713,50 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=False, methods=['get'], url_path='board')
+    def board(self, request):
+        """Dispatch board snapshot used before the dispatcher picks a sales order."""
+        from .services.dispatch_service import FGDispatchService
+
+        try:
+            order_rows = list(FGDispatchService.get_sales_orders_with_fg())
+            cards = []
+            totals = {
+                "orders": 0,
+                "ready_rolls": 0,
+                "ready_rolls_kg": 0.0,
+                "ready_gonnies": 0,
+                "ready_gonnies_pcs": 0,
+                "ready_gonnies_gross_kg": 0.0,
+                "pending_in_packing": 0,
+            }
+            for row in order_rows:
+                try:
+                    summary = FGDispatchService.get_dispatchable_units_by_so(row["id"])
+                except Exception:
+                    continue
+                ready = summary.get("available_for_dispatch", {})
+                pending = summary.get("packing_pending", {})
+                cards.append(
+                    {
+                        "sales_order": summary.get("sales_order") or row,
+                        "available_for_dispatch": ready,
+                        "packing_pending": pending,
+                        "dispatched_qty": summary.get("dispatched_qty", {}),
+                    }
+                )
+                totals["orders"] += 1
+                totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
+                totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
+                totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
+                totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
+                totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
+                totals["pending_in_packing"] += int(pending.get("open_gonnies_count") or 0) + int(pending.get("unpacked_batch_count") or 0)
+
+            return Response({"totals": totals, "orders": cards})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
     def list_challans(self, request):
@@ -676,6 +782,13 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                     'customer_name': ch.customer_name or "N/A",
                     'status': ch.status,
                     'vehicle_no': ch.vehicle_no or "",
+                    'driver_name': ch.driver_name or "",
+                    'driver_phone': ch.driver_phone or "",
+                    'transporter_name': ch.transporter_name or "",
+                    'lr_number': ch.lr_number or "",
+                    'e_way_bill_number': ch.e_way_bill_number or "",
+                    'dispatch_notes': ch.dispatch_notes or "",
+                    'ship_to_address_snapshot': ch.ship_to_address_snapshot or {},
                     'dispatch_date': ch.dispatch_date.isoformat() if ch.dispatch_date else None,
                     'plant_name': ch.plant.name if ch.plant else "N/A",
                     'so_number': _safe_sales_order_number(ch.sales_order_id)
@@ -730,6 +843,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 vehicle_no=request.data.get('vehicle_no', ''),
                 driver_name=request.data.get('driver_name', ''),
                 driver_phone=request.data.get('driver_phone', ''),
+                transporter_name=request.data.get('transporter_name', ''),
+                lr_number=request.data.get('lr_number', ''),
+                e_way_bill_number=request.data.get('e_way_bill_number', ''),
+                dispatch_notes=request.data.get('dispatch_notes', '') or request.data.get('notes', ''),
+                ship_to_address_snapshot=request.data.get('ship_to_address_snapshot') if isinstance(request.data.get('ship_to_address_snapshot'), dict) else {},
                 roll_ids=request.data.get('roll_ids', []),
                 gonny_ids=request.data.get('gonny_ids', []),
                 user=request.user
@@ -854,7 +972,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 "inner_pack_tare_kg": float(getattr(packing_unit, "inner_pack_tare_kg", 0) or 0) if packing_unit else None,
                 "secondary_pack_tare_kg": float(getattr(packing_unit, "secondary_pack_tare_kg", 0) or 0) if packing_unit else None,
                 "extras_tare_kg": float(getattr(packing_unit, "extras_tare_kg", 0) or 0) if packing_unit else None,
+                "expected_gross_weight_kg": float(getattr(packing_unit, "expected_gross_weight_kg", 0) or 0) if packing_unit else None,
                 "gross_weight_kg": float(getattr(packing_unit, "gross_weight_kg", 0) or 0) if packing_unit else None,
+                "gross_variance_kg": float(getattr(packing_unit, "gross_variance_kg", 0) or 0) if packing_unit else None,
+                "gross_variance_pct": float(getattr(packing_unit, "gross_variance_pct", 0) or 0) if packing_unit else None,
+                "gross_variance_reason": getattr(packing_unit, "gross_variance_reason", "") if packing_unit else "",
             })
         
         return Response({
@@ -865,6 +987,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             "vehicle_no": challan.vehicle_no,
             "driver_name": challan.driver_name,
             "driver_phone": challan.driver_phone,
+            "transporter_name": challan.transporter_name,
+            "lr_number": challan.lr_number,
+            "e_way_bill_number": challan.e_way_bill_number,
+            "dispatch_notes": challan.dispatch_notes,
+            "ship_to_address_snapshot": challan.ship_to_address_snapshot or {},
             "dispatch_date": challan.dispatch_date.isoformat() if challan.dispatch_date else None,
             "received_date": challan.received_date.isoformat() if challan.received_date else None,
             "plant": challan.plant.name if challan.plant else None,

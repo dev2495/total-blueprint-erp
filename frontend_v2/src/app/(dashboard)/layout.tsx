@@ -58,7 +58,11 @@ function DashboardLayoutInner({
     if (isMachineKioskRoute) {
         return (
             <div className="min-h-screen w-full overflow-x-hidden bg-[linear-gradient(180deg,#f3f5f7_0%,#e5eaef_100%)]">
-                <main className="min-h-screen w-full">
+                <Sidebar />
+                <main
+                    style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+                    className={cn("min-h-screen w-full transition-[padding] duration-300", isPinned ? "lg:pl-[304px]" : "lg:pl-[86px]")}
+                >
                     {children}
                 </main>
             </div>
@@ -70,7 +74,7 @@ function DashboardLayoutInner({
             <Sidebar />
             <div
                 style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
-                className={cn("relative z-10 flex min-w-0 flex-col transition-[padding] duration-300", isPinned ? "lg:pl-[320px]" : "lg:pl-0")}
+                className={cn("relative z-10 flex min-w-0 flex-col transition-[padding] duration-300", isPinned ? "lg:pl-[304px]" : "lg:pl-[86px]")}
             >
                 <Header />
                 <main className="z-10 flex w-full min-w-0 flex-col overflow-x-hidden px-3 pb-6 pt-[10.75rem] sm:px-4 sm:pb-8 sm:pt-[11rem] lg:px-6 lg:pb-10 lg:pt-5 xl:px-8">

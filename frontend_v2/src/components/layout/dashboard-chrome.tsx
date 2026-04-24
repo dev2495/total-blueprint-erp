@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-const STORAGE_KEY = "tp.dashboard.sidebar.pinned.v3";
+const STORAGE_KEY = "tp.dashboard.sidebar.pinned.v4";
 const LEGACY_STORAGE_KEYS = [
   "tp.dashboard.sidebar.pinned",
   "tp.dashboard.sidebar.pinned.v2",
+  "tp.dashboard.sidebar.pinned.v3",
 ];
 
 type DashboardChromeContextValue = {
@@ -23,6 +24,7 @@ const DashboardChromeContext = createContext<DashboardChromeContextValue | null>
 export function DashboardChromeProvider({ children }: { children: React.ReactNode }) {
   const [isPinned, setIsPinned] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -38,8 +40,29 @@ export function DashboardChromeProvider({ children }: { children: React.ReactNod
     window.localStorage.setItem(STORAGE_KEY, isPinned ? "true" : "false");
   }, [isPinned]);
 
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
   const setHovering = useCallback((value: boolean) => {
-    setIsHovering(value);
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    if (value) {
+      setIsHovering(true);
+      return;
+    }
+
+    closeTimerRef.current = setTimeout(() => {
+      setIsHovering(false);
+      closeTimerRef.current = null;
+    }, 260);
   }, []);
 
   const togglePinned = useCallback(() => {

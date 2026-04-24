@@ -652,6 +652,49 @@ class WorkCenterAssignment(models.Model):
     def __str__(self):
         return f"Assignment for {self.production_job.job_number} | {self.status}"
 
+
+class ProductionWcmAuditEvent(models.Model):
+    ACTION_CHOICES = [
+        ("ASSIGN_MACHINE", "Assign Machine"),
+        ("ALLOCATE_ROLLS", "Allocate Rolls"),
+        ("UNASSIGN_ROLL", "Unassign Roll"),
+        ("RELEASE_TO_MACHINE", "Release To Machine"),
+        ("MATERIAL_ISSUE", "Material Issue"),
+        ("SHORT_CLOSE", "Short Close"),
+        ("CANCEL", "Cancel"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    production_job = models.ForeignKey(ProductionJob, on_delete=models.CASCADE, related_name="wcm_audit_events")
+    work_center = models.ForeignKey(WorkCenter, on_delete=models.PROTECT, related_name="wcm_audit_events")
+    assignment = models.ForeignKey(
+        WorkCenterAssignment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_events",
+    )
+    machine = models.ForeignKey(Machine, on_delete=models.SET_NULL, null=True, blank=True, related_name="wcm_audit_events")
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    actor = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="wcm_audit_events")
+    reason = models.TextField(blank=True, default="")
+    before_status = models.CharField(max_length=32, blank=True, default="")
+    after_status = models.CharField(max_length=32, blank=True, default="")
+    payload = models.JSONField(default=dict, blank=True)
+    occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "production_wcm_audit_events"
+        indexes = [
+            models.Index(fields=["work_center", "-occurred_at"], name="prod_wcm_audit_wc_time"),
+            models.Index(fields=["production_job", "-occurred_at"], name="prod_wcm_audit_job_time"),
+            models.Index(fields=["action", "-occurred_at"], name="prod_wcm_audit_action_time"),
+        ]
+
+    def __str__(self):
+        return f"{self.action} | {self.production_job.job_number}"
+
+
 class JobExecutionLog(models.Model):
     """
     Event Log: Operator logs Good Quantity output.
@@ -852,7 +895,11 @@ class PackingUnit(models.Model):
     inner_pack_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Primary inner-pack tare weight.")
     secondary_pack_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Gonny / secondary pack tare weight.")
     extras_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Seal extras / tape / tags tare weight.")
+    expected_gross_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="System-calculated gross weight before actual seal capture.")
     gross_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Gross shipment weight after sealing.")
+    gross_variance_kg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Actual gross minus expected gross.")
+    gross_variance_pct = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True, help_text="Gross variance percentage against expected gross.")
+    gross_variance_reason = models.TextField(blank=True, default="")
     tare_breakdown_json = models.JSONField(default=dict, blank=True)
     meta_json = models.JSONField(default=dict, blank=True)
     
@@ -910,6 +957,11 @@ class DeliveryChallan(models.Model):
     vehicle_no = models.CharField(max_length=50, blank=True)
     driver_name = models.CharField(max_length=100, blank=True)
     driver_phone = models.CharField(max_length=20, blank=True)
+    transporter_name = models.CharField(max_length=160, blank=True)
+    lr_number = models.CharField(max_length=80, blank=True)
+    e_way_bill_number = models.CharField(max_length=80, blank=True)
+    dispatch_notes = models.TextField(blank=True, default="")
+    ship_to_address_snapshot = models.JSONField(default=dict, blank=True)
     
     # Timestamps
     dispatch_date = models.DateTimeField(null=True, blank=True)

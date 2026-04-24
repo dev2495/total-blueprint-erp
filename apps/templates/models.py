@@ -87,6 +87,10 @@ class TemplateBlueprint(models.Model):
             raise ValidationError({'routing_rule': "Template cannot be LIVE without a Routing Rule."})
         if self.status == 'LIVE' and self.pk and not self.process_steps.filter(is_removed_from_route=False).exists():
             raise ValidationError({'status': "Template cannot be LIVE without active route steps."})
+        if self.fg_type == 'POUCH' and not self.pouch_style:
+            raise ValidationError({'pouch_style': "Pouch templates must declare a pouch style."})
+        if self.fg_type == 'ROLL' and self.pouch_style:
+            raise ValidationError({'pouch_style': "Roll templates cannot declare a pouch style."})
 
     def approve(self, user):
         """Transition from ENGINEERING -> APPROVED"""

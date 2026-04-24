@@ -1,495 +1,338 @@
 "use client"
 
-import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { ArrowRight, CheckCircle2, FileText, Package, Printer, Send, Truck } from "lucide-react"
+import { useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { ArrowRight, FileText, HelpCircle, PackageCheck, Printer, Search, Send, Truck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
-import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { logisticsService, type DeliveryChallan, type SODispatchSummary } from "@/services/logistics"
 
-function formatKg(value: number | null | undefined) {
-  return `${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`
-}
+const n = (value: unknown, digits = 1) => Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
+const err = (error: any) => error?.response?.data?.error || error?.response?.data?.detail || error?.message || "Request failed."
 
-function formatPcs(value: number | null | undefined) {
-  return `${Number(value || 0).toLocaleString()} pcs`
-}
-
-export default function DispatchPage() {
-  const { toast } = useToast()
-  const [salesOrders, setSalesOrders] = useState<Array<{ id: string; order_number: string; customer_name: string; status: string }>>([])
-  const [selectedSOId, setSelectedSOId] = useState<string>("")
-  const [summary, setSummary] = useState<SODispatchSummary | null>(null)
-  const [challans, setChallans] = useState<DeliveryChallan[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingSummary, setLoadingSummary] = useState(false)
-  const [ledgerTab, setLedgerTab] = useState<"open" | "history">("open")
-  const [ledgerSearch, setLedgerSearch] = useState("")
-
-  const [selectedRolls, setSelectedRolls] = useState<Set<string>>(new Set())
-  const [selectedGonnies, setSelectedGonnies] = useState<Set<string>>(new Set())
-
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [vehicleNo, setVehicleNo] = useState("")
-  const [driverName, setDriverName] = useState("")
-  const [driverPhone, setDriverPhone] = useState("")
-
-  const fetchData = async () => {
-    try {
-      setLoading(true)
-      const [soData, challanData] = await Promise.all([
-        logisticsService.getSalesOrdersWithFG(),
-        logisticsService.getChallans(),
-      ])
-      setSalesOrders(soData)
-      setChallans(challanData)
-    } catch {
-      toast({ title: "Error", description: "Failed to load dispatch bay", variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchSummary = async (soId: string) => {
-    if (!soId) {
-      setSummary(null)
-      return
-    }
-    try {
-      setLoadingSummary(true)
-      const data = await logisticsService.getSODispatchableItems(soId)
-      setSummary(data)
-      setSelectedRolls(new Set())
-      setSelectedGonnies(new Set())
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to load dispatch summary", variant: "destructive" })
-      setSummary(null)
-    } finally {
-      setLoadingSummary(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  useEffect(() => {
-    if (selectedSOId) {
-      fetchSummary(selectedSOId)
-    } else {
-      setSummary(null)
-    }
-  }, [selectedSOId])
-
-  const selectedCount = selectedRolls.size + selectedGonnies.size
-
-  const readyGrossKg = useMemo(() => {
-    if (!summary) return 0
-    return Number(summary.available_for_dispatch.rolls_kg || 0) + Number(summary.available_for_dispatch.gonnies_gross_kg || 0)
-  }, [summary])
-
-  const sortedChallans = useMemo(() => {
-    return [...challans].sort((left, right) => {
-      const leftTime = left.dispatch_date ? new Date(left.dispatch_date).getTime() : 0
-      const rightTime = right.dispatch_date ? new Date(right.dispatch_date).getTime() : 0
-      if (rightTime !== leftTime) return rightTime - leftTime
-      return String(right.dc_no || "").localeCompare(String(left.dc_no || ""))
-    })
-  }, [challans])
-
-  const historyStatuses = useMemo(() => new Set(["DISPATCHED", "DELIVERED", "COMPLETED"]), [])
-
-  const filteredChallans = useMemo(() => {
-    const query = ledgerSearch.trim().toLowerCase()
-    return sortedChallans.filter((challan) => {
-      const status = String(challan.status || "").toUpperCase()
-      const inHistory = historyStatuses.has(status)
-      const matchesTab = ledgerTab === "history" ? inHistory : !inHistory
-      if (!matchesTab) return false
-      if (!query) return true
-      const haystack = [
-        challan.dc_no,
-        challan.customer_name,
-        challan.vehicle_no,
-        challan.sales_order__order_number,
-        challan.plant__name,
-        challan.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-      return haystack.includes(query)
-    })
-  }, [historyStatuses, ledgerSearch, ledgerTab, sortedChallans])
-
-  const openChallanCount = useMemo(() => sortedChallans.filter((challan) => !historyStatuses.has(String(challan.status || "").toUpperCase())).length, [historyStatuses, sortedChallans])
-  const historyChallanCount = useMemo(() => sortedChallans.filter((challan) => historyStatuses.has(String(challan.status || "").toUpperCase())).length, [historyStatuses, sortedChallans])
-
-  const toggleRoll = (rollId: string) => {
-    const next = new Set(selectedRolls)
-    if (next.has(rollId)) next.delete(rollId)
-    else next.add(rollId)
-    setSelectedRolls(next)
-  }
-
-  const toggleGonny = (gonnyId: string) => {
-    const next = new Set(selectedGonnies)
-    if (next.has(gonnyId)) next.delete(gonnyId)
-    else next.add(gonnyId)
-    setSelectedGonnies(next)
-  }
-
-  const handleCreateChallan = async () => {
-    if (!summary) return
-    if (selectedRolls.size === 0 && selectedGonnies.size === 0) {
-      toast({ title: "Error", description: "Select at least one unit for the challan", variant: "destructive" })
-      return
-    }
-
-    let plantId = ""
-    if (selectedRolls.size > 0) {
-      const first = summary.rolls.find((row) => row.id === Array.from(selectedRolls)[0])
-      plantId = first?.location.plant_id || ""
-    } else if (selectedGonnies.size > 0) {
-      const first = summary.gonnies.find((row) => row.id === Array.from(selectedGonnies)[0])
-      plantId = first?.location.plant_id || ""
-    }
-
-    try {
-      const result = await logisticsService.createChallan({
-        customer_name: summary.sales_order.customer_name,
-        plant_id: plantId,
-        sales_order_id: summary.sales_order.id,
-        vehicle_no: vehicleNo,
-        driver_name: driverName,
-        driver_phone: driverPhone,
-        roll_ids: Array.from(selectedRolls),
-        gonny_ids: Array.from(selectedGonnies),
-      })
-      toast({ title: "Challan Created", description: result.message })
-      setCreateDialogOpen(false)
-      setVehicleNo("")
-      setDriverName("")
-      setDriverPhone("")
-      await fetchData()
-      if (selectedSOId) await fetchSummary(selectedSOId)
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to create challan", variant: "destructive" })
-    }
-  }
-
-  const handleDispatch = async (challanId: string) => {
-    try {
-      const result = await logisticsService.dispatchChallan(challanId)
-      toast({ title: "Dispatched", description: result.message })
-      await fetchData()
-      if (selectedSOId) await fetchSummary(selectedSOId)
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to dispatch challan", variant: "destructive" })
-    }
-  }
-
-  const handlePrintList = (challanId: string) => {
-    if (typeof window === "undefined") return
-    window.open(logisticsService.getChallanPrintUrl(challanId), "_blank", "noopener,noreferrer")
-  }
-
-  if (loading) {
+function Tile({ label, value, hint }: { label: string; value: string; hint: string }) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-slate-50/50">
-        <div className="text-center text-sm font-medium text-slate-400">Loading dispatch bay...</div>
-      </div>
+        <div className="rounded-3xl border border-white/15 bg-white/10 p-4 text-white shadow-sm">
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">{label}</div>
+            <div className="mt-2 text-2xl font-black">{value}</div>
+            <div className="mt-1 text-xs font-medium text-blue-100">{hint}</div>
+        </div>
     )
-  }
+}
 
-  return (
-    <div className="min-h-screen space-y-8 p-6 lg:p-8" data-testid="dispatch-page">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-600">
-            <Truck className="h-4 w-4" strokeWidth={1.75} /> Dispatch terminal
-          </div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">Dispatch Bay</h1>
-          <p className="text-sm text-slate-500">
-            Only units explicitly released from Packing Yard appear here. Select a sales order, choose ready units, create challan, print, and dispatch.
-          </p>
+function lifecycle(status: string) {
+    const current = String(status || "DRAFT").toUpperCase()
+    const stages = ["DRAFT", "DISPATCHED", "IN_TRANSIT", "DELIVERED"]
+    const active = Math.max(0, stages.indexOf(current))
+    return stages.map((stage, index) => (
+        <div key={stage} className="flex min-w-[110px] flex-1 items-center">
+            <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-black ${index <= active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"}`}>{index + 1}</div>
+            <div className="ml-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{stage.replace("_", " ")}</div>
+            {index < stages.length - 1 && <div className={`mx-3 h-px flex-1 ${index < active ? "bg-emerald-400" : "bg-slate-200"}`} />}
         </div>
-        <Button asChild variant="outline">
-          <Link href="/logistics/packing">
-            Open Packing Yard <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
+    ))
+}
 
-      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-          <CardHeader>
-            <CardTitle>Target Sales Order</CardTitle>
-            <CardDescription>Orders appear here only after at least one roll or gonny is sent from Packing Yard.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Sales order</Label>
-              <Select value={selectedSOId} onValueChange={setSelectedSOId}>
-                <SelectTrigger data-testid="dispatch-sales-order-select" className="h-11">
-                  <SelectValue placeholder={salesOrders.length === 0 ? "Nothing released to dispatch" : "Select a sales order"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {salesOrders.map((order) => (
-                    <SelectItem key={order.id} value={order.id}>
-                      {order.order_number} · {order.customer_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+export default function DispatchBayPage() {
+    const { toast } = useToast()
+    const queryClient = useQueryClient()
+    const [search, setSearch] = useState("")
+    const [historySearch, setHistorySearch] = useState("")
+    const [selectedOrderId, setSelectedOrderId] = useState("")
+    const [selectedRolls, setSelectedRolls] = useState<string[]>([])
+    const [selectedGonnies, setSelectedGonnies] = useState<string[]>([])
+    const [finalizeOpen, setFinalizeOpen] = useState(false)
+    const [vehicleNo, setVehicleNo] = useState("")
+    const [driverName, setDriverName] = useState("")
+    const [driverPhone, setDriverPhone] = useState("")
+    const [transporterName, setTransporterName] = useState("")
+    const [lrNumber, setLrNumber] = useState("")
+    const [ewayBill, setEwayBill] = useState("")
+    const [notes, setNotes] = useState("")
 
-            {!selectedSOId ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
-                {salesOrders.length === 0 ? "Nothing released from Packing Yard yet." : "Select an order to open dispatch selection."}
-              </div>
-            ) : summary ? (
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-black text-slate-900">{summary.sales_order.order_number}</div>
-                    <div className="text-xs text-slate-500">{summary.sales_order.customer_name}</div>
-                  </div>
-                  <SemanticBadge kind="dispatchStatus" value={summary.sales_order.status || "DISPATCH_READY"} />
+    const board = useQuery({ queryKey: ["dispatch-board"], queryFn: logisticsService.getDispatchBoard, refetchInterval: 30000 })
+    const summary = useQuery({
+        queryKey: ["dispatch-summary", selectedOrderId],
+        queryFn: () => logisticsService.getSODispatchableItems(selectedOrderId),
+        enabled: Boolean(selectedOrderId),
+    })
+    const challans = useQuery({ queryKey: ["challans"], queryFn: () => logisticsService.getChallans() })
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ["dispatch-board"] })
+        queryClient.invalidateQueries({ queryKey: ["dispatch-summary", selectedOrderId] })
+        queryClient.invalidateQueries({ queryKey: ["challans"] })
+    }
+
+    const createChallanMutation = useMutation({
+        mutationFn: () => logisticsService.createChallan({
+            customer_name: selected?.sales_order.customer_name || "",
+            plant_id: selectedPlantId || "",
+            sales_order_id: selectedOrderId,
+            vehicle_no: vehicleNo,
+            driver_name: driverName,
+            driver_phone: driverPhone,
+            transporter_name: transporterName,
+            lr_number: lrNumber,
+            e_way_bill_number: ewayBill,
+            dispatch_notes: notes,
+            ship_to_address_snapshot: {
+                customer_name: selected?.sales_order.customer_name || "",
+                sales_order_number: selected?.sales_order.order_number || "",
+            },
+            roll_ids: selectedRolls,
+            gonny_ids: selectedGonnies,
+        }),
+        onSuccess: (data) => {
+            toast({ title: "Challan created", description: data.message })
+            setFinalizeOpen(false)
+            setSelectedRolls([])
+            setSelectedGonnies([])
+            invalidate()
+        },
+        onError: (error) => toast({ title: "Challan failed", description: err(error), variant: "destructive" }),
+    })
+
+    const dispatchMutation = useMutation({
+        mutationFn: (challanId: string) => logisticsService.dispatchChallan(challanId),
+        onSuccess: (data) => {
+            toast({ title: "Dispatched", description: data.message })
+            invalidate()
+        },
+        onError: (error) => toast({ title: "Dispatch failed", description: err(error), variant: "destructive" }),
+    })
+
+    const cards = (board.data?.orders || []).filter((row) => {
+        const term = search.trim().toLowerCase()
+        if (!term) return true
+        return `${row.sales_order.order_number} ${row.sales_order.customer_name}`.toLowerCase().includes(term)
+    })
+    const selected = summary.data as SODispatchSummary | undefined
+    const selectedRollRows = selected?.rolls.filter((roll) => selectedRolls.includes(roll.id)) || []
+    const selectedGonnyRows = selected?.gonnies.filter((gonny) => selectedGonnies.includes(gonny.id)) || []
+    const selectedPlantId = selectedRollRows[0]?.location?.plant_id || selectedGonnyRows[0]?.location?.plant_id || selected?.rolls[0]?.location?.plant_id || selected?.gonnies[0]?.location?.plant_id || ""
+    const selectedGross = selectedRollRows.reduce((sum, roll) => sum + Number(roll.weight_kg || 0), 0) + selectedGonnyRows.reduce((sum, gonny) => sum + Number(gonny.gross_weight_kg || gonny.weight_kg || 0), 0)
+    const selectedPcs = selectedGonnyRows.reduce((sum, gonny) => sum + Number(gonny.qty_pcs || 0), 0)
+    const history = (challans.data || []).filter((row) => {
+        const term = historySearch.trim().toLowerCase()
+        if (!term) return true
+        return `${row.dc_no} ${row.customer_name} ${row.sales_order__order_number} ${row.vehicle_no}`.toLowerCase().includes(term)
+    })
+
+    const toggle = (id: string, list: string[], setter: (value: string[]) => void) => {
+        setter(list.includes(id) ? list.filter((value) => value !== id) : [...list, id])
+    }
+
+    return (
+        <div className="space-y-6 p-4 lg:p-6">
+            <section className="sticky top-2 z-20 rounded-[2rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-700 p-6 text-white shadow-xl">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                    <div>
+                        <div className="inline-flex rounded-full border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">Dispatch terminal</div>
+                        <h1 className="mt-4 text-3xl font-black tracking-tight">Build challans from released rolls and gonnies.</h1>
+                        <p className="mt-2 max-w-3xl text-sm font-medium text-blue-100">Only units released from Packing Yard appear here. Select an order, pick units, finalize challan details, print, and dispatch.</p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-50">
+                            <span className="rounded-full bg-white/10 px-3 py-1">Released</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Selected tray</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Finalize challan</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Print</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Dispatch history</span>
+                        </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <Tile label="Ready orders" value={n(board.data?.totals.orders || 0, 0)} hint="dispatchable now" />
+                        <Tile label="Ready rolls" value={`${n(board.data?.totals.ready_rolls_kg || 0)} kg`} hint={`${n(board.data?.totals.ready_rolls || 0, 0)} rolls`} />
+                        <Tile label="Ready gonnies" value={n(board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs`} />
+                        <Tile label="Pending packing" value={n(board.data?.totals.pending_in_packing || 0, 0)} hint="still in Packing Yard" />
+                    </div>
                 </div>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+            </section>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-          <SummaryStatCard compact label="Ready Rolls" value={summary?.available_for_dispatch.rolls_count ?? 0} subLabel={summary ? formatKg(summary.available_for_dispatch.rolls_kg) : "0.00 kg"} icon={Package} toneClassName="bg-indigo-50 text-indigo-700" />
-          <SummaryStatCard compact label="Ready Gonnies" value={summary?.available_for_dispatch.gonnies_count ?? 0} subLabel={summary ? formatPcs(summary.available_for_dispatch.gonnies_pcs) : "0 pcs"} icon={CheckCircle2} toneClassName="bg-emerald-50 text-emerald-700" />
-          <SummaryStatCard compact label="Gross Dispatch Weight" value={formatKg(readyGrossKg)} subLabel="Ready physical shipment" icon={Truck} toneClassName="bg-violet-50 text-violet-700" />
-          <SummaryStatCard compact label="Pending in Packing" value={(summary?.packing_pending?.unpacked_batch_count || 0) + (summary?.packing_pending?.open_gonnies_count || 0) + (summary?.packing_pending?.unreleased_rolls_count || 0) + (summary?.packing_pending?.unreleased_sealed_gonnies_count || 0)} subLabel="Still in Packing Yard" icon={FileText} toneClassName="bg-amber-50 text-amber-700" />
-          <SummaryStatCard compact label="Selected Units" value={selectedCount} subLabel={summary?.sales_order.customer_name || "Nothing selected"} icon={Send} toneClassName="bg-slate-100 text-slate-700" />
-        </div>
-      </div>
-
-      {loadingSummary && selectedSOId ? (
-        <div className="rounded-2xl border border-slate-100 bg-white px-4 py-8 text-center text-sm text-slate-400">Loading released units...</div>
-      ) : null}
-
-      {summary ? (
-        <>
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-              <CardHeader>
-                <CardTitle>Released rolls</CardTitle>
-                <CardDescription>These rolls already passed through Packing Yard and are ready to place on the challan.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {summary.rolls.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-                    No rolls are ready in Dispatch Bay for this order.
-                  </div>
-                ) : summary.rolls.map((roll) => (
-                  <div key={roll.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="font-black tracking-tight text-slate-900">{roll.label_id}</div>
-                        <div className="mt-1 text-xs text-slate-500">{roll.batch_no || "No batch"} · {formatKg(roll.weight_kg)}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={
-                            roll.release_mode === "PACKED"
-                              ? "inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700"
-                              : "inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
-                          }
-                        >
-                          {roll.release_mode === "PACKED" ? "Packed roll" : "Unpacked roll"}
-                        </span>
-                        <Checkbox data-testid={`dispatch-roll-checkbox-${roll.id}`} checked={selectedRolls.has(roll.id)} onCheckedChange={() => toggleRoll(roll.id)} />
-                      </div>
+            <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
+                <aside className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="relative">
+                        <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ready orders..." className="h-12 rounded-2xl pl-10" />
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-              <CardHeader>
-                <CardTitle>Released gonnies</CardTitle>
-                <CardDescription>Loose pouch gonnies and inner-pack gonnies that were sealed and handed over from Packing Yard.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {summary.gonnies.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-                    No gonnies are ready in Dispatch Bay for this order.
-                  </div>
-                ) : summary.gonnies.map((gonny) => (
-                  <div key={gonny.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="font-black tracking-tight text-slate-900">{gonny.label_id}</div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {gonny.content_mode === "PRIMARY_PACKS" ? `${gonny.primary_pack_count || 0} packs` : "Loose pouches"} · {formatPcs(gonny.qty_pcs)}
-                        </div>
-                      </div>
-                      <Checkbox data-testid={`dispatch-gonny-checkbox-${gonny.id}`} checked={selectedGonnies.has(gonny.id)} onCheckedChange={() => toggleGonny(gonny.id)} />
+                    <div className="mt-4 max-h-[620px] space-y-3 overflow-y-auto pr-1">
+                        {cards.map((row) => (
+                            <button key={row.sales_order.id} onClick={() => { setSelectedOrderId(row.sales_order.id); setSelectedRolls([]); setSelectedGonnies([]); }} className={`relative w-full overflow-hidden rounded-3xl border p-4 text-left transition ${selectedOrderId === row.sales_order.id ? "border-blue-400 bg-blue-50 shadow-md" : "border-slate-200 hover:border-blue-200"}`}>
+                                <span className={`absolute inset-y-0 left-0 w-2 ${row.available_for_dispatch.gonnies_count ? "bg-emerald-400" : row.available_for_dispatch.rolls_kg ? "bg-blue-400" : "bg-amber-400"}`} />
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <div className="font-black">{row.sales_order.order_number}</div>
+                                        <div className="mt-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-2xl bg-slate-50 p-2"><b>{n(row.available_for_dispatch.rolls_kg || 0)}</b><br />roll kg</div>
+                                    <div className="rounded-2xl bg-emerald-50 p-2"><b>{n(row.available_for_dispatch.gonnies_count || 0, 0)}</b><br />gonnies</div>
+                                </div>
+                            </button>
+                        ))}
+                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No dispatch-ready orders found.</div>}
                     </div>
-                    <div className="mt-3 grid gap-2 md:grid-cols-2 text-xs">
-                      <div className="rounded-xl bg-slate-50 px-3 py-2">
-                        <div className="font-black uppercase tracking-[0.16em] text-slate-400">Net</div>
-                        <div className="mt-1 font-black text-slate-900">{formatKg(gonny.net_product_weight_kg)}</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 px-3 py-2">
-                        <div className="font-black uppercase tracking-[0.16em] text-slate-400">Gross</div>
-                        <div className="mt-1 font-black text-emerald-700">{formatKg(gonny.gross_weight_kg || gonny.weight_kg)}</div>
-                      </div>
+                </aside>
+
+                <main className="space-y-5">
+                    {!selected ? (
+                        <div className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-12 text-center">
+                            <Truck className="mx-auto h-10 w-10 text-slate-300" />
+                            <h2 className="mt-3 text-xl font-black">Select a ready order.</h2>
+                            <p className="mt-2 text-sm text-slate-500">Dispatch Bay only shows units explicitly released from Packing Yard.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-600">Selected dispatch target</div>
+                                        <h2 className="mt-1 text-2xl font-black">{selected.sales_order.order_number}</h2>
+                                        <p className="text-sm font-semibold text-slate-500">{selected.sales_order.customer_name}</p>
+                                    </div>
+                                    <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">
+                                        Selected: {selectedRolls.length} rolls, {selectedGonnies.length} gonnies • {n(selectedGross)} kg gross • {n(selectedPcs, 0)} pcs
+                                    </div>
+                                </div>
+                                <div className="mt-5 grid gap-3 md:grid-cols-4">
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-center text-xs font-black text-blue-950">1<br /><span className="font-semibold">Released from packing</span></div>
+                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center text-xs font-black text-emerald-950">2<br /><span className="font-semibold">{selectedRolls.length + selectedGonnies.length} selected</span></div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center text-xs font-black text-slate-600">3<br /><span className="font-semibold">Vehicle + LR details</span></div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center text-xs font-black text-slate-600">4<br /><span className="font-semibold">Print + dispatch</span></div>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-5 2xl:grid-cols-2">
+                                <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="mb-4 flex items-center gap-2 text-sm font-black"><PackageCheck className="h-4 w-4 text-blue-600" /> Released rolls</div>
+                                    <div className="space-y-3">
+                                        {selected.rolls.map((roll) => (
+                                            <button key={roll.id} onClick={() => toggle(roll.id, selectedRolls, setSelectedRolls)} className={`w-full rounded-3xl border p-4 text-left ${selectedRolls.includes(roll.id) ? "border-blue-400 bg-blue-50 shadow-md" : "border-slate-200"}`}>
+                                                <div className="flex justify-between gap-3">
+                                                    <div><div className="font-black">{roll.label_id}</div><div className="text-xs text-slate-500">{roll.batch_no || "No batch"} • {roll.location?.name}</div></div>
+                                                    <div className="text-right font-black">{n(roll.weight_kg)} kg</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                        {!selected.rolls.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No released rolls for this order.</div>}
+                                    </div>
+                                </div>
+                                <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="mb-4 flex items-center gap-2 text-sm font-black"><PackageCheck className="h-4 w-4 text-emerald-600" /> Released gonnies</div>
+                                    <div className="space-y-3">
+                                        {selected.gonnies.map((gonny) => (
+                                            <button key={gonny.id} onClick={() => toggle(gonny.id, selectedGonnies, setSelectedGonnies)} className={`w-full rounded-3xl border p-4 text-left ${selectedGonnies.includes(gonny.id) ? "border-emerald-400 bg-emerald-50 shadow-md" : "border-slate-200"}`}>
+                                                <div className="flex justify-between gap-3">
+                                                    <div>
+                                                        <div className="font-black">{gonny.label_id}</div>
+                                                        <div className="text-xs text-slate-500">{gonny.qty_pcs} pcs • expected {n(gonny.expected_gross_weight_kg)} kg • variance {n(gonny.gross_variance_kg, 3)} kg</div>
+                                                    </div>
+                                                    <div className="text-right font-black">{n(gonny.gross_weight_kg || gonny.weight_kg)} kg</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                        {!selected.gonnies.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No released sealed gonnies for this order.</div>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="sticky bottom-3 z-10 rounded-[2rem] border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="text-sm font-bold text-slate-600">Finalize challan for {selectedRolls.length + selectedGonnies.length} selected units.</div>
+                                    <Button disabled={!selectedPlantId || selectedRolls.length + selectedGonnies.length === 0} onClick={() => setFinalizeOpen(true)}>
+                                        <Send className="mr-2 h-4 w-4" /> Create challan
+                                    </Button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    <details className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                        <summary className="flex cursor-pointer items-center gap-2 text-sm font-black">
+                            <HelpCircle className="h-4 w-4 text-blue-600" /> Dispatch glossary and shortcut terms
+                        </summary>
+                        <div className="mt-4 grid gap-3 text-xs md:grid-cols-3">
+                            {[
+                                ["Released", "Packing Yard has handed this unit to Dispatch Bay."],
+                                ["Challan", "Document that records selected units, vehicle, transporter, and ship-to details."],
+                                ["Gross", "Actual sealed shipment weight used for dispatch."],
+                                ["LR number", "Transporter receipt number, optional until available."],
+                                ["E-way bill", "Government movement reference when required."],
+                                ["History", "All created/printed/dispatched challans searchable from this page."],
+                            ].map(([term, copy]) => <div key={term} className="rounded-2xl bg-slate-50 p-3"><b>{term}</b><br />{copy}</div>)}
+                        </div>
+                    </details>
+
+                    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-center gap-2 text-sm font-black"><FileText className="h-4 w-4 text-slate-600" /> Dispatch history</div>
+                            <Input value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search challan, vehicle, customer..." className="max-w-md rounded-2xl" />
+                        </div>
+                        <div className="mt-4 overflow-x-auto">
+                            <table className="w-full min-w-[860px] text-sm">
+                                <thead className="text-[10px] uppercase tracking-[0.22em] text-slate-400"><tr><th className="py-3 text-left">Challan</th><th className="text-left">Customer</th><th>Status</th><th>Vehicle</th><th>Transport</th><th>Dispatch date</th><th className="text-right">Actions</th></tr></thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {history.map((row: DeliveryChallan) => (
+                                        <tr key={row.id}>
+                                            <td className="py-4 font-black">{row.dc_no}</td>
+                                            <td>{row.customer_name}</td>
+                                            <td>
+                                                <div className="flex min-w-[360px] items-center">{lifecycle(row.status)}</div>
+                                            </td>
+                                            <td>{row.vehicle_no || "-"}</td>
+                                            <td>{row.transporter_name || row.lr_number || "-"}</td>
+                                            <td>{row.dispatch_date ? new Date(row.dispatch_date).toLocaleString() : "-"}</td>
+                                            <td className="space-x-2 text-right">
+                                                <Button size="sm" variant="outline" onClick={() => window.open(logisticsService.getChallanPrintUrl(row.id), "_blank")}><Printer className="mr-1 h-3 w-3" /> Print</Button>
+                                                {row.status === "DRAFT" && <Button size="sm" onClick={() => dispatchMutation.mutate(row.id)}>Dispatch</Button>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {!history.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No challans match this search.</div>}
+                        </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
+                </main>
+            </section>
 
-          <div className="sticky bottom-6 z-30 mx-auto w-full max-w-5xl px-4">
-            <div className="rounded-[1.75rem] border border-slate-200 bg-white/95 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-6">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Selected units</div>
-                    <div className="mt-1 text-2xl font-black text-slate-900">{selectedCount}</div>
-                  </div>
-                  <div className="h-10 w-px bg-slate-200" />
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Dispatch target</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-700">{summary.sales_order.customer_name}</div>
-                  </div>
-                </div>
-
-                <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" data-testid="dispatch-create-trigger" disabled={selectedCount === 0}>
-                      Create Dispatch <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Finalize challan</DialogTitle>
-                      <DialogDescription>
-                        Confirm vehicle and driver details, then create the dispatch challan for the selected released units.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-3">
-                      <div className="grid gap-2">
-                        <Label>Vehicle No.</Label>
-                        <Input value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="MH-XX-AB-XXXX" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="grid gap-2">
-                          <Label>Driver Name</Label>
-                          <Input value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="Driver name" />
+            <Dialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
+                <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                    <DialogHeader><DialogTitle>Finalize dispatch challan</DialogTitle></DialogHeader>
+                    <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-sm">
+                        <div className="grid gap-3 md:grid-cols-4">
+                            <div><b>{selected?.sales_order.order_number || "-"}</b><br />Sales order</div>
+                            <div><b>{selected?.sales_order.customer_name || "-"}</b><br />Customer</div>
+                            <div><b>{selectedRolls.length + selectedGonnies.length}</b><br />Units</div>
+                            <div><b>{n(selectedGross)}</b><br />Gross kg</div>
                         </div>
-                        <div className="grid gap-2">
-                          <Label>Driver Phone</Label>
-                          <Input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="+91..." />
-                        </div>
-                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div><Label>Vehicle number</Label><Input value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="GJ..." /></div>
+                        <div><Label>Transporter</Label><Input value={transporterName} onChange={(e) => setTransporterName(e.target.value)} placeholder="Transporter name" /></div>
+                        <div><Label>Driver name</Label><Input value={driverName} onChange={(e) => setDriverName(e.target.value)} /></div>
+                        <div><Label>Driver phone</Label><Input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} /></div>
+                        <div><Label>LR number</Label><Input value={lrNumber} onChange={(e) => setLrNumber(e.target.value)} /></div>
+                        <div><Label>E-way bill</Label><Input value={ewayBill} onChange={(e) => setEwayBill(e.target.value)} /></div>
+                        <div className="md:col-span-2"><Label>Dispatch notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+                    </div>
+                    <div className="rounded-3xl bg-slate-50 p-4 text-sm">
+                        <b>Selected units:</b> {selectedRolls.length} rolls, {selectedGonnies.length} gonnies • {n(selectedGross)} kg gross • {n(selectedPcs, 0)} pcs
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-                      <Button data-testid="dispatch-create-submit" onClick={handleCreateChallan}>Create challan</Button>
+                        <Button variant="outline" onClick={() => setFinalizeOpen(false)}>Cancel</Button>
+                        <Button disabled={!selectedPlantId || createChallanMutation.isPending} onClick={() => createChallanMutation.mutate()}>
+                            {createChallanMutation.isPending ? "Creating..." : "Create challan"}
+                        </Button>
                     </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-          <CardContent className="py-16 text-center text-sm text-slate-400">
-            Select a released sales order to build dispatch paperwork.
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-        <CardHeader className="gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <CardTitle>Dispatch Ledger</CardTitle>
-            <CardDescription>Created challans, printable PDFs, and final dispatch releases.</CardDescription>
-          </div>
-          <div className="flex w-full flex-col gap-3 md:max-w-md md:items-end">
-            <div className="inline-flex w-full rounded-full border border-slate-200 bg-slate-50 p-1 md:w-auto">
-              <Button
-                type="button"
-                size="sm"
-                variant={ledgerTab === "open" ? "default" : "ghost"}
-                className="flex-1 rounded-full md:flex-none"
-                onClick={() => setLedgerTab("open")}
-              >
-                Open challans {openChallanCount}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={ledgerTab === "history" ? "default" : "ghost"}
-                className="flex-1 rounded-full md:flex-none"
-                onClick={() => setLedgerTab("history")}
-              >
-                History {historyChallanCount}
-              </Button>
-            </div>
-            <Input
-              value={ledgerSearch}
-              onChange={(event) => setLedgerSearch(event.target.value)}
-              placeholder={ledgerTab === "history" ? "Search challan, customer, SO, vehicle..." : "Search open challans..."}
-              className="md:w-80"
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {filteredChallans.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-              {ledgerTab === "history" ? "No dispatched challans match this search yet." : "No open challans match this search."}
-            </div>
-          ) : filteredChallans.map((challan) => (
-            <div key={challan.id} data-testid={`dispatch-challan-row-${challan.id}`} className="rounded-2xl border border-slate-100 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="font-mono text-sm font-black text-slate-900">{challan.dc_no}</div>
-                  <div className="text-xs text-slate-500">{challan.customer_name} · {challan.vehicle_no || "Vehicle pending"}</div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    {challan.sales_order__order_number || "Sales order pending"} · {challan.plant__name || "Plant pending"}
-                  </div>
-                  {challan.dispatch_date ? (
-                    <div className="text-xs text-slate-500">Dispatched {new Date(challan.dispatch_date).toLocaleString()}</div>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <SemanticBadge kind="dispatchStatus" value={challan.status} />
-                  <Button size="sm" variant="ghost" data-testid={`dispatch-print-${challan.id}`} onClick={() => handlePrintList(challan.id)}>
-                    <Printer className="mr-2 h-4 w-4" /> Challan
-                  </Button>
-                  {challan.status === "DRAFT" ? (
-                    <Button size="sm" data-testid={`dispatch-send-${challan.id}`} onClick={() => handleDispatch(challan.id)}>
-                      <Send className="mr-2 h-4 w-4" /> Release
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    </div>
-  )
+                </DialogContent>
+            </Dialog>
+        </div>
+    )
 }

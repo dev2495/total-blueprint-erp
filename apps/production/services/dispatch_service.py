@@ -451,7 +451,11 @@ class FGDispatchService:
                 "inner_pack_tare_kg": float(gonny.inner_pack_tare_kg or 0),
                 "secondary_pack_tare_kg": float(gonny.secondary_pack_tare_kg or 0),
                 "extras_tare_kg": float(gonny.extras_tare_kg or 0),
+                "expected_gross_weight_kg": float(gonny.expected_gross_weight_kg or 0) if gonny.expected_gross_weight_kg is not None else None,
                 "gross_weight_kg": float(gonny.gross_weight_kg or gonny.weight_kg or 0) if gonny.gross_weight_kg is not None or gonny.weight_kg is not None else None,
+                "gross_variance_kg": float(gonny.gross_variance_kg or 0) if gonny.gross_variance_kg is not None else None,
+                "gross_variance_pct": float(gonny.gross_variance_pct or 0) if gonny.gross_variance_pct is not None else None,
+                "gross_variance_reason": gonny.gross_variance_reason or "",
                 "status": gonny.status,
                 "released_to_dispatch": FGDispatchService._gonny_released_for_dispatch(gonny),
                 "batch_no": gonny.fg_batch.batch_number if gonny.fg_batch else None,
@@ -682,7 +686,11 @@ class FGDispatchService:
             'inner_pack_tare_kg': float(g.inner_pack_tare_kg or 0),
             'secondary_pack_tare_kg': float(g.secondary_pack_tare_kg or 0),
             'extras_tare_kg': float(g.extras_tare_kg or 0),
+            'expected_gross_weight_kg': float(g.expected_gross_weight_kg or 0) if g.expected_gross_weight_kg is not None else None,
             'gross_weight_kg': float(g.gross_weight_kg or g.weight_kg or 0),
+            'gross_variance_kg': float(g.gross_variance_kg or 0) if g.gross_variance_kg is not None else None,
+            'gross_variance_pct': float(g.gross_variance_pct or 0) if g.gross_variance_pct is not None else None,
+            'gross_variance_reason': g.gross_variance_reason or "",
             'location': {
                 'id': str(g.location.id),
                 'name': g.location.name,
@@ -902,6 +910,8 @@ class FGDispatchService:
 
         if str(gonny.status or "").upper() != "SEALED":
             raise ValueError(f"Gonny {gonny.label_id} must be SEALED before release to dispatch.")
+        if getattr(gonny, "gross_weight_kg", None) is None:
+            raise ValueError(f"Gonny {gonny.label_id} has no actual sealed gross weight.")
 
         gonny.meta_json = FGDispatchService._mark_release_meta(gonny.meta_json, user=user, release_mode="GONNY")
         gonny.save(update_fields=["meta_json"])
@@ -915,7 +925,9 @@ class FGDispatchService:
     @transaction.atomic
     def create_challan(customer_name: str, plant_id: str, sales_order_id: str = None,
                        vehicle_no: str = '', driver_name: str = '', driver_phone: str = '',
-                       roll_ids: list = None, gonny_ids: list = None, batch_items: list = None, user=None) -> DeliveryChallan:
+                       roll_ids: list = None, gonny_ids: list = None, batch_items: list = None, user=None,
+                       transporter_name: str = '', lr_number: str = '', e_way_bill_number: str = '',
+                       dispatch_notes: str = '', ship_to_address_snapshot: dict | None = None) -> DeliveryChallan:
         """
         Create a Delivery Challan with selected items.
         
@@ -957,8 +969,8 @@ class FGDispatchService:
                     raise ValueError(f"Gonny {gonny.label_id} must be sealed before dispatch.")
                 if not FGDispatchService._gonny_released_for_dispatch(gonny):
                     raise ValueError(f"Gonny {gonny.label_id} is not released from Packing Yard.")
-                if gonny.weight_kg is None:
-                    raise ValueError(f"Gonny {gonny.label_id} is missing sealed weight.")
+                if getattr(gonny, "weight_kg", None) is None or getattr(gonny, "gross_weight_kg", None) is None:
+                    raise ValueError(f"Gonny {gonny.label_id} is missing actual sealed gross weight.")
 
                 validated_gonnies.append(gonny)
 
@@ -987,6 +999,11 @@ class FGDispatchService:
             vehicle_no=vehicle_no,
             driver_name=driver_name,
             driver_phone=driver_phone,
+            transporter_name=transporter_name or "",
+            lr_number=lr_number or "",
+            e_way_bill_number=e_way_bill_number or "",
+            dispatch_notes=dispatch_notes or "",
+            ship_to_address_snapshot=ship_to_address_snapshot if isinstance(ship_to_address_snapshot, dict) else {},
             status='DRAFT',
             created_by=user
         )

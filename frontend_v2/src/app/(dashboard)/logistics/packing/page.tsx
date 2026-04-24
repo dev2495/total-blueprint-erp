@@ -1,847 +1,394 @@
 "use client"
 
-import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, ArrowRight, CheckCircle2, Package, PackageOpen, Scale, Send, ShoppingBag, Truck, X } from "lucide-react"
+import { useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { ArrowRight, Boxes, CheckCircle2, ClipboardList, HelpCircle, PackageCheck, Scale, Search } from "lucide-react"
 
-import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
-import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { logisticsService, type SOPackingSummary } from "@/services/logistics"
-import { inventoryService, type PackagingStockRow } from "@/services/inventory"
-import { masterDataService } from "@/services/master-data"
+import { logisticsService, type Gonny, type SOPackingSummary } from "@/services/logistics"
+import { masterDataService, type PackagingMaterial } from "@/services/master-data"
 
-function formatKg(value: number | null | undefined) {
-  return `${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`
-}
+const n = (value: unknown, digits = 1) => Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
+const err = (error: any) => error?.response?.data?.error || error?.response?.data?.detail || error?.message || "Request failed."
 
-function formatPcs(value: number | null | undefined) {
-  return `${Number(value || 0).toLocaleString()} pcs`
-}
-
-type ReleaseMode = "PACKED" | "UNPACKED"
-type PackLineDraft = { material_id: string; qty: number; uom?: string; basis?: string }
-
-function collapsePackLines(lines: PackLineDraft[]) {
-  const grouped = new Map<string, PackLineDraft>()
-  for (const line of lines) {
-    const materialId = String(line.material_id || "").trim()
-    const qty = Number(line.qty || 0)
-    if (!materialId || qty <= 0) continue
-    const uom = String(line.uom || "PCS").toUpperCase()
-    const basis = String(line.basis || "PER_ROLL").toUpperCase()
-    const key = `${materialId}::${uom}::${basis}`
-    const existing = grouped.get(key)
-    if (existing) {
-      existing.qty = Number(existing.qty || 0) + qty
-      continue
+function Stat({ label, value, hint, tone = "slate" }: { label: string; value: string; hint: string; tone?: "slate" | "emerald" | "amber" | "blue" }) {
+    const tones = {
+        slate: "border-slate-200 bg-white text-slate-950",
+        emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
+        amber: "border-amber-200 bg-amber-50 text-amber-950",
+        blue: "border-blue-200 bg-blue-50 text-blue-950",
     }
-    grouped.set(key, { material_id: materialId, qty, uom, basis })
-  }
-  return Array.from(grouped.values())
-}
-
-export default function PackingPage() {
-  const { toast } = useToast()
-  const [orders, setOrders] = useState<Array<{ id: string; order_number: string; customer_name: string; status: string }>>([])
-  const [summary, setSummary] = useState<SOPackingSummary | null>(null)
-  const [selectedSOId, setSelectedSOId] = useState<string>("")
-  const [packagingMaterials, setPackagingMaterials] = useState<any[]>([])
-  const [gonnyStocks, setGonnyStocks] = useState<PackagingStockRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingSummary, setLoadingSummary] = useState(false)
-
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [selectedBatchId, setSelectedBatchId] = useState<string>("")
-  const [qtyPcs, setQtyPcs] = useState<number>(0)
-  const [selectedGonnyMaterialId, setSelectedGonnyMaterialId] = useState<string>("")
-  const [contentMode, setContentMode] = useState<"LOOSE_POUCHES" | "PRIMARY_PACKS">("LOOSE_POUCHES")
-  const [primaryPackCount, setPrimaryPackCount] = useState<number>(0)
-
-  const [sealDialogOpen, setSealDialogOpen] = useState(false)
-  const [selectedGonnyId, setSelectedGonnyId] = useState<string>("")
-  const [weightKg, setWeightKg] = useState<number>(0)
-  const [sealExtras, setSealExtras] = useState<PackLineDraft[]>([])
-  const [sealExtraStocks, setSealExtraStocks] = useState<PackagingStockRow[]>([])
-
-  const [rollDialogOpen, setRollDialogOpen] = useState(false)
-  const [selectedRoll, setSelectedRoll] = useState<any | null>(null)
-  const [releaseMode, setReleaseMode] = useState<ReleaseMode>("PACKED")
-  const [packLines, setPackLines] = useState<PackLineDraft[]>([])
-
-  const fetchBaseData = async () => {
-    try {
-      setLoading(true)
-      const [packingOrders, packagingData] = await Promise.all([
-        logisticsService.getPackingOrders(),
-        masterDataService.getPackaging(),
-      ])
-      setOrders(packingOrders)
-      setPackagingMaterials(Array.isArray(packagingData) ? packagingData : [])
-    } catch {
-      toast({ title: "Error", description: "Failed to load packing yard data", variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchSummary = async (salesOrderId: string) => {
-    if (!salesOrderId) {
-      setSummary(null)
-      return
-    }
-    try {
-      setLoadingSummary(true)
-      const data = await logisticsService.getSOPackingSummary(salesOrderId)
-      setSummary(data)
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to load packing summary", variant: "destructive" })
-      setSummary(null)
-    } finally {
-      setLoadingSummary(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchBaseData()
-  }, [])
-
-  useEffect(() => {
-    if (selectedSOId) {
-      fetchSummary(selectedSOId)
-    } else {
-      setSummary(null)
-    }
-  }, [selectedSOId])
-
-  const selectedBatch = useMemo(
-    () => summary?.batches.find((batch) => batch.id === selectedBatchId) || null,
-    [summary, selectedBatchId],
-  )
-  const selectedGonny = useMemo(
-    () => summary?.gonnies.find((gonny) => gonny.id === selectedGonnyId) || null,
-    [summary, selectedGonnyId],
-  )
-  const packagingMaterialById = useMemo(
-    () => new Map((packagingMaterials || []).map((material) => [String(material.id), material])),
-    [packagingMaterials],
-  )
-
-  useEffect(() => {
-    let active = true
-    const locationId = selectedBatch?.location?.id
-    if (!locationId) {
-      setGonnyStocks([])
-      return () => {
-        active = false
-      }
-    }
-    inventoryService
-      .getPackagingStock({ location: locationId })
-      .then((rows) => {
-        if (!active) return
-        setGonnyStocks(
-          rows.filter((row) => String(row.packaging_kind || "").toUpperCase() === "GONNY" && Number(row.qty || 0) > 0),
-        )
-      })
-      .catch(() => {
-        if (!active) return
-        setGonnyStocks([])
-      })
-    return () => {
-      active = false
-    }
-  }, [selectedBatch?.location?.id])
-
-  useEffect(() => {
-    let active = true
-    const locationId = selectedGonny?.location?.id
-    if (!sealDialogOpen || !locationId) {
-      setSealExtraStocks([])
-      return () => {
-        active = false
-      }
-    }
-    inventoryService
-      .getPackagingStock({ location: locationId })
-      .then((rows) => {
-        if (!active) return
-        setSealExtraStocks(
-          rows.filter((row) => {
-            const kind = String(row.packaging_kind || "").toUpperCase()
-            return Number(row.qty || 0) > 0 && !["GONNY", "INNER_POUCH", "SHEET"].includes(kind)
-          }),
-        )
-      })
-      .catch(() => {
-        if (!active) return
-        setSealExtraStocks([])
-      })
-    return () => {
-      active = false
-    }
-  }, [sealDialogOpen, selectedGonny?.location?.id])
-
-  useEffect(() => {
-    if (!selectedBatch) {
-      setContentMode("LOOSE_POUCHES")
-      setPrimaryPackCount(0)
-      return
-    }
-    const defaultMode = String((selectedBatch as any).default_content_mode || "LOOSE_POUCHES").toUpperCase() === "PRIMARY_PACKS"
-      ? "PRIMARY_PACKS"
-      : "LOOSE_POUCHES"
-    setContentMode(defaultMode)
-    if (defaultMode !== "PRIMARY_PACKS") {
-      setPrimaryPackCount(0)
-    }
-  }, [selectedBatch])
-
-  useEffect(() => {
-    if (!selectedBatch || contentMode !== "PRIMARY_PACKS") return
-    const pcsPerPack = Number((selectedBatch as any).pcs_per_pack || 0)
-    if (pcsPerPack > 0 && qtyPcs > 0) {
-      setPrimaryPackCount(Math.ceil(qtyPcs / pcsPerPack))
-    }
-  }, [selectedBatch, contentMode, qtyPcs])
-
-  const gonnySkuOptions = useMemo(
-    () =>
-      gonnyStocks.map((row) => ({
-        id: row.material,
-        code: row.material_code,
-        name: row.material_name,
-        qty: Number(row.qty || 0),
-        baseUom: row.base_uom,
-      })),
-    [gonnyStocks],
-  )
-
-  useEffect(() => {
-    if (!gonnySkuOptions.length) {
-      setSelectedGonnyMaterialId("")
-      return
-    }
-    if (!gonnySkuOptions.some((material) => material.id === selectedGonnyMaterialId)) {
-      setSelectedGonnyMaterialId(gonnySkuOptions[0].id)
-    }
-  }, [gonnySkuOptions, selectedGonnyMaterialId])
-
-  const totals = useMemo(() => {
-    const rows = summary?.gonnies || []
-    return rows.reduce(
-      (acc, row) => {
-        acc.totalPcs += Number(row.qty_pcs || 0)
-        acc.netKg += Number(row.net_product_weight_kg || 0)
-        acc.grossKg += Number(row.gross_weight_kg || row.weight_kg || 0)
-        return acc
-      },
-      { totalPcs: 0, netKg: 0, grossKg: 0 },
-    )
-  }, [summary])
-
-  const sealExtraOptions = useMemo(
-    () =>
-      sealExtraStocks.map((row) => ({
-        material_id: String(row.material || ""),
-        label: `${row.material_code} · ${row.material_name}`,
-        available: `${Number(row.qty || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${String(row.base_uom || "").toUpperCase()}`,
-        uom: String(row.base_uom || "PCS").toUpperCase(),
-      })),
-    [sealExtraStocks],
-  )
-
-  const refreshAll = async () => {
-    await fetchBaseData()
-    if (selectedSOId) {
-      await fetchSummary(selectedSOId)
-    }
-  }
-
-  const openCreateDialog = (batchId: string) => {
-    setSelectedBatchId(batchId)
-    setQtyPcs(0)
-    setSelectedGonnyMaterialId("")
-    setCreateDialogOpen(true)
-  }
-
-  const handleCreateGonny = async () => {
-    if (!selectedBatchId || qtyPcs <= 0 || !selectedGonnyMaterialId) {
-      toast({ title: "Error", description: "Select a batch, quantity, and gonny material", variant: "destructive" })
-      return
-    }
-    try {
-      const result = await logisticsService.createGonny({
-        fgBatchId: selectedBatchId,
-        qtyPcs,
-        gonnyMaterialId: selectedGonnyMaterialId,
-        contentMode,
-        primaryPackCount: contentMode === "PRIMARY_PACKS" && primaryPackCount > 0 ? primaryPackCount : undefined,
-      })
-      toast({ title: "Packing Unit Created", description: result.message })
-      setCreateDialogOpen(false)
-      setSelectedBatchId("")
-      setQtyPcs(0)
-      setSelectedGonnyMaterialId("")
-      setPrimaryPackCount(0)
-      await refreshAll()
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to create gonny", variant: "destructive" })
-    }
-  }
-
-  const openSealDialog = (gonnyId: string) => {
-    setSelectedGonnyId(gonnyId)
-    setWeightKg(0)
-    setSealExtras([])
-    setSealDialogOpen(true)
-  }
-
-  const handleSealGonny = async () => {
-    if (!selectedGonnyId || weightKg <= 0) {
-      toast({ title: "Error", description: "Enter a gross sealed weight", variant: "destructive" })
-      return
-    }
-    try {
-      const extras = collapsePackLines(
-        sealExtras.map((line) => ({
-          material_id: String(line.material_id || "").trim(),
-          qty: Number(line.qty || 0),
-          uom: String(line.uom || "PCS").toUpperCase(),
-          basis: "PER_GONNY",
-        })),
-      )
-      const result = await logisticsService.sealGonny(selectedGonnyId, weightKg, extras)
-      toast({ title: "Gonny Sealed", description: result.message })
-      setSealDialogOpen(false)
-      setSelectedGonnyId("")
-      setWeightKg(0)
-      setSealExtras([])
-      await refreshAll()
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to seal gonny", variant: "destructive" })
-    }
-  }
-
-  const handleReleaseGonny = async (gonnyId: string) => {
-    try {
-      const result = await logisticsService.releaseGonny(gonnyId)
-      toast({ title: "Sent To Dispatch", description: result.message })
-      await refreshAll()
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to release gonny", variant: "destructive" })
-    }
-  }
-
-  const openRollDialog = (roll: any) => {
-    setSelectedRoll(roll)
-    const snapshotLines = Array.isArray(roll.default_pack_lines) ? (roll.default_pack_lines as Array<{ material_id?: string; qty?: number; uom?: string; basis?: string }>) : []
-    const defaultLines =
-      snapshotLines.length > 0
-        ? snapshotLines.reduce((acc: PackLineDraft[], line) => {
-            const materialId = String(line.material_id || "").trim()
-            if (!materialId || acc.some((row) => row.material_id === materialId)) return acc
-            const material = packagingMaterialById.get(materialId)
-            acc.push({
-              material_id: materialId,
-              qty: Number(line.qty || 0),
-              uom: String(line.uom || material?.base_uom || "PCS").toUpperCase(),
-              basis: String(line.basis || "PER_ROLL").toUpperCase(),
-            })
-            return acc
-          }, [])
-        : []
-    const inferredMode = String(roll.release_mode || "").toUpperCase() === "UNPACKED" ? "UNPACKED" : "PACKED"
-    setReleaseMode(defaultLines.length > 0 ? inferredMode : "UNPACKED")
-    setPackLines(defaultLines)
-    setRollDialogOpen(true)
-  }
-
-  const handleReleaseRoll = async () => {
-    if (!selectedRoll) return
-    try {
-      if (releaseMode === "PACKED" && !selectedRoll.roll_pack_enabled) {
-        toast({
-          title: "Packing snapshot required",
-          description: "This roll has no allowed packing materials in the sales/SKU snapshot. Update the order packaging or release it unpacked.",
-          variant: "destructive",
-        })
-        return
-      }
-      const lines =
-        releaseMode === "PACKED"
-          ? collapsePackLines(packLines.filter((line) => line.material_id && Number(line.qty || 0) > 0))
-          : []
-      if (releaseMode === "PACKED" && lines.length === 0) {
-        toast({ title: "Pack lines required", description: "Add at least one roll packing line or choose unpacked release.", variant: "destructive" })
-        return
-      }
-      const result = await logisticsService.releaseRoll(selectedRoll.id, releaseMode, lines)
-      toast({ title: "Roll Sent To Dispatch", description: result.message })
-      setRollDialogOpen(false)
-      setSelectedRoll(null)
-      await refreshAll()
-    } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.error || "Failed to release roll", variant: "destructive" })
-    }
-  }
-
-  return (
-    <FactoryPageLayout
-      title="Packing Yard"
-      description="Convert finished production into physical dispatch units. Pouch batches become gonnies here, rolls are prepared here, and only released units appear in Dispatch Bay."
-      actions={
-        <Button asChild variant="outline">
-          <Link href="/logistics/dispatch">
-            Open Dispatch Bay <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
-      }
-    >
-      <div className="space-y-6" data-testid="packing-page">
-        <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
-          <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-            <CardHeader>
-              <CardTitle>Sales order handoff</CardTitle>
-              <CardDescription>Completed production reaches Packing Yard first. Choose the order you want to pack or release.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Sales order</Label>
-                <Select value={selectedSOId} onValueChange={setSelectedSOId}>
-                  <SelectTrigger className="h-11" data-testid="packing-sales-order-select">
-                    <SelectValue placeholder={orders.length === 0 ? "Nothing in packing yard" : "Select sales order"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {orders.map((order) => (
-                      <SelectItem key={order.id} value={order.id}>
-                        {order.order_number} · {order.customer_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {summary ? (
-                <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-black text-slate-900">{summary.sales_order.order_number}</div>
-                      <div className="text-xs text-slate-500">{summary.sales_order.customer_name}</div>
-                    </div>
-                    <SemanticBadge kind="dispatchStatus" value={summary.sales_order.status || "PACKING_READY"} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-xl bg-white px-3 py-2">
-                      <div className="font-black uppercase tracking-[0.16em] text-slate-400">Pending batches</div>
-                      <div className="mt-1 font-black text-slate-900">{formatPcs(summary.packing_pending.batches_pcs)}</div>
-                    </div>
-                    <div className="rounded-xl bg-white px-3 py-2">
-                      <div className="font-black uppercase tracking-[0.16em] text-slate-400">Ready for dispatch</div>
-                      <div className="mt-1 font-black text-emerald-700">{summary.ready_for_dispatch.gonnies_count + summary.ready_for_dispatch.rolls_count} units</div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
-                  {loading ? "Loading order queue..." : "Select a sales order to open the packing desk."}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-            <SummaryStatCard compact label="Pending Batches" value={summary?.packing_pending.batches_count ?? 0} subLabel={summary ? formatPcs(summary.packing_pending.batches_pcs) : "0 pcs"} icon={PackageOpen} toneClassName="bg-amber-50 text-amber-700" />
-            <SummaryStatCard compact label="Open Gonnies" value={summary?.packing_pending.open_gonnies_count ?? 0} subLabel="Need sealing" icon={ShoppingBag} toneClassName="bg-sky-50 text-sky-700" />
-            <SummaryStatCard compact label="Ready Gonnies" value={summary?.ready_for_dispatch.gonnies_count ?? 0} subLabel={summary ? formatPcs(summary.ready_for_dispatch.gonnies_pcs) : "0 pcs"} icon={CheckCircle2} toneClassName="bg-emerald-50 text-emerald-700" />
-            <SummaryStatCard compact label="Ready Rolls" value={summary?.ready_for_dispatch.rolls_count ?? 0} subLabel={summary ? formatKg(summary.ready_for_dispatch.rolls_kg) : "0.00 kg"} icon={Package} toneClassName="bg-indigo-50 text-indigo-700" />
-            <SummaryStatCard compact label="Net Product Weight" value={summary ? formatKg(summary.ready_for_dispatch.gonnies_net_kg + summary.ready_for_dispatch.rolls_kg) : "0.00 kg"} subLabel="Dispatch-ready product" icon={Scale} toneClassName="bg-slate-100 text-slate-700" />
-            <SummaryStatCard compact label="Gross Shipment Weight" value={summary ? formatKg(summary.ready_for_dispatch.gonnies_gross_kg + summary.ready_for_dispatch.rolls_kg) : "0.00 kg"} subLabel="Handed to dispatch" icon={Scale} toneClassName="bg-violet-50 text-violet-700" />
-          </div>
+    return (
+        <div className={`rounded-3xl border p-4 shadow-sm ${tones[tone]}`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">{label}</div>
+            <div className="mt-2 text-2xl font-black">{value}</div>
+            <div className="mt-1 text-xs font-medium text-slate-500">{hint}</div>
         </div>
+    )
+}
 
-        {loadingSummary && selectedSOId ? (
-          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-8 text-center text-sm text-slate-400">Loading packing summary...</div>
-        ) : null}
+function getGonnyExpected(gonny: Gonny) {
+    return Number(gonny.expected_gross_weight_kg ?? gonny.tare_breakdown_json?.expected_gross_weight_kg ?? gonny.tare_breakdown_json?.gross_weight_kg ?? 0)
+}
 
-        {summary ? (
-          <>
-            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-              <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-                <CardHeader>
-                  <CardTitle>Roll handoff lane</CardTitle>
-                  <CardDescription>Prepare each finished roll in Packing Yard. Packed or unpacked release is chosen here, not in Dispatch Bay.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {summary.rolls.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-                      No finished rolls for this order.
+function railState(value: number) {
+    return value > 0 ? "border-blue-300 bg-blue-50 text-blue-950" : "border-slate-200 bg-slate-50 text-slate-500"
+}
+
+export default function PackingYardPage() {
+    const { toast } = useToast()
+    const queryClient = useQueryClient()
+    const [search, setSearch] = useState("")
+    const [selectedOrderId, setSelectedOrderId] = useState<string>("")
+    const [createBatchId, setCreateBatchId] = useState("")
+    const [createQty, setCreateQty] = useState("")
+    const [contentMode, setContentMode] = useState<"LOOSE_POUCHES" | "PRIMARY_PACKS">("LOOSE_POUCHES")
+    const [primaryPackCount, setPrimaryPackCount] = useState("")
+    const [gonnyMaterialId, setGonnyMaterialId] = useState("")
+    const [sealGonny, setSealGonny] = useState<Gonny | null>(null)
+    const [actualGross, setActualGross] = useState("")
+    const [varianceReason, setVarianceReason] = useState("")
+
+    const board = useQuery({ queryKey: ["packing-board"], queryFn: logisticsService.getPackingBoard, refetchInterval: 30000 })
+    const summary = useQuery({
+        queryKey: ["packing-summary", selectedOrderId],
+        queryFn: () => logisticsService.getSOPackingSummary(selectedOrderId),
+        enabled: Boolean(selectedOrderId),
+    })
+    const packaging = useQuery({ queryKey: ["packaging-materials"], queryFn: masterDataService.getPackaging })
+    const gonnies = useMemo(() => (packaging.data || []).filter((p) => p.packaging_kind === "GONNY"), [packaging.data])
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ["packing-board"] })
+        queryClient.invalidateQueries({ queryKey: ["packing-summary", selectedOrderId] })
+    }
+
+    const createMutation = useMutation({
+        mutationFn: () => logisticsService.createGonny({
+            fgBatchId: createBatchId,
+            qtyPcs: Number(createQty),
+            gonnyMaterialId,
+            contentMode,
+            primaryPackCount: primaryPackCount ? Number(primaryPackCount) : undefined,
+        }),
+        onSuccess: (data) => {
+            toast({ title: "Gonny created", description: data.message })
+            setCreateBatchId("")
+            setCreateQty("")
+            setPrimaryPackCount("")
+            invalidate()
+        },
+        onError: (error) => toast({ title: "Create failed", description: err(error), variant: "destructive" }),
+    })
+
+    const sealMutation = useMutation({
+        mutationFn: () => logisticsService.sealGonny(sealGonny!.id, Number(actualGross), [], varianceReason),
+        onSuccess: (data) => {
+            toast({ title: "Gonny sealed", description: data.message })
+            setSealGonny(null)
+            setActualGross("")
+            setVarianceReason("")
+            invalidate()
+        },
+        onError: (error) => toast({ title: "Seal failed", description: err(error), variant: "destructive" }),
+    })
+
+    const releaseGonnyMutation = useMutation({
+        mutationFn: (gonnyId: string) => logisticsService.releaseGonny(gonnyId),
+        onSuccess: (data) => {
+            toast({ title: "Released to dispatch", description: data.message })
+            invalidate()
+        },
+        onError: (error) => toast({ title: "Release failed", description: err(error), variant: "destructive" }),
+    })
+
+    const releaseRollMutation = useMutation({
+        mutationFn: ({ rollId, mode }: { rollId: string; mode: "PACKED" | "UNPACKED" }) => logisticsService.releaseRoll(rollId, mode),
+        onSuccess: (data) => {
+            toast({ title: "Roll released", description: data.message })
+            invalidate()
+        },
+        onError: (error) => toast({ title: "Roll release failed", description: err(error), variant: "destructive" }),
+    })
+
+    const cards = (board.data?.orders || []).filter((row) => {
+        const term = search.trim().toLowerCase()
+        if (!term) return true
+        return `${row.sales_order.order_number} ${row.sales_order.customer_name}`.toLowerCase().includes(term)
+    })
+    const selected = summary.data as SOPackingSummary | undefined
+    const selectedBatch = selected?.batches.find((batch) => batch.id === createBatchId)
+    const expected = sealGonny ? getGonnyExpected(sealGonny) : 0
+    const variance = actualGross ? Number(actualGross) - expected : 0
+    const variancePct = expected > 0 ? (variance / expected) * 100 : 0
+
+    return (
+        <div className="space-y-6 p-4 lg:p-6">
+            <section className="sticky top-2 z-20 rounded-[2rem] bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-700 p-6 text-white shadow-xl">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <div className="inline-flex rounded-full border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">Packing Yard</div>
+                        <h1 className="mt-4 text-3xl font-black tracking-tight">Plan, seal, and release dispatch-ready units.</h1>
+                        <p className="mt-2 max-w-2xl text-sm font-medium text-blue-100">Choose the sales order first, create gonnies from finished pouch batches, capture actual gonny gross weight, and release only sealed units to Dispatch Bay.</p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-50">
+                            <span className="rounded-full bg-white/10 px-3 py-1">Production</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Batches</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Gonnies</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Sealing</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">Dispatch handoff</span>
+                        </div>
                     </div>
-                  ) : summary.rolls.map((roll) => (
-                    <div key={roll.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="font-black tracking-tight text-slate-900">{roll.label_id}</div>
-                          <div className="mt-1 text-xs text-slate-500">{roll.batch_no || "No batch"} · {formatKg(roll.weight_kg)}</div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <SemanticBadge kind="dispatchStatus" value={roll.released_to_dispatch ? "READY" : "DRAFT"} label={roll.released_to_dispatch ? "Ready in dispatch" : "In packing yard"} />
-                          <span
-                            className={
-                              roll.release_mode === "PACKED"
-                                ? "inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700"
-                                : "inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
-                            }
-                          >
-                            {roll.release_mode === "PACKED" ? "Packed roll" : "Unpacked roll"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">{roll.width_mm} mm</span>
-                        {roll.packed_for_dispatch ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">Packing recorded</span> : <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">No pack record yet</span>}
-                      </div>
-                      <div className="mt-4 flex justify-end">
-                        {roll.released_to_dispatch ? (
-                          <div className="text-xs font-semibold text-emerald-700">Released to Dispatch Bay</div>
-                        ) : (
-                          <Button size="sm" data-testid={`packing-roll-release-${roll.id}`} onClick={() => openRollDialog(roll)}>
-                            <Send className="mr-2 h-4 w-4" /> Prepare & send
-                          </Button>
-                        )}
-                      </div>
+                    <div className="relative w-full max-w-md">
+                        <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order or customer..." className="h-12 rounded-2xl border-white/20 bg-white/10 pl-10 text-white placeholder:text-blue-100" />
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-                <CardHeader>
-                  <CardTitle>Pouch batches waiting for gonnies</CardTitle>
-                  <CardDescription>Loose pouches or inner packs both start from the finished batch. Create as many gonnies as needed for the order.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {summary.batches.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-                      No unfinished pouch batches remain in the yard.
-                    </div>
-                  ) : summary.batches.map((batch) => (
-                    <div key={batch.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="font-black tracking-tight text-slate-900">{batch.batch_number}</div>
-                          <div className="mt-1 text-xs text-slate-500">{batch.template_name || "Unknown template"} · {formatPcs(batch.qty_pcs)} · {formatKg(batch.qty_kg)}</div>
-                        </div>
-                        <SemanticBadge kind="packingMode" value={(batch as any).default_content_mode || "LOOSE_POUCHES"} />
-                      </div>
-                      <div className="mt-4 flex justify-end">
-                        <Button size="sm" data-testid={`packing-create-gonny-${batch.id}`} onClick={() => openCreateDialog(batch.id)}>
-                          <ShoppingBag className="mr-2 h-4 w-4" /> Create gonny
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-              <CardHeader>
-                <CardTitle>Gonnies in packing yard</CardTitle>
-                <CardDescription>Loose pouch and primary-pack gonnies stay here until sealed and explicitly sent to Dispatch Bay.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {summary.gonnies.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
-                    No gonnies created yet for this order.
-                  </div>
-                ) : summary.gonnies.map((gonny) => {
-                  const totalTare = Number(gonny.inner_pack_tare_kg || 0) + Number(gonny.secondary_pack_tare_kg || 0) + Number(gonny.extras_tare_kg || 0)
-                  return (
-                    <div key={gonny.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="font-black tracking-tight text-slate-900">{gonny.label_id}</div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            Batch {gonny.batch_no || "-"} · {formatPcs(gonny.qty_pcs)} · {gonny.content_mode === "PRIMARY_PACKS" ? `${gonny.primary_pack_count || 0} inner packs` : "Loose pouches"}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <SemanticBadge kind="packingMode" value={gonny.content_mode || "LOOSE_POUCHES"} />
-                          <SemanticBadge kind="dispatchStatus" value={gonny.released_to_dispatch ? "READY" : gonny.status === "SEALED" ? "IN_REVIEW" : "DRAFT"} label={gonny.released_to_dispatch ? "Ready in dispatch" : gonny.status} />
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid gap-3 md:grid-cols-3">
-                        <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs">
-                          <div className="font-black uppercase tracking-[0.16em] text-slate-400">Net</div>
-                          <div className="mt-1 font-black text-slate-900">{formatKg(gonny.net_product_weight_kg)}</div>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs">
-                          <div className="font-black uppercase tracking-[0.16em] text-slate-400">Tare</div>
-                          <div className="mt-1 font-black text-amber-700">{formatKg(totalTare)}</div>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs">
-                          <div className="font-black uppercase tracking-[0.16em] text-slate-400">Gross</div>
-                          <div className="mt-1 font-black text-emerald-700">{formatKg(gonny.gross_weight_kg || gonny.weight_kg)}</div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex justify-end gap-2">
-                        {gonny.status === "OPEN" ? (
-                          <Button size="sm" data-testid={`packing-seal-gonny-${gonny.id}`} onClick={() => openSealDialog(gonny.id)}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" /> Seal gonny
-                          </Button>
-                        ) : gonny.released_to_dispatch ? (
-                          <div className="text-xs font-semibold text-emerald-700">Released to Dispatch Bay</div>
-                        ) : (
-                          <Button size="sm" data-testid={`packing-release-gonny-${gonny.id}`} onClick={() => handleReleaseGonny(gonny.id)}>
-                            <Send className="mr-2 h-4 w-4" /> Send to dispatch
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </CardContent>
-            </Card>
-          </>
-        ) : null}
-      </div>
-
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent data-testid="packing-create-gonny-dialog">
-          <DialogHeader>
-            <DialogTitle>Create gonny</DialogTitle>
-            <DialogDescription>Choose pouch quantity, gonny SKU, and whether this gonny holds loose pouches or inner packs.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-3">
-            <div className="grid gap-2">
-              <Label>Batch</Label>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                {selectedBatch ? `${selectedBatch.batch_number} · ${formatPcs(selectedBatch.qty_pcs)} available` : "Select a batch from the order lane"}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label>Pouch Qty (PCS)</Label>
-                <Input data-testid="packing-gonny-qty" type="number" value={qtyPcs || ""} onChange={(event) => setQtyPcs(Number(event.target.value))} />
-              </div>
-              <div className="grid gap-2">
-                <Label>Gonny SKU</Label>
-                <select data-testid="packing-gonny-material" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={selectedGonnyMaterialId} onChange={(event) => setSelectedGonnyMaterialId(event.target.value)}>
-                  <option value="">-- Select gonny --</option>
-                  {gonnySkuOptions.map((material) => (
-                    <option key={material.id} value={String(material.id)}>{material.code} · {material.name} · {material.qty} {material.baseUom}</option>
-                  ))}
-                </select>
-                <div className="text-xs text-slate-500">
-                  {gonnySkuOptions.length
-                    ? "Only gonny materials with stock at this batch location are shown."
-                    : "No gonny stock is available at this batch location yet."}
                 </div>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>Content Mode</Label>
-              <select data-testid="packing-gonny-content-mode" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={contentMode} onChange={(event) => setContentMode(event.target.value as "LOOSE_POUCHES" | "PRIMARY_PACKS")}>
-                <option value="LOOSE_POUCHES">Loose pouches into gonny</option>
-                <option value="PRIMARY_PACKS">Inner packs into gonny</option>
-              </select>
-            </div>
-            {contentMode === "PRIMARY_PACKS" ? (
-              <div className="grid gap-2">
-                <Label>Primary Pack Count</Label>
-                <Input data-testid="packing-gonny-primary-pack-count" type="number" value={primaryPackCount || ""} onChange={(event) => setPrimaryPackCount(Number(event.target.value))} />
-                <div className="text-xs text-slate-500">Default pcs per pack: {Number((selectedBatch as any)?.pcs_per_pack || 0) || "not set"}</div>
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-            <Button data-testid="packing-gonny-submit" onClick={handleCreateGonny}>Create gonny</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </section>
 
-      <Dialog open={sealDialogOpen} onOpenChange={setSealDialogOpen}>
-        <DialogContent data-testid="packing-seal-gonny-dialog">
-          <DialogHeader>
-            <DialogTitle>Seal gonny</DialogTitle>
-            <DialogDescription>Enter the final gross shipment weight after the packing unit is physically sealed.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-3">
-            <div className="grid gap-2">
-              <Label>Gross sealed weight (kg)</Label>
-              <Input data-testid="packing-gonny-seal-weight" type="number" step="0.001" value={weightKg || ""} onChange={(event) => setWeightKg(Number(event.target.value))} />
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              Gross weight must cover net product weight, inner-pack tare, gonny tare, and any seal extras such as tape or labels.
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <Label>Seal extras</Label>
-                  <div className="text-xs text-slate-500">Optional per-gonny materials consumed during sealing.</div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSealExtras((prev) => [...prev, { material_id: "", qty: 0, uom: "PCS", basis: "PER_GONNY" }])}
-                  disabled={sealExtraOptions.length === 0}
-                >
-                  Add extra
-                </Button>
-              </div>
-              {sealExtraOptions.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
-                  No extra packaging stock is available at this gonny location.
-                </div>
-              ) : sealExtras.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
-                  No seal extras selected. Use this only when tape, labels, or similar items are actually consumed.
-                </div>
-              ) : (
-                sealExtras.map((line, index) => (
-                  <div key={`seal-extra-${index}`} className="grid gap-3 rounded-2xl border border-slate-100 bg-white p-3 md:grid-cols-[minmax(0,1fr)_120px_56px]">
-                    <div className="space-y-1">
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={line.material_id || ""}
-                        onChange={(event) => {
-                          const next = [...sealExtras]
-                          const selectedOption = sealExtraOptions.find((option) => option.material_id === event.target.value)
-                          next[index] = {
-                            ...next[index],
-                            material_id: event.target.value,
-                            uom: selectedOption?.uom || "PCS",
-                            basis: "PER_GONNY",
-                          }
-                          setSealExtras(next)
-                        }}
-                      >
-                        <option value="">Select extra material</option>
-                        {sealExtraOptions.map((option) => (
-                          <option key={option.material_id} value={option.material_id}>
-                            {option.label} · {option.available}
-                          </option>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Stat label="Orders in yard" value={n(board.data?.totals.orders || 0, 0)} hint="Have packing work pending or ready" tone="blue" />
+                <Stat label="Pending pouch batches" value={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs`} hint={`${n(board.data?.totals.pending_batches || 0, 0)} batches waiting`} />
+                <Stat label="Open / sealed gonnies" value={`${n(board.data?.totals.open_gonnies || 0, 0)} / ${n(board.data?.totals.sealed_waiting_release || 0, 0)}`} hint="Seal open, then release" tone="amber" />
+                <Stat label="Ready for dispatch" value={`${n(board.data?.totals.ready_gonnies || 0, 0)} gonnies`} hint={`${n(board.data?.totals.ready_gonnies_gross_kg || 0)} kg gross + ${n(board.data?.totals.ready_rolls_kg || 0)} kg rolls`} tone="emerald" />
+            </section>
+
+            <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
+                <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-black"><ClipboardList className="h-4 w-4 text-blue-600" /> Sales orders</div>
+                    <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
+                        {cards.map((row) => (
+                            <button key={row.sales_order.id} onClick={() => setSelectedOrderId(row.sales_order.id)} className={`relative w-full overflow-hidden rounded-3xl border p-4 text-left transition ${selectedOrderId === row.sales_order.id ? "border-blue-400 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-blue-200"}`}>
+                                <span className={`absolute inset-y-0 left-0 w-2 ${row.ready_for_dispatch.gonnies_count ? "bg-emerald-400" : row.pending.batches_pcs ? "bg-amber-400" : "bg-sky-400"}`} />
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-black text-slate-950">{row.sales_order.order_number}</div>
+                                        <div className="mt-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-2xl bg-slate-50 p-2"><b>{n(row.pending.batches_pcs || 0, 0)}</b><br />pcs pending</div>
+                                    <div className="rounded-2xl bg-emerald-50 p-2"><b>{n(row.ready_for_dispatch.gonnies_count || 0, 0)}</b><br />ready gonnies</div>
+                                </div>
+                            </button>
                         ))}
-                      </select>
-                      <div className="text-[11px] text-slate-500">
-                        {sealExtraOptions.find((option) => option.material_id === line.material_id)?.available || "Choose stocked material"}
-                      </div>
+                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No packing orders match this search.</div>}
                     </div>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      value={line.qty || ""}
-                      onChange={(event) => {
-                        const next = [...sealExtras]
-                        next[index] = { ...next[index], qty: Number(event.target.value || 0) }
-                        setSealExtras(next)
-                      }}
-                      placeholder="Qty"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setSealExtras((prev) => prev.filter((_, rowIndex) => rowIndex !== index))}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSealDialogOpen(false)}>Cancel</Button>
-            <Button data-testid="packing-gonny-seal-submit" onClick={handleSealGonny}>Seal gonny</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                </div>
 
-      <Dialog open={rollDialogOpen} onOpenChange={setRollDialogOpen}>
-        <DialogContent className="max-w-2xl" data-testid="packing-roll-dialog">
-          <DialogHeader>
-            <DialogTitle>Prepare roll for dispatch</DialogTitle>
-            <DialogDescription>Choose whether this roll is handed over as a packed roll or as an unpacked finished roll.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-              <div className="font-black text-slate-900">{selectedRoll?.label_id || "Roll"}</div>
-              <div className="mt-1 text-xs text-slate-500">{formatKg(selectedRoll?.weight_kg || 0)} · {selectedRoll?.width_mm || 0} mm</div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Release mode</Label>
-              <select data-testid="packing-roll-release-mode" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={releaseMode} onChange={(event) => setReleaseMode(event.target.value as ReleaseMode)}>
-                <option value="PACKED">Packed roll</option>
-                <option value="UNPACKED">Unpacked roll</option>
-              </select>
-            </div>
-
-            {releaseMode === "PACKED" ? (
-              <div className="space-y-3">
-                <div className="text-xs font-semibold text-slate-500">Only materials allowed in the sales / SKU packing snapshot can be consumed here.</div>
-                {packLines.length === 0 ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <div>
-                        No roll packing materials are configured for this roll. Update the sales or planner packaging snapshot, or release the roll unpacked.
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  packLines.map((line, idx) => {
-                    const material = packagingMaterialById.get(String(line.material_id || ""))
-                    return (
-                      <div key={`${line.material_id}-${idx}`} className="grid gap-3 rounded-2xl border border-slate-100 bg-white p-3 md:grid-cols-[minmax(0,1fr)_140px]">
-                        <div className="space-y-1">
-                          <div className="font-semibold text-slate-900">{material ? `${material.code} · ${material.name}` : line.material_id}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {String(line.basis || "PER_ROLL").toUpperCase()} · {String(line.uom || material?.base_uom || "PCS").toUpperCase()}
-                          </div>
+                <div className="space-y-5">
+                    {!selected ? (
+                        <div className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-12 text-center">
+                            <Boxes className="mx-auto h-10 w-10 text-slate-300" />
+                            <h2 className="mt-3 text-xl font-black">Select a sales order to start packing.</h2>
+                            <p className="mt-2 text-sm text-slate-500">The yard board stays visible so operators can plan before picking batches or releasing units.</p>
                         </div>
-                        <Input
-                          data-testid={`packing-roll-qty-${idx}`}
-                          type="number"
-                          step="0.001"
-                          value={line.qty || ""}
-                          onChange={(e) => {
-                            const next = [...packLines]
-                            next[idx] = { ...next[idx], qty: Number(e.target.value || 0) }
-                            setPackLines(next)
-                          }}
-                          placeholder="Actual qty"
-                        />
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                This roll will be released as an unpacked finished roll. No packaging stock will be consumed in Packing Yard.
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRollDialogOpen(false)}>Cancel</Button>
-            <Button data-testid="packing-roll-submit" onClick={handleReleaseRoll}>Send to dispatch</Button>
-        </DialogFooter>
-      </DialogContent>
-      </Dialog>
-    </FactoryPageLayout>
-  )
+                    ) : (
+                        <>
+                            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-600">Selected order</div>
+                                        <h2 className="mt-1 text-2xl font-black text-slate-950">{selected.sales_order.order_number}</h2>
+                                        <p className="text-sm font-semibold text-slate-500">{selected.sales_order.customer_name}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                        <Stat label="Pending pcs" value={n(selected.packing_pending.batches_pcs, 0)} hint="pouch batches" />
+                                        <Stat label="Open gonnies" value={n(selected.packing_pending.open_gonnies_count, 0)} hint="need actual weight" tone="amber" />
+                                        <Stat label="Ready gonnies" value={n(selected.ready_for_dispatch.gonnies_count, 0)} hint={`${n(selected.ready_for_dispatch.gonnies_gross_kg)} kg gross`} tone="emerald" />
+                                        <Stat label="Ready rolls" value={n(selected.ready_for_dispatch.rolls_kg)} hint="kg released" tone="blue" />
+                                    </div>
+                                </div>
+                                <div className="mt-5 grid gap-3 md:grid-cols-5">
+                                    {[
+                                        ["Production", selected.packing_pending.batches_pcs + selected.ready_for_dispatch.rolls_kg],
+                                        ["Batches in", selected.packing_pending.batches_count],
+                                        ["Making gonnies", selected.packing_pending.open_gonnies_count],
+                                        ["Sealing", selected.ready_for_dispatch.gonnies_count],
+                                        ["Handed off", selected.ready_for_dispatch.gonnies_count + selected.ready_for_dispatch.rolls_kg],
+                                    ].map(([label, value], index) => (
+                                        <div key={label} className={`rounded-2xl border p-3 text-center text-xs font-black ${railState(Number(value || 0))}`}>
+                                            <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm">{index + 1}</div>
+                                            {label}
+                                            <div className="mt-1 text-[10px] font-semibold opacity-70">{n(value, 0)} active</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-5 2xl:grid-cols-[1fr_360px]">
+                                <div className="space-y-5">
+                                    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="mb-4 flex items-center gap-2 text-sm font-black"><PackageCheck className="h-4 w-4 text-emerald-600" /> Pouch batches waiting for gonnies</div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full min-w-[760px] text-sm">
+                                                <thead className="text-[10px] uppercase tracking-[0.22em] text-slate-400">
+                                                    <tr><th className="py-3 text-left">Batch</th><th className="text-left">Product</th><th className="text-right">Available</th><th className="text-left">Default</th><th className="text-right">Action</th></tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {selected.batches.map((batch) => (
+                                                        <tr key={batch.id}>
+                                                            <td className="py-4 font-black">{batch.batch_number}</td>
+                                                            <td>{batch.template_name || "Finished pouches"}</td>
+                                                            <td className="text-right font-bold">{n(batch.qty_pcs, 0)} pcs</td>
+                                                            <td className="text-xs text-slate-500">{batch.status}</td>
+                                                            <td className="text-right"><Button size="sm" onClick={() => { setCreateBatchId(batch.id); setCreateQty(String(batch.qty_pcs || "")); }}>Pack to gonny</Button></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            {!selected.batches.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No pouch batches are waiting for this order.</div>}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="mb-4 flex items-center gap-2 text-sm font-black"><Scale className="h-4 w-4 text-amber-600" /> Gonnies in yard</div>
+                                        <div className="grid gap-3 xl:grid-cols-2">
+                                            {selected.gonnies.map((gonny) => (
+                                                <div key={gonny.id} className="rounded-3xl border border-slate-200 p-4">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <div className="font-black">{gonny.label_id}</div>
+                                                            <div className="mt-1 text-xs text-slate-500">{gonny.qty_pcs} pcs • {gonny.content_mode === "PRIMARY_PACKS" ? `${gonny.primary_pack_count || 0} inner packs` : "loose pouches"}</div>
+                                                        </div>
+                                                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${gonny.status === "SEALED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{gonny.status}</span>
+                                                    </div>
+                                                    <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                                                        <div className="rounded-2xl bg-slate-50 p-2"><b>{n(gonny.net_product_weight_kg)}</b><br />net kg</div>
+                                                        <div className="rounded-2xl bg-blue-50 p-2"><b>{n(getGonnyExpected(gonny))}</b><br />expected</div>
+                                                        <div className="rounded-2xl bg-emerald-50 p-2"><b>{gonny.gross_weight_kg ? n(gonny.gross_weight_kg) : "-"}</b><br />actual</div>
+                                                    </div>
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        {gonny.status === "OPEN" && <Button size="sm" onClick={() => { setSealGonny(gonny); setActualGross(String(getGonnyExpected(gonny) || "")); }}>Seal gonny</Button>}
+                                                        {gonny.status === "SEALED" && !gonny.released_to_dispatch && <Button size="sm" variant="outline" onClick={() => releaseGonnyMutation.mutate(gonny.id)}>Release to dispatch</Button>}
+                                                        {gonny.released_to_dispatch && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Ready in Dispatch Bay</span>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {!selected.gonnies.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No gonnies created yet.</div>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside className="sticky top-4 h-fit rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="text-sm font-black">Create gonny</div>
+                                    <div className="mt-4 space-y-3">
+                                        <Label>Batch</Label>
+                                        <Select value={createBatchId} onValueChange={setCreateBatchId}>
+                                            <SelectTrigger><SelectValue placeholder="Select pouch batch" /></SelectTrigger>
+                                            <SelectContent>{selected.batches.map((batch) => <SelectItem key={batch.id} value={batch.id}>{batch.batch_number} • {batch.qty_pcs} pcs</SelectItem>)}</SelectContent>
+                                        </Select>
+                                        <Label>Gonny material</Label>
+                                        <Select value={gonnyMaterialId} onValueChange={setGonnyMaterialId}>
+                                            <SelectTrigger><SelectValue placeholder="Select gonny stock" /></SelectTrigger>
+                                            <SelectContent>{gonnies.map((item: PackagingMaterial) => <SelectItem key={item.id} value={item.id}>{item.code} • {item.name}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                        <Label>Pouches to pack</Label>
+                                        <Input type="number" min="1" value={createQty} onChange={(e) => setCreateQty(e.target.value)} placeholder={selectedBatch ? String(selectedBatch.qty_pcs) : "Qty pcs"} />
+                                        <Label>Content mode</Label>
+                                        <Select value={contentMode} onValueChange={(value) => setContentMode(value as any)}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent><SelectItem value="LOOSE_POUCHES">Loose pouches</SelectItem><SelectItem value="PRIMARY_PACKS">Inner packs</SelectItem></SelectContent>
+                                        </Select>
+                                        {contentMode === "PRIMARY_PACKS" && (
+                                            <>
+                                                <Label>Inner pack count</Label>
+                                                <Input type="number" min="1" value={primaryPackCount} onChange={(e) => setPrimaryPackCount(e.target.value)} placeholder="Auto if sales snapshot has pcs/pack" />
+                                            </>
+                                        )}
+                                        <Button className="w-full" disabled={!createBatchId || !createQty || !gonnyMaterialId || createMutation.isPending} onClick={() => createMutation.mutate()}>
+                                            {createMutation.isPending ? "Creating..." : "Create gonny"}
+                                        </Button>
+                                    </div>
+                                </aside>
+                            </div>
+
+                            <details className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                <summary className="flex cursor-pointer items-center gap-2 text-sm font-black">
+                                    <HelpCircle className="h-4 w-4 text-blue-600" /> Packing glossary for operators
+                                </summary>
+                                <div className="mt-4 grid gap-3 text-xs md:grid-cols-3">
+                                    {[
+                                        ["Batch", "Finished pouch output waiting to be packed."],
+                                        ["Gonny", "One physical bag/carton made from loose pouches or inner packs."],
+                                        ["Net", "Product weight only."],
+                                        ["Tare", "Weight of gonny, inner pack, tape, or extras."],
+                                        ["Expected gross", "System net plus known tare before sealing."],
+                                        ["Actual gross", "Scale weight entered when sealing."],
+                                    ].map(([term, copy]) => (
+                                        <div key={term} className="rounded-2xl bg-slate-50 p-3"><b>{term}</b><br />{copy}</div>
+                                    ))}
+                                </div>
+                            </details>
+
+                            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                                <div className="mb-4 text-sm font-black">Finished rolls waiting for dispatch release</div>
+                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {selected.rolls.map((roll) => (
+                                        <div key={roll.id} className="rounded-3xl border border-slate-200 p-4">
+                                            <div className="font-black">{roll.label_id}</div>
+                                            <div className="mt-1 text-xs text-slate-500">{roll.batch_no || "No batch"} • {n(roll.weight_kg)} kg • {roll.location?.name}</div>
+                                            <div className="mt-4 flex gap-2">
+                                                {!roll.released_to_dispatch ? (
+                                                    <>
+                                                        <Button size="sm" onClick={() => releaseRollMutation.mutate({ rollId: roll.id, mode: "UNPACKED" })}>Release unpacked</Button>
+                                                        {roll.roll_pack_enabled && <Button size="sm" variant="outline" onClick={() => releaseRollMutation.mutate({ rollId: roll.id, mode: "PACKED" })}>Pack & release</Button>}
+                                                    </>
+                                                ) : <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Ready in Dispatch Bay</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {!selected.rolls.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No roll handoff waiting for this order.</div>}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </section>
+
+            <Dialog open={Boolean(sealGonny)} onOpenChange={(open) => !open && setSealGonny(null)}>
+                <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+                    <DialogHeader><DialogTitle>Seal gonny with actual gross weight</DialogTitle></DialogHeader>
+                    {sealGonny && (
+                        <div className="space-y-4">
+                            <div className="rounded-3xl bg-slate-50 p-4">
+                                <div className="font-black">{sealGonny.label_id}</div>
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                                    <div><b>{n(sealGonny.net_product_weight_kg)}</b><br />product net</div>
+                                    <div><b>{n(sealGonny.inner_pack_tare_kg)}</b><br />inner tare</div>
+                                    <div><b>{n(sealGonny.secondary_pack_tare_kg)}</b><br />gonny tare</div>
+                                    <div><b>{n(expected)}</b><br />expected gross</div>
+                                </div>
+                            </div>
+                            <div>
+                                <Label>Actual gonny gross weight (kg)</Label>
+                                <Input type="number" step="0.001" value={actualGross} onChange={(e) => setActualGross(e.target.value)} />
+                            </div>
+                            <div className={`rounded-2xl p-3 text-sm font-bold ${Math.abs(variancePct) > 2 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>
+                                Variance: {n(variance, 3)} kg ({n(variancePct, 2)}%)
+                            </div>
+                            {Math.abs(variancePct) > 2 && (
+                                <div>
+                                    <Label>Variance reason</Label>
+                                    <Textarea value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} placeholder="Explain why actual gonny weight differs from expected." />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSealGonny(null)}>Cancel</Button>
+                        <Button disabled={!actualGross || (Math.abs(variancePct) > 2 && !varianceReason.trim()) || sealMutation.isPending} onClick={() => sealMutation.mutate()}>
+                            {sealMutation.isPending ? "Sealing..." : "Seal gonny"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    )
 }

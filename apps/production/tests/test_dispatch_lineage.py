@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -156,6 +157,7 @@ class DispatchLineageTests(SimpleTestCase):
             id="gonny-1",
             label_id="G-1",
             status="SEALED",
+            gross_weight_kg=Decimal("12.5000"),
             meta_json={},
             save=lambda **kwargs: None,
         )

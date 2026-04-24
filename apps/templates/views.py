@@ -2,6 +2,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import OperationalError, ProgrammingError
 
 from apps.factory.models import Process
@@ -124,7 +125,15 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         try:
             template = TemplateGovernanceService.approve_template(pk, request.user)
             return Response({"status": "template approved", "id": template.id, "template_status": template.status})
-        except Exception as exc:
+        except DjangoValidationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"], url_path="request-review")
+    def request_review(self, request, pk=None):
+        try:
+            template = TemplateGovernanceService.request_review(pk, request.user)
+            return Response({"status": "template sent for engineering review", "id": template.id, "template_status": template.status})
+        except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["post"])
@@ -132,8 +141,23 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         try:
             template = TemplateGovernanceService.publish_template(pk)
             return Response({"status": "template is now LIVE", "id": template.id, "template_status": template.status})
-        except Exception as exc:
+        except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["get"], url_path="readiness")
+    def readiness(self, request, pk=None):
+        template = self.get_object()
+        return Response(TemplateGovernanceService.readiness(template))
+
+    @action(detail=True, methods=["post"], url_path="retire")
+    def retire(self, request, pk=None):
+        template = TemplateGovernanceService.retire_template(pk)
+        return Response({"status": "template retired", "id": template.id, "template_status": template.status})
+
+    @action(detail=True, methods=["post"], url_path="clone")
+    def clone(self, request, pk=None):
+        template = TemplateGovernanceService.clone_template(pk, request.user)
+        return Response(TemplateDetailSerializer(template, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
 
     def _route_sync_plan(self, template):
         return TemplateGovernanceService.route_sync_plan(template)
@@ -214,6 +238,8 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 step.sequence_number = request.data["sequence_number"]
             if "notes" in request.data:
                 step.notes = request.data["notes"]
+            if "cost_absorption_group" in request.data:
+                step.cost_absorption_group_id = request.data.get("cost_absorption_group") or None
             step.save()
             return Response(TemplateProcessStepSerializer(step).data)
 
@@ -291,7 +317,6 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 "category_code required for CATEGORY mapping.",
                 field_errors={"category_code": ["category_code is required for CATEGORY mapping."]},
             )
-
         existing = TemplateProcessStepMaterial.objects.filter(
             template_step=step,
             source_kind="CATEGORY",
@@ -306,6 +331,16 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "data": data,
                 },
                 status=status.HTTP_200_OK,
+            )
+
+        if category_code not in TemplateGovernanceService.SUPPORTED_CATEGORY_CODES:
+            return _template_bad_request(
+                "Unsupported material category.",
+                field_errors={
+                    "category_code": [
+                        "Use GRANULE, INK, ADHESIVE, SOLVENT, ADDON, or POD. Legacy CHEMICAL rows remain readable but cannot be newly added."
+                    ]
+                },
             )
 
         payload = {
@@ -414,6 +449,36 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 ).data,
             }
         )
+
+    @action(detail=True, methods=["post"], url_path="process-steps/reorder")
+    def reorder_process_steps(self, request, pk=None):
+        template = self.get_object()
+        if template.status in {"LIVE", "OBSOLETE"}:
+            return Response({"detail": "Cannot reorder process steps on a LIVE or OBSOLETE template."}, status=status.HTTP_400_BAD_REQUEST)
+        rows = request.data.get("steps")
+        if not isinstance(rows, list):
+            return Response({"detail": "steps must be a list of {id, sequence_number} rows."}, status=status.HTTP_400_BAD_REQUEST)
+        steps = {str(step.id): step for step in template.process_steps.all()}
+        seen_sequences = set()
+        for row in rows:
+            step = steps.get(str((row or {}).get("id") or ""))
+            sequence = (row or {}).get("sequence_number")
+            if not step or sequence is None:
+                return Response({"detail": "Each row must include a valid id and sequence_number."}, status=status.HTTP_400_BAD_REQUEST)
+            sequence = int(sequence)
+            if sequence in seen_sequences:
+                return Response({"detail": "sequence_number values must be unique."}, status=status.HTTP_400_BAD_REQUEST)
+            seen_sequences.add(sequence)
+            step.sequence_number = sequence
+        pending = [steps[str((row or {}).get("id") or "")] for row in rows]
+        for index, step in enumerate(pending, start=1):
+            step.sequence_number = -1000 - index
+            step.save(update_fields=["sequence_number", "updated_at"])
+        for row in rows:
+            step = steps[str((row or {}).get("id") or "")]
+            step.sequence_number = int((row or {}).get("sequence_number"))
+            step.save(update_fields=["sequence_number", "updated_at"])
+        return Response(TemplateProcessStepSerializer(template.process_steps.select_related("process").prefetch_related("materials").all(), many=True).data)
 
     @action(detail=True, methods=["post"], url_path="rebuild-from-route")
     def rebuild_from_route(self, request, pk=None):

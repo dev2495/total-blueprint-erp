@@ -12,6 +12,12 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
     routing_rule_name = serializers.ReadOnlyField(source="routing_rule.name")
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
     commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
+    readiness = serializers.SerializerMethodField()
+
+    def get_readiness(self, obj):
+        from .services import TemplateGovernanceService
+
+        return TemplateGovernanceService.readiness(obj)
 
     class Meta:
         model = TemplateBlueprint
@@ -29,6 +35,7 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
             "routing_rule_name",
             "created_by_name",
             "created_at",
+            "readiness",
         ]
 
 
@@ -37,6 +44,12 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
     approved_by_name = serializers.ReadOnlyField(source="approved_by.username")
     commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
+    readiness = serializers.SerializerMethodField()
+
+    def get_readiness(self, obj):
+        from .services import TemplateGovernanceService
+
+        return TemplateGovernanceService.readiness(obj)
 
     class Meta:
         model = TemplateBlueprint
@@ -59,6 +72,7 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
             "approved_at",
             "created_at",
             "updated_at",
+            "readiness",
         ]
         read_only_fields = ["id", "version", "created_at", "updated_at", "approved_at", "approved_by"]
 
@@ -312,6 +326,7 @@ class TemplateDetailSerializer(TemplateBlueprintSerializer):
                         "step_id": str(step.id),
                         "step_sequence": step.sequence_number,
                         "category": str(mat.category_code or "").upper(),
+                        "name": str(mat.category_code or "").upper(),
                         "consumption_basis": mat.consumption_basis,
                         "formula_driver": getattr(mat, "formula_driver", "NONE"),
                         "formula_params": getattr(mat, "formula_params", {}) or {},
@@ -320,6 +335,7 @@ class TemplateDetailSerializer(TemplateBlueprintSerializer):
                         "capture_mode": mat.capture_mode,
                         "quantity_mode": mat.quantity_mode,
                         "value": float(mat.value or 0),
+                        "weight_kg": float(mat.value or 0) if str(mat.quantity_mode or "").upper() == "KG" else 0,
                         "is_optional": bool(mat.is_optional),
                     }
                 )

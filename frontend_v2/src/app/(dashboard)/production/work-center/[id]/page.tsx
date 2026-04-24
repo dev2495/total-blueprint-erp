@@ -211,6 +211,9 @@ export default function WCMTerminal() {
     const [materialIssueDrafts, setMaterialIssueDrafts] = useState<Record<string, WcmMaterialIssueDraft>>({})
     const [queueSearch, setQueueSearch] = useState("")
     const [queueStatusFilter, setQueueStatusFilter] = useState<"ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE">("ALL")
+    const [historySearch, setHistorySearch] = useState("")
+    const [historyStatusFilter, setHistoryStatusFilter] = useState("ALL")
+    const [historyDaysFilter, setHistoryDaysFilter] = useState("30")
     const [closeJobAction, setCloseJobAction] = useState<{ assignment: any; mode: "SHORT_CLOSE" | "CANCEL" } | null>(null)
     const [closeJobReason, setCloseJobReason] = useState("")
     const autoAssignRef = useRef<Set<string>>(new Set())
@@ -231,8 +234,13 @@ export default function WCMTerminal() {
     })
 
     const { data: historyJobs, isLoading: isLoadingHistory } = useQuery({
-        queryKey: ["wcm-history", wcId],
-        queryFn: () => wcmService.getHistory(wcId),
+        queryKey: ["wcm-history", wcId, historySearch, historyStatusFilter, historyDaysFilter],
+        queryFn: () => wcmService.getHistory(wcId, {
+            q: historySearch.trim() || undefined,
+            status: historyStatusFilter,
+            days: historyDaysFilter === "ALL" ? null : Number(historyDaysFilter || 30),
+            limit: 120,
+        }),
         refetchInterval: 30000, // History can update less frequently
         enabled: activeMainTab === "history"
     })
@@ -927,9 +935,10 @@ export default function WCMTerminal() {
     const requirementRows = [...bulkRows, ...(rollRow ? [rollRow] : [])]
     const materialIssueRows = useMemo(
         () => (satisfactionStatus?.bulk_consumption || []).filter((row: any) => {
-            const category = String(row?.category || row?.category_code || "").toUpperCase()
-            const captureMode = String(row?.capture_mode || row?.strategy || row?.mode || "").toUpperCase()
-            return category === "GRANULE" || captureMode.includes("CONFIRM")
+            const required = Number(row?.required_qty_kg ?? row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? 0)
+            const planned = Number(row?.planned_issue_qty_kg ?? 0)
+            const issued = Number(row?.actual_issued_qty_kg ?? 0)
+            return required > 0 || planned > 0 || issued > 0
         }),
         [satisfactionStatus]
     )
@@ -989,12 +998,13 @@ export default function WCMTerminal() {
             const requirementId = String(row?.requirement_id || "").trim()
             const draft = materialIssueDrafts[requirementId]
             if (!requirementId || !draft) return null
-            const granuleCodeAllocations = (draft.granule_code_allocations || [])
+            const isGranule = String(row?.category || row?.category_code || "").toUpperCase() === "GRANULE"
+            const granuleCodeAllocations = isGranule ? (draft.granule_code_allocations || [])
                 .map((allocation) => ({
                     granule_code_id: allocation.granule_code_id,
                     qty_kg: Math.max(0, Number(allocation.qty_kg || 0)),
                 }))
-                .filter((allocation) => allocation.granule_code_id && allocation.qty_kg > 0)
+                .filter((allocation) => allocation.granule_code_id && allocation.qty_kg > 0) : []
             return {
                 requirement_id: requirementId,
                 material_id: draft.material_id || row?.material_id,
@@ -1007,6 +1017,52 @@ export default function WCMTerminal() {
         }).filter(Boolean),
         [materialIssueDrafts, materialIssueRows]
     )
+    const materialIssueErrors = useMemo(() => {
+        const errors: string[] = []
+        materialIssueRows.forEach((row: any) => {
+            const requirementId = String(row?.requirement_id || "").trim()
+            if (!requirementId) return
+            const materialName = String(row?.material_name || row?.category_display || row?.category || "Material")
+            const draft = materialIssueDrafts[requirementId]
+            const issued = Number(draft?.actual_issued_qty ?? 0)
+            if (!Number.isFinite(issued) || issued < 0) {
+                errors.push(`${materialName}: issued kg is invalid`)
+                return
+            }
+            const category = String(row?.category || row?.category_code || "").toUpperCase()
+            const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : []
+            const allowedCodes = new Set(codeOptions.map((option: any) => String(option?.granule_code_id || "")))
+            const allocations = draft?.granule_code_allocations || []
+            if (category === "GRANULE" && issued > 0) {
+                if (!codeOptions.length) {
+                    errors.push(`${materialName}: no coded stock available`)
+                    return
+                }
+                if (!allocations.length) {
+                    errors.push(`${materialName}: select code split`)
+                    return
+                }
+                let allocated = 0
+                for (const allocation of allocations) {
+                    const codeId = String(allocation.granule_code_id || "")
+                    const qty = Number(allocation.qty_kg || 0)
+                    if (!allowedCodes.has(codeId)) {
+                        errors.push(`${materialName}: code is not allowed`)
+                        return
+                    }
+                    if (!Number.isFinite(qty) || qty < 0) {
+                        errors.push(`${materialName}: code kg is invalid`)
+                        return
+                    }
+                    allocated += qty
+                }
+                if (Math.abs(allocated - issued) > 0.0001) {
+                    errors.push(`${materialName}: code split must equal issued kg`)
+                }
+            }
+        })
+        return errors
+    }, [materialIssueDrafts, materialIssueRows])
     const stepOtherRequirementsRaw: any[] = Array.isArray((executionContext as any)?.other_requirements)
         ? (executionContext as any).other_requirements
         : []
@@ -1115,8 +1171,9 @@ export default function WCMTerminal() {
         if (!selectedMachineId) {
             reasons.push("Machine: not assigned")
         }
+        materialIssueErrors.forEach((error) => reasons.push(error))
         return reasons
-    }, [requirementRows, selectedMachineId])
+    }, [requirementRows, selectedMachineId, materialIssueErrors])
     const canPushToOperator = pushBlockingReasons.length === 0
     const wcmNextAction = !activeAssignment
         ? "Pick a job from the left queue."
@@ -1218,7 +1275,7 @@ export default function WCMTerminal() {
             if (String(activeAssignment.assigned_machine || "") !== String(selectedMachineId)) {
                 await wcmService.assignMachine(activeAssignment.id, selectedMachineId)
             }
-            if (requirementsSatisfied) {
+            if (canPushToOperator) {
                 await wcmService.markReady(activeAssignment.id, materialIssuePayload as any[])
                 setActiveAssignmentId(null)
             }
@@ -1276,6 +1333,14 @@ export default function WCMTerminal() {
             : 0
         const selectedMachine = machineOptionsResolved.find((machine: any) => String(machine.id) === String(selectedMachineId))
         const activeStatus = String(activeAssignment?.status || "WC_READY").toUpperCase()
+        const finalOutputLabel = [
+            selectedOutputForm || "OUTPUT",
+            selectedSpec.size.label,
+            selectedSpec.layers.length ? `${selectedSpec.layers.length} layer${selectedSpec.layers.length > 1 ? "s" : ""}` : "",
+        ].filter(Boolean).join(" · ")
+        const blockerLabel = pushBlockingReasons.length
+            ? `${pushBlockingReasons.length} blocker${pushBlockingReasons.length > 1 ? "s" : ""}`
+            : "Ready"
 
         return (
             <div className="min-h-screen bg-[#f7f8fb] text-slate-900" data-testid="wcm-terminal-page">
@@ -1399,30 +1464,94 @@ export default function WCMTerminal() {
                         <div className={cn("space-y-3", activeMainTab === "history" ? "xl:col-span-1" : "xl:col-span-7")}>
                             {activeMainTab === "history" ? (
                                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
                                         <div>
                                             <div className="text-[11px] uppercase tracking-wider text-slate-500">History</div>
-                                            <div className="text-lg font-semibold text-slate-950">Completed and cancelled jobs</div>
+                                            <div className="text-lg font-semibold text-slate-950">WCM audit and production history</div>
+                                            <p className="mt-1 text-sm text-slate-500">Search actions, material issue, machine release, output, scrap, and close records.</p>
                                         </div>
                                         {isLoadingHistory && <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />}
                                     </div>
-                                    <div className="mt-4 space-y-2">
-                                        {(historyJobs || []).slice(0, 30).map((assignment: any) => {
+                                    <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_140px]">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                            <Input
+                                                value={historySearch}
+                                                onChange={(event) => setHistorySearch(event.target.value)}
+                                                placeholder="Search customer, SO, material, code, machine, user, reason..."
+                                                className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-10"
+                                            />
+                                        </div>
+                                        <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
+                                            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="ALL">All statuses</SelectItem>
+                                                <SelectItem value="RELEASED">Released</SelectItem>
+                                                <SelectItem value="EXECUTING">Executing</SelectItem>
+                                                <SelectItem value="PAUSED">Paused</SelectItem>
+                                                <SelectItem value="COMPLETED">Completed</SelectItem>
+                                                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                                                <SelectItem value="MATERIAL_ISSUE">Material issue</SelectItem>
+                                                <SelectItem value="SHORT_CLOSE">Short close</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <Select value={historyDaysFilter} onValueChange={setHistoryDaysFilter}>
+                                            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="30">Last 30 days</SelectItem>
+                                                <SelectItem value="7">Last 7 days</SelectItem>
+                                                <SelectItem value="1">Today</SelectItem>
+                                                <SelectItem value="ALL">All history</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="mt-5 space-y-3">
+                                        {(historyJobs || []).map((assignment: any) => {
                                             const job = assignment?.job_details || {}
                                             const spec = normalizeProductSpec(job)
+                                            const summary = assignment?.history_summary || {}
+                                            const events = Array.isArray(assignment?.audit_events) ? assignment.audit_events : []
+                                            const latestEvent = events[0]
                                             return (
-                                                <div key={assignment.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                                <div key={assignment.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                                                     <div className="flex flex-wrap items-start justify-between gap-4">
                                                         <div className="min-w-[260px] flex-1">
-                                                            <div className="font-semibold text-slate-900">{job.customer_name || spec.customerName || "Customer"}</div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <div className="font-semibold text-slate-900">{job.customer_name || spec.customerName || "Customer"}</div>
+                                                                <span className="text-sm font-semibold text-indigo-700">{job.order_number || spec.orderNumber || "SO —"}</span>
+                                                            </div>
                                                             <div className="text-sm text-slate-500">{spec.productName} · {spec.size.label}</div>
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                                 {spec.layers.slice(0, 4).map((layer) => (
                                                                     <span key={`${assignment.id}-${layer.index}`} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">{layerQueueLabel(layer)}</span>
                                                                 ))}
+                                                                {spec.podLabels.map((label) => <span key={`${assignment.id}-pod-${label}`} className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-fuchsia-700">PoD · {label}</span>)}
+                                                                {spec.addonLabels.map((label) => <span key={`${assignment.id}-addon-${label}`} className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-orange-700">+ {label}</span>)}
+                                                            </div>
+                                                            <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
+                                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><span className="block text-slate-400">Output</span><b>{Number(summary.output_qty || job.produced_qty || 0).toFixed(3)} {job.uom || "KG"}</b></div>
+                                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><span className="block text-slate-400">Scrap</span><b>{Number(summary.scrap_qty || 0).toFixed(3)} KG</b></div>
+                                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><span className="block text-slate-400">Machine</span><b>{assignment.assigned_machine_name || "—"}</b></div>
+                                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2"><span className="block text-slate-400">Closed by</span><b>{summary.closed_by || "—"}</b></div>
+                                                            </div>
+                                                            <div className="mt-3 space-y-1">
+                                                                {events.slice(0, 4).map((event: any) => (
+                                                                    <div key={event.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
+                                                                        <span className="font-black uppercase tracking-wider text-slate-500">{String(event.action || "").replace(/_/g, " ")}</span>
+                                                                        <span className="text-slate-400">by</span>
+                                                                        <span className="font-semibold text-slate-800">{event.actor || "system"}</span>
+                                                                        <span className="text-slate-400">·</span>
+                                                                        <span className="text-slate-500">{event.occurred_at ? new Date(event.occurred_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "—"}</span>
+                                                                        {event.reason ? <span className="ml-auto text-slate-600">{event.reason}</span> : null}
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                             <div className="mt-2 text-xs text-slate-500">
-                                                                {job.closed_at ? `Closed ${new Date(job.closed_at).toLocaleString()}` : "Latest activity"} · {job.completion_force_reason || "No variance note"}
+                                                                {summary.closed_at ? `Closed ${new Date(summary.closed_at).toLocaleString()}` : latestEvent ? `Latest ${String(latestEvent.action || "").replace(/_/g, " ").toLowerCase()}` : "Latest activity"} · {summary.force_reason || job.completion_force_reason || "No variance note"}
                                                             </div>
                                                         </div>
                                                         <Badge variant="outline">{job.job_state || job.status || "Closed"}</Badge>
@@ -1557,9 +1686,6 @@ export default function WCMTerminal() {
                                                         </DropdownMenu>
                                                     </div>
                                                 </div>
-                                                <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-                                                    <span>Step · {job.process_code || "—"}</span><span>·</span><span>Template · {job.template_name || "—"}</span>
-                                                </div>
                                             </div>
                                         </div>
                                     </article>
@@ -1576,20 +1702,25 @@ export default function WCMTerminal() {
                                             <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{selectedSpec.productName}</h2>
                                             <div className="mt-1 text-sm font-medium text-slate-600">{selectedJob?.customer_name || selectedSpec.customerName || "Pick a job"} · {selectedJob?.order_number || selectedSpec.orderNumber || "SO —"}</div>
                                         </div>
-                                        <SemanticBadge kind="jobState" value={requirementsSatisfied ? "READY" : "BLOCKED"} label={requirementsSatisfied ? "Ready" : "Needs action"} />
+                                        <TooltipProvider delayDuration={100}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider", pushBlockingReasons.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{blockerLabel}</span>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left" className="max-w-[320px] rounded-xl border-slate-200 bg-white p-3 text-slate-800 shadow-xl">
+                                                    {pushBlockingReasons.length ? pushBlockingReasons.slice(0, 6).map((reason) => <div key={reason} className="text-xs font-semibold">{reason}</div>) : <div className="text-xs font-semibold">Machine and material checks are ready.</div>}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     </div>
-                                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                    <div className="mt-4 grid gap-3 md:grid-cols-2">
                                         <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-blue-600">Size</div>
+                                            <div className="text-[10px] uppercase tracking-wider text-blue-600">Final size</div>
                                             <div className="mt-1 text-sm font-semibold text-blue-950">{selectedGeometry.label}</div>
                                         </div>
-                                        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-indigo-600">Step Target</div>
-                                            <div className="mt-1 text-sm font-semibold text-indigo-950">{formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
-                                        </div>
-                                        <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-amber-700">Remaining</div>
-                                            <div className="mt-1 text-sm font-semibold text-amber-950">{formatSmartValue(stepRemainingPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                            <div className="text-[10px] uppercase tracking-wider text-slate-500">Order context</div>
+                                            <div className="mt-1 text-sm font-semibold text-slate-900">{selectedSpec.templateName || selectedJob?.template_name || "Template not captured"}</div>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex flex-wrap gap-1.5">
@@ -1618,6 +1749,34 @@ export default function WCMTerminal() {
                                 </section>
 
                                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Current step output</div>
+                                            <div className="mt-1 text-lg font-semibold text-slate-950">{finalOutputLabel}</div>
+                                            <div className="mt-1 text-sm text-slate-500">Step {Number(selectedJob?.current_step_index ?? 0) + 1} · {selectedStepName}</div>
+                                        </div>
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700">{activeStatus}</span>
+                                    </div>
+                                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                                            <div className="text-[10px] uppercase tracking-wider text-indigo-600">Step target</div>
+                                            <div className="mt-1 text-sm font-semibold text-indigo-950">{formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        </div>
+                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                                            <div className="text-[10px] uppercase tracking-wider text-emerald-700">Produced</div>
+                                            <div className="mt-1 text-sm font-semibold text-emerald-950">{formatSmartValue(producedPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        </div>
+                                        <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                                            <div className="text-[10px] uppercase tracking-wider text-amber-700">Remaining</div>
+                                            <div className="mt-1 text-sm font-semibold text-amber-950">{formatSmartValue(stepRemainingPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                                        <span className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-indigo-500" style={{ width: `${progressPercent}%` }} />
+                                    </div>
+                                </section>
+
+                                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
                                             <div className="text-[11px] uppercase tracking-wider text-slate-500">Machine assignment</div>
@@ -1642,7 +1801,7 @@ export default function WCMTerminal() {
                                             disabled={!activeAssignment || !selectedMachineId || mutation.isPending}
                                             onClick={handleAssignAndMaybeRelease}
                                         >
-                                            {requirementsSatisfied ? "Assign + release" : "Assign"}
+                                            {canPushToOperator ? "Assign + release" : "Assign machine"}
                                         </Button>
                                     </div>
                                 </section>
@@ -1658,7 +1817,7 @@ export default function WCMTerminal() {
                                     </div>
                                     <div className="mt-4 space-y-3">
                                         {materialIssueRows.length === 0 ? (
-                                            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-4 text-sm font-medium text-emerald-800">No granule/code-confirmation issue rows are required for this step.</div>
+                                            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-4 text-sm font-medium text-emerald-800">No current-step material issue rows are required for this step.</div>
                                         ) : materialIssueRows.map((row: any, index: number) => {
                                             const requirementId = String(row?.requirement_id || "")
                                             const estimate = Number(row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
@@ -1670,37 +1829,40 @@ export default function WCMTerminal() {
                                                 granule_code_allocations: [],
                                             }
                                             const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : []
+                                            const isGranule = String(row?.category || row?.category_code || "").toUpperCase() === "GRANULE"
                                             const allocations = draft.granule_code_allocations && draft.granule_code_allocations.length
                                                 ? draft.granule_code_allocations
-                                                : (String(row?.category || "").toUpperCase() === "GRANULE" && codeOptions.length
+                                                : (isGranule && codeOptions.length
                                                     ? [{ granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: estimate > 0 ? estimate.toFixed(3) : "" }]
                                                     : [])
                                             return (
-                                                <div key={requirementId || index} className="rounded-2xl border border-emerald-200 bg-white p-4">
+                                                <div key={requirementId || index} className="rounded-xl border border-emerald-200 bg-white p-3">
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                         <div>
                                                             <div className="font-semibold text-slate-950">{row.material_name || row.category_display || row.category || "Material"}</div>
                                                             <div className="text-xs text-slate-500">Required {estimate.toFixed(3)} kg · Available {Number(row.available_qty_kg ?? row.available_qty ?? 0).toFixed(3)} kg</div>
                                                         </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="rounded-xl border-emerald-200 text-xs font-semibold"
-                                                            disabled={!requirementId || codeOptions.length === 0}
-                                                            onClick={() => updateMaterialIssueDraft(requirementId, {
-                                                                granule_code_allocations: [...allocations, { granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: "" }],
-                                                                is_estimated: false,
-                                                            })}
-                                                        >
-                                                            Add code
-                                                        </Button>
+                                                        {isGranule ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="rounded-xl border-emerald-200 text-xs font-semibold"
+                                                                disabled={!requirementId || codeOptions.length === 0}
+                                                                onClick={() => updateMaterialIssueDraft(requirementId, {
+                                                                    granule_code_allocations: [...allocations, { granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: "" }],
+                                                                    is_estimated: false,
+                                                                })}
+                                                            >
+                                                                Add code
+                                                            </Button>
+                                                        ) : null}
                                                     </div>
                                                     <div className="mt-3 grid gap-3 md:grid-cols-[150px_1fr]">
                                                         <Input value={draft.actual_issued_qty} onChange={(e) => updateMaterialIssueDraft(requirementId, { actual_issued_qty: e.target.value, actual_returned_qty: "0", actual_scrap_qty: "0", is_estimated: false })} className="h-10 rounded-xl border-emerald-200 font-semibold" placeholder="Issued kg" />
-                                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">Return and scrap are logged on machine output; WCM only releases issued material.</div>
+                                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">WCM records issued kg only. Variance is handled at machine close.</div>
                                                     </div>
-                                                    <div className="mt-3 space-y-2">
+                                                    {isGranule ? <div className="mt-3 space-y-2">
                                                         {codeOptions.length === 0 ? (
                                                             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">No active coded stock for this granule at the issue location.</div>
                                                         ) : allocations.map((allocation, allocationIndex) => (
@@ -1752,33 +1914,11 @@ export default function WCMTerminal() {
                                                                 Allocated {allocations.reduce((sum, item) => sum + Number(item.qty_kg || 0), 0).toFixed(3)} kg across codes.
                                                             </div>
                                                         )}
-                                                    </div>
+                                                    </div> : null}
                                                 </div>
                                             )
                                         })}
                                     </div>
-                                </section>
-
-                                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Handoff</div>
-                                            <div className="text-lg font-semibold text-slate-950">{wcmNextAction}</div>
-                                            <div className="mt-1 text-sm text-slate-500">{wcmStatusSummary}</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Status</div>
-                                            <div className="mt-1 text-sm font-semibold text-slate-950">{activeStatus}</div>
-                                        </div>
-                                    </div>
-                                    {pushBlockingReasons.length > 0 && (
-                                        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3">
-                                            <div className="text-xs font-semibold uppercase tracking-wider text-rose-700">Blockers</div>
-                                            <ul className="mt-2 space-y-1 text-sm font-medium text-rose-800">
-                                                {pushBlockingReasons.slice(0, 4).map((reason) => <li key={reason}>· {reason}</li>)}
-                                            </ul>
-                                        </div>
-                                    )}
                                 </section>
                             </div>
                         </aside> : null}

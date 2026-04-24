@@ -1,19 +1,130 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, CheckCircle, Workflow } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Copy, GitBranch, Layers3, ShieldCheck, Workflow, XCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { templateService } from "@/services/templates"
+import { templateService, type TemplateProcessStep } from "@/services/templates"
 import { routingService } from "@/services/routing"
 import { TemplateBomEditor } from "@/components/engineering/template-bom-editor"
 import { commercialFamilyService } from "@/services/commercial-families"
+
+const err = (error: any) => error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Request failed."
+
+function StatusPill({ label, active }: { label: string; active: boolean }) {
+    return <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{label}</span>
+}
+
+function plainBehaviour(value?: string) {
+    const normalized = String(value || "").toUpperCase()
+    if (normalized === "CREATE_NEW") return "Makes a new roll"
+    if (normalized === "MODIFY_EXISTING") return "Works on an existing roll"
+    if (normalized === "MULTI_INPUT_COMBINE") return "Combines lane rolls"
+    if (normalized === "SPLIT") return "Splits one roll into many"
+    return "Finishing or count-only step"
+}
+
+function StudioStepper({ template, steps, readiness }: { template: any; steps: TemplateProcessStep[]; readiness: any }) {
+    const order = ["DRAFT", "ENGINEERING", "APPROVED", "LIVE", "OBSOLETE"]
+    const activeIndex = Math.max(0, order.indexOf(String(template.status || "DRAFT")))
+    const items = [
+        ["Basics", Boolean(template.name && template.fg_type && template.default_stock_strategy)],
+        ["Route & stages", Boolean(template.routing_rule && steps.length)],
+        ["Materials", Boolean(steps.length && steps.some((step) => step.materials?.length))],
+        ["Review", Boolean(readiness?.ready)],
+    ]
+    return (
+        <div className="grid gap-3 md:grid-cols-4">
+            {items.map(([label, done], index) => (
+                <div key={String(label)} className={`rounded-2xl border p-3 ${done ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-slate-200 bg-white/10 text-white md:bg-white/5"}`}>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Step {index + 1}</div>
+                    <div className="mt-1 text-sm font-black">{String(label)}</div>
+                    <div className="mt-1 text-[10px] font-semibold opacity-70">{done ? "Complete" : "Pending"}</div>
+                </div>
+            ))}
+            <div className="md:col-span-4 mt-1 flex flex-wrap gap-2">
+                {order.slice(0, 4).map((status, index) => (
+                    <span key={status} className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${index <= activeIndex ? "bg-white text-slate-950" : "bg-white/10 text-blue-100"}`}>{status}</span>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+function ReadinessPanel({ readiness }: { readiness: any }) {
+    const ready = Boolean(readiness?.ready)
+    return (
+        <Card className={`rounded-[2rem] border ${ready ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+            <CardContent className="p-5">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Review gate</div>
+                        <div className={`mt-1 text-xl font-black ${ready ? "text-emerald-950" : "text-amber-950"}`}>{ready ? "Ready for LIVE publish" : "Needs attention before LIVE"}</div>
+                    </div>
+                    {ready ? <CheckCircle2 className="h-8 w-8 text-emerald-600" /> : <XCircle className="h-8 w-8 text-amber-600" />}
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                    {(readiness?.blockers || []).map((item: string) => <div key={item} className="rounded-2xl bg-white/70 px-3 py-2 font-semibold text-amber-900">{item}</div>)}
+                    {(readiness?.warnings || []).map((item: string) => <div key={item} className="rounded-2xl bg-white/70 px-3 py-2 font-semibold text-slate-700">{item}</div>)}
+                    {ready && !(readiness?.warnings || []).length && <div className="rounded-2xl bg-white/70 px-3 py-2 font-semibold text-emerald-800">Route, lifecycle, lane, and material checks passed.</div>}
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function StepCard({ step }: { step: TemplateProcessStep }) {
+    const spec = step.roll_handling
+    const isLamination = String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE"
+    return (
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600">Step {step.sequence_number}</div>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">{step.process_name}</h3>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{plainBehaviour(step.process_roll_behavior)} • {step.process_input_form} to {step.process_output_form}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <StatusPill label={step.is_removed_from_route ? "removed" : "active"} active={!step.is_removed_from_route} />
+                    {isLamination && <StatusPill label={`Pass ${spec?.lamination_pass_index || 1}`} active />}
+                </div>
+            </div>
+            {isLamination ? (
+                <div className="mt-4 rounded-3xl border border-blue-100 bg-blue-50 p-4">
+                    <div className="flex items-center gap-2 text-sm font-black text-blue-950"><Layers3 className="h-4 w-4" /> Lamination pass builder</div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl bg-white p-3 text-sm">
+                            <b>Lane A</b>
+                            <div className="mt-1 text-xs text-slate-500">{Number(spec?.lamination_pass_index || 1) <= 1 ? "Layer 1 roll group" : "Previous laminate WIP group"}</div>
+                        </div>
+                        <div className="rounded-2xl bg-white p-3 text-sm">
+                            <b>Lane B</b>
+                            <div className="mt-1 text-xs text-slate-500">Layer {Math.max(2, Number(spec?.lamination_pass_index || 1) + 1)} roll group</div>
+                        </div>
+                    </div>
+                    <div className="mt-3 grid gap-3 text-xs md:grid-cols-4">
+                        <div className="rounded-2xl bg-white p-3"><b>{spec?.input_lane_count || 2}</b><br />input lanes</div>
+                        <div className="rounded-2xl bg-white p-3"><b>{spec?.adhesive_split_pct || 0}%</b><br />adhesive split</div>
+                        <div className="rounded-2xl bg-white p-3"><b>{spec?.solvent_split_pct || 0}%</b><br />solvent split</div>
+                        <div className="rounded-2xl bg-white p-3"><b>{spec?.width_rule === "MIN_INPUT" ? "Smallest input" : spec?.width_rule || "Smallest input"}</b><br />width rule</div>
+                    </div>
+                </div>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+                {(step.materials || []).map((material) => (
+                    <span key={material.id} className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">{material.category_code}</span>
+                ))}
+                {!step.materials?.length && <span className="text-xs font-semibold text-slate-400">No material categories mapped yet.</span>}
+            </div>
+        </div>
+    )
+}
 
 export default function TemplateStudioPage() {
     const params = useParams()
@@ -24,195 +135,202 @@ export default function TemplateStudioPage() {
     const [routingRuleId, setRoutingRuleId] = useState("")
     const [commercialFamilyId, setCommercialFamilyId] = useState("")
 
-    const { data: template, isLoading, isError, error } = useQuery({
-        queryKey: ["template", id],
-        queryFn: () => templateService.getTemplate(id),
-    })
-    const { data: routingRules } = useQuery({
-        queryKey: ["routing-rules"],
-        queryFn: () => routingService.getRules(),
-    })
-    const { data: commercialFamilies = [] } = useQuery({
-        queryKey: ["commercial-families"],
-        queryFn: commercialFamilyService.getAll,
-    })
+    const templateQuery = useQuery({ queryKey: ["template", id], queryFn: () => templateService.getTemplate(id) })
+    const stepsQuery = useQuery({ queryKey: ["template-steps", id], queryFn: () => templateService.getProcessSteps(id), enabled: Boolean(id) })
+    const readinessQuery = useQuery({ queryKey: ["template-readiness", id], queryFn: () => templateService.getReadiness(id), enabled: Boolean(id) })
+    const routingRulesQuery = useQuery({ queryKey: ["routing-rules"], queryFn: () => routingService.getRules() })
+    const commercialFamiliesQuery = useQuery({ queryKey: ["commercial-families"], queryFn: commercialFamilyService.getAll })
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ["template", id] })
+        queryClient.invalidateQueries({ queryKey: ["template-steps", id] })
+        queryClient.invalidateQueries({ queryKey: ["template-readiness", id] })
+        queryClient.invalidateQueries({ queryKey: ["template-sync-preview", id] })
+    }
 
     const updateMutation = useMutation({
         mutationFn: (data: any) => templateService.updateTemplate(id, data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["template", id] })
-            queryClient.invalidateQueries({ queryKey: ["template-steps", id] })
-            queryClient.invalidateQueries({ queryKey: ["template-route-steps", id] })
-            queryClient.invalidateQueries({ queryKey: ["template-sync-preview", id] })
-            toast({ title: "Saved", description: "Template route updated." })
+            invalidate()
+            toast({ title: "Template saved", description: "Basics and route binding updated." })
         },
-        onError: (err: any) => toast({ title: "Error", description: err?.response?.data?.detail || err?.message, variant: "destructive" }),
+        onError: (error) => toast({ title: "Save failed", description: err(error), variant: "destructive" }),
     })
-
+    const syncMutation = useMutation({
+        mutationFn: () => templateService.applyWorkflowSync(id),
+        onSuccess: () => {
+            invalidate()
+            toast({ title: "Workflow synced", description: "Route stages are now aligned with the selected rule." })
+        },
+        onError: (error) => toast({ title: "Sync failed", description: err(error), variant: "destructive" }),
+    })
     const approveMutation = useMutation({
         mutationFn: () => templateService.approveTemplate(id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["template", id] })
-            toast({ title: "Template Approved", description: "Template remains editable until you publish it LIVE." })
+            invalidate()
+            toast({ title: "Template approved", description: "It remains editable until published LIVE." })
         },
-        onError: (err: any) => toast({ title: "Approval Failed", description: err?.response?.data?.detail || err?.message, variant: "destructive" }),
+        onError: (error) => toast({ title: "Approval failed", description: err(error), variant: "destructive" }),
     })
-
+    const requestReviewMutation = useMutation({
+        mutationFn: () => templateService.requestReview(id),
+        onSuccess: () => {
+            invalidate()
+            toast({ title: "Sent for review", description: "Engineering review gate is now active." })
+        },
+        onError: (error) => toast({ title: "Review request failed", description: err(error), variant: "destructive" }),
+    })
     const publishMutation = useMutation({
         mutationFn: () => templateService.makeLive(id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["template", id] })
-            queryClient.invalidateQueries({ queryKey: ["template-steps", id] })
-            queryClient.invalidateQueries({ queryKey: ["template-route-steps", id] })
-            queryClient.invalidateQueries({ queryKey: ["template-sync-preview", id] })
-            toast({ title: "Template Live", description: "Workflow was validated and the template is now ready for production route usage." })
+            invalidate()
+            toast({ title: "Template is LIVE", description: "New planner releases can use this route contract." })
         },
-        onError: (err: any) => toast({ title: "Publish Failed", description: err?.response?.data?.detail || err?.message, variant: "destructive" }),
+        onError: (error) => toast({ title: "Publish failed", description: err(error), variant: "destructive" }),
+    })
+    const cloneMutation = useMutation({
+        mutationFn: () => templateService.cloneTemplate(id),
+        onSuccess: (template: any) => {
+            toast({ title: "New version created", description: "Opening the cloned template now." })
+            router.push(`/engineering/templates/${template.id}`)
+        },
+        onError: (error) => toast({ title: "Clone failed", description: err(error), variant: "destructive" }),
     })
 
-    if (isLoading) return <div className="p-8 text-sm text-slate-500">Loading template...</div>
-    if (isError) {
-        const detail = (error as any)?.response?.data?.detail || (error as Error)?.message || "Could not load template."
-        return (
-            <div className="p-6 space-y-6">
-                <div className="rounded-3xl border border-rose-200 bg-rose-50 px-6 py-5">
-                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-rose-700">Template Load Failed</div>
-                    <div className="mt-1 text-base font-bold text-rose-900">{detail}</div>
-                    <div className="mt-2 text-sm text-rose-700">
-                        If this mentions schema, run the templates migrations first.
-                    </div>
-                </div>
-            </div>
-        )
-    }
-    if (!template) return <div className="p-8 text-sm text-red-500">Template not found.</div>
+    const template = templateQuery.data
+    const steps = stepsQuery.data || template?.process_steps || []
+    const readiness = readinessQuery.data || template?.readiness
+    const laminationSteps = useMemo(() => steps.filter((step) => String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE"), [steps])
 
-    const nextActionLabel =
-        template.status === "LIVE"
-            ? "LIVE"
-            : template.status === "OBSOLETE"
-                ? "READ ONLY"
-                : template.status === "APPROVED"
-                    ? "Publish LIVE"
-                    : "Approve"
-    const nextActionPending = approveMutation.isPending || publishMutation.isPending
-    const canActOnTemplate = template.status !== "LIVE" && template.status !== "OBSOLETE"
+    if (templateQuery.isLoading) return <div className="p-8 text-sm text-slate-500">Loading template studio...</div>
+    if (templateQuery.isError || !template) return <div className="p-8 text-sm text-rose-600">{err(templateQuery.error) || "Template not found."}</div>
+
+    const isReadOnly = template.status === "LIVE" || template.status === "OBSOLETE"
+    const nextLabel = template.status === "DRAFT" ? "Send for review" : template.status === "ENGINEERING" ? "Approve" : template.status === "APPROVED" ? "Publish LIVE" : template.status === "LIVE" ? "LIVE" : "Clone new version"
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
+        <div className="space-y-6 p-4 lg:p-6">
+            <section className="sticky top-2 z-20 rounded-[2rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-700 p-6 text-white shadow-xl">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                     <div>
-                        <h1 className="text-lg font-bold">{template.name}</h1>
-                        <p className="text-xs text-slate-500">Template is the source of final product type, route contract, step material policy, and roll handling rules.</p>
+                        <Button variant="secondary" size="sm" onClick={() => router.back()} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                        <div className="inline-flex rounded-full border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">Template Studio</div>
+                        <h1 className="mt-4 text-3xl font-black tracking-tight">{template.name}</h1>
+                        <p className="mt-2 max-w-3xl text-sm font-medium text-blue-100">Guided route contract for planner release, WCM lanes, machine logging, and material policy. Sales and stock orders still own the actual layer specs.</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Status</div><div className="mt-2 text-xl font-black">{template.status}</div></div>
+                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Stages</div><div className="mt-2 text-xl font-black">{steps.length}</div></div>
+                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Lamination</div><div className="mt-2 text-xl font-black">{laminationSteps.length} pass(es)</div></div>
+                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Readiness</div><div className="mt-2 text-xl font-black">{readiness?.ready ? "Ready" : "Blocked"}</div></div>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
-                        Final Product Type: {template.fg_type}
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
-                        Family: {template.commercial_family_name || "Unlinked"}
-                    </div>
-                    <div className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] ${
-                        template.status === "OBSOLETE"
-                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                            : "border-slate-200 bg-white text-slate-500"
-                    }`}>
-                        Status: {template.status}
-                    </div>
-                    <Button
-                        onClick={() => {
-                            if (template.status === "APPROVED") {
-                                publishMutation.mutate()
-                                return
-                            }
-                            approveMutation.mutate()
-                        }}
-                        disabled={nextActionPending || !canActOnTemplate}
-                    >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        {nextActionPending ? "Working..." : nextActionLabel}
-                    </Button>
+                <div className="mt-5">
+                    <StudioStepper template={template} steps={steps} readiness={readiness} />
                 </div>
+            </section>
+
+            <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+                <main className="space-y-5">
+                    <Card className="rounded-[2rem]">
+                        <CardContent className="space-y-4 p-5">
+                            <div className="flex items-center gap-2 text-sm font-black"><ShieldCheck className="h-4 w-4 text-blue-600" /> 1. Basics and route binding</div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <Label>Routing rule</Label>
+                                    <Select value={routingRuleId || template.routing_rule || ""} onValueChange={setRoutingRuleId} disabled={isReadOnly}>
+                                        <SelectTrigger><SelectValue placeholder="Select route rule" /></SelectTrigger>
+                                        <SelectContent>{(routingRulesQuery.data || []).map((rule: any) => <SelectItem key={rule.id} value={rule.id}>{rule.name}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Business family</Label>
+                                    <Select value={commercialFamilyId || template.commercial_family || "__NONE__"} onValueChange={setCommercialFamilyId} disabled={isReadOnly}>
+                                        <SelectTrigger><SelectValue placeholder="Select family" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="__NONE__">No linked business family</SelectItem>
+                                            {(commercialFamiliesQuery.data || []).map((family: any) => <SelectItem key={family.id} value={family.id}>{family.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <Button disabled={isReadOnly || updateMutation.isPending} onClick={() => updateMutation.mutate({
+                                    routing_rule: routingRuleId || template.routing_rule,
+                                    commercial_family: (commercialFamilyId || template.commercial_family || "__NONE__") === "__NONE__" ? null : (commercialFamilyId || template.commercial_family),
+                                })}>Save basics</Button>
+                                <Button variant="outline" disabled={!template.routing_rule || syncMutation.isPending || isReadOnly} onClick={() => syncMutation.mutate()}><Workflow className="mr-2 h-4 w-4" /> Sync route stages</Button>
+                                <Button variant="outline" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending}><Copy className="mr-2 h-4 w-4" /> Clone new version</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="rounded-[2rem]">
+                        <CardContent className="p-5">
+                            <div className="mb-4 flex items-center gap-2 text-sm font-black"><GitBranch className="h-4 w-4 text-blue-600" /> 2. Route stages and lamination lanes</div>
+                            <div className="mb-5 overflow-x-auto rounded-3xl border border-slate-100 bg-slate-50 p-4">
+                                <div className="flex min-w-max items-center gap-3">
+                                    {steps.map((step, index) => (
+                                        <div key={step.id} className="flex items-center gap-3">
+                                            <div className={`rounded-2xl border px-4 py-3 ${String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE" ? "border-amber-200 bg-amber-50" : "border-blue-100 bg-white"}`}>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Stage {step.sequence_number}</div>
+                                                <div className="mt-1 text-sm font-black text-slate-950">{step.process_name}</div>
+                                                <div className="mt-1 text-[10px] font-semibold text-slate-500">{plainBehaviour(step.process_roll_behavior)}</div>
+                                            </div>
+                                            {index < steps.length - 1 && <ArrowLeft className="h-4 w-4 rotate-180 text-slate-300" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                {steps.map((step) => <StepCard key={step.id} step={step} />)}
+                                {!steps.length && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No route stages yet. Select a routing rule and sync route stages.</div>}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <div>
+                        <div className="mb-3 text-sm font-black">3. Material policy and capture rules</div>
+                        <TemplateBomEditor template={template as any} />
+                    </div>
+                    <details className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                        <summary className="cursor-pointer text-sm font-black">Template Studio glossary</summary>
+                        <div className="mt-4 grid gap-3 text-xs md:grid-cols-3">
+                            {[
+                                ["Route stage", "One production process pulled from the routing rule."],
+                                ["Lane", "A lamination input side; each lane may contain one or many physical rolls."],
+                                ["Pass 1", "Combines layer 1 plus layer 2."],
+                                ["Pass 2", "Combines pass-1 output plus layer 3 for 3-layer products."],
+                                ["Issue policy", "How much material WCM asks the store/floor to issue."],
+                                ["Capture mode", "How actual consumption is captured at machine close."],
+                            ].map(([term, copy]) => <div key={term} className="rounded-2xl bg-slate-50 p-3"><b>{term}</b><br />{copy}</div>)}
+                        </div>
+                    </details>
+                </main>
+
+                <aside className="sticky top-4 h-fit space-y-5">
+                    <ReadinessPanel readiness={readiness} />
+                    <Card className="rounded-[2rem]">
+                        <CardContent className="space-y-4 p-5">
+                            <div className="text-sm font-black">4. Review and make live</div>
+                            <div className="space-y-2 text-xs font-semibold text-slate-600">
+                                <div>Route: {template.routing_rule_name || "Not selected"}</div>
+                                <div>Family: {template.commercial_family_name || "Unlinked"}</div>
+                                <div>Supported material categories: GRANULE, INK, ADHESIVE, SOLVENT, ADDON, POD</div>
+                                <div>Layer truth remains in SKU/order snapshot; this template controls route and material policy.</div>
+                            </div>
+                            <Button className="w-full" disabled={isReadOnly || requestReviewMutation.isPending || approveMutation.isPending || publishMutation.isPending} onClick={() => {
+                                if (template.status === "DRAFT") requestReviewMutation.mutate()
+                                else if (template.status === "APPROVED") publishMutation.mutate()
+                                else if (template.status === "ENGINEERING") approveMutation.mutate()
+                                else if (template.status === "LIVE") cloneMutation.mutate()
+                            }}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" /> {nextLabel}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </aside>
             </div>
-
-            {template.status === "OBSOLETE" ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-                    This template is obsolete and hidden from active selectors. It remains readable for historical traceability, but it should not be used for new planning.
-                </div>
-            ) : null}
-
-            {template.status === "APPROVED" ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
-                    Template is approved. Sync and verify the workflow, then publish it LIVE when the route contract is correct.
-                </div>
-            ) : null}
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-sm flex items-center gap-2">
-                        <Workflow className="h-4 w-4" />
-                        Route & Naming Binding
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <Label className="text-xs">Routing Rule</Label>
-                    <Select value={routingRuleId || template.routing_rule || ""} onValueChange={setRoutingRuleId}>
-                        <SelectTrigger className="h-9 text-xs bg-white"><SelectValue placeholder="Select route rule" /></SelectTrigger>
-                        <SelectContent>
-                            {(routingRules || []).map((r: any) => (
-                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateMutation.mutate({ routing_rule: routingRuleId || template.routing_rule })}
-                        disabled={updateMutation.isPending || !(routingRuleId || template.routing_rule) || template.status === "LIVE" || template.status === "OBSOLETE"}
-                    >
-                        Save Route
-                    </Button>
-                    <div className="space-y-2 pt-3 border-t border-slate-100">
-                        <Label className="text-xs">Business Family</Label>
-                        <Select value={commercialFamilyId || template.commercial_family || "__NONE__"} onValueChange={setCommercialFamilyId}>
-                            <SelectTrigger className="h-9 text-xs bg-white"><SelectValue placeholder="Select business family" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="__NONE__">No linked business family</SelectItem>
-                                {commercialFamilies.map((family) => (
-                                    <SelectItem key={family.id} value={family.id}>{family.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateMutation.mutate({ commercial_family: (commercialFamilyId || template.commercial_family || "__NONE__") === "__NONE__" ? null : (commercialFamilyId || template.commercial_family) })}
-                            disabled={updateMutation.isPending || template.status === "LIVE" || template.status === "OBSOLETE"}
-                        >
-                            Save Business Family
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-sm">Template Scope</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-xs text-slate-500">
-                        Template controls route steps, roll behavior policy, and step-wise bulk category consumption mapping.
-                        Product specs and artwork selection are managed in Sales/Stock orders.
-                    </p>
-                </CardContent>
-            </Card>
-
-            <TemplateBomEditor template={template as any} />
         </div>
     )
 }

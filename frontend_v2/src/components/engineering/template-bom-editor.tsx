@@ -308,14 +308,15 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
         }
         for (const key of mappedByCategory.keys()) all.add(String(key || "").toUpperCase())
         return Array.from(all)
-            .filter((code) => SUPPORTED_BULK_CATEGORIES.includes(code as any) || code === "CHEMICAL")
+            .filter((code) => SUPPORTED_BULK_CATEGORIES.includes(code as any) || (code === "CHEMICAL" && mappedByCategory.has("CHEMICAL")))
             .sort()
     }, [theoreticalRequirements, mappedByCategory])
 
     const handleAssignCategory = async (categoryCode: string, nextStepId: string | null, options?: { replaceExisting?: boolean }) => {
         const normalized = String(categoryCode || "").trim().toUpperCase()
         if (!normalized) return
-        if (!SUPPORTED_BULK_CATEGORIES.includes(normalized as any) && normalized !== "CHEMICAL") {
+        const legacyExisting = normalized === "CHEMICAL" && mappedByCategory.has("CHEMICAL")
+        if (!SUPPORTED_BULK_CATEGORIES.includes(normalized as any) && !legacyExisting) {
             setCategoryRowErrors((prev) => ({ ...prev, [normalized]: "Unsupported category. Use GRANULE, INK, ADHESIVE, SOLVENT, ADDON, or POD." }))
             return
         }

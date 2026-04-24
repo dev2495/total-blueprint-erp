@@ -39,7 +39,11 @@ export interface Gonny {
     inner_pack_tare_kg?: number | null;
     secondary_pack_tare_kg?: number | null;
     extras_tare_kg?: number | null;
+    expected_gross_weight_kg?: number | null;
     gross_weight_kg?: number | null;
+    gross_variance_kg?: number | null;
+    gross_variance_pct?: number | null;
+    gross_variance_reason?: string;
     tare_breakdown_json?: Record<string, any> | null;
     status: string;
     released_to_dispatch?: boolean;
@@ -85,9 +89,35 @@ export interface DeliveryChallan {
     customer_name: string;
     status: string;
     vehicle_no: string;
+    driver_name?: string;
+    driver_phone?: string;
+    transporter_name?: string;
+    lr_number?: string;
+    e_way_bill_number?: string;
+    dispatch_notes?: string;
+    ship_to_address_snapshot?: Record<string, any>;
     dispatch_date: string | null;
     plant__name: string;
     sales_order__order_number: string | null;
+}
+
+export interface PackingBoardSnapshot {
+    totals: Record<string, number>;
+    orders: Array<{
+        sales_order: PackingSalesOrderRow;
+        pending: SOPackingSummary["packing_pending"];
+        ready_for_dispatch: SOPackingSummary["ready_for_dispatch"];
+    }>;
+}
+
+export interface DispatchBoardSnapshot {
+    totals: Record<string, number>;
+    orders: Array<{
+        sales_order: SODispatchSummary["sales_order"];
+        available_for_dispatch: SODispatchSummary["available_for_dispatch"];
+        packing_pending?: SODispatchSummary["packing_pending"];
+        dispatched_qty?: SODispatchSummary["dispatched_qty"];
+    }>;
 }
 
 export interface SODispatchSummary {
@@ -200,6 +230,11 @@ export const logisticsService = {
         })).filter((row) => row.id);
     },
 
+    async getPackingBoard(): Promise<PackingBoardSnapshot> {
+        const response = await api.get('/api/production/packing/yard-snapshot/');
+        return response.data as PackingBoardSnapshot;
+    },
+
     async getSOPackingSummary(salesOrderId: string): Promise<SOPackingSummary> {
         const response = await api.get('/api/production/packing/so_summary/', {
             params: { sales_order_id: salesOrderId },
@@ -244,10 +279,12 @@ export const logisticsService = {
         gonnyId: string,
         weightKg: number,
         extras: Array<{ material_id: string; qty: number; uom?: string; basis?: string }> = [],
+        varianceReason = "",
     ): Promise<{ id: string; label_id: string; message: string }> {
         const response = await api.post(`/api/production/packing/${gonnyId}/seal/`, {
             weight_kg: weightKg,
             extras,
+            gross_variance_reason: varianceReason,
         });
         return response.data;
     },
@@ -291,6 +328,11 @@ export const logisticsService = {
         })).filter((row) => row.id);
     },
 
+    async getDispatchBoard(): Promise<DispatchBoardSnapshot> {
+        const response = await api.get('/api/production/challans/board/');
+        return response.data as DispatchBoardSnapshot;
+    },
+
     async getSODispatchableItems(salesOrderId: string): Promise<SODispatchSummary> {
         const response = await api.get('/api/production/challans/get_so_dispatchable_items/', {
             params: { sales_order_id: salesOrderId }
@@ -317,6 +359,11 @@ export const logisticsService = {
         vehicle_no?: string;
         driver_name?: string;
         driver_phone?: string;
+        transporter_name?: string;
+        lr_number?: string;
+        e_way_bill_number?: string;
+        dispatch_notes?: string;
+        ship_to_address_snapshot?: Record<string, any>;
         roll_ids?: string[];
         gonny_ids?: string[];
     }): Promise<{ id: string; dc_no: string; message: string }> {
@@ -363,6 +410,11 @@ export const logisticsService = {
         vehicle_no: string;
         driver_name: string;
         driver_phone: string;
+        transporter_name?: string;
+        lr_number?: string;
+        e_way_bill_number?: string;
+        dispatch_notes?: string;
+        ship_to_address_snapshot?: Record<string, any>;
         dispatch_date: string | null;
         items: {
             id: string;
@@ -372,6 +424,10 @@ export const logisticsService = {
             qty_pcs: number | null;
             net_product_weight_kg?: number | null;
             gross_weight_kg?: number | null;
+            expected_gross_weight_kg?: number | null;
+            gross_variance_kg?: number | null;
+            gross_variance_pct?: number | null;
+            gross_variance_reason?: string;
             content_mode?: string | null;
             primary_pack_count?: number | null;
         }[];
