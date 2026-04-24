@@ -20,17 +20,6 @@ import {
   Thermometer,
   Warehouse,
 } from "lucide-react"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -42,7 +31,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChartSurface } from "@/components/ui-custom/chart-surface"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
 import { factoryService } from "@/services/factory"
@@ -56,6 +44,7 @@ type InnerTab = "pulse" | "browse"
 type ViewMode = "table" | "cards"
 
 const CHART_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
+const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
 
 function num(value: unknown) {
   const parsed = Number(value)
@@ -106,6 +95,39 @@ function groupSum<T>(rows: T[], keyFn: (row: T) => string, valueFn: (row: T) => 
     .slice(0, limit)
 }
 
+function formatShort(value: number) {
+  return value.toLocaleString(undefined, { maximumFractionDigits: value >= 100 ? 0 : 1 })
+}
+
+function stockQty(kind: "rolls" | "bulk" | "packaging", row: any) {
+  if (kind === "packaging") return num(row.qty)
+  if (kind === "bulk") return num(row.qty_kg)
+  return num(row.weight_kg)
+}
+
+function stockDate(row: any) {
+  return row.created_at || row.updated_at || null
+}
+
+function stockTitle(kind: "rolls" | "bulk" | "packaging", row: any) {
+  if (kind === "rolls") return row.variant_display_name || row.material_name || row.label_id || "Roll"
+  return row.material_name || row.material_code || "Material"
+}
+
+function stockSubtitle(kind: "rolls" | "bulk" | "packaging", row: any) {
+  if (kind === "rolls") return `${row.label_id || "No label"} · ${row.plant_name || "Plant"} · ${row.location_name || "Location"}`
+  if (kind === "bulk") return `${row.material_code || "Code"} · ${row.granule_quality_code || row.material_category || "Stock"} · ${row.location_name || "Location"}`
+  return `${row.material_code || "SKU"} · ${row.packaging_kind || "Packaging"} · ${row.location_name || "Location"}`
+}
+
+function ageColumn(date?: string | null) {
+  const days = ageDays(date)
+  if (days <= 7) return "0-7d"
+  if (days <= 30) return "8-30d"
+  if (days <= 60) return "31-60d"
+  return ">60d"
+}
+
 export function InventoryWorkspaceShell() {
   const router = useRouter()
   const pathname = usePathname() || "/inventory"
@@ -115,8 +137,10 @@ export function InventoryWorkspaceShell() {
 
   const routeDefaultTab: WorkspaceTab = pathname.includes("/inventory/bulk")
     ? "bulk"
-    : pathname.includes("/inventory/packaging")
-      ? "packaging"
+      : pathname.includes("/inventory/packaging")
+        ? "packaging"
+        : pathname.includes("/inventory/grn")
+          ? "grn"
       : pathname.includes("/inventory/roll-explorer")
         ? "rolls"
         : "rolls"
@@ -236,72 +260,84 @@ export function InventoryWorkspaceShell() {
   const packagingTxRows = (packagingTxQuery.data || []) as PackagingTransactionRow[]
   const grnRows = (grnQuery.data || []) as GrnHistoryRow[]
 
+  const title = tab === "bulk" ? "Bulk Inventory" : tab === "packaging" ? "Packaging Stock" : tab === "grn" ? "GRN History" : "Roll Explorer"
+  const description = tab === "bulk"
+    ? "Material pools by category, quality code, plant, and location."
+    : tab === "packaging"
+      ? "Daily packaging stock, supply mode, movement mix, and low-stock visibility."
+      : tab === "grn"
+        ? "All inwards in one auditable ledger with correction trail."
+        : "Every individual roll across raw, intermediate, job-work, and finished stock."
+
   return (
-    <div className="space-y-5 pb-10">
-      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700">
-              <Warehouse className="h-3.5 w-3.5" />
-              Inventory Command
-            </div>
+    <div className="min-h-screen rounded-[28px] bg-[radial-gradient(900px_420px_at_5%_-10%,#eef4ff_0%,transparent_60%),radial-gradient(820px_380px_at_94%_-12%,#ecfdf5_0%,transparent_58%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-5 text-slate-950 md:px-6">
+      <div className="mx-auto max-w-[1440px] space-y-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-base font-black text-white shadow-sm">T</div>
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-950">Unified Inventory Workspace</h1>
-              <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-slate-600">
-                One fast surface for roll truth, bulk material pools, packaging stock, and auditable inward corrections.
-              </p>
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Total Poly Print ERP</div>
+              <div className="text-sm font-black text-slate-950">Inventory</div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={refreshWorkspace}>
+          <Tabs value={tab} onValueChange={(value) => setParam({ tab: value, view: "pulse" })}>
+            <TabsList className="flex h-auto flex-wrap justify-start gap-1 rounded-[14px] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200">
+              <TabsTrigger value="rolls" className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"><Archive className="h-4 w-4" /> Roll Explorer</TabsTrigger>
+              <TabsTrigger value="bulk" className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"><Boxes className="h-4 w-4" /> Bulk Inventory</TabsTrigger>
+              <TabsTrigger value="packaging" className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"><Package className="h-4 w-4" /> Packaging Stock</TabsTrigger>
+              <TabsTrigger value="grn" className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"><ShieldCheck className="h-4 w-4" /> GRN History</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Inventory · {tab === "grn" ? "Audit" : title}</div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-950">{title}</h1>
+            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-600">{description}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-black shadow-sm hover:bg-slate-50" onClick={refreshWorkspace}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
-            <Button className="bg-slate-950 hover:bg-slate-800" onClick={() => setParam({ tab: "grn" })}>
+            <Button className="h-10 rounded-xl bg-slate-950 text-xs font-black shadow-sm hover:bg-slate-800" onClick={() => setParam({ tab: "grn" })}>
               <ShieldCheck className="mr-2 h-4 w-4" />
               GRN History
             </Button>
           </div>
-        </div>
-      </section>
+        </header>
 
-      <Tabs value={tab} onValueChange={(value) => setParam({ tab: value, view: "pulse" })} className="space-y-4">
-        <div className="flex flex-col gap-3 rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between">
-          <TabsList className="grid h-auto grid-cols-2 gap-1 bg-slate-100 p-1 md:grid-cols-4">
-            <TabsTrigger value="rolls" className="gap-2 rounded-xl py-2 font-bold"><Archive className="h-4 w-4" /> Rolls</TabsTrigger>
-            <TabsTrigger value="bulk" className="gap-2 rounded-xl py-2 font-bold"><Boxes className="h-4 w-4" /> Bulk</TabsTrigger>
-            <TabsTrigger value="packaging" className="gap-2 rounded-xl py-2 font-bold"><Package className="h-4 w-4" /> Packaging</TabsTrigger>
-            <TabsTrigger value="grn" className="gap-2 rounded-xl py-2 font-bold"><ShieldCheck className="h-4 w-4" /> GRN History</TabsTrigger>
-          </TabsList>
-          <InventoryFilterBar
-            tab={tab}
-            search={search}
-            plant={plant}
-            location={location}
-            status={status}
-            material={material}
-            category={category}
-            sourceType={sourceType}
-            age={age}
-            plants={plants as any[]}
-            locations={allLocations as any[]}
-            packagingMaterials={packagingMaterials as any[]}
-            onChange={setParam}
-          />
-        </div>
+        <InventoryFilterBar
+          tab={tab}
+          search={search}
+          plant={plant}
+          location={location}
+          status={status}
+          material={material}
+          category={category}
+          sourceType={sourceType}
+          age={age}
+          plants={plants as any[]}
+          locations={allLocations as any[]}
+          packagingMaterials={packagingMaterials as any[]}
+          onChange={setParam}
+        />
+
+        <Tabs value={tab} onValueChange={(value) => setParam({ tab: value, view: "pulse" })} className="space-y-4">
 
         <TabsContent value="rolls" className="space-y-4">
           <StockTabHeader inner={inner} mode={mode} onChange={setParam} showCards />
-          {inner === "pulse" ? <InventoryPulsePanel kind="rolls" rows={rollRows} loading={rollsQuery.isLoading} /> : <InventoryBrowseTable kind="rolls" rows={rollRows} mode={mode} />}
+          {inner === "pulse" ? <InventoryPulsePanel kind="rolls" rows={rollRows} loading={rollsQuery.isLoading} onBrowse={(query) => setParam({ view: "browse", q: query })} /> : <InventoryBrowseTable kind="rolls" rows={rollRows} mode={mode} />}
         </TabsContent>
         <TabsContent value="bulk" className="space-y-4">
           <StockTabHeader inner={inner} mode={mode} onChange={setParam} showCards />
-          {inner === "pulse" ? <InventoryPulsePanel kind="bulk" rows={bulkRows} loading={bulkQuery.isLoading} /> : <InventoryBrowseTable kind="bulk" rows={bulkRows} mode={mode} />}
+          {inner === "pulse" ? <InventoryPulsePanel kind="bulk" rows={bulkRows} loading={bulkQuery.isLoading} onBrowse={(query) => setParam({ view: "browse", q: query })} /> : <InventoryBrowseTable kind="bulk" rows={bulkRows} mode={mode} />}
         </TabsContent>
         <TabsContent value="packaging" className="space-y-4">
           <StockTabHeader inner={inner} mode={mode} onChange={setParam} showCards />
           {inner === "pulse" ? (
-            <InventoryPulsePanel kind="packaging" rows={packagingRows} txRows={packagingTxRows} loading={packagingQuery.isLoading} packagingMaterials={packagingMaterials as any[]} />
+            <InventoryPulsePanel kind="packaging" rows={packagingRows} txRows={packagingTxRows} loading={packagingQuery.isLoading} packagingMaterials={packagingMaterials as any[]} onBrowse={(query) => setParam({ view: "browse", q: query })} />
           ) : (
             <InventoryBrowseTable kind="packaging" rows={packagingRows} mode={mode} packagingMaterials={packagingMaterials as any[]} />
           )}
@@ -315,6 +351,7 @@ export function InventoryWorkspaceShell() {
           }} />
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }
@@ -365,49 +402,72 @@ export function InventoryFilterBar({
   const categoryOptions = tab === "packaging"
     ? ["INNER_POUCH", "GONNY", "TAPE", "SHEET", "BOX", "LABEL", "TAG", "OTHER"]
     : ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "POD", "OTHER"]
+  const primaryFilters = tab === "rolls"
+    ? ["Size", "Variant", "Thickness", "Grade", "Weight"]
+    : tab === "bulk"
+      ? ["Product", "Granule code", "Availability", "Value"]
+      : tab === "packaging"
+        ? ["SKU", "Supply mode", "Transaction", "Stock range"]
+        : ["Material", "Vendor", "Reference", "Date range"]
 
   return (
-    <div className="flex flex-1 flex-wrap items-center gap-2 xl:justify-end">
-      <div className="relative min-w-[240px] flex-1 xl:max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input value={search} onChange={(event) => onChange({ q: event.target.value || null })} className="h-10 rounded-xl pl-9" placeholder="Search material, label, vendor, ref..." />
+    <div className="rounded-[22px] border border-slate-200/80 bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative min-w-[260px] flex-1 xl:max-w-md">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={search}
+            onChange={(event) => onChange({ q: event.target.value || null })}
+            className="h-11 rounded-2xl border-slate-200 bg-slate-50/80 pl-11 text-sm font-semibold shadow-none focus-visible:ring-emerald-500"
+            placeholder="Search material, label, vendor, reference..."
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {primaryFilters.map((filter) => (
+            <button key={filter} type="button" className="h-10 rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700">
+              {filter}
+            </button>
+          ))}
+        </div>
       </div>
-      {tab === "grn" ? (
-        <FilterSelect value={sourceType} onChange={(value) => onChange({ source_type: value })} options={["ALL", "ROLL", "BULK", "PACKAGING"]} label="Source" />
-      ) : null}
-      {tab === "rolls" ? (
-        <FilterSelect value={status} onChange={(value) => onChange({ status: value })} options={["ALL", "AVAILABLE", "RESERVED", "IN_PROCESS", "SENT_JOBWORK"]} label="Status" />
-      ) : null}
-      {tab === "bulk" || tab === "packaging" ? (
-        <FilterSelect value={category} onChange={(value) => onChange({ category: value })} options={["ALL", ...categoryOptions]} label={tab === "bulk" ? "Category" : "Kind"} />
-      ) : null}
-      {tab === "packaging" ? (
-        <Select value={material} onValueChange={(value) => onChange({ material: value })}>
-          <SelectTrigger className="h-10 w-[180px] rounded-xl"><SelectValue placeholder="SKU" /></SelectTrigger>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        {tab === "grn" ? (
+          <FilterSelect value={sourceType} onChange={(value) => onChange({ source_type: value })} options={["ALL", "ROLL", "BULK", "PACKAGING"]} label="Source" />
+        ) : null}
+        {tab === "rolls" ? (
+          <FilterSelect value={status} onChange={(value) => onChange({ status: value })} options={["ALL", "AVAILABLE", "RESERVED", "IN_PROCESS", "SENT_JOBWORK"]} label="Status" />
+        ) : null}
+        {tab === "bulk" || tab === "packaging" ? (
+          <FilterSelect value={category} onChange={(value) => onChange({ category: value })} options={["ALL", ...categoryOptions]} label={tab === "bulk" ? "Category" : "Kind"} />
+        ) : null}
+        {tab === "packaging" ? (
+          <Select value={material} onValueChange={(value) => onChange({ material: value })}>
+            <SelectTrigger className="h-10 w-[210px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder="SKU" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All SKUs</SelectItem>
+              {packagingMaterials.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.code} - {row.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : null}
+        <FilterSelect value={age} onChange={(value) => onChange({ age: value })} options={["ALL", "Fresh", "Watch", "Aged"]} label="Age" />
+        <Select value={plant} onValueChange={(value) => onChange({ plant: value, location: null })}>
+          <SelectTrigger className="h-10 w-[160px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder="Plant" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All SKUs</SelectItem>
-            {packagingMaterials.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.code} - {row.name}</SelectItem>)}
+            <SelectItem value="ALL">All plants</SelectItem>
+            {plants.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
-      ) : null}
-      <FilterSelect value={age} onChange={(value) => onChange({ age: value })} options={["ALL", "Fresh", "Watch", "Aged"]} label="Age" />
-      <Select value={plant} onValueChange={(value) => onChange({ plant: value, location: null })}>
-        <SelectTrigger className="h-10 w-[150px] rounded-xl"><SelectValue placeholder="Plant" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="ALL">All plants</SelectItem>
-          {plants.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-      <Select value={location} onValueChange={(value) => onChange({ location: value })}>
-        <SelectTrigger className="h-10 w-[160px] rounded-xl"><SelectValue placeholder="Location" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="ALL">All locations</SelectItem>
-          {activeLocations.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-      <Button variant="outline" className="h-10 rounded-xl" onClick={() => onChange({ q: null, plant: null, location: null, status: null, material: null, category: null, source_type: null, age: null })}>
-        Reset
-      </Button>
+        <Select value={location} onValueChange={(value) => onChange({ location: value })}>
+          <SelectTrigger className="h-10 w-[180px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder="Location" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All locations</SelectItem>
+            {activeLocations.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" className="h-10 rounded-full border-slate-200 px-4 text-xs font-black shadow-sm" onClick={() => onChange({ q: null, plant: null, location: null, status: null, material: null, category: null, source_type: null, age: null })}>
+          Reset
+        </Button>
+      </div>
     </div>
   )
 }
@@ -415,7 +475,7 @@ export function InventoryFilterBar({
 function FilterSelect({ value, onChange, options, label }: { value: string; onChange: (value: string) => void; options: string[]; label: string }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-10 w-[145px] rounded-xl"><SelectValue placeholder={label} /></SelectTrigger>
+      <SelectTrigger className="h-10 w-[155px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder={label} /></SelectTrigger>
       <SelectContent>
         {options.map((option) => <SelectItem key={option} value={option}>{option === "ALL" ? `All ${label}` : option.replaceAll("_", " ")}</SelectItem>)}
       </SelectContent>
@@ -425,18 +485,18 @@ function FilterSelect({ value, onChange, options, label }: { value: string; onCh
 
 function StockTabHeader({ inner, mode, onChange, showCards }: { inner: InnerTab; mode: ViewMode; onChange: (updates: Record<string, string | null>) => void; showCards?: boolean }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-3 rounded-[20px] border border-slate-200/80 bg-white/95 p-2 shadow-[0_14px_45px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
       <Tabs value={inner} onValueChange={(value) => onChange({ view: value })}>
-        <TabsList className="bg-slate-100">
-          <TabsTrigger value="pulse" className="gap-2 font-bold"><Activity className="h-4 w-4" /> Pulse</TabsTrigger>
-          <TabsTrigger value="browse" className="gap-2 font-bold"><TableProperties className="h-4 w-4" /> Browse</TabsTrigger>
+        <TabsList className="h-auto gap-1 rounded-2xl bg-slate-100/80 p-1">
+          <TabsTrigger value="pulse" className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"><Activity className="h-4 w-4" /> Pulse</TabsTrigger>
+          <TabsTrigger value="browse" className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"><TableProperties className="h-4 w-4" /> Browse</TabsTrigger>
         </TabsList>
       </Tabs>
       {inner === "browse" && showCards ? (
         <Tabs value={mode} onValueChange={(value) => onChange({ mode: value })}>
-          <TabsList className="bg-slate-100">
-            <TabsTrigger value="table">Table</TabsTrigger>
-            <TabsTrigger value="cards">Cards</TabsTrigger>
+          <TabsList className="h-auto gap-1 rounded-2xl bg-slate-100/80 p-1">
+            <TabsTrigger value="table" className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:shadow-sm">Table</TabsTrigger>
+            <TabsTrigger value="cards" className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:shadow-sm">Cards</TabsTrigger>
           </TabsList>
         </Tabs>
       ) : null}
@@ -444,7 +504,21 @@ function StockTabHeader({ inner, mode, onChange, showCards }: { inner: InnerTab;
   )
 }
 
-export function InventoryPulsePanel({ kind, rows, txRows = [], loading, packagingMaterials = [] }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; txRows?: PackagingTransactionRow[]; loading?: boolean; packagingMaterials?: any[] }) {
+export function InventoryPulsePanel({
+  kind,
+  rows,
+  txRows = [],
+  loading,
+  packagingMaterials = [],
+  onBrowse,
+}: {
+  kind: "rolls" | "bulk" | "packaging"
+  rows: any[]
+  txRows?: PackagingTransactionRow[]
+  loading?: boolean
+  packagingMaterials?: any[]
+  onBrowse?: (query: string) => void
+}) {
   const metrics = useMemo(() => {
     if (kind === "rolls") {
       const totalKg = rows.reduce((sum, row) => sum + num(row.weight_kg), 0)
@@ -469,33 +543,159 @@ export function InventoryPulsePanel({ kind, rows, txRows = [], loading, packagin
   const plantData = useMemo(() => groupSum(rows, (row) => row.plant_name || "Unknown", (row) => kind === "packaging" ? num(row.qty) : kind === "bulk" ? num(row.qty_kg) : num(row.weight_kg)), [kind, rows])
   const ageData = useMemo(() => groupSum(rows, (row) => ageBand(row.created_at || row.updated_at), (row) => kind === "packaging" ? num(row.qty) : kind === "bulk" ? num(row.qty_kg) : num(row.weight_kg), 3), [kind, rows])
   const txData = useMemo(() => groupSum(txRows, (row) => row.type || "OTHER", (row) => Math.abs(num(row.qty))), [txRows])
+  const stageData = useMemo(() => {
+    if (kind === "rolls") return groupSum(rows, (row) => row.stage_name || row.status || "Stock", () => 1, 8)
+    if (kind === "bulk") return groupSum(rows, (row) => row.granule_quality_code || row.material_category || "Stock", (row) => num(row.qty_kg), 8)
+    return groupSum(rows, (row) => row.packaging_kind || "Packaging", (row) => num(row.qty), 8)
+  }, [kind, rows])
 
   if (loading) return <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-sm text-slate-500">Loading inventory pulse...</div>
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryStatCard label={kind === "rolls" ? "Rolls" : "Stock Nodes"} value={metrics.count} subLabel="Visible rows" icon={Layers3} toneClassName="bg-indigo-50 text-indigo-600" />
-        <SummaryStatCard label={kind === "packaging" ? "On Hand Qty" : "On Hand KG"} value={kind === "packaging" ? formatQty(metrics.totalKg) : formatKg(metrics.totalKg)} subLabel="Filtered stock position" icon={Warehouse} toneClassName="bg-emerald-50 text-emerald-600" />
-        <SummaryStatCard label="Reserved / Locked" value={kind === "rolls" ? formatKg(metrics.reserved) : "-"} subLabel={kind === "rolls" ? "Reserved roll mass" : "No lock column in v1"} icon={ShieldCheck} toneClassName="bg-amber-50 text-amber-600" />
-        <SummaryStatCard label="Visible Value" value={kind === "rolls" ? "-" : formatMoney(metrics.value)} subLabel="Based on avg cost" icon={Package} toneClassName="bg-violet-50 text-violet-600" />
-        <SummaryStatCard label="Aged Lines" value={metrics.aged} subLabel="More than 30 days" icon={AlertTriangle} toneClassName="bg-rose-50 text-rose-600" />
+        <InventoryKpiCard label={kind === "rolls" ? "Rolls" : "Stock Nodes"} value={metrics.count} note="Visible rows" icon={Layers3} accent="bg-indigo-500" />
+        <InventoryKpiCard label={kind === "packaging" ? "On Hand Qty" : "On Hand KG"} value={kind === "packaging" ? formatQty(metrics.totalKg) : formatKg(metrics.totalKg)} note="Filtered stock position" icon={Warehouse} accent="bg-emerald-500" />
+        <InventoryKpiCard label="Reserved / Locked" value={kind === "rolls" ? formatKg(metrics.reserved) : "-"} note={kind === "rolls" ? "Reserved roll mass" : "No lock column in v1"} icon={ShieldCheck} accent="bg-amber-500" />
+        <InventoryKpiCard label="Visible Value" value={kind === "rolls" ? "-" : formatMoney(metrics.value)} note="Based on avg cost" icon={Package} accent="bg-cyan-500" />
+        <InventoryKpiCard label="Aged Lines" value={metrics.aged} note="More than 30 days" icon={AlertTriangle} accent="bg-rose-500" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <ChartCard title={kind === "rolls" ? "Variant / Family KG" : kind === "bulk" ? "Category Mass Split" : "Stock By Packaging Kind"} data={massByMain} chart="bar" />
         <ChartCard title="Plant Allocation" data={plantData} chart="donut" />
-        <ChartCard title="Freshness Bands" data={ageData} chart="bar" />
-        <InventoryHeatmap kind={kind} rows={rows} packagingMaterials={packagingMaterials} />
       </div>
-      {kind === "packaging" ? <ChartCard title="Packaging Movement Mix" data={txData} chart="bar" /> : null}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+        <FreshnessBandCard data={ageData} total={kind === "packaging" ? metrics.totalKg : metrics.totalKg} unit={kind === "packaging" ? "qty" : "kg"} />
+        <StageDistributionCard data={kind === "packaging" && txData.length ? txData : stageData} title={kind === "rolls" ? "Rolls by production stage" : kind === "bulk" ? "Bulk by quality / category" : "Packaging movement / kind"} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        <LargestPositionsCard kind={kind} rows={rows} onBrowse={onBrowse} />
+        <AgeHeatmap kind={kind} rows={rows} onBrowse={onBrowse} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <InventoryHeatmap kind={kind} rows={rows} packagingMaterials={packagingMaterials} onBrowse={onBrowse} />
+        {kind === "packaging" ? (
+          <ChartCard title="Packaging Movement Mix" data={txData} chart="bar" />
+        ) : (
+          <ChartCard title="Top Locations" data={groupSum(rows, (row) => row.location_name || "No location", (row) => stockQty(kind, row), 8)} chart="bar" />
+        )}
+      </div>
     </div>
+  )
+}
+
+function InventoryKpiCard({ label, value, note, icon: Icon, accent }: { label: string; value: string | number; note: string; icon: any; accent: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+          <div className="mt-2 text-2xl font-black tracking-tight text-slate-950">{value}</div>
+          <div className="mt-1 text-xs font-semibold text-slate-500">{note}</div>
+        </div>
+        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-50 text-slate-700 ring-1 ring-slate-100">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FreshnessBandCard({ data, total, unit }: { data: Array<{ name: string; value: number }>; total: number; unit: string }) {
+  const ordered = ["Fresh", "Watch", "Aged"].map((name) => ({ name, value: data.find((row) => row.name === name)?.value || 0 }))
+  const fillClass: Record<string, string> = { Fresh: "bg-emerald-500", Watch: "bg-amber-500", Aged: "bg-rose-500" }
+  const textClass: Record<string, string> = { Fresh: "text-emerald-700", Watch: "text-amber-700", Aged: "text-rose-700" }
+  const labels: Record<string, string> = { Fresh: "Fresh · <= 7 days", Watch: "Watch · 8-30 days", Aged: "Aged · > 30 days" }
+  return (
+    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+      <CardHeader className="pb-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Freshness Bands</div>
+        <CardTitle className="text-base font-black text-slate-950">How old is your stock</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {ordered.map((row) => {
+          const pct = total > 0 ? Math.max(3, Math.round((row.value / total) * 100)) : 0
+          return (
+            <div key={row.name} className="space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className={cn("font-black", textClass[row.name])}>{labels[row.name]}</span>
+                <span className="font-semibold text-slate-500">{formatShort(row.value)} {unit}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className={cn("h-full rounded-full", fillClass[row.name])} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+function StageDistributionCard({ data, title }: { data: Array<{ name: string; value: number }>; title: string }) {
+  const max = Math.max(1, ...data.map((row) => row.value))
+  return (
+    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+      <CardHeader className="pb-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Stage Distribution</div>
+        <CardTitle className="text-base font-black text-slate-950">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? <div className="grid h-[220px] place-items-center text-sm text-slate-400">No distribution data.</div> : (
+          <div className="flex h-[240px] items-end justify-around gap-4 border-t border-slate-100 pt-5">
+            {data.slice(0, 8).map((row, index) => (
+              <div key={row.name} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                <div className="text-xs font-black text-indigo-600">{formatShort(row.value)}</div>
+                <div className="w-full max-w-[68px] rounded-t-lg bg-indigo-500 shadow-sm" style={{ height: `${Math.max(18, (row.value / max) * 180)}px`, opacity: 0.92 - index * 0.03 }} />
+                <div className="w-full truncate text-center text-[11px] font-semibold text-slate-500">{row.name.replaceAll("_", " ")}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function LargestPositionsCard({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (query: string) => void }) {
+  const positions = useMemo(() => {
+    const grouped = groupSum(rows, (row) => stockTitle(kind, row), (row) => stockQty(kind, row), 5)
+    return grouped.map((item) => {
+      const sample = rows.find((row) => stockTitle(kind, row) === item.name)
+      return { ...item, subtitle: sample ? stockSubtitle(kind, sample) : "Filtered stock" }
+    })
+  }, [kind, rows])
+  return (
+    <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+      <CardHeader className="pb-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Largest Positions</div>
+        <CardTitle className="text-base font-black text-slate-950">Click a row to jump to Browse pre-filtered</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {positions.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No stock positions.</div> : (
+          <div className="divide-y divide-slate-100">
+            {positions.map((row, index) => (
+              <button key={`${row.name}-${index}`} type="button" className="flex w-full items-center gap-4 py-3 text-left transition hover:bg-slate-50" onClick={() => onBrowse?.(row.name)}>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950 text-sm font-black text-white">{index + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-black text-slate-950">{row.name}</span>
+                  <span className="block truncate text-xs font-semibold text-slate-500">{row.subtitle}</span>
+                </span>
+                <span className="text-lg font-black text-emerald-700">{formatShort(row.value)} {kind === "packaging" ? "qty" : "kg"}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
 function ChartCard({ title, data, chart }: { title: string; data: Array<{ name: string; value: number }>; chart: "bar" | "donut" }) {
   return (
-    <Card className="rounded-[22px] border-slate-200 shadow-sm">
+    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-500">
           <Activity className="h-4 w-4 text-emerald-600" />
@@ -504,33 +704,158 @@ function ChartCard({ title, data, chart }: { title: string; data: Array<{ name: 
       </CardHeader>
       <CardContent className="h-[300px]">
         {data.length === 0 ? <div className="grid h-full place-items-center text-sm text-slate-400">No data in current filters.</div> : (
-          <ChartSurface>
-            {({ width, height }) => chart === "bar" ? (
-              <BarChart width={width} height={height} data={data} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
-                <Tooltip formatter={(value: number | string | undefined) => [Number(value || 0).toLocaleString(), "Qty"]} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {data.map((entry, index) => <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            ) : (
-              <PieChart width={width} height={height}>
-                <Pie data={data} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>
-                  {data.map((entry, index) => <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={(value: number | string | undefined) => [Number(value || 0).toLocaleString(), "Qty"]} />
-              </PieChart>
-            )}
-          </ChartSurface>
+          chart === "bar" ? (
+            <CssBarChart data={data} />
+          ) : (
+            <div className="grid h-full gap-3 md:grid-cols-[1fr_190px] md:items-center">
+              <CssDonut data={data} />
+              <div className="space-y-3">
+                {data.slice(0, 6).map((entry, index) => {
+                  const total = data.reduce((sum, row) => sum + row.value, 0)
+                  const pct = total > 0 ? Math.round((entry.value / total) * 100) : 0
+                  return (
+                    <div key={entry.name} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-slate-600">
+                        <span className="h-3 w-3 shrink-0 rounded" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                        <span className="truncate">{entry.name}</span>
+                      </span>
+                      <span className="shrink-0 font-black text-slate-700">{pct}%</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
         )}
       </CardContent>
     </Card>
   )
 }
 
-export function InventoryHeatmap({ kind, rows }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; packagingMaterials?: any[] }) {
+function CssBarChart({ data }: { data: Array<{ name: string; value: number }> }) {
+  const max = Math.max(1, ...data.map((row) => row.value))
+  const gridLines = [1, 0.75, 0.5, 0.25, 0]
+  return (
+    <div className="relative flex h-full flex-col justify-end overflow-hidden">
+      <div className="absolute inset-x-0 top-4 bottom-11">
+        {gridLines.map((line) => (
+          <div key={line} className="absolute left-12 right-0 border-t border-dashed border-slate-200" style={{ top: `${(1 - line) * 100}%` }}>
+            <span className="absolute -left-12 -top-2 text-[11px] font-semibold text-slate-500">{formatShort(max * line)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="relative z-10 ml-12 flex h-[220px] items-end gap-4">
+        {data.slice(0, 8).map((entry, index) => (
+          <div key={entry.name} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <div
+              className="w-full max-w-[72px] rounded-t-lg shadow-sm transition hover:opacity-90"
+              style={{ height: `${Math.max(16, (entry.value / max) * 190)}px`, backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+              title={`${entry.name}: ${formatShort(entry.value)}`}
+            />
+            <div className="w-full truncate text-center text-[11px] font-semibold text-slate-500">{entry.name.replaceAll("_", " ")}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CssDonut({ data }: { data: Array<{ name: string; value: number }> }) {
+  const total = data.reduce((sum, row) => sum + row.value, 0)
+  let cursor = 0
+  const stops = data.map((entry, index) => {
+    const start = cursor
+    const pct = total > 0 ? (entry.value / total) * 100 : 0
+    cursor += pct
+    return `${CHART_COLORS[index % CHART_COLORS.length]} ${start}% ${cursor}%`
+  })
+  return (
+    <div className="grid h-full min-h-[220px] place-items-center">
+      <div className="relative grid h-48 w-48 place-items-center rounded-full" style={{ background: `conic-gradient(${stops.join(", ")})` }}>
+        <div className="grid h-28 w-28 place-items-center rounded-full bg-white shadow-inner">
+          <div className="text-center">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Total</div>
+            <div className="text-2xl font-black text-slate-950">{formatShort(total)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (query: string) => void }) {
+  const matrix = useMemo(() => {
+    const map = new Map<string, Map<string, number>>()
+    for (const row of rows) {
+      const label = kind === "rolls" ? (row.family_display_name || row.material_name || "Rolls") : (row.material_category || row.packaging_kind || row.material_name || "Material")
+      const col = ageColumn(stockDate(row))
+      const value = stockQty(kind, row)
+      if (!map.has(label)) map.set(label, new Map())
+      map.get(label)!.set(col, (map.get(label)!.get(col) || 0) + value)
+    }
+    const rowEntries = Array.from(map.entries()).sort((a, b) => {
+      const aTotal = AGE_COLUMNS.reduce((sum, col) => sum + (a[1].get(col) || 0), 0)
+      const bTotal = AGE_COLUMNS.reduce((sum, col) => sum + (b[1].get(col) || 0), 0)
+      return bTotal - aTotal
+    }).slice(0, 8)
+    const max = Math.max(1, ...rowEntries.flatMap(([, inner]) => AGE_COLUMNS.map((col) => inner.get(col) || 0)))
+    return { rowEntries, max }
+  }, [kind, rows])
+
+  return (
+    <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+      <CardHeader className="pb-2">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Age Heatmap</div>
+        <CardTitle className="text-base font-black text-slate-950">Family x age band, {kind === "packaging" ? "qty" : "kg"} per cell</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {matrix.rowEntries.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No age heatmap data.</div> : (
+          <div className="overflow-x-auto">
+            <div className="min-w-[560px] space-y-2">
+              <div className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2 text-[11px] font-black text-slate-500">
+                <div />
+                {AGE_COLUMNS.map((col) => <div key={col} className="text-center">{col}</div>)}
+              </div>
+              {matrix.rowEntries.map(([label, inner]) => (
+                <div key={label} className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2">
+                  <div className="truncate py-2 text-xs font-black text-slate-800">{label}</div>
+                  {AGE_COLUMNS.map((col) => {
+                    const value = inner.get(col) || 0
+                    const ratio = value / matrix.max
+                    const tone = col === ">60d"
+                      ? `rgba(239,68,68,${Math.max(0.08, ratio)})`
+                      : col === "31-60d"
+                        ? `rgba(245,158,11,${Math.max(0.08, ratio)})`
+                        : `rgba(16,185,129,${Math.max(0.08, ratio)})`
+                    return (
+                      <button
+                        key={col}
+                        type="button"
+                        className="rounded-lg px-2 py-3 text-center text-xs font-black text-slate-700 ring-1 ring-slate-900/5 transition hover:ring-2 hover:ring-emerald-500"
+                        style={{ backgroundColor: value ? tone : "#f8fafc" }}
+                        title={`${label} ${col}: ${formatShort(value)}`}
+                        onClick={() => onBrowse?.(label)}
+                      >
+                        {value ? formatShort(value) : "0"}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+              <div className="flex gap-3 pt-3 text-[11px] font-semibold text-slate-500">
+                <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-100" /> low</span>
+                <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-200" /> mid</span>
+                <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-rose-200" /> high</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; packagingMaterials?: any[]; onBrowse?: (query: string) => void }) {
   const matrix = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
     for (const row of rows) {
@@ -551,12 +876,13 @@ export function InventoryHeatmap({ kind, rows }: { kind: "rolls" | "bulk" | "pac
   }, [kind, rows])
 
   return (
-    <Card className="rounded-[22px] border-slate-200 shadow-sm">
+    <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-500">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
           <Thermometer className="h-4 w-4 text-rose-500" />
-          Variant Size Heatmap
-        </CardTitle>
+          Size / Variant Matrix
+        </div>
+        <CardTitle className="text-base font-black text-slate-950">Variant x size group, {kind === "packaging" ? "qty" : "kg"} per cell</CardTitle>
       </CardHeader>
       <CardContent>
         {matrix.cols.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No heatmap data.</div> : (
@@ -579,6 +905,7 @@ export function InventoryHeatmap({ kind, rows }: { kind: "rolls" | "bulk" | "pac
                         className="rounded-lg px-2 py-2 text-center text-xs font-black text-slate-950 ring-1 ring-emerald-900/5 transition hover:ring-2 hover:ring-emerald-500"
                         style={{ backgroundColor: `rgba(13, 148, 136, ${alpha})` }}
                         title={`${label} ${col}: ${value.toLocaleString()}`}
+                        onClick={() => onBrowse?.(`${label} ${col}`)}
                       >
                         {value ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "-"}
                       </button>

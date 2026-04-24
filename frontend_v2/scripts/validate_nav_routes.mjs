@@ -7,7 +7,7 @@ const sidebarPath = path.join(projectRoot, "src", "components", "layout", "sideb
 
 const PARENT_ROUTE_FALLBACKS = {
   "/production": "/production/planner",
-  "/inventory": "/inventory/roll-explorer",
+  "/inventory": "/inventory",
   "/sales": "/sales/orders",
   "/engineering": "/engineering/artworks",
   "/system": "/system/users",

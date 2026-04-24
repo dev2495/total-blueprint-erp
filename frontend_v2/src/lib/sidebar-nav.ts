@@ -19,7 +19,6 @@ import {
   Workflow,
   Package,
   ClipboardList,
-  Archive,
   Layers,
   MoveRight,
   BadgePercent,
@@ -127,6 +126,13 @@ export const NAV_ITEMS: NavItem[] = [
     permissionModules: ["inventory"],
     children: [
       {
+        title: "Inventory Workspace",
+        href: "/inventory",
+        icon: Database,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
         title: "Inventory Health",
         href: "/analytics/inventory-health",
         icon: Activity,
@@ -140,16 +146,6 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
       },
-      { title: "Roll Explorer", href: "/inventory/roll-explorer", icon: Archive, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"], permissions: ["inventory.view", "inventory.manage"] },
-      { title: "Bulk Inventory", href: "/inventory/bulk", icon: Package, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
-      {
-        title: "Packaging Stock",
-        href: "/inventory/packaging",
-        icon: Package,
-        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "DISPATCH"],
-        permissions: ["inventory.view", "inventory.manage"],
-      },
-      { title: "GRN Desk", href: "/inventory/grn", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
       { title: "Opening Stock", href: "/inventory/opening-stock", icon: Scale, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.audit.view", "inventory.audit.manage"] },
       { title: "Stock Count", href: "/inventory/stock-count", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.audit.view", "inventory.audit.manage"] },
       { title: "Year Close", href: "/inventory/year-close", icon: LockKeyhole, roles: ["ADMIN", "OWNER", "PLANT_MANAGER"], permissions: ["inventory.audit.view", "inventory.period.close"] },

@@ -1,6 +1,6 @@
 const PARENT_ROUTE_FALLBACKS: Record<string, string> = {
   "/production": "/production/planner",
-  "/inventory": "/inventory/roll-explorer",
+  "/inventory": "/inventory",
   "/sales": "/sales/orders",
   "/engineering": "/engineering/artworks",
   "/system": "/system/users",
@@ -33,6 +33,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/factory/processes",
   "/factory/work-centers",
   "/help",
+  "/inventory",
   "/inventory/bulk",
   "/inventory/grn",
   "/inventory/inter-plant",
