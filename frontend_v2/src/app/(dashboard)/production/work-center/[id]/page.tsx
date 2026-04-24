@@ -1770,15 +1770,21 @@ export default function WCMTerminal() {
                             <div className="sticky top-[76px] space-y-4">
                                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex items-start justify-between gap-4">
-                                        <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Selected product</div>
-                                            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{selectedSpec.productName}</h2>
-                                            <div className="mt-1 text-sm font-medium text-slate-600">{selectedJob?.customer_name || selectedSpec.customerName || "Pick a job"} · {selectedJob?.order_number || selectedSpec.orderNumber || "SO —"}</div>
+                                        <div className="min-w-0">
+                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Selected sales product</div>
+                                            <h2 className="mt-1 text-2xl font-semibold leading-tight tracking-tight text-slate-950">{selectedSpec.productName}</h2>
+                                            <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">{selectedJob?.customer_name || selectedSpec.customerName || "Customer not captured"}</span>
+                                                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-700">{selectedJob?.order_number || selectedSpec.orderNumber || "SO not captured"}</span>
+                                                {selectedSpec.templateName || selectedJob?.template_name ? (
+                                                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">{selectedSpec.templateName || selectedJob?.template_name}</span>
+                                                ) : null}
+                                            </div>
                                         </div>
                                         <TooltipProvider delayDuration={100}>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider", pushBlockingReasons.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{blockerLabel}</span>
+                                                    <span className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider", pushBlockingReasons.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{blockerLabel}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent side="left" className="max-w-[320px] rounded-xl border-slate-200 bg-white p-3 text-slate-800 shadow-xl">
                                                     {pushBlockingReasons.length ? pushBlockingReasons.slice(0, 6).map((reason) => <div key={reason} className="text-xs font-semibold">{reason}</div>) : <div className="text-xs font-semibold">Machine and material checks are ready.</div>}
@@ -1786,38 +1792,79 @@ export default function WCMTerminal() {
                                             </Tooltip>
                                         </TooltipProvider>
                                     </div>
-                                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+                                    <div className="mt-5 grid gap-3 md:grid-cols-2">
                                         <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-blue-600">Final size</div>
-                                            <div className="mt-1 text-sm font-semibold text-blue-950">{selectedGeometry.label}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-blue-600">Final product size</div>
+                                            <div className="mt-1 text-lg font-semibold leading-tight text-blue-950">{selectedSpec.size.label || selectedGeometry.label}</div>
+                                            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-blue-800">
+                                                <span>Width {selectedSpec.size.widthMm != null ? `${selectedSpec.size.widthMm} mm` : "—"}</span>
+                                                <span>Height {selectedSpec.size.heightMm != null ? `${selectedSpec.size.heightMm} mm` : "—"}</span>
+                                                {selectedSpec.size.gussetMm != null && selectedSpec.size.gussetMm > 0 ? <span>Gusset {selectedSpec.size.gussetMm} mm</span> : null}
+                                            </div>
                                         </div>
                                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-slate-500">Order context</div>
-                                            <div className="mt-1 text-sm font-semibold text-slate-900">{selectedSpec.templateName || selectedJob?.template_name || "Template not captured"}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Output form</div>
+                                            <div className="mt-1 text-lg font-semibold leading-tight text-slate-950">{selectedOutputForm || selectedSpec.size.finishedGoodType || "Output"}</div>
+                                            <div className="mt-2 text-[11px] font-semibold text-slate-500">{selectedSpec.layers.length || 0} layer{selectedSpec.layers.length === 1 ? "" : "s"} in this sales specification</div>
                                         </div>
-                                    </div>
-                                    <div className="mt-4 flex flex-wrap gap-1.5">
-                                        {selectedSpec.layers.map((layer) => (
-                                            <span key={`selected-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layerQueueLabel(layer)}</span>
-                                        ))}
-                                        <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1 text-xs font-semibold text-fuchsia-700">PoD · {selectedPodLabel}</span>
-                                        <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">Addons · {selectedAddonsLabel}</span>
-                                    </div>
-                                    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-                                        <div className="grid grid-cols-[44px_1.4fr_1fr_90px_90px] bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                                            <span>#</span><span>Layer variant</span><span>Grade</span><span>Thick</span><span>Width</span>
-                                        </div>
-                                        {selectedSpec.layers.length ? selectedSpec.layers.map((layer) => (
-                                            <div key={`selected-layer-row-${layer.index}`} className="grid grid-cols-[44px_1.4fr_1fr_90px_90px] border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-800">
-                                                <span className="text-slate-400">L{layer.index}</span>
-                                                <span>{firstNonEmpty(layer.variantName, `Layer ${layer.index}`)}</span>
-                                                <span className="truncate">{firstNonEmpty(layer.grade, "—")}</span>
-                                                <span>{layer.thicknessMicron != null ? `${layer.thicknessMicron}u` : "—"}</span>
-                                                <span>{layer.widthMm != null ? `${layer.widthMm}mm` : "—"}</span>
+                                        <div className="rounded-xl border border-fuchsia-100 bg-fuchsia-50 p-3">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-fuchsia-700">POD</div>
+                                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                                {selectedSpec.podLabels.length ? selectedSpec.podLabels.map((label) => (
+                                                    <span key={`selected-pod-${label}`} className="rounded-full border border-fuchsia-200 bg-white px-2 py-1 text-xs font-semibold text-fuchsia-700">{label}</span>
+                                                )) : <span className="text-sm font-semibold text-fuchsia-900">{selectedPodLabel}</span>}
                                             </div>
-                                        )) : (
-                                            <div className="px-3 py-4 text-center text-xs font-semibold text-slate-400">No layer details captured.</div>
-                                        )}
+                                        </div>
+                                        <div className="rounded-xl border border-orange-100 bg-orange-50 p-3">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-orange-700">Add-ons</div>
+                                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                                {selectedSpec.addonLabels.length ? selectedSpec.addonLabels.map((label) => (
+                                                    <span key={`selected-addon-${label}`} className="rounded-full border border-orange-200 bg-white px-2 py-1 text-xs font-semibold text-orange-700">{label}</span>
+                                                )) : <span className="text-sm font-semibold text-orange-900">{selectedAddonsLabel}</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5">
+                                        <div className="mb-2 flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Layer build</div>
+                                                <div className="text-sm font-semibold text-slate-950">Variant, grade, thickness, and roll width by layer</div>
+                                            </div>
+                                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">{selectedSpec.layers.length || 0} layers</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {selectedSpec.layers.length ? selectedSpec.layers.map((layer) => (
+                                                <div key={`selected-layer-card-${layer.index}`} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Layer {layer.index}</div>
+                                                            <div className="mt-0.5 text-sm font-semibold leading-tight text-slate-950">{firstNonEmpty(layer.variantName, layer.variantCode, `Layer ${layer.index}`)}</div>
+                                                            {layer.variantCode && layer.variantCode !== layer.variantName ? (
+                                                                <div className="mt-0.5 text-[11px] font-semibold text-slate-500">{layer.variantCode}</div>
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="grid min-w-[260px] flex-1 grid-cols-3 gap-2 text-xs font-semibold">
+                                                            <div className="rounded-lg border border-white bg-white px-2.5 py-2">
+                                                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Grade</div>
+                                                                <div className="mt-0.5 truncate text-slate-800">{firstNonEmpty(layer.grade, "—")}</div>
+                                                            </div>
+                                                            <div className="rounded-lg border border-white bg-white px-2.5 py-2">
+                                                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Thickness</div>
+                                                                <div className="mt-0.5 text-slate-800">{layer.thicknessMicron != null ? `${layer.thicknessMicron}u` : "—"}</div>
+                                                            </div>
+                                                            <div className="rounded-lg border border-white bg-white px-2.5 py-2">
+                                                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Layer width</div>
+                                                                <div className="mt-0.5 text-slate-800">{layer.widthMm != null ? `${layer.widthMm} mm` : "—"}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs font-semibold text-slate-400">No layer details captured for this sales product.</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </section>
 
