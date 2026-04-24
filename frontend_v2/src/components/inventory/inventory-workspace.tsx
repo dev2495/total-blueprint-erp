@@ -1,15 +1,18 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Activity,
   AlertTriangle,
   Archive,
+  Bookmark,
+  BookmarkPlus,
   Boxes,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Edit3,
   Layers3,
   Package,
@@ -18,13 +21,20 @@ import {
   ShieldCheck,
   TableProperties,
   Thermometer,
+  Trash2,
   Warehouse,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -43,6 +53,13 @@ type WorkspaceTab = "rolls" | "bulk" | "packaging" | "grn"
 type InnerTab = "pulse" | "browse"
 type ViewMode = "table" | "cards"
 type FilterOption = { value: string; label: string }
+type InventorySavedView = {
+  id: string
+  name: string
+  filters: Record<string, string>
+  createdAt: string
+  updatedAt: string
+}
 
 const CHART_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
 const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
@@ -56,6 +73,35 @@ const FILTER_MENU_CLASS =
   "rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_40px_-18px_rgba(15,23,42,0.25)]"
 const FILTER_ITEM_CLASS =
   "rounded-xl text-sm font-semibold text-slate-700 focus:bg-slate-100 focus:text-[#0f172a] data-[state=checked]:bg-[#0d9488] data-[state=checked]:text-white"
+const INVENTORY_FILTER_KEYS = [
+  "q",
+  "plant",
+  "location",
+  "status",
+  "material",
+  "category",
+  "source_type",
+  "age",
+  "size",
+  "variant",
+  "thickness",
+  "grade",
+  "weight",
+  "family",
+  "job",
+  "print",
+  "lamination",
+  "granule",
+  "availability",
+  "value",
+  "supply_mode",
+  "transaction_type",
+  "stock_range",
+  "vendor",
+  "reference",
+  "date_from",
+  "date_to",
+] as const
 const AGE_FILTER_OPTIONS: FilterOption[] = [
   { value: "ALL", label: "All Age" },
   { value: "Fresh", label: "Fresh <= 7d" },
@@ -189,6 +235,57 @@ function optionsFromPairs(pairs: Array<[unknown, unknown]>, allLabel: string, li
 
 function optionsFromValues(values: unknown[], allLabel: string, limit = 120): FilterOption[] {
   return optionsFromPairs(values.map((value) => [value, formatOptionLabel(clean(value))]), allLabel, limit)
+}
+
+function inventorySavedViewsKey(tab: WorkspaceTab) {
+  return `total-poly-print.inventory.saved-views.${tab}`
+}
+
+function makeSavedViewId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
+  return `view-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function safeLoadSavedViews(tab: WorkspaceTab): InventorySavedView[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = window.localStorage.getItem(inventorySavedViewsKey(tab))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((view): view is InventorySavedView => {
+        return Boolean(view && typeof view.id === "string" && typeof view.name === "string" && view.filters && typeof view.filters === "object")
+      })
+      .slice(0, 20)
+  } catch {
+    return []
+  }
+}
+
+function safeSaveSavedViews(tab: WorkspaceTab, views: InventorySavedView[]) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(inventorySavedViewsKey(tab), JSON.stringify(views.slice(0, 20)))
+  } catch {
+    // Keep the current session usable even if browser storage is unavailable.
+  }
+}
+
+function optionLabel(options: FilterOption[], value: string) {
+  return options.find((option) => String(option.value) === String(value))?.label || formatOptionLabel(value)
+}
+
+function compactFilterSummary(filters: Record<string, string>, limit = 3) {
+  const entries = Object.entries(filters).filter(([, value]) => clean(value))
+  if (entries.length === 0) return "All stock"
+  const labels = entries.slice(0, limit).map(([key, value]) => `${formatOptionLabel(key)}: ${formatOptionLabel(value)}`)
+  const extra = entries.length > limit ? ` +${entries.length - limit}` : ""
+  return `${labels.join(" · ")}${extra}`
+}
+
+function filterFingerprint(filters: Record<string, string>) {
+  return JSON.stringify(Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)))
 }
 
 function rollExactSize(row: any) {
@@ -828,6 +925,7 @@ export function InventoryFilterBar({
   onChange: (updates: Record<string, string | null>) => void
 }) {
   const activeLocations = locations.filter((row) => plant === "ALL" || String(row.plant) === plant)
+  const savedViewScopeTitle = tab === "bulk" ? "Bulk Inventory" : tab === "packaging" ? "Packaging Stock" : tab === "grn" ? "GRN History" : "Roll Explorer"
   const searchPlaceholder = tab === "grn"
     ? "Search material, vendor, reference, label..."
     : tab === "rolls"
@@ -863,6 +961,170 @@ export function InventoryFilterBar({
     reference: null,
     date_from: null,
     date_to: null,
+  }
+  const [savedViews, setSavedViews] = useState<InventorySavedView[]>([])
+  const [savedViewsMenuOpen, setSavedViewsMenuOpen] = useState(false)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [savedViewName, setSavedViewName] = useState("")
+
+  useEffect(() => {
+    setSavedViews(safeLoadSavedViews(tab))
+    setSavedViewsMenuOpen(false)
+    setSaveDialogOpen(false)
+    setSavedViewName("")
+  }, [tab])
+
+  const currentFilters = useMemo(() => {
+    const raw: Record<(typeof INVENTORY_FILTER_KEYS)[number], string> = {
+      q: search,
+      plant,
+      location,
+      status,
+      material,
+      category,
+      source_type: sourceType,
+      age,
+      size,
+      variant,
+      thickness,
+      grade,
+      weight,
+      family,
+      job,
+      print,
+      lamination,
+      granule,
+      availability,
+      value: valueBand,
+      supply_mode: supplyMode,
+      transaction_type: transactionType,
+      stock_range: stockRange,
+      vendor,
+      reference,
+      date_from: dateFrom,
+      date_to: dateTo,
+    }
+    return Object.fromEntries(
+      Object.entries(raw).filter(([, value]) => value && value !== "ALL")
+    ) as Record<string, string>
+  }, [
+    age,
+    availability,
+    category,
+    dateFrom,
+    dateTo,
+    family,
+    grade,
+    granule,
+    job,
+    lamination,
+    location,
+    material,
+    plant,
+    print,
+    reference,
+    search,
+    size,
+    sourceType,
+    status,
+    stockRange,
+    supplyMode,
+    tab,
+    thickness,
+    transactionType,
+    valueBand,
+    variant,
+    vendor,
+    weight,
+  ])
+
+  const currentFilterFingerprint = useMemo(
+    () => filterFingerprint(currentFilters),
+    [currentFilters]
+  )
+  const activeFilterCount = Object.keys(currentFilters).length
+  const savedViewSummary = compactFilterSummary(currentFilters, 4)
+  const currentFilterBadges = useMemo(() => {
+    const materialOptions = tab === "bulk" ? filterOptions.bulkMaterial : tab === "packaging" ? filterOptions.packagingSku : tab === "grn" ? filterOptions.grnMaterial : filterOptions.rollVariant
+    const categoryOptions = tab === "bulk" ? filterOptions.bulkCategory : tab === "packaging" ? filterOptions.packagingKind : []
+    const labelFor = (key: string, value: string) => {
+      if (key === "q") return `Search: ${value}`
+      if (key === "plant") return `Plant: ${plants.find((row) => String(row.id) === value)?.name || value}`
+      if (key === "location") return `Location: ${locations.find((row) => String(row.id) === value)?.name || value}`
+      if (key === "material") return `${tab === "packaging" ? "SKU" : "Material"}: ${optionLabel(materialOptions, value)}`
+      if (key === "category") return `${tab === "packaging" ? "Kind" : "Category"}: ${optionLabel(categoryOptions, value)}`
+      if (key === "source_type") return `Source: ${optionLabel(SOURCE_OPTIONS, value)}`
+      if (key === "size") return `Size: ${optionLabel(filterOptions.rollSize, value)}`
+      if (key === "variant") return `Variant: ${optionLabel(filterOptions.rollVariant, value)}`
+      if (key === "thickness") return `Thickness: ${optionLabel(filterOptions.rollThickness, value)}`
+      if (key === "grade") return `Grade: ${optionLabel(filterOptions.rollGrade, value)}`
+      if (key === "weight") return `Weight: ${optionLabel(ROLL_WEIGHT_OPTIONS, value)}`
+      if (key === "family") return `Family: ${optionLabel(filterOptions.rollFamily, value)}`
+      if (key === "job") return `Job: ${optionLabel(filterOptions.rollJob, value)}`
+      if (key === "print") return `Print: ${optionLabel(PRINT_OPTIONS, value)}`
+      if (key === "lamination") return `Lamination: ${optionLabel(LAMINATION_OPTIONS, value)}`
+      if (key === "granule") return `Granule: ${optionLabel(filterOptions.bulkGranule, value)}`
+      if (key === "availability") return `Availability: ${optionLabel(STOCK_AVAILABILITY_OPTIONS, value)}`
+      if (key === "value") return `Value: ${optionLabel(VALUE_BAND_OPTIONS, value)}`
+      if (key === "supply_mode") return `Supply: ${optionLabel(filterOptions.packagingSupplyMode, value)}`
+      if (key === "transaction_type") return `Movement: ${optionLabel(PACKAGING_TRANSACTION_OPTIONS, value)}`
+      if (key === "stock_range") return `Stock: ${optionLabel(PACKAGING_STOCK_RANGE_OPTIONS, value)}`
+      if (key === "age") return `Age: ${optionLabel(AGE_FILTER_OPTIONS, value)}`
+      if (key === "date_from") return `From: ${value}`
+      if (key === "date_to") return `To: ${value}`
+      return `${formatOptionLabel(key)}: ${formatOptionLabel(value)}`
+    }
+    return Object.entries(currentFilters).map(([key, value]) => labelFor(key, value))
+  }, [currentFilters, filterOptions, locations, plants, tab])
+
+  function persistSavedViews(nextViews: InventorySavedView[]) {
+    setSavedViews(nextViews)
+    safeSaveSavedViews(tab, nextViews)
+  }
+
+  function openSaveViewDialog() {
+    const timestamp = new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    setSavedViewName(activeFilterCount ? `${savedViewScopeTitle} view · ${timestamp}` : `${savedViewScopeTitle} · All stock`)
+    setSavedViewsMenuOpen(false)
+    window.setTimeout(() => setSaveDialogOpen(true), 0)
+  }
+
+  function saveCurrentView() {
+    const name = savedViewName.trim()
+    if (!name) {
+      toast.error("Name this saved view first.")
+      return
+    }
+    const now = new Date().toISOString()
+    const existing = savedViews.find((view) => view.name.toLowerCase() === name.toLowerCase())
+    const nextView: InventorySavedView = {
+      id: existing?.id || makeSavedViewId(),
+      name,
+      filters: currentFilters,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    }
+    const nextViews = [nextView, ...savedViews.filter((view) => view.id !== nextView.id)].slice(0, 20)
+    persistSavedViews(nextViews)
+    setSaveDialogOpen(false)
+    setSavedViewsMenuOpen(false)
+    toast.success(existing ? "Saved view updated." : "Saved view added.")
+  }
+
+  function applySavedView(view: InventorySavedView) {
+    const resetThenApply: Record<string, string | null> = {}
+    INVENTORY_FILTER_KEYS.forEach((key) => {
+      resetThenApply[key] = view.filters[key] || null
+    })
+    onChange(resetThenApply)
+    setSavedViewsMenuOpen(false)
+    toast.success(`Loaded view: ${view.name}`)
+  }
+
+  function deleteSavedView(viewId: string) {
+    const view = savedViews.find((item) => item.id === viewId)
+    persistSavedViews(savedViews.filter((item) => item.id !== viewId))
+    if (view) toast.success(`Deleted view: ${view.name}`)
   }
 
   return (
@@ -946,10 +1208,148 @@ export function InventoryFilterBar({
             {activeLocations.map((row) => <SelectItem className={FILTER_ITEM_CLASS} key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <DropdownMenu open={savedViewsMenuOpen} onOpenChange={setSavedViewsMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="inventory-saved-views-trigger"
+              className={cn(
+                "h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa]",
+                savedViews.length ? "border-teal-200 bg-teal-50/50 text-teal-900" : ""
+              )}
+            >
+              <Bookmark className="mr-2 h-3.5 w-3.5" />
+              Saved views
+              {savedViews.length ? <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 text-[10px] text-teal-700 ring-1 ring-teal-100">{savedViews.length}</span> : null}
+              <ChevronDown className="ml-2 h-3.5 w-3.5 text-slate-400" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[340px] rounded-2xl border-slate-200 bg-white p-2 shadow-[0_24px_60px_-22px_rgba(15,23,42,0.35)]">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">My saved views</div>
+                  <div className="mt-0.5 text-xs font-semibold text-slate-600">{savedViewScopeTitle} · {activeFilterCount ? `${activeFilterCount} active filters` : "No filters active"}</div>
+                </div>
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-teal-700 shadow-sm ring-1 ring-slate-200">
+                  <Bookmark className="h-4 w-4" />
+                </span>
+              </div>
+              {currentFilterBadges.length ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {currentFilterBadges.slice(0, 4).map((badge) => (
+                    <span key={badge} className="max-w-full truncate rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">{badge}</span>
+                  ))}
+                  {currentFilterBadges.length > 4 ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">+{currentFilterBadges.length - 4}</span> : null}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-2 max-h-[260px] space-y-1 overflow-y-auto pr-1">
+              {savedViews.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-5 text-center">
+                  <BookmarkPlus className="mx-auto h-5 w-5 text-teal-600" />
+                  <div className="mt-2 text-sm font-black text-slate-900">No saved views yet</div>
+                  <div className="mt-1 text-xs font-semibold leading-5 text-slate-500">Save this filter setup once, then reload it from any inventory visit.</div>
+                </div>
+              ) : savedViews.map((view) => {
+                const isCurrent = filterFingerprint(view.filters) === currentFilterFingerprint
+                return (
+                  <div key={view.id} className={cn("group flex items-center gap-2 rounded-xl border px-2 py-2 transition", isCurrent ? "border-teal-200 bg-teal-50" : "border-transparent hover:border-slate-200 hover:bg-slate-50")}>
+                    <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => applySavedView(view)}>
+                      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", isCurrent ? "bg-teal-600 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200")}>
+                        <Bookmark className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-black text-slate-900">{view.name}</span>
+                          {isCurrent ? <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-teal-700 ring-1 ring-teal-100">Current</span> : null}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{compactFilterSummary(view.filters, 2)}</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete saved view ${view.name}`}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 opacity-70 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        deleteSavedView(view.id)
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <DropdownMenuSeparator className="my-2 bg-slate-100" />
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-black text-teal-700 transition hover:bg-teal-50"
+              onClick={openSaveViewDialog}
+            >
+              <BookmarkPlus className="h-4 w-4" />
+              Save current filters as view
+            </button>
+            <div className="px-3 pb-1 pt-1 text-[11px] font-semibold leading-5 text-slate-500">
+              Views are saved in this browser for {savedViewScopeTitle}. Applying a view replaces the current filters.
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button variant="outline" className="h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa] hover:text-[#0f172a]" onClick={() => onChange(resetPayload)}>
           Reset
         </Button>
       </div>
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="rounded-[24px] border-slate-200 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
+          <div className="rounded-t-[24px] bg-gradient-to-br from-teal-50 via-white to-sky-50 px-6 py-5">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl font-black text-slate-950">
+                <BookmarkPlus className="h-5 w-5 text-teal-700" />
+                Save inventory view
+              </DialogTitle>
+              <DialogDescription className="pt-1 text-sm font-semibold leading-6 text-slate-600">
+                Name this filter setup so it can be reopened quickly from the saved views menu.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 px-6 pb-6">
+            <div className="space-y-2">
+              <Label htmlFor="inventory-saved-view-name" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">View name</Label>
+              <Input
+                id="inventory-saved-view-name"
+                data-testid="inventory-saved-view-name"
+                value={savedViewName}
+                onChange={(event) => setSavedViewName(event.target.value)}
+                placeholder="Example: Fresh printed PET rolls"
+                className="h-12 rounded-2xl border-slate-200 text-base font-bold"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") saveCurrentView()
+                }}
+              />
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Current filter snapshot</div>
+              <div className="mt-1 text-sm font-bold leading-6 text-slate-800">{savedViewSummary}</div>
+              {currentFilterBadges.length ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {currentFilterBadges.map((badge) => <span key={badge} className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">{badge}</span>)}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+              <Button type="button" className="rounded-xl bg-slate-950 font-black hover:bg-slate-800" onClick={saveCurrentView}>
+                Save view
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
