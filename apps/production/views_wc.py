@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from .models import WorkCenterAssignment, ProductionJob
 from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer
 from .services.job_services import WCManagerService
@@ -335,5 +336,50 @@ class JobAllocationViewSet(viewsets.ViewSet):
             )
             serializer = WorkCenterAssignmentSerializer(assignment)
             return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='close-job')
+    def close_job(self, request):
+        assignment_id = request.data.get('assignment_id')
+        mode = str(request.data.get('mode') or '').upper()
+        reason = str(request.data.get('reason') or '').strip()
+        if not assignment_id:
+            return Response({"error": "assignment_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if mode not in {'SHORT_CLOSE', 'CANCEL'}:
+            return Response({"error": "mode must be SHORT_CLOSE or CANCEL"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(reason) < 5:
+            return Response({"error": "Reason must be at least 5 characters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            assignment = WorkCenterAssignment.objects.select_related('production_job').get(id=assignment_id)
+            job = assignment.production_job
+            now = timezone.now()
+            action_label = 'Short closed by WCM' if mode == 'SHORT_CLOSE' else 'Cancelled by WCM'
+            job.closed_at = now
+            job.closed_by = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
+            job.closed_with_variance = True
+            job.completion_force_reason = f"{action_label}: {reason}"
+            if mode == 'SHORT_CLOSE':
+                job.status = 'COMPLETED'
+                job.job_state = 'COMPLETED'
+            else:
+                job.status = 'CANCELLED'
+                job.job_state = 'CANCELLED'
+            job.save(update_fields=[
+                'status',
+                'job_state',
+                'closed_at',
+                'closed_by',
+                'closed_with_variance',
+                'completion_force_reason',
+                'updated_at',
+            ])
+            assignment.updated_at = now
+            assignment.save(update_fields=['updated_at'])
+            serializer = WorkCenterAssignmentSerializer(assignment)
+            return Response(serializer.data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

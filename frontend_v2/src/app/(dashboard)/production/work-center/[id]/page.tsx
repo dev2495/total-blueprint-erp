@@ -25,6 +25,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -103,14 +106,23 @@ function addonsLabelFromJob(job: any, context?: any) {
 }
 
 function layerHighlightsFromJob(job: any, context?: any) {
-    return normalizeProductSpec(job, context).layers.slice(0, 4).map((layer) => layer.label)
+    return normalizeProductSpec(job, context).layers.slice(0, 4).map((layer) => layerQueueLabel(layer))
+}
+
+function layerQueueLabel(layer: any) {
+    return [
+        firstNonEmpty(layer.variantName, layer.variant_name, layer.name, `Layer ${layer.index || ""}`),
+        firstNonEmpty(layer.grade, layer.grade_name),
+        layer.thicknessMicron != null ? `${layer.thicknessMicron}u` : firstNonEmpty(layer.thickness_micron, layer.thickness) ? `${firstNonEmpty(layer.thickness_micron, layer.thickness)}u` : "",
+        layer.widthMm != null ? `${layer.widthMm}mm` : firstNonEmpty(layer.width_mm, layer.roll_width_mm) ? `${firstNonEmpty(layer.width_mm, layer.roll_width_mm)}mm` : "",
+    ].filter(Boolean).join(" · ")
 }
 
 function materialSpecsFromJob(job: any, context?: any) {
     const specRows = normalizeProductSpec(job, context).layers
     if (specRows.length) {
         return specRows.map((layer) => ({
-            material: firstNonEmpty(layer.variantCode, layer.variantName, `Layer ${layer.index}`),
+            material: firstNonEmpty(layer.variantName, layer.variantCode, `Layer ${layer.index}`),
             code: layer.variantCode,
             thickness: layer.thicknessMicron != null ? String(layer.thicknessMicron) : "",
             grade: layer.grade || "Grade not set",
@@ -199,6 +211,8 @@ export default function WCMTerminal() {
     const [materialIssueDrafts, setMaterialIssueDrafts] = useState<Record<string, WcmMaterialIssueDraft>>({})
     const [queueSearch, setQueueSearch] = useState("")
     const [queueStatusFilter, setQueueStatusFilter] = useState<"ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE">("ALL")
+    const [closeJobAction, setCloseJobAction] = useState<{ assignment: any; mode: "SHORT_CLOSE" | "CANCEL" } | null>(null)
+    const [closeJobReason, setCloseJobReason] = useState("")
     const autoAssignRef = useRef<Set<string>>(new Set())
 
     // 1. Data Fetching
@@ -985,8 +999,8 @@ export default function WCMTerminal() {
                 requirement_id: requirementId,
                 material_id: draft.material_id || row?.material_id,
                 actual_issued_qty: Math.max(0, Number(draft.actual_issued_qty || 0)),
-                actual_returned_qty: Math.max(0, Number(draft.actual_returned_qty || 0)),
-                actual_scrap_qty: Math.max(0, Number(draft.actual_scrap_qty || 0)),
+                actual_returned_qty: 0,
+                actual_scrap_qty: 0,
                 is_estimated: draft.is_estimated,
                 granule_code_allocations: granuleCodeAllocations.length ? granuleCodeAllocations : undefined,
             }
@@ -1111,7 +1125,7 @@ export default function WCMTerminal() {
             : !selectedMachineId
                 ? "Choose the machine for this step."
                 : canPushToOperator
-                    ? "Release the job to machine execution."
+                    ? "Assigning the machine will release this step."
                     : "Review the last blocker and clear it."
     const wcmStatusSummary = requirementsSatisfied
         ? "Material and roll checks are ready."
@@ -1195,6 +1209,36 @@ export default function WCMTerminal() {
             await refetchContext()
             await refetchSatisfaction()
             queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] })
+        })
+    }
+
+    const handleAssignAndMaybeRelease = () => {
+        if (!activeAssignment || !selectedMachineId) return
+        mutation.mutate(async () => {
+            if (String(activeAssignment.assigned_machine || "") !== String(selectedMachineId)) {
+                await wcmService.assignMachine(activeAssignment.id, selectedMachineId)
+            }
+            if (requirementsSatisfied) {
+                await wcmService.markReady(activeAssignment.id, materialIssuePayload as any[])
+                setActiveAssignmentId(null)
+            }
+            await refetchContext()
+            await refetchSatisfaction()
+            queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] })
+        })
+    }
+
+    const handleCloseJobAction = () => {
+        if (!closeJobAction) return
+        mutation.mutate(async () => {
+            await wcmService.closeJob(closeJobAction.assignment.id, closeJobAction.mode, closeJobReason.trim())
+            setCloseJobAction(null)
+            setCloseJobReason("")
+            setActiveAssignmentId(null)
+            await refetchContext()
+            await refetchSatisfaction()
+            queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] })
+            queryClient.invalidateQueries({ queryKey: ["wcm-history", wcId] })
         })
     }
 
@@ -1351,8 +1395,8 @@ export default function WCMTerminal() {
                         )}
                     </section>
 
-                    <section className="mt-5 grid gap-5 xl:grid-cols-12">
-                        <div className="space-y-3 xl:col-span-7">
+                    <section className={cn("mt-5 grid gap-5", activeMainTab === "history" ? "xl:grid-cols-1" : "xl:grid-cols-12")}>
+                        <div className={cn("space-y-3", activeMainTab === "history" ? "xl:col-span-1" : "xl:col-span-7")}>
                             {activeMainTab === "history" ? (
                                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                                     <div className="flex items-center justify-between">
@@ -1363,15 +1407,23 @@ export default function WCMTerminal() {
                                         {isLoadingHistory && <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />}
                                     </div>
                                     <div className="mt-4 space-y-2">
-                                        {(historyJobs || []).slice(0, 12).map((assignment: any) => {
+                                        {(historyJobs || []).slice(0, 30).map((assignment: any) => {
                                             const job = assignment?.job_details || {}
                                             const spec = normalizeProductSpec(job)
                                             return (
                                                 <div key={assignment.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                                        <div>
+                                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                                        <div className="min-w-[260px] flex-1">
                                                             <div className="font-semibold text-slate-900">{job.customer_name || spec.customerName || "Customer"}</div>
                                                             <div className="text-sm text-slate-500">{spec.productName} · {spec.size.label}</div>
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {spec.layers.slice(0, 4).map((layer) => (
+                                                                    <span key={`${assignment.id}-${layer.index}`} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">{layerQueueLabel(layer)}</span>
+                                                                ))}
+                                                            </div>
+                                                            <div className="mt-2 text-xs text-slate-500">
+                                                                {job.closed_at ? `Closed ${new Date(job.closed_at).toLocaleString()}` : "Latest activity"} · {job.completion_force_reason || "No variance note"}
+                                                            </div>
                                                         </div>
                                                         <Badge variant="outline">{job.job_state || job.status || "Closed"}</Badge>
                                                     </div>
@@ -1440,7 +1492,7 @@ export default function WCMTerminal() {
                                                 <div className="mt-3 flex flex-wrap gap-1.5">
                                                     <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Size · {spec.size.label}</span>
                                                     {spec.layers.slice(0, 4).map((layer) => (
-                                                        <span key={`${assignment.id}-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layer.label}</span>
+                                                        <span key={`${assignment.id}-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layerQueueLabel(layer)}</span>
                                                     ))}
                                                     {spec.podLabels.map((label) => <span key={label} className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1 text-xs font-semibold text-fuchsia-700">PoD · {label}</span>)}
                                                     {spec.addonLabels.map((label) => <span key={label} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">+ {label}</span>)}
@@ -1462,7 +1514,24 @@ export default function WCMTerminal() {
                                                     </div>
                                                     <div className="flex flex-wrap gap-2 md:col-span-4">
                                                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Machine · {assignment.assigned_machine_name || "assign"}</span>
-                                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">WIP · {Number((assignment as any)?.allocated_roll_details?.length || 0)} rolls</span>
+                                                        <TooltipProvider delayDuration={100}>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">WIP · {Number((assignment as any)?.allocated_roll_details?.length || 0)} rolls</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent side="top" className="max-w-[320px] rounded-xl border-slate-200 bg-white p-3 text-slate-800 shadow-xl">
+                                                                    <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">WIP rolls in this flow</div>
+                                                                    <div className="mt-2 space-y-1">
+                                                                        {Array.isArray((assignment as any)?.allocated_roll_details) && (assignment as any).allocated_roll_details.length ? (assignment as any).allocated_roll_details.slice(0, 6).map((roll: any) => (
+                                                                            <div key={String(roll.id || roll.label_id)} className="flex justify-between gap-4 text-xs">
+                                                                                <span className="font-semibold">{roll.label_id || roll.roll_number || "Roll"}</span>
+                                                                                <span className="text-slate-500">{Number(roll.current_qty || roll.quantity_kg || roll.net_weight_kg || 0).toFixed(3)} kg</span>
+                                                                            </div>
+                                                                        )) : <div className="text-xs text-slate-500">No WIP rolls assigned yet.</div>}
+                                                                    </div>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
                                                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Due · {job.planned_date || "—"}</span>
                                                     </div>
                                                     <div className="flex justify-end gap-2 md:col-span-3">
@@ -1473,11 +1542,23 @@ export default function WCMTerminal() {
                                                         >
                                                             Open terminal
                                                         </a>
-                                                        <button type="button" className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">⋯</button>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <button type="button" onClick={(event) => event.stopPropagation()} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">⋯</button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-56">
+                                                                <DropdownMenuItem onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason("") }}>
+                                                                    Short close step
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason("") }}>
+                                                                    Cancel job
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
                                                     </div>
                                                 </div>
                                                 <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-                                                    <span>Step · {job.process_code || "—"}</span><span>·</span><span>Template · {job.template_name || "—"}</span><span>·</span><span>Internal job · {job.job_number || "—"}</span>
+                                                    <span>Step · {job.process_code || "—"}</span><span>·</span><span>Template · {job.template_name || "—"}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1486,7 +1567,7 @@ export default function WCMTerminal() {
                             })}
                         </div>
 
-                        <aside className="space-y-4 xl:col-span-5">
+                        {activeMainTab !== "history" ? <aside className="space-y-4 xl:col-span-5">
                             <div className="sticky top-[76px] space-y-4">
                                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex items-start justify-between gap-4">
@@ -1513,10 +1594,26 @@ export default function WCMTerminal() {
                                     </div>
                                     <div className="mt-4 flex flex-wrap gap-1.5">
                                         {selectedSpec.layers.map((layer) => (
-                                            <span key={`selected-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layer.label}</span>
+                                            <span key={`selected-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layerQueueLabel(layer)}</span>
                                         ))}
                                         <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1 text-xs font-semibold text-fuchsia-700">PoD · {selectedPodLabel}</span>
                                         <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">Addons · {selectedAddonsLabel}</span>
+                                    </div>
+                                    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                                        <div className="grid grid-cols-[44px_1.4fr_1fr_90px_90px] bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                            <span>#</span><span>Layer variant</span><span>Grade</span><span>Thick</span><span>Width</span>
+                                        </div>
+                                        {selectedSpec.layers.length ? selectedSpec.layers.map((layer) => (
+                                            <div key={`selected-layer-row-${layer.index}`} className="grid grid-cols-[44px_1.4fr_1fr_90px_90px] border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-800">
+                                                <span className="text-slate-400">L{layer.index}</span>
+                                                <span>{firstNonEmpty(layer.variantName, `Layer ${layer.index}`)}</span>
+                                                <span className="truncate">{firstNonEmpty(layer.grade, "—")}</span>
+                                                <span>{layer.thicknessMicron != null ? `${layer.thicknessMicron}u` : "—"}</span>
+                                                <span>{layer.widthMm != null ? `${layer.widthMm}mm` : "—"}</span>
+                                            </div>
+                                        )) : (
+                                            <div className="px-3 py-4 text-center text-xs font-semibold text-slate-400">No layer details captured.</div>
+                                        )}
                                     </div>
                                 </section>
 
@@ -1543,16 +1640,9 @@ export default function WCMTerminal() {
                                             type="button"
                                             className="h-11 rounded-xl bg-slate-900 px-5 font-semibold text-white hover:bg-slate-800"
                                             disabled={!activeAssignment || !selectedMachineId || mutation.isPending}
-                                            onClick={() => {
-                                                if (!activeAssignment || !selectedMachineId) return
-                                                mutation.mutate(async () => {
-                                                    await wcmService.assignMachine(activeAssignment.id, selectedMachineId)
-                                                    await refetchContext()
-                                                    await refetchSatisfaction()
-                                                })
-                                            }}
+                                            onClick={handleAssignAndMaybeRelease}
                                         >
-                                            Assign
+                                            {requirementsSatisfied ? "Assign + release" : "Assign"}
                                         </Button>
                                     </div>
                                 </section>
@@ -1560,9 +1650,9 @@ export default function WCMTerminal() {
                                 <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-emerald-700">Granule code issue</div>
-                                            <div className="text-lg font-semibold text-emerald-950">Split bulk issue before machine release</div>
-                                            <p className="mt-1 text-xs font-medium text-emerald-900">For bulk-to-roll jobs, choose the granule code and kg split here. The machine terminal receives this selection for step close.</p>
+                                            <div className="text-[11px] uppercase tracking-wider text-emerald-700">Step material issue</div>
+                                            <div className="text-lg font-semibold text-emerald-950">Issue material and code split</div>
+                                            <p className="mt-1 text-xs font-medium text-emerald-900">Enter issued kg only. For granules, split the issued kg across allowed codes for that granule.</p>
                                         </div>
                                         <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700">{materialIssueRows.length} rows</span>
                                     </div>
@@ -1606,10 +1696,9 @@ export default function WCMTerminal() {
                                                             Add code
                                                         </Button>
                                                     </div>
-                                                    <div className="mt-3 grid gap-3 md:grid-cols-3">
-                                                        <Input value={draft.actual_issued_qty} onChange={(e) => updateMaterialIssueDraft(requirementId, { actual_issued_qty: e.target.value, is_estimated: false })} className="h-10 rounded-xl border-emerald-200 font-semibold" placeholder="Issued kg" />
-                                                        <Input value={draft.actual_returned_qty} onChange={(e) => updateMaterialIssueDraft(requirementId, { actual_returned_qty: e.target.value, is_estimated: false })} className="h-10 rounded-xl border-emerald-200 font-semibold" placeholder="Returned kg" />
-                                                        <Input value={draft.actual_scrap_qty} onChange={(e) => updateMaterialIssueDraft(requirementId, { actual_scrap_qty: e.target.value, is_estimated: false })} className="h-10 rounded-xl border-emerald-200 font-semibold" placeholder="Scrap kg" />
+                                                    <div className="mt-3 grid gap-3 md:grid-cols-[150px_1fr]">
+                                                        <Input value={draft.actual_issued_qty} onChange={(e) => updateMaterialIssueDraft(requirementId, { actual_issued_qty: e.target.value, actual_returned_qty: "0", actual_scrap_qty: "0", is_estimated: false })} className="h-10 rounded-xl border-emerald-200 font-semibold" placeholder="Issued kg" />
+                                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">Return and scrap are logged on machine output; WCM only releases issued material.</div>
                                                     </div>
                                                     <div className="mt-3 space-y-2">
                                                         {codeOptions.length === 0 ? (
@@ -1690,20 +1779,40 @@ export default function WCMTerminal() {
                                             </ul>
                                         </div>
                                     )}
-                                    <Button
-                                        type="button"
-                                        className="mt-4 h-12 w-full rounded-xl bg-emerald-600 text-base font-semibold text-white hover:bg-emerald-700"
-                                        disabled={!canPushToOperator || mutation.isPending}
-                                        onClick={handlePushToOperator}
-                                    >
-                                        {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        Release to machine execution
-                                    </Button>
                                 </section>
                             </div>
-                        </aside>
+                        </aside> : null}
                     </section>
                 </main>
+                <Dialog open={Boolean(closeJobAction)} onOpenChange={(open) => { if (!open) { setCloseJobAction(null); setCloseJobReason("") } }}>
+                    <DialogContent className="rounded-2xl">
+                        <DialogHeader>
+                            <DialogTitle>{closeJobAction?.mode === "CANCEL" ? "Cancel job" : "Short close step"}</DialogTitle>
+                            <DialogDescription>
+                                This writes an audit reason to the production job and removes it from the active WCM queue.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                                <div className="font-semibold text-slate-900">{closeJobAction?.assignment?.job_details?.customer_name || "Selected job"}</div>
+                                <div className="text-slate-500">{closeJobAction?.assignment?.job_details?.product_name || closeJobAction?.assignment?.job_details?.template_name || "Production job"}</div>
+                            </div>
+                            <Textarea
+                                value={closeJobReason}
+                                onChange={(event) => setCloseJobReason(event.target.value)}
+                                placeholder="Reason required for audit history"
+                                className="min-h-24 rounded-xl"
+                            />
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setCloseJobAction(null); setCloseJobReason("") }}>Cancel</Button>
+                                <Button type="button" className={cn("rounded-xl", closeJobAction?.mode === "CANCEL" ? "bg-rose-600 hover:bg-rose-700" : "bg-slate-900 hover:bg-slate-800")} disabled={closeJobReason.trim().length < 5 || mutation.isPending} onClick={handleCloseJobAction}>
+                                    {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Confirm
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         )
     }

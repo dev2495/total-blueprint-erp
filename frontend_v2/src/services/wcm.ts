@@ -116,6 +116,14 @@ export const wcmService = {
         });
         return data;
     },
+    closeJob: async (assignmentId: string, mode: "SHORT_CLOSE" | "CANCEL", reason: string) => {
+        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/close-job/`, {
+            assignment_id: assignmentId,
+            mode,
+            reason,
+        });
+        return data;
+    },
 
     logDowntime: async (machineId: string, reason: string, durationMinutes?: number) => {
         const { data } = await api.post(`/api/factory/machines/${machineId}/downtime/`, {

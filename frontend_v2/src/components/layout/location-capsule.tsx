@@ -29,6 +29,9 @@ const LABELS: Record<string, string> = {
 
 function toLabel(segment: string): string {
     const key = String(segment || "").toLowerCase()
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
+        return "Terminal"
+    }
     if (LABELS[key]) return LABELS[key]
     return key
         .split("-")

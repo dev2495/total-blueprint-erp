@@ -2,7 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "tp.dashboard.sidebar.pinned";
+const STORAGE_KEY = "tp.dashboard.sidebar.pinned.v3";
+const LEGACY_STORAGE_KEYS = [
+  "tp.dashboard.sidebar.pinned",
+  "tp.dashboard.sidebar.pinned.v2",
+];
 
 type DashboardChromeContextValue = {
   isPinned: boolean;
@@ -22,6 +26,7 @@ export function DashboardChromeProvider({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "true") {
       setIsPinned(true);
