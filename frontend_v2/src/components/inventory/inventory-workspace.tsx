@@ -46,6 +46,16 @@ type FilterOption = { value: string; label: string }
 
 const CHART_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
 const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
+const FILTER_TRIGGER_BASE_CLASS =
+  "h-10 rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus:ring-2 focus:ring-emerald-200 data-[state=open]:border-emerald-300 data-[state=open]:bg-gradient-to-br data-[state=open]:from-emerald-50 data-[state=open]:via-white data-[state=open]:to-sky-50 data-[state=open]:text-emerald-900 data-[state=open]:shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.13)]"
+const FILTER_TRIGGER_IDLE_CLASS =
+  "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 hover:border-emerald-200 hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
+const FILTER_TRIGGER_ACTIVE_CLASS =
+  "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
+const FILTER_MENU_CLASS =
+  "rounded-2xl border border-emerald-100/80 bg-gradient-to-br from-white via-emerald-50/50 to-sky-50/70 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)]"
+const FILTER_ITEM_CLASS =
+  "rounded-xl text-sm font-semibold text-slate-700 focus:bg-white/90 focus:text-emerald-900 data-[state=checked]:bg-white data-[state=checked]:text-emerald-900"
 const AGE_FILTER_OPTIONS: FilterOption[] = [
   { value: "ALL", label: "All Age" },
   { value: "Fresh", label: "Fresh <= 7d" },
@@ -863,7 +873,7 @@ export function InventoryFilterBar({
           <Input
             value={search}
             onChange={(event) => onChange({ q: event.target.value || null })}
-            className="h-11 rounded-2xl border-slate-200 bg-slate-50/80 pl-11 text-sm font-semibold shadow-none focus-visible:ring-emerald-500"
+            className="h-11 rounded-2xl border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 pl-11 text-sm font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.045)] transition placeholder:text-slate-500 hover:border-emerald-200 hover:from-emerald-50/70 hover:via-white hover:to-cyan-50/80 focus-visible:ring-2 focus-visible:ring-emerald-200"
             placeholder={searchPlaceholder}
             data-testid="inventory-search"
           />
@@ -923,20 +933,20 @@ export function InventoryFilterBar({
         ) : null}
         <FilterSelect value={age} onChange={(value) => onChange({ age: value })} options={AGE_FILTER_OPTIONS} label="Age" testId="inventory-filter-age" />
         <Select value={plant} onValueChange={(value) => onChange({ plant: value, location: null })}>
-          <SelectTrigger data-testid="inventory-filter-plant" className={cn("h-10 w-[160px] rounded-full px-4 text-xs font-black shadow-sm transition", plant !== "ALL" ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70" : "border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/70")}><SelectValue placeholder="Plant" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All plants</SelectItem>
-            {plants.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
+          <SelectTrigger data-testid="inventory-filter-plant" className={cn(FILTER_TRIGGER_BASE_CLASS, "w-[160px]", plant !== "ALL" ? FILTER_TRIGGER_ACTIVE_CLASS : FILTER_TRIGGER_IDLE_CLASS)}><SelectValue placeholder="Plant" /></SelectTrigger>
+          <SelectContent className={FILTER_MENU_CLASS}>
+            <SelectItem className={FILTER_ITEM_CLASS} value="ALL">All plants</SelectItem>
+            {plants.map((row) => <SelectItem className={FILTER_ITEM_CLASS} key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={location} onValueChange={(value) => onChange({ location: value })}>
-          <SelectTrigger data-testid="inventory-filter-location" className={cn("h-10 w-[180px] rounded-full px-4 text-xs font-black shadow-sm transition", location !== "ALL" ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70" : "border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/70")}><SelectValue placeholder="Location" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All locations</SelectItem>
-            {activeLocations.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
+          <SelectTrigger data-testid="inventory-filter-location" className={cn(FILTER_TRIGGER_BASE_CLASS, "w-[180px]", location !== "ALL" ? FILTER_TRIGGER_ACTIVE_CLASS : FILTER_TRIGGER_IDLE_CLASS)}><SelectValue placeholder="Location" /></SelectTrigger>
+          <SelectContent className={FILTER_MENU_CLASS}>
+            <SelectItem className={FILTER_ITEM_CLASS} value="ALL">All locations</SelectItem>
+            {activeLocations.map((row) => <SelectItem className={FILTER_ITEM_CLASS} key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" className="h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700" onClick={() => onChange(resetPayload)}>
+        <Button variant="outline" className="h-10 rounded-full border-rose-100 bg-gradient-to-br from-white via-rose-50/45 to-amber-50/55 px-4 text-xs font-black text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.045)] transition hover:border-rose-200 hover:from-rose-50 hover:via-white hover:to-orange-50 hover:text-rose-700" onClick={() => onChange(resetPayload)}>
           Reset
         </Button>
       </div>
@@ -965,17 +975,15 @@ function FilterSelect({
       <SelectTrigger
         data-testid={testId}
         className={cn(
-          "h-10 rounded-full px-4 text-xs font-black shadow-sm transition",
+          FILTER_TRIGGER_BASE_CLASS,
           widthClassName,
-          active
-            ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70"
-            : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/70 hover:text-sky-800"
+          active ? FILTER_TRIGGER_ACTIVE_CLASS : FILTER_TRIGGER_IDLE_CLASS
         )}
       >
         <SelectValue placeholder={label} />
       </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+      <SelectContent className={FILTER_MENU_CLASS}>
+        {options.map((option) => <SelectItem className={FILTER_ITEM_CLASS} key={option.value} value={option.value}>{option.label}</SelectItem>)}
       </SelectContent>
     </Select>
   )
@@ -990,10 +998,10 @@ function FilterTextInput({ value, onChange, label, testId }: { value: string; on
       placeholder={label}
       data-testid={testId}
       className={cn(
-        "h-10 w-[150px] rounded-full px-4 text-xs font-black shadow-sm transition focus-visible:ring-emerald-500",
+        "h-10 w-[150px] rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-emerald-200",
         active
-          ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70 placeholder:text-emerald-700/70"
-          : "border-slate-200 bg-white text-slate-700 placeholder:text-slate-500 hover:border-sky-300 hover:bg-sky-50/70"
+          ? "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-900 placeholder:text-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
+          : "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 placeholder:text-slate-500 hover:border-emerald-200 hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
       )}
     />
   )
@@ -1009,10 +1017,10 @@ function FilterDateInput({ value, onChange, label, testId }: { value: string; on
       aria-label={label}
       data-testid={testId}
       className={cn(
-        "h-10 w-[148px] rounded-full px-4 text-xs font-black shadow-sm transition focus-visible:ring-emerald-500",
+        "h-10 w-[148px] rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-emerald-200",
         active
-          ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70"
-          : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/70"
+          ? "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
+          : "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 hover:border-emerald-200 hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
       )}
     />
   )
