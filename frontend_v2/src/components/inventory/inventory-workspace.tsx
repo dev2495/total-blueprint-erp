@@ -42,9 +42,75 @@ import { cn } from "@/lib/utils"
 type WorkspaceTab = "rolls" | "bulk" | "packaging" | "grn"
 type InnerTab = "pulse" | "browse"
 type ViewMode = "table" | "cards"
+type FilterOption = { value: string; label: string }
 
 const CHART_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
 const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
+const AGE_FILTER_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Age" },
+  { value: "Fresh", label: "Fresh <= 7d" },
+  { value: "Watch", label: "Watch 8-30d" },
+  { value: "Aged", label: "Aged > 30d" },
+]
+const STATUS_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Status" },
+  { value: "AVAILABLE", label: "Available" },
+  { value: "RESERVED", label: "Reserved" },
+  { value: "IN_PROCESS", label: "In Process" },
+  { value: "SENT_JOBWORK", label: "Sent Jobwork" },
+]
+const SOURCE_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Source" },
+  { value: "ROLL", label: "Roll GRN" },
+  { value: "BULK", label: "Bulk GRN" },
+  { value: "PACKAGING", label: "Packaging GRN" },
+]
+const ROLL_WEIGHT_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Weight" },
+  { value: "0-100", label: "0-100 kg" },
+  { value: "100-250", label: "100-250 kg" },
+  { value: "250-500", label: "250-500 kg" },
+  { value: "500+", label: "500+ kg" },
+]
+const STOCK_AVAILABILITY_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Availability" },
+  { value: "AVAILABLE", label: "Available" },
+  { value: "LOW", label: "Low Stock" },
+  { value: "ZERO", label: "Zero Stock" },
+]
+const VALUE_BAND_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Value" },
+  { value: "NO_VALUE", label: "No Value" },
+  { value: "0-10000", label: "0-10k" },
+  { value: "10000-50000", label: "10k-50k" },
+  { value: "50000-100000", label: "50k-1L" },
+  { value: "100000+", label: "1L+" },
+]
+const PACKAGING_STOCK_RANGE_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Stock" },
+  { value: "ZERO", label: "Zero" },
+  { value: "1-500", label: "1-500" },
+  { value: "500-2500", label: "500-2,500" },
+  { value: "2500+", label: "2,500+" },
+]
+const PACKAGING_TRANSACTION_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Movement" },
+  { value: "INWARD", label: "Inward" },
+  { value: "CONSUME", label: "Consume" },
+  { value: "TRANSFER", label: "Transfer" },
+  { value: "ADJUST", label: "Adjust" },
+  { value: "PRODUCE", label: "Produce" },
+]
+const PRINT_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Print" },
+  { value: "PRINTED", label: "Printed" },
+  { value: "UNPRINTED", label: "Unprinted" },
+]
+const LAMINATION_OPTIONS: FilterOption[] = [
+  { value: "ALL", label: "All Lamination" },
+  { value: "LAMINATED", label: "Laminated" },
+  { value: "UNLAMINATED", label: "Unlaminated" },
+]
 
 function num(value: unknown) {
   const parsed = Number(value)
@@ -81,6 +147,150 @@ function includesText(values: unknown[], search: string) {
   if (!search) return true
   const q = search.toLowerCase()
   return values.map((value) => String(value || "").toLowerCase()).join(" ").includes(q)
+}
+
+function clean(value: unknown) {
+  return String(value ?? "").trim()
+}
+
+function upper(value: unknown) {
+  return clean(value).toUpperCase()
+}
+
+function formatOptionLabel(value: string) {
+  return value.replaceAll("_", " ")
+}
+
+function optionsFromPairs(pairs: Array<[unknown, unknown]>, allLabel: string, limit = 120): FilterOption[] {
+  const seen = new Map<string, string>()
+  for (const [rawValue, rawLabel] of pairs) {
+    const value = clean(rawValue)
+    if (!value || value === "ALL" || seen.has(value)) continue
+    seen.set(value, clean(rawLabel) || value)
+  }
+  return [
+    { value: "ALL", label: allLabel },
+    ...Array.from(seen.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .slice(0, limit),
+  ]
+}
+
+function optionsFromValues(values: unknown[], allLabel: string, limit = 120): FilterOption[] {
+  return optionsFromPairs(values.map((value) => [value, formatOptionLabel(clean(value))]), allLabel, limit)
+}
+
+function rollExactSize(row: any) {
+  const width = num(row.width_mm)
+  const thickness = num(row.thickness_micron)
+  if (!width && !thickness) return "Unknown size"
+  return `${width ? Math.round(width) : "?"}mm x ${thickness ? Math.round(thickness) : "?"}u`
+}
+
+function rollWidthBand(row: any) {
+  const width = num(row.width_mm)
+  if (!width) return "Unknown width"
+  if (width <= 500) return "<= 500 mm"
+  if (width <= 800) return "501-800 mm"
+  if (width <= 1100) return "801-1100 mm"
+  return "> 1100 mm"
+}
+
+function rollThicknessExact(row: any) {
+  const thickness = num(row.thickness_micron)
+  return thickness ? `${Math.round(thickness)}u` : "Unknown thickness"
+}
+
+function rollThicknessBand(row: any) {
+  const thickness = num(row.thickness_micron)
+  if (!thickness) return "Unknown thickness"
+  if (thickness <= 15) return "<= 15u"
+  if (thickness <= 30) return "16-30u"
+  if (thickness <= 50) return "31-50u"
+  return "> 50u"
+}
+
+function rollWeightBand(row: any) {
+  const weight = num(row.weight_kg)
+  if (weight < 100) return "0-100"
+  if (weight < 250) return "100-250"
+  if (weight < 500) return "250-500"
+  return "500+"
+}
+
+function rollPrintState(row: any) {
+  const text = upper([row.print_status, row.form_label, row.process_state_label, row.variant_summary, row.display_name].join(" "))
+  if (text.includes("UNPRINT") || text.includes("NO PRINT") || text.includes("PLAIN")) return "UNPRINTED"
+  if (text.includes("PRINT")) return "PRINTED"
+  return "UNPRINTED"
+}
+
+function rollLaminationState(row: any) {
+  const text = upper([row.lamination_status, row.form_label, row.process_state_label, row.variant_summary, row.display_name].join(" "))
+  if (text.includes("UNLAM") || text.includes("NO LAM") || text.includes("NON LAM")) return "UNLAMINATED"
+  if (text.includes("LAM")) return "LAMINATED"
+  return "UNLAMINATED"
+}
+
+function matchesRollSize(row: any, selected: string) {
+  if (selected === "ALL") return true
+  return rollWidthBand(row) === selected || rollExactSize(row) === selected || `${rollWidthBand(row)} · ${rollThicknessBand(row)}` === selected
+}
+
+function matchesRollThickness(row: any, selected: string) {
+  if (selected === "ALL") return true
+  return rollThicknessBand(row) === selected || rollThicknessExact(row) === selected
+}
+
+function stockAvailability(kind: "bulk" | "packaging", row: any) {
+  const qty = stockQty(kind, row)
+  if (qty <= 0) return "ZERO"
+  const lowLine = kind === "packaging" ? 100 : 100
+  if (qty <= lowLine) return "LOW"
+  return "AVAILABLE"
+}
+
+function stockRangeBand(kind: "bulk" | "packaging", row: any) {
+  const qty = stockQty(kind, row)
+  if (qty <= 0) return "ZERO"
+  if (kind === "packaging") {
+    if (qty <= 500) return "1-500"
+    if (qty <= 2500) return "500-2500"
+    return "2500+"
+  }
+  if (qty <= 100) return "0-100"
+  if (qty <= 1000) return "100-1000"
+  return "1000+"
+}
+
+function stockValueBand(kind: "bulk" | "packaging", row: any) {
+  const value = stockQty(kind, row) * num(row.avg_cost)
+  if (value <= 0) return "NO_VALUE"
+  if (value <= 10000) return "0-10000"
+  if (value <= 50000) return "10000-50000"
+  if (value <= 100000) return "50000-100000"
+  return "100000+"
+}
+
+function packagingSupplyMode(row: any, packagingMaterials: any[]) {
+  const material = packagingMaterials.find((item) => String(item.id) === String(row.material))
+  return upper(material?.packaging_supply_mode || row.packaging_supply_mode || "PURCHASED")
+}
+
+function dateInRange(date: string | null | undefined, from: string, to: string) {
+  if (!from && !to) return true
+  if (!date) return false
+  const day = date.slice(0, 10)
+  if (from && day < from) return false
+  if (to && day > to) return false
+  return true
+}
+
+function ageFromHeatmapColumn(column: string) {
+  if (column === "0-7d") return "Fresh"
+  if (column === "8-30d") return "Watch"
+  return "Aged"
 }
 
 function groupSum<T>(rows: T[], keyFn: (row: T) => string, valueFn: (row: T) => number, limit = 8) {
@@ -155,6 +365,25 @@ export function InventoryWorkspaceShell() {
   const category = searchParams.get("category") || "ALL"
   const sourceType = searchParams.get("source_type") || "ALL"
   const age = searchParams.get("age") || "ALL"
+  const size = searchParams.get("size") || "ALL"
+  const variant = searchParams.get("variant") || "ALL"
+  const thickness = searchParams.get("thickness") || "ALL"
+  const grade = searchParams.get("grade") || "ALL"
+  const weight = searchParams.get("weight") || "ALL"
+  const family = searchParams.get("family") || "ALL"
+  const job = searchParams.get("job") || "ALL"
+  const print = searchParams.get("print") || "ALL"
+  const lamination = searchParams.get("lamination") || "ALL"
+  const granule = searchParams.get("granule") || "ALL"
+  const availability = searchParams.get("availability") || "ALL"
+  const valueBand = searchParams.get("value") || "ALL"
+  const supplyMode = searchParams.get("supply_mode") || "ALL"
+  const transactionType = searchParams.get("transaction_type") || "ALL"
+  const stockRange = searchParams.get("stock_range") || "ALL"
+  const vendor = searchParams.get("vendor") || "ALL"
+  const reference = searchParams.get("reference") || "ALL"
+  const dateFrom = searchParams.get("date_from") || ""
+  const dateTo = searchParams.get("date_to") || ""
 
   function setParam(updates: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams.toString())
@@ -162,7 +391,39 @@ export function InventoryWorkspaceShell() {
       if (!value || value === "ALL") next.delete(key)
       else next.set(key, value)
     }
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    const query = next.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
+  function switchTab(value: string) {
+    setParam({
+      tab: value,
+      view: "pulse",
+      mode: null,
+      status: null,
+      material: null,
+      category: null,
+      source_type: null,
+      size: null,
+      variant: null,
+      thickness: null,
+      grade: null,
+      weight: null,
+      family: null,
+      job: null,
+      print: null,
+      lamination: null,
+      granule: null,
+      availability: null,
+      value: null,
+      supply_mode: null,
+      transaction_type: null,
+      stock_range: null,
+      vendor: null,
+      reference: null,
+      date_from: null,
+      date_to: null,
+    })
   }
 
   const { data: plants = [] } = useQuery({ queryKey: ["inventory-workspace-plants"], queryFn: factoryService.getPlants })
@@ -182,25 +443,25 @@ export function InventoryWorkspaceShell() {
     staleTime: 30000,
   })
   const bulkQuery = useQuery({
-    queryKey: ["inventory-workspace-bulk", plant, material],
-    queryFn: () => inventoryService.getBulkStock({ plant: plant !== "ALL" ? plant : undefined, material: material !== "ALL" ? material : undefined }),
+    queryKey: ["inventory-workspace-bulk", plant],
+    queryFn: () => inventoryService.getBulkStock({ plant: plant !== "ALL" ? plant : undefined }),
     enabled: tab === "bulk",
     staleTime: 30000,
   })
   const packagingQuery = useQuery({
-    queryKey: ["inventory-workspace-packaging", plant, material, location],
-    queryFn: () => inventoryService.getPackagingStock({ plant: plant !== "ALL" ? plant : undefined, material: material !== "ALL" ? material : undefined, location: location !== "ALL" ? location : undefined }),
+    queryKey: ["inventory-workspace-packaging", plant, location],
+    queryFn: () => inventoryService.getPackagingStock({ plant: plant !== "ALL" ? plant : undefined, location: location !== "ALL" ? location : undefined }),
     enabled: tab === "packaging",
     staleTime: 30000,
   })
   const packagingTxQuery = useQuery({
-    queryKey: ["inventory-workspace-packaging-tx", material, location],
-    queryFn: () => inventoryService.getPackagingTransactions({ material: material !== "ALL" ? material : undefined, location: location !== "ALL" ? location : undefined }),
+    queryKey: ["inventory-workspace-packaging-tx", material, location, transactionType],
+    queryFn: () => inventoryService.getPackagingTransactions({ material: material !== "ALL" ? material : undefined, location: location !== "ALL" ? location : undefined, type: transactionType !== "ALL" ? transactionType : undefined }),
     enabled: tab === "packaging",
     staleTime: 30000,
   })
   const grnQuery = useQuery({
-    queryKey: ["inventory-workspace-grn", sourceType, search, material, plant, location],
+    queryKey: ["inventory-workspace-grn", sourceType, search, material, plant, location, vendor, reference, dateFrom, dateTo],
     queryFn: () =>
       inventoryService.getGrnHistory({
         source_type: sourceType !== "ALL" ? sourceType : undefined,
@@ -208,6 +469,10 @@ export function InventoryWorkspaceShell() {
         material: material !== "ALL" ? material : undefined,
         plant: plant !== "ALL" ? plant : undefined,
         location: location !== "ALL" ? location : undefined,
+        vendor: vendor !== "ALL" ? vendor : undefined,
+        reference: reference !== "ALL" ? reference : undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
       }),
     enabled: tab === "grn",
     staleTime: 15000,
@@ -221,10 +486,38 @@ export function InventoryWorkspaceShell() {
     qc.invalidateQueries({ queryKey: ["inventory-workspace-grn"] })
   }
 
-  const rollRows = useMemo(() => {
+  const allRollRows = useMemo(() => {
     const rows = (rollsQuery.data?.families || []).flatMap((family) => family.variants.flatMap((variant) => variant.rolls || []))
+    return rows
+  }, [rollsQuery.data])
+
+  const allBulkRows = useMemo(() => ((bulkQuery.data || []) as InventoryBulk[]), [bulkQuery.data])
+  const allPackagingRows = useMemo(() => ((packagingQuery.data || []) as PackagingStockRow[]), [packagingQuery.data])
+  const packagingTxRows = useMemo(() => ((packagingTxQuery.data || []) as PackagingTransactionRow[]), [packagingTxQuery.data])
+  const allGrnRows = useMemo(() => ((grnQuery.data || []) as GrnHistoryRow[]), [grnQuery.data])
+
+  const packagingTransactionMaterialIds = useMemo(() => {
+    if (transactionType === "ALL") return null
+    return new Set(packagingTxRows.map((row) => String(row.material)))
+  }, [packagingTxRows, transactionType])
+
+  const rollRows = useMemo(() => {
+    const rows = allRollRows
     return rows.filter((row) => {
+      if (plant !== "ALL" && String(row.plant_id || (row as any).plant || "") !== plant) return false
+      if (location !== "ALL" && String(row.location_id || (row as any).location || "") !== location) return false
+      if (status !== "ALL" && upper(row.status) !== status) return false
+      if (material !== "ALL" && String(row.material_id || (row as any).material || "") !== material) return false
       if (age !== "ALL" && ageBand(row.created_at) !== age) return false
+      if (!matchesRollSize(row, size)) return false
+      if (variant !== "ALL" && clean(row.variant_display_name || row.material_name) !== variant) return false
+      if (!matchesRollThickness(row, thickness)) return false
+      if (grade !== "ALL" && clean(row.grade_name || row.grade_id) !== grade) return false
+      if (weight !== "ALL" && rollWeightBand(row) !== weight) return false
+      if (family !== "ALL" && clean(row.family_display_name || row.reporting_group || row.material_name) !== family) return false
+      if (job !== "ALL" && clean(row.created_job_number || row.production_job_number || row.created_job_id || row.production_job_id) !== job) return false
+      if (print !== "ALL" && rollPrintState(row) !== print) return false
+      if (lamination !== "ALL" && rollLaminationState(row) !== lamination) return false
       return includesText([
         row.label_id,
         row.family_display_name,
@@ -236,29 +529,62 @@ export function InventoryWorkspaceShell() {
         row.status,
         row.stage_name,
         row.created_job_number,
+        row.size_line,
+        row.print_status,
+        row.lamination_status,
       ], search)
     })
-  }, [rollsQuery.data, search, age])
+  }, [allRollRows, plant, location, status, material, age, size, variant, thickness, grade, weight, family, job, print, lamination, search])
 
   const bulkRows = useMemo(() => {
-    return ((bulkQuery.data || []) as InventoryBulk[]).filter((row) => {
+    return allBulkRows.filter((row) => {
+      if (material !== "ALL" && String(row.material) !== material) return false
       if (category !== "ALL" && String(row.material_category || "").toUpperCase() !== category) return false
       if (location !== "ALL" && String(row.location) !== location) return false
+      if (granule !== "ALL" && clean(row.granule_quality_code || row.granule_quality_code_id) !== granule) return false
+      if (availability !== "ALL" && stockAvailability("bulk", row) !== availability) return false
+      if (valueBand !== "ALL" && stockValueBand("bulk", row) !== valueBand) return false
       if (age !== "ALL" && ageBand(row.updated_at) !== age) return false
       return includesText([row.material_name, row.material_code, row.material_category, row.granule_quality_code, row.plant_name, row.location_name], search)
     })
-  }, [bulkQuery.data, category, location, search, age])
+  }, [allBulkRows, material, category, location, granule, availability, valueBand, age, search])
 
   const packagingRows = useMemo(() => {
-    return ((packagingQuery.data || []) as PackagingStockRow[]).filter((row) => {
+    return allPackagingRows.filter((row) => {
+      if (material !== "ALL" && String(row.material) !== material) return false
       if (category !== "ALL" && String(row.packaging_kind || "").toUpperCase() !== category) return false
+      if (supplyMode !== "ALL" && packagingSupplyMode(row, packagingMaterials as any[]) !== supplyMode) return false
+      if (stockRange !== "ALL" && stockRangeBand("packaging", row) !== stockRange) return false
+      if (packagingTransactionMaterialIds && !packagingTransactionMaterialIds.has(String(row.material))) return false
       if (age !== "ALL" && ageBand(row.updated_at) !== age) return false
       return includesText([row.material_name, row.material_code, row.packaging_kind, row.plant_name, row.location_name], search)
     })
-  }, [packagingQuery.data, category, search, age])
+  }, [allPackagingRows, material, category, supplyMode, packagingMaterials, stockRange, packagingTransactionMaterialIds, age, search])
 
-  const packagingTxRows = (packagingTxQuery.data || []) as PackagingTransactionRow[]
-  const grnRows = (grnQuery.data || []) as GrnHistoryRow[]
+  const grnRows = useMemo(() => {
+    return allGrnRows.filter((row) => {
+      if (sourceType !== "ALL" && row.source_type !== sourceType) return false
+      if (material !== "ALL" && String(row.material || "") !== material) return false
+      if (plant !== "ALL" && String(row.plant || "") !== plant) return false
+      if (location !== "ALL" && String(row.location || "") !== location) return false
+      if (age !== "ALL" && ageBand(row.created_at) !== age) return false
+      if (vendor !== "ALL" && !includesText([row.vendor_name, row.vendor_code, row.vendor], vendor)) return false
+      if (reference !== "ALL" && !includesText([row.reference, row.batch_no, row.label_id], reference)) return false
+      if (!dateInRange(row.created_at, dateFrom, dateTo)) return false
+      return includesText([
+        row.source_type,
+        row.label_id,
+        row.material_name,
+        row.material_code,
+        row.reference,
+        row.batch_no,
+        row.vendor_name,
+        row.vendor_code,
+        row.plant_name,
+        row.location_name,
+      ], search)
+    })
+  }, [allGrnRows, sourceType, material, plant, location, age, vendor, reference, dateFrom, dateTo, search])
 
   const title = tab === "bulk" ? "Bulk Inventory" : tab === "packaging" ? "Packaging Stock" : tab === "grn" ? "GRN History" : "Roll Explorer"
   const description = tab === "bulk"
@@ -268,6 +594,28 @@ export function InventoryWorkspaceShell() {
       : tab === "grn"
         ? "All inwards in one auditable ledger with correction trail."
         : "Every individual roll across raw, intermediate, job-work, and finished stock."
+
+  const rollExactSizeCount = useMemo(() => new Set(allRollRows.map(rollExactSize)).size, [allRollRows])
+  const rollExactThicknessCount = useMemo(() => new Set(allRollRows.map(rollThicknessExact)).size, [allRollRows])
+  const filterOptions = useMemo(() => {
+    const useExactRollSize = rollExactSizeCount > 0 && rollExactSizeCount <= 12
+    const useExactRollThickness = rollExactThicknessCount > 0 && rollExactThicknessCount <= 12
+    return {
+      rollSize: optionsFromValues(allRollRows.map((row) => useExactRollSize ? rollExactSize(row) : rollWidthBand(row)), "All Size"),
+      rollVariant: optionsFromValues(allRollRows.map((row) => clean(row.variant_display_name || row.material_name)), "All Variant"),
+      rollThickness: optionsFromValues(allRollRows.map((row) => useExactRollThickness ? rollThicknessExact(row) : rollThicknessBand(row)), "All Thickness"),
+      rollGrade: optionsFromValues(allRollRows.map((row) => clean(row.grade_name || row.grade_id)), "All Grade"),
+      rollFamily: optionsFromValues(allRollRows.map((row) => clean(row.family_display_name || row.reporting_group || row.material_name)), "All Family"),
+      rollJob: optionsFromValues(allRollRows.map((row) => clean(row.created_job_number || row.production_job_number || row.created_job_id || row.production_job_id)), "All Job"),
+      bulkMaterial: optionsFromPairs(allBulkRows.map((row) => [row.material, `${row.material_code || "MAT"} - ${row.material_name || "Material"}`]), "All Product"),
+      bulkCategory: optionsFromValues(allBulkRows.map((row) => upper(row.material_category || "OTHER")), "All Category"),
+      bulkGranule: optionsFromValues(allBulkRows.map((row) => clean(row.granule_quality_code || row.granule_quality_code_id)), "All Granule"),
+      packagingSku: optionsFromPairs((packagingMaterials as any[]).map((row) => [row.id, `${row.code || "SKU"} - ${row.name || "Packaging"}`]), "All SKU"),
+      packagingKind: optionsFromValues(allPackagingRows.map((row) => upper(row.packaging_kind || "OTHER")), "All Kind"),
+      packagingSupplyMode: optionsFromValues((packagingMaterials as any[]).map((row) => upper(row.packaging_supply_mode || "PURCHASED")), "All Supply"),
+      grnMaterial: optionsFromPairs(allGrnRows.map((row) => [row.material, `${row.material_code || row.label_id || "MAT"} - ${row.material_name || row.label_id || "Material"}`]), "All Material"),
+    }
+  }, [allRollRows, allBulkRows, allPackagingRows, allGrnRows, packagingMaterials, rollExactSizeCount, rollExactThicknessCount])
 
   return (
     <div className="min-h-screen rounded-[28px] bg-[radial-gradient(900px_420px_at_5%_-10%,#eef4ff_0%,transparent_60%),radial-gradient(820px_380px_at_94%_-12%,#ecfdf5_0%,transparent_58%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-5 text-slate-950 md:px-6">
@@ -280,7 +628,7 @@ export function InventoryWorkspaceShell() {
               <div className="text-sm font-black text-slate-950">Inventory</div>
             </div>
           </div>
-          <Tabs value={tab} onValueChange={(value) => setParam({ tab: value, view: "pulse" })}>
+          <Tabs value={tab} onValueChange={switchTab}>
             <TabsList className="flex h-auto flex-wrap justify-start gap-1 rounded-[14px] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200">
               <TabsTrigger value="rolls" className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"><Archive className="h-4 w-4" /> Roll Explorer</TabsTrigger>
               <TabsTrigger value="bulk" className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"><Boxes className="h-4 w-4" /> Bulk Inventory</TabsTrigger>
@@ -301,7 +649,7 @@ export function InventoryWorkspaceShell() {
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
-            <Button className="h-10 rounded-xl bg-slate-950 text-xs font-black shadow-sm hover:bg-slate-800" onClick={() => setParam({ tab: "grn" })}>
+            <Button className="h-10 rounded-xl bg-slate-950 text-xs font-black shadow-sm hover:bg-slate-800" onClick={() => switchTab("grn")}>
               <ShieldCheck className="mr-2 h-4 w-4" />
               GRN History
             </Button>
@@ -318,26 +666,45 @@ export function InventoryWorkspaceShell() {
           category={category}
           sourceType={sourceType}
           age={age}
+          size={size}
+          variant={variant}
+          thickness={thickness}
+          grade={grade}
+          weight={weight}
+          family={family}
+          job={job}
+          print={print}
+          lamination={lamination}
+          granule={granule}
+          availability={availability}
+          valueBand={valueBand}
+          supplyMode={supplyMode}
+          transactionType={transactionType}
+          stockRange={stockRange}
+          vendor={vendor}
+          reference={reference}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
           plants={plants as any[]}
           locations={allLocations as any[]}
-          packagingMaterials={packagingMaterials as any[]}
+          filterOptions={filterOptions}
           onChange={setParam}
         />
 
-        <Tabs value={tab} onValueChange={(value) => setParam({ tab: value, view: "pulse" })} className="space-y-4">
+        <Tabs value={tab} onValueChange={switchTab} className="space-y-4">
 
         <TabsContent value="rolls" className="space-y-4">
           <StockTabHeader inner={inner} mode={mode} onChange={setParam} showCards />
-          {inner === "pulse" ? <InventoryPulsePanel kind="rolls" rows={rollRows} loading={rollsQuery.isLoading} onBrowse={(query) => setParam({ view: "browse", q: query })} /> : <InventoryBrowseTable kind="rolls" rows={rollRows} mode={mode} />}
+          {inner === "pulse" ? <InventoryPulsePanel kind="rolls" rows={rollRows} loading={rollsQuery.isLoading} onBrowse={setParam} /> : <InventoryBrowseTable kind="rolls" rows={rollRows} mode={mode} />}
         </TabsContent>
         <TabsContent value="bulk" className="space-y-4">
           <StockTabHeader inner={inner} mode={mode} onChange={setParam} showCards />
-          {inner === "pulse" ? <InventoryPulsePanel kind="bulk" rows={bulkRows} loading={bulkQuery.isLoading} onBrowse={(query) => setParam({ view: "browse", q: query })} /> : <InventoryBrowseTable kind="bulk" rows={bulkRows} mode={mode} />}
+          {inner === "pulse" ? <InventoryPulsePanel kind="bulk" rows={bulkRows} loading={bulkQuery.isLoading} onBrowse={setParam} /> : <InventoryBrowseTable kind="bulk" rows={bulkRows} mode={mode} />}
         </TabsContent>
         <TabsContent value="packaging" className="space-y-4">
           <StockTabHeader inner={inner} mode={mode} onChange={setParam} showCards />
           {inner === "pulse" ? (
-            <InventoryPulsePanel kind="packaging" rows={packagingRows} txRows={packagingTxRows} loading={packagingQuery.isLoading} packagingMaterials={packagingMaterials as any[]} onBrowse={(query) => setParam({ view: "browse", q: query })} />
+            <InventoryPulsePanel kind="packaging" rows={packagingRows} txRows={packagingTxRows} loading={packagingQuery.isLoading} packagingMaterials={packagingMaterials as any[]} onBrowse={setParam} />
           ) : (
             <InventoryBrowseTable kind="packaging" rows={packagingRows} mode={mode} packagingMaterials={packagingMaterials as any[]} />
           )}
@@ -379,9 +746,28 @@ export function InventoryFilterBar({
   category,
   sourceType,
   age,
+  size,
+  variant,
+  thickness,
+  grade,
+  weight,
+  family,
+  job,
+  print,
+  lamination,
+  granule,
+  availability,
+  valueBand,
+  supplyMode,
+  transactionType,
+  stockRange,
+  vendor,
+  reference,
+  dateFrom,
+  dateTo,
   plants,
   locations,
-  packagingMaterials,
+  filterOptions,
   onChange,
 }: {
   tab: WorkspaceTab
@@ -393,22 +779,81 @@ export function InventoryFilterBar({
   category: string
   sourceType: string
   age: string
+  size: string
+  variant: string
+  thickness: string
+  grade: string
+  weight: string
+  family: string
+  job: string
+  print: string
+  lamination: string
+  granule: string
+  availability: string
+  valueBand: string
+  supplyMode: string
+  transactionType: string
+  stockRange: string
+  vendor: string
+  reference: string
+  dateFrom: string
+  dateTo: string
   plants: any[]
   locations: any[]
-  packagingMaterials: any[]
+  filterOptions: {
+    rollSize: FilterOption[]
+    rollVariant: FilterOption[]
+    rollThickness: FilterOption[]
+    rollGrade: FilterOption[]
+    rollFamily: FilterOption[]
+    rollJob: FilterOption[]
+    bulkMaterial: FilterOption[]
+    bulkCategory: FilterOption[]
+    bulkGranule: FilterOption[]
+    packagingSku: FilterOption[]
+    packagingKind: FilterOption[]
+    packagingSupplyMode: FilterOption[]
+    grnMaterial: FilterOption[]
+  }
   onChange: (updates: Record<string, string | null>) => void
 }) {
   const activeLocations = locations.filter((row) => plant === "ALL" || String(row.plant) === plant)
-  const categoryOptions = tab === "packaging"
-    ? ["INNER_POUCH", "GONNY", "TAPE", "SHEET", "BOX", "LABEL", "TAG", "OTHER"]
-    : ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "POD", "OTHER"]
-  const primaryFilters = tab === "rolls"
-    ? ["Size", "Variant", "Thickness", "Grade", "Weight"]
-    : tab === "bulk"
-      ? ["Product", "Granule code", "Availability", "Value"]
-      : tab === "packaging"
-        ? ["SKU", "Supply mode", "Transaction", "Stock range"]
-        : ["Material", "Vendor", "Reference", "Date range"]
+  const searchPlaceholder = tab === "grn"
+    ? "Search material, vendor, reference, label..."
+    : tab === "rolls"
+      ? "Search roll label, material, job, location..."
+      : tab === "bulk"
+        ? "Search material, category, granule, location..."
+        : "Search SKU, packaging kind, location..."
+  const resetPayload = {
+    q: null,
+    plant: null,
+    location: null,
+    status: null,
+    material: null,
+    category: null,
+    source_type: null,
+    age: null,
+    size: null,
+    variant: null,
+    thickness: null,
+    grade: null,
+    weight: null,
+    family: null,
+    job: null,
+    print: null,
+    lamination: null,
+    granule: null,
+    availability: null,
+    value: null,
+    supply_mode: null,
+    transaction_type: null,
+    stock_range: null,
+    vendor: null,
+    reference: null,
+    date_from: null,
+    date_to: null,
+  }
 
   return (
     <div className="rounded-[22px] border border-slate-200/80 bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
@@ -419,52 +864,79 @@ export function InventoryFilterBar({
             value={search}
             onChange={(event) => onChange({ q: event.target.value || null })}
             className="h-11 rounded-2xl border-slate-200 bg-slate-50/80 pl-11 text-sm font-semibold shadow-none focus-visible:ring-emerald-500"
-            placeholder="Search material, label, vendor, reference..."
+            placeholder={searchPlaceholder}
+            data-testid="inventory-search"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {primaryFilters.map((filter) => (
-            <button key={filter} type="button" className="h-10 rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700">
-              {filter}
-            </button>
-          ))}
+          {tab === "rolls" ? (
+            <>
+              <FilterSelect value={size} onChange={(value) => onChange({ size: value })} options={filterOptions.rollSize} label="Size" testId="inventory-filter-size" />
+              <FilterSelect value={variant} onChange={(value) => onChange({ variant: value })} options={filterOptions.rollVariant} label="Variant" testId="inventory-filter-variant" widthClassName="w-[190px]" />
+              <FilterSelect value={thickness} onChange={(value) => onChange({ thickness: value })} options={filterOptions.rollThickness} label="Thickness" testId="inventory-filter-thickness" />
+              <FilterSelect value={grade} onChange={(value) => onChange({ grade: value })} options={filterOptions.rollGrade} label="Grade" testId="inventory-filter-grade" />
+              <FilterSelect value={weight} onChange={(value) => onChange({ weight: value })} options={ROLL_WEIGHT_OPTIONS} label="Weight" testId="inventory-filter-weight" />
+            </>
+          ) : null}
+          {tab === "bulk" ? (
+            <>
+              <FilterSelect value={material} onChange={(value) => onChange({ material: value })} options={filterOptions.bulkMaterial} label="Product" testId="inventory-filter-material" widthClassName="w-[240px]" />
+              <FilterSelect value={granule} onChange={(value) => onChange({ granule: value })} options={filterOptions.bulkGranule} label="Granule" testId="inventory-filter-granule" />
+              <FilterSelect value={availability} onChange={(value) => onChange({ availability: value })} options={STOCK_AVAILABILITY_OPTIONS} label="Availability" testId="inventory-filter-availability" />
+              <FilterSelect value={valueBand} onChange={(value) => onChange({ value })} options={VALUE_BAND_OPTIONS} label="Value" testId="inventory-filter-value" />
+            </>
+          ) : null}
+          {tab === "packaging" ? (
+            <>
+              <FilterSelect value={material} onChange={(value) => onChange({ material: value })} options={filterOptions.packagingSku} label="SKU" testId="inventory-filter-sku" widthClassName="w-[240px]" />
+              <FilterSelect value={supplyMode} onChange={(value) => onChange({ supply_mode: value })} options={filterOptions.packagingSupplyMode} label="Supply" testId="inventory-filter-supply" />
+              <FilterSelect value={transactionType} onChange={(value) => onChange({ transaction_type: value })} options={PACKAGING_TRANSACTION_OPTIONS} label="Movement" testId="inventory-filter-transaction" />
+              <FilterSelect value={stockRange} onChange={(value) => onChange({ stock_range: value })} options={PACKAGING_STOCK_RANGE_OPTIONS} label="Stock" testId="inventory-filter-stock-range" />
+            </>
+          ) : null}
+          {tab === "grn" ? (
+            <>
+              <FilterSelect value={material} onChange={(value) => onChange({ material: value })} options={filterOptions.grnMaterial} label="Material" testId="inventory-filter-grn-material" widthClassName="w-[240px]" />
+              <FilterTextInput value={vendor} onChange={(value) => onChange({ vendor: value })} label="Vendor" testId="inventory-filter-vendor" />
+              <FilterTextInput value={reference} onChange={(value) => onChange({ reference: value })} label="Reference" testId="inventory-filter-reference" />
+              <FilterDateInput value={dateFrom} onChange={(value) => onChange({ date_from: value })} label="From" testId="inventory-filter-date-from" />
+              <FilterDateInput value={dateTo} onChange={(value) => onChange({ date_to: value })} label="To" testId="inventory-filter-date-to" />
+            </>
+          ) : null}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         {tab === "grn" ? (
-          <FilterSelect value={sourceType} onChange={(value) => onChange({ source_type: value })} options={["ALL", "ROLL", "BULK", "PACKAGING"]} label="Source" />
+          <FilterSelect value={sourceType} onChange={(value) => onChange({ source_type: value })} options={SOURCE_OPTIONS} label="Source" testId="inventory-filter-source" />
         ) : null}
         {tab === "rolls" ? (
-          <FilterSelect value={status} onChange={(value) => onChange({ status: value })} options={["ALL", "AVAILABLE", "RESERVED", "IN_PROCESS", "SENT_JOBWORK"]} label="Status" />
+          <>
+            <FilterSelect value={status} onChange={(value) => onChange({ status: value })} options={STATUS_OPTIONS} label="Status" testId="inventory-filter-status" />
+            <FilterSelect value={family} onChange={(value) => onChange({ family: value })} options={filterOptions.rollFamily} label="Family" testId="inventory-filter-family" />
+            <FilterSelect value={print} onChange={(value) => onChange({ print: value })} options={PRINT_OPTIONS} label="Print" testId="inventory-filter-print" />
+            <FilterSelect value={lamination} onChange={(value) => onChange({ lamination: value })} options={LAMINATION_OPTIONS} label="Lamination" testId="inventory-filter-lamination" />
+            <FilterSelect value={job} onChange={(value) => onChange({ job: value })} options={filterOptions.rollJob} label="Job" testId="inventory-filter-job" />
+          </>
         ) : null}
         {tab === "bulk" || tab === "packaging" ? (
-          <FilterSelect value={category} onChange={(value) => onChange({ category: value })} options={["ALL", ...categoryOptions]} label={tab === "bulk" ? "Category" : "Kind"} />
+          <FilterSelect value={category} onChange={(value) => onChange({ category: value })} options={tab === "bulk" ? filterOptions.bulkCategory : filterOptions.packagingKind} label={tab === "bulk" ? "Category" : "Kind"} testId="inventory-filter-category" />
         ) : null}
-        {tab === "packaging" ? (
-          <Select value={material} onValueChange={(value) => onChange({ material: value })}>
-            <SelectTrigger className="h-10 w-[210px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder="SKU" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All SKUs</SelectItem>
-              {packagingMaterials.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.code} - {row.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        ) : null}
-        <FilterSelect value={age} onChange={(value) => onChange({ age: value })} options={["ALL", "Fresh", "Watch", "Aged"]} label="Age" />
+        <FilterSelect value={age} onChange={(value) => onChange({ age: value })} options={AGE_FILTER_OPTIONS} label="Age" testId="inventory-filter-age" />
         <Select value={plant} onValueChange={(value) => onChange({ plant: value, location: null })}>
-          <SelectTrigger className="h-10 w-[160px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder="Plant" /></SelectTrigger>
+          <SelectTrigger data-testid="inventory-filter-plant" className={cn("h-10 w-[160px] rounded-full px-4 text-xs font-black shadow-sm transition", plant !== "ALL" ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70" : "border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/70")}><SelectValue placeholder="Plant" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All plants</SelectItem>
             {plants.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={location} onValueChange={(value) => onChange({ location: value })}>
-          <SelectTrigger className="h-10 w-[180px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder="Location" /></SelectTrigger>
+          <SelectTrigger data-testid="inventory-filter-location" className={cn("h-10 w-[180px] rounded-full px-4 text-xs font-black shadow-sm transition", location !== "ALL" ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70" : "border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/70")}><SelectValue placeholder="Location" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All locations</SelectItem>
             {activeLocations.map((row) => <SelectItem key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" className="h-10 rounded-full border-slate-200 px-4 text-xs font-black shadow-sm" onClick={() => onChange({ q: null, plant: null, location: null, status: null, material: null, category: null, source_type: null, age: null })}>
+        <Button variant="outline" className="h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700" onClick={() => onChange(resetPayload)}>
           Reset
         </Button>
       </div>
@@ -472,14 +944,77 @@ export function InventoryFilterBar({
   )
 }
 
-function FilterSelect({ value, onChange, options, label }: { value: string; onChange: (value: string) => void; options: string[]; label: string }) {
+function FilterSelect({
+  value,
+  onChange,
+  options,
+  label,
+  testId,
+  widthClassName = "w-[155px]",
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: FilterOption[]
+  label: string
+  testId?: string
+  widthClassName?: string
+}) {
+  const active = value !== "ALL"
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-10 w-[155px] rounded-full border-slate-200 bg-white px-4 text-xs font-black shadow-sm"><SelectValue placeholder={label} /></SelectTrigger>
+      <SelectTrigger
+        data-testid={testId}
+        className={cn(
+          "h-10 rounded-full px-4 text-xs font-black shadow-sm transition",
+          widthClassName,
+          active
+            ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70"
+            : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/70 hover:text-sky-800"
+        )}
+      >
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
       <SelectContent>
-        {options.map((option) => <SelectItem key={option} value={option}>{option === "ALL" ? `All ${label}` : option.replaceAll("_", " ")}</SelectItem>)}
+        {options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
       </SelectContent>
     </Select>
+  )
+}
+
+function FilterTextInput({ value, onChange, label, testId }: { value: string; onChange: (value: string | null) => void; label: string; testId: string }) {
+  const active = value !== "ALL"
+  return (
+    <Input
+      value={active ? value : ""}
+      onChange={(event) => onChange(event.target.value || null)}
+      placeholder={label}
+      data-testid={testId}
+      className={cn(
+        "h-10 w-[150px] rounded-full px-4 text-xs font-black shadow-sm transition focus-visible:ring-emerald-500",
+        active
+          ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70 placeholder:text-emerald-700/70"
+          : "border-slate-200 bg-white text-slate-700 placeholder:text-slate-500 hover:border-sky-300 hover:bg-sky-50/70"
+      )}
+    />
+  )
+}
+
+function FilterDateInput({ value, onChange, label, testId }: { value: string; onChange: (value: string | null) => void; label: string; testId: string }) {
+  const active = Boolean(value)
+  return (
+    <Input
+      value={value}
+      onChange={(event) => onChange(event.target.value || null)}
+      type="date"
+      aria-label={label}
+      data-testid={testId}
+      className={cn(
+        "h-10 w-[148px] rounded-full px-4 text-xs font-black shadow-sm transition focus-visible:ring-emerald-500",
+        active
+          ? "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-emerald-100/70"
+          : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/70"
+      )}
+    />
   )
 }
 
@@ -517,7 +1052,7 @@ export function InventoryPulsePanel({
   txRows?: PackagingTransactionRow[]
   loading?: boolean
   packagingMaterials?: any[]
-  onBrowse?: (query: string) => void
+  onBrowse?: (updates: Record<string, string | null>) => void
 }) {
   const metrics = useMemo(() => {
     if (kind === "rolls") {
@@ -659,7 +1194,7 @@ function StageDistributionCard({ data, title }: { data: Array<{ name: string; va
   )
 }
 
-function LargestPositionsCard({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (query: string) => void }) {
+function LargestPositionsCard({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (updates: Record<string, string | null>) => void }) {
   const positions = useMemo(() => {
     const grouped = groupSum(rows, (row) => stockTitle(kind, row), (row) => stockQty(kind, row), 5)
     return grouped.map((item) => {
@@ -677,7 +1212,7 @@ function LargestPositionsCard({ kind, rows, onBrowse }: { kind: "rolls" | "bulk"
         {positions.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No stock positions.</div> : (
           <div className="divide-y divide-slate-100">
             {positions.map((row, index) => (
-              <button key={`${row.name}-${index}`} type="button" className="flex w-full items-center gap-4 py-3 text-left transition hover:bg-slate-50" onClick={() => onBrowse?.(row.name)}>
+              <button key={`${row.name}-${index}`} type="button" className="flex w-full items-center gap-4 py-3 text-left transition hover:bg-slate-50" onClick={() => onBrowse?.({ view: "browse", q: row.name })}>
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950 text-sm font-black text-white">{index + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-base font-black text-slate-950">{row.name}</span>
@@ -783,7 +1318,7 @@ function CssDonut({ data }: { data: Array<{ name: string; value: number }> }) {
   )
 }
 
-export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (query: string) => void }) {
+export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (updates: Record<string, string | null>) => void }) {
   const matrix = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
     for (const row of rows) {
@@ -831,10 +1366,11 @@ export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | 
                       <button
                         key={col}
                         type="button"
+                        data-testid={`inventory-age-heatmap-cell-${kind}`}
                         className="rounded-lg px-2 py-3 text-center text-xs font-black text-slate-700 ring-1 ring-slate-900/5 transition hover:ring-2 hover:ring-emerald-500"
                         style={{ backgroundColor: value ? tone : "#f8fafc" }}
                         title={`${label} ${col}: ${formatShort(value)}`}
-                        onClick={() => onBrowse?.(label)}
+                        onClick={() => onBrowse?.(kind === "rolls" ? { view: "browse", family: label, age: ageFromHeatmapColumn(col) } : { view: "browse", q: label, age: ageFromHeatmapColumn(col) })}
                       >
                         {value ? formatShort(value) : "0"}
                       </button>
@@ -855,13 +1391,15 @@ export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | 
   )
 }
 
-export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; packagingMaterials?: any[]; onBrowse?: (query: string) => void }) {
+export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; packagingMaterials?: any[]; onBrowse?: (updates: Record<string, string | null>) => void }) {
   const matrix = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
+    const exactRollSizeCount = kind === "rolls" ? new Set(rows.map(rollExactSize)).size : 0
+    const useExactRollSize = exactRollSizeCount > 0 && exactRollSizeCount <= 8
     for (const row of rows) {
-      const label = kind === "rolls" ? (row.family_display_name || row.material_name || "Roll") : (row.material_name || "Material")
+      const label = kind === "rolls" ? (row.variant_display_name || row.family_display_name || row.material_name || "Roll") : (row.material_name || "Material")
       const col = kind === "rolls"
-        ? `${Math.round(num(row.width_mm))}mm x ${Math.round(num(row.thickness_micron))}u`
+        ? useExactRollSize ? rollExactSize(row) : `${rollWidthBand(row)} · ${rollThicknessBand(row)}`
         : kind === "bulk"
           ? String(row.granule_quality_code || row.material_category || "Stock")
           : String(row.packaging_kind || "Packaging")
@@ -869,8 +1407,18 @@ export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bu
       if (!map.has(label)) map.set(label, new Map())
       map.get(label)!.set(col, (map.get(label)!.get(col) || 0) + value)
     }
-    const cols = Array.from(new Set(Array.from(map.values()).flatMap((inner) => Array.from(inner.keys())))).slice(0, 8)
-    const rowEntries = Array.from(map.entries()).slice(0, 8)
+    const cols = Array.from(new Set(Array.from(map.values()).flatMap((inner) => Array.from(inner.keys()))))
+      .sort((a, b) => {
+        const aTotal = Array.from(map.values()).reduce((sum, inner) => sum + (inner.get(a) || 0), 0)
+        const bTotal = Array.from(map.values()).reduce((sum, inner) => sum + (inner.get(b) || 0), 0)
+        return bTotal - aTotal
+      })
+      .slice(0, 8)
+    const rowEntries = Array.from(map.entries()).sort((a, b) => {
+      const aTotal = cols.reduce((sum, col) => sum + (a[1].get(col) || 0), 0)
+      const bTotal = cols.reduce((sum, col) => sum + (b[1].get(col) || 0), 0)
+      return bTotal - aTotal
+    }).slice(0, 8)
     const max = Math.max(1, ...rowEntries.flatMap(([, inner]) => cols.map((col) => inner.get(col) || 0)))
     return { cols, rowEntries, max }
   }, [kind, rows])
@@ -902,10 +1450,11 @@ export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bu
                       <button
                         key={col}
                         type="button"
+                        data-testid={`inventory-size-heatmap-cell-${kind}`}
                         className="rounded-lg px-2 py-2 text-center text-xs font-black text-slate-950 ring-1 ring-emerald-900/5 transition hover:ring-2 hover:ring-emerald-500"
                         style={{ backgroundColor: `rgba(13, 148, 136, ${alpha})` }}
                         title={`${label} ${col}: ${value.toLocaleString()}`}
-                        onClick={() => onBrowse?.(`${label} ${col}`)}
+                        onClick={() => onBrowse?.(kind === "rolls" ? { view: "browse", variant: label, size: col } : { view: "browse", q: `${label} ${col}` })}
                       >
                         {value ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "-"}
                       </button>
