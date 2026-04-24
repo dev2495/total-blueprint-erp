@@ -118,6 +118,58 @@ function layerQueueLabel(layer: any) {
     ].filter(Boolean).join(" · ")
 }
 
+function materialIssueTargetKg(row: any) {
+    const candidates = [
+        row?.planned_issue_qty_kg,
+        row?.required_qty_kg,
+        row?.estimated_qty_kg,
+        row?.theoretical_qty_kg,
+        row?.estimated_actual_qty_kg,
+        row?.actual_issued_qty_kg,
+    ]
+    for (const candidate of candidates) {
+        const value = Number(candidate)
+        if (Number.isFinite(value) && value > 0) return value
+    }
+    return 0
+}
+
+function materialIssueAvailableKg(row: any) {
+    const candidates = [
+        row?.source_location_available_qty_kg,
+        row?.available_qty_kg,
+        row?.available_qty,
+        row?.current_plant_available_qty_kg,
+        row?.plant_available_qty_kg,
+        row?.global_available_qty_kg,
+    ]
+    for (const candidate of candidates) {
+        const value = Number(candidate)
+        if (Number.isFinite(value) && value >= 0) return value
+    }
+    return 0
+}
+
+function materialIssueKind(row: any) {
+    const category = String(row?.category || row?.category_code || "").toUpperCase()
+    if (category === "GRANULE") return "GRANULE"
+    if (category.includes("INK")) return "INK"
+    if (category.includes("SOLVENT")) return "SOLVENT"
+    if (category.includes("ADHESIVE")) return "ADHESIVE"
+    if (category.includes("ROLL")) return "ROLL"
+    return category || "BULK"
+}
+
+function materialIssueKindLabel(row: any) {
+    const kind = materialIssueKind(row)
+    if (kind === "GRANULE") return "Granule"
+    if (kind === "ADHESIVE") return "Adhesive"
+    if (kind === "SOLVENT") return "Solvent"
+    if (kind === "INK") return "Ink"
+    if (kind === "ROLL") return "Roll input"
+    return "Bulk"
+}
+
 function materialSpecsFromJob(job: any, context?: any) {
     const specRows = normalizeProductSpec(job, context).layers
     if (specRows.length) {
@@ -938,7 +990,8 @@ export default function WCMTerminal() {
             const required = Number(row?.required_qty_kg ?? row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? 0)
             const planned = Number(row?.planned_issue_qty_kg ?? 0)
             const issued = Number(row?.actual_issued_qty_kg ?? 0)
-            return required > 0 || planned > 0 || issued > 0
+            const theoretical = Number(row?.theoretical_qty_kg ?? 0)
+            return required > 0 || planned > 0 || theoretical > 0 || issued > 0
         }),
         [satisfactionStatus]
     )
@@ -971,11 +1024,11 @@ export default function WCMTerminal() {
                 const requirementId = String(row?.requirement_id || "").trim()
                 if (!requirementId) return
                 const saved = persisted.find((item: any) => String(item?.requirement_id || "") === requirementId)
-                const estimate = Number(row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
+                const issueTarget = materialIssueTargetKg(row)
                 const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : []
                 next[requirementId] = {
                     material_id: String(row?.material_id || saved?.material_id || ""),
-                    actual_issued_qty: String(saved?.actual_issued_qty ?? prev[requirementId]?.actual_issued_qty ?? (estimate > 0 ? estimate.toFixed(3) : "")),
+                    actual_issued_qty: String(saved?.actual_issued_qty ?? prev[requirementId]?.actual_issued_qty ?? (issueTarget > 0 ? issueTarget.toFixed(3) : "")),
                     actual_returned_qty: String(saved?.actual_returned_qty ?? prev[requirementId]?.actual_returned_qty ?? "0"),
                     actual_scrap_qty: String(saved?.actual_scrap_qty ?? prev[requirementId]?.actual_scrap_qty ?? "0"),
                     is_estimated: Boolean(saved?.is_estimated ?? prev[requirementId]?.is_estimated ?? true),
@@ -986,7 +1039,7 @@ export default function WCMTerminal() {
                         }))
                         : (prev[requirementId]?.granule_code_allocations ||
                             (String(row?.category || "").toUpperCase() === "GRANULE" && codeOptions.length
-                                ? [{ granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: estimate > 0 ? estimate.toFixed(3) : "" }]
+                                ? [{ granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: issueTarget > 0 ? issueTarget.toFixed(3) : "" }]
                                 : [])),
                 }
             })
@@ -999,7 +1052,8 @@ export default function WCMTerminal() {
             const draft = materialIssueDrafts[requirementId]
             if (!requirementId || !draft) return null
             const isGranule = String(row?.category || row?.category_code || "").toUpperCase() === "GRANULE"
-            const granuleCodeAllocations = isGranule ? (draft.granule_code_allocations || [])
+            const issuedQty = Math.max(0, Number(draft.actual_issued_qty || 0))
+            const granuleCodeAllocations = isGranule && issuedQty > 0 ? (draft.granule_code_allocations || [])
                 .map((allocation) => ({
                     granule_code_id: allocation.granule_code_id,
                     qty_kg: Math.max(0, Number(allocation.qty_kg || 0)),
@@ -1008,7 +1062,7 @@ export default function WCMTerminal() {
             return {
                 requirement_id: requirementId,
                 material_id: draft.material_id || row?.material_id,
-                actual_issued_qty: Math.max(0, Number(draft.actual_issued_qty || 0)),
+                actual_issued_qty: issuedQty,
                 actual_returned_qty: 0,
                 actual_scrap_qty: 0,
                 is_estimated: draft.is_estimated,
@@ -1027,6 +1081,10 @@ export default function WCMTerminal() {
             const issued = Number(draft?.actual_issued_qty ?? 0)
             if (!Number.isFinite(issued) || issued < 0) {
                 errors.push(`${materialName}: issued kg is invalid`)
+                return
+            }
+            if (materialIssueTargetKg(row) > 0 && issued <= 0) {
+                errors.push(`${materialName}: enter issued kg`)
                 return
             }
             const category = String(row?.category || row?.category_code || "").toUpperCase()
@@ -1341,6 +1399,21 @@ export default function WCMTerminal() {
         const blockerLabel = pushBlockingReasons.length
             ? `${pushBlockingReasons.length} blocker${pushBlockingReasons.length > 1 ? "s" : ""}`
             : "Ready"
+        const materialReleaseLabel = materialIssueErrors.length
+            ? `${materialIssueErrors.length} check${materialIssueErrors.length > 1 ? "s" : ""}`
+            : materialIssueRows.length
+                ? "Issue ready"
+                : "No issue"
+        const machineGateLabel = !selectedMachineId
+            ? "Pick machine"
+            : canPushToOperator
+                ? "Ready to release"
+                : "Release locked"
+        const machineGateHelp = !selectedMachineId
+            ? "Select a production line. Release unlocks after current-step inputs are confirmed."
+            : canPushToOperator
+                ? "Machine and current-step input checks are clear. This action releases the job."
+                : pushBlockingReasons[0] || "Complete material and roll checks before release."
 
         return (
             <div className="min-h-screen bg-[#f7f8fb] text-slate-900" data-testid="wcm-terminal-page">
@@ -1762,13 +1835,14 @@ export default function WCMTerminal() {
                                             <div className="text-[10px] uppercase tracking-wider text-indigo-600">Step target</div>
                                             <div className="mt-1 text-sm font-semibold text-indigo-950">{formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
                                         </div>
-                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-emerald-700">Produced</div>
-                                            <div className="mt-1 text-sm font-semibold text-emerald-950">{formatSmartValue(producedPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
-                                        </div>
                                         <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
                                             <div className="text-[10px] uppercase tracking-wider text-amber-700">Remaining</div>
                                             <div className="mt-1 text-sm font-semibold text-amber-950">{formatSmartValue(stepRemainingPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        </div>
+                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                                            <div className="text-[10px] uppercase tracking-wider text-emerald-700">Final output to make</div>
+                                            <div className="mt-1 text-sm font-semibold text-emerald-950">{selectedOutputForm || "Output"} · {selectedSpec.size.label}</div>
+                                            <div className="mt-0.5 text-[11px] font-medium text-emerald-800">{selectedSpec.layers.length || 0} layer{selectedSpec.layers.length === 1 ? "" : "s"} · produced {formatSmartValue(producedPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
                                         </div>
                                     </div>
                                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -1782,7 +1856,10 @@ export default function WCMTerminal() {
                                             <div className="text-[11px] uppercase tracking-wider text-slate-500">Machine assignment</div>
                                             <div className="text-lg font-semibold text-slate-950">{selectedMachine?.name || "Select production line"}</div>
                                         </div>
-                                        <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", selectedMachineId ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{selectedMachineId ? "Confirmed" : "Pending"}</span>
+                                        <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", canPushToOperator ? "bg-emerald-50 text-emerald-700" : selectedMachineId ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600")}>{machineGateLabel}</span>
+                                    </div>
+                                    <div className={cn("mt-3 rounded-xl border px-3 py-2 text-xs font-semibold", canPushToOperator ? "border-emerald-100 bg-emerald-50 text-emerald-800" : selectedMachineId ? "border-amber-100 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600")}>
+                                        {machineGateHelp}
                                     </div>
                                     <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
                                         <Select value={selectedMachineId} onValueChange={setSelectedMachineId}>
@@ -1801,120 +1878,152 @@ export default function WCMTerminal() {
                                             disabled={!activeAssignment || !selectedMachineId || mutation.isPending}
                                             onClick={handleAssignAndMaybeRelease}
                                         >
-                                            {canPushToOperator ? "Assign + release" : "Assign machine"}
+                                            {canPushToOperator ? "Assign + release" : selectedMachineId ? "Save machine" : "Assign machine"}
                                         </Button>
                                     </div>
                                 </section>
 
-                                <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+                                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-emerald-700">Step material issue</div>
-                                            <div className="text-lg font-semibold text-emerald-950">Issue material and code split</div>
-                                            <p className="mt-1 text-xs font-medium text-emerald-900">Enter issued kg only. For granules, split the issued kg across allowed codes for that granule.</p>
+                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Material release</div>
+                                            <div className="text-lg font-semibold text-slate-950">Current-step issue</div>
+                                            <p className="mt-1 text-xs font-medium text-slate-500">Issue input material only. Returns, scrap, and variance stay on machine output.</p>
                                         </div>
-                                        <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700">{materialIssueRows.length} rows</span>
+                                        <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", materialIssueErrors.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{materialReleaseLabel}</span>
                                     </div>
-                                    <div className="mt-4 space-y-3">
+                                    <div className="mt-4 space-y-2.5">
                                         {materialIssueRows.length === 0 ? (
-                                            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-4 text-sm font-medium text-emerald-800">No current-step material issue rows are required for this step.</div>
+                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-600">No current-step material issue is needed for this step.</div>
                                         ) : materialIssueRows.map((row: any, index: number) => {
                                             const requirementId = String(row?.requirement_id || "")
-                                            const estimate = Number(row?.estimated_actual_qty_kg ?? row?.estimated_qty_kg ?? row?.required_qty_kg ?? 0)
+                                            const issueTarget = materialIssueTargetKg(row)
+                                            const availableKg = materialIssueAvailableKg(row)
+                                            const materialName = String(row?.material_name || row?.category_display || row?.category || "Material")
                                             const draft = materialIssueDrafts[requirementId] || {
-                                                actual_issued_qty: estimate > 0 ? estimate.toFixed(3) : "",
+                                                material_id: String(row?.material_id || ""),
+                                                actual_issued_qty: issueTarget > 0 ? issueTarget.toFixed(3) : "",
                                                 actual_returned_qty: "0",
                                                 actual_scrap_qty: "0",
                                                 is_estimated: true,
                                                 granule_code_allocations: [],
                                             }
                                             const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : []
-                                            const isGranule = String(row?.category || row?.category_code || "").toUpperCase() === "GRANULE"
+                                            const isGranule = materialIssueKind(row) === "GRANULE"
                                             const allocations = draft.granule_code_allocations && draft.granule_code_allocations.length
                                                 ? draft.granule_code_allocations
                                                 : (isGranule && codeOptions.length
-                                                    ? [{ granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: estimate > 0 ? estimate.toFixed(3) : "" }]
+                                                    ? [{ granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: issueTarget > 0 ? issueTarget.toFixed(3) : "" }]
                                                     : [])
+                                            const issuedKg = Number(draft.actual_issued_qty || 0)
+                                            const allocatedKg = allocations.reduce((sum, item) => sum + Number(item.qty_kg || 0), 0)
+                                            const splitOk = !isGranule || issuedKg <= 0 || Math.abs(allocatedKg - issuedKg) <= 0.0001
+                                            const rowErrors = materialIssueErrors.filter((error) => error.startsWith(`${materialName}:`))
                                             return (
-                                                <div key={requirementId || index} className="rounded-xl border border-emerald-200 bg-white p-3">
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div key={requirementId || index} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                                    <div className="grid gap-3 md:grid-cols-[1fr_122px] md:items-start">
                                                         <div>
-                                                            <div className="font-semibold text-slate-950">{row.material_name || row.category_display || row.category || "Material"}</div>
-                                                            <div className="text-xs text-slate-500">Required {estimate.toFixed(3)} kg · Available {Number(row.available_qty_kg ?? row.available_qty ?? 0).toFixed(3)} kg</div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <div className="font-semibold text-slate-950">{materialName}</div>
+                                                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", isGranule ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700")}>{materialIssueKindLabel(row)}</span>
+                                                            </div>
+                                                            <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                                <span>Need {issueTarget > 0 ? `${issueTarget.toFixed(3)} kg` : "not planned"}</span>
+                                                                <span>·</span>
+                                                                <span>Stock {availableKg.toFixed(3)} kg</span>
+                                                                {row?.location_name ? <><span>·</span><span>{row.location_name}</span></> : null}
+                                                            </div>
                                                         </div>
-                                                        {isGranule ? (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="rounded-xl border-emerald-200 text-xs font-semibold"
-                                                                disabled={!requirementId || codeOptions.length === 0}
-                                                                onClick={() => updateMaterialIssueDraft(requirementId, {
-                                                                    granule_code_allocations: [...allocations, { granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: "" }],
-                                                                    is_estimated: false,
-                                                                })}
-                                                            >
-                                                                Add code
-                                                            </Button>
-                                                        ) : null}
+                                                        <label className="block">
+                                                            <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">Issued kg</span>
+                                                            <Input
+                                                                value={draft.actual_issued_qty}
+                                                                onChange={(event) => updateMaterialIssueDraft(requirementId, { actual_issued_qty: event.target.value, actual_returned_qty: "0", actual_scrap_qty: "0", is_estimated: false })}
+                                                                className="h-10 rounded-xl border-slate-200 bg-white text-right font-semibold"
+                                                                placeholder="0.000"
+                                                            />
+                                                        </label>
                                                     </div>
-                                                    <div className="mt-3 grid gap-3 md:grid-cols-[150px_1fr]">
-                                                        <Input value={draft.actual_issued_qty} onChange={(e) => updateMaterialIssueDraft(requirementId, { actual_issued_qty: e.target.value, actual_returned_qty: "0", actual_scrap_qty: "0", is_estimated: false })} className="h-10 rounded-xl border-emerald-200 font-semibold" placeholder="Issued kg" />
-                                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">WCM records issued kg only. Variance is handled at machine close.</div>
-                                                    </div>
-                                                    {isGranule ? <div className="mt-3 space-y-2">
-                                                        {codeOptions.length === 0 ? (
-                                                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">No active coded stock for this granule at the issue location.</div>
-                                                        ) : allocations.map((allocation, allocationIndex) => (
-                                                            <div key={`${requirementId}-${allocationIndex}`} className="grid gap-2 md:grid-cols-[1fr_120px_40px]">
-                                                                <Select
-                                                                    value={allocation.granule_code_id || String(codeOptions[0]?.granule_code_id || "")}
-                                                                    onValueChange={(value) => updateMaterialIssueDraft(requirementId, {
-                                                                        granule_code_allocations: allocations.map((item, rowIndex) => rowIndex === allocationIndex ? { ...item, granule_code_id: value } : item),
-                                                                        is_estimated: false,
-                                                                    })}
-                                                                >
-                                                                    <SelectTrigger className="h-10 rounded-xl border-emerald-200 bg-white font-semibold">
-                                                                        <SelectValue placeholder="Select granule code" />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {codeOptions.map((option: any) => (
-                                                                            <SelectItem key={option.granule_code_id} value={String(option.granule_code_id)}>
-                                                                                {option.code} · {Number(option.available_qty_kg || 0).toFixed(3)} kg
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <Input
-                                                                    value={allocation.qty_kg}
-                                                                    onChange={(event) => updateMaterialIssueDraft(requirementId, {
-                                                                        granule_code_allocations: allocations.map((item, rowIndex) => rowIndex === allocationIndex ? { ...item, qty_kg: event.target.value } : item),
-                                                                        is_estimated: false,
-                                                                    })}
-                                                                    placeholder="kg"
-                                                                    className="h-10 rounded-xl border-emerald-200 font-semibold"
-                                                                />
+                                                    {isGranule ? (
+                                                        <div className="mt-3 rounded-xl border border-emerald-100 bg-white p-2.5">
+                                                            <div className="mb-2 flex items-center justify-between gap-2">
+                                                                <div className="text-[11px] font-semibold text-emerald-800">
+                                                                    Code split {allocatedKg.toFixed(3)} / {Math.max(0, issuedKg).toFixed(3)} kg
+                                                                </div>
                                                                 <Button
                                                                     type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-10 w-10 rounded-xl text-slate-500 hover:text-rose-600"
-                                                                    disabled={allocations.length <= 1}
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-8 rounded-lg border-emerald-200 px-2.5 text-xs font-semibold"
+                                                                    disabled={!requirementId || codeOptions.length === 0}
                                                                     onClick={() => updateMaterialIssueDraft(requirementId, {
-                                                                        granule_code_allocations: allocations.filter((_, rowIndex) => rowIndex !== allocationIndex),
+                                                                        granule_code_allocations: [...allocations, { granule_code_id: String(codeOptions[0]?.granule_code_id || ""), qty_kg: "" }],
                                                                         is_estimated: false,
                                                                     })}
                                                                 >
-                                                                    <Trash2 className="h-4 w-4" />
+                                                                    Add code
                                                                 </Button>
                                                             </div>
-                                                        ))}
-                                                        {allocations.length > 0 && (
-                                                            <div className="text-xs font-semibold text-emerald-900">
-                                                                Allocated {allocations.reduce((sum, item) => sum + Number(item.qty_kg || 0), 0).toFixed(3)} kg across codes.
+                                                            {codeOptions.length === 0 ? (
+                                                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">No coded stock is available for this granule at the issue location.</div>
+                                                            ) : (
+                                                                <div className="space-y-2">
+                                                                    {allocations.map((allocation, allocationIndex) => (
+                                                                        <div key={`${requirementId}-${allocationIndex}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_112px_34px]">
+                                                                            <Select
+                                                                                value={allocation.granule_code_id || String(codeOptions[0]?.granule_code_id || "")}
+                                                                                onValueChange={(value) => updateMaterialIssueDraft(requirementId, {
+                                                                                    granule_code_allocations: allocations.map((item, rowIndex) => rowIndex === allocationIndex ? { ...item, granule_code_id: value } : item),
+                                                                                    is_estimated: false,
+                                                                                })}
+                                                                            >
+                                                                                <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-xs font-semibold">
+                                                                                    <SelectValue placeholder="Code" />
+                                                                                </SelectTrigger>
+                                                                                <SelectContent>
+                                                                                    {codeOptions.map((option: any) => (
+                                                                                        <SelectItem key={option.granule_code_id} value={String(option.granule_code_id)}>
+                                                                                            {option.code} · {Number(option.available_qty_kg || 0).toFixed(3)} kg
+                                                                                        </SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                            <Input
+                                                                                value={allocation.qty_kg}
+                                                                                onChange={(event) => updateMaterialIssueDraft(requirementId, {
+                                                                                    granule_code_allocations: allocations.map((item, rowIndex) => rowIndex === allocationIndex ? { ...item, qty_kg: event.target.value } : item),
+                                                                                    is_estimated: false,
+                                                                                })}
+                                                                                placeholder="kg"
+                                                                                className="h-9 rounded-lg border-slate-200 bg-white text-right text-xs font-semibold"
+                                                                            />
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-9 w-9 rounded-lg text-slate-400 hover:text-rose-600"
+                                                                                disabled={allocations.length <= 1}
+                                                                                onClick={() => updateMaterialIssueDraft(requirementId, {
+                                                                                    granule_code_allocations: allocations.filter((_, rowIndex) => rowIndex !== allocationIndex),
+                                                                                    is_estimated: false,
+                                                                                })}
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className={cn("mt-2 text-[11px] font-semibold", splitOk ? "text-emerald-700" : "text-rose-700")}>
+                                                                {splitOk ? "Code split matches issued kg." : "Code split must equal issued kg before release."}
                                                             </div>
-                                                        )}
-                                                    </div> : null}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">No code split for this input. Enter issued kg only.</div>
+                                                    )}
+                                                    {rowErrors.length ? (
+                                                        <div className="mt-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{rowErrors.map((error) => error.replace(`${materialName}: `, "")).join(" · ")}</div>
+                                                    ) : null}
                                                 </div>
                                             )
                                         })}

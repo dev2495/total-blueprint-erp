@@ -25,6 +25,9 @@ BACKEND_SERVER_MODE="${BACKEND_SERVER_MODE:-}"
 
 export SKIP_DOTENV_IMPORT="${SKIP_DOTENV_IMPORT:-1}"
 export SKIP_CELERY_IMPORT="${SKIP_CELERY_IMPORT:-1}"
+# Local runserver creates short-lived request threads while WCM/machine pages poll.
+# Closing DB connections after each request prevents local Postgres slot exhaustion.
+export DB_CONN_MAX_AGE="${DB_CONN_MAX_AGE:-0}"
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${STATE_DIR}"
