@@ -6717,6 +6717,7 @@ class ExecutionService:
 
         roll_behavior = (process.roll_behavior or "NONE").upper()
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
+        lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
         required_rolls = cls._required_roll_count(job, process, step_roll_spec)
 
         # Operator inputs (behavior-specific)

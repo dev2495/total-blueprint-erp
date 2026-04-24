@@ -393,6 +393,40 @@ class PackagingTransaction(models.Model):
         ordering = ['-created_at']
 
 
+class InventoryCorrectionAudit(models.Model):
+    """
+    Business audit trail for inventory corrections.
+
+    Original inward rows stay immutable; this record captures the user's
+    reason and the before/after payload used to post compensating entries.
+    """
+    SOURCE_CHOICES = [
+        ("BULK", "Bulk GRN"),
+        ("PACKAGING", "Packaging GRN"),
+        ("ROLL", "Roll GRN"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    source_id = models.UUIDField(db_index=True)
+    correction_type = models.CharField(max_length=40, default="GRN_CORRECTION")
+    reason = models.TextField()
+    before_json = models.JSONField(default=dict, blank=True)
+    after_json = models.JSONField(default=dict, blank=True)
+    delta_json = models.JSONField(default=dict, blank=True)
+    actor = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="inventory_corrections")
+    effective_role = models.CharField(max_length=50, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "inventory_correction_audit"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["source_type", "source_id"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+
 class InventoryAuditBatch(models.Model):
     TYPE_CHOICES = [
         ("OPENING_STOCK", "Opening Stock"),

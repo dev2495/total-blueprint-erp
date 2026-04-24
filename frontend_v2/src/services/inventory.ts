@@ -157,6 +157,45 @@ export interface PackagingTransactionRow {
     meta_json?: Record<string, any>
 }
 
+export interface GrnHistoryRow {
+    id: string
+    source_type: "BULK" | "PACKAGING" | "ROLL"
+    source_id: string
+    material?: string
+    material_code?: string
+    material_name?: string
+    material_category?: string
+    granule_quality_code?: string
+    packaging_kind?: string
+    roll?: string
+    label_id?: string
+    batch_no?: string
+    grade_name?: string
+    width_mm?: number
+    thickness_micron?: number
+    plant?: string
+    plant_name?: string
+    location?: string
+    location_name?: string
+    quantity: number
+    uom: string
+    avg_cost?: number
+    reference?: string
+    vendor?: string | null
+    vendor_code?: string | null
+    vendor_name?: string | null
+    created_at?: string | null
+}
+
+export interface GrnCorrectionPayload {
+    reason: string
+    quantity?: number
+    avg_cost?: number
+    reference?: string
+    label_id?: string
+    batch_no?: string
+}
+
 export interface InventoryFinancialPeriod {
     id: string
     financial_year: string
@@ -391,6 +430,16 @@ export const inventoryService = {
     getPackagingTransactions: async (params?: any) => {
         const { data } = await api.get("/api/inventory/packaging/transactions/", { params })
         return unwrapList<PackagingTransactionRow>(data)
+    },
+
+    getGrnHistory: async (params?: any) => {
+        const { data } = await api.get<MaybePaginated<GrnHistoryRow>>("/api/inventory/grn/history/", { params })
+        return unwrapList<GrnHistoryRow>(data)
+    },
+
+    correctGrnHistoryRow: async (sourceType: GrnHistoryRow["source_type"], id: string, payload: GrnCorrectionPayload) => {
+        const { data } = await api.post(`/api/inventory/grn/history/${sourceType}/${id}/correct/`, payload)
+        return data as { status: string; audit_id: string; delta: Record<string, any> }
     },
 
     // Job Work

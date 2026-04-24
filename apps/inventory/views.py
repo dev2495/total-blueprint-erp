@@ -38,6 +38,7 @@ from .serializers import (
     resolve_roll_role, resolve_roll_stage_name,
 )
 from .services.grn import GRNService
+from .services.grn_history import GRNHistoryService
 from .services.stock import StockService
 from .services.job_work import JobWorkService
 from .services.inter_plant import InterPlantService
@@ -411,6 +412,36 @@ class StockViewSet(viewsets.ViewSet):
 
 class GRNViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='history')
+    def history(self, request):
+        """Normalized inward history across bulk, roll, and packaging GRNs."""
+        return Response({"results": GRNHistoryService.list_history(request.query_params)})
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path=r'history/(?P<source_type>[^/.]+)/(?P<source_id>[^/.]+)/correct',
+    )
+    def correct_history(self, request, source_type=None, source_id=None):
+        """Post an auditable correction while keeping the original GRN row immutable."""
+        try:
+            audit = GRNHistoryService.correct(
+                source_type=source_type or "",
+                source_id=source_id or "",
+                payload=request.data,
+                user=request.user,
+            )
+            return Response(
+                {
+                    "status": "success",
+                    "audit_id": str(audit.id),
+                    "delta": audit.delta_json,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            return Response({"error": str(getattr(e, "message", "") or e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='bulk')
     def create_bulk(self, request):
