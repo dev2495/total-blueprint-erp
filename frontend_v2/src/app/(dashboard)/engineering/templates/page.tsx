@@ -86,11 +86,18 @@ export default function EngineeringTemplatesPage() {
         }
     })
 
-    const filtered = (Array.isArray(templates) ? templates : []).filter(t => {
+    const templateList = Array.isArray(templates) ? templates : []
+    const statusCounts = templateList.reduce<Record<string, number>>((acc, template) => {
+        acc[template.status] = (acc[template.status] || 0) + 1
+        return acc
+    }, {})
+    const linkedFamilies = templateList.filter((template) => Boolean(template.commercial_family_name)).length
+    const filtered = templateList.filter(t => {
         const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.id.includes(searchTerm)
         const matchesStatus = statusFilter === "ALL" || t.status === statusFilter
         return matchesSearch && matchesStatus
     })
+    const visibleTemplates = filtered.slice(0, 100)
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -104,26 +111,42 @@ export default function EngineeringTemplatesPage() {
     }
 
     return (
-        <div className="p-6 lg:p-8 space-y-6"> {/* Changed main div class */}
-            <div className="flex items-center justify-between"> {/* Updated header structure */}
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="bg-slate-900 text-white border-0 px-2 py-0.5">ENGINEERING HUB</Badge>
+        <div className="space-y-5 p-4 lg:p-6">
+            <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-5 p-5 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="max-w-2xl">
+                        <div className="mb-2 flex items-center gap-2">
+                            <Badge variant="outline" className="border-slate-900 bg-slate-900 px-2 py-0.5 text-[10px] font-black tracking-[0.18em] text-white">ENGINEERING HUB</Badge>
+                            <Badge variant="outline" className="border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[10px] font-black tracking-[0.18em] text-indigo-700">ROUTE CONTRACTS</Badge>
+                        </div>
+                        <h1 className="text-3xl font-black tracking-tight text-slate-950">
+                            Template Studio
+                        </h1>
+                        <p className="mt-2 text-sm font-semibold text-slate-500">Build reusable route templates with clear stages, material issue rules, and review gates before planner use.</p>
                     </div>
-                    <h1 className="text-3xl font-black tracking-tighter text-slate-900 italic">
-                        Template <span className="text-indigo-600 not-italic">Studio</span>
-                    </h1>
-                    <p className="text-slate-500 font-medium">Manage route contracts, step material rules, issue policies, and roll handling rules.</p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[540px]">
+                        {[
+                            ["Total", templateList.length],
+                            ["Live", statusCounts.LIVE || 0],
+                            ["Engineering", statusCounts.ENGINEERING || 0],
+                            ["Family linked", linkedFamilies],
+                        ].map(([label, value]) => (
+                            <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
+                                <div className="mt-1 text-2xl font-black text-slate-950">{value}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
                     <Button
-                        className="h-11 px-8 rounded-xl bg-indigo-600 hover:bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200 transition-all active-scale"
+                        className="h-11 rounded-xl bg-indigo-600 px-7 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-indigo-100 hover:bg-slate-950"
                         onClick={() => setCreateOpen(true)}
                     >
-                        <Plus className="h-4 w-4 mr-2" /> New Template
+                        <Plus className="mr-2 h-4 w-4" /> New Template
                     </Button>
                 </div>
-            </div>
+            </section>
 
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogContent className="sm:max-w-lg">
@@ -207,18 +230,18 @@ export default function EngineeringTemplatesPage() {
             </Dialog>
 
             {/* Filters */}
-            <Card className="p-4 rounded-xl border-slate-200 shadow-sm bg-white"> {/* Added new Card for filters */}
-                <div className="flex items-center gap-4">
-                    <div className="relative flex-1 max-w-sm">
+            <Card className="rounded-[1.5rem] border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input
-                            placeholder="Search blueprints..."
+                            placeholder="Search template name or id..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                            className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-9 font-semibold focus-visible:ring-indigo-500"
                         />
                     </div>
-                    <div className="flex items-center gap-1 border-l pl-4 border-slate-100">
+                    <div className="flex flex-wrap items-center gap-2 xl:border-l xl:border-slate-100 xl:pl-4">
                         {['ALL', 'DRAFT', 'ENGINEERING', 'LIVE'].map((status) => (
                             <Button
                                 key={status}
@@ -226,11 +249,11 @@ export default function EngineeringTemplatesPage() {
                                 size="sm"
                                 onClick={() => setStatusFilter(status)}
                                 className={cn(
-                                    "text-[10px] font-black uppercase tracking-wider h-7",
+                                    "h-9 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider",
                                     statusFilter === status ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-900"
                                 )}
                             >
-                                {status}
+                                {status} · {status === "ALL" ? templateList.length : (statusCounts[status] || 0)}
                             </Button>
                         ))}
                     </div>
@@ -245,18 +268,22 @@ export default function EngineeringTemplatesPage() {
                 </div>
             ) : null}
 
-            <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white"> {/* Updated Card class */}
-                <CardHeader className="p-6 pb-2 border-b border-slate-50 bg-slate-50/30"> {/* Updated CardHeader class */}
+            <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-sm">
+                <CardHeader className="border-b border-slate-100 bg-slate-50/50 p-5">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <CardTitle className="text-lg font-black tracking-tight text-slate-900 uppercase italic">Blueprint Registry</CardTitle>
-                        {/* Removed search input from here */}
+                        <div>
+                            <CardTitle className="text-lg font-black tracking-tight text-slate-950">Template registry</CardTitle>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">
+                                Showing {visibleTemplates.length} of {filtered.length} matching template{filtered.length === 1 ? "" : "s"}
+                            </p>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader className="bg-slate-50/50">
                             <TableRow className="border-none hover:bg-transparent">
-                                <TableHead className="px-6 text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Blueprint Name</TableHead>
+                                <TableHead className="px-6 text-[9px] font-black uppercase text-slate-400 tracking-widest">Template</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Type</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Business Family</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Status</TableHead>
@@ -282,42 +309,51 @@ export default function EngineeringTemplatesPage() {
                                 </TableRow>
                             ) : filtered.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-24 text-[11px] font-black uppercase text-slate-300 italic tracking-[0.2em]">
-                                        No blueprints found
+                                    <TableCell colSpan={6} className="text-center py-24 text-[11px] font-black uppercase text-slate-300 tracking-[0.2em]">
+                                        No templates found
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filtered.map((t) => (
-                                    <TableRow key={t.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-50/50 cursor-pointer group">
-                                        <TableCell className="px-6 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="font-black text-slate-900 uppercase tracking-tight text-xs group-hover:text-indigo-600 transition-colors">{t.name}</span>
-                                                <span className="text-[9px] text-slate-400 font-medium">{t.id.slice(0, 8)}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-600">
-                                                {t.fg_type}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-xs font-semibold text-slate-600">{t.commercial_family_name || "—"}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            {getStatusBadge(t.status)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-xs font-bold text-slate-600">v{t.version}</span>
-                                        </TableCell>
-                                        <TableCell className="text-right px-6">
-                                            <Button variant="ghost" size="sm" asChild className="hover:bg-indigo-50 hover:text-indigo-600">
-                                                <Link href={`/engineering/templates/${t.id}`}>
-                                                    Studio <ArrowRight className="h-3 w-3 ml-1" />
-                                                </Link>
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                <>
+                                    {visibleTemplates.map((t) => (
+                                        <TableRow key={t.id} className="group cursor-pointer border-b border-slate-100 transition-colors hover:bg-indigo-50/30">
+                                            <TableCell className="px-6 py-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black tracking-tight text-slate-950 transition-colors group-hover:text-indigo-600">{t.name}</span>
+                                                    <span className="mt-1 text-[10px] font-semibold text-slate-400">ID {t.id.slice(0, 8)} · route {t.routing_rule_name || "not linked"}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-600">
+                                                    {t.fg_type}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-xs font-semibold text-slate-600">{t.commercial_family_name || "—"}</span>
+                                            </TableCell>
+                                            <TableCell>
+                                                {getStatusBadge(t.status)}
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-xs font-bold text-slate-600">v{t.version}</span>
+                                            </TableCell>
+                                            <TableCell className="text-right px-6">
+                                                <Button variant="outline" size="sm" asChild className="rounded-xl border-slate-200 bg-white font-bold hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600">
+                                                    <Link href={`/engineering/templates/${t.id}`}>
+                                                        Studio <ArrowRight className="h-3 w-3 ml-1" />
+                                                    </Link>
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {filtered.length > visibleTemplates.length ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="px-6 py-4 text-center text-xs font-semibold text-slate-500">
+                                                Showing first {visibleTemplates.length} matches. Use search or status filters to narrow the registry.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                </>
                             )}
                         </TableBody>
                     </Table>

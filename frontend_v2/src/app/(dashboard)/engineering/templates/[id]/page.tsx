@@ -368,7 +368,10 @@ export default function TemplateStudioPage() {
                     </Card>
 
                     <div>
-                        <div className="mb-3 text-sm font-black">3. Material policy and capture rules</div>
+                        <div className="mb-3">
+                            <div className="text-sm font-black text-slate-950">3. Step material rules</div>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">Compact editor for route stages, issue categories, and machine close behavior.</p>
+                        </div>
                         <TemplateBomEditor template={template as any} />
                     </div>
                     <details className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
