@@ -25,9 +25,9 @@ function Stat({ label, value, hint, tone = "slate" }: { label: string; value: st
         blue: "border-blue-200 bg-blue-50 text-blue-950",
     }
     return (
-        <div className={`rounded-3xl border p-4 shadow-sm ${tones[tone]}`}>
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">{label}</div>
-            <div className="mt-2 text-2xl font-black">{value}</div>
+        <div className={`rounded-[14px] border p-3 shadow-sm ${tones[tone]}`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+            <div className="mt-1 text-2xl font-black tracking-tight">{value}</div>
             <div className="mt-1 text-xs font-medium text-slate-500">{hint}</div>
         </div>
     )
@@ -127,15 +127,17 @@ export default function PackingYardPage() {
     const expected = sealGonny ? getGonnyExpected(sealGonny) : 0
     const variance = actualGross ? Number(actualGross) - expected : 0
     const variancePct = expected > 0 ? (variance / expected) * 100 : 0
+    const readyGross = Number(board.data?.totals.ready_gonnies_gross_kg || 0) + Number(board.data?.totals.ready_rolls_kg || 0)
+    const readyNet = Number(board.data?.totals.ready_gonnies_net_kg || 0) + Number(board.data?.totals.ready_rolls_kg || 0)
 
     return (
         <div className="space-y-6 p-4 lg:p-6">
-            <section className="sticky top-2 z-20 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(900px_360px_at_85%_-18%,rgba(191,219,254,0.66),transparent_60%),radial-gradient(760px_340px_at_8%_-12%,rgba(204,251,241,0.66),transparent_62%),#ffffff] p-6 text-slate-950 shadow-sm">
+            <section className="overflow-hidden rounded-[20px] border border-slate-200 bg-[radial-gradient(1200px_500px_at_20%_-10%,rgba(230,235,255,0.96),transparent_60%),radial-gradient(900px_400px_at_90%_0%,rgba(245,243,255,0.9),transparent_60%),#ffffff] p-5 text-slate-950 shadow-sm">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <div className="inline-flex rounded-full border border-emerald-100 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700 shadow-sm">Packing yard board</div>
-                        <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight">Plan pouch, roll, and gonny handoff from one yard view.</h1>
-                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Choose the sales order first, convert finished pouch batches into sealed gonnies with actual gross weight, and release only verified units to Dispatch Bay.</p>
+                        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700">Yard at a glance</div>
+                        <h1 className="mt-1 max-w-3xl text-2xl font-black tracking-tight">Everything sitting in Packing Yard right now</h1>
+                        <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-600">No sales-order selection is needed to understand the yard. These numbers cover finished batches, open gonnies, sealed gonnies, and rolls that still need handoff.</p>
                         <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Batches</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Create gonny</span>
@@ -148,42 +150,61 @@ export default function PackingYardPage() {
                         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order or customer..." className="h-12 rounded-2xl border-slate-200 bg-white pl-10 shadow-sm" />
                     </div>
                 </div>
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Stat label="Orders in yard" value={n(board.data?.totals.orders || 0, 0)} hint="Have packing work pending or ready" tone="blue" />
-                    <Stat label="Pending pouch batches" value={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs`} hint={`${n(board.data?.totals.pending_batches || 0, 0)} batches waiting`} />
-                    <Stat label="Open / sealed gonnies" value={`${n(board.data?.totals.open_gonnies || 0, 0)} / ${n(board.data?.totals.sealed_waiting_release || 0, 0)}`} hint="Seal open, then release" tone="amber" />
-                    <Stat label="Ready for dispatch" value={`${n(board.data?.totals.ready_gonnies || 0, 0)} gonnies`} hint={`${n(board.data?.totals.ready_gonnies_gross_kg || 0)} kg gross + ${n(board.data?.totals.ready_rolls_kg || 0)} kg rolls`} tone="emerald" />
+                <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <Stat label="Pouch batches waiting" value={n(board.data?.totals.pending_batches || 0, 0)} hint={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs pending`} tone="amber" />
+                    <Stat label="Open gonnies" value={n(board.data?.totals.open_gonnies || 0, 0)} hint="need sealing + gross check" tone="blue" />
+                    <Stat label="Sealed gonnies ready" value={n(board.data?.totals.sealed_waiting_release || board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs can move`} tone="emerald" />
+                    <Stat label="Rolls ready" value={n(board.data?.totals.ready_rolls || 0, 0)} hint={`${n(board.data?.totals.ready_rolls_kg || 0)} kg releasable`} tone="blue" />
+                    <Stat label="Net product ready" value={`${n(readyNet)} kg`} hint="billable product weight" />
+                    <Stat label="Gross shipment ready" value={`${n(readyGross)} kg`} hint="with gonnies + rolls" />
                 </div>
-                <div className="mt-5 rounded-[1.5rem] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+                <div className="mt-6 rounded-[20px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
                     <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Sales-order planning cards</div>
                             <div className="mt-1 text-sm font-black text-slate-900">Pick the order, then work batches, gonnies, and roll release.</div>
                         </div>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        {cards.slice(0, 4).map((row) => (
-                            <button key={row.sales_order.id} onClick={() => setSelectedOrderId(row.sales_order.id)} className={`rounded-3xl border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200"}`}>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {cards.slice(0, 6).map((row) => {
+                            const readyUnits = Number(row.ready_for_dispatch.gonnies_count || 0) + Number(row.ready_for_dispatch.rolls_count || 0)
+                            const pendingUnits = Number(row.pending.batches_count || 0) + Number(row.pending.open_gonnies_count || 0)
+                            const totalUnits = readyUnits + pendingUnits
+                            const readyPct = totalUnits > 0 ? Math.min(100, Math.round((readyUnits / totalUnits) * 100)) : 0
+                            return (
+                            <button key={row.sales_order.id} onClick={() => setSelectedOrderId(row.sales_order.id)} className={`relative overflow-hidden rounded-[14px] border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-blue-400 bg-gradient-to-b from-blue-50 to-white" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200"}`}>
+                                <span className={`absolute inset-y-0 left-0 w-1 ${readyPct >= 75 ? "bg-emerald-400" : readyPct > 0 ? "bg-blue-400" : "bg-amber-400"}`} />
+                                <div className="pl-1">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <div className="text-sm font-black text-slate-950">{row.sales_order.order_number}</div>
-                                        <div className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                        <div className="text-xs font-mono font-bold text-blue-700">{row.sales_order.order_number}</div>
+                                        <div className="mt-0.5 line-clamp-1 text-sm font-black text-slate-950">{row.sales_order.customer_name}</div>
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-blue-500" />
+                                    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${readyPct >= 75 ? "bg-emerald-50 text-emerald-700" : readyPct > 0 ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>{readyPct}% ready</span>
                                 </div>
-                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                                    <div className="rounded-2xl bg-amber-50 p-2"><b>{n(row.pending.batches_pcs || 0, 0)}</b><br />pcs pending</div>
-                                    <div className="rounded-2xl bg-emerald-50 p-2"><b>{n(row.ready_for_dispatch.gonnies_count || 0, 0)}</b><br />ready gonnies</div>
+                                <div className="mt-4 grid grid-cols-4 gap-2 text-[11px]">
+                                    <div><div className="font-semibold text-slate-400">Batches</div><div className="font-black">{n(row.pending.batches_count || 0, 0)}</div></div>
+                                    <div><div className="font-semibold text-slate-400">Open</div><div className="font-black text-blue-700">{n(row.pending.open_gonnies_count || 0, 0)}</div></div>
+                                    <div><div className="font-semibold text-slate-400">Sealed</div><div className="font-black text-emerald-700">{n(row.ready_for_dispatch.gonnies_count || 0, 0)}</div></div>
+                                    <div><div className="font-semibold text-slate-400">Rolls</div><div className="font-black">{n(row.ready_for_dispatch.rolls_count || 0, 0)}</div></div>
+                                </div>
+                                <div className="mt-3">
+                                    <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                                        <span>{readyPct}% of yard units ready</span>
+                                        <span>{readyUnits} of {totalUnits}</span>
+                                    </div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{ width: `${readyPct}%` }} /></div>
+                                </div>
                                 </div>
                             </button>
-                        ))}
-                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 md:col-span-2 xl:col-span-4">No packing orders match this search.</div>}
+                        )})}
+                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 md:col-span-2 xl:col-span-3">No packing orders match this search.</div>}
                     </div>
                 </div>
             </section>
 
-            <section className="grid gap-5 xl:grid-cols-[320px_1fr]">
-                <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="space-y-5">
+                <div className="hidden">
                     <div className="mb-3 flex items-center gap-2 text-sm font-black"><ClipboardList className="h-4 w-4 text-blue-600" /> Yard order rail</div>
                     <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
                         {cards.map((row) => (

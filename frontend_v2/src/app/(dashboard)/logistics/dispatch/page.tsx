@@ -23,9 +23,9 @@ function Tile({ label, value, hint, tone = "blue" }: { label: string; value: str
         slate: "border-slate-200 bg-white text-slate-950",
     }
     return (
-        <div className={`rounded-3xl border p-4 shadow-sm ${tones[tone]}`}>
-            <div className="text-[10px] font-black uppercase tracking-[0.26em] text-slate-500">{label}</div>
-            <div className="mt-2 text-2xl font-black">{value}</div>
+        <div className={`rounded-[14px] border p-3 shadow-sm ${tones[tone]}`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+            <div className="mt-1 text-2xl font-black tracking-tight">{value}</div>
             <div className="mt-1 text-xs font-semibold text-slate-500">{hint}</div>
         </div>
     )
@@ -129,6 +129,9 @@ export default function DispatchBayPage() {
         if (!term) return true
         return `${row.dc_no} ${row.customer_name} ${row.sales_order__order_number} ${row.vehicle_no}`.toLowerCase().includes(term)
     })
+    const openChallans = history.filter((row) => String(row.status || "").toUpperCase() === "DRAFT").length
+    const todayDispatches = history.filter((row) => row.dispatch_date && new Date(row.dispatch_date).toDateString() === new Date().toDateString()).length
+    const readyGross = Number(board.data?.totals.ready_rolls_kg || 0) + Number(board.data?.totals.ready_gonnies_gross_kg || 0)
 
     const toggle = (id: string, list: string[], setter: (value: string[]) => void) => {
         setter(list.includes(id) ? list.filter((value) => value !== id) : [...list, id])
@@ -136,12 +139,12 @@ export default function DispatchBayPage() {
 
     return (
         <div className="space-y-6 p-4 lg:p-6">
-            <section className="sticky top-2 z-20 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(900px_360px_at_88%_-18%,rgba(147,197,253,0.55),transparent_60%),radial-gradient(760px_340px_at_8%_-12%,rgba(221,214,254,0.72),transparent_62%),#ffffff] p-6 text-slate-950 shadow-sm">
+            <section className="overflow-hidden rounded-[20px] border border-slate-200 bg-[radial-gradient(1200px_500px_at_80%_-10%,rgba(230,235,255,0.98),transparent_60%),radial-gradient(900px_400px_at_10%_0%,rgba(236,254,255,0.95),transparent_60%),#ffffff] p-5 text-slate-950 shadow-sm">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <div className="inline-flex rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-700 shadow-sm">Dispatch board</div>
-                        <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight">Plan today’s dispatch before creating the challan.</h1>
-                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Released rolls and sealed gonnies arrive here from Packing Yard. Pick one sales order, build the selected tray, capture vehicle/LR details, then print and dispatch.</p>
+                        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">Dispatch board</div>
+                        <h1 className="mt-1 max-w-3xl text-2xl font-black tracking-tight">What can go out today</h1>
+                        <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-600">Everything Packing Yard has explicitly handed over. Cards below show every sales order with released units, so dispatch can plan trucks before building a challan.</p>
                         <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Released units</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Selected tray</span>
@@ -149,14 +152,16 @@ export default function DispatchBayPage() {
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">History</span>
                         </div>
                     </div>
-                    <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[760px] xl:grid-cols-4">
-                        <Tile label="Ready orders" value={n(board.data?.totals.orders || 0, 0)} hint="dispatchable now" tone="blue" />
-                        <Tile label="Ready rolls" value={`${n(board.data?.totals.ready_rolls_kg || 0)} kg`} hint={`${n(board.data?.totals.ready_rolls || 0, 0)} rolls`} tone="slate" />
-                        <Tile label="Ready gonnies" value={n(board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs`} tone="emerald" />
-                        <Tile label="Pending packing" value={n(board.data?.totals.pending_in_packing || 0, 0)} hint="still in Packing Yard" tone="amber" />
+                    <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[900px] xl:grid-cols-3">
+                        <Tile label="Rolls ready" value={n(board.data?.totals.ready_rolls || 0, 0)} hint={`${n(board.data?.totals.ready_rolls_kg || 0)} kg ready`} tone="blue" />
+                        <Tile label="Gonnies ready" value={n(board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs ready`} tone="emerald" />
+                        <Tile label="Gross ready" value={`${n(readyGross)} kg`} hint={`${n(board.data?.totals.orders || 0, 0)} orders`} tone="slate" />
+                        <Tile label="Still in packing" value={n(board.data?.totals.pending_in_packing || 0, 0)} hint="not yet released" tone="amber" />
+                        <Tile label="Open challans" value={n(openChallans, 0)} hint="draft, not dispatched" tone="slate" />
+                        <Tile label="Today dispatched" value={n(todayDispatches, 0)} hint="completed challans" tone="slate" />
                     </div>
                 </div>
-                <div className="mt-6 rounded-[1.5rem] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+                <div className="mt-6 rounded-[20px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Priority release cards</div>
@@ -167,29 +172,45 @@ export default function DispatchBayPage() {
                             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ready orders..." className="h-12 rounded-2xl border-slate-200 bg-white pl-10 shadow-sm" />
                         </div>
                     </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        {cards.slice(0, 4).map((row) => (
-                            <button key={row.sales_order.id} onClick={() => { setSelectedOrderId(row.sales_order.id); setSelectedRolls([]); setSelectedGonnies([]); }} className={`rounded-3xl border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200"}`}>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {cards.slice(0, 6).map((row) => {
+                            const readyUnits = Number(row.available_for_dispatch.rolls_count || 0) + Number(row.available_for_dispatch.gonnies_count || 0)
+                            const pendingUnits = Number(row.packing_pending?.open_gonnies_count || 0) + Number(row.packing_pending?.unpacked_batch_count || 0) + Number(row.packing_pending?.unreleased_rolls_count || 0)
+                            const readyPct = readyUnits + pendingUnits > 0 ? Math.min(100, Math.round((readyUnits / (readyUnits + pendingUnits)) * 100)) : (readyUnits > 0 ? 100 : 0)
+                            const grossKg = Number(row.available_for_dispatch.rolls_kg || 0) + Number(row.available_for_dispatch.gonnies_gross_kg || 0)
+                            return (
+                            <button key={row.sales_order.id} onClick={() => { setSelectedOrderId(row.sales_order.id); setSelectedRolls([]); setSelectedGonnies([]); }} className={`relative overflow-hidden rounded-[14px] border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-blue-400 bg-gradient-to-b from-blue-50 to-white" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200"}`}>
+                                <span className={`absolute inset-y-0 left-0 w-1 ${pendingUnits > readyUnits ? "bg-amber-400" : readyUnits ? "bg-emerald-400" : "bg-slate-200"}`} />
+                                <div className="pl-1">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <div className="text-sm font-black text-slate-950">{row.sales_order.order_number}</div>
-                                        <div className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                        <div className="text-xs font-mono font-bold text-blue-700">{row.sales_order.order_number}</div>
+                                        <div className="mt-0.5 line-clamp-1 text-sm font-black text-slate-950">{row.sales_order.customer_name}</div>
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-blue-500" />
+                                    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${readyUnits ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{readyUnits ? "Ready now" : "Waiting"}</span>
                                 </div>
-                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                                    <div className="rounded-2xl bg-blue-50 p-2"><b>{n(row.available_for_dispatch.rolls_kg || 0)}</b><br />roll kg</div>
-                                    <div className="rounded-2xl bg-emerald-50 p-2"><b>{n(row.available_for_dispatch.gonnies_count || 0, 0)}</b><br />gonnies</div>
+                                <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
+                                    <div><div className="font-semibold text-slate-400">Rolls</div><div className="font-black text-blue-700">{n(row.available_for_dispatch.rolls_count || 0, 0)}</div></div>
+                                    <div><div className="font-semibold text-slate-400">Gonnies</div><div className="font-black text-emerald-700">{n(row.available_for_dispatch.gonnies_count || 0, 0)}</div></div>
+                                    <div><div className="font-semibold text-slate-400">Gross</div><div className="font-black">{n(grossKg)} kg</div></div>
+                                </div>
+                                <div className="mt-3">
+                                    <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                                        <span>{readyPct}% ready</span>
+                                        <span>{readyUnits} unit{readyUnits === 1 ? "" : "s"}</span>
+                                    </div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{ width: `${readyPct}%` }} /></div>
+                                </div>
                                 </div>
                             </button>
-                        ))}
-                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 md:col-span-2 xl:col-span-4">No dispatch-ready orders found.</div>}
+                        )})}
+                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 md:col-span-2 xl:col-span-3">No dispatch-ready orders found.</div>}
                     </div>
                 </div>
             </section>
 
-            <section className="grid gap-5 xl:grid-cols-[320px_1fr]">
-                <aside className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="space-y-5">
+                <aside className="hidden">
                     <div className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Ready order rail</div>
                     <div className="relative">
                         <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
@@ -201,8 +222,8 @@ export default function DispatchBayPage() {
                                 <span className={`absolute inset-y-0 left-0 w-2 ${row.available_for_dispatch.gonnies_count ? "bg-emerald-400" : row.available_for_dispatch.rolls_kg ? "bg-blue-400" : "bg-amber-400"}`} />
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <div className="font-black">{row.sales_order.order_number}</div>
-                                        <div className="mt-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                        <div className="text-sm font-black text-slate-950">{row.sales_order.order_number}</div>
+                                        <div className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
                                     </div>
                                     <ArrowRight className="h-4 w-4 text-slate-400" />
                                 </div>
