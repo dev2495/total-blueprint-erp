@@ -296,7 +296,7 @@ export async function assertNoHorizontalOverflow(page: Page) {
 }
 
 export async function collectSidebarRoutes(page: Page) {
-  await page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout: 30_000 })
+  await page.getByTestId("sidebar-nav").first().waitFor({ state: "visible", timeout: 30_000 })
   return page.locator("[data-testid='sidebar-nav'] a[href]").evaluateAll((nodes) => {
     const routes = nodes
       .map((node) => (node instanceof HTMLElement ? node.dataset.route || node.getAttribute("href") || "" : ""))
