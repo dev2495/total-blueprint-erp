@@ -47,15 +47,15 @@ type FilterOption = { value: string; label: string }
 const CHART_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
 const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
 const FILTER_TRIGGER_BASE_CLASS =
-  "h-10 rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus:ring-2 focus:ring-emerald-200 data-[state=open]:border-emerald-300 data-[state=open]:bg-gradient-to-br data-[state=open]:from-emerald-50 data-[state=open]:via-white data-[state=open]:to-sky-50 data-[state=open]:text-emerald-900 data-[state=open]:shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.13)]"
+  "h-10 rounded-full px-4 text-xs font-black transition-all duration-150 focus:ring-2 focus:ring-teal-100 data-[state=open]:border-[#0d9488] data-[state=open]:bg-[#f0fdfa] data-[state=open]:text-[#0f172a]"
 const FILTER_TRIGGER_IDLE_CLASS =
-  "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 hover:border-emerald-200 hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
+  "border-slate-200 bg-white text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[#0d9488] hover:bg-[#f0fdfa]"
 const FILTER_TRIGGER_ACTIVE_CLASS =
-  "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
+  "border-[#0d9488] bg-[#0d9488] text-white shadow-[0_10px_24px_rgba(13,148,136,0.20)] hover:bg-[#0f766e] data-[state=open]:bg-[#0d9488] data-[state=open]:text-white"
 const FILTER_MENU_CLASS =
-  "rounded-2xl border border-emerald-100/80 bg-gradient-to-br from-white via-emerald-50/50 to-sky-50/70 p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.16)]"
+  "rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_40px_-18px_rgba(15,23,42,0.25)]"
 const FILTER_ITEM_CLASS =
-  "rounded-xl text-sm font-semibold text-slate-700 focus:bg-white/90 focus:text-emerald-900 data-[state=checked]:bg-white data-[state=checked]:text-emerald-900"
+  "rounded-xl text-sm font-semibold text-slate-700 focus:bg-slate-100 focus:text-[#0f172a] data-[state=checked]:bg-[#0d9488] data-[state=checked]:text-white"
 const AGE_FILTER_OPTIONS: FilterOption[] = [
   { value: "ALL", label: "All Age" },
   { value: "Fresh", label: "Fresh <= 7d" },
@@ -873,7 +873,7 @@ export function InventoryFilterBar({
           <Input
             value={search}
             onChange={(event) => onChange({ q: event.target.value || null })}
-            className="h-11 rounded-2xl border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 pl-11 text-sm font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.045)] transition placeholder:text-slate-500 hover:border-emerald-200 hover:from-emerald-50/70 hover:via-white hover:to-cyan-50/80 focus-visible:ring-2 focus-visible:ring-emerald-200"
+            className="h-11 rounded-2xl border-slate-200 bg-white pl-11 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition placeholder:text-slate-500 hover:border-[#0d9488] hover:bg-[#f0fdfa] focus-visible:border-[#0d9488] focus-visible:ring-2 focus-visible:ring-teal-100"
             placeholder={searchPlaceholder}
             data-testid="inventory-search"
           />
@@ -946,7 +946,7 @@ export function InventoryFilterBar({
             {activeLocations.map((row) => <SelectItem className={FILTER_ITEM_CLASS} key={row.id} value={String(row.id)}>{row.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" className="h-10 rounded-full border-rose-100 bg-gradient-to-br from-white via-rose-50/45 to-amber-50/55 px-4 text-xs font-black text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.045)] transition hover:border-rose-200 hover:from-rose-50 hover:via-white hover:to-orange-50 hover:text-rose-700" onClick={() => onChange(resetPayload)}>
+        <Button variant="outline" className="h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa] hover:text-[#0f172a]" onClick={() => onChange(resetPayload)}>
           Reset
         </Button>
       </div>
