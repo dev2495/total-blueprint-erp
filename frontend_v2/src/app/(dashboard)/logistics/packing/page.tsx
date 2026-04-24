@@ -130,37 +130,61 @@ export default function PackingYardPage() {
 
     return (
         <div className="space-y-6 p-4 lg:p-6">
-            <section className="sticky top-2 z-20 rounded-[2rem] bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-700 p-6 text-white shadow-xl">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <section className="sticky top-2 z-20 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(900px_360px_at_85%_-18%,rgba(191,219,254,0.66),transparent_60%),radial-gradient(760px_340px_at_8%_-12%,rgba(204,251,241,0.66),transparent_62%),#ffffff] p-6 text-slate-950 shadow-sm">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <div className="inline-flex rounded-full border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">Packing Yard</div>
-                        <h1 className="mt-4 text-3xl font-black tracking-tight">Plan, seal, and release dispatch-ready units.</h1>
-                        <p className="mt-2 max-w-2xl text-sm font-medium text-blue-100">Choose the sales order first, create gonnies from finished pouch batches, capture actual gonny gross weight, and release only sealed units to Dispatch Bay.</p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-50">
-                            <span className="rounded-full bg-white/10 px-3 py-1">Production</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Batches</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Gonnies</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Sealing</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Dispatch handoff</span>
+                        <div className="inline-flex rounded-full border border-emerald-100 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700 shadow-sm">Packing yard board</div>
+                        <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight">Plan pouch, roll, and gonny handoff from one yard view.</h1>
+                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Choose the sales order first, convert finished pouch batches into sealed gonnies with actual gross weight, and release only verified units to Dispatch Bay.</p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Batches</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Create gonny</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Seal weight</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Dispatch handoff</span>
                         </div>
                     </div>
                     <div className="relative w-full max-w-md">
                         <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order or customer..." className="h-12 rounded-2xl border-white/20 bg-white/10 pl-10 text-white placeholder:text-blue-100" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order or customer..." className="h-12 rounded-2xl border-slate-200 bg-white pl-10 shadow-sm" />
+                    </div>
+                </div>
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Stat label="Orders in yard" value={n(board.data?.totals.orders || 0, 0)} hint="Have packing work pending or ready" tone="blue" />
+                    <Stat label="Pending pouch batches" value={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs`} hint={`${n(board.data?.totals.pending_batches || 0, 0)} batches waiting`} />
+                    <Stat label="Open / sealed gonnies" value={`${n(board.data?.totals.open_gonnies || 0, 0)} / ${n(board.data?.totals.sealed_waiting_release || 0, 0)}`} hint="Seal open, then release" tone="amber" />
+                    <Stat label="Ready for dispatch" value={`${n(board.data?.totals.ready_gonnies || 0, 0)} gonnies`} hint={`${n(board.data?.totals.ready_gonnies_gross_kg || 0)} kg gross + ${n(board.data?.totals.ready_rolls_kg || 0)} kg rolls`} tone="emerald" />
+                </div>
+                <div className="mt-5 rounded-[1.5rem] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Sales-order planning cards</div>
+                            <div className="mt-1 text-sm font-black text-slate-900">Pick the order, then work batches, gonnies, and roll release.</div>
+                        </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        {cards.slice(0, 4).map((row) => (
+                            <button key={row.sales_order.id} onClick={() => setSelectedOrderId(row.sales_order.id)} className={`rounded-3xl border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200"}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-black text-slate-950">{row.sales_order.order_number}</div>
+                                        <div className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-blue-500" />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-2xl bg-amber-50 p-2"><b>{n(row.pending.batches_pcs || 0, 0)}</b><br />pcs pending</div>
+                                    <div className="rounded-2xl bg-emerald-50 p-2"><b>{n(row.ready_for_dispatch.gonnies_count || 0, 0)}</b><br />ready gonnies</div>
+                                </div>
+                            </button>
+                        ))}
+                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 md:col-span-2 xl:col-span-4">No packing orders match this search.</div>}
                     </div>
                 </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Stat label="Orders in yard" value={n(board.data?.totals.orders || 0, 0)} hint="Have packing work pending or ready" tone="blue" />
-                <Stat label="Pending pouch batches" value={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs`} hint={`${n(board.data?.totals.pending_batches || 0, 0)} batches waiting`} />
-                <Stat label="Open / sealed gonnies" value={`${n(board.data?.totals.open_gonnies || 0, 0)} / ${n(board.data?.totals.sealed_waiting_release || 0, 0)}`} hint="Seal open, then release" tone="amber" />
-                <Stat label="Ready for dispatch" value={`${n(board.data?.totals.ready_gonnies || 0, 0)} gonnies`} hint={`${n(board.data?.totals.ready_gonnies_gross_kg || 0)} kg gross + ${n(board.data?.totals.ready_rolls_kg || 0)} kg rolls`} tone="emerald" />
-            </section>
-
-            <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
+            <section className="grid gap-5 xl:grid-cols-[320px_1fr]">
                 <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="mb-3 flex items-center gap-2 text-sm font-black"><ClipboardList className="h-4 w-4 text-blue-600" /> Sales orders</div>
+                    <div className="mb-3 flex items-center gap-2 text-sm font-black"><ClipboardList className="h-4 w-4 text-blue-600" /> Yard order rail</div>
                     <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
                         {cards.map((row) => (
                             <button key={row.sales_order.id} onClick={() => setSelectedOrderId(row.sales_order.id)} className={`relative w-full overflow-hidden rounded-3xl border p-4 text-left transition ${selectedOrderId === row.sales_order.id ? "border-blue-400 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-blue-200"}`}>

@@ -42,7 +42,7 @@ function StudioStepper({ template, steps, readiness }: { template: any; steps: T
     return (
         <div className="grid gap-3 md:grid-cols-4">
             {items.map(([label, done], index) => (
-                <div key={String(label)} className={`rounded-2xl border p-3 ${done ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-slate-200 bg-white/10 text-white md:bg-white/5"}`}>
+                <div key={String(label)} className={`rounded-2xl border p-3 shadow-sm ${done ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-slate-200 bg-white text-slate-700"}`}>
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Step {index + 1}</div>
                     <div className="mt-1 text-sm font-black">{String(label)}</div>
                     <div className="mt-1 text-[10px] font-semibold opacity-70">{done ? "Complete" : "Pending"}</div>
@@ -50,7 +50,7 @@ function StudioStepper({ template, steps, readiness }: { template: any; steps: T
             ))}
             <div className="md:col-span-4 mt-1 flex flex-wrap gap-2">
                 {order.slice(0, 4).map((status, index) => (
-                    <span key={status} className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${index <= activeIndex ? "bg-white text-slate-950" : "bg-white/10 text-blue-100"}`}>{status}</span>
+                    <span key={status} className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${index <= activeIndex ? "border-blue-200 bg-white text-blue-800 shadow-sm" : "border-slate-200 bg-slate-50 text-slate-500"}`}>{status}</span>
                 ))}
             </div>
         </div>
@@ -210,22 +210,30 @@ export default function TemplateStudioPage() {
 
     return (
         <div className="space-y-6 p-4 lg:p-6">
-            <section className="sticky top-2 z-20 rounded-[2rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-700 p-6 text-white shadow-xl">
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <section className="sticky top-2 z-20 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(980px_420px_at_86%_-16%,rgba(191,219,254,0.68),transparent_60%),radial-gradient(760px_360px_at_8%_-12%,rgba(221,214,254,0.78),transparent_62%),#ffffff] p-6 text-slate-950 shadow-sm">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <Button variant="secondary" size="sm" onClick={() => router.back()} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                        <div className="inline-flex rounded-full border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">Template Studio</div>
-                        <h1 className="mt-4 text-3xl font-black tracking-tight">{template.name}</h1>
-                        <p className="mt-2 max-w-3xl text-sm font-medium text-blue-100">Guided route contract for planner release, WCM lanes, machine logging, and material policy. Sales and stock orders still own the actual layer specs.</p>
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => router.back()} className="rounded-2xl bg-white shadow-sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                            <div className="inline-flex rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-700 shadow-sm">Template Studio</div>
+                        </div>
+                        <h1 className="max-w-3xl text-3xl font-black tracking-tight">{template.name}</h1>
+                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">A guided route contract for planner release, WCM lanes, machine logging, lamination passes, and material policy. SKU and sales orders still own the actual layer specs.</p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Basics</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Route stages</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Lamination lanes</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Review gate</span>
+                        </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Status</div><div className="mt-2 text-xl font-black">{template.status}</div></div>
-                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Stages</div><div className="mt-2 text-xl font-black">{steps.length}</div></div>
-                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Lamination</div><div className="mt-2 text-xl font-black">{laminationSteps.length} pass(es)</div></div>
-                        <div className="rounded-3xl border border-white/15 bg-white/10 p-4"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-100">Readiness</div><div className="mt-2 text-xl font-black">{readiness?.ready ? "Ready" : "Blocked"}</div></div>
+                    <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[720px] xl:grid-cols-4">
+                        <div className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Status</div><div className="mt-2 text-xl font-black text-blue-950">{template.status}</div></div>
+                        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Stages</div><div className="mt-2 text-xl font-black">{steps.length}</div></div>
+                        <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-sm"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Lamination</div><div className="mt-2 text-xl font-black text-amber-950">{laminationSteps.length} pass(es)</div></div>
+                        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm"><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Readiness</div><div className="mt-2 text-xl font-black text-emerald-950">{readiness?.ready ? "Ready" : "Blocked"}</div></div>
                     </div>
                 </div>
-                <div className="mt-5">
+                <div className="mt-6 rounded-[1.5rem] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
                     <StudioStepper template={template} steps={steps} readiness={readiness} />
                 </div>
             </section>

@@ -15,12 +15,18 @@ import { logisticsService, type DeliveryChallan, type SODispatchSummary } from "
 const n = (value: unknown, digits = 1) => Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
 const err = (error: any) => error?.response?.data?.error || error?.response?.data?.detail || error?.message || "Request failed."
 
-function Tile({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Tile({ label, value, hint, tone = "blue" }: { label: string; value: string; hint: string; tone?: "blue" | "emerald" | "amber" | "slate" }) {
+    const tones = {
+        blue: "border-blue-100 bg-blue-50/80 text-blue-950",
+        emerald: "border-emerald-100 bg-emerald-50/80 text-emerald-950",
+        amber: "border-amber-100 bg-amber-50/80 text-amber-950",
+        slate: "border-slate-200 bg-white text-slate-950",
+    }
     return (
-        <div className="rounded-3xl border border-white/15 bg-white/10 p-4 text-white shadow-sm">
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">{label}</div>
+        <div className={`rounded-3xl border p-4 shadow-sm ${tones[tone]}`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.26em] text-slate-500">{label}</div>
             <div className="mt-2 text-2xl font-black">{value}</div>
-            <div className="mt-1 text-xs font-medium text-blue-100">{hint}</div>
+            <div className="mt-1 text-xs font-semibold text-slate-500">{hint}</div>
         </div>
     )
 }
@@ -130,31 +136,61 @@ export default function DispatchBayPage() {
 
     return (
         <div className="space-y-6 p-4 lg:p-6">
-            <section className="sticky top-2 z-20 rounded-[2rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-700 p-6 text-white shadow-xl">
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <section className="sticky top-2 z-20 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(900px_360px_at_88%_-18%,rgba(147,197,253,0.55),transparent_60%),radial-gradient(760px_340px_at_8%_-12%,rgba(221,214,254,0.72),transparent_62%),#ffffff] p-6 text-slate-950 shadow-sm">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <div className="inline-flex rounded-full border border-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-100">Dispatch terminal</div>
-                        <h1 className="mt-4 text-3xl font-black tracking-tight">Build challans from released rolls and gonnies.</h1>
-                        <p className="mt-2 max-w-3xl text-sm font-medium text-blue-100">Only units released from Packing Yard appear here. Select an order, pick units, finalize challan details, print, and dispatch.</p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-50">
-                            <span className="rounded-full bg-white/10 px-3 py-1">Released</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Selected tray</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Finalize challan</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Print</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Dispatch history</span>
+                        <div className="inline-flex rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-blue-700 shadow-sm">Dispatch board</div>
+                        <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight">Plan today’s dispatch before creating the challan.</h1>
+                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Released rolls and sealed gonnies arrive here from Packing Yard. Pick one sales order, build the selected tray, capture vehicle/LR details, then print and dispatch.</p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Released units</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Selected tray</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Challan details</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">History</span>
                         </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <Tile label="Ready orders" value={n(board.data?.totals.orders || 0, 0)} hint="dispatchable now" />
-                        <Tile label="Ready rolls" value={`${n(board.data?.totals.ready_rolls_kg || 0)} kg`} hint={`${n(board.data?.totals.ready_rolls || 0, 0)} rolls`} />
-                        <Tile label="Ready gonnies" value={n(board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs`} />
-                        <Tile label="Pending packing" value={n(board.data?.totals.pending_in_packing || 0, 0)} hint="still in Packing Yard" />
+                    <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[760px] xl:grid-cols-4">
+                        <Tile label="Ready orders" value={n(board.data?.totals.orders || 0, 0)} hint="dispatchable now" tone="blue" />
+                        <Tile label="Ready rolls" value={`${n(board.data?.totals.ready_rolls_kg || 0)} kg`} hint={`${n(board.data?.totals.ready_rolls || 0, 0)} rolls`} tone="slate" />
+                        <Tile label="Ready gonnies" value={n(board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs`} tone="emerald" />
+                        <Tile label="Pending packing" value={n(board.data?.totals.pending_in_packing || 0, 0)} hint="still in Packing Yard" tone="amber" />
+                    </div>
+                </div>
+                <div className="mt-6 rounded-[1.5rem] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Priority release cards</div>
+                            <div className="mt-1 text-sm font-black text-slate-900">Select a sales order to open the dispatch workspace.</div>
+                        </div>
+                        <div className="relative w-full md:max-w-sm">
+                            <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+                            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ready orders..." className="h-12 rounded-2xl border-slate-200 bg-white pl-10 shadow-sm" />
+                        </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        {cards.slice(0, 4).map((row) => (
+                            <button key={row.sales_order.id} onClick={() => { setSelectedOrderId(row.sales_order.id); setSelectedRolls([]); setSelectedGonnies([]); }} className={`rounded-3xl border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200"}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-black text-slate-950">{row.sales_order.order_number}</div>
+                                        <div className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{row.sales_order.customer_name}</div>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-blue-500" />
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-2xl bg-blue-50 p-2"><b>{n(row.available_for_dispatch.rolls_kg || 0)}</b><br />roll kg</div>
+                                    <div className="rounded-2xl bg-emerald-50 p-2"><b>{n(row.available_for_dispatch.gonnies_count || 0, 0)}</b><br />gonnies</div>
+                                </div>
+                            </button>
+                        ))}
+                        {!cards.length && <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 md:col-span-2 xl:col-span-4">No dispatch-ready orders found.</div>}
                     </div>
                 </div>
             </section>
 
-            <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
+            <section className="grid gap-5 xl:grid-cols-[320px_1fr]">
                 <aside className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Ready order rail</div>
                     <div className="relative">
                         <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
                         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ready orders..." className="h-12 rounded-2xl pl-10" />
