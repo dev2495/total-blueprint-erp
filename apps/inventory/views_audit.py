@@ -341,6 +341,7 @@ class StockCardView(APIView):
                 material_id=request.query_params.get("material"),
                 plant_id=request.query_params.get("plant"),
                 location_id=request.query_params.get("location"),
+                financial_year=request.query_params.get("financial_year"),
                 date_from=parse_date(request.query_params.get("from")) if request.query_params.get("from") else None,
                 date_to=parse_date(request.query_params.get("to")) if request.query_params.get("to") else None,
             )
@@ -357,6 +358,7 @@ class StockCardView(APIView):
                 material_id=request.data.get("material"),
                 plant_id=request.data.get("plant"),
                 location_id=request.data.get("location"),
+                financial_year=request.data.get("financial_year"),
                 date_from=parse_date(request.data.get("from")) if request.data.get("from") else None,
                 date_to=parse_date(request.data.get("to")) if request.data.get("to") else None,
             )

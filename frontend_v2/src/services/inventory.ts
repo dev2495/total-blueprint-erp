@@ -612,7 +612,7 @@ export const inventoryService = {
         return data
     },
 
-    getStockCard: async (params?: { material?: string; plant?: string; location?: string; from?: string; to?: string }) => {
+    getStockCard: async (params?: { material?: string; plant?: string; location?: string; financial_year?: string; from?: string; to?: string }) => {
         const { data } = await api.get<StockCardPayload>("/api/inventory/audit/stock-card/", { params })
         return data
     },

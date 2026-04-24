@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   CheckCircle2,
+  BookOpenCheck,
   ClipboardList,
   Download,
   FileSpreadsheet,
@@ -37,7 +38,7 @@ import { inventoryService, type InventoryAuditLine, type StockCardPayload } from
 import { masterDataService } from "@/services/master-data"
 import { recipeService } from "@/services/recipes"
 
-type LifecycleTab = "opening" | "count" | "stockcard" | "yearclose" | "correction"
+type LifecycleTab = "opening" | "count" | "stockcard" | "yearclose" | "correction" | "help"
 type AuditMode = "OPENING_STOCK" | "PHYSICAL_COUNT" | "FY_CORRECTION"
 type StockClass = "BULK" | "ROLL" | "PACKAGING"
 
@@ -52,6 +53,7 @@ const TAB_CONFIG: Array<{
   { id: "stockcard", label: "Stock Card", sub: "Running ledger", icon: Table2 },
   { id: "yearclose", label: "Year Close", sub: "Seal and roll forward", icon: LockKeyhole },
   { id: "correction", label: "FY Correction", sub: "Approved post-close fix", icon: RotateCcw },
+  { id: "help", label: "Help & Flow", sub: "Rules and diagrams", icon: BookOpenCheck },
 ]
 
 const CLASS_OPTIONS: Array<{ value: StockClass; label: string }> = [
@@ -64,6 +66,16 @@ function currentFy() {
   const now = new Date()
   const year = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1
   return `${year}-${year + 1}`
+}
+
+function previousFy() {
+  const [start] = currentFy().split("-").map(Number)
+  return `${start - 1}-${start}`
+}
+
+function financialYearEndIso(financialYear: string) {
+  const [start] = String(financialYear || currentFy()).split("-").map(Number)
+  return new Date(Date.UTC(start + 1, 2, 31, 18, 29, 59)).toISOString()
 }
 
 function modeFor(tab: LifecycleTab): AuditMode {
@@ -197,6 +209,8 @@ export function StockLifecycleWorkspace() {
             <YearClosePanel />
           ) : activeTab === "stockcard" ? (
             <StockCardPanel />
+          ) : activeTab === "help" ? (
+            <LifecycleHelpPanel />
           ) : (
             <SheetLifecyclePanel mode={modeFor(activeTab)} />
           )}
@@ -281,7 +295,7 @@ function Stepper({ status, hasPreview }: { status?: string; hasPreview?: boolean
 function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
   const queryClient = useQueryClient()
   const [stockClass, setStockClass] = useState<StockClass>("BULK")
-  const [financialYear, setFinancialYear] = useState(currentFy())
+  const [financialYear, setFinancialYear] = useState(mode === "FY_CORRECTION" ? previousFy() : currentFy())
   const [selectedPlant, setSelectedPlant] = useState("")
   const [selectedBatchId, setSelectedBatchId] = useState("")
   const [notes, setNotes] = useState("")
@@ -377,7 +391,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
         type: mode,
         plant: selectedPlant,
         financial_year: financialYear,
-        cutoff_at: new Date().toISOString(),
+        cutoff_at: mode === "FY_CORRECTION" ? financialYearEndIso(financialYear) : new Date().toISOString(),
         notes,
       }),
     onSuccess: (batch) => {
@@ -549,7 +563,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <Field label="Financial year">
-              <Input value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} />
+              <Input data-testid="stock-lifecycle-financial-year" value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} />
             </Field>
             <Field label="Plant">
               <Select value={selectedPlant || "__none__"} onValueChange={(value) => setSelectedPlant(value === "__none__" ? "" : value)}>
@@ -951,8 +965,124 @@ function CheckRow({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
+function LifecycleHelpPanel() {
+  const formulas = [
+    { label: "Opening Stock", math: "opening_qty sets the balance", note: "It is absolute, not plus/minus. Existing opening rows are audit anchors." },
+    { label: "Stock Count", math: "variance = counted_qty - system_qty", note: "Positive variance posts COUNT_EXCESS. Negative variance posts COUNT_SHORT." },
+    { label: "Stock Card", math: "balance = previous_balance + in_qty - out_qty", note: "FY close snapshots are skipped because they are proof rows, not stock movement." },
+    { label: "FY Correction", math: "corrected_close = current_system + delta", note: "A closed-year correction also updates next FY opening so the two years reconcile." },
+  ]
+  const flow = [
+    "Create sheet with FY, plant, notes, and class.",
+    "Enter rows manually, import CSV/XLSX, or load live system stock.",
+    "Validate material, location, quantity, roll size, duplicate labels, and FY rules.",
+    "Preview kg/value impact before any stock moves.",
+    "Submit and approve with maker-checker separation.",
+    "Post transactions, write audit events, refresh Stock Card and stock pools.",
+  ]
+  const auditRules = [
+    "Opening stock is blocked after any same-FY non-opening movement for that material/location.",
+    "Posted and locked batches are immutable; use Stock Count or FY Correction instead of editing history.",
+    "FY Correction is allowed only for a closed financial year and requires a written reason.",
+    "Every create, submit, approve, cancel, post, and correction roll-forward sync mirrors to the audit console.",
+  ]
+
+  return (
+    <div className="space-y-5">
+      <Hero
+        eyebrow="Stock Lifecycle - Help"
+        title="Lifecycle Help & Flow"
+        copy="A daily operator guide for opening stock, physical count, stock card reconciliation, year close, and closed-year corrections. The rules below match the backend posting logic."
+        actions={<Button className="rounded-full bg-white text-slate-950 hover:bg-blue-50" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Print guide</Button>}
+        metrics={[
+          { label: "Pattern", value: "6 steps", sub: "Sheet to post" },
+          { label: "Approval", value: "Maker", sub: "Checker required" },
+          { label: "Ledger", value: "Running", sub: "FY bounded" },
+          { label: "Audit", value: "Every action", sub: "Reason and actor" },
+          { label: "Close", value: "Atomic", sub: "No partial close" },
+        ]}
+      />
+
+      <section className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+        <Card className="overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <BookOpenCheck className="h-5 w-5 text-blue-700" />
+              End-to-end flow diagram
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
+              <img src="/help/stock-lifecycle-flow.svg" alt="Stock lifecycle flow diagram" className="h-auto w-full" />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {flow.map((item, index) => (
+                <div key={item} className="flex gap-3 rounded-[14px] border border-slate-200 bg-white p-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-700 text-xs font-black text-white">{index + 1}</span>
+                  <div className="text-sm font-semibold leading-5 text-slate-700">{item}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <Scale className="h-5 w-5 text-emerald-700" />
+              Math rules used by the backend
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {formulas.map((formula) => (
+              <div key={formula.label} className="rounded-[14px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{formula.label}</div>
+                <div className="mt-1 font-mono text-sm font-black text-slate-950">{formula.math}</div>
+                <div className="mt-2 text-sm font-semibold leading-5 text-slate-600">{formula.note}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader><CardTitle className="text-lg font-black">Audit guardrails</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {auditRules.map((rule) => (
+              <div key={rule} className="flex gap-3 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                {rule}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader><CardTitle className="text-lg font-black">What users do every day</CardTitle></CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {[
+              ["Opening", "Use once at FY start or migration. Enter absolute balances and post only after approval."],
+              ["Count", "Load live stock, enter physical count, preview shortage/excess, approve, and post variance."],
+              ["Stock Card", "Filter by FY, material, plant, and location to see source, in, out, balance, rate, and value."],
+              ["Year Close", "Preview closing stock, clear blockers, execute close, and generate next FY opening rows."],
+              ["Correction", "For closed years only. State why, approve separately, post delta, and sync next opening."],
+              ["Help", "Keep this guide open during training, month-end count, and yearly close rehearsal."],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-sm font-black text-slate-950">{title}</div>
+                <div className="mt-2 text-sm font-semibold leading-5 text-slate-600">{text}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  )
+}
+
 function StockCardPanel() {
-  const [filters, setFilters] = useState<Record<string, string>>({})
+  const [filters, setFilters] = useState<Record<string, string>>({ financial_year: currentFy() })
   const { data: plants = [] } = useQuery({ queryKey: ["factory-plants"], queryFn: factoryService.getPlants })
   const { data: locations = [] } = useQuery({ queryKey: ["factory-locations"], queryFn: factoryService.getLocations })
   const { data: materials = [] } = useQuery({ queryKey: ["master-library"], queryFn: () => masterDataService.getLibrary() })
@@ -992,7 +1122,8 @@ function StockCardPanel() {
       />
 
       <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
-        <CardContent className="grid gap-3 p-4 lg:grid-cols-5">
+        <CardContent className="grid gap-3 p-4 lg:grid-cols-6">
+          <Input data-testid="stock-card-financial-year" value={filters.financial_year || currentFy()} onChange={(event) => setFilters((prev) => ({ ...prev, financial_year: event.target.value }))} placeholder="FY 2026-2027" />
           <Select value={filters.material || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, material: value }))}>
             <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
             <SelectContent>

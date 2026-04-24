@@ -8,7 +8,9 @@ from apps.factory.models import Plant
 from apps.inventory.models import (
     BulkTransaction,
     InventoryAuditBatch,
+    InventoryAuditLine,
     InventoryBulk,
+    InventoryFinancialPeriod,
     InventoryLocation,
     InventoryRoll,
     PackagingStock,
@@ -174,6 +176,128 @@ class InventoryAuditServiceTests(TestCase):
         self.assertFalse(any(row["source"] == "BULK_ADJUST" for row in card["rows"] if row["reference"].startswith("OPENING_STOCK")))
         self.assertIn("balance_qty", card["rows"][-1])
 
+    def test_stock_card_filters_to_financial_year_and_excludes_closing_snapshot(self):
+        prior_batch = InventoryAuditBatch.objects.create(
+            type="OPENING_STOCK",
+            plant=self.plant,
+            financial_year="2025-2026",
+            cutoff_at=timezone.datetime(2025, 4, 1, tzinfo=timezone.get_current_timezone()),
+            status="POSTED",
+        )
+        InventoryAuditLine.objects.create(
+            batch=prior_batch,
+            stock_class="BULK",
+            material=self.granule,
+            granule_code=self.granule_code,
+            plant=self.plant,
+            location=self.location,
+            opening_qty=Decimal("7"),
+        )
+        closing_batch = InventoryAuditBatch.objects.create(
+            type="FY_CLOSE",
+            plant=self.plant,
+            financial_year="2026-2027",
+            cutoff_at=timezone.datetime(2027, 3, 31, 23, 59, tzinfo=timezone.get_current_timezone()),
+            status="LOCKED",
+        )
+        InventoryAuditLine.objects.create(
+            batch=closing_batch,
+            stock_class="BULK",
+            material=self.granule,
+            granule_code=self.granule_code,
+            plant=self.plant,
+            location=self.location,
+            opening_qty=Decimal("999"),
+            counted_qty=Decimal("999"),
+        )
+        current_batch = self._batch()
+        InventoryAuditService.import_lines(
+            batch=current_batch,
+            rows=[{"stock_class": "BULK", "material": str(self.granule.id), "granule_code": str(self.granule_code.id), "location": str(self.location.id), "quantity": "12"}],
+        )
+        InventoryAuditService.post_batch(batch=current_batch, user=self.user)
+
+        card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
+
+        self.assertEqual(card["opening_qty"], 12)
+        self.assertFalse(any(row["source"] == "FY_CLOSE" for row in card["rows"]))
+        self.assertTrue(all("2026-2027" in row["reference"] for row in card["rows"] if row["source"] == "OPENING_STOCK"))
+
+    def test_fy_correction_requires_closed_period_and_syncs_next_opening(self):
+        InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("100"))
+        current_period = InventoryFinancialPeriod.objects.create(
+            financial_year="2026-2027",
+            start_date=timezone.datetime(2026, 4, 1).date(),
+            end_date=timezone.datetime(2027, 3, 31).date(),
+            status="OPEN",
+        )
+        with self.assertRaisesMessage(Exception, "FY correction can only be created for a closed financial year"):
+            InventoryAuditService.create_batch(
+                payload={
+                    "type": "FY_CORRECTION",
+                    "plant": str(self.plant.id),
+                    "financial_year": current_period.financial_year,
+                    "notes": "Wrong year",
+                },
+                user=self.user,
+            )
+
+        closed_period = InventoryFinancialPeriod.objects.create(
+            financial_year="2025-2026",
+            start_date=timezone.datetime(2025, 4, 1).date(),
+            end_date=timezone.datetime(2026, 3, 31).date(),
+            status="CLOSED",
+        )
+        next_opening = InventoryAuditBatch.objects.create(
+            type="OPENING_STOCK",
+            plant=self.plant,
+            financial_year="2026-2027",
+            cutoff_at=timezone.datetime(2026, 4, 1, tzinfo=timezone.get_current_timezone()),
+            status="POSTED",
+        )
+        next_line = InventoryAuditLine.objects.create(
+            batch=next_opening,
+            stock_class="BULK",
+            material=self.granule,
+            granule_code=self.granule_code,
+            plant=self.plant,
+            location=self.location,
+            opening_qty=Decimal("100"),
+            system_qty=Decimal("100"),
+            counted_qty=Decimal("100"),
+        )
+        closed_period.opening_batch_next_year = next_opening
+        closed_period.save(update_fields=["opening_batch_next_year", "updated_at"])
+
+        correction = InventoryAuditService.create_batch(
+            payload={
+                "type": "FY_CORRECTION",
+                "plant": str(self.plant.id),
+                "financial_year": "2025-2026",
+                "notes": "Approved late count correction",
+            },
+            user=self.user,
+        )
+        self.assertEqual(correction.cutoff_at.date(), closed_period.end_date)
+        InventoryAuditService.import_lines(
+            batch=correction,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "counted_qty": "115",
+                }
+            ],
+        )
+        InventoryAuditService.post_batch(batch=correction, user=self.user)
+
+        next_line.refresh_from_db()
+        self.assertEqual(next_line.opening_qty, Decimal("115.0000"))
+        self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("115.0000"))
+        self.assertEqual(next_line.posted_reference_json["fy_corrections"][0]["delta_qty"], 15.0)
+
     def test_preview_submit_approve_and_post_workflow_records_state(self):
         checker = User.objects.create_user(username="checker", password="pass1234", role=self.role)
         batch = self._batch()
@@ -191,6 +315,109 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(approved.status, "APPROVED")
         posted = InventoryAuditService.post_batch(batch=approved, user=checker)
         self.assertEqual(posted.status, "POSTED")
+
+    def test_full_lifecycle_math_open_count_close_correction_and_stock_card(self):
+        checker = User.objects.create_user(username="checker-cycle", password="pass1234", role=self.role)
+        period = InventoryAuditService.start_period(financial_year="2026-2027", user=self.user)
+
+        opening = self._batch()
+        InventoryAuditService.import_lines(
+            batch=opening,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "quantity": "100",
+                    "rate": "10",
+                }
+            ],
+        )
+        self.assertEqual(InventoryAuditService.preview_batch(batch=opening)["transaction_count"], 1)
+        opening = InventoryAuditService.submit_batch(batch=opening, user=self.user)
+        opening = InventoryAuditService.approve_batch(batch=opening, user=checker)
+        InventoryAuditService.post_batch(batch=opening, user=checker)
+        self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("100.0000"))
+
+        count = self._batch("PHYSICAL_COUNT")
+        InventoryAuditService.import_lines(
+            batch=count,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "counted_qty": "88",
+                    "rate": "10",
+                }
+            ],
+        )
+        line = count.lines.get()
+        self.assertEqual(line.system_qty, Decimal("100.0000"))
+        self.assertEqual(line.variance_qty, Decimal("-12.0000"))
+        self.assertEqual(line.value, Decimal("120.0000"))
+        count = InventoryAuditService.submit_batch(batch=count, user=self.user)
+        count = InventoryAuditService.approve_batch(batch=count, user=checker)
+        InventoryAuditService.post_batch(batch=count, user=checker)
+        self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("88.0000"))
+        short_tx = BulkTransaction.objects.filter(type="COUNT_SHORT").latest("created_at")
+        self.assertEqual(short_tx.qty_kg, Decimal("-12.0000"))
+
+        before_close_card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
+        self.assertEqual(before_close_card["opening_qty"], 100.0)
+        self.assertEqual(before_close_card["movement_qty"], -12.0)
+        self.assertEqual(before_close_card["closing_qty"], 88.0)
+
+        close_preview = InventoryAuditService.closing_preview(plant_id=str(self.plant.id), financial_year="2026-2027")
+        self.assertEqual(close_preview["totals"]["bulk_kg"], 88.0)
+        self.assertEqual(close_preview["blockers"], [])
+        closed = InventoryAuditService.close_period(period=period, plant_id=str(self.plant.id), user=checker)
+        self.assertEqual(closed.status, "CLOSED")
+        next_opening_line = closed.opening_batch_next_year.lines.get(stock_class="BULK", material=self.granule, granule_code=self.granule_code)
+        self.assertEqual(next_opening_line.opening_qty, Decimal("88.0000"))
+
+        after_close_card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
+        self.assertEqual(after_close_card["closing_qty"], 88.0)
+        self.assertFalse(any(row["source"] == "FY_CLOSE" for row in after_close_card["rows"]))
+
+        correction = InventoryAuditService.create_batch(
+            payload={
+                "type": "FY_CORRECTION",
+                "plant": str(self.plant.id),
+                "financial_year": "2026-2027",
+                "notes": "Owner approved: missed physical bag found during statutory audit.",
+            },
+            user=self.user,
+        )
+        InventoryAuditService.import_lines(
+            batch=correction,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "counted_qty": "90",
+                    "rate": "10",
+                }
+            ],
+        )
+        correction = InventoryAuditService.submit_batch(batch=correction, user=self.user)
+        correction = InventoryAuditService.approve_batch(batch=correction, user=checker)
+        InventoryAuditService.post_batch(batch=correction, user=checker)
+
+        self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("90.0000"))
+        self.assertTrue(BulkTransaction.objects.filter(type="FY_CORRECTION", qty_kg=Decimal("2.0000")).exists())
+        next_opening_line.refresh_from_db()
+        self.assertEqual(next_opening_line.opening_qty, Decimal("90.0000"))
+
+        corrected_closed_year = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
+        next_year_card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2027-2028")
+        self.assertEqual(corrected_closed_year["closing_qty"], 90.0)
+        self.assertEqual(next_year_card["opening_qty"], 90.0)
+        self.assertEqual(next_year_card["closing_qty"], 90.0)
 
     def test_load_batch_from_snapshot_replaces_lines_with_live_system_stock(self):
         InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("18.5000"))

@@ -2,6 +2,17 @@ import { expect } from "@playwright/test"
 import { test } from "../support/base"
 import { annotate, assertHealthyPage, switchRole } from "../support/test-helpers"
 
+function currentFy() {
+  const now = new Date()
+  const year = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1
+  return `${year}-${year + 1}`
+}
+
+function previousFy() {
+  const [start] = currentFy().split("-").map(Number)
+  return `${start - 1}-${start}`
+}
+
 test("stock lifecycle workspace combines opening count close correction and stock card", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory",
@@ -27,6 +38,7 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await expect(page).toHaveURL(/tab=stockcard/)
   await expect(page.locator("body")).toContainText("Material Stock Card")
   await expect(page.locator("body")).toContainText("Running Balance")
+  await expect(page.getByTestId("stock-card-financial-year")).toHaveValue(currentFy())
 
   await page.getByTestId("stock-lifecycle-tab-yearclose").click()
   await expect(page).toHaveURL(/tab=yearclose/)
@@ -37,6 +49,13 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await expect(page).toHaveURL(/tab=correction/)
   await expect(page.locator("body")).toContainText("Financial Year Correction")
   await expect(page.locator("body")).toContainText("Reason / authority")
+  await expect(page.getByTestId("stock-lifecycle-financial-year")).toHaveValue(previousFy())
+
+  await page.getByTestId("stock-lifecycle-tab-help").click()
+  await expect(page).toHaveURL(/tab=help/)
+  await expect(page.locator("body")).toContainText("Lifecycle Help & Flow")
+  await expect(page.locator("body")).toContainText("closed-year correction also updates next FY opening")
+  await expect(page.getByAltText("Stock lifecycle flow diagram")).toBeVisible()
 
   await expect(page.getByTestId("sidebar-link-inventory-stock-lifecycle").first()).toBeVisible()
   await expect(page.getByTestId("sidebar-link-inventory-opening-stock")).toHaveCount(0)

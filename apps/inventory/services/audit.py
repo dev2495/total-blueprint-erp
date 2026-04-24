@@ -109,6 +109,13 @@ class InventoryAuditService:
                 raise ValidationError("Cutoff date must fall inside the selected financial year.")
 
     @classmethod
+    def require_closed_period_for_correction(cls, financial_year: str) -> InventoryFinancialPeriod:
+        period = InventoryFinancialPeriod.objects.filter(financial_year=financial_year).first()
+        if not period or period.status != "CLOSED":
+            raise ValidationError("FY correction can only be created for a closed financial year. Use Stock Count for an open year.")
+        return period
+
+    @classmethod
     def create_batch(cls, *, payload: Dict[str, Any], user=None) -> InventoryAuditBatch:
         batch_type = str(payload.get("type") or "").upper()
         if batch_type not in dict(InventoryAuditBatch.TYPE_CHOICES):
@@ -121,8 +128,16 @@ class InventoryAuditService:
         cutoff_at = cls._parse_cutoff(cutoff_value) if cutoff_value else timezone.now()
         if batch_type != "FY_CORRECTION":
             cls.assert_period_allows_cutoff(financial_year, cutoff_at)
-        elif not str(payload.get("notes") or "").strip():
-            raise ValidationError("FY correction requires a reason or reference note.")
+        else:
+            period = cls.require_closed_period_for_correction(financial_year)
+            if not str(payload.get("notes") or "").strip():
+                raise ValidationError("FY correction requires a reason or reference note.")
+            if not cutoff_value:
+                cutoff_at = timezone.make_aware(datetime.combine(period.end_date, time.max))
+            else:
+                cutoff_date = cutoff_at.date() if hasattr(cutoff_at, "date") else cutoff_at
+                if cutoff_date < period.start_date or cutoff_date > period.end_date:
+                    raise ValidationError("FY correction cutoff must fall inside the closed financial year.")
         batch = InventoryAuditBatch.objects.create(
             type=batch_type,
             plant_id=plant_id,
@@ -586,18 +601,22 @@ class InventoryAuditService:
             return {"skipped": "zero_variance"}
         reference = f"{line.batch.type}:{line.batch.financial_year}:{line.batch.batch_no}"
         stock_class = str(line.stock_class).upper()
+        rollforward_refs: Dict[str, Any] = {}
         if stock_class == "BULK":
             tx_type = cls._delta_tx_type(batch_type=line.batch.type, qty=qty)
             tx = cls._adjust_bulk(line=line, qty=qty, reference=reference, tx_type=tx_type)
-            return {"bulk_transaction_id": str(tx.id)}
-        if stock_class == "PACKAGING":
+            refs = {"bulk_transaction_id": str(tx.id)}
+        elif stock_class == "PACKAGING":
             tx_type = cls._delta_tx_type(batch_type=line.batch.type, qty=qty)
             tx = cls._adjust_packaging(line=line, qty=qty, reference=reference, tx_type=tx_type)
-            return {"packaging_transaction_id": str(tx.id)}
-        if stock_class == "ROLL":
+            refs = {"packaging_transaction_id": str(tx.id)}
+        elif stock_class == "ROLL":
             refs = cls._adjust_roll(line=line, qty=qty, reference=reference, user=user)
-            return refs
-        raise ValidationError("Unsupported stock class.")
+        else:
+            raise ValidationError("Unsupported stock class.")
+        if line.batch.type == "FY_CORRECTION":
+            rollforward_refs = cls._sync_next_opening_after_correction(line=line, delta_qty=qty, user=user)
+        return {**refs, **rollforward_refs}
 
     @classmethod
     def _post_opening_line(cls, *, line: InventoryAuditLine, user=None) -> Dict[str, Any]:
@@ -681,6 +700,88 @@ class InventoryAuditService:
         if batch_type == "FY_CORRECTION":
             return "FY_CORRECTION"
         return "COUNT_EXCESS" if qty > 0 else "COUNT_SHORT"
+
+    @classmethod
+    def _sync_next_opening_after_correction(cls, *, line: InventoryAuditLine, delta_qty: Decimal, user=None) -> Dict[str, Any]:
+        period = cls.require_closed_period_for_correction(line.batch.financial_year)
+        next_opening = period.opening_batch_next_year
+        if not next_opening:
+            return {"next_opening_sync": "skipped_no_next_opening_batch"}
+
+        qs = next_opening.lines.select_for_update().filter(
+            stock_class=line.stock_class,
+            material=line.material,
+            plant=line.plant,
+            location=line.location,
+        )
+        if line.stock_class == "BULK":
+            qs = qs.filter(granule_code=line.granule_code)
+        elif line.stock_class == "ROLL" and line.label_id:
+            qs = qs.filter(label_id=line.label_id)
+        elif line.stock_class == "ROLL" and line.grade_id:
+            qs = qs.filter(grade=line.grade)
+        next_line = qs.order_by("created_at").first()
+
+        if not next_line:
+            if delta_qty <= 0:
+                return {"next_opening_sync": "skipped_no_positive_balance"}
+            next_line = InventoryAuditLine(
+                batch=next_opening,
+                stock_class=line.stock_class,
+                material=line.material,
+                granule_code=line.granule_code,
+                grade=line.grade,
+                plant=line.plant,
+                location=line.location,
+                uom=line.uom or getattr(line.material, "base_uom", "") or "KG",
+                rate=line.rate,
+                label_id=line.label_id,
+                batch_no=line.batch_no,
+                width_mm=line.width_mm,
+                thickness_micron=line.thickness_micron,
+                length_m=line.length_m,
+                is_fg=line.is_fg,
+                stage_index=line.stage_index,
+                status=line.status or "AVAILABLE",
+                packaging_kind=line.packaging_kind,
+                base_uom=line.base_uom,
+            )
+
+        before_qty = _dec(next_line.opening_qty)
+        after_qty = before_qty + _dec(delta_qty)
+        if after_qty < 0:
+            raise ValidationError("FY correction would make next year opening stock negative.")
+        next_line.system_qty = after_qty
+        next_line.counted_qty = after_qty
+        next_line.opening_qty = after_qty
+        next_line.variance_qty = after_qty
+        if line.rate is not None:
+            next_line.rate = line.rate
+        refs = dict(next_line.posted_reference_json or {})
+        refs.setdefault("fy_corrections", [])
+        refs["fy_corrections"].append(
+            {
+                "batch_id": str(line.batch_id),
+                "batch_no": line.batch.batch_no,
+                "line_id": str(line.id),
+                "delta_qty": float(delta_qty),
+                "before_opening_qty": float(before_qty),
+                "after_opening_qty": float(after_qty),
+                "actor": getattr(user, "username", "") if getattr(user, "is_authenticated", False) else "",
+                "at": timezone.now().isoformat(),
+            }
+        )
+        next_line.posted_reference_json = refs
+        next_line.save()
+        cls.refresh_batch_summary(next_opening)
+        cls._emit_batch_event(
+            batch=next_opening,
+            user=user,
+            action="INVENTORY_FY_CORRECTION_ROLLFORWARD_SYNCED",
+            before={"opening_qty": float(before_qty), "source_batch": line.batch.batch_no},
+            after={"opening_qty": float(after_qty), "source_batch": line.batch.batch_no},
+        )
+        return {"next_opening_batch_id": str(next_opening.id), "next_opening_line_id": str(next_line.id)}
 
     @classmethod
     def _adjust_bulk(cls, *, line: InventoryAuditLine, qty: Decimal, reference: str, tx_type: str) -> BulkTransaction:
@@ -1132,7 +1233,18 @@ class InventoryAuditService:
         )
 
     @classmethod
-    def stock_card(cls, *, material_id: Optional[str] = None, plant_id: Optional[str] = None, location_id: Optional[str] = None, date_from=None, date_to=None) -> Dict[str, Any]:
+    def stock_card(
+        cls,
+        *,
+        material_id: Optional[str] = None,
+        plant_id: Optional[str] = None,
+        location_id: Optional[str] = None,
+        financial_year: Optional[str] = None,
+        date_from=None,
+        date_to=None,
+    ) -> Dict[str, Any]:
+        if financial_year and not date_from and not date_to:
+            date_from, date_to = financial_year_dates(financial_year)
         entries: List[Dict[str, Any]] = []
 
         batch_lines = InventoryAuditLine.objects.select_related("batch", "material", "location").filter(batch__status__in=["POSTED", "LOCKED"])
@@ -1143,6 +1255,8 @@ class InventoryAuditService:
         if location_id:
             batch_lines = batch_lines.filter(location_id=location_id)
         for line in batch_lines.order_by("batch__cutoff_at", "created_at"):
+            if line.batch.type == "FY_CLOSE":
+                continue
             if date_from and line.batch.cutoff_at.date() < date_from:
                 continue
             if date_to and line.batch.cutoff_at.date() > date_to:

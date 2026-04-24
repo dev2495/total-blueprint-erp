@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Stock lifecycle flow diagram</title>
+  <desc id="desc">Operator flow from opening stock to stock count, stock card, year close, and FY correction.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset=".55" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".98"/>
+      <stop offset="1" stop-color="#eef6ff" stop-opacity=".96"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0f172a" flood-opacity=".22"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" fill="#93c5fd"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" rx="34" fill="url(#bg)"/>
+  <path d="M92 96h1096M92 624h1096" stroke="#ffffff" stroke-opacity=".10" stroke-width="2"/>
+  <g opacity=".24" stroke="#fff">
+    <path d="M130 0v720M310 0v720M490 0v720M670 0v720M850 0v720M1030 0v720M1210 0v720"/>
+    <path d="M0 150h1280M0 300h1280M0 450h1280M0 600h1280"/>
+  </g>
+  <text x="80" y="76" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900">Stock Lifecycle</text>
+  <text x="80" y="111" fill="#dbeafe" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Sheet to validate to preview to approve to post to audit</text>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="165" width="196" height="132" rx="22" fill="url(#card)" stroke="#bfdbfe"/>
+    <rect x="86" y="181" width="48" height="48" rx="14" fill="#2563eb"/>
+    <text x="110" y="213" fill="#fff" text-anchor="middle" font-size="22" font-weight="900" font-family="Inter, Arial">1</text>
+    <text x="86" y="255" fill="#0f172a" font-size="21" font-weight="900" font-family="Inter, Arial">Opening</text>
+    <text x="86" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">Absolute FY start balance</text>
+
+    <rect x="326" y="165" width="196" height="132" rx="22" fill="url(#card)" stroke="#bbf7d0"/>
+    <rect x="342" y="181" width="48" height="48" rx="14" fill="#059669"/>
+    <text x="366" y="213" fill="#fff" text-anchor="middle" font-size="22" font-weight="900" font-family="Inter, Arial">2</text>
+    <text x="342" y="255" fill="#0f172a" font-size="21" font-weight="900" font-family="Inter, Arial">Count</text>
+    <text x="342" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">Variance from system qty</text>
+
+    <rect x="582" y="165" width="196" height="132" rx="22" fill="url(#card)" stroke="#fde68a"/>
+    <rect x="598" y="181" width="48" height="48" rx="14" fill="#d97706"/>
+    <text x="622" y="213" fill="#fff" text-anchor="middle" font-size="22" font-weight="900" font-family="Inter, Arial">3</text>
+    <text x="598" y="255" fill="#0f172a" font-size="21" font-weight="900" font-family="Inter, Arial">Preview</text>
+    <text x="598" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">KG, value, blockers</text>
+
+    <rect x="838" y="165" width="196" height="132" rx="22" fill="url(#card)" stroke="#c4b5fd"/>
+    <rect x="854" y="181" width="48" height="48" rx="14" fill="#7c3aed"/>
+    <text x="878" y="213" fill="#fff" text-anchor="middle" font-size="22" font-weight="900" font-family="Inter, Arial">4</text>
+    <text x="854" y="255" fill="#0f172a" font-size="21" font-weight="900" font-family="Inter, Arial">Approve</text>
+    <text x="854" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">Maker checker trail</text>
+
+    <rect x="1094" y="165" width="116" height="132" rx="22" fill="url(#card)" stroke="#fca5a5"/>
+    <rect x="1110" y="181" width="48" height="48" rx="14" fill="#e11d48"/>
+    <text x="1134" y="213" fill="#fff" text-anchor="middle" font-size="22" font-weight="900" font-family="Inter, Arial">5</text>
+    <text x="1110" y="255" fill="#0f172a" font-size="21" font-weight="900" font-family="Inter, Arial">Post</text>
+    <text x="1110" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">Immutable</text>
+  </g>
+
+  <g stroke="#93c5fd" stroke-width="5" fill="none" marker-end="url(#arrow)">
+    <path d="M266 231h52"/>
+    <path d="M522 231h52"/>
+    <path d="M778 231h52"/>
+    <path d="M1034 231h52"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="120" y="380" width="295" height="180" rx="26" fill="#ffffff" fill-opacity=".97"/>
+    <text x="150" y="425" fill="#0f172a" font-size="24" font-weight="900" font-family="Inter, Arial">Stock Card</text>
+    <text x="150" y="457" fill="#475569" font-size="15" font-weight="700" font-family="Inter, Arial">Running balance by FY</text>
+    <text x="150" y="500" fill="#047857" font-size="20" font-weight="900" font-family="Inter, Arial">Opening + In - Out = Closing</text>
+    <rect x="150" y="522" width="235" height="12" rx="6" fill="#dbeafe"/>
+    <rect x="150" y="522" width="178" height="12" rx="6" fill="#2563eb"/>
+
+    <rect x="492" y="380" width="295" height="180" rx="26" fill="#ffffff" fill-opacity=".97"/>
+    <text x="522" y="425" fill="#0f172a" font-size="24" font-weight="900" font-family="Inter, Arial">Year Close</text>
+    <text x="522" y="457" fill="#475569" font-size="15" font-weight="700" font-family="Inter, Arial">Snapshot and next FY opening</text>
+    <text x="522" y="500" fill="#1d4ed8" font-size="20" font-weight="900" font-family="Inter, Arial">Close 2026, open 2027</text>
+    <circle cx="558" cy="532" r="10" fill="#059669"/>
+    <circle cx="598" cy="532" r="10" fill="#059669"/>
+    <circle cx="638" cy="532" r="10" fill="#059669"/>
+    <circle cx="678" cy="532" r="10" fill="#d97706"/>
+
+    <rect x="864" y="380" width="295" height="180" rx="26" fill="#ffffff" fill-opacity=".97"/>
+    <text x="894" y="425" fill="#0f172a" font-size="24" font-weight="900" font-family="Inter, Arial">FY Correction</text>
+    <text x="894" y="457" fill="#475569" font-size="15" font-weight="700" font-family="Inter, Arial">Closed-year delta with reason</text>
+    <text x="894" y="500" fill="#be123c" font-size="20" font-weight="900" font-family="Inter, Arial">Syncs next opening</text>
+    <path d="M900 530h120l32-24 32 24h42" stroke="#be123c" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
