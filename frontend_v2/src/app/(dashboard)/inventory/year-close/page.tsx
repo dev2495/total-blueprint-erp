@@ -1,5 +1,5 @@
-import { InventoryYearCloseWorkspace } from "@/components/inventory/inventory-audit-workspace"
+import { redirect } from "next/navigation"
 
 export default function YearClosePage() {
-  return <InventoryYearCloseWorkspace />
+  redirect("/inventory/stock-lifecycle?tab=yearclose")
 }

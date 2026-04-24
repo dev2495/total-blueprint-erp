@@ -1,5 +1,5 @@
-import { InventoryAuditWorkspace } from "@/components/inventory/inventory-audit-workspace"
+import { redirect } from "next/navigation"
 
 export default function OpeningStockPage() {
-  return <InventoryAuditWorkspace mode="OPENING_STOCK" />
+  redirect("/inventory/stock-lifecycle?tab=opening")
 }

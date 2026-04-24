@@ -155,6 +155,7 @@ class InventoryRoll(models.Model):
         ('IN_PROCESS', 'In Process'),      # Phase 54: Currently being processed
         ('SENT_JOBWORK', 'Sent to Job Work'),
         ('CONSUMED', 'Consumed'),
+        ('MISSING', 'Missing after Stock Count'),
         ('SCRAPPED', 'Scrapped'),
     ]
 
@@ -317,6 +318,11 @@ class BulkTransaction(models.Model):
         ('CONSUME', 'Production Consumption'),
         ('TRANSFER', 'Location Transfer'),
         ('ADJUST', 'Manual Adjustment'),
+        ('OPENING_BALANCE', 'Opening Balance'),
+        ('COUNT_SHORT', 'Physical Count Short'),
+        ('COUNT_EXCESS', 'Physical Count Excess'),
+        ('FY_ROLLFORWARD', 'FY Roll Forward'),
+        ('FY_CORRECTION', 'FY Correction'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -372,6 +378,11 @@ class PackagingTransaction(models.Model):
         ('TRANSFER', 'Location Transfer'),
         ('ADJUST', 'Manual Adjustment'),
         ('PRODUCE', 'In-House Production'),
+        ('OPENING_BALANCE', 'Opening Balance'),
+        ('COUNT_SHORT', 'Physical Count Short'),
+        ('COUNT_EXCESS', 'Physical Count Excess'),
+        ('FY_ROLLFORWARD', 'FY Roll Forward'),
+        ('FY_CORRECTION', 'FY Correction'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -436,8 +447,11 @@ class InventoryAuditBatch(models.Model):
     ]
     STATUS_CHOICES = [
         ("DRAFT", "Draft"),
+        ("SUBMITTED", "Submitted for Approval"),
+        ("APPROVED", "Approved"),
         ("POSTED", "Posted"),
         ("LOCKED", "Locked"),
+        ("CANCELLED", "Cancelled"),
         ("VOID", "Void"),
     ]
 
@@ -826,6 +840,11 @@ class RollMovement(models.Model):
         ('SCRAP', 'Scrap Yard'),
         ('ADJUSTMENT', 'Manual Adjustment'),
         ('INTER_PLANT', 'Inter-Plant Transfer'),
+        ('OPENING_BALANCE', 'Opening Balance'),
+        ('COUNT_SHORT', 'Physical Count Short'),
+        ('COUNT_EXCESS', 'Physical Count Excess'),
+        ('FY_ROLLFORWARD', 'FY Roll Forward'),
+        ('FY_CORRECTION', 'FY Correction'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

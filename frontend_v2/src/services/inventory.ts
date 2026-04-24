@@ -254,12 +254,13 @@ export interface InventoryAuditBatch {
     plant_code?: string
     financial_year: string
     cutoff_at: string
-    status: "DRAFT" | "POSTED" | "LOCKED" | "VOID"
+    status: "DRAFT" | "SUBMITTED" | "APPROVED" | "POSTED" | "LOCKED" | "CANCELLED" | "VOID"
     notes?: string
     source_file_name?: string
     summary_json?: Record<string, any>
     line_count?: number
     lines?: InventoryAuditLine[]
+    created_by_name?: string | null
     posted_by_name?: string | null
     posted_at?: string | null
 }
@@ -293,6 +294,11 @@ export interface StockCardPayload {
         location_id?: string | null
         location_name?: string
         qty: number
+        in_qty?: number
+        out_qty?: number
+        balance_qty?: number
+        rate?: number | null
+        value?: number | null
         uom: string
         meta?: Record<string, any>
     }>
@@ -547,6 +553,29 @@ export const inventoryService = {
         return data
     },
 
+    previewAuditBatch: async (id: string) => {
+        const { data } = await api.get<{
+            ok: boolean
+            batch: Record<string, any>
+            summary: Record<string, any>
+            transaction_count: number
+            blockers: Array<Record<string, any>>
+            rows: Array<Record<string, any>>
+            impact: Record<string, any>
+        }>(`/api/inventory/audit/batches/${id}/preview/`)
+        return data
+    },
+
+    submitAuditBatch: async (id: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/submit/`)
+        return data
+    },
+
+    approveAuditBatch: async (id: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/approve/`)
+        return data
+    },
+
     loadAuditBatchFromSystemStock: async (id: string, payload: {
         stock_class?: string
         location?: string
@@ -565,6 +594,11 @@ export const inventoryService = {
 
     voidAuditBatch: async (id: string, reason?: string) => {
         const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/void/`, { reason })
+        return data
+    },
+
+    cancelAuditBatch: async (id: string, reason?: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/cancel/`, { reason })
         return data
     },
 

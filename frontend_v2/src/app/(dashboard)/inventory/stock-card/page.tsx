@@ -1,5 +1,5 @@
-import { InventoryStockCardWorkspace } from "@/components/inventory/inventory-audit-workspace"
+import { redirect } from "next/navigation"
 
 export default function StockCardPage() {
-  return <InventoryStockCardWorkspace />
+  redirect("/inventory/stock-lifecycle?tab=stockcard")
 }

@@ -113,10 +113,10 @@ class InventoryAuditServiceTests(TestCase):
         roll = InventoryRoll.objects.get(label_id="OPEN-ROLL-001")
         self.assertEqual(roll.weight_kg, Decimal("50.0000"))
         self.assertTrue(roll.is_fg)
-        self.assertTrue(BulkTransaction.objects.filter(type="ADJUST", reference__startswith="OPENING_STOCK:2026-2027").exists())
+        self.assertTrue(BulkTransaction.objects.filter(type="OPENING_BALANCE", reference__startswith="OPENING_STOCK:2026-2027").exists())
         self.assertFalse(BulkTransaction.objects.filter(type="INWARD", reference__startswith="OPENING_STOCK").exists())
-        self.assertTrue(PackagingTransaction.objects.filter(type="ADJUST", reference__startswith="OPENING_STOCK:2026-2027").exists())
-        self.assertTrue(RollMovement.objects.filter(roll=roll, reason="ADJUSTMENT", reason_note__startswith="OPENING_STOCK").exists())
+        self.assertTrue(PackagingTransaction.objects.filter(type="OPENING_BALANCE", reference__startswith="OPENING_STOCK:2026-2027").exists())
+        self.assertTrue(RollMovement.objects.filter(roll=roll, reason="OPENING_BALANCE", reason_note__startswith="OPENING_STOCK").exists())
 
     def test_rate_is_optional_and_value_stays_zero_when_missing(self):
         batch = self._batch()
@@ -127,6 +127,17 @@ class InventoryAuditServiceTests(TestCase):
         line = batch.lines.get()
         self.assertIsNone(line.rate)
         self.assertEqual(line.value, Decimal("0.0000"))
+
+    def test_opening_stock_blocks_after_movement_in_same_fy(self):
+        BulkTransaction.objects.create(material=self.granule, granule_code=self.granule_code, location=self.location, type="INWARD", qty_kg=Decimal("25"), reference="GRN-1")
+        batch = self._batch()
+        InventoryAuditService.import_lines(
+            batch=batch,
+            rows=[{"stock_class": "BULK", "material": str(self.granule.id), "granule_code": str(self.granule_code.id), "location": str(self.location.id), "quantity": "10"}],
+        )
+        validation = InventoryAuditService.validate_batch(batch=batch)
+        self.assertFalse(validation["ok"])
+        self.assertIn("E-OS-05", validation["errors"][0]["errors"][0])
 
     def test_physical_count_posts_only_variance(self):
         BulkTransaction.objects.create(material=self.granule, granule_code=self.granule_code, location=self.location, type="ADJUST", qty_kg=Decimal("25"), reference="seed")
@@ -146,7 +157,9 @@ class InventoryAuditServiceTests(TestCase):
         )
         InventoryAuditService.post_batch(batch=batch, user=self.user)
         self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("30.0000"))
-        self.assertEqual(BulkTransaction.objects.filter(reference__startswith="PHYSICAL_COUNT").latest("created_at").qty_kg, Decimal("5.0000"))
+        tx = BulkTransaction.objects.filter(reference__startswith="PHYSICAL_COUNT").latest("created_at")
+        self.assertEqual(tx.qty_kg, Decimal("5.0000"))
+        self.assertEqual(tx.type, "COUNT_EXCESS")
 
     def test_stock_card_includes_opening_rows_and_movements(self):
         batch = self._batch()
@@ -159,6 +172,25 @@ class InventoryAuditServiceTests(TestCase):
         self.assertGreaterEqual(card["opening_qty"], 12)
         self.assertTrue(any(row["source"] == "OPENING_STOCK" for row in card["rows"]))
         self.assertFalse(any(row["source"] == "BULK_ADJUST" for row in card["rows"] if row["reference"].startswith("OPENING_STOCK")))
+        self.assertIn("balance_qty", card["rows"][-1])
+
+    def test_preview_submit_approve_and_post_workflow_records_state(self):
+        checker = User.objects.create_user(username="checker", password="pass1234", role=self.role)
+        batch = self._batch()
+        InventoryAuditService.import_lines(
+            batch=batch,
+            rows=[{"stock_class": "BULK", "material": str(self.granule.id), "location": str(self.location.id), "quantity": "14"}],
+        )
+        preview = InventoryAuditService.preview_batch(batch=batch)
+        self.assertTrue(preview["ok"])
+        self.assertEqual(preview["transaction_count"], 1)
+
+        submitted = InventoryAuditService.submit_batch(batch=batch, user=self.user)
+        self.assertEqual(submitted.status, "SUBMITTED")
+        approved = InventoryAuditService.approve_batch(batch=submitted, user=checker)
+        self.assertEqual(approved.status, "APPROVED")
+        posted = InventoryAuditService.post_batch(batch=approved, user=checker)
+        self.assertEqual(posted.status, "POSTED")
 
     def test_load_batch_from_snapshot_replaces_lines_with_live_system_stock(self):
         InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("18.5000"))

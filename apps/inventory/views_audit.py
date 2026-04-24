@@ -157,6 +157,38 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             return _error_response(exc)
 
+    @action(detail=True, methods=["get"], url_path="preview")
+    def preview(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+        try:
+            return Response(InventoryAuditService.preview_batch(batch=self.get_object()))
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
+    @action(detail=True, methods=["post"], url_path="submit")
+    def submit(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
+        try:
+            batch = InventoryAuditService.submit_batch(batch=self.get_object(), user=request.user)
+            return Response(self.get_serializer(batch).data)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
+        try:
+            batch = InventoryAuditService.approve_batch(batch=self.get_object(), user=request.user)
+            return Response(self.get_serializer(batch).data)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
+
     @action(detail=True, methods=["post"], url_path="load-system-stock")
     def load_system_stock(self, request, pk=None):
         guard = _require_permission(request, "inventory.audit.manage")
@@ -198,6 +230,17 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         batch.notes = f"{batch.notes}\nVOID: {request.data.get('reason') or 'No reason supplied'}".strip()
         batch.save(update_fields=["status", "notes", "updated_at"])
         return Response(self.get_serializer(batch).data)
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, pk=None):
+        guard = _require_permission(request, "inventory.audit.manage")
+        if guard:
+            return guard
+        try:
+            batch = InventoryAuditService.cancel_batch(batch=self.get_object(), user=request.user, reason=request.data.get("reason"))
+            return Response(self.get_serializer(batch).data)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
 
     @action(detail=True, methods=["get"], url_path="export")
     def export(self, request, pk=None):

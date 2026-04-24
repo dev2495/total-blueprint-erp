@@ -1,7 +1,5 @@
-"use client"
-
-import { InventoryAuditWorkspace } from "@/components/inventory/inventory-audit-workspace"
+import { redirect } from "next/navigation"
 
 export default function InventoryFyCorrectionPage() {
-  return <InventoryAuditWorkspace mode="FY_CORRECTION" />
+  redirect("/inventory/stock-lifecycle?tab=correction")
 }

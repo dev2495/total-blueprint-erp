@@ -1,5 +1,5 @@
-import { InventoryAuditWorkspace } from "@/components/inventory/inventory-audit-workspace"
+import { redirect } from "next/navigation"
 
 export default function StockCountPage() {
-  return <InventoryAuditWorkspace mode="PHYSICAL_COUNT" />
+  redirect("/inventory/stock-lifecycle?tab=count")
 }

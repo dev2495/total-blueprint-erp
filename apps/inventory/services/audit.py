@@ -32,6 +32,7 @@ from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.services.roll_service import RollService
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
+from apps.users.models import PermissionAuditLog
 
 try:
     from openpyxl import Workbook, load_workbook
@@ -66,6 +67,7 @@ def financial_year_dates(financial_year: str) -> tuple[date, date]:
 
 class InventoryAuditService:
     AUDIT_REFERENCE_PREFIXES = ("OPENING_STOCK:", "PHYSICAL_COUNT:", "FY_CLOSE:", "FY_CORRECTION:")
+    MOVEMENT_TYPES = {"INWARD", "PRODUCE", "CONSUME", "TRANSFER", "ADJUST", "COUNT_SHORT", "COUNT_EXCESS", "FY_CORRECTION"}
 
     @classmethod
     def ensure_default_period(cls) -> InventoryFinancialPeriod:
@@ -113,10 +115,14 @@ class InventoryAuditService:
             raise ValidationError("Invalid audit batch type.")
         financial_year = str(payload.get("financial_year") or current_indian_financial_year()).strip()
         plant_id = payload.get("plant")
+        if not plant_id:
+            raise ValidationError("Plant is required.")
         cutoff_value = payload.get("cutoff_at")
         cutoff_at = cls._parse_cutoff(cutoff_value) if cutoff_value else timezone.now()
         if batch_type != "FY_CORRECTION":
             cls.assert_period_allows_cutoff(financial_year, cutoff_at)
+        elif not str(payload.get("notes") or "").strip():
+            raise ValidationError("FY correction requires a reason or reference note.")
         batch = InventoryAuditBatch.objects.create(
             type=batch_type,
             plant_id=plant_id,
@@ -126,6 +132,7 @@ class InventoryAuditService:
             source_file_name=payload.get("source_file_name") or "",
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
+        cls._emit_batch_event(batch=batch, user=user, action="INVENTORY_BATCH_CREATED", before=None, after={"status": batch.status})
         return batch
 
     @classmethod
@@ -241,9 +248,54 @@ class InventoryAuditService:
                 errors.append("Grade is required for extrudable roll stock.")
         if stock_class in {"BULK", "PACKAGING"} and line.batch.type == "OPENING_STOCK" and _dec(line.opening_qty) <= 0:
             errors.append("Opening quantity is required.")
+        if line.batch.type == "OPENING_STOCK" and not errors:
+            prior = cls._opening_prior_movement(line)
+            if prior:
+                errors.append(prior)
         if line.batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"} and line.counted_qty is None:
             errors.append("Counted quantity is required.")
+        if line.batch.type == "FY_CORRECTION" and not str(line.batch.notes or "").strip():
+            errors.append("FY correction requires a written reason in sheet notes.")
         return errors
+
+    @classmethod
+    def _opening_prior_movement(cls, line: InventoryAuditLine) -> str:
+        start_date, end_date = financial_year_dates(line.batch.financial_year)
+        reference_prefix = f"OPENING_STOCK:{line.batch.financial_year}:"
+        if line.stock_class == "BULK":
+            qs = BulkTransaction.objects.filter(
+                material=line.material,
+                location=line.location,
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
+            )
+            if line.granule_code_id:
+                qs = qs.filter(granule_code=line.granule_code)
+            qs = qs.exclude(type="OPENING_BALANCE").exclude(reference__startswith=reference_prefix)
+            count = qs.count()
+            if count:
+                return f"E-OS-05: opening blocked because {count} bulk movement(s) already exist for this material/location in {line.batch.financial_year}."
+        elif line.stock_class == "PACKAGING":
+            count = PackagingTransaction.objects.filter(
+                material=line.material,
+                location=line.location,
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
+            ).exclude(type="OPENING_BALANCE").exclude(reference__startswith=reference_prefix).count()
+            if count:
+                return f"E-OS-05: opening blocked because {count} packaging movement(s) already exist for this material/location in {line.batch.financial_year}."
+        elif line.stock_class == "ROLL":
+            if line.label_id and InventoryRoll.objects.filter(label_id=line.label_id).exclude(meta_json__inventory_audit_batch=str(line.batch_id)).exists():
+                return f"E-OS-02: roll label {line.label_id} already exists."
+            count = RollMovement.objects.filter(
+                roll__material=line.material,
+                to_location=line.location,
+                timestamp__date__gte=start_date,
+                timestamp__date__lte=end_date,
+            ).exclude(reason="OPENING_BALANCE").exclude(reason_note__startswith=reference_prefix).count()
+            if count:
+                return f"E-OS-05: opening blocked because {count} roll movement(s) already exist for this material/location in {line.batch.financial_year}."
+        return ""
 
     @classmethod
     def _parse_upload_rows(cls, uploaded_file, default_stock_class: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -348,6 +400,130 @@ class InventoryAuditService:
         return {"ok": not errors, "errors": errors, "summary": batch.summary_json}
 
     @classmethod
+    def preview_batch(cls, *, batch: InventoryAuditBatch) -> Dict[str, Any]:
+        validation = cls.validate_batch(batch=batch)
+        summary = batch.summary_json or {}
+        line_rows = []
+        transaction_count = 0
+        for line in batch.lines.select_related("material", "location").order_by("created_at"):
+            if line.row_errors:
+                continue
+            if batch.type == "OPENING_STOCK":
+                delta_qty = _dec(line.opening_qty) - cls.resolve_system_qty(line)
+                effect_qty = _dec(line.opening_qty)
+            elif batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
+                delta_qty = _dec(line.counted_qty) - _dec(line.system_qty)
+                effect_qty = delta_qty
+            else:
+                delta_qty = _dec(line.counted_qty or line.system_qty or 0)
+                effect_qty = delta_qty
+            if effect_qty != 0:
+                transaction_count += 1
+            line_rows.append(
+                {
+                    "line_id": str(line.id),
+                    "stock_class": line.stock_class,
+                    "material_code": getattr(line.material, "code", ""),
+                    "material_name": getattr(line.material, "name", ""),
+                    "location_name": getattr(line.location, "name", ""),
+                    "system_qty": float(line.system_qty or 0),
+                    "entered_qty": float(line.opening_qty if batch.type == "OPENING_STOCK" else (line.counted_qty or 0)),
+                    "delta_qty": float(delta_qty),
+                    "value": float(line.value or 0),
+                    "errors": line.row_errors or [],
+                }
+            )
+        return {
+            "batch": {
+                "id": str(batch.id),
+                "batch_no": batch.batch_no,
+                "type": batch.type,
+                "status": batch.status,
+                "financial_year": batch.financial_year,
+            },
+            "ok": validation["ok"],
+            "summary": summary,
+            "transaction_count": transaction_count,
+            "blockers": validation["errors"],
+            "rows": line_rows[:500],
+            "impact": {
+                "bulk_kg": summary.get("bulk_kg", 0),
+                "roll_kg": summary.get("roll_kg", 0),
+                "packaging_qty": summary.get("packaging_qty", 0),
+                "value": summary.get("value", 0),
+            },
+        }
+
+    @classmethod
+    @transaction.atomic
+    def submit_batch(cls, *, batch: InventoryAuditBatch, user=None) -> InventoryAuditBatch:
+        batch = InventoryAuditBatch.objects.select_for_update().get(id=batch.id)
+        if batch.status != "DRAFT":
+            raise ValidationError("Only draft batches can be submitted.")
+        validation = cls.validate_batch(batch=batch)
+        if not validation["ok"]:
+            raise ValidationError({"lines": validation["errors"]})
+        if not batch.lines.exists():
+            raise ValidationError("Add at least one audit line before submitting.")
+        before = {"status": batch.status}
+        workflow = dict((batch.summary_json or {}).get("workflow") or {})
+        workflow.update(
+            {
+                "submitted_by": str(getattr(user, "id", "")) if getattr(user, "is_authenticated", False) else None,
+                "submitted_by_name": getattr(user, "username", "") if getattr(user, "is_authenticated", False) else "",
+                "submitted_at": timezone.now().isoformat(),
+            }
+        )
+        summary = dict(batch.summary_json or {})
+        summary["workflow"] = workflow
+        batch.status = "SUBMITTED"
+        batch.summary_json = summary
+        batch.save(update_fields=["status", "summary_json", "updated_at"])
+        cls._emit_batch_event(batch=batch, user=user, action="INVENTORY_BATCH_SUBMITTED", before=before, after={"status": batch.status, "workflow": workflow})
+        return batch
+
+    @classmethod
+    @transaction.atomic
+    def approve_batch(cls, *, batch: InventoryAuditBatch, user=None) -> InventoryAuditBatch:
+        batch = InventoryAuditBatch.objects.select_for_update().get(id=batch.id)
+        if batch.status != "SUBMITTED":
+            raise ValidationError("Only submitted batches can be approved.")
+        workflow = dict((batch.summary_json or {}).get("workflow") or {})
+        submitted_by = workflow.get("submitted_by")
+        actor_id = str(getattr(user, "id", "")) if getattr(user, "is_authenticated", False) else None
+        if submitted_by and actor_id and submitted_by == actor_id and not (getattr(user, "is_owner", False) or getattr(user, "is_superuser", False)):
+            raise ValidationError("Maker and checker must be different users.")
+        before = {"status": batch.status, "workflow": workflow}
+        workflow.update(
+            {
+                "approved_by": actor_id,
+                "approved_by_name": getattr(user, "username", "") if getattr(user, "is_authenticated", False) else "",
+                "approved_at": timezone.now().isoformat(),
+            }
+        )
+        summary = dict(batch.summary_json or {})
+        summary["workflow"] = workflow
+        batch.status = "APPROVED"
+        batch.summary_json = summary
+        batch.save(update_fields=["status", "summary_json", "updated_at"])
+        cls._emit_batch_event(batch=batch, user=user, action="INVENTORY_BATCH_APPROVED", before=before, after={"status": batch.status, "workflow": workflow})
+        return batch
+
+    @classmethod
+    @transaction.atomic
+    def cancel_batch(cls, *, batch: InventoryAuditBatch, user=None, reason: Optional[str] = None) -> InventoryAuditBatch:
+        batch = InventoryAuditBatch.objects.select_for_update().get(id=batch.id)
+        if batch.status in {"POSTED", "LOCKED"}:
+            raise ValidationError("Posted or locked batches cannot be cancelled.")
+        before = {"status": batch.status}
+        batch.status = "CANCELLED"
+        if reason:
+            batch.notes = f"{batch.notes}\nCANCELLED: {reason}".strip()
+        batch.save(update_fields=["status", "notes", "updated_at"])
+        cls._emit_batch_event(batch=batch, user=user, action="INVENTORY_BATCH_CANCELLED", before=before, after={"status": batch.status, "reason": reason or ""})
+        return batch
+
+    @classmethod
     def resolve_system_qty(cls, line: InventoryAuditLine) -> Decimal:
         stock_class = str(line.stock_class or "").upper()
         if stock_class == "BULK":
@@ -371,8 +547,8 @@ class InventoryAuditService:
     @transaction.atomic
     def post_batch(cls, *, batch: InventoryAuditBatch, user=None) -> InventoryAuditBatch:
         batch = InventoryAuditBatch.objects.select_for_update().get(id=batch.id)
-        if batch.status != "DRAFT":
-            raise ValidationError("Only draft batches can be posted.")
+        if batch.status not in {"DRAFT", "APPROVED"}:
+            raise ValidationError("Only approved batches can be posted. Draft posting is kept only for legacy API callers.")
         if batch.type != "FY_CORRECTION":
             cls.assert_period_allows_cutoff(batch.financial_year, batch.cutoff_at)
         validation = cls.validate_batch(batch=batch)
@@ -381,6 +557,7 @@ class InventoryAuditService:
         if not batch.lines.exists():
             raise ValidationError("Add at least one audit line before posting.")
 
+        before = {"status": batch.status, "summary": batch.summary_json}
         for line in batch.lines.select_related("material", "location", "grade", "granule_code").order_by("created_at"):
             refs = cls._post_line(line=line, user=user)
             line.posted_reference_json = refs
@@ -391,12 +568,13 @@ class InventoryAuditService:
         batch.posted_at = timezone.now()
         cls.refresh_batch_summary(batch, save=False)
         batch.save(update_fields=["status", "posted_by", "posted_at", "summary_json", "updated_at"])
+        cls._emit_batch_event(batch=batch, user=user, action="INVENTORY_BATCH_POSTED", before=before, after={"status": batch.status, "summary": batch.summary_json})
         return batch
 
     @classmethod
     def _post_line(cls, *, line: InventoryAuditLine, user=None) -> Dict[str, Any]:
         if line.batch.type == "OPENING_STOCK":
-            qty = _dec(line.opening_qty)
+            return cls._post_opening_line(line=line, user=user)
         elif line.batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
             qty = _dec(line.counted_qty) - _dec(line.system_qty)
         elif line.batch.type == "FY_CLOSE":
@@ -409,20 +587,12 @@ class InventoryAuditService:
         reference = f"{line.batch.type}:{line.batch.financial_year}:{line.batch.batch_no}"
         stock_class = str(line.stock_class).upper()
         if stock_class == "BULK":
-            tx = cls._adjust_bulk(line=line, qty=qty, reference=reference)
+            tx_type = cls._delta_tx_type(batch_type=line.batch.type, qty=qty)
+            tx = cls._adjust_bulk(line=line, qty=qty, reference=reference, tx_type=tx_type)
             return {"bulk_transaction_id": str(tx.id)}
         if stock_class == "PACKAGING":
-            tx = PackagingService.adjust_packaging_stock(
-                material_id=str(line.material_id),
-                qty=qty,
-                location_id=str(line.location_id),
-                reference=reference,
-                input_uom=line.uom or getattr(line.material, "base_uom", None),
-                meta_json={"inventory_audit_batch": str(line.batch_id), "inventory_audit_line": str(line.id)},
-            )
-            if tx.type != "ADJUST":
-                tx.type = "ADJUST"
-                tx.save(update_fields=["type"])
+            tx_type = cls._delta_tx_type(batch_type=line.batch.type, qty=qty)
+            tx = cls._adjust_packaging(line=line, qty=qty, reference=reference, tx_type=tx_type)
             return {"packaging_transaction_id": str(tx.id)}
         if stock_class == "ROLL":
             refs = cls._adjust_roll(line=line, qty=qty, reference=reference, user=user)
@@ -430,7 +600,90 @@ class InventoryAuditService:
         raise ValidationError("Unsupported stock class.")
 
     @classmethod
-    def _adjust_bulk(cls, *, line: InventoryAuditLine, qty: Decimal, reference: str) -> BulkTransaction:
+    def _post_opening_line(cls, *, line: InventoryAuditLine, user=None) -> Dict[str, Any]:
+        qty = _dec(line.opening_qty)
+        reference = f"{line.batch.type}:{line.batch.financial_year}:{line.batch.batch_no}"
+        stock_class = str(line.stock_class).upper()
+        if qty == 0:
+            return {"skipped": "zero_opening"}
+        if stock_class == "BULK":
+            bulk, _ = InventoryBulk.objects.select_for_update().get_or_create(
+                material=line.material,
+                granule_code=line.granule_code,
+                plant=line.plant,
+                location=line.location,
+                defaults={"qty_kg": Decimal("0"), "avg_cost": Decimal("0")},
+            )
+            before = _dec(bulk.qty_kg)
+            bulk.qty_kg = qty
+            if line.rate is not None:
+                bulk.avg_cost = _dec(line.rate)
+            bulk.save(update_fields=["qty_kg", "avg_cost", "updated_at"])
+            tx = BulkTransaction.objects.create(
+                material=line.material,
+                granule_code=line.granule_code,
+                location=line.location,
+                type="OPENING_BALANCE",
+                qty_kg=qty,
+                avg_cost=bulk.avg_cost,
+                reference=reference,
+            )
+            return {"bulk_transaction_id": str(tx.id), "before_qty": float(before), "after_qty": float(qty), "absolute": True}
+        if stock_class == "PACKAGING":
+            stock, _ = PackagingStock.objects.select_for_update().get_or_create(
+                material=line.material,
+                plant=line.plant,
+                location=line.location,
+                defaults={"qty": Decimal("0"), "avg_cost": Decimal("0")},
+            )
+            before = _dec(stock.qty)
+            stock.qty = qty
+            if line.rate is not None:
+                stock.avg_cost = _dec(line.rate)
+            stock.save(update_fields=["qty", "avg_cost", "updated_at"])
+            tx = PackagingTransaction.objects.create(
+                type="OPENING_BALANCE",
+                material=line.material,
+                location=line.location,
+                qty=qty,
+                avg_cost=stock.avg_cost,
+                reference=reference,
+                meta_json={"inventory_audit_batch": str(line.batch_id), "inventory_audit_line": str(line.id), "absolute": True},
+            )
+            return {"packaging_transaction_id": str(tx.id), "before_qty": float(before), "after_qty": float(qty), "absolute": True}
+        if stock_class == "ROLL":
+            roll = RollService.create_roll(
+                material=line.material,
+                weight_kg=qty,
+                location=line.location,
+                width_mm=line.width_mm,
+                thickness_micron=line.thickness_micron,
+                batch_no=line.batch_no or None,
+                length_m=line.length_m or Decimal("0"),
+                grade=line.grade,
+                is_fg=line.is_fg,
+                plant=line.plant,
+                user=user if getattr(user, "is_authenticated", False) else None,
+                notes=reference,
+            )
+            if line.label_id and line.label_id != roll.label_id:
+                roll.label_id = line.label_id
+            meta = dict(roll.meta_json or {})
+            meta.update({"inventory_audit_batch": str(line.batch_id), "inventory_audit_line": str(line.id), "source": "OPENING_STOCK"})
+            roll.meta_json = meta
+            roll.save(update_fields=["label_id", "meta_json"])
+            RollMovement.objects.filter(roll=roll, reason_note=reference).update(reason="OPENING_BALANCE")
+            return {"roll_id": str(roll.id), "roll_label": roll.label_id, "absolute": True}
+        raise ValidationError("Unsupported stock class.")
+
+    @classmethod
+    def _delta_tx_type(cls, *, batch_type: str, qty: Decimal) -> str:
+        if batch_type == "FY_CORRECTION":
+            return "FY_CORRECTION"
+        return "COUNT_EXCESS" if qty > 0 else "COUNT_SHORT"
+
+    @classmethod
+    def _adjust_bulk(cls, *, line: InventoryAuditLine, qty: Decimal, reference: str, tx_type: str) -> BulkTransaction:
         if qty > 0:
             return BulkService.add_bulk(
                 str(line.material_id),
@@ -439,7 +692,7 @@ class InventoryAuditService:
                 str(line.location_id),
                 cost=line.rate or 0,
                 reference=reference,
-                tx_type="ADJUST",
+                tx_type=tx_type,
                 granule_code_id=str(line.granule_code_id) if line.granule_code_id else None,
             )
         tx = BulkService.consume_bulk(
@@ -449,7 +702,32 @@ class InventoryAuditService:
             reference=reference,
             granule_code_id=str(line.granule_code_id) if line.granule_code_id else None,
         )
-        tx.type = "ADJUST"
+        tx.type = tx_type
+        tx.save(update_fields=["type"])
+        return tx
+
+    @classmethod
+    def _adjust_packaging(cls, *, line: InventoryAuditLine, qty: Decimal, reference: str, tx_type: str) -> PackagingTransaction:
+        if qty > 0:
+            return PackagingService.add_packaging_stock(
+                material_id=str(line.material_id),
+                qty=qty,
+                location_id=str(line.location_id),
+                cost=line.rate or 0,
+                reference=reference,
+                tx_type=tx_type,
+                input_uom=line.uom or getattr(line.material, "base_uom", None),
+                meta_json={"inventory_audit_batch": str(line.batch_id), "inventory_audit_line": str(line.id)},
+            )
+        tx = PackagingService.consume_packaging_stock(
+            material_id=str(line.material_id),
+            qty=abs(qty),
+            location_id=str(line.location_id),
+            reference=reference,
+            input_uom=line.uom or getattr(line.material, "base_uom", None),
+            meta_json={"inventory_audit_batch": str(line.batch_id), "inventory_audit_line": str(line.id)},
+        )
+        tx.type = tx_type
         tx.save(update_fields=["type"])
         return tx
 
@@ -470,6 +748,8 @@ class InventoryAuditService:
                 user=user if getattr(user, "is_authenticated", False) else None,
                 notes=reference,
             )
+            movement_reason = cls._delta_tx_type(batch_type=line.batch.type, qty=qty)
+            RollMovement.objects.filter(roll=roll, reason_note=reference).update(reason=movement_reason)
             if line.label_id and line.label_id != roll.label_id:
                 roll.label_id = line.label_id
                 roll.save(update_fields=["label_id"])
@@ -486,13 +766,13 @@ class InventoryAuditService:
             raise ValidationError(f"Roll adjustment would make {roll.label_id} negative.")
         roll.weight_kg = new_weight
         if new_weight == 0:
-            roll.status = "SCRAPPED"
+            roll.status = "MISSING" if line.batch.type == "PHYSICAL_COUNT" else "SCRAPPED"
         roll.save(update_fields=["weight_kg", "status"])
         movement = RollMovement.objects.create(
             roll=roll,
             from_location=roll.location,
             to_location=roll.location,
-            reason="ADJUSTMENT",
+            reason=cls._delta_tx_type(batch_type=line.batch.type, qty=qty),
             reason_note=reference,
             moved_by=user if getattr(user, "is_authenticated", False) else None,
         )
@@ -853,9 +1133,7 @@ class InventoryAuditService:
 
     @classmethod
     def stock_card(cls, *, material_id: Optional[str] = None, plant_id: Optional[str] = None, location_id: Optional[str] = None, date_from=None, date_to=None) -> Dict[str, Any]:
-        rows: List[Dict[str, Any]] = []
-        opening_total = Decimal("0")
-        movement_total = Decimal("0")
+        entries: List[Dict[str, Any]] = []
 
         batch_lines = InventoryAuditLine.objects.select_related("batch", "material", "location").filter(batch__status__in=["POSTED", "LOCKED"])
         if material_id:
@@ -869,12 +1147,13 @@ class InventoryAuditService:
                 continue
             if date_to and line.batch.cutoff_at.date() > date_to:
                 continue
-            qty = _dec(line.opening_qty if line.batch.type == "OPENING_STOCK" else (line.variance_qty or line.counted_qty or line.system_qty))
             if line.batch.type == "OPENING_STOCK":
-                opening_total += qty
+                qty = _dec(line.opening_qty)
+            elif line.batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
+                qty = _dec(line.variance_qty)
             else:
-                movement_total += qty
-            rows.append(cls._stock_card_row(
+                qty = _dec(line.counted_qty or line.system_qty or 0)
+            entries.append(cls._stock_card_entry(
                 at=line.batch.cutoff_at,
                 source=line.batch.type,
                 reference=line.batch.batch_no,
@@ -882,7 +1161,8 @@ class InventoryAuditService:
                 location=line.location,
                 qty=qty,
                 uom=line.uom,
-                meta={"stock_class": line.stock_class, "line_id": str(line.id)},
+                rate=line.rate,
+                meta={"stock_class": line.stock_class, "line_id": str(line.id), "source_doc": "inventory_audit_batch"},
             ))
 
         bulk = BulkTransaction.objects.select_related("material", "location").all()
@@ -900,8 +1180,7 @@ class InventoryAuditService:
             if str(tx.reference or "").startswith(cls.AUDIT_REFERENCE_PREFIXES):
                 continue
             qty = _dec(tx.qty_kg)
-            movement_total += qty
-            rows.append(cls._stock_card_row(tx.created_at, f"BULK_{tx.type}", tx.reference or str(tx.id), tx.material, tx.location, qty, "KG", {"transaction_id": str(tx.id)}))
+            entries.append(cls._stock_card_entry(tx.created_at, f"BULK_{tx.type}", tx.reference or str(tx.id), tx.material, tx.location, qty, "KG", tx.avg_cost, {"transaction_id": str(tx.id), "source_doc": "bulk_transaction"}))
 
         packaging = PackagingTransaction.objects.select_related("material", "location").all()
         if material_id:
@@ -918,8 +1197,7 @@ class InventoryAuditService:
             if str(tx.reference or "").startswith(cls.AUDIT_REFERENCE_PREFIXES):
                 continue
             qty = _dec(tx.qty)
-            movement_total += qty
-            rows.append(cls._stock_card_row(tx.created_at, f"PACKAGING_{tx.type}", tx.reference or str(tx.id), tx.material, tx.location, qty, getattr(tx.material, "base_uom", ""), {"transaction_id": str(tx.id)}))
+            entries.append(cls._stock_card_entry(tx.created_at, f"PACKAGING_{tx.type}", tx.reference or str(tx.id), tx.material, tx.location, qty, getattr(tx.material, "base_uom", ""), tx.avg_cost, {"transaction_id": str(tx.id), "source_doc": "packaging_transaction"}))
 
         rolls = RollMovement.objects.select_related("roll__material", "from_location", "to_location").all()
         if material_id:
@@ -951,9 +1229,8 @@ class InventoryAuditService:
                     qty = -weight
             if qty == 0:
                 continue
-            movement_total += qty
-            rows.append(
-                cls._stock_card_row(
+            entries.append(
+                cls._stock_card_entry(
                     mv.timestamp,
                     f"ROLL_{mv.reason}",
                     mv.reason_note or str(mv.id),
@@ -961,15 +1238,28 @@ class InventoryAuditService:
                     mv.to_location if qty > 0 else mv.from_location,
                     qty,
                     "KG",
-                    {"movement_id": str(mv.id), "roll_label": getattr(mv.roll, "label_id", "")},
+                    None,
+                    {"movement_id": str(mv.id), "roll_label": getattr(mv.roll, "label_id", ""), "source_doc": "roll_movement"},
                 )
             )
 
-        rows.sort(key=lambda row: row["at"])
+        entries.sort(key=lambda row: (row["at"], row["reference"], row["source"]))
+        rows = []
+        balance = Decimal("0")
+        opening_total = Decimal("0")
+        movement_total = Decimal("0")
+        for entry in entries:
+            qty = _dec(entry["qty"])
+            balance += qty
+            if entry["source"] == "OPENING_STOCK":
+                opening_total += qty
+            else:
+                movement_total += qty
+            rows.append(cls._stock_card_row_from_entry(entry, balance))
         return {
             "opening_qty": float(opening_total),
             "movement_qty": float(movement_total),
-            "closing_qty": float(opening_total + movement_total),
+            "closing_qty": float(balance),
             "rows": rows,
         }
 
@@ -1143,16 +1433,40 @@ class InventoryAuditService:
         summary.append(["Movement Qty", payload.get("movement_qty", 0)])
         summary.append(["Closing Qty", payload.get("closing_qty", 0)])
         rows_sheet = workbook.create_sheet("Stock Card")
-        headers = ["at", "source", "reference", "material_code", "material_name", "location_name", "qty", "uom"]
+        headers = ["at", "source", "reference", "material_code", "material_name", "location_name", "in_qty", "out_qty", "balance_qty", "rate", "value", "uom"]
         rows_sheet.append(headers)
         cls._style_header_row(rows_sheet[1])
         for row in payload.get("rows") or []:
-            rows_sheet.append([row.get("at"), row.get("source"), row.get("reference"), row.get("material_code"), row.get("material_name"), row.get("location_name"), row.get("qty"), row.get("uom")])
+            rows_sheet.append([row.get("at"), row.get("source"), row.get("reference"), row.get("material_code"), row.get("material_name"), row.get("location_name"), row.get("in_qty"), row.get("out_qty"), row.get("balance_qty"), row.get("rate"), row.get("value"), row.get("uom")])
         cls._autosize_columns(summary)
         cls._autosize_columns(rows_sheet)
         buffer = BytesIO()
         workbook.save(buffer)
         return buffer.getvalue(), "stock-card.xlsx"
+
+    @classmethod
+    def _emit_batch_event(cls, *, batch: InventoryAuditBatch, user=None, action: str, before: Optional[Dict[str, Any]], after: Dict[str, Any]) -> None:
+        try:
+            PermissionAuditLog.objects.create(
+                user=user if getattr(user, "is_authenticated", False) else None,
+                action=action[:40],
+                method="POST",
+                path=f"/api/inventory/audit/batches/{batch.id}/",
+                required_permission="inventory.audit.manage",
+                effective_role=getattr(getattr(user, "role", None), "code", "") if user else "",
+                details={
+                    "batch_id": str(batch.id),
+                    "batch_no": batch.batch_no,
+                    "type": batch.type,
+                    "financial_year": batch.financial_year,
+                    "plant_id": str(batch.plant_id),
+                    "before": before,
+                    "after": after,
+                },
+            )
+        except Exception:
+            # Audit mirroring must never break the inventory posting transaction.
+            pass
 
     @classmethod
     def _base_workbook(cls):
@@ -1177,9 +1491,9 @@ class InventoryAuditService:
             worksheet.column_dimensions[column[0].column_letter].width = min(max(width, 12), 36)
 
     @classmethod
-    def _stock_card_row(cls, at, source: str, reference: str, material, location, qty: Decimal, uom: str, meta: Dict[str, Any]) -> Dict[str, Any]:
+    def _stock_card_entry(cls, at, source: str, reference: str, material, location, qty: Decimal, uom: str, rate: Any, meta: Dict[str, Any]) -> Dict[str, Any]:
         return {
-            "at": at.isoformat() if hasattr(at, "isoformat") else str(at),
+            "at": at,
             "source": source,
             "reference": reference,
             "material_id": str(material.id) if material else None,
@@ -1187,7 +1501,25 @@ class InventoryAuditService:
             "material_name": getattr(material, "name", ""),
             "location_id": str(location.id) if location else None,
             "location_name": getattr(location, "name", ""),
-            "qty": float(qty),
+            "qty": float(_dec(qty)),
             "uom": uom,
+            "rate": float(_dec(rate)) if rate not in (None, "") else None,
             "meta": meta,
+        }
+
+    @classmethod
+    def _stock_card_row_from_entry(cls, entry: Dict[str, Any], balance: Decimal) -> Dict[str, Any]:
+        qty = _dec(entry.get("qty"))
+        rate = entry.get("rate")
+        rate_dec = _dec(rate) if rate not in (None, "") else None
+        value = balance * rate_dec if rate_dec is not None else None
+        return {
+            **entry,
+            "at": entry["at"].isoformat() if hasattr(entry["at"], "isoformat") else str(entry["at"]),
+            "qty": float(qty),
+            "in_qty": float(qty) if qty > 0 else 0,
+            "out_qty": float(abs(qty)) if qty < 0 else 0,
+            "balance_qty": float(balance),
+            "rate": float(rate_dec) if rate_dec is not None else None,
+            "value": float(value) if value is not None else None,
         }
