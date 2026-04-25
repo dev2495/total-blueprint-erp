@@ -4,13 +4,14 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.inventory.models import InventoryLocation, PackagingStock, PackagingTransaction
+from apps.inventory.services.wac import apply_wac, dec, q4
 from apps.materials.models import InventoryMaterial
 
 
 class PackagingService:
     @classmethod
     def _as_decimal(cls, value):
-        return Decimal(str(value or 0))
+        return dec(value)
 
     @classmethod
     def _validate_packaging_material(cls, material: InventoryMaterial):
@@ -29,7 +30,7 @@ class PackagingService:
             raise ValidationError("Quantity must be greater than zero.")
 
         if incoming_uom == base_uom:
-            return incoming_qty, {
+            return q4(incoming_qty), {
                 "input_qty": float(incoming_qty),
                 "input_uom": incoming_uom,
                 "base_qty": float(incoming_qty),
@@ -43,7 +44,7 @@ class PackagingService:
                 raise ValidationError(
                     f"Packaging material {material.code} requires a base qty per consumed unit for PCS->{base_uom} conversion."
                 )
-            base_qty = incoming_qty * factor
+            base_qty = q4(incoming_qty * factor)
             return base_qty, {
                 "input_qty": float(incoming_qty),
                 "input_uom": incoming_uom,
@@ -79,7 +80,7 @@ class PackagingService:
         location = InventoryLocation.objects.get(id=location_id)
 
         base_qty, conversion_meta = cls._resolve_base_qty(material, qty, input_uom=input_uom)
-        cost = cls._as_decimal(cost)
+        cost = q4(cost)
 
         stock, _ = PackagingStock.objects.select_for_update().get_or_create(
             material=material,
@@ -88,14 +89,16 @@ class PackagingService:
             defaults={"qty": Decimal("0"), "avg_cost": Decimal("0")},
         )
 
-        if cost > 0:
-            total_value = (cls._as_decimal(stock.qty) * cls._as_decimal(stock.avg_cost)) + (base_qty * cost)
-            new_qty = cls._as_decimal(stock.qty) + base_qty
-            stock.avg_cost = (total_value / new_qty) if new_qty > 0 else Decimal("0")
-            stock.qty = new_qty
-        else:
-            stock.qty = cls._as_decimal(stock.qty) + base_qty
-        stock.save()
+        resolved_rate = cost if cost > 0 else q4(stock.avg_cost)
+        new_qty, new_rate = apply_wac(
+            balance_qty=stock.qty,
+            balance_rate=stock.avg_cost,
+            delta_qty=base_qty,
+            posting_rate=resolved_rate,
+        )
+        stock.qty = new_qty
+        stock.avg_cost = new_rate
+        stock.save(update_fields=["qty", "avg_cost", "updated_at"])
 
         meta = dict(meta_json or {})
         meta.update(conversion_meta)
@@ -105,7 +108,7 @@ class PackagingService:
             material=material,
             location=location,
             qty=base_qty,
-            avg_cost=cost if cost > 0 else stock.avg_cost,
+            avg_cost=resolved_rate,
             vendor_id=vendor_id,
             job_id=job_id,
             sales_order_item_id=sales_order_item_id,
@@ -147,13 +150,13 @@ class PackagingService:
                 f"Packaging stock shortage: {material.code} required {base_qty} {material.base_uom}, available 0 {material.base_uom} at {location.name}."
             )
 
-        available = cls._as_decimal(stock.qty)
+        available = q4(stock.qty)
         if available < base_qty:
             raise ValidationError(
                 f"Packaging stock shortage: {material.code} required {base_qty} {material.base_uom}, available {available} {material.base_uom} at {location.name}."
             )
 
-        stock.qty = available - base_qty
+        stock.qty = q4(available - base_qty)
         stock.save(update_fields=["qty", "updated_at"])
 
         meta = dict(meta_json or {})
@@ -168,7 +171,7 @@ class PackagingService:
             material=material,
             location=location,
             qty=-base_qty,
-            avg_cost=stock.avg_cost,
+            avg_cost=q4(stock.avg_cost),
             job_id=job_id,
             sales_order_item_id=sales_order_item_id,
             mts_order_id=mts_order_id,

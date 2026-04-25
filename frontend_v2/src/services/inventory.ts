@@ -110,7 +110,7 @@ export interface BulkTransaction {
     granule_quality_code_id?: string | null
     location: string
     location_name: string
-    type: 'INWARD' | 'CONSUME' | 'TRANSFER' | 'ADJUST'
+    type: 'INWARD' | 'PRODUCE' | 'CONSUME' | 'TRANSFER' | 'ADJUST' | 'OPENING_BALANCE' | 'OPENING_BALANCE_ADJUST' | 'COUNT_SHORT' | 'COUNT_EXCESS' | 'FY_ROLLFORWARD' | 'FY_CORRECTION'
     qty_kg: number
     avg_cost: number
     reference: string
@@ -137,7 +137,7 @@ export interface PackagingStockRow {
 
 export interface PackagingTransactionRow {
     id: string
-    type: 'INWARD' | 'CONSUME' | 'TRANSFER' | 'ADJUST' | 'PRODUCE'
+    type: 'INWARD' | 'CONSUME' | 'TRANSFER' | 'ADJUST' | 'PRODUCE' | 'OPENING_BALANCE' | 'OPENING_BALANCE_ADJUST' | 'COUNT_SHORT' | 'COUNT_EXCESS' | 'FY_ROLLFORWARD' | 'FY_CORRECTION'
     material: string
     material_name: string
     material_code: string
@@ -284,6 +284,10 @@ export interface StockCardPayload {
     opening_qty: number
     movement_qty: number
     closing_qty: number
+    opening_value?: number
+    movement_value?: number
+    closing_rate?: number
+    closing_value?: number
     rows: Array<{
         at: string
         source: string
@@ -298,7 +302,10 @@ export interface StockCardPayload {
         out_qty?: number
         balance_qty?: number
         rate?: number | null
+        balance_rate?: number | null
+        transaction_value?: number | null
         value?: number | null
+        display_value?: number | null
         uom: string
         meta?: Record<string, any>
     }>

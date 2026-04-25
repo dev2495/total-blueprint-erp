@@ -38,6 +38,7 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await expect(page).toHaveURL(/tab=stockcard/)
   await expect(page.locator("body")).toContainText("Material Stock Card")
   await expect(page.locator("body")).toContainText("Running Balance")
+  await expect(page.locator("body")).toContainText("WAC")
   await expect(page.getByTestId("stock-card-financial-year")).toHaveValue(currentFy())
 
   await page.getByTestId("stock-lifecycle-tab-yearclose").click()
@@ -54,7 +55,8 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await page.getByTestId("stock-lifecycle-tab-help").click()
   await expect(page).toHaveURL(/tab=help/)
   await expect(page.locator("body")).toContainText("Lifecycle Help & Flow")
-  await expect(page.locator("body")).toContainText("closed-year correction also updates next FY opening")
+  await expect(page.locator("body")).toContainText("Weighted Average Cost")
+  await expect(page.locator("body")).toContainText("OPENING_BALANCE_ADJUST")
   await expect(page.getByAltText("Stock lifecycle flow diagram")).toBeVisible()
 
   await expect(page.getByTestId("sidebar-link-inventory-stock-lifecycle").first()).toBeVisible()

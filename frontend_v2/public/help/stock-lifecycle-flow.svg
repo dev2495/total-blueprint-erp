@@ -25,7 +25,7 @@
     <path d="M0 150h1280M0 300h1280M0 450h1280M0 600h1280"/>
   </g>
   <text x="80" y="76" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900">Stock Lifecycle</text>
-  <text x="80" y="111" fill="#dbeafe" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Sheet to validate to preview to approve to post to audit</text>
+  <text x="80" y="111" fill="#dbeafe" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Sheet to validate to WAC preview to approve to post to audit</text>
 
   <g filter="url(#shadow)">
     <rect x="70" y="165" width="196" height="132" rx="22" fill="url(#card)" stroke="#bfdbfe"/>
@@ -44,7 +44,7 @@
     <rect x="598" y="181" width="48" height="48" rx="14" fill="#d97706"/>
     <text x="622" y="213" fill="#fff" text-anchor="middle" font-size="22" font-weight="900" font-family="Inter, Arial">3</text>
     <text x="598" y="255" fill="#0f172a" font-size="21" font-weight="900" font-family="Inter, Arial">Preview</text>
-    <text x="598" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">KG, value, blockers</text>
+    <text x="598" y="280" fill="#475569" font-size="14" font-weight="700" font-family="Inter, Arial">KG, WAC, value, blockers</text>
 
     <rect x="838" y="165" width="196" height="132" rx="22" fill="url(#card)" stroke="#c4b5fd"/>
     <rect x="854" y="181" width="48" height="48" rx="14" fill="#7c3aed"/>
@@ -70,7 +70,7 @@
     <rect x="120" y="380" width="295" height="180" rx="26" fill="#ffffff" fill-opacity=".97"/>
     <text x="150" y="425" fill="#0f172a" font-size="24" font-weight="900" font-family="Inter, Arial">Stock Card</text>
     <text x="150" y="457" fill="#475569" font-size="15" font-weight="700" font-family="Inter, Arial">Running balance by FY</text>
-    <text x="150" y="500" fill="#047857" font-size="20" font-weight="900" font-family="Inter, Arial">Opening + In - Out = Closing</text>
+    <text x="150" y="500" fill="#047857" font-size="20" font-weight="900" font-family="Inter, Arial">Balance x WAC = Value</text>
     <rect x="150" y="522" width="235" height="12" rx="6" fill="#dbeafe"/>
     <rect x="150" y="522" width="178" height="12" rx="6" fill="#2563eb"/>
 
@@ -86,7 +86,7 @@
     <rect x="864" y="380" width="295" height="180" rx="26" fill="#ffffff" fill-opacity=".97"/>
     <text x="894" y="425" fill="#0f172a" font-size="24" font-weight="900" font-family="Inter, Arial">FY Correction</text>
     <text x="894" y="457" fill="#475569" font-size="15" font-weight="700" font-family="Inter, Arial">Closed-year delta with reason</text>
-    <text x="894" y="500" fill="#be123c" font-size="20" font-weight="900" font-family="Inter, Arial">Syncs next opening</text>
+    <text x="894" y="500" fill="#be123c" font-size="20" font-weight="900" font-family="Inter, Arial">Adds opening adjust row</text>
     <path d="M900 530h120l32-24 32 24h42" stroke="#be123c" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

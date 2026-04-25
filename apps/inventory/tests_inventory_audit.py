@@ -18,6 +18,8 @@ from apps.inventory.models import (
     RollMovement,
 )
 from apps.inventory.services.audit import InventoryAuditService
+from apps.inventory.services.bulk_service import BulkService
+from apps.inventory.services.wac import apply_wac, signed_value
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.recipes.models import RecipeGrade
 from apps.users.models import Role, User
@@ -294,9 +296,14 @@ class InventoryAuditServiceTests(TestCase):
         InventoryAuditService.post_batch(batch=correction, user=self.user)
 
         next_line.refresh_from_db()
-        self.assertEqual(next_line.opening_qty, Decimal("115.0000"))
+        self.assertEqual(next_line.opening_qty, Decimal("100.0000"))
+        adjustment_line = next_opening.lines.exclude(id=next_line.id).get()
+        self.assertEqual(adjustment_line.opening_qty, Decimal("15.0000"))
+        self.assertEqual(adjustment_line.posted_reference_json["source"], "OPENING_BALANCE_ADJUST")
+        next_opening_total = sum((line.opening_qty for line in next_opening.lines.all()), Decimal("0"))
+        self.assertEqual(next_opening_total, Decimal("115.0000"))
         self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("115.0000"))
-        self.assertEqual(next_line.posted_reference_json["fy_corrections"][0]["delta_qty"], 15.0)
+        self.assertEqual(adjustment_line.posted_reference_json["delta_qty"], 15.0)
 
     def test_preview_submit_approve_and_post_workflow_records_state(self):
         checker = User.objects.create_user(username="checker", password="pass1234", role=self.role)
@@ -411,13 +418,84 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("90.0000"))
         self.assertTrue(BulkTransaction.objects.filter(type="FY_CORRECTION", qty_kg=Decimal("2.0000")).exists())
         next_opening_line.refresh_from_db()
-        self.assertEqual(next_opening_line.opening_qty, Decimal("90.0000"))
+        self.assertEqual(next_opening_line.opening_qty, Decimal("88.0000"))
+        next_opening_adjustment = closed.opening_batch_next_year.lines.exclude(id=next_opening_line.id).get()
+        self.assertEqual(next_opening_adjustment.opening_qty, Decimal("2.0000"))
 
         corrected_closed_year = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
         next_year_card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2027-2028")
         self.assertEqual(corrected_closed_year["closing_qty"], 90.0)
         self.assertEqual(next_year_card["opening_qty"], 90.0)
         self.assertEqual(next_year_card["closing_qty"], 90.0)
+        self.assertTrue(any(row["source"] == "OPENING_BALANCE_ADJUST" and row["qty"] == 2.0 for row in next_year_card["rows"]))
+
+    def test_wac_formula_matches_stock_lifecycle_worked_example(self):
+        qty, rate = apply_wac(balance_qty=0, balance_rate=0, delta_qty=Decimal("1820"), posting_rate=Decimal("182"))
+        self.assertEqual(qty, Decimal("1820.0000"))
+        self.assertEqual(rate, Decimal("182.0000"))
+
+        qty, rate = apply_wac(balance_qty=qty, balance_rate=rate, delta_qty=Decimal("500"), posting_rate=Decimal("188"))
+        self.assertEqual(qty, Decimal("2320.0000"))
+        self.assertEqual(rate, Decimal("183.2931"))
+
+        qty, rate = apply_wac(balance_qty=qty, balance_rate=rate, delta_qty=Decimal("-2"), posting_rate=rate)
+        self.assertEqual(qty, Decimal("2318.0000"))
+        self.assertEqual(rate, Decimal("183.2931"))
+
+        qty, rate = apply_wac(balance_qty=qty, balance_rate=rate, delta_qty=Decimal("200"), posting_rate=Decimal("190"))
+        self.assertEqual(qty, Decimal("2518.0000"))
+        self.assertEqual(rate, Decimal("183.8258"))
+
+        qty, rate = apply_wac(balance_qty=qty, balance_rate=rate, delta_qty=Decimal("-380"), posting_rate=rate)
+        self.assertEqual(qty, Decimal("2138.0000"))
+        self.assertEqual(rate, Decimal("183.8258"))
+        self.assertEqual(signed_value(qty, rate), Decimal("393019.5604"))
+
+    def test_stock_card_uses_wac_rate_and_value_for_real_postings(self):
+        opening = self._batch()
+        InventoryAuditService.import_lines(
+            batch=opening,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "quantity": "1820",
+                    "rate": "182",
+                }
+            ],
+        )
+        InventoryAuditService.post_batch(batch=opening, user=self.user)
+        BulkService.add_bulk(str(self.granule.id), Decimal("500"), str(self.plant.id), str(self.location.id), cost=Decimal("188"), reference="GRN-4421", granule_code_id=str(self.granule_code.id))
+
+        count = self._batch("PHYSICAL_COUNT")
+        InventoryAuditService.import_lines(
+            batch=count,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "counted_qty": "2318",
+                }
+            ],
+        )
+        InventoryAuditService.post_batch(batch=count, user=self.user)
+
+        BulkService.add_bulk(str(self.granule.id), Decimal("200"), str(self.plant.id), str(self.location.id), cost=Decimal("190"), reference="GRN-4422", granule_code_id=str(self.granule_code.id))
+        BulkService.consume_bulk(str(self.granule.id), Decimal("380"), str(self.location.id), reference="J0512", granule_code_id=str(self.granule_code.id))
+
+        stock = InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code)
+        self.assertEqual(stock.qty_kg, Decimal("2138.0000"))
+        self.assertEqual(stock.avg_cost, Decimal("183.8258"))
+
+        card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
+        self.assertEqual(card["closing_qty"], 2138.0)
+        self.assertEqual(Decimal(str(card["closing_rate"])), Decimal("183.8258"))
+        self.assertEqual(Decimal(str(card["closing_value"])), Decimal("393019.5604"))
+        self.assertEqual(Decimal(str(card["rows"][-1]["balance_rate"])), Decimal("183.8258"))
 
     def test_load_batch_from_snapshot_replaces_lines_with_live_system_stock(self):
         InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("18.5000"))

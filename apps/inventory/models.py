@@ -319,6 +319,7 @@ class BulkTransaction(models.Model):
         ('TRANSFER', 'Location Transfer'),
         ('ADJUST', 'Manual Adjustment'),
         ('OPENING_BALANCE', 'Opening Balance'),
+        ('OPENING_BALANCE_ADJUST', 'Opening Balance Adjustment'),
         ('COUNT_SHORT', 'Physical Count Short'),
         ('COUNT_EXCESS', 'Physical Count Excess'),
         ('FY_ROLLFORWARD', 'FY Roll Forward'),
@@ -336,7 +337,7 @@ class BulkTransaction(models.Model):
     )
     location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name='bulk_transactions')
 
-    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     qty_kg = models.DecimalField(max_digits=15, decimal_places=4)
     avg_cost = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     
@@ -379,6 +380,7 @@ class PackagingTransaction(models.Model):
         ('ADJUST', 'Manual Adjustment'),
         ('PRODUCE', 'In-House Production'),
         ('OPENING_BALANCE', 'Opening Balance'),
+        ('OPENING_BALANCE_ADJUST', 'Opening Balance Adjustment'),
         ('COUNT_SHORT', 'Physical Count Short'),
         ('COUNT_EXCESS', 'Physical Count Excess'),
         ('FY_ROLLFORWARD', 'FY Roll Forward'),
@@ -386,7 +388,7 @@ class PackagingTransaction(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, related_name='packaging_transactions')
     location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name='packaging_transactions')
     qty = models.DecimalField(max_digits=15, decimal_places=4, help_text="Signed quantity in material.base_uom")
@@ -841,6 +843,7 @@ class RollMovement(models.Model):
         ('ADJUSTMENT', 'Manual Adjustment'),
         ('INTER_PLANT', 'Inter-Plant Transfer'),
         ('OPENING_BALANCE', 'Opening Balance'),
+        ('OPENING_BALANCE_ADJUST', 'Opening Balance Adjustment'),
         ('COUNT_SHORT', 'Physical Count Short'),
         ('COUNT_EXCESS', 'Physical Count Excess'),
         ('FY_ROLLFORWARD', 'FY Roll Forward'),
@@ -853,7 +856,7 @@ class RollMovement(models.Model):
     from_location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name='roll_movements_from', null=True, blank=True, help_text="NULL for GRN (initial receipt)")
     to_location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name='roll_movements_to')
     
-    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    reason = models.CharField(max_length=30, choices=REASON_CHOICES)
     reason_note = models.CharField(max_length=255, blank=True)
     
     job = models.ForeignKey('production.ProductionJob', on_delete=models.SET_NULL, null=True, blank=True, related_name='roll_movements')

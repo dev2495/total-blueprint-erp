@@ -1,7 +1,8 @@
-from django.db import transaction
 from django.core.exceptions import ValidationError
-from django.db.models import F, Sum
+from django.db import transaction
+from django.db.models import Sum
 from apps.inventory.models import InventoryBulk, BulkTransaction, InventoryLocation
+from apps.inventory.services.wac import apply_wac, dec, q4
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
 
 class BulkService:
@@ -29,15 +30,14 @@ class BulkService:
         Increase bulk quantity and update average cost.
         Used by GRN and manual adjustments.
         """
-        from decimal import Decimal
-        qty = Decimal(str(qty))
-        cost = Decimal(str(cost))
+        qty = q4(qty)
+        cost = q4(cost)
         
         if qty <= 0:
             raise ValidationError("Quantity to add must be positive.")
         quality_code = cls._resolve_granule_code(material_id, granule_code_id)
 
-        bulk, created = InventoryBulk.objects.get_or_create(
+        bulk, created = InventoryBulk.objects.select_for_update().get_or_create(
             material_id=material_id,
             granule_code_id=quality_code.id if quality_code else None,
             plant_id=plant_id,
@@ -45,16 +45,16 @@ class BulkService:
             defaults={'qty_kg': 0, 'avg_cost': 0}
         )
 
-        # Update Average Cost if cost is provided
-        if cost > 0:
-            total_value = (bulk.qty_kg * bulk.avg_cost) + (qty * cost)
-            new_qty = bulk.qty_kg + qty
-            bulk.avg_cost = total_value / new_qty
-            bulk.qty_kg = new_qty
-        else:
-            bulk.qty_kg = F('qty_kg') + qty
-        
-        bulk.save()
+        resolved_rate = cost if cost > 0 else q4(bulk.avg_cost)
+        new_qty, new_rate = apply_wac(
+            balance_qty=bulk.qty_kg,
+            balance_rate=bulk.avg_cost,
+            delta_qty=qty,
+            posting_rate=resolved_rate,
+        )
+        bulk.qty_kg = new_qty
+        bulk.avg_cost = new_rate
+        bulk.save(update_fields=["qty_kg", "avg_cost", "updated_at"])
 
         # Create Transaction
         return BulkTransaction.objects.create(
@@ -63,7 +63,7 @@ class BulkService:
             location_id=location_id,
             type=tx_type,
             qty_kg=qty,
-            avg_cost=cost if cost > 0 else bulk.avg_cost,
+            avg_cost=resolved_rate,
             reference=reference,
             job_id=job_id,
         )
@@ -74,8 +74,7 @@ class BulkService:
         """
         Deduct bulk quantity. Used by production.
         """
-        from decimal import Decimal
-        qty = Decimal(str(qty))
+        qty = q4(qty)
         
         if qty <= 0:
             raise ValidationError("Quantity to consume must be positive.")
@@ -95,10 +94,10 @@ class BulkService:
         remaining = qty
         last_tx = None
         for bulk in qs:
-            take = min(remaining, Decimal(str(bulk.qty_kg or 0))).quantize(Decimal("0.0001"))
+            take = q4(min(remaining, dec(bulk.qty_kg)))
             if take <= 0:
                 continue
-            bulk.qty_kg = F('qty_kg') - take
+            bulk.qty_kg = q4(dec(bulk.qty_kg) - take)
             bulk.save(update_fields=['qty_kg', 'updated_at'])
             last_tx = BulkTransaction.objects.create(
                 material_id=material_id,
@@ -106,11 +105,11 @@ class BulkService:
                 location_id=location_id,
                 type='CONSUME',
                 qty_kg=-take,
-                avg_cost=bulk.avg_cost,
+                avg_cost=q4(bulk.avg_cost),
                 reference=reference,
                 job_id=job_id
             )
-            remaining = (remaining - take).quantize(Decimal("0.0001"))
+            remaining = q4(remaining - take)
             if remaining <= 0:
                 break
 

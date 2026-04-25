@@ -967,23 +967,24 @@ function CheckRow({ ok, label }: { ok: boolean; label: string }) {
 
 function LifecycleHelpPanel() {
   const formulas = [
-    { label: "Opening Stock", math: "opening_qty sets the balance", note: "It is absolute, not plus/minus. Existing opening rows are audit anchors." },
-    { label: "Stock Count", math: "variance = counted_qty - system_qty", note: "Positive variance posts COUNT_EXCESS. Negative variance posts COUNT_SHORT." },
-    { label: "Stock Card", math: "balance = previous_balance + in_qty - out_qty", note: "FY close snapshots are skipped because they are proof rows, not stock movement." },
-    { label: "FY Correction", math: "corrected_close = current_system + delta", note: "A closed-year correction also updates next FY opening so the two years reconcile." },
+    { label: "Opening Stock", math: "opening_qty sets the FY start balance", note: "Opening is absolute. If rate is blank, backend resolves USER -> pool WAC -> last GRN -> material standard -> zero warning." },
+    { label: "Weighted Average Cost", math: "new_rate = (old_qty x old_rate + in_qty x in_rate) / new_qty", note: "Inward, opening, count excess, and correction inflows recompute WAC at 4 decimals. Outflows keep the existing rate." },
+    { label: "Stock Count", math: "variance = counted_qty - system_qty", note: "Positive variance posts COUNT_EXCESS. Negative variance posts COUNT_SHORT. The rate freezes at count time." },
+    { label: "Stock Card", math: "balance = previous_balance + signed_qty", note: "Rows show transaction rate, running WAC, and running value. FY close snapshots are skipped because they are proof rows." },
+    { label: "FY Correction", math: "closed FY delta = corrected_qty - system_qty", note: "Closed-year corrections also create an OPENING_BALANCE_ADJUST row in next FY, so opening continuity is visible instead of silently edited." },
   ]
   const flow = [
     "Create sheet with FY, plant, notes, and class.",
     "Enter rows manually, import CSV/XLSX, or load live system stock.",
     "Validate material, location, quantity, roll size, duplicate labels, and FY rules.",
-    "Preview kg/value impact before any stock moves.",
+    "Preview kg, WAC rate, value, and source rows before any stock moves.",
     "Submit and approve with maker-checker separation.",
     "Post transactions, write audit events, refresh Stock Card and stock pools.",
   ]
   const auditRules = [
     "Opening stock is blocked after any same-FY non-opening movement for that material/location.",
     "Posted and locked batches are immutable; use Stock Count or FY Correction instead of editing history.",
-    "FY Correction is allowed only for a closed financial year and requires a written reason.",
+    "FY Correction is allowed only for a closed financial year, requires a written reason, and writes a visible next-FY opening adjustment.",
     "Every create, submit, approve, cancel, post, and correction roll-forward sync mirrors to the audit console.",
   ]
 
@@ -1117,7 +1118,7 @@ function StockCardPanel() {
           { label: "Movement", value: qty(stockCard?.movement_qty || 0), sub: "Inward minus outward" },
           { label: "Closing", value: qty(stockCard?.closing_qty || 0), sub: "Running balance" },
           { label: "Rows", value: qty(rows.length), sub: isFetching ? "Refreshing" : "Trace rows" },
-          { label: "Value", value: money(rows.at(-1)?.value || 0), sub: "Last balance value" },
+          { label: "Value", value: money(stockCard?.closing_value || rows.at(-1)?.value || 0), sub: `WAC ${qty(stockCard?.closing_rate || rows.at(-1)?.balance_rate || 0)}` },
         ]}
       />
 
@@ -1156,7 +1157,7 @@ function StockCardPanel() {
         <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-black"><Layers3 className="h-5 w-5 text-blue-700" />Running Balance {isFetching ? "refreshing..." : ""}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="min-w-[1080px] w-full text-sm">
-            <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Date</th><th>Source</th><th>Reference</th><th>Material</th><th>Location</th><th className="text-right">In</th><th className="text-right">Out</th><th className="text-right">Balance</th><th className="text-right">Value</th></tr></thead>
+            <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Date</th><th>Source</th><th>Reference</th><th>Material</th><th>Location</th><th className="text-right">In</th><th className="text-right">Out</th><th className="text-right">Balance</th><th className="text-right">WAC</th><th className="text-right">Value</th></tr></thead>
             <tbody>
               {rows.map((row, index) => (
                 <tr key={`${row.reference}-${index}`} className="border-t border-slate-100 hover:bg-slate-50">
@@ -1168,10 +1169,11 @@ function StockCardPanel() {
                   <td className="text-right font-black text-emerald-700">{row.in_qty ? qty(row.in_qty) : "-"}</td>
                   <td className="text-right font-black text-rose-700">{row.out_qty ? qty(row.out_qty) : "-"}</td>
                   <td className="text-right font-black">{qty(row.balance_qty ?? row.qty)}</td>
+                  <td className="text-right font-black text-slate-700">{row.balance_rate == null ? "-" : qty(row.balance_rate)}</td>
                   <td className="text-right font-black">{row.value == null ? "-" : money(row.value)}</td>
                 </tr>
               ))}
-              {!rows.length ? <tr><td colSpan={9} className="px-4 py-12 text-center text-sm font-semibold text-slate-500">No ledger rows match the selected filters.</td></tr> : null}
+              {!rows.length ? <tr><td colSpan={10} className="px-4 py-12 text-center text-sm font-semibold text-slate-500">No ledger rows match the selected filters.</td></tr> : null}
             </tbody>
           </table>
         </CardContent>
