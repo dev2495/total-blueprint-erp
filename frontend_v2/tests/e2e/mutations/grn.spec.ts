@@ -26,7 +26,7 @@ test("store can inward bulk stock through GRN and update inventory ledger state"
   const seed = readMutationSeed()
 
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/roll-explorer")
+  await switchRole(page, "Store", "/inventory/roll-explorer", { allowCookieFallback: true })
   await page.goto("/inventory/grn")
   await page.getByTestId("grn-page").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
@@ -40,6 +40,8 @@ test("store can inward bulk stock through GRN and update inventory ledger state"
   await page.getByTestId("bulk-grn-vendor").click()
   await page.getByRole("option").first().click()
   await pickMaterial(page, "bulk-grn-material", seed.grn.bulk_material_code)
+  await page.getByTestId("bulk-grn-granule-code").click()
+  await page.getByRole("option").first().click()
   await page.getByTestId("bulk-grn-quantity").fill("25.250")
   const bulkSubmit = page.waitForResponse((response) => response.url().includes("/api/inventory/grn/bulk/") && response.request().method() === "POST")
   await page.getByTestId("bulk-grn-submit").click()
@@ -65,7 +67,7 @@ test("store can inward roll stock through GRN and create a traceable new roll", 
   const label = `${seed.grn.roll_label_prefix}-${Date.now()}`
 
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/roll-explorer")
+  await switchRole(page, "Store", "/inventory/roll-explorer", { allowCookieFallback: true })
   await page.goto("/inventory/grn")
   await page.getByTestId("grn-page").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)

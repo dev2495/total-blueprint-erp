@@ -131,6 +131,7 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
       },
+      { title: "GRN Desk", href: "/inventory/grn", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
       {
         title: "Inventory Health",
         href: "/analytics/inventory-health",

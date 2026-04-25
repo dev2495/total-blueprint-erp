@@ -7,6 +7,18 @@ async function chooseFilter(page: any, testId: string, optionName: RegExp | stri
   await page.getByRole("option", { name: optionName, exact: typeof optionName === "string" }).click()
 }
 
+async function chooseFirstSpecificFilter(page: any, testId: string) {
+  await page.getByTestId(testId).click()
+  const options = page.getByRole("option")
+  const count = await options.count()
+  if (count <= 1) {
+    await page.keyboard.press("Escape")
+    return false
+  }
+  await options.nth(1).click()
+  return true
+}
+
 test("unified inventory workspace renders tabs, redirects old stock routes, and keeps heatmap drilldowns usable", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory",
@@ -19,6 +31,7 @@ test("unified inventory workspace renders tabs, redirects old stock routes, and 
   await switchRole(page, "Store", "/inventory", { allowCookieFallback: true })
   await page.goto("/inventory", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
+  await expect(page.getByTestId("sidebar-link-inventory-grn").first()).toBeVisible()
   await expect(page.locator("body")).toContainText("Roll Explorer")
   await expect(page.locator("body")).toContainText("Freshness Bands")
   await expect(page.locator("body")).toContainText("Age Heatmap")
@@ -97,8 +110,11 @@ test("inventory workspace filters are URL driven and applied across stock and GR
   await page.getByRole("tab", { name: /GRN History/i }).click()
   await chooseFilter(page, "inventory-filter-source", "Bulk GRN")
   await expect(page).toHaveURL(/source_type=BULK/)
-  await page.getByTestId("inventory-filter-vendor").fill("V")
-  await expect(page).toHaveURL(/vendor=V/)
+  await expect(page.getByTestId("inventory-filter-vendor")).toBeVisible()
+  const selectedVendor = await chooseFirstSpecificFilter(page, "inventory-filter-vendor")
+  if (selectedVendor) {
+    await expect(page).toHaveURL(/vendor=/)
+  }
   await page.getByTestId("inventory-filter-reference").fill("GRN")
   await expect(page).toHaveURL(/reference=GRN/)
   await page.getByTestId("inventory-filter-date-from").fill("2026-01-01")

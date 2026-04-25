@@ -44,7 +44,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
 import { factoryService } from "@/services/factory"
-import { inventoryService, type GrnHistoryRow, type InventoryBulk, type PackagingStockRow, type PackagingTransactionRow } from "@/services/inventory"
+import { inventoryService, type GrnHistoryRow, type InventoryBulk, type PackagingStockRow, type PackagingTransactionRow, type Vendor } from "@/services/inventory"
 import { masterDataService } from "@/services/master-data"
 import { getRollsByVariant, type RollExplorerRow } from "@/services/rolls"
 import { cn } from "@/lib/utils"
@@ -536,6 +536,12 @@ export function InventoryWorkspaceShell() {
   const { data: plants = [] } = useQuery({ queryKey: ["inventory-workspace-plants"], queryFn: factoryService.getPlants })
   const { data: allLocations = [] } = useQuery({ queryKey: ["inventory-workspace-locations"], queryFn: factoryService.getLocations })
   const { data: packagingMaterials = [] } = useQuery({ queryKey: ["inventory-workspace-packaging-master"], queryFn: masterDataService.getPackaging })
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["inventory-workspace-vendors"],
+    queryFn: inventoryService.getVendors,
+    enabled: tab === "grn",
+    staleTime: 60000,
+  })
 
   const rollsQuery = useQuery({
     queryKey: ["inventory-workspace-rolls", plant, status, material, location],
@@ -721,8 +727,16 @@ export function InventoryWorkspaceShell() {
       packagingKind: optionsFromValues(allPackagingRows.map((row) => upper(row.packaging_kind || "OTHER")), "All Kind"),
       packagingSupplyMode: optionsFromValues((packagingMaterials as any[]).map((row) => upper(row.packaging_supply_mode || "PURCHASED")), "All Supply"),
       grnMaterial: optionsFromPairs(allGrnRows.map((row) => [row.material, `${row.material_code || row.label_id || "MAT"} - ${row.material_name || row.label_id || "Material"}`]), "All Material"),
+      grnVendor: optionsFromPairs([
+        ...((vendors as Vendor[]).map((row) => [row.code || row.name, row.code ? `${row.code} - ${row.name}` : row.name] as [unknown, unknown])),
+        ...allGrnRows.map((row) => [
+          row.vendor_code || row.vendor_name || row.vendor,
+          [row.vendor_code, row.vendor_name].filter(Boolean).join(" - ") || row.vendor_name || row.vendor_code || row.vendor || "Vendor",
+        ] as [unknown, unknown]),
+        ...(vendor !== "ALL" ? [[vendor, vendor] as [unknown, unknown]] : []),
+      ], "All Vendor"),
     }
-  }, [allRollRows, allBulkRows, allPackagingRows, allGrnRows, packagingMaterials, rollExactSizeCount, rollExactThicknessCount])
+  }, [allRollRows, allBulkRows, allPackagingRows, allGrnRows, packagingMaterials, rollExactSizeCount, rollExactThicknessCount, vendor, vendors])
 
   return (
     <div className="min-h-screen rounded-[28px] bg-[radial-gradient(900px_420px_at_5%_-10%,#eef4ff_0%,transparent_60%),radial-gradient(820px_380px_at_94%_-12%,#ecfdf5_0%,transparent_58%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-5 text-slate-950 md:px-6">
@@ -921,6 +935,7 @@ export function InventoryFilterBar({
     packagingKind: FilterOption[]
     packagingSupplyMode: FilterOption[]
     grnMaterial: FilterOption[]
+    grnVendor: FilterOption[]
   }
   onChange: (updates: Record<string, string | null>) => void
 }) {
@@ -1047,6 +1062,7 @@ export function InventoryFilterBar({
   const currentFilterBadges = useMemo(() => {
     const materialOptions = tab === "bulk" ? filterOptions.bulkMaterial : tab === "packaging" ? filterOptions.packagingSku : tab === "grn" ? filterOptions.grnMaterial : filterOptions.rollVariant
     const categoryOptions = tab === "bulk" ? filterOptions.bulkCategory : tab === "packaging" ? filterOptions.packagingKind : []
+    const vendorOptions = filterOptions.grnVendor
     const labelFor = (key: string, value: string) => {
       if (key === "q") return `Search: ${value}`
       if (key === "plant") return `Plant: ${plants.find((row) => String(row.id) === value)?.name || value}`
@@ -1069,6 +1085,7 @@ export function InventoryFilterBar({
       if (key === "supply_mode") return `Supply: ${optionLabel(filterOptions.packagingSupplyMode, value)}`
       if (key === "transaction_type") return `Movement: ${optionLabel(PACKAGING_TRANSACTION_OPTIONS, value)}`
       if (key === "stock_range") return `Stock: ${optionLabel(PACKAGING_STOCK_RANGE_OPTIONS, value)}`
+      if (key === "vendor") return `Vendor: ${optionLabel(vendorOptions, value)}`
       if (key === "age") return `Age: ${optionLabel(AGE_FILTER_OPTIONS, value)}`
       if (key === "date_from") return `From: ${value}`
       if (key === "date_to") return `To: ${value}`
@@ -1169,7 +1186,7 @@ export function InventoryFilterBar({
           {tab === "grn" ? (
             <>
               <FilterSelect value={material} onChange={(value) => onChange({ material: value })} options={filterOptions.grnMaterial} label="Material" testId="inventory-filter-grn-material" widthClassName="w-[240px]" />
-              <FilterTextInput value={vendor} onChange={(value) => onChange({ vendor: value })} label="Vendor" testId="inventory-filter-vendor" />
+              <FilterSelect value={vendor} onChange={(value) => onChange({ vendor: value })} options={filterOptions.grnVendor} label="Vendor" testId="inventory-filter-vendor" widthClassName="w-[190px]" />
               <FilterTextInput value={reference} onChange={(value) => onChange({ reference: value })} label="Reference" testId="inventory-filter-reference" />
               <FilterDateInput value={dateFrom} onChange={(value) => onChange({ date_from: value })} label="From" testId="inventory-filter-date-from" />
               <FilterDateInput value={dateTo} onChange={(value) => onChange({ date_to: value })} label="To" testId="inventory-filter-date-to" />
