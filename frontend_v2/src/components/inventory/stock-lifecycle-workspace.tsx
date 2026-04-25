@@ -144,8 +144,8 @@ export function StockLifecycleWorkspace() {
   }
 
   return (
-    <div data-testid="stock-lifecycle-workspace" className="mx-auto max-w-[1520px] space-y-5 pb-10">
-      <div className="flex items-center justify-between gap-3">
+    <div data-testid="stock-lifecycle-workspace" className="mx-auto w-full max-w-[1520px] min-w-0 space-y-5 pb-10">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-800 text-sm font-black text-white">T</div>
           <div>
@@ -162,7 +162,7 @@ export function StockLifecycleWorkspace() {
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[260px_1fr]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="space-y-3">
           <Card className="rounded-[18px] border-slate-200 bg-white p-3 shadow-sm">
             <div className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Stock Lifecycle</div>
@@ -234,7 +234,7 @@ function Hero({
   metrics: Array<{ label: string; value: string; sub: string }>
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[24px] bg-[radial-gradient(800px_400px_at_85%_0%,rgba(59,130,246,0.35),transparent_60%),radial-gradient(600px_300px_at_10%_100%,rgba(139,92,246,0.35),transparent_65%),linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#312e81_100%)] p-6 text-white shadow-[0_28px_90px_-46px_rgba(15,23,42,0.65)]">
+    <section className="relative min-w-0 overflow-hidden rounded-[24px] bg-[radial-gradient(800px_400px_at_85%_0%,rgba(59,130,246,0.35),transparent_60%),radial-gradient(600px_300px_at_10%_100%,rgba(139,92,246,0.35),transparent_65%),linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#312e81_100%)] p-6 text-white shadow-[0_28px_90px_-46px_rgba(15,23,42,0.65)]">
       <div className="pointer-events-none absolute inset-0 opacity-60 [background:linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)_0_0/42px_100%,linear-gradient(0deg,rgba(255,255,255,0.06)_1px,transparent_1px)_0_0/100%_42px]" />
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
@@ -244,7 +244,7 @@ function Hero({
         </div>
         <div className="flex flex-wrap items-center gap-2">{actions}</div>
       </div>
-      <div className="relative mt-5 grid gap-3 md:grid-cols-5">
+      <div className="relative mt-5 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (
           <div key={metric.label} className="rounded-[14px] border border-white/15 bg-white/[0.08] p-4 backdrop-blur">
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">{metric.label}</div>
@@ -261,8 +261,8 @@ function Stepper({ status, hasPreview }: { status?: string; hasPreview?: boolean
   const steps = ["Sheet", "Enter", "Validate", "Preview", "Approve", "Post"]
   const current = status === "POSTED" ? 6 : status === "APPROVED" ? 5 : status === "SUBMITTED" ? 4 : hasPreview ? 4 : 2
   return (
-    <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
-      <CardContent className="flex flex-wrap items-center gap-2 p-4">
+    <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+      <CardContent className="flex min-w-0 flex-wrap items-center gap-2 p-4">
         {steps.map((step, index) => {
           const number = index + 1
           const done = number < current || status === "POSTED"
@@ -553,8 +553,8 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
 
       <Stepper status={currentBatch?.status} hasPreview={Boolean(preview)} />
 
-      <div className="grid gap-5 2xl:grid-cols-[380px_1fr]">
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+      <div className="grid min-w-0 gap-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-black">
               <PackageCheck className="h-5 w-5 text-blue-700" />
@@ -612,23 +612,23 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader>
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <CardTitle className="flex items-center gap-2 text-lg font-black">
                 <FileSpreadsheet className="h-5 w-5 text-emerald-700" />
                 Sheet Lines
               </CardTitle>
-              <Tabs value={stockClass} onValueChange={(value) => setStockClass(value as StockClass)}>
-                <TabsList className="grid w-full grid-cols-3 rounded-xl bg-slate-100 xl:w-[360px]">
+              <Tabs className="w-full min-w-0 xl:w-auto" value={stockClass} onValueChange={(value) => setStockClass(value as StockClass)}>
+                <TabsList className="grid w-full grid-cols-3 rounded-xl bg-slate-100 sm:w-[360px]">
                   {CLASS_OPTIONS.map((option) => <TabsTrigger key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
                 </TabsList>
               </Tabs>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 lg:grid-cols-4">
-              <Field label="Material" className="lg:col-span-2">
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Field label="Material" className="sm:col-span-2">
                 <Select value={line.material || "__none__"} onValueChange={(value) => setLine((prev) => ({ ...prev, material: value === "__none__" ? "" : value }))}>
                   <SelectTrigger><SelectValue placeholder="Select material" /></SelectTrigger>
                   <SelectContent>
@@ -686,32 +686,32 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
               ) : null}
             </div>
 
-            <div className="flex flex-col gap-3 rounded-[16px] border border-slate-200 bg-slate-50 p-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="text-sm font-semibold text-slate-600">Import the exact template, paste a focused line, or load live system stock for count and correction.</div>
-              <div className="flex flex-wrap gap-2">
-                <Input className="max-w-[220px] bg-white" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
+            <div className="flex min-w-0 flex-col gap-3 rounded-[16px] border border-slate-200 bg-slate-50 p-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0 text-sm font-semibold text-slate-600">Import the exact template, paste a focused line, or load live system stock for count and correction.</div>
+              <div className="grid w-full min-w-0 gap-2 sm:grid-cols-2 xl:flex xl:w-auto xl:flex-wrap xl:justify-end">
+                <Input className="min-w-0 bg-white sm:col-span-2 xl:w-[220px]" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
                 {mode !== "OPENING_STOCK" ? (
-                  <Button variant="outline" disabled={!canEdit || !currentBatch || preloadLiveStock.isPending} onClick={() => currentBatch && preloadLiveStock.mutate(currentBatch.id)}>
+                  <Button className="min-w-0" variant="outline" disabled={!canEdit || !currentBatch || preloadLiveStock.isPending} onClick={() => currentBatch && preloadLiveStock.mutate(currentBatch.id)}>
                     <Scale className="mr-2 h-4 w-4" />
                     Load live stock
                   </Button>
                 ) : null}
-                <Button variant="outline" onClick={openSample}><Upload className="mr-2 h-4 w-4" />Template</Button>
-                <Button disabled={!canEdit || !currentBatch || !line.material || !line.location} onClick={addManualLine}><Plus className="mr-2 h-4 w-4" />Add line</Button>
+                <Button className="min-w-0" variant="outline" onClick={openSample}><Upload className="mr-2 h-4 w-4" />Template</Button>
+                <Button className="min-w-0" disabled={!canEdit || !currentBatch || !line.material || !line.location} onClick={addManualLine}><Plus className="mr-2 h-4 w-4" />Add line</Button>
               </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input className="pl-9" value={lineSearch} onChange={(event) => setLineSearch(event.target.value)} placeholder="Search material, location, label, validation..." />
+                <Input className="w-full pl-9 xl:w-[360px]" value={lineSearch} onChange={(event) => setLineSearch(event.target.value)} placeholder="Search material, location, label, validation..." />
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" disabled={!currentBatch || validateBatch.isPending} onClick={() => currentBatch && validateBatch.mutate(currentBatch.id)}><RefreshCw className="mr-2 h-4 w-4" />Validate</Button>
-                <Button variant="outline" disabled={!currentBatch || previewBatch.isPending} onClick={() => currentBatch && previewBatch.mutate(currentBatch.id)}><History className="mr-2 h-4 w-4" />Preview</Button>
-                <Button disabled={!currentBatch || currentBatch.status !== "DRAFT"} onClick={() => currentBatch && transitionBatch.mutate({ action: "submit", batchId: currentBatch.id })}>{copy.submit}</Button>
-                <Button disabled={!currentBatch || currentBatch.status !== "SUBMITTED"} onClick={() => currentBatch && transitionBatch.mutate({ action: "approve", batchId: currentBatch.id })}>Approve</Button>
-                <Button className="bg-emerald-700 hover:bg-emerald-800" disabled={!currentBatch || currentBatch.status !== "APPROVED"} onClick={() => currentBatch && transitionBatch.mutate({ action: "post", batchId: currentBatch.id })}><CheckCircle2 className="mr-2 h-4 w-4" />{copy.post}</Button>
+              <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:w-auto xl:justify-end">
+                <Button className="min-w-0" variant="outline" disabled={!currentBatch || validateBatch.isPending} onClick={() => currentBatch && validateBatch.mutate(currentBatch.id)}><RefreshCw className="mr-2 h-4 w-4" />Validate</Button>
+                <Button className="min-w-0" variant="outline" disabled={!currentBatch || previewBatch.isPending} onClick={() => currentBatch && previewBatch.mutate(currentBatch.id)}><History className="mr-2 h-4 w-4" />Preview</Button>
+                <Button className="min-w-0" disabled={!currentBatch || currentBatch.status !== "DRAFT"} onClick={() => currentBatch && transitionBatch.mutate({ action: "submit", batchId: currentBatch.id })}>{copy.submit}</Button>
+                <Button className="min-w-0" disabled={!currentBatch || currentBatch.status !== "SUBMITTED"} onClick={() => currentBatch && transitionBatch.mutate({ action: "approve", batchId: currentBatch.id })}>Approve</Button>
+                <Button className="col-span-2 min-w-0 bg-emerald-700 hover:bg-emerald-800 sm:col-span-1" disabled={!currentBatch || currentBatch.status !== "APPROVED"} onClick={() => currentBatch && transitionBatch.mutate({ action: "post", batchId: currentBatch.id })}><CheckCircle2 className="mr-2 h-4 w-4" />{copy.post}</Button>
               </div>
             </div>
 
@@ -727,7 +727,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
 
 function Field({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={`grid gap-1.5 ${className}`}>
+    <div className={`grid min-w-0 gap-1.5 ${className}`}>
       <Label className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</Label>
       {children}
     </div>
@@ -777,8 +777,8 @@ function PreviewPanel({ preview }: { preview: any }) {
 
 function LineTable({ lines, empty, mode }: { lines: InventoryAuditLine[]; empty: string; mode: AuditMode }) {
   return (
-    <div className="overflow-x-auto rounded-[16px] border border-slate-200">
-      <table className="min-w-[980px] w-full text-left text-sm">
+    <div className="max-w-full overflow-x-auto rounded-[16px] border border-slate-200">
+      <table className="w-full min-w-[900px] text-left text-sm">
         <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
           <tr>
             <th className="px-4 py-3">Class</th>
@@ -901,8 +901,8 @@ function YearClosePanel() {
         ]}
       />
 
-      <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
-        <CardContent className="grid gap-3 p-4 lg:grid-cols-[220px_260px_1fr_auto_auto] lg:items-end">
+      <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <CardContent className="grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-[180px_240px_minmax(0,1fr)_auto_auto] xl:items-end">
           <Field label="Financial year"><Input value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} /></Field>
           <Field label="Plant">
             <Select value={selectedPlant || "__none__"} onValueChange={(value) => setSelectedPlant(value === "__none__" ? "" : value)}>
@@ -921,11 +921,11 @@ function YearClosePanel() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_420px]">
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-lg font-black">Closing Stock Snapshot</CardTitle></CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="min-w-[860px] w-full text-sm">
+          <CardContent className="max-w-full overflow-x-auto">
+            <table className="w-full min-w-[780px] text-sm">
               <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Class</th><th>Material</th><th>Location</th><th className="text-right">Qty</th><th>UOM</th></tr></thead>
               <tbody>
                 {(preview?.rows || []).slice(0, 180).map((row: any, index: number) => (
@@ -935,7 +935,7 @@ function YearClosePanel() {
             </table>
           </CardContent>
         </Card>
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-lg font-black">Close Checklist</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {checks.map((check) => <CheckRow key={check.code} ok={check.ok} label={check.label} />)}
@@ -1004,8 +1004,8 @@ function LifecycleHelpPanel() {
         ]}
       />
 
-      <section className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-        <Card className="overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+        <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-black">
               <BookOpenCheck className="h-5 w-5 text-blue-700" />
@@ -1027,7 +1027,7 @@ function LifecycleHelpPanel() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-black">
               <Scale className="h-5 w-5 text-emerald-700" />
@@ -1046,8 +1046,8 @@ function LifecycleHelpPanel() {
         </Card>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-lg font-black">Audit guardrails</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {auditRules.map((rule) => (
@@ -1059,7 +1059,7 @@ function LifecycleHelpPanel() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-lg font-black">What users do every day</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
             {[
@@ -1122,8 +1122,8 @@ function StockCardPanel() {
         ]}
       />
 
-      <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
-        <CardContent className="grid gap-3 p-4 lg:grid-cols-6">
+      <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <CardContent className="grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <Input data-testid="stock-card-financial-year" value={filters.financial_year || currentFy()} onChange={(event) => setFilters((prev) => ({ ...prev, financial_year: event.target.value }))} placeholder="FY 2026-2027" />
           <Select value={filters.material || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, material: value }))}>
             <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
@@ -1153,10 +1153,10 @@ function StockCardPanel() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+      <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-black"><Layers3 className="h-5 w-5 text-blue-700" />Running Balance {isFetching ? "refreshing..." : ""}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="min-w-[1080px] w-full text-sm">
+        <CardContent className="max-w-full overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Date</th><th>Source</th><th>Reference</th><th>Material</th><th>Location</th><th className="text-right">In</th><th className="text-right">Out</th><th className="text-right">Balance</th><th className="text-right">WAC</th><th className="text-right">Value</th></tr></thead>
             <tbody>
               {rows.map((row, index) => (
