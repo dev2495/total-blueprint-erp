@@ -16,7 +16,12 @@ class RollAllocationService:
         import logging
         logger = logging.getLogger(__name__)
         
-        logger.warning(f"[DEBUG RollAllocationService] Job {job.id} - get_eligible_rolls called with include_non_lineage_fallback={include_non_lineage_fallback}, include_remainder={include_remainder}")
+        logger.debug(
+            "RollAllocationService job=%s include_non_lineage_fallback=%s include_remainder=%s",
+            job.id,
+            include_non_lineage_fallback,
+            include_remainder,
+        )
         process = getattr(job, 'current_process', None) or getattr(job, 'process', None)
         from apps.production.services.services_execution import ExecutionService
         is_v2 = ExecutionService._is_v2(job)
@@ -134,7 +139,7 @@ class RollAllocationService:
         # Primary pool: lineage-matched rolls.
         collect_compatible_ids(lineage_qs, allow_input_stock_fallback=False)
         
-        logger.warning(f"[DEBUG RollAllocationService] Job {job.id} - After lineage filter, eligible_ids count: {len(eligible_ids)}")
+        logger.debug("RollAllocationService job=%s lineage eligible count=%s", job.id, len(eligible_ids))
 
         if include_non_lineage_fallback:
             required_rolls = 0
@@ -152,7 +157,7 @@ class RollAllocationService:
                     fallback_qs = qs_all
                 collect_compatible_ids(fallback_qs, allow_input_stock_fallback=True)
         
-        logger.warning(f"[DEBUG RollAllocationService] Job {job.id} - After fallback, eligible_ids count: {len(eligible_ids)}")
+        logger.debug("RollAllocationService job=%s fallback eligible count=%s", job.id, len(eligible_ids))
 
         if not eligible_ids:
             return InventoryRoll.objects.none()

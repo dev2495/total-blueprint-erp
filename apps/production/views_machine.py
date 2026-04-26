@@ -340,6 +340,17 @@ def machine_log_output(request, machine_id, job_id):
         }
         job = OperatorService.log_output_step(job_id, float(actual_qty), request.user, **payload)
         return Response(ProductionJobSerializer(job).data)
+    except ValueError as exc:
+        logger.warning(
+            "Machine log-output validation failed machine_id=%s job_id=%s reason=%s",
+            machine_id,
+            job_id,
+            str(exc),
+        )
+        return Response(
+            {"error": {"code": "MACHINE_LOG_OUTPUT_VALIDATION_FAILED", "message": str(exc)}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     except Exception:
         logger.exception("Machine log-output failed machine_id=%s job_id=%s", machine_id, job_id)
         return Response(
