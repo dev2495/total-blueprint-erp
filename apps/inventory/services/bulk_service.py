@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Sum
@@ -83,7 +85,10 @@ class BulkService:
         qs = InventoryBulk.objects.select_for_update().filter(material_id=material_id, location_id=location_id)
         if quality_code:
             qs = qs.filter(granule_code=quality_code)
-        qs = qs.filter(qty_kg__gt=0).order_by("granule_code__code", "updated_at", "id")
+        # Keep the row lock on InventoryBulk only. Ordering through the nullable
+        # granule_code relation produces an outer join that PostgreSQL cannot
+        # lock with SELECT FOR UPDATE.
+        qs = qs.filter(qty_kg__gt=0).order_by("granule_code_id", "updated_at", "id")
         available = qs.aggregate(total=Sum("qty_kg")).get("total") or Decimal("0")
         if available <= 0:
             raise ValidationError(f"No stock found for material {material_id} at location {location_id}.")

@@ -496,6 +496,23 @@ export interface MachineHistoryResponse {
     }>;
 }
 
+export interface MachineJobEvent {
+    id: string;
+    type: 'OUTPUT' | 'SCRAP' | 'DOWNTIME_START' | 'DOWNTIME_END' | 'CONSUMPTION' | 'QUALITY' | string;
+    ts?: string | null;
+    quantity?: number;
+    uom?: string;
+    label?: string;
+    reason?: string;
+    material?: string;
+    granule_code?: string | null;
+    parameter?: string;
+    value?: string;
+    in_spec?: boolean;
+    duration_min?: number;
+    user?: string | null;
+}
+
 export const machineService = {
     _normalizeList<T = any>(payload: any): T[] {
         if (Array.isArray(payload)) return payload as T[];
@@ -609,6 +626,64 @@ export const machineService = {
     ): Promise<ProductionJob> => {
         const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-scrap/`, payload);
         return (data?.data || data) as ProductionJob;
+    },
+
+    logDowntime: async (
+        machineId: string,
+        jobId: string,
+        payload: {
+            reason: string;
+            start_time?: string;
+            end_time?: string;
+            notes?: string;
+            auto_stop?: boolean;
+        }
+    ): Promise<ProductionJob> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-downtime/`, payload);
+        return (data?.data || data) as ProductionJob;
+    },
+
+    logConsumption: async (
+        machineId: string,
+        jobId: string,
+        payload: {
+            material_id?: string;
+            granule_code_id?: string;
+            roll_id?: string;
+            quantity: number;
+            uom?: string;
+            is_estimated?: boolean;
+            notes?: string;
+        }
+    ): Promise<any> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-consumption/`, payload);
+        return data?.data || data;
+    },
+
+    logQuality: async (
+        machineId: string,
+        jobId: string,
+        payload: {
+            readings: Array<{
+                code: string;
+                value_numeric?: number | null;
+                value_text?: string;
+                spec_min?: number | null;
+                spec_max?: number | null;
+                in_spec?: boolean;
+            }>;
+        }
+    ): Promise<{ created: string[] }> => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-quality/`, payload);
+        return (data?.data || data) as { created: string[] };
+    },
+
+    getJobEvents: async (machineId: string, jobId: string, limit = 20): Promise<MachineJobEvent[]> => {
+        const { data } = await api.get(`/api/production/machine/${machineId}/jobs/${jobId}/events/`, {
+            params: { limit },
+        });
+        const payload = data?.data || data;
+        return machineService._normalizeList<MachineJobEvent>(payload?.events ? { results: payload.events } : payload);
     },
 
     // Get operator's assigned machines (for machine selector)

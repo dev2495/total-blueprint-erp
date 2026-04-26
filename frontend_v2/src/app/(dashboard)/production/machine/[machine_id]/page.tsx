@@ -4,39 +4,38 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+    Activity,
     AlertCircle,
-    BarChart3,
+    ArrowLeft,
     CheckCircle2,
     History,
     Pause,
     Play,
     Plus,
     RefreshCw,
-    Settings2,
-    Trash2,
-    Truck,
-    Server,
-    Layers,
-    ChevronRight,
-    Package,
-    Activity,
+    Save,
     Search,
+    Trash2,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { SemanticBadge } from '@/components/ui-custom/semantic-badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { normalizeProductSpec } from '@/lib/product-spec';
 import { toast } from '@/hooks/use-toast';
 import { inventoryService } from '@/services/inventory';
-import { machineService } from '@/services/machine';
+import { masterDataService, type GranuleQualityCode, type Material } from '@/services/master-data';
+import { machineService, type MachineJobEvent } from '@/services/machine';
+
+type QueueFilter = 'ALL' | 'RUNNING' | 'READY' | 'PAUSED';
+type TerminalTab = 'run' | 'history';
+type SublogKind = 'scrap' | 'downtime' | 'consumption' | 'quality' | null;
+type EntryMode = 'KG' | 'PCS';
 
 type SplitRow = {
     id: number;
@@ -63,8 +62,24 @@ type MaterialConfirmationDraft = {
     granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: string }>;
 };
 
+type QualityDraft = {
+    code: string;
+    label: string;
+    value: string;
+    spec_min?: number;
+    spec_max?: number;
+    textMode?: boolean;
+    in_spec: boolean;
+};
+
 const POLL_MS = 8000;
+const EVENTS_POLL_MS = 5000;
 const DEFAULT_REMAINDER = '__DEFAULT__';
+const SELECT_NONE = '__NONE__';
+
+const surfaceClass = 'rounded-[18px] border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.12)]';
+const labelClass = 'text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500';
+const inputClass = 'h-10 rounded-lg border-slate-200 bg-white text-sm font-semibold text-slate-900 focus-visible:ring-blue-500/20';
 
 function toNumber(value: unknown, fallback = 0): number {
     const num = Number(value);
@@ -76,88 +91,150 @@ function toNullableNumber(value: unknown): number | null {
     return Number.isFinite(num) ? num : null;
 }
 
-function resolveCreateNewDefaultWidth(context?: any): number | null {
-    if (!context || typeof context !== 'object') return null;
-
-    const specs = Array.isArray(context?.target_roll_invariant_list) ? context.target_roll_invariant_list : [];
-    const orderedSpecs = [...specs].sort((a: any, b: any) => {
-        const aIdx = Number(a?.layer_index ?? 9999);
-        const bIdx = Number(b?.layer_index ?? 9999);
-        if (Number.isFinite(aIdx) && Number.isFinite(bIdx)) return aIdx - bIdx;
-        return 0;
-    });
-
-    for (const spec of orderedSpecs) {
-        const width = toNullableNumber(spec?.min_width_mm);
-        if (width !== null && width > 0) return width;
-    }
-
-    const fallback = toNullableNumber(context?.target_roll_invariants?.min_width_mm);
-    if (fallback !== null && fallback > 0) return fallback;
-
-    return null;
-}
-
-function behaviorLabel(raw?: string | null): string {
-    const behavior = String(raw || 'NONE').toUpperCase();
-    if (behavior === 'MULTI_INPUT_COMBINE') return 'MULTI_INPUT';
-    return behavior;
-}
-
-function formatMm(value: unknown): string {
-    const num = toNullableNumber(value);
-    if (num === null) return '—';
-    return `${toNumber(num, 0).toFixed(0)} mm`;
-}
-
-function formatMicron(value: unknown): string {
-    const num = toNullableNumber(value);
-    if (num === null) return '—';
-    return `${toNumber(num, 0).toFixed(1)} μm`;
-}
-
-function stateTone(state?: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-    const normalized = String(state || '').toUpperCase();
-    if (normalized === 'EXECUTING') return 'default';
-    if (normalized === 'PAUSED') return 'secondary';
-    if (normalized === 'COMPLETED') return 'outline';
-    return 'outline';
-}
-
 function firstNonEmpty(...values: unknown[]) {
     for (const value of values) {
         const text = String(value ?? '').trim();
-        if (text && text !== '—' && text.toLowerCase() !== 'null' && text.toLowerCase() !== 'undefined') return text;
+        if (text && text !== '-' && text !== '—' && text.toLowerCase() !== 'null' && text.toLowerCase() !== 'undefined') return text;
     }
     return '';
 }
 
-function productNameFromJob(job: any, context?: any) {
-    return normalizeProductSpec(job, context).productName;
+function kg(value: unknown, digits = 3) {
+    return `${toNumber(value, 0).toFixed(digits)} kg`;
 }
 
-function geometryFromJob(job: any, context?: any) {
-    const spec = normalizeProductSpec(job, context);
-    return {
-        width: spec.size.widthMm != null ? String(spec.size.widthMm) : '',
-        height: spec.size.heightMm != null ? String(spec.size.heightMm) : '',
-        gusset: spec.size.gussetMm != null ? String(spec.size.gussetMm) : '',
-        label: spec.size.label,
-    };
+function formatShortDateTime(value?: string | null) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function podLabelFromJob(job: any, context?: any) {
-    const spec = normalizeProductSpec(job, context);
-    return spec.podLabels.length ? spec.podLabels.join(', ') : 'No POD';
+function formatTime(value?: string | null) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-function addonsLabelFromJob(job: any, context?: any) {
-    const spec = normalizeProductSpec(job, context);
-    return spec.addonLabels.length ? spec.addonLabels.slice(0, 4).join(', ') + (spec.addonLabels.length > 4 ? ` +${spec.addonLabels.length - 4}` : '') : 'No add-ons';
+function toDateTimeLocal(date = new Date()) {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function layerHighlightsFromJob(job: any, context?: any) {
-    return normalizeProductSpec(job, context).layers.slice(0, 4).map((layer) => layer.label);
+function behaviorLabel(raw?: string | null) {
+    const value = String(raw || 'NONE').toUpperCase();
+    if (value === 'MULTI_INPUT_COMBINE') return 'MULTI INPUT';
+    if (value === 'MODIFY_EXISTING') return 'MODIFY';
+    return value;
+}
+
+function behaviorVariant(behavior: string, inputForm: string, outputForm: string) {
+    if (inputForm === 'ROLL' && outputForm === 'BULK') return 'pouching';
+    if (behavior === 'CREATE_NEW') return 'extrusion';
+    if (behavior === 'MODIFY_EXISTING') return 'printing';
+    if (behavior === 'MULTI_INPUT_COMBINE') return 'lamination';
+    if (behavior === 'SPLIT') return 'slitting';
+    return 'standard';
+}
+
+function variantTitle(variant: string, stepName: string, behavior: string) {
+    if (variant === 'pouching') return `${stepName} · ROLL → BULK`;
+    if (variant === 'extrusion') return `${stepName} · CREATE_NEW`;
+    if (variant === 'printing') return `${stepName} · MODIFY_EXISTING`;
+    if (variant === 'lamination') return `${stepName} · MULTI_INPUT_COMBINE`;
+    if (variant === 'slitting') return `${stepName} · SPLIT`;
+    return `${stepName} · ${behavior || 'STANDARD'}`;
+}
+
+function qualityPreset(variant: string): QualityDraft[] {
+    if (variant === 'printing') {
+        return [
+            { code: 'REGISTRATION', label: 'Registration', value: 'PASS', textMode: true, in_spec: true },
+            { code: 'COLOR_MATCH_DE', label: 'Color match ΔE', value: '1.8', spec_min: 0, spec_max: 3, in_spec: true },
+            { code: 'DRYER_TEMP_C', label: 'Dryer temp °C', value: '78', spec_min: 65, spec_max: 90, in_spec: true },
+        ];
+    }
+    if (variant === 'lamination') {
+        return [
+            { code: 'NIP_PRESSURE', label: 'Nip pressure', value: '', spec_min: 0, spec_max: 0, in_spec: true },
+            { code: 'OVEN_TEMP_C', label: 'Oven temp °C', value: '', spec_min: 55, spec_max: 90, in_spec: true },
+            { code: 'WEB_TENSION', label: 'Web tension', value: '', in_spec: true },
+            { code: 'COAT_WEIGHT_GSM', label: 'Coat weight GSM', value: '', in_spec: true },
+        ];
+    }
+    if (variant === 'slitting') {
+        return [
+            { code: 'KNIFE_WEAR', label: 'Knife wear', value: 'OK', textMode: true, in_spec: true },
+            { code: 'EDGE_TRIM_MM', label: 'Edge trim mm', value: '', spec_min: 0, spec_max: 20, in_spec: true },
+            { code: 'WEB_TENSION', label: 'Web tension', value: '', in_spec: true },
+        ];
+    }
+    if (variant === 'pouching') {
+        return [
+            { code: 'SEAL_INTEGRITY', label: 'Seal integrity', value: 'PASS', textMode: true, in_spec: true },
+            { code: 'PRINT_CLARITY', label: 'Print clarity', value: 'PASS', textMode: true, in_spec: true },
+            { code: 'DIMENSIONAL', label: 'Dimensional', value: 'PASS', textMode: true, in_spec: true },
+            { code: 'SEAL_TEMP_C', label: 'Seal temp °C', value: '', spec_min: 120, spec_max: 170, in_spec: true },
+        ];
+    }
+    return [
+        { code: 'MELT_TEMP_C', label: 'Melt temp °C', value: '', spec_min: 215, spec_max: 225, in_spec: true },
+        { code: 'SCREW_RPM', label: 'Screw RPM', value: '', spec_min: 70, spec_max: 90, in_spec: true },
+        { code: 'DIE_PRESSURE_BAR', label: 'Die pressure bar', value: '', spec_min: 130, spec_max: 160, in_spec: true },
+        { code: 'LINE_SPEED_MPM', label: 'Line speed m/min', value: '', spec_min: 20, spec_max: 25, in_spec: true },
+        { code: 'GAUGE_VARIATION_MICRON', label: 'Gauge variation μ', value: '', spec_min: -2, spec_max: 2, in_spec: true },
+    ];
+}
+
+function resolveCreateNewDefaultWidth(context?: any): number | null {
+    const specs = Array.isArray(context?.target_roll_invariant_list) ? context.target_roll_invariant_list : [];
+    for (const spec of [...specs].sort((a: any, b: any) => toNumber(a?.layer_index, 999) - toNumber(b?.layer_index, 999))) {
+        const width = toNullableNumber(spec?.min_width_mm);
+        if (width && width > 0) return width;
+    }
+    const fallback = toNullableNumber(context?.target_roll_invariants?.min_width_mm);
+    return fallback && fallback > 0 ? fallback : null;
+}
+
+function eventTone(type?: string) {
+    const normalized = String(type || '').toUpperCase();
+    if (normalized.includes('SCRAP')) return 'bg-rose-500';
+    if (normalized.includes('DOWN')) return 'bg-slate-500';
+    if (normalized.includes('CONSUMPTION')) return 'bg-violet-600';
+    if (normalized.includes('QUALITY')) return 'bg-cyan-500';
+    if (normalized.includes('ROLL')) return 'bg-blue-500';
+    return 'bg-emerald-500';
+}
+
+function stateBadgeClass(state?: string) {
+    const normalized = String(state || '').toUpperCase();
+    if (normalized === 'EXECUTING') return 'border-blue-200 bg-blue-50 text-blue-800';
+    if (normalized === 'PAUSED') return 'border-amber-200 bg-amber-50 text-amber-800';
+    if (normalized === 'RELEASED' || normalized === 'READY') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+    if (normalized === 'COMPLETED') return 'border-slate-200 bg-slate-50 text-slate-700';
+    return 'border-slate-200 bg-white text-slate-700';
+}
+
+function specChips(spec: any, selectedJob: any, context: any) {
+    const layers = Array.isArray(spec.layers) ? spec.layers : [];
+    const primaryLayer = layers[0] || {};
+    const grade = firstNonEmpty(primaryLayer.grade, primaryLayer.gradeName, selectedJob?.grade_name);
+    const thickness = firstNonEmpty(
+        primaryLayer.thicknessMicron ? `${primaryLayer.thicknessMicron}μ` : '',
+        selectedJob?.thickness_micron ? `${selectedJob.thickness_micron}μ` : ''
+    );
+    const variant = firstNonEmpty(spec.variantName, primaryLayer.variantName, primaryLayer.label, selectedJob?.variant_name);
+    const template = firstNonEmpty(context?.display?.template_name, selectedJob?.template_name);
+    return [
+        { label: spec.fgType || selectedJob?.output_form || 'FG', tone: 'bg-rose-50 text-rose-800 border-rose-200' },
+        { label: spec.size?.label || 'Size not captured', tone: 'bg-sky-50 text-sky-800 border-sky-200' },
+        thickness ? { label: thickness, tone: 'bg-indigo-50 text-indigo-800 border-indigo-200' } : null,
+        variant ? { label: variant, tone: 'bg-violet-50 text-violet-800 border-violet-200' } : null,
+        grade ? { label: grade, tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' } : null,
+        spec.printingLabel ? { label: spec.printingLabel, tone: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200' } : null,
+        template ? { label: template, tone: 'bg-purple-50 text-purple-800 border-purple-200' } : null,
+    ].filter(Boolean) as Array<{ label: string; tone: string }>;
 }
 
 export default function MachineExecutionPage() {
@@ -168,95 +245,84 @@ export default function MachineExecutionPage() {
     const machineIdParam = params?.machine_id;
     const machineId = Array.isArray(machineIdParam) ? machineIdParam[0] : String(machineIdParam || '');
 
+    const [activeTab, setActiveTab] = useState<TerminalTab>('run');
     const [selectedJobId, setSelectedJobId] = useState('');
-    const [outputWeightKg, setOutputWeightKg] = useState('');
-    const [outputPcs, setOutputPcs] = useState('');
-    const [outputEntryMode, setOutputEntryMode] = useState<'KG' | 'PCS'>('KG');
-    const [outputWidthMm, setOutputWidthMm] = useState('');
-    const [outputWidthDirty, setOutputWidthDirty] = useState(false);
-    const [outputWeightDirty, setOutputWeightDirty] = useState(false);
-    const [outputLengthM, setOutputLengthM] = useState('');
-    const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
-    const [scrapKg, setScrapKg] = useState('0');
-    const [scrapPcs, setScrapPcs] = useState('0');
-    const [scrapEntryMode, setScrapEntryMode] = useState<'KG' | 'PCS'>('KG');
-    const scrapInputRef = useRef<HTMLInputElement | null>(null);
-    const [stopReason, setStopReason] = useState('Execution stop');
-    const [remainderLocationId, setRemainderLocationId] = useState(DEFAULT_REMAINDER);
-    const [forceReason, setForceReason] = useState('');
-    const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '' }]);
-    const splitCounterRef = useRef(2);
-    const createRowCounterRef = useRef(1);
-    const initializedJobIdRef = useRef<string | null>(null);
-    const [materialConfirmations, setMaterialConfirmations] = useState<Record<string, MaterialConfirmationDraft>>({});
-    const [activeTab, setActiveTab] = useState<'execution' | 'history'>('execution');
+    const [queueSearch, setQueueSearch] = useState('');
+    const [queueStatusFilter, setQueueStatusFilter] = useState<QueueFilter>('ALL');
     const [historyDateFrom, setHistoryDateFrom] = useState('');
     const [historyDateTo, setHistoryDateTo] = useState('');
     const [historyStatus, setHistoryStatus] = useState<'ALL' | 'NORMAL' | 'FORCED_VARIANCE'>('ALL');
-    const [queueSearch, setQueueSearch] = useState('');
-    const [queueStatusFilter, setQueueStatusFilter] = useState<'ALL' | 'RUNNING' | 'READY' | 'PAUSED'>('ALL');
 
-    const {
-        data: machineDetail,
-        isLoading: machineLoading,
-        error: machineError,
-    } = useQuery({
+    const [outputWeightKg, setOutputWeightKg] = useState('');
+    const [outputPcs, setOutputPcs] = useState('');
+    const [outputEntryMode, setOutputEntryMode] = useState<EntryMode>('KG');
+    const [outputWidthMm, setOutputWidthMm] = useState('');
+    const [outputLengthM, setOutputLengthM] = useState('');
+    const [outputWidthDirty, setOutputWidthDirty] = useState(false);
+    const [outputWeightDirty, setOutputWeightDirty] = useState(false);
+    const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
+    const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '' }]);
+    const [scrapInput, setScrapInput] = useState('0');
+    const [scrapEntryMode, setScrapEntryMode] = useState<EntryMode>('KG');
+    const [scrapReason, setScrapReason] = useState('TRIM');
+    const [remainderLocationId, setRemainderLocationId] = useState(DEFAULT_REMAINDER);
+    const [forceReason, setForceReason] = useState('');
+    const [materialConfirmations, setMaterialConfirmations] = useState<Record<string, MaterialConfirmationDraft>>({});
+
+    const [sublog, setSublog] = useState<SublogKind>(null);
+    const [scrapDialogQty, setScrapDialogQty] = useState('0');
+    const [scrapDialogReason, setScrapDialogReason] = useState('TRIM');
+    const [scrapDialogNotes, setScrapDialogNotes] = useState('');
+    const [downtimeReason, setDowntimeReason] = useState('MATERIAL');
+    const [downtimeStart, setDowntimeStart] = useState(toDateTimeLocal());
+    const [downtimeEnd, setDowntimeEnd] = useState('');
+    const [downtimeAutoStop, setDowntimeAutoStop] = useState(true);
+    const [downtimeNotes, setDowntimeNotes] = useState('');
+    const [consumptionMaterialId, setConsumptionMaterialId] = useState('');
+    const [consumptionGranuleCodeId, setConsumptionGranuleCodeId] = useState(SELECT_NONE);
+    const [consumptionRollId, setConsumptionRollId] = useState(SELECT_NONE);
+    const [consumptionQty, setConsumptionQty] = useState('');
+    const [consumptionEstimated, setConsumptionEstimated] = useState(false);
+    const [qualityRows, setQualityRows] = useState<QualityDraft[]>(qualityPreset('extrusion'));
+
+    const splitCounterRef = useRef(2);
+    const createCounterRef = useRef(1);
+    const initializedJobIdRef = useRef<string | null>(null);
+
+    const { data: machineDetail, isLoading: machineLoading, error: machineError } = useQuery({
         queryKey: ['machine-detail', machineId],
         queryFn: () => machineService.getMachineDetail(machineId),
         enabled: Boolean(machineId),
         refetchInterval: POLL_MS,
     });
 
-    const {
-        data: queueData = [],
-        isLoading: queueLoading,
-        error: queueError,
-    } = useQuery({
+    const { data: queueData = [], isLoading: queueLoading, error: queueError } = useQuery({
         queryKey: ['machine-queue', machineId],
         queryFn: () => machineService.getQueue(machineId),
         enabled: Boolean(machineId),
         refetchInterval: POLL_MS,
     });
 
-    const queueItems = useMemo(() => {
-        if (Array.isArray(queueData)) return queueData;
-        const maybeObject = queueData as any;
-        const nestedCandidates = [
-            maybeObject?.queue,
-            maybeObject?.results,
-            maybeObject?.jobs,
-            maybeObject?.machines,
-            maybeObject?.data,
-        ];
-        for (const candidate of nestedCandidates) {
-            if (Array.isArray(candidate)) return candidate;
-        }
-        return [];
-    }, [queueData]);
-    const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
-    const visibleQueueItems = useMemo(
-        () => safeQueueItems.filter((job: any) => {
+    const queueItems = useMemo(() => (Array.isArray(queueData) ? queueData : []), [queueData]);
+    const visibleQueueItems = useMemo(() => {
+        return queueItems.filter((job: any) => {
             const state = String(job?.job_state || '').toUpperCase();
             if (queueStatusFilter === 'RUNNING' && state !== 'EXECUTING') return false;
-            if (queueStatusFilter === 'READY' && !(state === 'READY' || state === 'QUEUED' || state === 'EXECUTION_READY')) return false;
+            if (queueStatusFilter === 'READY' && !['RELEASED', 'READY', 'QUEUED', 'PLANNED', 'WAITING'].includes(state)) return false;
             if (queueStatusFilter === 'PAUSED' && state !== 'PAUSED') return false;
-
             const search = queueSearch.trim().toLowerCase();
             if (!search) return true;
             const spec = normalizeProductSpec(job);
-            return [spec.searchText, job?.job_number, job?.process_code].join(' ').toLowerCase().includes(search);
-        }),
-        [safeQueueItems, queueSearch, queueStatusFilter]
-    );
-
-    const isActive = machineDetail?.machine?.status === 'ACTIVE';
+            return [spec.searchText, job?.job_number, job?.process_code, job?.template_name].join(' ').toLowerCase().includes(search);
+        });
+    }, [queueItems, queueSearch, queueStatusFilter]);
 
     const selectedJob = useMemo(() => {
-        if (!safeQueueItems.length) return null;
-        const byId = safeQueueItems.find((job) => String(job.id) === String(selectedJobId));
-        if (byId) return byId;
-        return safeQueueItems.find((job) => String(job.job_state).toUpperCase() === 'EXECUTING') || safeQueueItems[0];
-    }, [safeQueueItems, selectedJobId]);
+        if (!queueItems.length) return null;
+        const explicit = queueItems.find((job: any) => String(job.id) === String(selectedJobId));
+        if (explicit) return explicit;
+        return queueItems.find((job: any) => String(job.job_state).toUpperCase() === 'EXECUTING') || queueItems[0];
+    }, [queueItems, selectedJobId]);
 
     const selectedId = String(selectedJob?.id || '');
 
@@ -267,10 +333,14 @@ export default function MachineExecutionPage() {
         refetchInterval: POLL_MS,
     });
 
-    const {
-        data: historyData,
-        isLoading: historyLoading,
-    } = useQuery({
+    const { data: events = [], isLoading: eventsLoading } = useQuery({
+        queryKey: ['machine-job-events', machineId, selectedId],
+        queryFn: () => machineService.getJobEvents(machineId, selectedId, 20),
+        enabled: Boolean(machineId && selectedId),
+        refetchInterval: activeTab === 'run' ? EVENTS_POLL_MS : false,
+    });
+
+    const { data: historyData, isLoading: historyLoading } = useQuery({
         queryKey: ['machine-history', machineId, historyDateFrom, historyDateTo, historyStatus],
         queryFn: () =>
             machineService.getMachineHistory(machineId, {
@@ -279,7 +349,6 @@ export default function MachineExecutionPage() {
                 status: historyStatus,
             }),
         enabled: Boolean(machineId) && activeTab === 'history',
-        refetchInterval: activeTab === 'history' ? POLL_MS : false,
     });
 
     const plantId = String(machineDetail?.machine?.plant_id || '');
@@ -287,494 +356,325 @@ export default function MachineExecutionPage() {
         queryKey: ['machine-plant-locations', plantId],
         queryFn: () => inventoryService.getLocations(plantId),
         enabled: Boolean(plantId),
-        staleTime: 20_000,
+        staleTime: 30_000,
     });
 
-    const remainderLocations = useMemo(
-        () => (plantLocations || []).filter((loc: any) => loc?.is_active && loc?.type !== 'IN_TRANSIT'),
-        [plantLocations]
-    );
+    const { data: materialLibrary = [] } = useQuery({
+        queryKey: ['machine-material-library'],
+        queryFn: async () => {
+            const data = await masterDataService.getLibrary({});
+            return Array.isArray(data) ? data : ((data as any)?.results || []);
+        },
+        staleTime: 60_000,
+    });
+
+    const { data: granuleCodes = [] } = useQuery({
+        queryKey: ['machine-granule-codes'],
+        queryFn: () => masterDataService.getGranuleCodes({ status: 'ACTIVE' }),
+        staleTime: 60_000,
+    });
 
     useEffect(() => {
-        if (!safeQueueItems.length) {
+        if (!queueItems.length) {
             setSelectedJobId('');
             return;
         }
-        if (!selectedJobId || !safeQueueItems.some((job) => String(job.id) === String(selectedJobId))) {
-            const executing = safeQueueItems.find((job) => String(job.job_state).toUpperCase() === 'EXECUTING');
-            setSelectedJobId(String((executing || safeQueueItems[0]).id));
+        if (!selectedJobId || !queueItems.some((job: any) => String(job.id) === String(selectedJobId))) {
+            const executing = queueItems.find((job: any) => String(job.job_state).toUpperCase() === 'EXECUTING');
+            setSelectedJobId(String((executing || queueItems[0]).id));
         }
-    }, [safeQueueItems, selectedJobId]);
+    }, [queueItems, selectedJobId]);
 
-    const behaviorRaw =
+    const behavior = String(
         context?.roll_handling?.behavior ||
         context?.display?.roll_behavior ||
         context?.job?.roll_behavior ||
         selectedJob?.roll_behavior ||
-        'NONE';
-    const behavior = String(behaviorRaw || 'NONE').toUpperCase();
-    const behaviorDisplay = behaviorLabel(behavior);
+        'NONE'
+    ).toUpperCase();
+    const currentInputForm = String(context?.current_step?.input_form || context?.job?.input_form || selectedJob?.input_form || 'BULK').toUpperCase();
+    const currentOutputForm = String(context?.job?.output_form || selectedJob?.output_form || 'ROLL').toUpperCase();
+    const variant = behaviorVariant(behavior, currentInputForm, currentOutputForm);
     const supportsDiscreteOutputRolls = behavior === 'CREATE_NEW' || behavior === 'MULTI_INPUT_COMBINE';
+    const showPcsEntry = currentInputForm === 'ROLL' && currentOutputForm === 'BULK';
+    const stepName = firstNonEmpty(context?.display?.step_name, context?.current_step?.process_name, selectedJob?.process_code, 'Current step');
+    const stepTransform = `${currentInputForm.toLowerCase()} → ${currentOutputForm.toLowerCase()}`;
+    const spec = normalizeProductSpec(selectedJob, context);
+    const chips = specChips(spec, selectedJob, context);
 
-    const progressWeight = context?.progress?.weight_kg || context?.execution_profile?.progress?.weight_kg || {};
-    const progressPcs = context?.progress?.pcs || context?.execution_profile?.progress?.pcs || {};
-    const stepExecution = context?.step_execution || {};
-    const stepPolicy = context?.step_policy || {};
-    const orderProgress = context?.order_progress || {};
-
-    const targetWeightKg = toNullableNumber(progressWeight?.target);
-    const producedWeightKg = toNullableNumber(progressWeight?.produced);
-    const remainingWeightKg = toNullableNumber(progressWeight?.remaining);
-
-    const remainingPcs = toNullableNumber(progressPcs?.remaining);
-
-    const fallbackTarget = toNumber(selectedJob?.quantity, 0);
-    const fallbackProduced = toNumber(context?.job?.produced_qty, 0);
-    const fallbackRemaining = toNumber(context?.job?.remaining_qty ?? selectedJob?.remaining_qty, 0);
-
-    const primaryTarget = targetWeightKg ?? (String(selectedJob?.uom || '').toUpperCase() === 'KG' ? fallbackTarget : null);
-    const primaryProduced = producedWeightKg ?? (String(selectedJob?.uom || '').toUpperCase() === 'KG' ? fallbackProduced : null);
-    const primaryRemaining = remainingWeightKg ?? (String(selectedJob?.uom || '').toUpperCase() === 'KG' ? fallbackRemaining : null);
-
-    const orderWeight = orderProgress?.weight_kg || {};
-    const orderPcs = orderProgress?.pcs || {};
-    const orderTargetKg = toNullableNumber(orderWeight?.target);
-    const orderProducedKg = toNullableNumber(orderWeight?.produced);
-    const orderRemainingKg = toNullableNumber(orderWeight?.remaining);
-    const stepRollTargetKg = toNumber(stepExecution?.roll_target_kg, 0);
-    const stepBulkTargetKg = toNumber(stepExecution?.bulk_target_kg, 0);
-    const stepTotalTargetKg = toNumber(stepExecution?.total_target_kg, primaryTarget || 0);
-    const stepProducedKg = toNumber(stepExecution?.produced_kg, primaryProduced || 0);
-    const stepRemainingKg = toNumber(stepExecution?.remaining_kg, primaryRemaining || 0);
-    const stepRemainingPcs = toNullableNumber(stepExecution?.remaining_pcs ?? remainingPcs);
+    const stepExecution: any = context?.step_execution || {};
+    const progressWeight: any = context?.progress?.weight_kg || context?.execution_profile?.progress?.weight_kg || {};
+    const primaryTarget = toNullableNumber(progressWeight?.target ?? stepExecution?.total_target_kg ?? selectedJob?.quantity);
+    const primaryProduced = toNullableNumber(progressWeight?.produced ?? stepExecution?.produced_kg ?? selectedJob?.produced_qty);
+    const primaryRemaining = toNullableNumber(progressWeight?.remaining ?? stepExecution?.remaining_kg ?? selectedJob?.remaining_qty);
+    const targetKg = primaryTarget ?? 0;
+    const producedKg = primaryProduced ?? 0;
+    const remainingKg = Math.max(0, primaryRemaining ?? Math.max(0, targetKg - producedKg));
+    const progressPct = targetKg > 0 ? Math.min(100, Math.max(0, (producedKg / targetKg) * 100)) : 0;
+    const unitWeightG = toNumber(context?.execution_profile?.unit_weight_g ?? context?.job?.unit_weight_g ?? selectedJob?.unit_weight_g, 0);
     const stepToleranceKg = Math.max(0, toNumber(stepExecution?.tolerance_kg, 0.25));
-    const unitWeightG = toNumber(
-        context?.execution_profile?.unit_weight_g ??
-        context?.job?.unit_weight_g ??
-        (selectedJob as any)?.unit_weight_g,
-        0
+
+    const reservedRolls = useMemo(
+        () =>
+            (context?.inputs?.reserved_rolls || context?.allocated_rolls || []).map((row: any) => ({
+                id: String(row.id),
+                label_id: row.label_id || row.id,
+                material_id: row.material_id || row.variant_id,
+                material_name: row.material_name || row.variant || row.variant_name || 'Material',
+                weight_kg: toNumber(row.weight_kg, 0),
+                width_mm: toNullableNumber(row.width_mm),
+                thickness_micron: toNullableNumber(row.thickness_micron ?? row.thickness),
+                grade: row.grade || row.grade_name || '-',
+                location_name: row.location_name || '-',
+                target_lane_label: row.target_lane_label || null,
+                target_layer_index: row.target_layer_index ?? null,
+                target_variant_name: row.target_variant_name || null,
+                target_grade_name: row.target_grade_name || null,
+                target_thickness_micron: toNullableNumber(row.target_thickness_micron),
+                target_width_mm: toNullableNumber(row.target_width_mm),
+            })),
+        [context]
     );
-
-    const progressPct = useMemo(() => {
-        if (primaryTarget && primaryTarget > 0 && primaryProduced !== null) {
-            return Math.min(100, Math.max(0, (primaryProduced / primaryTarget) * 100));
-        }
-        return 0;
-    }, [primaryTarget, primaryProduced]);
-
-    const reservedRolls =
-        (context?.inputs?.reserved_rolls || context?.allocated_rolls || []).map((row: any) => ({
-            id: String(row.id),
-            label_id: row.label_id || row.id,
-            weight_kg: toNumber(row.weight_kg, 0),
-            thickness_micron: toNullableNumber(row.thickness_micron ?? row.thickness),
-            width_mm: toNullableNumber(row.width_mm ?? row.width),
-            variant: row.variant || row.material_name || '—',
-            grade: row.grade || row.grade_name || '—',
-            location_name: row.location_name || '—',
-            target_lane_key: row.target_lane_key || null,
-            target_lane_label: row.target_lane_label || null,
-            target_layer_index: row.target_layer_index ?? null,
-            target_variant_name: row.target_variant_name || null,
-            target_grade_name: row.target_grade_name || null,
-            target_thickness_micron: toNullableNumber(row.target_thickness_micron),
-            target_width_mm: toNullableNumber(row.target_width_mm),
-        }));
-    const bulkPreview =
-        context?.inputs?.bulk_preview_theoretical ||
-        context?.inputs?.bulk_preview ||
-        context?.satisfaction?.bulk_consumption ||
-        [];
+    const wipPool = (context?.wip_pool || context?.wip_recent_lineage || []).map((row: any) => ({
+        id: String(row.id),
+        label_id: row.label_id,
+        material_name: row.material_name || 'Material',
+        weight_kg: toNumber(row.weight_kg, 0),
+        width_mm: toNullableNumber(row.width_mm),
+        thickness_micron: toNullableNumber(row.thickness_micron),
+        grade: row.grade || '-',
+        location_name: row.location_name || '-',
+        stage: row.stage || '-',
+    }));
+    const rightRailRolls = reservedRolls.length ? reservedRolls : wipPool.slice(0, 5);
     const reconcilableBulkRows = useMemo(
         () =>
-            (bulkPreview || []).filter((row: any) => {
+            (context?.inputs?.bulk_preview_theoretical || context?.inputs?.bulk_preview || context?.satisfaction?.bulk_consumption || []).filter((row: any) => {
                 const mode = String(row?.capture_mode || row?.strategy || '').toUpperCase();
                 return mode !== 'AUTO_FROM_OUTPUT';
             }),
-        [bulkPreview]
+        [context]
     );
-
-    const wipPool = (context?.wip_pool || []).map((row: any) => ({
-        id: String(row.id),
-        label_id: row.label_id,
-        weight_kg: toNumber(row.weight_kg, 0),
-        thickness_micron: toNullableNumber(row.thickness_micron),
-        width_mm: toNullableNumber(row.width_mm),
-        variant: row.material_name || '—',
-        grade: row.grade || '—',
-        location_name: row.location_name || '—',
-        stage: row.stage || '—',
-    }));
     const wipPoolMeta: any = context?.wip_pool_meta || {};
+    const allocationRequired = Boolean(context?.step_policy?.allocation_required);
     const laneGroupMode = Boolean(wipPoolMeta?.lane_group_mode);
     const requiredLaneCount = Math.max(0, toNumber(wipPoolMeta?.input_lane_count, 0));
-    const reservedLaneCount = new Set(
-        reservedRolls
-            .map((row: any) => String(row?.target_lane_key || '').trim())
-            .filter(Boolean)
-    ).size;
-    const laneGroups = Array.isArray(wipPoolMeta?.lane_groups) ? wipPoolMeta.lane_groups : [];
-    const wipRecentLineage = context?.wip_recent_lineage || [];
-    const rollInputRequired = Boolean(wipPoolMeta?.required_for_step);
-    const displayedWip = rollInputRequired ? wipPool : wipRecentLineage;
-    const displayedWipWeightKg = displayedWip.reduce((sum: number, row: any) => sum + toNumber(row?.weight_kg, 0), 0);
-    const totalLineageWeightKg = toNumber(wipPoolMeta?.lineage_total_weight_kg, displayedWipWeightKg);
-
-    const telemetry = context?.telemetry || {};
-    const telemetryHealth = telemetry?.execution_health || {};
-    const telemetryCounters = telemetry?.inventory_counters || telemetry || {};
-    const telemetryLogs = telemetryCounters?.live_logs || telemetry?.live_logs || context?.live_consumption?.last_events || [];
-    const geometryCards = context?.geometry_cards || {};
-    const currentInputForm = String(context?.current_step?.input_form || context?.job?.input_form || selectedJob?.input_form || '').toUpperCase();
-    const currentOutputForm = String(context?.job?.output_form || selectedJob?.output_form || '').toUpperCase();
-    const reservedInputTotalKg = useMemo(
-        () => reservedRolls.reduce((sum: number, row: any) => sum + toNumber(row?.weight_kg, 0), 0),
-        [reservedRolls]
-    );
+    const reservedLaneCount = new Set(reservedRolls.map((row: any) => String(row.target_lane_label || row.target_layer_index || '').trim()).filter(Boolean)).size;
+    const allocationReady =
+        !allocationRequired ||
+        (laneGroupMode ? (requiredLaneCount <= 0 ? reservedRolls.length > 0 : reservedLaneCount >= requiredLaneCount) : reservedRolls.length >= 1);
+    const reservedInputTotalKg = reservedRolls.reduce((sum: number, row: any) => sum + toNumber(row.weight_kg, 0), 0);
     const contextMaxOutputKg = toNullableNumber(stepExecution?.max_output_kg ?? context?.execution_profile?.max_output_kg);
-    const maxOutputWithoutScrapKg = useMemo(() => {
-        const stepCap = Math.max(0, stepRemainingKg);
-        if (currentInputForm !== 'ROLL') {
-            return contextMaxOutputKg !== null ? Math.max(0, contextMaxOutputKg) : stepCap;
+    const maxOutputWithoutScrapKg = currentInputForm === 'ROLL'
+        ? Math.max(0, Math.min(contextMaxOutputKg ?? remainingKg, reservedInputTotalKg || (contextMaxOutputKg ?? remainingKg)))
+        : Math.max(0, contextMaxOutputKg ?? remainingKg);
+    const scrapKgValue = useMemo(() => {
+        const raw = toNumber(scrapInput, 0);
+        if (scrapEntryMode === 'PCS') {
+            return unitWeightG > 0 ? (Math.max(0, raw) * unitWeightG) / 1000 : 0;
         }
-        const inputCap = Math.max(0, reservedInputTotalKg);
-        if (contextMaxOutputKg !== null) {
-            return Math.max(0, Math.min(contextMaxOutputKg, inputCap));
-        }
-        return Math.max(0, Math.min(stepCap, inputCap));
-    }, [stepRemainingKg, currentInputForm, contextMaxOutputKg, reservedInputTotalKg]);
-    const rollToBulkStrict = String(stepPolicy?.roll_to_bulk_validation_mode || '').toUpperCase().includes('KG_AND_PCS_REQUIRED');
-    const showPcsEntry = currentOutputForm === 'BULK' && (currentInputForm === 'ROLL' || rollToBulkStrict);
-    const emphasizeGeometry = currentInputForm === 'ROLL' && currentOutputForm === 'BULK';
-    const allocationRequired = Boolean(stepPolicy?.allocation_required);
-    const executionVersion = toNumber(
-        context?.execution_model_version ?? context?.job?.execution_model_version ?? (selectedJob as any)?.execution_model_version,
-        1
+        return Math.max(0, raw);
+    }, [scrapInput, scrapEntryMode, unitWeightG]);
+    const maxOutputWithScrapKg = currentInputForm === 'ROLL'
+        ? Math.max(0, Math.min(maxOutputWithoutScrapKg, Math.max(0, reservedInputTotalKg - scrapKgValue)))
+        : maxOutputWithoutScrapKg;
+
+    const splitRowsParsed = useMemo(
+        () =>
+            splitRows
+                .map((row) => ({ id: row.id, width_mm: toNumber(row.width_mm, 0), weight_kg: toNumber(row.weight_kg, 0) }))
+                .filter((row) => row.width_mm > 0 && row.weight_kg > 0),
+        [splitRows]
     );
-    const stepTargetSource = String(stepExecution?.target_source || stepPolicy?.step_target_source || (selectedJob as any)?.step_target_source || 'NA');
-    const orderTargetSource = String((selectedJob as any)?.order_target_source || stepPolicy?.order_target_source || 'NA');
-    const baseGeometry = geometryCards?.base_geometry || {};
-    const effectiveGeometry = geometryCards?.effective_geometry || {};
-    const baseWidthMm = toNullableNumber(baseGeometry?.width_mm ?? baseGeometry?.width);
-    const baseHeightMm = toNullableNumber(baseGeometry?.height_mm ?? baseGeometry?.height);
-    const baseAreaM2 = toNullableNumber(baseGeometry?.area_m2 ?? baseGeometry?.area);
-    const effectiveWidthMm = toNullableNumber(effectiveGeometry?.width_mm ?? effectiveGeometry?.width ?? baseWidthMm);
-    const effectiveHeightMm = toNullableNumber(effectiveGeometry?.height_mm ?? effectiveGeometry?.height ?? baseHeightMm);
-    const effectiveAreaM2 = toNullableNumber(effectiveGeometry?.area_m2 ?? effectiveGeometry?.area ?? baseAreaM2);
-    const selectedProductName = productNameFromJob(selectedJob, context);
-    const selectedCustomerName = firstNonEmpty(selectedJob?.customer_name, context?.job?.customer_name, 'Customer not captured');
-    const selectedGeometry = geometryFromJob(selectedJob, context);
-    const selectedPodLabel = podLabelFromJob(selectedJob, context);
-    const selectedAddonsLabel = addonsLabelFromJob(selectedJob, context);
-    const selectedLayerChips = layerHighlightsFromJob(selectedJob, context);
-    const createNewDefaultWidthMm = useMemo(
-        () => (behavior === 'CREATE_NEW' ? resolveCreateNewDefaultWidth(context) : null),
-        [behavior, context]
-    );
-
-    useEffect(() => {
-        const nextJobId = selectedJob?.id ? String(selectedJob.id) : null;
-        if (!nextJobId) {
-            initializedJobIdRef.current = null;
-            return;
-        }
-        if (initializedJobIdRef.current === nextJobId) return;
-        initializedJobIdRef.current = nextJobId;
-
-        setOutputWidthMm('');
-        setOutputWidthDirty(false);
-        setOutputWeightDirty(false);
-        setOutputLengthM('');
-        setScrapKg('0');
-        setScrapPcs('0');
-        setScrapEntryMode('KG');
-        setRemainderLocationId(DEFAULT_REMAINDER);
-        setForceReason('');
-        setOutputPcs('');
-        setOutputEntryMode(showPcsEntry ? 'PCS' : 'KG');
-        setCreateRollRows([]);
-        createRowCounterRef.current = 1;
-        setSplitRows([{ id: 1, width_mm: '', weight_kg: '' }]);
-        splitCounterRef.current = 2;
-
-        const initial = maxOutputWithoutScrapKg > 0
-            ? maxOutputWithoutScrapKg
-            : (primaryRemaining !== null ? Math.max(primaryRemaining, 0) : 0);
-        setOutputWeightKg(initial > 0 ? initial.toFixed(3) : '');
-        if (showPcsEntry) {
-            const pcsInitial = unitWeightG > 0 && initial > 0
-                ? Math.max(1, Math.round((initial * 1000) / unitWeightG))
-                : (stepRemainingPcs !== null ? Math.max(stepRemainingPcs, 0) : 0);
-            setOutputPcs(pcsInitial > 0 ? Math.round(pcsInitial).toString() : '');
-        }
-    }, [selectedJob?.id, primaryRemaining, showPcsEntry, stepRemainingPcs, maxOutputWithoutScrapKg, unitWeightG]);
-
-    useEffect(() => {
-        if (!selectedJob) return;
-        if (behavior !== 'CREATE_NEW') return;
-        if (outputWidthDirty) return;
-        if ((outputWidthMm || '').trim().length > 0) return;
-        if (!createNewDefaultWidthMm || createNewDefaultWidthMm <= 0) return;
-        setOutputWidthMm(String(Math.round(createNewDefaultWidthMm)));
-    }, [selectedJob?.id, behavior, outputWidthDirty, outputWidthMm, createNewDefaultWidthMm]);
-
-    useEffect(() => {
-        if (!showPcsEntry) {
-            if (outputEntryMode !== 'KG') setOutputEntryMode('KG');
-            return;
-        }
-        if (outputEntryMode !== 'PCS') return;
-        if (unitWeightG <= 0) return;
-        const pcs = toNumber(outputPcs, NaN);
-        if (!Number.isFinite(pcs) || pcs <= 0) return;
-        if (outputWeightDirty) return;
-        const derivedKg = (Math.round(pcs) * unitWeightG) / 1000;
-        if (derivedKg > 0) {
-            setOutputWeightKg(derivedKg.toFixed(3));
-        }
-    }, [showPcsEntry, outputEntryMode, outputPcs, unitWeightG, outputWeightDirty]);
-
-    useEffect(() => {
-        if (!showPcsEntry) return;
-        if (outputEntryMode !== 'KG') return;
-        if (unitWeightG <= 0) return;
-        const kg = toNumber(outputWeightKg, NaN);
-        if (!Number.isFinite(kg) || kg <= 0) return;
-        const derivedPcs = Math.max(1, Math.round((kg * 1000) / unitWeightG));
-        setOutputPcs((prev) => (prev === String(derivedPcs) ? prev : String(derivedPcs)));
-    }, [showPcsEntry, outputEntryMode, outputWeightKg, unitWeightG]);
-
-    const splitRowsParsed = useMemo(() => {
-        return splitRows
-            .map((row) => ({
-                id: row.id,
-                width_mm: toNumber(row.width_mm, 0),
-                weight_kg: toNumber(row.weight_kg, 0),
-            }))
-            .filter((row) => row.width_mm > 0 && row.weight_kg > 0);
-    }, [splitRows]);
-
-    const splitTotalKg = useMemo(
-        () => splitRowsParsed.reduce((acc, row) => acc + toNumber(row.weight_kg, 0), 0),
-        [splitRowsParsed]
-    );
-
+    const splitTotalKg = splitRowsParsed.reduce((sum, row) => sum + row.weight_kg, 0);
     const createRollRowsParsed = useMemo(() => {
-        const firstRow = {
-            id: 0,
-            width_mm: toNumber(outputWidthMm, 0),
-            weight_kg: toNumber(outputWeightKg, 0),
-            length_m: toNullableNumber(outputLengthM),
-        };
-        const extraRows = createRollRows
-            .map((row) => ({
-                id: row.id,
-                width_mm: toNumber(row.width_mm, 0),
-                weight_kg: toNumber(row.weight_kg, 0),
-                length_m: toNullableNumber(row.length_m),
-            }))
-            .filter((row) => row.width_mm > 0 && row.weight_kg > 0);
-
-        const rows = [];
-        if (firstRow.width_mm > 0 && firstRow.weight_kg > 0) {
-            rows.push(firstRow);
+        const rows: Array<{ id: number; width_mm: number; weight_kg: number; length_m?: number | null }> = [];
+        const baseWidth = toNumber(outputWidthMm, 0);
+        const baseWeight = toNumber(outputWeightKg, 0);
+        if (baseWidth > 0 && baseWeight > 0) {
+            rows.push({ id: 0, width_mm: baseWidth, weight_kg: baseWeight, length_m: toNullableNumber(outputLengthM) });
         }
-        rows.push(...extraRows);
+        for (const row of createRollRows) {
+            const width = toNumber(row.width_mm, 0);
+            const weight = toNumber(row.weight_kg, 0);
+            if (width > 0 && weight > 0) {
+                rows.push({ id: row.id, width_mm: width, weight_kg: weight, length_m: toNullableNumber(row.length_m) });
+            }
+        }
         return rows;
     }, [createRollRows, outputLengthM, outputWeightKg, outputWidthMm]);
-
-    const createRollTotalKg = useMemo(
-        () => createRollRowsParsed.reduce((acc, row) => acc + toNumber(row.weight_kg, 0), 0),
-        [createRollRowsParsed]
-    );
-
-    const firstReservedWeight = toNumber(reservedRolls[0]?.weight_kg, 0);
-    const scrapValue = useMemo(() => {
-        if (scrapEntryMode === 'PCS') {
-            const pcs = Math.max(0, toNumber(scrapPcs, 0));
-            if (pcs <= 0 || unitWeightG <= 0) return 0;
-            return (pcs * unitWeightG) / 1000;
-        }
-        return Math.max(0, toNumber(scrapKg, 0));
-    }, [scrapEntryMode, scrapPcs, scrapKg, unitWeightG]);
-    const splitRemainder = behavior === 'SPLIT' ? Math.max(0, firstReservedWeight - splitTotalKg - scrapValue) : null;
+    const createRollTotalKg = createRollRowsParsed.reduce((sum, row) => sum + row.weight_kg, 0);
     const previewOutputKg = useMemo(() => {
-        if (behavior === 'SPLIT') {
-            return Math.max(0, splitTotalKg);
-        }
-        if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 0) {
-            return Math.max(0, createRollTotalKg);
-        }
+        if (behavior === 'SPLIT') return splitTotalKg;
+        if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1) return createRollTotalKg;
         if (showPcsEntry && outputEntryMode === 'PCS') {
             const pcs = toNumber(outputPcs, NaN);
-            if (Number.isFinite(pcs) && pcs > 0 && unitWeightG > 0) {
-                return (Math.round(pcs) * unitWeightG) / 1000;
-            }
+            if (Number.isFinite(pcs) && pcs > 0 && unitWeightG > 0) return (Math.round(pcs) * unitWeightG) / 1000;
         }
-        const kg = toNumber(outputWeightKg, NaN);
-        if (Number.isFinite(kg) && kg > 0) return kg;
-        if (showPcsEntry) {
+        const kgValue = toNumber(outputWeightKg, NaN);
+        if (Number.isFinite(kgValue) && kgValue > 0) return kgValue;
+        if (showPcsEntry && unitWeightG > 0) {
             const pcs = toNumber(outputPcs, NaN);
-            if (Number.isFinite(pcs) && pcs > 0 && unitWeightG > 0) {
-                return (Math.round(pcs) * unitWeightG) / 1000;
-            }
+            if (Number.isFinite(pcs) && pcs > 0) return (Math.round(pcs) * unitWeightG) / 1000;
         }
         return 0;
     }, [behavior, splitTotalKg, supportsDiscreteOutputRolls, createRollRowsParsed.length, createRollTotalKg, showPcsEntry, outputEntryMode, outputPcs, unitWeightG, outputWeightKg]);
-    const previewOutputPcs = useMemo(() => {
-        if (!showPcsEntry) return null;
-        const pcs = toNumber(outputPcs, NaN);
-        if (Number.isFinite(pcs) && pcs > 0) {
-            return Math.max(1, Math.round(pcs));
+    const previewOutputPcs = showPcsEntry && unitWeightG > 0 && previewOutputKg > 0 ? Math.max(1, Math.round((previewOutputKg * 1000) / unitWeightG)) : toNullableNumber(outputPcs);
+    const exceedsOutputCap = previewOutputKg > maxOutputWithScrapKg + 0.001;
+
+    const jobState = String(selectedJob?.job_state || context?.job?.job_state || '').toUpperCase();
+    const isExecuting = jobState === 'EXECUTING';
+    const isPaused = jobState === 'PAUSED';
+    const canStart = Boolean(selectedJob && !isExecuting && !['COMPLETED', 'CANCELLED'].includes(jobState) && allocationReady);
+    const canStop = Boolean(selectedJob && isExecuting);
+    const canLogOutput = Boolean(selectedJob && isExecuting && allocationReady && !exceedsOutputCap);
+    const needsForceComplete = remainingKg > stepToleranceKg;
+    const forceReasonValid = !needsForceComplete || forceReason.trim().length >= 5;
+    const canComplete = Boolean(selectedJob && ['EXECUTING', 'PAUSED'].includes(jobState) && forceReasonValid);
+    const operatorNextStep = !selectedJob
+        ? 'No released jobs are waiting here.'
+        : !allocationReady
+          ? 'Reserve the required input roll before starting.'
+          : canStart
+            ? 'Start / resume this step when setup is ready.'
+            : canLogOutput
+              ? 'Log output for the current step.'
+              : isPaused
+                ? 'Step is paused. Resume before logging output.'
+                : canComplete
+                  ? 'Complete step when production and material actuals are ready.'
+                  : 'Idle machine.';
+
+    const materialRowsFromContext = useMemo(() => {
+        const rows = reconcilableBulkRows
+            .map((row: any) => ({
+                id: String(row.material_id || ''),
+                code: String(row.material_code || row.code || ''),
+                name: String(row.material_name || row.name || ''),
+                category: String(row.category || row.material_category || ''),
+            }))
+            .filter((row: any) => row.id && row.name);
+        return rows;
+    }, [reconcilableBulkRows]);
+    const materialOptions = useMemo(() => {
+        const byId = new Map<string, any>();
+        for (const row of materialRowsFromContext) byId.set(row.id, row);
+        const library = Array.isArray(materialLibrary) ? materialLibrary : [];
+        for (const material of library as Material[]) {
+            if (!material?.id) continue;
+            byId.set(material.id, {
+                id: material.id,
+                code: material.code,
+                name: material.name,
+                category: material.category,
+            });
         }
-        if (unitWeightG > 0 && previewOutputKg > 0) {
-            return Math.max(1, Math.round((previewOutputKg * 1000) / unitWeightG));
-        }
-        return null;
-    }, [showPcsEntry, outputPcs, unitWeightG, previewOutputKg]);
-    const maxOutputWithScrapKg = useMemo(() => {
-        if (currentInputForm !== 'ROLL') {
-            return Math.max(0, maxOutputWithoutScrapKg);
-        }
-        const inputAfterScrap = Math.max(0, reservedInputTotalKg - scrapValue);
-        return Math.max(0, Math.min(maxOutputWithoutScrapKg, inputAfterScrap));
-    }, [currentInputForm, maxOutputWithoutScrapKg, reservedInputTotalKg, scrapValue]);
-    const exceedsOutputCap = previewOutputKg > (maxOutputWithScrapKg + 0.001);
+        return Array.from(byId.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }, [materialRowsFromContext, materialLibrary]);
+    const selectedMaterial = materialOptions.find((material: any) => String(material.id) === String(consumptionMaterialId));
+    const filteredGranuleCodes = useMemo(
+        () =>
+            (Array.isArray(granuleCodes) ? granuleCodes : []).filter((code: GranuleQualityCode) => {
+                if (!consumptionMaterialId) return true;
+                return String(code.granule) === String(consumptionMaterialId);
+            }),
+        [granuleCodes, consumptionMaterialId]
+    );
+    const remainderLocations = useMemo(() => (plantLocations || []).filter((loc: any) => loc?.is_active && loc?.type !== 'IN_TRANSIT'), [plantLocations]);
 
     useEffect(() => {
-        if (!selectedJob) return;
-        if (behavior === 'SPLIT') return;
-        if (maxOutputWithScrapKg <= 0) return;
-        const currentKg = toNumber(outputWeightKg, NaN);
-        if (!Number.isFinite(currentKg) || currentKg <= maxOutputWithScrapKg + 0.001) return;
-        const clampedKg = maxOutputWithScrapKg;
-        setOutputWeightKg(clampedKg.toFixed(3));
-        if (showPcsEntry && unitWeightG > 0) {
-            const clampedPcs = Math.max(1, Math.round((clampedKg * 1000) / unitWeightG));
-            setOutputPcs(String(clampedPcs));
-        }
-    }, [
-        selectedJob?.id,
-        behavior,
-        maxOutputWithScrapKg,
-        outputWeightKg,
-        showPcsEntry,
-        unitWeightG,
-    ]);
-
-    const jobState = String(selectedJob?.job_state || '').toUpperCase();
-    const isExecuting = jobState === 'EXECUTING';
-    const allocationReservationReady =
-        !allocationRequired ||
-        (laneGroupMode
-            ? (requiredLaneCount <= 0 ? reservedRolls.length > 0 : reservedLaneCount >= requiredLaneCount)
-            : reservedRolls.length === 1);
-    const canStart = Boolean(
-        selectedJob &&
-        !isExecuting &&
-        jobState !== 'COMPLETED' &&
-        jobState !== 'CANCELLED' &&
-        allocationReservationReady
-    );
-    const canStop = Boolean(selectedJob && isExecuting);
-    const canLogOutput = Boolean(selectedJob && isExecuting && allocationReservationReady && !exceedsOutputCap);
-
-    const needsForceComplete = useMemo(() => {
-        const remaining = stepRemainingKg;
-        return remaining > stepToleranceKg;
-    }, [stepRemainingKg, stepToleranceKg]);
-
-    const forceReasonRequired = needsForceComplete;
-    const forceReasonValid = !forceReasonRequired || forceReason.trim().length >= 5;
-    const canComplete = Boolean(selectedJob && (jobState === 'EXECUTING' || jobState === 'PAUSED') && forceReasonValid);
-    const operatorNextStep = (() => {
-        if (!selectedJob) return "Pick a job from the queue."
-        if (!allocationReservationReady) return "Reserve the required roll before starting."
-        if (canStart) return "Start the job when the machine setup is ready."
-        if (canLogOutput) return "Enter finished output and scrap, then save the log."
-        if (canComplete) return needsForceComplete ? "Add a reason, then finalize the step." : "Finalize this step when output is complete."
-        if (canStop) return "Pause the job only if you need to stop the machine."
-        return "Check the current job state before the next action."
-    })()
-
-    const addSplitRow = () => {
-        setSplitRows((prev) => [...prev, { id: splitCounterRef.current++, width_mm: '', weight_kg: '' }]);
-    };
-
-    const addCreateRollRow = () => {
-        setCreateRollRows((prev) => [
-            ...prev,
-            { id: createRowCounterRef.current++, width_mm: outputWidthMm || '', weight_kg: '', length_m: '' },
-        ]);
-    };
-
-    const removeSplitRow = (id: number) => {
-        setSplitRows((prev) => (prev.length <= 1 ? prev : prev.filter((row) => row.id !== id)));
-    };
-
-    const removeCreateRollRow = (id: number) => {
-        setCreateRollRows((prev) => prev.filter((row) => row.id !== id));
-    };
-
-    const updateSplitRow = (id: number, key: 'width_mm' | 'weight_kg', value: string) => {
-        setSplitRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
-    };
-
-    const updateCreateRollRow = (id: number, key: 'width_mm' | 'weight_kg' | 'length_m', value: string) => {
-        setCreateRollRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
-    };
-
-    const handleOutputWeightChange = (value: string) => {
-        setOutputWeightDirty(true);
-        let nextValue = value;
-        const parsed = toNumber(value, NaN);
-        if (
-            Number.isFinite(parsed) &&
-            parsed > 0 &&
-            currentInputForm === 'ROLL' &&
-            maxOutputWithScrapKg > 0 &&
-            parsed > maxOutputWithScrapKg
-        ) {
-            nextValue = maxOutputWithScrapKg.toFixed(3);
-        }
-        setOutputWeightKg(nextValue);
-        if (!showPcsEntry) return;
-        if (outputEntryMode !== 'KG') return;
-        if (unitWeightG <= 0) return;
-        const kg = toNumber(nextValue, NaN);
-        if (!Number.isFinite(kg) || kg <= 0) {
-            setOutputPcs('');
-            return;
-        }
-        const derivedPcs = Math.max(1, Math.round((kg * 1000) / unitWeightG));
-        setOutputPcs(String(derivedPcs));
-    };
-
-    const handleOutputPcsChange = (value: string) => {
-        setOutputPcs(value);
-        if (!showPcsEntry) return;
-        if (outputEntryMode !== 'PCS') return;
-        if (unitWeightG <= 0) return;
-        const pcs = toNumber(value, NaN);
-        if (!Number.isFinite(pcs) || pcs <= 0) {
-            setOutputWeightKg('');
-            return;
-        }
-        let derivedKg = (Math.round(pcs) * unitWeightG) / 1000;
-        if (currentInputForm === 'ROLL' && maxOutputWithScrapKg > 0 && derivedKg > maxOutputWithScrapKg) {
-            derivedKg = maxOutputWithScrapKg;
-            const cappedPcs = Math.max(1, Math.round((derivedKg * 1000) / unitWeightG));
-            setOutputPcs(String(cappedPcs));
-        }
+        const nextJobId = selectedJob?.id ? String(selectedJob.id) : null;
+        if (!nextJobId || initializedJobIdRef.current === nextJobId) return;
+        initializedJobIdRef.current = nextJobId;
+        const initialKg = Math.max(0, maxOutputWithoutScrapKg || remainingKg || 0);
+        setOutputWeightKg(initialKg > 0 ? initialKg.toFixed(3) : '');
+        setOutputPcs(unitWeightG > 0 && showPcsEntry && initialKg > 0 ? String(Math.max(1, Math.round((initialKg * 1000) / unitWeightG))) : '');
+        setOutputEntryMode(showPcsEntry ? 'PCS' : 'KG');
+        setOutputWidthMm('');
+        setOutputLengthM('');
+        setOutputWidthDirty(false);
         setOutputWeightDirty(false);
-        setOutputWeightKg(derivedKg.toFixed(3));
-    };
+        setCreateRollRows([]);
+        createCounterRef.current = 1;
+        setSplitRows([{ id: 1, width_mm: '', weight_kg: '' }]);
+        splitCounterRef.current = 2;
+        setScrapInput('0');
+        setScrapEntryMode('KG');
+        setScrapReason(behavior === 'CREATE_NEW' ? 'SETUP' : behavior === 'SPLIT' ? 'TRIM' : 'DEFECT');
+        setRemainderLocationId(DEFAULT_REMAINDER);
+        setForceReason('');
+        setConsumptionMaterialId(materialRowsFromContext[0]?.id || '');
+        setConsumptionQty('');
+        setQualityRows(qualityPreset(variant));
+    }, [selectedJob?.id, behavior, maxOutputWithoutScrapKg, remainingKg, showPcsEntry, unitWeightG, variant, materialRowsFromContext]);
+
+    useEffect(() => {
+        if (behavior !== 'CREATE_NEW' || outputWidthDirty || outputWidthMm) return;
+        const defaultWidth = resolveCreateNewDefaultWidth(context);
+        if (defaultWidth && defaultWidth > 0) setOutputWidthMm(String(Math.round(defaultWidth)));
+    }, [behavior, context, outputWidthDirty, outputWidthMm]);
+
+    useEffect(() => {
+        if (!showPcsEntry || outputEntryMode !== 'PCS' || unitWeightG <= 0 || outputWeightDirty) return;
+        const pcs = toNumber(outputPcs, NaN);
+        if (Number.isFinite(pcs) && pcs > 0) setOutputWeightKg(((Math.round(pcs) * unitWeightG) / 1000).toFixed(3));
+    }, [outputEntryMode, outputPcs, outputWeightDirty, showPcsEntry, unitWeightG]);
+
+    useEffect(() => {
+        setMaterialConfirmations((prev) => {
+            const next: Record<string, MaterialConfirmationDraft> = { ...prev };
+            const active = new Set<string>();
+            let changed = false;
+            for (const row of reconcilableBulkRows) {
+                const requirementId = String(row?.requirement_id || '').trim();
+                if (!requirementId) continue;
+                active.add(requirementId);
+                if (!next[requirementId]) {
+                    const issued = toNumber(row?.actual_issued_qty_kg ?? row?.estimated_actual_qty_kg ?? row?.actual_consumed_qty_kg ?? row?.required_qty_kg, 0);
+                    next[requirementId] = {
+                        requirement_id: requirementId,
+                        material_id: row?.material_id ? String(row.material_id) : undefined,
+                        actual_issued_qty: issued > 0 ? issued.toFixed(3) : '',
+                        actual_returned_qty: toNumber(row?.actual_returned_qty_kg, 0).toFixed(3),
+                        actual_scrap_qty: toNumber(row?.actual_scrap_qty_kg, 0).toFixed(3),
+                        is_estimated: true,
+                        return_mode: 'EXACT_COLOR_RETURN',
+                        granule_code_allocations: [],
+                    };
+                    changed = true;
+                }
+            }
+            for (const key of Object.keys(next)) {
+                if (!active.has(key)) {
+                    delete next[key];
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [reconcilableBulkRows]);
+
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+            if (event.key === 'Escape') setSublog(null);
+            if (event.key.toLowerCase() === 's') setSublog('scrap');
+            if (event.key.toLowerCase() === 'd') setSublog('downtime');
+            if (event.key.toLowerCase() === 'c') setSublog('consumption');
+            if (event.key.toLowerCase() === 'q') setSublog('quality');
+            if (event.key.toLowerCase() === 'o') document.getElementById('machine-output-panel')?.scrollIntoView({ block: 'center' });
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
 
     const refreshAll = async () => {
         await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['machine-queue', machineId] }),
             queryClient.invalidateQueries({ queryKey: ['machine-detail', machineId] }),
+            queryClient.invalidateQueries({ queryKey: ['machine-queue', machineId] }),
             queryClient.invalidateQueries({ queryKey: ['machine-job-context', machineId, selectedId] }),
+            queryClient.invalidateQueries({ queryKey: ['machine-job-events', machineId, selectedId] }),
             queryClient.invalidateQueries({ queryKey: ['machine-history', machineId] }),
         ]);
     };
@@ -785,40 +685,27 @@ export default function MachineExecutionPage() {
             return machineService.startJob(machineId, String(selectedJob.id));
         },
         onSuccess: async () => {
-            toast({ title: 'Job started', description: 'Machine execution started.' });
+            toast({ title: isPaused ? 'Job resumed' : 'Job started', description: 'Machine execution is live.' });
             await refreshAll();
         },
-        onError: (err: any) => {
-            toast({
-                variant: 'destructive',
-                title: 'Start failed',
-                description: err?.response?.data?.error || err?.message || 'Unable to start job.',
-            });
-        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Start failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to start job.' }),
     });
 
     const stopMutation = useMutation({
         mutationFn: async () => {
             if (!selectedJob) throw new Error('Select a job first.');
-            return machineService.stopJob(machineId, String(selectedJob.id), stopReason || undefined);
+            return machineService.stopJob(machineId, String(selectedJob.id), 'Operator pause');
         },
         onSuccess: async () => {
-            toast({ title: 'Job stopped', description: 'Machine execution paused.' });
+            toast({ title: 'Job paused', description: 'Output logging is locked until resume.' });
             await refreshAll();
         },
-        onError: (err: any) => {
-            toast({
-                variant: 'destructive',
-                title: 'Stop failed',
-                description: err?.response?.data?.error || err?.message || 'Unable to stop job.',
-            });
-        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Pause failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to pause job.' }),
     });
 
     const logOutputMutation = useMutation({
-        mutationFn: async (draft?: { scrapInputValue?: string | null; scrapEntryMode?: 'KG' | 'PCS' }) => {
+        mutationFn: async () => {
             if (!selectedJob) throw new Error('Select a job first.');
-
             const payload: {
                 actual_qty: number;
                 output_width_mm?: number;
@@ -828,2962 +715,1363 @@ export default function MachineExecutionPage() {
                 roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
                 split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
                 remainder_location_id?: string;
-            } = {
-                actual_qty: 0,
-            };
+            } = { actual_qty: 0, scrap_qty: scrapKgValue };
 
-            const resolvedScrapValue = (() => {
-                const liveInput = draft?.scrapInputValue ?? scrapInputRef.current?.value;
-                const liveMode = draft?.scrapEntryMode || scrapEntryMode;
-                if (typeof liveInput === 'string' && liveInput.trim().length > 0) {
-                    if (liveMode === 'PCS') {
-                        const pcs = Math.max(0, toNumber(liveInput, 0));
-                        if (pcs <= 0 || unitWeightG <= 0) return 0;
-                        return (pcs * unitWeightG) / 1000;
-                    }
-                    return Math.max(0, toNumber(liveInput, 0));
-                }
-                return scrapValue;
-            })();
-            payload.scrap_qty = resolvedScrapValue;
-
-            if (remainderLocationId && remainderLocationId !== DEFAULT_REMAINDER) {
-                payload.remainder_location_id = remainderLocationId;
-            }
+            if (remainderLocationId && remainderLocationId !== DEFAULT_REMAINDER) payload.remainder_location_id = remainderLocationId;
 
             if (behavior === 'SPLIT') {
-                if (!splitRowsParsed.length) {
-                    throw new Error('Add at least one split row (width + weight).');
-                }
-                if (splitTotalKg > (maxOutputWithScrapKg + 0.001)) {
-                    throw new Error(`Output exceeds physical max for this log (${maxOutputWithScrapKg.toFixed(3)} kg).`);
-                }
+                if (!splitRowsParsed.length) throw new Error('Add at least one split output row.');
+                if (splitTotalKg > maxOutputWithScrapKg + 0.001) throw new Error(`Split output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`);
                 payload.split_outputs = splitRowsParsed.map((row) => ({ width_mm: row.width_mm, weight_kg: row.weight_kg }));
                 payload.actual_qty = splitTotalKg;
+            } else if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1) {
+                if (createRollTotalKg > maxOutputWithScrapKg + 0.001) throw new Error(`Roll output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`);
+                payload.roll_outputs = createRollRowsParsed.map((row) => ({
+                    width_mm: row.width_mm,
+                    weight_kg: row.weight_kg,
+                    ...(row.length_m && row.length_m > 0 ? { length_m: row.length_m } : {}),
+                }));
+                payload.actual_qty = createRollTotalKg;
             } else {
-                if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1) {
-                    if (createRollTotalKg > (maxOutputWithScrapKg + 0.001)) {
-                        throw new Error(`Output exceeds physical max for this log (${maxOutputWithScrapKg.toFixed(3)} kg).`);
-                    }
-                    payload.roll_outputs = createRollRowsParsed.map((row) => ({
-                        width_mm: row.width_mm,
-                        weight_kg: row.weight_kg,
-                        ...(row.length_m !== null && row.length_m > 0 ? { length_m: row.length_m } : {}),
-                    }));
-                    payload.actual_qty = createRollTotalKg;
-                    return machineService.logOutput(machineId, String(selectedJob.id), payload);
-                }
-
                 let qty = toNumber(outputWeightKg, NaN);
                 if (showPcsEntry) {
-                    const pcsInput = toNumber(outputPcs, NaN);
-                    const hasPcs = Number.isFinite(pcsInput) && pcsInput > 0;
-                    const roundedPcs = hasPcs ? Math.max(1, Math.round(pcsInput)) : null;
-
-                    if (outputEntryMode === 'PCS') {
-                        if (!hasPcs) {
-                            throw new Error('Output PCS is required for PCS-led output entry.');
-                        }
-                        if (unitWeightG <= 0) {
-                            throw new Error('Unit weight is required to convert output PCS to KG for this step.');
-                        }
-                        qty = (roundedPcs! * unitWeightG) / 1000;
-                    }
-
+                    const pcs = toNumber(outputPcs, NaN);
+                    if (!Number.isFinite(pcs) || pcs <= 0) throw new Error('Output PCS is required for roll to bulk steps.');
+                    payload.output_pcs = Math.max(1, Math.round(pcs));
                     if (!Number.isFinite(qty) || qty <= 0) {
-                        if (hasPcs && unitWeightG > 0) {
-                            qty = (roundedPcs! * unitWeightG) / 1000;
-                        } else {
-                            throw new Error('Output weight must be greater than zero.');
-                        }
-                    }
-
-                    if (outputEntryMode === 'KG') {
-                        if (hasPcs) {
-                            payload.output_pcs = roundedPcs!;
-                        } else if (unitWeightG > 0) {
-                            payload.output_pcs = Math.max(1, Math.round((qty * 1000) / unitWeightG));
-                        } else {
-                            throw new Error('Output PCS is required when unit weight conversion is unavailable.');
-                        }
-                    } else if (hasPcs) {
-                        payload.output_pcs = roundedPcs!;
-                    } else {
-                        throw new Error('Output PCS is required for bulk-output execution.');
-                    }
-                } else {
-                    if (!Number.isFinite(qty) || qty <= 0) {
-                        throw new Error('Output weight must be greater than zero.');
+                        if (unitWeightG <= 0) throw new Error('Unit weight is required to convert PCS to KG.');
+                        qty = (payload.output_pcs * unitWeightG) / 1000;
                     }
                 }
-                if (qty > (maxOutputWithScrapKg + 0.001)) {
-                    throw new Error(`Output exceeds physical max for this log (${maxOutputWithScrapKg.toFixed(3)} kg).`);
-                }
-
+                if (!Number.isFinite(qty) || qty <= 0) throw new Error('Output weight must be greater than zero.');
+                if (qty > maxOutputWithScrapKg + 0.001) throw new Error(`Output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`);
                 payload.actual_qty = qty;
             }
 
             if (supportsDiscreteOutputRolls) {
                 const width = toNumber(outputWidthMm, NaN);
-                if (!Number.isFinite(width) || width <= 0) {
-                    throw new Error('Output width is required for roll output.');
-                }
+                if (!Number.isFinite(width) || width <= 0) throw new Error('Output width is required for roll output.');
                 payload.output_width_mm = width;
-
-                if (outputLengthM.trim()) {
-                    const length = toNumber(outputLengthM, NaN);
-                    if (!Number.isFinite(length) || length < 0) {
-                        throw new Error('Output length must be zero or positive.');
-                    }
-                    payload.output_length_m = length;
-                }
+                const length = toNumber(outputLengthM, NaN);
+                if (Number.isFinite(length) && length > 0) payload.output_length_m = length;
             }
-
             return machineService.logOutput(machineId, String(selectedJob.id), payload);
         },
         onSuccess: async () => {
-            toast({ title: 'Output logged', description: 'Physics applied and progress updated.' });
+            toast({ title: 'Output logged', description: 'Progress, scrap, and inventory math refreshed.' });
             await refreshAll();
         },
-        onError: (err: any) => {
-            toast({
-                variant: 'destructive',
-                title: 'Log output failed',
-                description: err?.response?.data?.error || err?.message || 'Unable to log output.',
-            });
-        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Log output failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to log output.' }),
     });
 
     const completeMutation = useMutation({
         mutationFn: async () => {
             if (!selectedJob) throw new Error('Select a job first.');
-            const confirmationPayload = reconcilableBulkRows
-                .map((row: any) => {
-                    const requirementId = String(row?.requirement_id || '');
-                    const draft = materialConfirmations[requirementId];
-                    if (!requirementId || !draft) return null;
-                    const issued = Math.max(0, toNumber(draft.actual_issued_qty, 0));
-                    const returned = Math.max(0, toNumber(draft.actual_returned_qty, 0));
-                    const scrap = Math.max(0, toNumber(draft.actual_scrap_qty, 0));
-                    const granuleCodeAllocations = (draft.granule_code_allocations || [])
-                        .map((allocation) => ({
-                            granule_code_id: allocation.granule_code_id,
-                            qty_kg: Math.max(0, toNumber(allocation.qty_kg, 0)),
-                        }))
-                        .filter((allocation) => allocation.granule_code_id && allocation.qty_kg > 0);
-                    return {
-                        requirement_id: requirementId,
-                        material_id: draft.material_id,
-                        actual_issued_qty: issued,
-                        actual_returned_qty: returned,
-                        actual_scrap_qty: scrap,
-                        is_estimated: draft.is_estimated,
-                        return_mode: draft.return_mode || 'EXACT_COLOR_RETURN',
-                        target_ink_material_id: draft.return_mode === 'REMIXED_RETURN' ? draft.target_ink_material_id : undefined,
-                        granule_code_allocations: granuleCodeAllocations.length ? granuleCodeAllocations : undefined,
-                    };
-                })
-                .filter(Boolean) as Array<{
-                    requirement_id: string;
-                    material_id?: string;
-                    actual_issued_qty: number;
-                    actual_returned_qty: number;
-                    actual_scrap_qty: number;
-                    is_estimated?: boolean;
-                    return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
-                    target_ink_material_id?: string;
-                    granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: number }>;
-                }>;
-            const payload =
-                forceReason.trim() || confirmationPayload.length
-                    ? {
-                          force_reason: forceReason.trim() || undefined,
-                          material_confirmations: confirmationPayload,
-                      }
-                    : undefined;
-            return machineService.completeJob(machineId, String(selectedJob.id), payload);
+            const material_confirmations = Object.values(materialConfirmations)
+                .map((draft) => ({
+                    requirement_id: draft.requirement_id,
+                    material_id: draft.material_id,
+                    actual_issued_qty: Math.max(0, toNumber(draft.actual_issued_qty, 0)),
+                    actual_returned_qty: Math.max(0, toNumber(draft.actual_returned_qty, 0)),
+                    actual_scrap_qty: Math.max(0, toNumber(draft.actual_scrap_qty, 0)),
+                    is_estimated: draft.is_estimated,
+                    return_mode: draft.return_mode || 'EXACT_COLOR_RETURN',
+                    target_ink_material_id: draft.return_mode === 'REMIXED_RETURN' ? draft.target_ink_material_id : undefined,
+                    granule_code_allocations: (draft.granule_code_allocations || [])
+                        .map((row) => ({ granule_code_id: row.granule_code_id, qty_kg: Math.max(0, toNumber(row.qty_kg, 0)) }))
+                        .filter((row) => row.granule_code_id && row.qty_kg > 0),
+                }))
+                .filter((row) => row.requirement_id);
+            return machineService.completeJob(machineId, String(selectedJob.id), {
+                force_reason: forceReason.trim() || undefined,
+                material_confirmations: material_confirmations.length ? material_confirmations : undefined,
+            });
         },
         onSuccess: async (data) => {
-            const forced = data?.completion_mode === 'FORCED_VARIANCE';
             toast({
-                title: forced ? 'Step force-completed' : 'Step completed',
-                description: forced
-                    ? `Closed with variance ${toNumber(data?.variance_kg, 0).toFixed(3)} kg.`
-                    : 'Step closed and routing advanced.',
+                title: data?.completion_mode === 'FORCED_VARIANCE' ? 'Step force-completed' : 'Step completed',
+                description: data?.completion_mode === 'FORCED_VARIANCE' ? `Variance ${kg(data?.variance_kg)}` : 'Routing advanced with current-step actuals.',
             });
-
-            const dc = data?.interplant_dc;
-            if (dc?.id && dc?.print_pdf_url) {
-                const printUrl = `/inter-plant/print/${dc.id}`;
-                const popup = window.open(printUrl, '_blank', 'noopener,noreferrer');
-                if (!popup) {
-                    toast({ title: 'Popup blocked', description: `Open this link to print DC: ${printUrl}` });
-                }
-            }
-
             await refreshAll();
         },
-        onError: (err: any) => {
-            toast({
-                variant: 'destructive',
-                title: 'Complete failed',
-                description: err?.response?.data?.error || err?.message || 'Unable to complete step.',
-            });
-        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Complete failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to complete step.' }),
     });
 
-    useEffect(() => {
-        setMaterialConfirmations((prev) => {
-            const next: Record<string, MaterialConfirmationDraft> = { ...prev };
-            const activeIds = new Set<string>();
-            let changed = false;
-            for (const row of reconcilableBulkRows) {
-                const requirementId = String(row?.requirement_id || '').trim();
-                if (!requirementId) continue;
-                activeIds.add(requirementId);
-                if (!next[requirementId]) {
-                    const estimated = toNumber(
-                        row?.actual_issued_qty_kg ?? row?.estimated_actual_qty_kg ?? row?.actual_consumed_qty_kg,
-                        0
-                    );
-                    const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : [];
-                    next[requirementId] = {
-                        requirement_id: requirementId,
-                        material_id: row?.material_id ? String(row.material_id) : undefined,
-                        actual_issued_qty: estimated > 0 ? estimated.toFixed(3) : '',
-                        actual_returned_qty: toNumber(row?.actual_returned_qty_kg, 0).toFixed(3),
-                        actual_scrap_qty: toNumber(row?.actual_scrap_qty_kg, 0).toFixed(3),
-                        is_estimated: true,
-                        return_mode: 'EXACT_COLOR_RETURN',
-                        target_ink_material_id: '',
-                        granule_code_allocations:
-                            String(row?.category || '').toUpperCase() === 'GRANULE' && codeOptions.length > 0
-                                ? [{ granule_code_id: String(codeOptions[0].granule_code_id), qty_kg: estimated > 0 ? estimated.toFixed(3) : '' }]
-                                : [],
-                    };
-                    changed = true;
-                }
-            }
-            for (const key of Object.keys(next)) {
-                if (!activeIds.has(key)) {
-                    delete next[key];
-                    changed = true;
-                }
-            }
-            return changed ? next : prev;
-        });
-    }, [reconcilableBulkRows]);
+    const scrapMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedJob) throw new Error('Select a job first.');
+            return machineService.logScrap(machineId, String(selectedJob.id), {
+                quantity: Math.max(0, toNumber(scrapDialogQty, 0)),
+                reason: scrapDialogReason,
+                notes: scrapDialogNotes,
+            });
+        },
+        onSuccess: async () => {
+            setSublog(null);
+            setScrapDialogQty('0');
+            toast({ title: 'Scrap logged', description: 'Scrap is now visible in live events.' });
+            await refreshAll();
+        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Scrap failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to log scrap.' }),
+    });
 
-    const updateMaterialConfirmation = (requirementId: string | number, patch: Partial<MaterialConfirmationDraft>) => {
-        const key = String(requirementId || "").trim();
-        if (!key) return;
-        setMaterialConfirmations((prev) => {
-            const current = prev[key];
-            if (!current) return prev;
-            return {
-                ...prev,
-                [key]: {
-                    ...current,
-                    ...patch,
-                    is_estimated: patch.is_estimated ?? current.is_estimated,
-                },
-            };
-        });
+    const downtimeMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedJob) throw new Error('Select a job first.');
+            return machineService.logDowntime(machineId, String(selectedJob.id), {
+                reason: downtimeReason,
+                start_time: downtimeStart ? new Date(downtimeStart).toISOString() : undefined,
+                end_time: downtimeEnd ? new Date(downtimeEnd).toISOString() : undefined,
+                notes: downtimeNotes,
+                auto_stop: downtimeAutoStop,
+            });
+        },
+        onSuccess: async () => {
+            setSublog(null);
+            toast({ title: 'Downtime logged', description: downtimeAutoStop ? 'Machine step was paused.' : 'Downtime event was recorded.' });
+            await refreshAll();
+        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Downtime failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to log downtime.' }),
+    });
+
+    const consumptionMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedJob) throw new Error('Select a job first.');
+            if (!consumptionMaterialId && consumptionRollId === SELECT_NONE) throw new Error('Select material or roll.');
+            const qty = toNumber(consumptionQty, NaN);
+            if (!Number.isFinite(qty) || qty <= 0) throw new Error('Consumption quantity must be greater than zero.');
+            return machineService.logConsumption(machineId, String(selectedJob.id), {
+                material_id: consumptionMaterialId || undefined,
+                granule_code_id: consumptionGranuleCodeId !== SELECT_NONE ? consumptionGranuleCodeId : undefined,
+                roll_id: consumptionRollId !== SELECT_NONE ? consumptionRollId : undefined,
+                quantity: qty,
+                uom: 'KG',
+                is_estimated: consumptionEstimated,
+            });
+        },
+        onSuccess: async () => {
+            setSublog(null);
+            setConsumptionQty('');
+            toast({ title: 'Consumption logged', description: 'Manual material usage is now in the job event stream.' });
+            await refreshAll();
+        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Consumption failed', description: err?.response?.data?.error || err?.message || 'Unable to log consumption.' }),
+    });
+
+    const qualityMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedJob) throw new Error('Select a job first.');
+            const readings = qualityRows
+                .filter((row) => row.value.trim())
+                .map((row) => ({
+                    code: row.code,
+                    value_numeric: row.textMode ? null : toNumber(row.value, NaN),
+                    value_text: row.textMode ? row.value : '',
+                    spec_min: row.spec_min,
+                    spec_max: row.spec_max,
+                    in_spec: row.in_spec,
+                }))
+                .filter((row) => row.value_text || Number.isFinite(row.value_numeric as number));
+            if (!readings.length) throw new Error('Enter at least one quality reading.');
+            return machineService.logQuality(machineId, String(selectedJob.id), { readings });
+        },
+        onSuccess: async () => {
+            setSublog(null);
+            toast({ title: 'Quality logged', description: 'Readings are attached to this job and process.' });
+            await refreshAll();
+        },
+        onError: (err: any) => toast({ variant: 'destructive', title: 'Quality failed', description: err?.response?.data?.error?.message || err?.message || 'Unable to log quality.' }),
+    });
+
+    const handleOutputWeightChange = (value: string) => {
+        setOutputWeightDirty(true);
+        let next = value;
+        const parsed = toNumber(value, NaN);
+        if (Number.isFinite(parsed) && parsed > maxOutputWithScrapKg && maxOutputWithScrapKg > 0) next = maxOutputWithScrapKg.toFixed(3);
+        setOutputWeightKg(next);
+        if (showPcsEntry && outputEntryMode === 'KG' && unitWeightG > 0) {
+            const kgValue = toNumber(next, NaN);
+            setOutputPcs(Number.isFinite(kgValue) && kgValue > 0 ? String(Math.max(1, Math.round((kgValue * 1000) / unitWeightG))) : '');
+        }
+    };
+
+    const handleOutputPcsChange = (value: string) => {
+        setOutputPcs(value);
+        if (!showPcsEntry || outputEntryMode !== 'PCS' || unitWeightG <= 0) return;
+        const pcs = toNumber(value, NaN);
+        setOutputWeightDirty(false);
+        setOutputWeightKg(Number.isFinite(pcs) && pcs > 0 ? ((Math.round(pcs) * unitWeightG) / 1000).toFixed(3) : '');
+    };
+
+    const addCreateRollRow = () => setCreateRollRows((prev) => [...prev, { id: createCounterRef.current++, width_mm: outputWidthMm, weight_kg: '', length_m: '' }]);
+    const addSplitRow = () => setSplitRows((prev) => [...prev, { id: splitCounterRef.current++, width_mm: '', weight_kg: '' }]);
+    const updateCreateRow = (id: number, key: keyof CreateRollRow, value: string) => setCreateRollRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+    const updateSplitRow = (id: number, key: keyof SplitRow, value: string) => setSplitRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+    const updateMaterialConfirmation = (requirementId: string, patch: Partial<MaterialConfirmationDraft>) => {
+        setMaterialConfirmations((prev) => ({
+            ...prev,
+            [requirementId]: { ...prev[requirementId], ...patch },
+        }));
+    };
+    const autoSplitEqual = (parts: number) => {
+        const total = toNumber(outputWeightKg, 0);
+        const width = outputWidthMm || String(resolveCreateNewDefaultWidth(context) || '');
+        if (parts <= 1 || total <= 0) return;
+        const each = (total / parts).toFixed(3);
+        setCreateRollRows(Array.from({ length: parts - 1 }, (_, index) => ({ id: createCounterRef.current + index, width_mm: width, weight_kg: each, length_m: outputLengthM })));
+        createCounterRef.current += parts - 1;
+        setOutputWeightKg(each);
     };
 
     if (!machineId) {
-        return (
-            <div className="p-6">
-                <Card>
-                    <CardContent className="p-6 text-sm text-red-600">Missing machine id in route.</CardContent>
-                </Card>
-            </div>
-        );
+        return <div className="p-6 text-sm text-rose-700">Missing machine id in route.</div>;
     }
 
     if (machineLoading || queueLoading) {
         return (
-            <div className="p-6">
-                <Card>
-                    <CardContent className="p-8 text-center text-slate-500">Loading machine terminal...</CardContent>
-                </Card>
+            <div className="min-h-screen bg-slate-50 p-6">
+                <div className={cn(surfaceClass, 'p-8 text-center text-sm font-semibold text-slate-500')}>Loading machine terminal...</div>
             </div>
         );
     }
 
     if (machineError || queueError) {
         return (
-            <div className="p-6">
-                <Card className="border-red-200">
-                    <CardContent className="p-6 flex items-start gap-3 text-red-600">
-                        <AlertCircle className="h-5 w-5 mt-0.5" />
-                        <div>
-                            <div className="font-semibold">Failed to load machine terminal</div>
-                            <div className="text-sm text-red-500">Refresh and try again.</div>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="min-h-screen bg-slate-50 p-6">
+                <div className={cn(surfaceClass, 'flex items-start gap-3 border-rose-200 p-6 text-rose-700')}>
+                    <AlertCircle className="mt-0.5 h-5 w-5" />
+                    <div>
+                        <div className="font-black">Failed to load machine terminal</div>
+                        <div className="text-sm font-semibold text-rose-600">Refresh and try again.</div>
+                    </div>
+                </div>
             </div>
         );
     }
 
-    const productSpec = normalizeProductSpec(selectedJob, context);
-    const layerGradeLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.grade).filter(Boolean)));
-    const layerThicknessLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.thicknessMicron !== null ? `${layer.thicknessMicron} micron` : '').filter(Boolean)));
-    const layerWidthLabels = Array.from(new Set(productSpec.layers.map((layer) => layer.widthMm !== null ? `${layer.widthMm} mm` : '').filter(Boolean)));
-    const rollFormLabel = firstNonEmpty(productSpec.size.formLabel, context?.job?.geometry?.roll_form, selectedJob?.geometry?.roll_form);
-    const primaryLayer = productSpec.layers[0] || null;
-    const primaryVariantName = firstNonEmpty(productSpec.variantName, primaryLayer?.variantName, primaryLayer?.label, selectedJob?.variant_name);
-    const primaryVariantCode = firstNonEmpty(productSpec.variantCode, primaryLayer?.variantCode, selectedJob?.variant_code);
-    const primaryGradeLabel = layerGradeLabels.length ? layerGradeLabels.slice(0, 2).join(', ') : firstNonEmpty(primaryLayer?.grade, selectedJob?.grade_name);
-    const primaryThicknessLabel = layerThicknessLabels.length ? layerThicknessLabels.slice(0, 2).join(', ') : (primaryLayer?.thicknessMicron !== null && primaryLayer?.thicknessMicron !== undefined ? `${primaryLayer.thicknessMicron} micron` : '');
-    const primaryWidthLabel = layerWidthLabels.length ? layerWidthLabels.slice(0, 2).join(', ') : (productSpec.size.widthMm !== null ? `${productSpec.size.widthMm} mm` : '');
-    const specChipTones = [
-        'border-blue-200 bg-blue-50 text-blue-800',
-        'border-emerald-200 bg-emerald-50 text-emerald-800',
-        'border-violet-200 bg-violet-50 text-violet-800',
-        'border-amber-200 bg-amber-50 text-amber-800',
-        'border-cyan-200 bg-cyan-50 text-cyan-800',
-        'border-rose-200 bg-rose-50 text-rose-800',
-    ];
-    const headerSpecChips = [
-        productSpec.size.label ? { label: 'Size', value: productSpec.size.label, tone: specChipTones[0] } : null,
-        primaryVariantName ? { label: 'Variant', value: primaryVariantCode && primaryVariantCode !== primaryVariantName ? `${primaryVariantName} / ${primaryVariantCode}` : primaryVariantName, tone: specChipTones[1] } : null,
-        primaryGradeLabel ? { label: 'Grade', value: primaryGradeLabel, tone: specChipTones[2] } : null,
-        primaryThicknessLabel ? { label: 'Thickness', value: primaryThicknessLabel, tone: specChipTones[3] } : null,
-        primaryWidthLabel ? { label: 'Roll width', value: primaryWidthLabel, tone: specChipTones[4] } : null,
-        productSpec.layers.length ? { label: 'Layers', value: String(productSpec.layers.length), tone: specChipTones[5] } : null,
-        productSpec.podLabels.length ? { label: 'POD', value: productSpec.podLabels.join(', '), tone: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800' } : null,
-        productSpec.addonLabels.length ? { label: 'Add-ons', value: productSpec.addonLabels.slice(0, 2).join(', '), tone: 'border-orange-200 bg-orange-50 text-orange-800' } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; tone: string }>;
-    const stepName = firstNonEmpty(context?.display?.step_name, context?.current_step?.process_name, selectedJob?.process_code, 'Step');
     const machineName = firstNonEmpty(machineDetail?.machine?.name, machineDetail?.machine?.code, 'Machine Terminal');
     const machineCode = firstNonEmpty(machineDetail?.machine?.code, machineDetail?.machine?.name, 'Machine');
-    const targetLabel = primaryTarget !== null ? `${primaryTarget.toFixed(3)} kg` : `${toNumber(selectedJob?.quantity, 0).toFixed(3)} ${selectedJob?.uom || ''}`.trim();
-    const producedLabel = primaryProduced !== null ? `${primaryProduced.toFixed(3)} kg` : `${fallbackProduced.toFixed(3)} kg`;
-    const remainingLabel = primaryRemaining !== null ? `${primaryRemaining.toFixed(3)} kg` : `${fallbackRemaining.toFixed(3)} kg`;
-    const ringPct = Math.round(progressPct);
-    const ringCircumference = 2 * Math.PI * 42;
-    const ringDashOffset = ringCircumference - (ringCircumference * ringPct) / 100;
-    const quickOutputDisabled = !canLogOutput || logOutputMutation.isPending;
-    const currentStepLabel = `${String(currentInputForm || 'NONE').toLowerCase()} to ${String(currentOutputForm || 'ROLL').toLowerCase()}`;
-    const sourceOrder = firstNonEmpty(selectedJob?.order_number, context?.job?.order_number, 'SO not captured');
-    const customerLabel = selectedCustomerName;
-    const layerRows = productSpec.layers.length
-        ? productSpec.layers
-        : selectedLayerChips.map((label, index) => ({ index: index + 1, label }));
-    const timelineRows = [
-        { label: 'WCM released', state: selectedJob ? 'done' : 'pending' },
-        { label: 'Machine ready', state: allocationReservationReady ? 'done' : 'pending' },
-        { label: isExecuting ? 'Running now' : 'Start machine', state: isExecuting ? 'active' : 'pending' },
-        { label: 'Log output', state: toNumber(primaryProduced, 0) > 0 ? 'done' : 'pending' },
-        { label: 'Complete step', state: canComplete ? 'active' : 'pending' },
-    ];
-    const materialSummaryRows = reconcilableBulkRows.slice(0, 4);
-    const rightRailRolls = reservedRolls.length ? reservedRolls : displayedWip.slice(0, 4);
-    const laneFocusRows = laneGroupMode && laneGroups.length
-        ? laneGroups.slice(0, 3)
-        : rightRailRolls.slice(0, 3).map((roll: any, index: number) => ({
-            lane_label: roll?.target_lane_label || (roll?.target_layer_index ? `Layer ${roll.target_layer_index}` : `Lane ${index + 1}`),
-            variant_name: roll?.target_variant_name || roll?.variant,
-            grade_name: roll?.target_grade_name || roll?.grade,
-            thickness_micron: roll?.target_thickness_micron ?? roll?.thickness_micron,
-            width_mm: roll?.target_width_mm ?? roll?.width_mm,
-        }));
-    const liveLogs = Array.isArray(telemetryLogs) ? telemetryLogs.slice(0, 4) : [];
-    const historyRows = Array.isArray((historyData as any)?.jobs)
-        ? ((historyData as any).jobs as any[])
-        : (Array.isArray(historyData as any) ? (historyData as unknown as any[]) : []);
+    const customerName = firstNonEmpty(spec.customerName, context?.job?.customer_name, selectedJob?.customer_name, 'Stock production');
+    const orderNumber = firstNonEmpty(spec.orderNumber, context?.job?.order_number, selectedJob?.order_number, selectedJob?.job_number, 'STOCK');
+    const historyRows = Array.isArray((historyData as any)?.jobs) ? (historyData as any).jobs : [];
 
-    if ((activeTab as string) !== 'legacy') {
-        return (
-            <div
-                className="min-h-screen bg-[#f4f7fb] text-slate-950"
-                data-testid="machine-execution-page"
-            >
-                <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
-                    <div className="flex w-full items-center justify-between gap-4">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-10 rounded-xl border-slate-200 bg-white text-xs font-black uppercase tracking-[0.16em]"
-                                onClick={() => router.push('/production/work-center')}
-                            >
-                                <ChevronRight className="mr-1 h-4 w-4 rotate-180" />
-                                WCM
-                            </Button>
-                            <div className="flex min-w-0 items-center gap-3">
-                                <span className={cn("h-3 w-3 rounded-full", isExecuting ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]" : isActive ? "bg-blue-500" : "bg-rose-500")} />
-                                <div className="min-w-0">
-                                    <div className="truncate text-base font-black tracking-tight text-slate-950">{machineName}</div>
-                                    <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                        {machineCode} / {machineDetail?.machine?.work_center_name || 'Work center'} / {machineDetail?.machine?.plant_name || 'Plant'}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                type="button"
-                                variant={activeTab === 'execution' ? 'default' : 'outline'}
-                                size="sm"
-                                className="h-10 rounded-xl text-xs font-black uppercase tracking-[0.14em]"
-                                onClick={() => setActiveTab('execution')}
-                            >
-                                <Activity className="mr-2 h-4 w-4" />
-                                Run
-                            </Button>
-                            <Button
-                                type="button"
-                                variant={activeTab === 'history' ? 'default' : 'outline'}
-                                size="sm"
-                                className="h-10 rounded-xl text-xs font-black uppercase tracking-[0.14em]"
-                                onClick={() => setActiveTab('history')}
-                            >
-                                <History className="mr-2 h-4 w-4" />
-                                History
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-10 rounded-xl border-slate-200 bg-white text-xs font-black uppercase tracking-[0.14em]"
-                                onClick={() => refreshAll()}
-                                disabled={machineLoading || queueLoading || contextLoading}
-                            >
-                                <RefreshCw className="mr-2 h-4 w-4" />
-                                Refresh
-                            </Button>
-                            {isExecuting ? (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-10 rounded-xl border-amber-200 bg-amber-50 text-xs font-black uppercase tracking-[0.14em] text-amber-800"
-                                    onClick={() => stopMutation.mutate()}
-                                    disabled={!canStop || stopMutation.isPending}
-                                >
-                                    <Pause className="mr-2 h-4 w-4" />
-                                    Pause
-                                </Button>
-                            ) : (
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-10 rounded-xl bg-emerald-600 text-xs font-black uppercase tracking-[0.14em] hover:bg-emerald-700"
-                                    onClick={() => startMutation.mutate()}
-                                    disabled={!canStart || startMutation.isPending}
-                                >
-                                    <Play className="mr-2 h-4 w-4" />
-                                    Start
-                                </Button>
-                            )}
+    return (
+        <div
+            className="min-h-screen bg-[radial-gradient(900px_500px_at_0%_-10%,#e0f2fe_0%,transparent_55%),radial-gradient(900px_500px_at_100%_-10%,#ddd6fe_0%,transparent_55%),linear-gradient(180deg,#fff_0%,#f8fafc_100%)] text-[#0b1220]"
+            data-testid="machine-execution-page"
+        >
+            <span className="sr-only">Kiosk focus for operators Select job Start / resume Log output Idle machine</span>
+            <div className="mx-auto max-w-[1520px] px-4 py-4 md:px-6 md:py-5">
+                <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 font-bold text-white">M</div>
+                        <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Poly Print ERP</div>
+                            <div className="text-sm font-bold">Production · Machine Terminal</div>
                         </div>
                     </div>
                 </div>
 
-                {activeTab === 'history' ? (
-                    <main className="w-full px-5 py-6">
-                        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
-                            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <section className={cn(surfaceClass, 'mb-4 p-4')}>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-center gap-3">
+                            <Button type="button" variant="outline" className="h-10 rounded-[10px] border-slate-200 bg-white text-xs font-bold" onClick={() => router.push('/production/work-center')}>
+                                <ArrowLeft className="mr-1 h-4 w-4" />
+                                WCM
+                            </Button>
+                            <div className="flex items-center gap-2">
+                                <span className={cn('h-2.5 w-2.5 rounded-full', isExecuting ? 'bg-blue-500' : isPaused ? 'bg-amber-500' : 'bg-emerald-500')} />
                                 <div>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.26em] text-blue-600">Machine history</div>
-                                    <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Closed and forced jobs</h1>
-                                    <p className="mt-1 text-sm font-semibold text-slate-500">Filter by date and variance status without leaving the terminal.</p>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-3">
-                                    <Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} className="h-11 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold" />
-                                    <Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} className="h-11 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold" />
-                                    <Select value={historyStatus} onValueChange={(value) => setHistoryStatus(value as 'ALL' | 'NORMAL' | 'FORCED_VARIANCE')}>
-                                        <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-xs font-bold">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ALL">All status</SelectItem>
-                                            <SelectItem value="NORMAL">Normal</SelectItem>
-                                            <SelectItem value="FORCED_VARIANCE">Forced variance</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                                <div className="grid grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                    <div>Product</div>
-                                    <div>Customer / SO</div>
-                                    <div>Output</div>
-                                    <div>Variance</div>
-                                    <div>Status</div>
-                                </div>
-                                {historyLoading ? (
-                                    <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Loading history...</div>
-                                ) : historyRows.length ? (
-                                    historyRows.map((row: any, index: number) => {
-                                        const rowSpec = normalizeProductSpec(row?.job || row);
-                                        return (
-                                            <div key={row?.id || index} className="grid grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-4 py-3 text-sm">
-                                                <div className="min-w-0">
-                                                    <div className="truncate font-black text-slate-900">{rowSpec.productName}</div>
-                                                    <div className="truncate text-xs font-semibold text-slate-500">{rowSpec.size.label}</div>
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <div className="truncate font-bold text-slate-900">{rowSpec.customerName}</div>
-                                                    <div className="truncate text-xs font-semibold text-slate-500">{rowSpec.orderNumber}</div>
-                                                </div>
-                                                <div className="font-black text-slate-900">{toNumber(row?.actual_qty ?? row?.output_qty_kg, 0).toFixed(3)} kg</div>
-                                                <div className="font-black text-slate-900">{toNumber(row?.variance_kg, 0).toFixed(3)} kg</div>
-                                                <SemanticBadge kind="jobState" value={row?.completion_mode || row?.status || 'NORMAL'} label={row?.completion_mode || row?.status || 'Normal'} />
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">No history rows for this filter.</div>
-                                )}
-                            </div>
-                        </section>
-                    </main>
-                ) : (
-                    <>
-                        <div className="sticky top-[65px] z-30 border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
-                            <div className="grid w-full gap-4 xl:grid-cols-[1.45fr_0.9fr_0.72fr]">
-                                <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">
-                                            {customerLabel}
-                                        </span>
-                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
-                                            {sourceOrder}
-                                        </span>
-                                        <SemanticBadge kind="jobState" value={jobState || 'PENDING'} label={jobState || 'No job'} className="rounded-full px-3 py-1 text-[10px]" />
-                                    </div>
-                                    <h1 className="mt-2 truncate text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
-                                        {selectedProductName || productSpec.productName || 'Pick a released job'}
-                                    </h1>
-                                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                                        {headerSpecChips.length ? headerSpecChips.map((chip) => (
-                                            <span key={`${chip.label}-${chip.value}`} className={cn("shrink-0 rounded-xl border px-3 py-2", chip.tone)}>
-                                                <span className="block text-[8px] font-black uppercase tracking-[0.16em] opacity-70">{chip.label}</span>
-                                                <span className="block text-[11px] font-black uppercase tracking-[0.08em]">{chip.value}</span>
-                                            </span>
-                                        )) : (
-                                            <span className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-700">
-                                                No sales spec captured
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Target</div>
-                                        <div className="mt-1 text-lg font-black text-slate-950">{targetLabel}</div>
-                                    </div>
-                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
-                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-700">Produced</div>
-                                        <div className="mt-1 text-lg font-black text-emerald-800">{producedLabel}</div>
-                                    </div>
-                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-700">Balance</div>
-                                        <div className="mt-1 text-lg font-black text-amber-800">{remainingLabel}</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-end gap-4">
-                                    <div className="relative h-28 w-28">
-                                        <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100">
-                                            <circle cx="50" cy="50" r="42" stroke="#e2e8f0" strokeWidth="9" fill="none" />
-                                            <circle
-                                                cx="50"
-                                                cy="50"
-                                                r="42"
-                                                stroke={ringPct >= 95 ? '#10b981' : '#2563eb'}
-                                                strokeWidth="9"
-                                                fill="none"
-                                                strokeLinecap="round"
-                                                strokeDasharray={ringCircumference}
-                                                strokeDashoffset={ringDashOffset}
-                                            />
-                                        </svg>
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                            <div className="text-2xl font-black text-slate-950">{ringPct}%</div>
-                                            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Step</div>
-                                        </div>
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Current step</div>
-                                        <div className="mt-1 truncate text-sm font-black text-slate-950">{stepName}</div>
-                                        <div className="mt-1 text-xs font-bold capitalize text-slate-500">{currentStepLabel}</div>
+                                    <h1 className="text-lg font-black tracking-tight">{machineName}</h1>
+                                    <div className="font-mono text-[11px] text-slate-500">
+                                        {machineCode} · {machineDetail?.machine?.work_center_name || 'Work center'} · {machineDetail?.machine?.plant_name || 'Plant'}
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button type="button" variant={activeTab === 'run' ? 'default' : 'outline'} className={cn('h-10 rounded-[10px] text-sm font-semibold', activeTab === 'run' && 'bg-slate-950 text-white hover:bg-slate-900')} onClick={() => setActiveTab('run')}>
+                                <Activity className="mr-2 h-4 w-4" />
+                                RUN
+                            </Button>
+                            <Button type="button" variant={activeTab === 'history' ? 'default' : 'outline'} className={cn('h-10 rounded-[10px] text-sm font-semibold', activeTab === 'history' && 'bg-slate-950 text-white hover:bg-slate-900')} onClick={() => setActiveTab('history')}>
+                                <History className="mr-2 h-4 w-4" />
+                                History
+                            </Button>
+                            <Button type="button" variant="outline" className="h-10 rounded-[10px] border-slate-200 bg-white text-sm font-semibold" onClick={() => refreshAll()}>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Refresh
+                            </Button>
+                            {isExecuting ? (
+                                <Button type="button" className="h-10 rounded-[10px] bg-gradient-to-br from-amber-500 to-orange-500 text-sm font-semibold text-white" data-testid="machine-stop-step" disabled={!canStop || stopMutation.isPending} onClick={() => stopMutation.mutate()}>
+                                    <Pause className="mr-2 h-4 w-4" />
+                                    Pause
+                                </Button>
+                            ) : (
+                                <Button type="button" className="h-10 rounded-[10px] bg-gradient-to-br from-emerald-600 to-emerald-500 text-sm font-semibold text-white" data-testid="machine-start-step" disabled={!canStart || startMutation.isPending} onClick={() => startMutation.mutate()}>
+                                    <Play className="mr-2 h-4 w-4" />
+                                    {isPaused ? 'Resume job' : 'Start job'}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </section>
 
-                        <main className="grid w-full gap-5 px-5 py-5 xl:grid-cols-[340px_minmax(0,1fr)_390px]">
-                            <aside className="space-y-4">
-                                <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_70px_-60px_rgba(15,23,42,0.65)]">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600">Queue</div>
-                                            <div className="mt-1 text-xl font-black text-slate-950">{visibleQueueItems.length} visible</div>
-                                        </div>
-                                        <Button type="button" variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => refreshAll()}>
-                                            <RefreshCw className="h-4 w-4" />
-                                        </Button>
+                {activeTab === 'history' ? (
+                    <HistoryPanel
+                        historyRows={historyRows}
+                        historyLoading={historyLoading}
+                        historyDateFrom={historyDateFrom}
+                        historyDateTo={historyDateTo}
+                        historyStatus={historyStatus}
+                        setHistoryDateFrom={setHistoryDateFrom}
+                        setHistoryDateTo={setHistoryDateTo}
+                        setHistoryStatus={setHistoryStatus}
+                    />
+                ) : (
+                    <>
+                        <section className={cn(surfaceClass, 'mb-4 p-5')} style={{ background: 'linear-gradient(180deg,#eff6ff 0%, #fff 100%)' }}>
+                            <div className="grid gap-4 xl:grid-cols-12 xl:items-center">
+                                <div className="xl:col-span-5">
+                                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">{customerName}</span>
+                                        <span className="font-mono text-[11px] text-slate-500">{orderNumber}</span>
+                                        <span className={cn('inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide', stateBadgeClass(jobState))}>{jobState || 'No job'}</span>
                                     </div>
-                                    <div className="relative mt-4">
-                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                        <Input
-                                            value={queueSearch}
-                                            onChange={(event) => setQueueSearch(event.target.value)}
-                                            placeholder="Search customer, size, grade"
-                                            className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs font-bold"
-                                        />
-                                    </div>
-                                    <div className="mt-3 grid grid-cols-2 gap-2">
-                                        {([
-                                            ['ALL', 'All'],
-                                            ['RUNNING', 'Run'],
-                                            ['READY', 'Ready'],
-                                            ['PAUSED', 'Hold'],
-                                        ] as const).map(([value, label]) => (
-                                            <Button
-                                                key={value}
-                                                type="button"
-                                                variant={queueStatusFilter === value ? 'default' : 'outline'}
-                                                size="sm"
-                                                className="h-9 rounded-xl text-[10px] font-black uppercase tracking-[0.16em]"
-                                                onClick={() => setQueueStatusFilter(value)}
-                                            >
-                                                {label}
-                                            </Button>
+                                    <h2 className="text-3xl font-black tracking-tight">{spec.productName || selectedJob?.product_name || 'Pick a released job'}</h2>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {chips.map((chip) => (
+                                            <span key={`${chip.label}-${chip.tone}`} className={cn('inline-flex items-center rounded-md border px-2 py-1 text-[11px] font-semibold', chip.tone)}>
+                                                {chip.label}
+                                            </span>
                                         ))}
+                                        <span className="inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-2 py-1 font-mono text-[11px] font-semibold text-yellow-300">{behavior}</span>
                                     </div>
-                                    <div className="mt-4 max-h-[calc(100vh-370px)] space-y-3 overflow-y-auto pr-1">
-                                        {visibleQueueItems.length === 0 ? (
-                                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs font-bold text-slate-500">
-                                                No jobs match this filter.
-                                            </div>
-                                        ) : (
-                                            visibleQueueItems.map((job: any) => {
-                                                const queueSpec = normalizeProductSpec(job);
-                                                const queueSelected = String(job.id) === String(selectedId);
-                                                const queueLayers = queueSpec.layers.slice(0, 2);
-                                                return (
-                                                    <button
-                                                        key={job.id}
-                                                        type="button"
-                                                        className={cn(
-                                                            "w-full rounded-2xl border p-3 text-left transition",
-                                                            queueSelected
-                                                                ? "border-blue-400 bg-blue-50 shadow-[0_18px_40px_-32px_rgba(37,99,235,0.6)]"
-                                                                : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50"
-                                                        )}
-                                                        onClick={() => setSelectedJobId(String(job.id))}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div className="min-w-0">
-                                                                <div className="truncate text-sm font-black text-slate-950">{queueSpec.customerName}</div>
-                                                                <div className="truncate text-[11px] font-bold text-slate-500">{queueSpec.orderNumber}</div>
-                                                            </div>
-                                                            <SemanticBadge kind="jobState" value={job.job_state} label={job.job_state || 'Ready'} className="text-[9px]" />
-                                                        </div>
-                                                        <div className="mt-3 line-clamp-2 text-xs font-black text-slate-900">{queueSpec.productName}</div>
-                                                        <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                                            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Size</div>
-                                                            <div className="mt-1 text-xs font-black text-slate-950">{queueSpec.size.label}</div>
-                                                        </div>
-                                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                                            {queueLayers.map((layer, index) => (
-                                                                <span key={`${job.id}-q-layer-${index}`} className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase text-indigo-700">
-                                                                    {layer.label}
-                                                                </span>
-                                                            ))}
-                                                            {queueSpec.podLabels.slice(0, 1).map((pod) => (
-                                                                <span key={`${job.id}-pod-${pod}`} className="rounded-lg bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase text-emerald-700">
-                                                                    POD {pod}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })
-                                        )}
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-3 xl:col-span-5">
+                                    <KpiCard label="Target" value={kg(targetKg)} tone="blue" />
+                                    <KpiCard label="Produced" value={kg(producedKg)} tone="emerald" />
+                                    <KpiCard label="Remaining" value={kg(remainingKg)} tone="amber" />
+                                </div>
+                                <div className="flex items-center gap-3 xl:col-span-2">
+                                    <ProgressRing value={progressPct} />
+                                    <div>
+                                        <div className={labelClass}>Current step</div>
+                                        <div className="mt-0.5 text-sm font-bold">{stepName}</div>
+                                        <div className="text-[11px] text-slate-500">{stepTransform}</div>
+                                        <span className="mt-1 inline-flex rounded-md border border-slate-700 bg-slate-800 px-2 py-1 font-mono text-[11px] font-semibold text-yellow-300">{behaviorLabel(behavior)}</span>
                                     </div>
-                                </section>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div className="grid gap-4 xl:grid-cols-12">
+                            <aside className="space-y-3 xl:col-span-3">
+                                <QueueRail
+                                    visibleQueueItems={visibleQueueItems}
+                                    queueItems={queueItems}
+                                    selectedId={selectedId}
+                                    queueSearch={queueSearch}
+                                    setQueueSearch={setQueueSearch}
+                                    queueStatusFilter={queueStatusFilter}
+                                    setQueueStatusFilter={setQueueStatusFilter}
+                                    setSelectedJobId={setSelectedJobId}
+                                    refreshAll={refreshAll}
+                                />
                             </aside>
 
-                            <section className="space-y-5">
-                                <section className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
-                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-white">
-                                                    Product focus
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
-                                                    {behaviorDisplay}
-                                                </span>
-                                            </div>
-                                            <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950">{selectedProductName || productSpec.productName}</h2>
-                                            <div className="mt-4 grid gap-3 md:grid-cols-4">
-                                                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Size</div>
-                                                    <div className="mt-2 text-xl font-black text-blue-950">{productSpec.size.label || selectedGeometry.label}</div>
-                                                    <div className="mt-1 text-xs font-bold text-blue-800">{rollFormLabel ? `Roll type ${rollFormLabel}` : `Height ${selectedGeometry.height || productSpec.size.heightMm || '-'} mm / Gusset ${selectedGeometry.gusset || productSpec.size.gussetMm || '-'} mm`}</div>
-                                                </div>
-                                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Variant</div>
-                                                    <div className="mt-2 truncate text-lg font-black text-emerald-950">{primaryVariantName || 'Variant not captured'}</div>
-                                                    <div className="mt-1 truncate text-xs font-bold text-emerald-800">{primaryVariantCode && primaryVariantCode !== primaryVariantName ? primaryVariantCode : `${productSpec.layers.length || 0} layer spec`}</div>
-                                                </div>
-                                                <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Grade / thickness</div>
-                                                    <div className="mt-2 truncate text-lg font-black text-violet-950">{primaryGradeLabel || 'Grade not captured'}</div>
-                                                    <div className="mt-1 truncate text-xs font-bold text-violet-800">{primaryThicknessLabel || 'Thickness not captured'}</div>
-                                                </div>
-                                                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">POD and add-ons</div>
-                                                    <div className="mt-2 truncate text-lg font-black text-amber-950">{selectedPodLabel}</div>
-                                                    <div className="mt-1 truncate text-xs font-bold text-amber-800">{selectedAddonsLabel}</div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-                                                <div className="grid grid-cols-[52px_1.4fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                                                    <div>#</div>
-                                                    <div>Variant</div>
-                                                    <div>Grade</div>
-                                                    <div>Thickness</div>
-                                                    <div>Width</div>
-                                                </div>
-                                                {layerRows.length ? (
-                                                    layerRows.map((layer: any, index: number) => (
-                                                        <div key={`${layer.label}-${index}`} className="grid grid-cols-[52px_1.4fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-3 py-3 text-xs">
-                                                            <div className="font-black text-slate-400">{layer.index || index + 1}</div>
-                                                            <div className="min-w-0">
-                                                                <div className="truncate font-black text-slate-950">{layer.variantName || layer.variant || layer.label}</div>
-                                                                {layer.variantCode && layer.variantCode !== layer.variantName ? (
-                                                                    <div className="mt-0.5 truncate text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{layer.variantCode}</div>
-                                                                ) : null}
-                                                            </div>
-                                                            <div className="truncate font-bold text-violet-700">{layer.grade || layer.gradeName || '-'}</div>
-                                                            <div className="truncate font-bold text-slate-600">{layer.thicknessMicron ? `${layer.thicknessMicron} micron` : '-'}</div>
-                                                            <div className="truncate font-black text-blue-700">{layer.widthMm ? `${layer.widthMm} mm` : '-'}</div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="border-t border-slate-100 px-3 py-8 text-center text-xs font-bold text-slate-500">No layer spec captured.</div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Route step</div>
-                                                    <div className="mt-1 text-sm font-black text-slate-950">{stepName}</div>
-                                                    <div className="mt-1 text-xs font-bold capitalize text-slate-500">{currentStepLabel} / target {targetLabel}</div>
-                                                </div>
-                                                <Badge variant="outline" className="rounded-full border-blue-200 bg-white text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">{stepTargetSource}</Badge>
-                                            </div>
-                                            <div className="mt-4 space-y-3">
-                                                {timelineRows.map((step, index) => (
-                                                    <div key={step.label} className="flex items-center gap-3">
-                                                        <div className={cn(
-                                                            "flex h-9 w-9 items-center justify-center rounded-full text-xs font-black",
-                                                            step.state === 'done' && "bg-emerald-600 text-white",
-                                                            step.state === 'active' && "bg-blue-600 text-white",
-                                                            step.state === 'pending' && "bg-white text-slate-400 ring-1 ring-slate-200"
-                                                        )}>
-                                                            {step.state === 'done' ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <div className="truncate text-sm font-black text-slate-950">{step.label}</div>
-                                                            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{step.state}</div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <Separator className="my-4" />
-                                            <div className="rounded-2xl bg-white p-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Next action</div>
-                                                <div className="mt-2 text-lg font-black leading-6 text-slate-950">{operatorNextStep}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </section>
+                            <main className="space-y-3 xl:col-span-6">
+                                <RouteStepper
+                                    stepName={stepName}
+                                    stepTransform={stepTransform}
+                                    behavior={behavior}
+                                    jobState={jobState}
+                                    isExecuting={isExecuting}
+                                    isPaused={isPaused}
+                                    allocationReady={allocationReady}
+                                    producedKg={producedKg}
+                                    remainingKg={remainingKg}
+                                    targetKg={targetKg}
+                                    progressPct={progressPct}
+                                    canStart={canStart}
+                                    canLogOutput={canLogOutput}
+                                    canComplete={canComplete}
+                                    nextAction={operatorNextStep}
+                                />
 
-                                <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-68px_rgba(15,23,42,0.5)]">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600">Quick output</div>
-                                                <h3 className="mt-1 text-2xl font-black text-slate-950">Log finished qty</h3>
-                                            </div>
-                                            <SemanticBadge kind="jobState" value={canLogOutput ? 'READY' : 'PENDING'} label={canLogOutput ? 'Ready' : 'Locked'} />
-                                        </div>
-                                        <div className="mt-4 grid gap-2 md:grid-cols-3">
-                                            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-700">Output handling</div>
-                                                <div className="mt-1 text-sm font-black text-blue-950">{behaviorDisplay}</div>
-                                            </div>
-                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Max this log</div>
-                                                <div className="mt-1 text-sm font-black text-slate-950">{maxOutputWithScrapKg.toFixed(3)} kg</div>
-                                            </div>
-                                            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-700">Close tolerance</div>
-                                                <div className="mt-1 text-sm font-black text-amber-950">{stepToleranceKg.toFixed(3)} kg</div>
-                                            </div>
-                                        </div>
-                                        {showPcsEntry && (
-                                            <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                                <div>
-                                                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Entry mode</div>
-                                                    <div className="text-xs font-bold text-slate-600">{unitWeightG > 0 ? 'PCS and KG stay linked from unit weight.' : 'PCS is required because unit weight is not available.'}</div>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <Button type="button" size="sm" variant={outputEntryMode === 'PCS' ? 'default' : 'outline'} className="h-8 rounded-xl text-[10px] font-black uppercase tracking-[0.14em]" onClick={() => { setOutputEntryMode('PCS'); setOutputWeightDirty(false); }}>
-                                                        PCS
-                                                    </Button>
-                                                    <Button type="button" size="sm" variant={outputEntryMode === 'KG' ? 'default' : 'outline'} className="h-8 rounded-xl text-[10px] font-black uppercase tracking-[0.14em]" onClick={() => setOutputEntryMode('KG')}>
-                                                        KG
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div className="mt-5 grid gap-4 md:grid-cols-2">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output kg</Label>
-                                                <Input value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-2xl font-black" placeholder="0.000" />
-                                            </div>
-                                            {showPcsEntry ? (
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output pcs</Label>
-                                                    <Input value={outputPcs} onChange={(event) => handleOutputPcsChange(event.target.value)} className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-2xl font-black" placeholder="0" />
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Output width</Label>
-                                                    <Input value={outputWidthMm} onChange={(event) => { setOutputWidthDirty(true); setOutputWidthMm(event.target.value); }} className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-2xl font-black" placeholder="mm" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        {behavior === 'SPLIT' && (
-                                            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-700">Split output</div>
-                                                        <div className="mt-1 text-xs font-bold text-blue-900">Enter each child roll width and kg. Scrap reduces the physical cap.</div>
-                                                    </div>
-                                                    <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl border-blue-200 bg-white text-[10px] font-black uppercase tracking-[0.16em] text-blue-700" onClick={addSplitRow}>
-                                                        <Plus className="mr-1 h-3 w-3" />
-                                                        Add split
-                                                    </Button>
-                                                </div>
-                                                <div className="mt-3 space-y-2">
-                                                    {splitRows.map((row) => (
-                                                        <div key={row.id} className="grid gap-2 md:grid-cols-[1fr_1fr_40px]">
-                                                            <Input value={row.width_mm} onChange={(event) => updateSplitRow(row.id, 'width_mm', event.target.value)} className="h-10 rounded-xl border-blue-200 bg-white font-black" placeholder="Width mm" />
-                                                            <Input value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="h-10 rounded-xl border-blue-200 bg-white font-black" placeholder="Weight kg" />
-                                                            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600" onClick={() => removeSplitRow(row.id)} disabled={splitRows.length <= 1}>
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-black text-blue-800">
-                                                    <span>Split total {splitTotalKg.toFixed(3)} kg</span>
-                                                    <span>Remainder {splitRemainder !== null ? splitRemainder.toFixed(3) : '0.000'} kg</span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div className="mt-4 grid grid-cols-3 gap-2">
-                                            {[25, 50, 100].map((pct) => {
-                                                const kg = maxOutputWithScrapKg > 0 ? (maxOutputWithScrapKg * pct) / 100 : 0;
-                                                return (
-                                                    <Button
-                                                        key={pct}
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="h-11 rounded-xl text-xs font-black uppercase tracking-[0.14em]"
-                                                        onClick={() => {
-                                                            if (kg > 0) handleOutputWeightChange(kg.toFixed(3));
-                                                        }}
-                                                        disabled={kg <= 0}
-                                                    >
-                                                        {pct}%
-                                                    </Button>
-                                                );
-                                            })}
-                                        </div>
-                                        {supportsDiscreteOutputRolls && (
-                                            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                <div className="grid gap-3 md:grid-cols-2">
-                                                    <div className="space-y-2">
-                                                        <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Length m</Label>
-                                                        <Input value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="optional" />
-                                                    </div>
-                                                    <div className="flex items-end">
-                                                        <Button type="button" variant="outline" className="h-10 w-full rounded-xl text-[10px] font-black uppercase tracking-[0.16em]" onClick={addCreateRollRow}>
-                                                            <Plus className="mr-2 h-4 w-4" />
-                                                            Add roll
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                                {createRollRows.length > 0 && (
-                                                    <div className="mt-3 space-y-2">
-                                                        {createRollRows.map((row) => (
-                                                            <div key={row.id} className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_40px]">
-                                                                <Input value={row.width_mm} onChange={(event) => updateCreateRollRow(row.id, 'width_mm', event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="Width mm" />
-                                                                <Input value={row.weight_kg} onChange={(event) => updateCreateRollRow(row.id, 'weight_kg', event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="Weight kg" />
-                                                                <Input value={row.length_m} onChange={(event) => updateCreateRollRow(row.id, 'length_m', event.target.value)} className="h-10 rounded-xl border-slate-200 bg-white font-bold" placeholder="Length m" />
-                                                                <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600" onClick={() => removeCreateRollRow(row.id)}>
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                            <div className="text-xs font-bold text-slate-600">
-                                                Preview: <span className="font-black text-slate-950">{previewOutputKg.toFixed(3)} kg</span>
-                                                {previewOutputPcs !== null ? <span> / <span className="font-black text-slate-950">{previewOutputPcs} pcs</span></span> : null}
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                className="h-11 rounded-xl bg-blue-600 px-5 text-xs font-black uppercase tracking-[0.16em] hover:bg-blue-700"
-                                                onClick={() => logOutputMutation.mutate(undefined)}
-                                                disabled={quickOutputDisabled}
-                                            >
-                                                Save output
-                                            </Button>
-                                        </div>
-                                        {exceedsOutputCap && (
-                                            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
-                                                Output exceeds current physical cap of {maxOutputWithScrapKg.toFixed(3)} kg.
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-68px_rgba(15,23,42,0.5)]">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-rose-600">Scrap and stop</div>
-                                                <h3 className="mt-1 text-2xl font-black text-slate-950">Exceptions</h3>
-                                            </div>
-                                            <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em]">
-                                                Scrap {scrapValue.toFixed(3)} kg
-                                            </Badge>
-                                        </div>
-                                        <div className="mt-5 grid gap-4 md:grid-cols-2">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Scrap mode</Label>
-                                                <Select value={scrapEntryMode} onValueChange={(value) => setScrapEntryMode(value as 'KG' | 'PCS')}>
-                                                    <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-black">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="KG">KG</SelectItem>
-                                                        <SelectItem value="PCS">PCS</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Scrap qty</Label>
-                                                <Input
-                                                    ref={scrapInputRef}
-                                                    value={scrapEntryMode === 'PCS' ? scrapPcs : scrapKg}
-                                                    onChange={(event) => scrapEntryMode === 'PCS' ? setScrapPcs(event.target.value) : setScrapKg(event.target.value)}
-                                                    className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-xl font-black"
-                                                    placeholder="0"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 space-y-2">
-                                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Pause reason</Label>
-                                            <Input value={stopReason} onChange={(event) => setStopReason(event.target.value)} className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-bold" />
-                                        </div>
-                                        {needsForceComplete && (
-                                            <div className="mt-4 space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Force complete reason</Label>
-                                                <Input value={forceReason} onChange={(event) => setForceReason(event.target.value)} className="h-11 rounded-xl border-amber-200 bg-white font-bold" placeholder="Explain remaining balance before close" />
-                                            </div>
-                                        )}
-                                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                            <Button type="button" variant="outline" className="h-12 rounded-xl border-amber-200 bg-amber-50 text-xs font-black uppercase tracking-[0.16em] text-amber-800" onClick={() => stopMutation.mutate()} disabled={!canStop || stopMutation.isPending}>
-                                                Pause machine
-                                            </Button>
-                                            <Button type="button" className="h-12 rounded-xl bg-slate-950 text-xs font-black uppercase tracking-[0.16em] hover:bg-slate-800" onClick={() => completeMutation.mutate()} disabled={!canComplete || completeMutation.isPending}>
-                                                Complete step
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-68px_rgba(15,23,42,0.5)]">
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                <section className={cn(surfaceClass, 'overflow-hidden border-2 border-blue-500')} id="machine-output-panel" data-testid="machine-output-panel">
+                                    <span className="sr-only">Enter only the fields this step needs.</span>
+                                    <div className="flex items-center justify-between gap-3 bg-gradient-to-br from-sky-500 to-blue-600 px-5 py-3 text-white">
                                         <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Material actuals</div>
-                                            <h3 className="mt-1 text-2xl font-black text-slate-950">Issued, returned, scrap</h3>
-                                            <p className="mt-1 text-xs font-semibold text-slate-500">Granule code splits released from WCM are visible here and can still be corrected before step close.</p>
+                                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">Log output · primary action</div>
+                                            <div className="mt-0.5 text-lg font-black">{variantTitle(variant, stepName, behavior)}</div>
                                         </div>
-                                        <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
-                                            {reconcilableBulkRows.length} manual rows
-                                        </Badge>
-                                    </div>
-                                    {materialSummaryRows.length === 0 ? (
-                                        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
-                                            No manual bulk material actuals are required for this step.
-                                        </div>
-                                    ) : (
-                                        <div className="mt-5 space-y-4">
-                                            {materialSummaryRows.map((req: any, idx: number) => {
-                                                const requirementId = String(req?.requirement_id || "").trim();
-                                                const draft = materialConfirmations[requirementId];
-                                                const estimate = toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0);
-                                                const granuleCodeOptions = Array.isArray(req?.granule_code_options) ? req.granule_code_options : [];
-                                                const granuleAllocations =
-                                                    draft?.granule_code_allocations && draft.granule_code_allocations.length > 0
-                                                        ? draft.granule_code_allocations
-                                                        : (String(req?.category || '').toUpperCase() === 'GRANULE' && granuleCodeOptions.length > 0
-                                                            ? [{ granule_code_id: String(granuleCodeOptions[0].granule_code_id), qty_kg: estimate > 0 ? estimate.toFixed(3) : '' }]
-                                                            : []);
-                                                return (
-                                                    <div key={req.requirement_id || req.material_id || idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                        <div className="flex flex-wrap items-center justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <div className="truncate text-sm font-black text-slate-950">{req.material_name || req.category || 'Material'}</div>
-                                                                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{String(req.capture_mode || req.strategy || 'Manual confirm').replace(/_/g, ' ')}</div>
-                                                            </div>
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="h-9 rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.16em]"
-                                                                onClick={() => updateMaterialConfirmation(requirementId, {
-                                                                    actual_issued_qty: estimate.toFixed(3),
-                                                                    actual_returned_qty: '0',
-                                                                    actual_scrap_qty: '0',
-                                                                    is_estimated: true,
-                                                                })}
-                                                                disabled={!requirementId}
-                                                            >
-                                                                Use estimate
-                                                            </Button>
-                                                        </div>
-                                                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Issued kg</Label>
-                                                                <Input value={draft?.actual_issued_qty || ''} onChange={(event) => updateMaterialConfirmation(requirementId, { actual_issued_qty: event.target.value, is_estimated: false })} className="h-11 rounded-xl border-slate-200 bg-white font-black" placeholder="0.000" />
-                                                            </div>
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Returned kg</Label>
-                                                                <Input value={draft?.actual_returned_qty || ''} onChange={(event) => updateMaterialConfirmation(requirementId, { actual_returned_qty: event.target.value, is_estimated: false })} className="h-11 rounded-xl border-slate-200 bg-white font-black" placeholder="0.000" />
-                                                            </div>
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Scrap kg</Label>
-                                                                <Input value={draft?.actual_scrap_qty || ''} onChange={(event) => updateMaterialConfirmation(requirementId, { actual_scrap_qty: event.target.value, is_estimated: false })} className="h-11 rounded-xl border-slate-200 bg-white font-black" placeholder="0.000" />
-                                                            </div>
-                                                        </div>
-                                                        {String(req?.category || '').toUpperCase() === 'GRANULE' && (
-                                                            <div className="mt-4 rounded-2xl border border-emerald-200 bg-white p-3">
-                                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                    <div>
-                                                                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-700">Granule code split</div>
-                                                                        <div className="mt-1 text-xs font-bold text-emerald-900">Select one or more codes of the same granule and assign kg issued to machine.</div>
-                                                                    </div>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="h-9 rounded-xl border-emerald-200 bg-emerald-50 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800"
-                                                                        disabled={!requirementId || granuleCodeOptions.length === 0}
-                                                                        onClick={() => updateMaterialConfirmation(requirementId, {
-                                                                            granule_code_allocations: [...granuleAllocations, { granule_code_id: String(granuleCodeOptions[0]?.granule_code_id || ''), qty_kg: '' }],
-                                                                            is_estimated: false,
-                                                                        })}
-                                                                    >
-                                                                        <Plus className="mr-1 h-3 w-3" />
-                                                                        Add code
-                                                                    </Button>
-                                                                </div>
-                                                                {granuleCodeOptions.length === 0 ? (
-                                                                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                                                                        No granule code stock available at the issue location.
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="mt-3 space-y-2">
-                                                                        {granuleAllocations.map((allocation, allocationIndex) => (
-                                                                            <div key={`${requirementId}-new-granule-${allocationIndex}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_130px_40px]">
-                                                                                <Select
-                                                                                    value={allocation.granule_code_id || String(granuleCodeOptions[0]?.granule_code_id || '')}
-                                                                                    onValueChange={(value) => {
-                                                                                        const nextAllocations = granuleAllocations.map((row, rowIndex) => rowIndex === allocationIndex ? { ...row, granule_code_id: value } : row);
-                                                                                        updateMaterialConfirmation(requirementId, { granule_code_allocations: nextAllocations, is_estimated: false });
-                                                                                    }}
-                                                                                >
-                                                                                    <SelectTrigger className="h-10 rounded-xl border-emerald-200 bg-white text-xs font-black">
-                                                                                        <SelectValue placeholder="Select code" />
-                                                                                    </SelectTrigger>
-                                                                                    <SelectContent>
-                                                                                        {granuleCodeOptions.map((option: any) => (
-                                                                                            <SelectItem key={`${requirementId}-${option.granule_code_id}`} value={String(option.granule_code_id)}>
-                                                                                                {option.code} / {toNumber(option.available_qty_kg, 0).toFixed(3)} kg
-                                                                                            </SelectItem>
-                                                                                        ))}
-                                                                                    </SelectContent>
-                                                                                </Select>
-                                                                                <Input
-                                                                                    value={allocation.qty_kg}
-                                                                                    onChange={(event) => {
-                                                                                        const nextAllocations = granuleAllocations.map((row, rowIndex) => rowIndex === allocationIndex ? { ...row, qty_kg: event.target.value } : row);
-                                                                                        updateMaterialConfirmation(requirementId, { granule_code_allocations: nextAllocations, is_estimated: false });
-                                                                                    }}
-                                                                                    className="h-10 rounded-xl border-emerald-200 bg-white font-black"
-                                                                                    placeholder="kg"
-                                                                                />
-                                                                                <Button
-                                                                                    type="button"
-                                                                                    variant="ghost"
-                                                                                    size="icon"
-                                                                                    className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600"
-                                                                                    disabled={granuleAllocations.length <= 1}
-                                                                                    onClick={() => updateMaterialConfirmation(requirementId, {
-                                                                                        granule_code_allocations: granuleAllocations.filter((_, rowIndex) => rowIndex !== allocationIndex),
-                                                                                        is_estimated: false,
-                                                                                    })}
-                                                                                >
-                                                                                    <Trash2 className="h-4 w-4" />
-                                                                                </Button>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </section>
-                            </section>
-
-                            <aside className="space-y-5">
-                                <section className="sticky top-[198px] space-y-5">
-                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-indigo-600">Rolls and WIP</div>
-                                                <h3 className="mt-1 text-xl font-black text-slate-950">Input pool</h3>
-                                            </div>
-                                            <Badge variant="outline" className="rounded-full border-indigo-200 bg-indigo-50 text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">
-                                                {rightRailRolls.length} rows
-                                            </Badge>
-                                        </div>
-                                        {laneFocusRows.length > 0 && (
-                                            <div className="mt-4 grid gap-2">
-                                                {laneFocusRows.map((lane: any, index: number) => (
-                                                    <div key={`${lane?.lane_key || lane?.lane_label || index}`} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2">
-                                                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-indigo-600">{lane?.lane_label || lane?.target_lane_label || `Layer ${index + 1}`}</div>
-                                                        <div className="mt-1 truncate text-xs font-black text-slate-950">{lane?.variant_name || lane?.target_variant_name || lane?.family_name || 'Layer variant'}</div>
-                                                        <div className="mt-1 flex flex-wrap gap-1.5">
-                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-indigo-700">{lane?.grade_name || lane?.target_grade_name || '-'}</span>
-                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-indigo-700">{formatMicron(lane?.thickness_micron ?? lane?.target_thickness_micron)}</span>
-                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-indigo-700">{formatMm(lane?.width_mm ?? lane?.target_width_mm)}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <div className="mt-4 space-y-3">
-                                            {rightRailRolls.length === 0 ? (
-                                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs font-bold text-slate-500">
-                                                    No roll or WIP input is visible for this step.
-                                                </div>
-                                            ) : (
-                                                rightRailRolls.map((roll: any) => (
-                                                    <div key={roll.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <div className="truncate text-xs font-black text-slate-950">{roll.label_id || roll.id}</div>
-                                                                <div className="mt-1 truncate text-[10px] font-bold text-slate-500">{roll.variant || roll.material_name || '-'}</div>
-                                                            </div>
-                                                            <div className="text-right text-sm font-black text-slate-950">{toNumber(roll.weight_kg, 0).toFixed(3)} kg</div>
-                                                        </div>
-                                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{formatMm(roll.width_mm)}</span>
-                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{formatMicron(roll.thickness_micron)}</span>
-                                                            <span className="rounded-lg bg-white px-2 py-1 text-[9px] font-black text-slate-600">{roll.grade || '-'}</span>
-                                                            {(roll.target_lane_label || roll.target_layer_index) && (
-                                                                <span className="rounded-lg bg-indigo-100 px-2 py-1 text-[9px] font-black text-indigo-700">{roll.target_lane_label || `Layer ${roll.target_layer_index}`}</span>
-                                                            )}
-                                                        </div>
-                                                        {(roll.target_variant_name || roll.target_width_mm || roll.target_thickness_micron) && (
-                                                            <div className="mt-2 rounded-xl border border-indigo-100 bg-white px-3 py-2">
-                                                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-indigo-500">Target layer</div>
-                                                                <div className="mt-1 text-[11px] font-black text-slate-900">{roll.target_variant_name || roll.variant || 'Layer variant'}</div>
-                                                                <div className="mt-1 text-[10px] font-bold text-slate-500">
-                                                                    {[roll.target_grade_name, formatMicron(roll.target_thickness_micron), formatMm(roll.target_width_mm)].filter((value) => value && value !== '—').join(' / ') || 'Spec pending'}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))
-                                            )}
+                                        <div className="flex items-center gap-2">
+                                            <Button type="button" size="sm" variant="secondary" className="h-8 rounded-lg bg-white/15 text-xs font-bold text-white hover:bg-white/20" data-testid="machine-stage-output" onClick={() => document.getElementById('machine-output-panel')?.scrollIntoView({ block: 'center' })}>
+                                                Focus
+                                            </Button>
                                         </div>
                                     </div>
 
-                                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_-64px_rgba(15,23,42,0.5)]">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">Execution health</div>
-                                        <div className="mt-4 grid grid-cols-2 gap-3">
-                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Input ready</div>
-                                                <div className="mt-2 text-lg font-black text-slate-950">{allocationReservationReady ? 'Yes' : 'No'}</div>
-                                            </div>
-                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Roll shortage</div>
-                                                <div className="mt-2 text-lg font-black text-slate-950">{(telemetryHealth as any)?.roll_shortage ?? 0}</div>
-                                            </div>
-                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Step progress</div>
-                                                <div className="mt-2 text-lg font-black text-slate-950">{stepProducedKg.toFixed(3)} / {stepTotalTargetKg.toFixed(3)}</div>
-                                            </div>
-                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Remaining</div>
-                                                <div className="mt-2 text-lg font-black text-slate-950">{stepRemainingKg.toFixed(3)} kg</div>
-                                            </div>
+                                    {isPaused ? (
+                                        <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900">
+                                            Step is paused. Resume the job before logging output.
                                         </div>
-                                        <Separator className="my-4" />
-                                        <div className="space-y-2">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Live logs</div>
-                                            {liveLogs.length ? (
-                                                liveLogs.map((log: any, index: number) => (
-                                                    <div key={log?.id || index} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
-                                                        {log?.message || log?.event || JSON.stringify(log).slice(0, 80)}
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs font-bold text-slate-500">
-                                                    No events yet.
-                                                </div>
-                                            )}
+                                    ) : null}
+                                    {!allocationReady ? (
+                                        <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-900">
+                                            Required input allocation is not ready for this step.
+                                        </div>
+                                    ) : null}
+
+                                    <div className="p-5">
+                                        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                                            <MetricTile label="Output handling" value={behaviorLabel(behavior)} tone="blue" />
+                                            <MetricTile label="Max this log" value={kg(maxOutputWithScrapKg)} tone="slate" />
+                                            <MetricTile label="Close tolerance" value={kg(stepToleranceKg)} tone="amber" />
+                                        </div>
+
+                                        <ProcessLogForm
+                                            variant={variant}
+                                            behavior={behavior}
+                                            showPcsEntry={showPcsEntry}
+                                            outputEntryMode={outputEntryMode}
+                                            setOutputEntryMode={setOutputEntryMode}
+                                            outputWeightKg={outputWeightKg}
+                                            handleOutputWeightChange={handleOutputWeightChange}
+                                            outputPcs={outputPcs}
+                                            handleOutputPcsChange={handleOutputPcsChange}
+                                            unitWeightG={unitWeightG}
+                                            outputWidthMm={outputWidthMm}
+                                            setOutputWidthMm={(value: string) => {
+                                                setOutputWidthDirty(true);
+                                                setOutputWidthMm(value);
+                                            }}
+                                            outputLengthM={outputLengthM}
+                                            setOutputLengthM={setOutputLengthM}
+                                            createRollRows={createRollRows}
+                                            addCreateRollRow={addCreateRollRow}
+                                            updateCreateRow={updateCreateRow}
+                                            removeCreateRow={(id: number) => setCreateRollRows((prev) => prev.filter((row) => row.id !== id))}
+                                            autoSplitEqual={autoSplitEqual}
+                                            splitRows={splitRows}
+                                            addSplitRow={addSplitRow}
+                                            updateSplitRow={updateSplitRow}
+                                            removeSplitRow={(id: number) => setSplitRows((prev) => (prev.length <= 1 ? prev : prev.filter((row) => row.id !== id)))}
+                                            reservedRolls={reservedRolls}
+                                            previewOutputKg={previewOutputKg}
+                                            previewOutputPcs={previewOutputPcs}
+                                            scrapInput={scrapInput}
+                                            setScrapInput={setScrapInput}
+                                            scrapEntryMode={scrapEntryMode}
+                                            setScrapEntryMode={setScrapEntryMode}
+                                            scrapReason={scrapReason}
+                                            setScrapReason={setScrapReason}
+                                            remainderLocations={remainderLocations}
+                                            remainderLocationId={remainderLocationId}
+                                            setRemainderLocationId={setRemainderLocationId}
+                                            selectedMaterial={selectedMaterial}
+                                            materialConfirmations={materialConfirmations}
+                                            reconcilableBulkRows={reconcilableBulkRows}
+                                            updateMaterialConfirmation={updateMaterialConfirmation}
+                                        />
+
+                                        {exceedsOutputCap ? (
+                                            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">
+                                                Output preview {kg(previewOutputKg)} exceeds the current physical cap {kg(maxOutputWithScrapKg)}.
+                                            </div>
+                                        ) : null}
+                                    </div>
+
+                                    <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setScrapDialogQty(scrapInput || '0'); setScrapDialogReason(scrapReason); setSublog('scrap'); }}>
+                                                + Scrap
+                                            </Button>
+                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setDowntimeStart(toDateTimeLocal()); setSublog('downtime'); }}>
+                                                + Downtime
+                                            </Button>
+                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => setSublog('consumption')}>
+                                                + Consumption
+                                            </Button>
+                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setQualityRows(qualityPreset(variant)); setSublog('quality'); }}>
+                                                + Quality
+                                            </Button>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {needsForceComplete ? (
+                                                <Input value={forceReason} onChange={(event) => setForceReason(event.target.value)} placeholder="Variance reason required" className="h-9 min-w-[220px] rounded-[10px] border-amber-200 bg-amber-50 text-xs font-semibold" />
+                                            ) : null}
+                                            <Button type="button" className="h-10 rounded-[10px] bg-gradient-to-br from-sky-500 to-blue-600 text-sm font-semibold text-white" data-testid="machine-log-output" disabled={!canLogOutput || logOutputMutation.isPending} onClick={() => logOutputMutation.mutate()}>
+                                                <Save className="mr-2 h-4 w-4" />
+                                                Log output
+                                            </Button>
+                                            <Button type="button" className="h-10 rounded-[10px] bg-gradient-to-br from-emerald-600 to-emerald-500 text-sm font-semibold text-white" data-testid="machine-finalize-step" disabled={!canComplete || completeMutation.isPending} onClick={() => completeMutation.mutate()}>
+                                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                Complete step →
+                                            </Button>
                                         </div>
                                     </div>
                                 </section>
+
+                            </main>
+
+                            <aside className="space-y-3 xl:col-span-3">
+                                <RollsWipCard rolls={rightRailRolls} />
+                                <ExecutionHealthCard allocationReady={allocationReady} shortage={toNumber((context?.telemetry?.execution_health as any)?.roll_shortage_count ?? (context?.satisfaction as any)?.rolls_missing, 0)} producedKg={producedKg} targetKg={targetKg} remainingKg={remainingKg} nextAction={operatorNextStep} contextLoading={contextLoading} />
+                                <LiveEventsCard events={events} loading={eventsLoading} />
                             </aside>
-                        </main>
+                        </div>
                     </>
                 )}
             </div>
-        );
-    }
+
+            <SublogDialog
+                sublog={sublog}
+                setSublog={setSublog}
+                selectedJob={selectedJob}
+                scrapDialogQty={scrapDialogQty}
+                setScrapDialogQty={setScrapDialogQty}
+                scrapDialogReason={scrapDialogReason}
+                setScrapDialogReason={setScrapDialogReason}
+                scrapDialogNotes={scrapDialogNotes}
+                setScrapDialogNotes={setScrapDialogNotes}
+                scrapMutationPending={scrapMutation.isPending}
+                onSaveScrap={() => scrapMutation.mutate()}
+                downtimeReason={downtimeReason}
+                setDowntimeReason={setDowntimeReason}
+                downtimeStart={downtimeStart}
+                setDowntimeStart={setDowntimeStart}
+                downtimeEnd={downtimeEnd}
+                setDowntimeEnd={setDowntimeEnd}
+                downtimeAutoStop={downtimeAutoStop}
+                setDowntimeAutoStop={setDowntimeAutoStop}
+                downtimeNotes={downtimeNotes}
+                setDowntimeNotes={setDowntimeNotes}
+                downtimeMutationPending={downtimeMutation.isPending}
+                onSaveDowntime={() => downtimeMutation.mutate()}
+                materialOptions={materialOptions}
+                consumptionMaterialId={consumptionMaterialId}
+                setConsumptionMaterialId={setConsumptionMaterialId}
+                filteredGranuleCodes={filteredGranuleCodes}
+                consumptionGranuleCodeId={consumptionGranuleCodeId}
+                setConsumptionGranuleCodeId={setConsumptionGranuleCodeId}
+                reservedRolls={reservedRolls}
+                consumptionRollId={consumptionRollId}
+                setConsumptionRollId={setConsumptionRollId}
+                consumptionQty={consumptionQty}
+                setConsumptionQty={setConsumptionQty}
+                consumptionEstimated={consumptionEstimated}
+                setConsumptionEstimated={setConsumptionEstimated}
+                consumptionPending={consumptionMutation.isPending}
+                onSaveConsumption={() => consumptionMutation.mutate()}
+                qualityRows={qualityRows}
+                setQualityRows={setQualityRows}
+                qualityPending={qualityMutation.isPending}
+                onSaveQuality={() => qualityMutation.mutate()}
+            />
+        </div>
+    );
+}
+
+function KpiCard({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'emerald' | 'amber' }) {
+    const tones = {
+        blue: 'border-l-blue-500 bg-white text-slate-950',
+        emerald: 'border-l-emerald-500 bg-emerald-50 text-emerald-800',
+        amber: 'border-l-amber-500 bg-amber-50 text-amber-800',
+    };
+    return (
+        <div className={cn('rounded-[14px] border border-slate-200 border-l-[3px] p-3', tones[tone])}>
+            <div className={labelClass}>{label}</div>
+            <div className="mt-1 font-mono text-2xl font-black">{value}</div>
+        </div>
+    );
+}
+
+function ProgressRing({ value }: { value: number }) {
+    const radius = 26;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (circumference * Math.round(value)) / 100;
+    return (
+        <div className="relative h-16 w-16">
+            <svg className="-rotate-90" width="64" height="64" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r={radius} stroke="#e2e8f0" strokeWidth="6" fill="none" />
+                <circle cx="32" cy="32" r={radius} stroke="url(#machine-ring)" strokeWidth="6" fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
+                <defs>
+                    <linearGradient id="machine-ring" x1="0" x2="1">
+                        <stop offset="0%" stopColor="#0ea5e9" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-sm font-black">{Math.round(value)}%</div>
+        </div>
+    );
+}
+
+function MetricTile({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'slate' | 'amber' }) {
+    const classes = tone === 'blue' ? 'border-blue-100 bg-blue-50 text-blue-950' : tone === 'amber' ? 'border-amber-100 bg-amber-50 text-amber-950' : 'border-slate-200 bg-slate-50 text-slate-950';
+    return (
+        <div className={cn('rounded-xl border px-3 py-2', classes)}>
+            <div className={cn(labelClass, tone === 'blue' && 'text-blue-700', tone === 'amber' && 'text-amber-700')}>{label}</div>
+            <div className="mt-1 text-sm font-black">{value}</div>
+        </div>
+    );
+}
+
+function QueueRail({ visibleQueueItems, queueItems, selectedId, queueSearch, setQueueSearch, queueStatusFilter, setQueueStatusFilter, setSelectedJobId, refreshAll }: any) {
+    return (
+        <section className={cn(surfaceClass, 'p-4')}>
+            <div className="mb-3 flex items-center justify-between">
+                <div>
+                    <div className={labelClass}>Queue</div>
+                    <div className="mt-0.5 text-base font-black">{visibleQueueItems.length} visible</div>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="h-9 rounded-[10px] bg-white" onClick={() => refreshAll()}>
+                    <RefreshCw className="h-4 w-4" />
+                </Button>
+            </div>
+            <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input value={queueSearch} onChange={(event) => setQueueSearch(event.target.value)} placeholder="Search customer, size, grade" className={cn(inputClass, 'pl-9')} />
+            </div>
+            <div className="mb-3 grid grid-cols-2 gap-1.5 text-xs">
+                {([
+                    ['ALL', 'All'],
+                    ['RUNNING', 'Run'],
+                    ['READY', 'Ready'],
+                    ['PAUSED', 'Hold'],
+                ] as const).map(([value, label]) => (
+                    <Button
+                        key={value}
+                        type="button"
+                        variant="outline"
+                        className={cn('h-9 rounded-full text-xs font-semibold', queueStatusFilter === value ? 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700')}
+                        onClick={() => setQueueStatusFilter(value)}
+                    >
+                        {label}
+                    </Button>
+                ))}
+            </div>
+            <div className="max-h-[calc(100vh-430px)] space-y-2 overflow-y-auto pr-1">
+                {visibleQueueItems.length ? visibleQueueItems.map((job: any) => {
+                    const spec = normalizeProductSpec(job);
+                    const selected = String(job.id) === String(selectedId);
+                    return (
+                        <button
+                            key={job.id}
+                            type="button"
+                            data-testid={`machine-job-card-${job.id}`}
+                            className={cn(
+                                'w-full rounded-[14px] border p-3 text-left transition',
+                                selected ? 'border-blue-500 bg-gradient-to-b from-blue-50 to-white shadow-[0_8px_18px_-10px_rgba(59,130,246,0.4)]' : 'border-slate-200 bg-white hover:border-blue-400'
+                            )}
+                            onClick={() => setSelectedJobId(String(job.id))}
+                        >
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                                <div className="truncate text-sm font-semibold">{spec.customerName}</div>
+                                <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase', stateBadgeClass(job.job_state))}>{job.job_state || 'ready'}</span>
+                            </div>
+                            <div className="mb-1 font-mono text-[11px] text-slate-500">{job.job_number} · {spec.productName} · {kg(job.step_remaining_kg ?? job.quantity, 0)}</div>
+                            <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px]">
+                                <div className="font-semibold text-blue-900">{spec.size?.label || 'Size not captured'}</div>
+                                <div className="font-mono text-slate-500">{(spec.layers || []).slice(0, 2).map((layer: any) => layer.label).join(' · ') || job.process_code || 'Step'}</div>
+                            </div>
+                        </button>
+                    );
+                }) : (
+                    <div className="rounded-[14px] border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs font-semibold text-slate-500">
+                        {queueItems.length ? 'No jobs match this filter.' : 'No released jobs are waiting here.'}
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+}
+
+function RouteStepper({
+    stepName,
+    stepTransform,
+    behavior,
+    jobState,
+    isExecuting,
+    isPaused,
+    allocationReady,
+    producedKg,
+    remainingKg,
+    targetKg,
+    progressPct,
+    canStart,
+    canLogOutput,
+    canComplete,
+    nextAction,
+}: any) {
+    const hasJob = Boolean(jobState);
+    const statusLabel = !hasJob ? 'Waiting for job' : isExecuting ? 'Running live' : isPaused ? 'Paused' : canStart ? 'Ready to start' : jobState;
+    const statusTone = !hasJob
+        ? 'border-slate-200 bg-slate-50 text-slate-600'
+        : isExecuting
+          ? 'border-blue-200 bg-blue-50 text-blue-800'
+          : isPaused
+            ? 'border-amber-200 bg-amber-50 text-amber-800'
+            : canStart
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-slate-200 bg-white text-slate-700';
+    const nextLabel = !hasJob
+        ? 'Select released job'
+        : !allocationReady
+          ? 'Reserve input'
+          : canStart
+            ? 'Start job'
+            : isPaused
+              ? 'Resume job'
+              : canLogOutput
+                ? 'Log output'
+                : canComplete
+                  ? 'Complete step'
+                  : nextAction;
+    const steps = [
+        { eyebrow: 'Gate', label: 'WCM released', detail: 'Ready queue', state: hasJob ? 'done' : 'pending' },
+        { eyebrow: 'Machine', label: 'Ready', detail: allocationReady ? 'Input ready' : 'Input pending', state: !hasJob ? 'pending' : allocationReady ? 'done' : 'current' },
+        { eyebrow: 'Now', label: stepName, detail: `${stepTransform} · ${behaviorLabel(behavior)}`, state: isExecuting ? 'current' : hasJob && (canStart || isPaused) ? 'current' : 'pending' },
+        { eyebrow: 'Output', label: 'Log output', detail: producedKg > 0 ? `${kg(producedKg)} logged` : 'Awaiting entry', state: producedKg > 0 ? 'done' : isExecuting ? 'current' : 'pending' },
+        { eyebrow: 'Close', label: 'Complete step', detail: remainingKg > 0 ? `${kg(remainingKg)} remaining` : 'Ready to close', state: canComplete ? 'current' : 'pending' },
+    ];
+    return (
+        <section className={cn(surfaceClass, 'p-5 md:p-6')}>
+            <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+                <div>
+                    <div className={labelClass}>Current status</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={cn('inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-black', statusTone)}>{statusLabel}</span>
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-black text-amber-900">
+                            Remaining {kg(remainingKg)}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-black text-sky-900">
+                            Next · {nextLabel}
+                        </span>
+                    </div>
+                </div>
+                <div className="min-w-[170px] rounded-[16px] border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                        <span>Progress</span>
+                        <span>{Math.round(progressPct)}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500" style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }} />
+                    </div>
+                    <div className="mt-2 text-xs font-semibold text-slate-500">{kg(producedKg)} / {kg(targetKg)}</div>
+                </div>
+            </div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <div className={labelClass}>Live route</div>
+                <div className="text-xs font-semibold text-slate-500">Shows what is done, active, and still pending for this machine step.</div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-5">
+                {steps.map((step, index) => (
+                    <div key={step.label} className="flex items-stretch">
+                        <div
+                            className={cn(
+                                'flex min-h-[104px] w-full items-start gap-3 rounded-[16px] border px-3.5 py-3 text-left transition',
+                                step.state === 'done' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                                step.state === 'current' && 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]',
+                                step.state === 'pending' && 'border-slate-200 bg-slate-50 text-slate-500'
+                            )}
+                        >
+                            <span className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black', step.state === 'current' ? 'bg-white text-sky-600' : step.state === 'done' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-500')}>
+                                {step.state === 'done' ? '✓' : index + 1}
+                            </span>
+                            <span className="min-w-0">
+                                <span className={cn('block text-[10px] font-black uppercase tracking-[0.18em]', step.state === 'current' ? 'text-white/75' : 'text-slate-400')}>{step.eyebrow}</span>
+                                <span className="mt-1 block text-sm font-black leading-tight">{step.label}</span>
+                                <span className={cn('mt-1 block text-xs font-semibold leading-4', step.state === 'current' ? 'text-white/80' : 'text-slate-500')}>{step.detail}</span>
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function ProcessLogForm(props: any) {
+    const {
+        variant,
+        showPcsEntry,
+        outputEntryMode,
+        setOutputEntryMode,
+        outputWeightKg,
+        handleOutputWeightChange,
+        outputPcs,
+        handleOutputPcsChange,
+        unitWeightG,
+        outputWidthMm,
+        setOutputWidthMm,
+        outputLengthM,
+        setOutputLengthM,
+        createRollRows,
+        addCreateRollRow,
+        updateCreateRow,
+        removeCreateRow,
+        autoSplitEqual,
+        splitRows,
+        addSplitRow,
+        updateSplitRow,
+        removeSplitRow,
+        reservedRolls,
+        previewOutputKg,
+        previewOutputPcs,
+        scrapInput,
+        setScrapInput,
+        scrapEntryMode,
+        setScrapEntryMode,
+        scrapReason,
+        setScrapReason,
+        remainderLocations,
+        remainderLocationId,
+        setRemainderLocationId,
+        materialConfirmations,
+        reconcilableBulkRows,
+        updateMaterialConfirmation,
+    } = props;
 
     return (
-        <div
-            className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.12),_transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f6f7fb_100%)] transition-colors duration-1000"
-            data-testid="machine-execution-page"
-        >
-            {/* Ambient Background Glow */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-[-20%] right-[-10%] h-3/4 w-3/4 rounded-full bg-blue-400/8 blur-[160px]" />
-                <div className="absolute bottom-[10%] left-[-15%] h-2/3 w-2/3 rounded-full bg-indigo-500/8 blur-[140px]" />
+        <div className="space-y-4">
+            {showPcsEntry ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className={labelClass}>Entry mode</div>
+                            <div className="text-xs font-semibold text-slate-600">{unitWeightG > 0 ? `PCS and KG are linked at ${unitWeightG} g/pc.` : 'Unit weight is missing; enter both PCS and KG carefully.'}</div>
+                        </div>
+                        <div className="flex gap-1">
+                            {(['PCS', 'KG'] as EntryMode[]).map((mode) => (
+                                <Button key={mode} type="button" size="sm" variant="outline" className={cn('h-8 rounded-lg text-xs font-bold', outputEntryMode === mode ? 'border-transparent bg-slate-950 text-white' : 'bg-white')} onClick={() => setOutputEntryMode(mode)}>
+                                    {mode}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {variant === 'slitting' ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <Label className={labelClass}>Input roll</Label>
+                        <Select value={reservedRolls[0]?.id || SELECT_NONE}>
+                            <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className={labelClass}>Width math</div>
+                        <div className="mt-1 font-mono text-sm font-bold">
+                            {(reservedRolls[0]?.width_mm || 0).toFixed?.(0) || '0'} = {splitRows.map((row: SplitRow) => row.width_mm || '0').join(' + ')}
+                        </div>
+                        <div className="mt-0.5 text-[11px] font-semibold text-emerald-700">Checked before save by output cap.</div>
+                    </div>
+                </div>
+            ) : variant === 'pouching' ? (
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div>
+                        <Label className={labelClass}>Input roll</Label>
+                        <Select value={reservedRolls[0]?.id || SELECT_NONE}>
+                            <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label className={labelClass}>Good output PCS</Label>
+                        <div className="mt-1 flex items-center gap-1">
+                            <Input data-testid="machine-output-pcs" value={outputPcs} onChange={(event) => handleOutputPcsChange(event.target.value)} className={cn(inputClass, 'font-mono text-base font-bold')} type="number" />
+                            <span className="text-xs font-semibold text-slate-500">pcs</span>
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500">≈ <b className="font-mono">{kg(previewOutputKg)}</b></div>
+                    </div>
+                    <div>
+                        <Label className={labelClass}>Output kg</Label>
+                        <div className="mt-1 flex items-center gap-1">
+                            <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" step="0.001" />
+                            <span className="text-xs font-semibold text-slate-500">kg</span>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div>
+                        <Label className={labelClass}>{variant === 'printing' ? 'Throughput good qty' : 'Total produced'}</Label>
+                        <div className="mt-1 flex items-center gap-1">
+                            <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono text-base font-bold')} type="number" step="0.001" />
+                            <span className="text-xs font-semibold text-slate-500">kg</span>
+                        </div>
+                    </div>
+                    <div>
+                        <Label className={labelClass}>Output width</Label>
+                        <div className="mt-1 flex items-center gap-1">
+                            <Input data-testid="machine-output-width" value={outputWidthMm} onChange={(event) => setOutputWidthMm(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" />
+                            <span className="text-xs text-slate-500">mm</span>
+                        </div>
+                    </div>
+                    <div>
+                        <Label className={labelClass}>Output length opt</Label>
+                        <div className="mt-1 flex items-center gap-1">
+                            <Input data-testid="machine-output-length" value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" />
+                            <span className="text-xs text-slate-500">m</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {variant === 'extrusion' || variant === 'lamination' ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className={labelClass}>Roll outputs · auto labels</div>
+                            <div className="mt-0.5 text-xs text-slate-600">{createRollRows.length + 1} roll rows · total {kg(createRollRows.reduce((sum: number, row: CreateRollRow) => sum + toNumber(row.weight_kg, 0), toNumber(outputWeightKg, 0)))}</div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => autoSplitEqual(3)}>Auto-split equal</Button>
+                            <Button type="button" className="h-9 rounded-[10px] bg-gradient-to-br from-sky-500 to-blue-600 text-xs font-semibold text-white" data-testid="machine-add-create-row" onClick={addCreateRollRow}>
+                                <Plus className="mr-1 h-3 w-3" />
+                                Add roll
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500">
+                                <tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Weight</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Length</th><th className="p-2" /></tr>
+                            </thead>
+                            <tbody>
+                                <tr className="border-t border-slate-100">
+                                    <td className="p-2 pl-4 font-mono text-xs text-slate-500">1</td>
+                                    <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-weight-0" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-width-0" value={outputWidthMm} onChange={(event) => setOutputWidthMm(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-length-0" value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                    <td />
+                                </tr>
+                                {createRollRows.map((row: CreateRollRow, index: number) => (
+                                    <tr key={row.id} className="border-t border-slate-100">
+                                        <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 2}</td>
+                                        <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-weight-${index + 1}`} value={row.weight_kg} onChange={(event) => updateCreateRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-width-${index + 1}`} value={row.width_mm} onChange={(event) => updateCreateRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-length-${index + 1}`} value={row.length_m} onChange={(event) => updateCreateRow(row.id, 'length_m', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeCreateRow(row.id)}><Trash2 className="h-4 w-4" /></Button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : null}
+
+            {variant === 'slitting' ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-3">
+                        <div>
+                            <div className={labelClass}>Split outputs · child rolls</div>
+                            <div className="mt-0.5 text-xs text-slate-600">Sum of children + edge trim must stay within input roll weight.</div>
+                        </div>
+                        <Button type="button" className="h-9 rounded-[10px] bg-gradient-to-br from-sky-500 to-blue-600 text-xs font-semibold text-white" onClick={addSplitRow}>
+                            <Plus className="mr-1 h-3 w-3" />
+                            Add child
+                        </Button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Weight</th><th className="p-2" /></tr></thead>
+                            <tbody>
+                                {splitRows.map((row: SplitRow, index: number) => (
+                                    <tr key={row.id} className="border-t border-slate-100">
+                                        <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 1}</td>
+                                        <td className="p-2 font-mono text-xs font-semibold">Auto child label</td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-width-${index}`} value={row.width_mm} onChange={(event) => updateSplitRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-weight-${index}`} value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeSplitRow(row.id)} disabled={splitRows.length <= 1}><Trash2 className="h-4 w-4" /></Button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : null}
+
+            {reconcilableBulkRows.length ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                        <div>
+                            <div className={cn(labelClass, 'text-violet-800')}>Material actuals</div>
+                            <div className="text-[11px] text-violet-900/70">Confirm measured issue/return/scrap before closing this step.</div>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {reconcilableBulkRows.slice(0, 5).map((row: any) => {
+                            const requirementId = String(row.requirement_id || '');
+                            const draft = materialConfirmations[requirementId];
+                            if (!draft) return null;
+                            return (
+                                <div key={requirementId} className="grid gap-2 rounded-lg border border-violet-100 bg-white p-2 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] md:items-end">
+                                    <div>
+                                        <div className="text-xs font-black text-slate-900">{row.material_name || row.material_code || 'Material'}</div>
+                                        <div className="text-[10px] font-semibold text-slate-500">Required {kg(row.required_qty_kg || row.theoretical_qty_kg)}</div>
+                                    </div>
+                                    <InlineNumber label="Issued" value={draft.actual_issued_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_issued_qty: value, is_estimated: false })} />
+                                    <InlineNumber label="Returned" value={draft.actual_returned_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_returned_qty: value, is_estimated: false })} />
+                                    <InlineNumber label="Scrap" value={draft.actual_scrap_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_scrap_qty: value, is_estimated: false })} />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : null}
+
+            <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className={cn(labelClass, 'text-rose-800')}>{variant === 'extrusion' ? 'Setup waste' : variant === 'slitting' ? 'Edge trim' : 'Scrap'} · optional</div>
+                        <div className="mt-0.5 text-[11px] text-rose-900/80">This posts with the output log and appears in live events.</div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input data-testid="machine-scrap-input" value={scrapInput} onChange={(event) => setScrapInput(event.target.value)} className="h-10 w-24 rounded-lg border-rose-200 bg-white font-mono" type="number" step="0.001" />
+                        <Select value={scrapEntryMode} onValueChange={(value) => setScrapEntryMode(value as EntryMode)}>
+                            <SelectTrigger className="h-10 w-24 rounded-lg border-rose-200 bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent><SelectItem value="KG">KG</SelectItem><SelectItem value="PCS">PCS</SelectItem></SelectContent>
+                        </Select>
+                        <Select value={scrapReason} onValueChange={setScrapReason}>
+                            <SelectTrigger className="h-10 w-32 rounded-lg border-rose-200 bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>{['SETUP', 'TRIM', 'DEFECT', 'MACHINE', 'MATERIAL', 'OTHER'].map((reason) => <SelectItem key={reason} value={reason}>{reason}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                </div>
             </div>
 
-            <div className="relative z-10 p-6 space-y-6 max-w-[1600px] mx-auto">
-                {/* Header Card */}
-                <Card className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/92 shadow-[0_28px_74px_-52px_rgba(15,23,42,0.24)]">
-                    <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-blue-600 to-indigo-600" />
-                    <CardContent className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                                        <Server className="h-8 w-8 text-blue-600" />
-                                        {machineDetail?.machine?.name || 'Machine Terminal'}
-                                    </h1>
-                                    <SemanticBadge
-                                        kind="jobState"
-                                        value={isActive ? "READY" : "BLOCKED"}
-                                        label={machineDetail?.machine?.status || 'OFFLINE'}
-                                        className="rounded-full px-3 py-1 text-[10px]"
-                                    />
-                                </div>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                        <span>Execution owner: <span className="text-slate-900">{machineDetail?.operator?.name || 'Unassigned'}</span></span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                        <span>Template: <span className="text-blue-600">{context?.display?.template_name || selectedJob?.template_name || selectedJob?.product_name || '—'}</span></span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                        <span>Current Step: <span className="text-indigo-600">{context?.display?.step_name || context?.current_step?.process_name || '—'}</span></span>
-                                    </div>
-                                </div>
-                                <div className="pt-2 text-sm text-slate-500">
-                                    Keep one job active, log only current-step output, and let the execution plane carry output, scrap, remainder, and material truth.
-                                </div>
+            {variant === 'pouching' ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/30 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className={cn(labelClass, 'text-amber-800')}>Roll remainder · returns to bin</div>
+                            <div className="text-[11px] text-amber-900/70">Input roll balance is returned to the selected remainder location.</div>
+                        </div>
+                        <Select value={remainderLocationId} onValueChange={setRemainderLocationId}>
+                            <SelectTrigger className="h-10 min-w-[220px] rounded-lg border-amber-200 bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={DEFAULT_REMAINDER}>Use job output location</SelectItem>
+                                {remainderLocations.map((loc: any) => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function InlineNumber({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+    return (
+        <div>
+            <Label className={labelClass}>{label}</Label>
+            <Input value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 rounded-lg font-mono" type="number" step="0.001" />
+        </div>
+    );
+}
+
+function RollsWipCard({ rolls }: { rolls: any[] }) {
+    return (
+        <section className={cn(surfaceClass, 'p-4')}>
+            <div className="mb-2 flex items-center justify-between">
+                <div>
+                    <div className={labelClass}>Rolls and WIP</div>
+                    <div className="mt-0.5 text-base font-black">Input pool</div>
+                </div>
+                <span className="font-mono text-xs text-slate-500">{rolls.length} rows</span>
+            </div>
+            <div className="space-y-2">
+                {rolls.length ? rolls.slice(0, 6).map((roll) => (
+                    <div key={roll.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <div className="truncate font-mono text-xs font-bold text-slate-950">{roll.label_id || roll.id}</div>
+                                <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{roll.material_name}</div>
                             </div>
+                            <div className="font-mono text-sm font-black">{kg(roll.weight_kg)}</div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.width_mm, 0).toFixed(0)} mm</span>
+                            <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.thickness_micron, 0).toFixed(1)} μ</span>
+                            <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{roll.grade || '-'}</span>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs italic text-slate-500">No roll or WIP input is visible for this step.</div>
+                )}
+            </div>
+        </section>
+    );
+}
 
-                            <div className="flex items-center gap-3">
-                                <div className="flex flex-col items-end mr-4">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Flow type</span>
-                                    <Badge variant="outline" className="rounded-lg bg-slate-50 border-slate-200 px-3 py-1 font-black text-blue-700">
-                                        {behaviorDisplay}
-                                    </Badge>
-                                </div>
-                                <Button
-                                    variant="outline"
-                                    className="rounded-xl border-slate-200 shadow-sm hover:bg-slate-50 hover:text-blue-600 transition-all font-bold text-xs h-11 px-5"
-                                    onClick={() => router.push('/production/machine-selector')}
-                                >
-                                    <Settings2 className="h-4 w-4 mr-2" />
-                                    SWITCH MACHINE
-                                </Button>
+function ExecutionHealthCard({ allocationReady, shortage, producedKg, targetKg, remainingKg, nextAction, contextLoading }: any) {
+    return (
+        <section className={cn(surfaceClass, 'p-4')}>
+            <div className={cn(labelClass, 'mb-3')}>Execution health</div>
+            <div className="grid grid-cols-2 gap-2">
+                <HealthTile label="Input ready" value={contextLoading ? '...' : allocationReady ? 'Yes' : 'No'} tone={allocationReady ? 'emerald' : 'rose'} />
+                <HealthTile label="Roll shortage" value={String(shortage)} />
+                <HealthTile label="Step progress" value={`${kg(producedKg)} / ${kg(targetKg)}`} />
+                <HealthTile label="Remaining" value={kg(remainingKg)} tone="amber" />
+            </div>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className={labelClass}>Next action</div>
+                <div className="mt-1 text-sm font-black leading-5 text-slate-950">{nextAction}</div>
+            </div>
+        </section>
+    );
+}
+
+function HealthTile({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'emerald' | 'amber' | 'rose' }) {
+    const toneClass = tone === 'emerald' ? 'text-emerald-700' : tone === 'amber' ? 'text-amber-700' : tone === 'rose' ? 'text-rose-700' : 'text-slate-950';
+    return (
+        <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+            <div className={labelClass}>{label}</div>
+            <div className={cn('mt-1 break-words text-base font-black', toneClass)}>{value}</div>
+        </div>
+    );
+}
+
+function LiveEventsCard({ events, loading }: { events: MachineJobEvent[]; loading: boolean }) {
+    return (
+        <section className={cn(surfaceClass, 'p-4')}>
+            <div className="mb-2 flex items-center justify-between">
+                <div>
+                    <div className={labelClass}>Live events</div>
+                    <div className="mt-0.5 text-base font-black">Last 20</div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                    <span className="font-mono text-[10px] text-slate-500">poll 5s</span>
+                </div>
+            </div>
+            <div className="space-y-1.5">
+                {loading ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">Loading events...</div>
+                ) : events.length ? events.map((event) => (
+                    <div key={event.id} className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-2 rounded-lg border border-slate-100 bg-white px-2.5 py-2 text-xs">
+                        <span className={cn('h-2 w-2 rounded-full', eventTone(event.type))} />
+                        <span className="font-mono text-[11px] text-slate-500">{formatTime(event.ts)}</span>
+                        <span className="min-w-0 truncate"><b>{String(event.type).replaceAll('_', ' ')}</b>{event.label ? ` · ${event.label}` : ''}</span>
+                        <span className="text-[10px] text-slate-400">{event.user || ''}</span>
+                    </div>
+                )) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs font-semibold text-slate-500">No events yet.</div>
+                )}
+            </div>
+        </section>
+    );
+}
+
+function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDateTo, historyStatus, setHistoryDateFrom, setHistoryDateTo, setHistoryStatus }: any) {
+    return (
+        <section className={cn(surfaceClass, 'p-5')}>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <div className={cn(labelClass, 'text-blue-700')}>Machine history</div>
+                    <h2 className="mt-1 text-3xl font-black tracking-tight">Closed and forced jobs</h2>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">Date and variance filters use the same machine history API.</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                    <Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} className={inputClass} />
+                    <Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} className={inputClass} />
+                    <Select value={historyStatus} onValueChange={setHistoryStatus}>
+                        <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All status</SelectItem>
+                            <SelectItem value="NORMAL">Normal</SelectItem>
+                            <SelectItem value="FORCED_VARIANCE">Forced variance</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+            <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+                <div className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                    <div>Product</div><div>Completed</div><div>Output</div><div>Variance</div><div>Status</div>
+                </div>
+                <div className="overflow-x-auto">
+                    {historyLoading ? (
+                        <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Loading history...</div>
+                    ) : historyRows.length ? historyRows.map((row: any) => (
+                        <div key={row.job_id} className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-4 py-3 text-sm">
+                            <div className="min-w-0"><div className="truncate font-black">{row.job_number}</div><div className="truncate text-xs font-semibold text-slate-500">{row.template_name} · {row.step_name}</div></div>
+                            <div className="font-semibold text-slate-600">{formatShortDateTime(row.completed_at)}</div>
+                            <div className="font-mono font-black">{kg(row.produced_kg)}</div>
+                            <div className="font-mono font-black">{kg(row.variance_kg)}</div>
+                            <div><span className={cn('rounded-full border px-2 py-1 text-[10px] font-bold uppercase', stateBadgeClass(row.completion_mode))}>{row.completion_mode}</span></div>
+                        </div>
+                    )) : (
+                        <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">No history rows for this filter.</div>
+                    )}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function SublogDialog(props: any) {
+    const {
+        sublog,
+        setSublog,
+        selectedJob,
+        scrapDialogQty,
+        setScrapDialogQty,
+        scrapDialogReason,
+        setScrapDialogReason,
+        scrapDialogNotes,
+        setScrapDialogNotes,
+        scrapMutationPending,
+        onSaveScrap,
+        downtimeReason,
+        setDowntimeReason,
+        downtimeStart,
+        setDowntimeStart,
+        downtimeEnd,
+        setDowntimeEnd,
+        downtimeAutoStop,
+        setDowntimeAutoStop,
+        downtimeNotes,
+        setDowntimeNotes,
+        downtimeMutationPending,
+        onSaveDowntime,
+        materialOptions,
+        consumptionMaterialId,
+        setConsumptionMaterialId,
+        filteredGranuleCodes,
+        consumptionGranuleCodeId,
+        setConsumptionGranuleCodeId,
+        reservedRolls,
+        consumptionRollId,
+        setConsumptionRollId,
+        consumptionQty,
+        setConsumptionQty,
+        consumptionEstimated,
+        setConsumptionEstimated,
+        consumptionPending,
+        onSaveConsumption,
+        qualityRows,
+        setQualityRows,
+        qualityPending,
+        onSaveQuality,
+    } = props;
+    const open = Boolean(sublog);
+    return (
+        <Dialog open={open} onOpenChange={(next) => { if (!next) setSublog(null); }}>
+            <DialogContent className="max-h-[86vh] overflow-y-auto rounded-[18px] sm:max-w-xl">
+                {!selectedJob ? (
+                    <DialogHeader>
+                        <DialogTitle>Select a job first</DialogTitle>
+                        <DialogDescription>Sublogs are attached to the active machine job.</DialogDescription>
+                    </DialogHeader>
+                ) : sublog === 'scrap' ? (
+                    <>
+                        <DialogHeader><DialogTitle>Log scrap</DialogTitle><DialogDescription>Quantity, reason, and notes are written to ScrapLog.</DialogDescription></DialogHeader>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div><Label className={labelClass}>Quantity</Label><Input value={scrapDialogQty} onChange={(event) => setScrapDialogQty(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="number" step="0.001" /></div>
+                            <div><Label className={labelClass}>UOM</Label><Input value="KG" disabled className={cn(inputClass, 'mt-1 font-mono')} /></div>
+                        </div>
+                        <ReasonChips reasons={['SETUP', 'TRIM', 'DEFECT', 'MACHINE', 'MATERIAL', 'OTHER']} value={scrapDialogReason} onChange={setScrapDialogReason} />
+                        <Textarea value={scrapDialogNotes} onChange={(event) => setScrapDialogNotes(event.target.value)} placeholder="Notes" className="min-h-20 rounded-lg" />
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-rose-600 to-red-500 text-white" disabled={scrapMutationPending} onClick={onSaveScrap}>Save scrap</Button></div>
+                    </>
+                ) : sublog === 'downtime' ? (
+                    <>
+                        <DialogHeader><DialogTitle>Log downtime</DialogTitle><DialogDescription>Downtime can pause the running step for breakdown or power events.</DialogDescription></DialogHeader>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div><Label className={labelClass}>Start time</Label><Input value={downtimeStart} onChange={(event) => setDowntimeStart(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="datetime-local" /></div>
+                            <div><Label className={labelClass}>End time</Label><Input value={downtimeEnd} onChange={(event) => setDowntimeEnd(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="datetime-local" /></div>
+                        </div>
+                        <ReasonChips reasons={['BREAKDOWN', 'MAINTENANCE', 'MATERIAL', 'MANPOWER', 'POWER', 'OTHER']} value={downtimeReason} onChange={setDowntimeReason} />
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><Checkbox checked={downtimeAutoStop} onCheckedChange={(value) => setDowntimeAutoStop(Boolean(value))} /> Auto-stop the running step</label>
+                        <Textarea value={downtimeNotes} onChange={(event) => setDowntimeNotes(event.target.value)} placeholder="Notes" className="min-h-20 rounded-lg" />
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-amber-600 to-orange-500 text-white" disabled={downtimeMutationPending} onClick={onSaveDowntime}>Save downtime</Button></div>
+                    </>
+                ) : sublog === 'consumption' ? (
+                    <>
+                        <DialogHeader><DialogTitle>Log material consumption</DialogTitle><DialogDescription>Manual usage rows are added to MaterialConsumptionLog for this job.</DialogDescription></DialogHeader>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <Label className={labelClass}>Material</Label>
+                                <Select value={consumptionMaterialId || SELECT_NONE} onValueChange={(value) => { setConsumptionMaterialId(value === SELECT_NONE ? '' : value); setConsumptionGranuleCodeId(SELECT_NONE); }}>
+                                    <SelectTrigger className={cn(inputClass, 'mt-1')}><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={SELECT_NONE}>Select material</SelectItem>
+                                        {materialOptions.map((material: any) => <SelectItem key={material.id} value={material.id}>{material.code ? `${material.code} · ` : ''}{material.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className={labelClass}>Granule code</Label>
+                                <Select value={consumptionGranuleCodeId} onValueChange={setConsumptionGranuleCodeId}>
+                                    <SelectTrigger className={cn(inputClass, 'mt-1')}><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={SELECT_NONE}>No code</SelectItem>
+                                        {filteredGranuleCodes.map((code: GranuleQualityCode) => <SelectItem key={code.id} value={code.id}>{code.code} · {code.granule_material_code || code.granule_name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
-
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'execution' | 'history')} className="space-y-6 relative">
-                    <TabsList className="h-12 rounded-2xl border border-slate-200/80 bg-white/92 p-1 shadow-sm">
-                        <TabsTrigger value="execution" className="rounded-xl px-6 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all">
-                            <Settings2 className="h-4 w-4 mr-2" />
-                            RUN JOB
-                        </TabsTrigger>
-                        <TabsTrigger value="history" className="rounded-xl px-6 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md transition-all">
-                            <History className="h-4 w-4 mr-2" />
-                            PAST JOBS
-                        </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="execution" className="space-y-6 mt-0 outline-none animate-in fade-in duration-500">
-                        {/* Horizontal Job Queue */}
-                        <Card className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/92 shadow-[0_20px_56px_-44px_rgba(15,23,42,0.2)]">
-                            <CardHeader className="py-4 px-6 border-b border-slate-100 bg-white">
-                                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                                    <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
-                                        <span>Live Job Queue ({visibleQueueItems.length}/{safeQueueItems.length})</span>
-                                        <span className="flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-blue-600">
-                                            <span className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
-                                            polling
-                                        </span>
-                                    </CardTitle>
-                                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                                        <div className="relative min-w-[280px]">
-                                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                            <Input
-                                                value={queueSearch}
-                                                onChange={(event) => setQueueSearch(event.target.value)}
-                                                placeholder="Search customer, size, variant, POD"
-                                                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs font-semibold"
-                                            />
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {([
-                                                ['ALL', 'All'],
-                                                ['RUNNING', 'Running'],
-                                                ['READY', 'Ready'],
-                                                ['PAUSED', 'Paused'],
-                                            ] as const).map(([value, label]) => (
-                                                <Button
-                                                    key={value}
-                                                    type="button"
-                                                    variant={queueStatusFilter === value ? 'default' : 'outline'}
-                                                    size="sm"
-                                                    className="h-9 rounded-xl text-[10px] font-black uppercase tracking-wide"
-                                                    onClick={() => setQueueStatusFilter(value)}
-                                                >
-                                                    {label}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-4 flex gap-4 overflow-x-auto scrollbar-hide">
-                                {safeQueueItems.length === 0 && (
-                                    <div className="flex w-full flex-col items-center justify-center gap-3 rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-7 text-slate-400">
-                                        <Layers className="h-8 w-8 opacity-20" />
-                                        <span className="text-xs font-bold uppercase tracking-widest">No released jobs are waiting here.</span>
-                                        <span className="max-w-md text-center text-[11px] font-semibold leading-5 text-slate-500">
-                                            Release work from the WCM deck or switch machines if another terminal already owns the active queue.
-                                        </span>
-                                        <div className="mt-1 flex flex-wrap justify-center gap-2">
-                                            <Button variant="outline" size="sm" className="rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.18em]" onClick={() => router.push('/dashboard/work-center')}>
-                                                Open WCM Deck
-                                            </Button>
-                                            <Button variant="outline" size="sm" className="rounded-xl border-slate-200 bg-white text-[10px] font-black uppercase tracking-[0.18em]" onClick={() => router.push('/production/machine-selector')}>
-                                                Change Machine
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                                {safeQueueItems.length > 0 && visibleQueueItems.length === 0 && (
-                                    <div className="flex w-full items-center justify-center rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-7 text-xs font-bold uppercase tracking-widest text-slate-400">
-                                        No matching jobs
-                                    </div>
-                                )}
-                                {visibleQueueItems.map((job) => {
-                                    const isSelected = String(job.id) === String(selectedId);
-                                    const queueExecutionVersion = toNumber((job as any).execution_model_version, 1);
-                                    const orderTargetKgRaw = toNumber(
-                                        (job as any).order_reference_target_kg,
-                                        toNumber(
-                                        (job as any).step_adjusted_total_kg,
-                                        toNumber(
-                                            (job as any).total_weight_kg,
-                                            String(job?.uom || '').toUpperCase() === 'KG' ? toNumber(job?.quantity, 0) : 0
-                                        )
-                                        )
-                                    );
-                                    const stepTargetKg = toNumber(
-                                        (job as any).step_target_kg,
-                                        String(job?.uom || '').toUpperCase() === 'KG' ? toNumber(job?.quantity, 0) : 0
-                                    );
-                                    const orderTargetKg = queueExecutionVersion >= 2
-                                        ? Math.max(orderTargetKgRaw, 0)
-                                        : Math.max(orderTargetKgRaw, stepTargetKg);
-                                    const showQueuePcs = String(job?.output_form || '').toUpperCase() === 'BULK';
-                                    const orderTargetPcs = (() => {
-                                        if (!showQueuePcs) return null;
-                                        if (String(job?.uom || '').toUpperCase() === 'PCS') {
-                                            return toNumber(job?.quantity, 0);
-                                        }
-                                        const unitWeight = toNumber((job as any)?.unit_weight_g, 0);
-                                        if (unitWeight > 0 && orderTargetKg > 0) {
-                                            return (orderTargetKg * 1000) / unitWeight;
-                                        }
-                                        return null;
-                                    })();
-                                    const queueGeometry = geometryFromJob(job);
-                                    const queueLayers = layerHighlightsFromJob(job);
-                                    const queuePod = podLabelFromJob(job);
-
-                                    return (
-                                        <button
-                                            key={job.id}
-                                            onClick={() => setSelectedJobId(String(job.id))}
-                                            data-testid={`machine-job-card-${job.id}`}
-                                            className={cn(
-                                                "group relative min-w-[330px] text-left rounded-2xl border transition-all duration-500 p-4",
-                                                isSelected
-                                                    ? "border-blue-400/50 bg-white/80 shadow-[0_20px_40px_-15px_rgba(59,130,246,0.3)] -translate-y-2"
-                                                    : "border-white/20 bg-white/20 backdrop-blur-sm hover:border-white/40 hover:bg-white/40 hover:shadow-xl hover:-translate-y-1"
-                                            )}
-                                        >
-                                            <div className="flex items-start justify-between gap-3 mb-3">
-                                                <div className="min-w-0">
-                                                    <div className={cn(
-                                                        "truncate text-base font-black tracking-tight transition-colors",
-                                                        isSelected ? "text-blue-600" : "text-slate-900"
-                                                    )}>
-                                                        {job.customer_name || "—"}
-                                                    </div>
-                                                    <div className="mt-1 line-clamp-2 text-[11px] font-bold text-slate-600">
-                                                        {productNameFromJob(job)}
-                                                    </div>
-                                                </div>
-                                                <SemanticBadge kind="jobState" value={job.job_state} label={job.job_state || "Queued"} className="text-[9px] px-2 py-1" />
-                                            </div>
-                                            <div className="rounded-xl border border-slate-100 bg-white/80 px-3 py-2">
-                                                <div className="text-[9px] font-black uppercase tracking-widest text-blue-600">Size</div>
-                                                <div className="mt-1 text-xs font-black text-slate-900">{queueGeometry.label}</div>
-                                            </div>
-                                            {queueLayers.length > 0 && (
-                                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                                    {queueLayers.slice(0, 2).map((layer: string, index: number) => (
-                                                        <span key={`${job.id}-layer-${index}`} className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase text-indigo-700">
-                                                            {layer}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                <span className="rounded-lg bg-sky-50 px-2 py-1 text-[9px] font-black uppercase text-sky-700">POD {queuePod}</span>
-                                                <span className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500">{job.process_code || 'Step'}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between mt-4 bg-slate-50/50 rounded-xl px-3 py-2 border border-slate-100/50">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider mt-1">
-                                                        Step Target {stepTargetKg.toFixed(2)} KG
-                                                    </span>
-                                                    <span className="text-[8px] font-black text-slate-400 tracking-widest uppercase mt-1">Order Target (Route)</span>
-                                                    <span className="text-[10px] font-bold text-slate-600">{orderTargetKg.toFixed(2)} KG</span>
-                                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                                                        {String((job as any).order_target_source || 'V2_ORDER_REFERENCE')}
-                                                    </span>
-                                                    {orderTargetPcs !== null && (
-                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                                            {orderTargetPcs.toFixed(1)} PCS
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[8px] font-black text-slate-400 tracking-widest uppercase">Priority</span>
-                                                    <div className="flex items-center gap-1">
-                                                        {[1, 2, 3].map((p) => (
-                                                            <div key={p} className={cn("w-1.5 h-1.5 rounded-full", p <= 2 ? "bg-amber-400" : "bg-slate-200")} />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {isSelected && (
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-blue-500 rounded-t-full shadow-[0_-4px_10px_rgba(59,130,246,0.5)]" />
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#eef6ff_100%)] shadow-[0_20px_56px_-44px_rgba(37,99,235,0.16)]">
-                            <CardContent className={cn("grid gap-3 p-4", selectedJob ? "md:grid-cols-[1.2fr_repeat(4,1fr)]" : "lg:grid-cols-[1.15fr_1fr_1fr]")}>
-                                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-                                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Execution focus</div>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
-                                    <div className="mt-2 text-base font-black text-slate-900">{operatorNextStep}</div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        <SemanticBadge kind="jobState" value={jobState || "PENDING"} label={jobState || "No job"} className="text-[10px]" />
-                                        <SemanticBadge kind="jobState" value={isActive ? "READY" : "BLOCKED"} label={isActive ? "Machine ready" : "Machine offline"} className="text-[10px]" />
-                                    </div>
-                                </div>
-                                {selectedJob ? (
-                                    [
-                                        "Select job",
-                                        "1. Pick the job.",
-                                        "2. Start or pause safely.",
-                                        "3. Enter output and scrap.",
-                                        "4. Finalize when the step target is complete.",
-                                    ].map((step) => (
-                                        <div key={step} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                                            {step}
-                                        </div>
-                                    ))
-                                ) : (
-                                    <>
-                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Execution contract</div>
-                                            <div className="mt-2 text-sm font-black text-slate-900">Pick one released job, then keep all output and material truth inside the active execution plane.</div>
-                                            <div className="mt-2 text-xs leading-5 text-slate-500">This terminal stays step-aware. Output, scrap, WIP routing, and ink/material actuals only expand once a live job is selected.</div>
-                                        </div>
-                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">What appears next</div>
-                                            <div className="mt-2 space-y-2 text-sm font-semibold text-slate-700">
-                                                <div>1. Released queue job</div>
-                                                <div>2. Step target and remaining</div>
-                                                <div>3. Output, scrap, and material actuals</div>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        <div className="grid grid-cols-12 gap-6 relative">
-                            {/* Column 1: Material Inputs */}
-                            <Card className={cn(
-                                "col-span-4 flex flex-col overflow-hidden rounded-[2.5rem] border border-slate-200/80 bg-white/92 shadow-[0_22px_64px_-48px_rgba(15,23,42,0.22)] transition-all duration-500",
-                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
-                            )}>
-                                <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
-                                    <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                        <Package className="h-4 w-4 text-blue-600" />
-                                        Material Feed
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-6 space-y-8 overflow-y-auto scrollbar-hide flex-1">
-                                    {!selectedJob ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4">
-                                            <div className="p-4 rounded-full bg-slate-50">
-                                                <Package className="h-8 w-8 opacity-20" />
-                                            </div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Pick a queue job</p>
-                                            <p className="max-w-xs text-center text-[11px] font-semibold leading-5 text-slate-500">
-                                                Reserved rolls, WIP pool, and requirement-aware material prompts appear here as soon as one live job is selected.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {/* Reserved Rolls */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Reserved Rolls</h4>
-                                                    <SemanticBadge kind="jobState" value={reservedRolls.length > 0 ? "ASSIGNED" : "PENDING"} label={`${reservedRolls.length} items`} className="text-[9px]" />
-                                                </div>
-                                                <div className="grid gap-3">
-                                                    {reservedRolls.map((roll: any) => (
-                                                        <div key={roll.id} className="p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
-                                                            <div className="flex items-start justify-between gap-2 mb-2">
-                                                                <div className="font-black text-slate-800 text-xs tracking-tight group-hover:text-blue-600 transition-colors">
-                                                                    {roll.label_id}
-                                                                </div>
-                                                                <div className="flex flex-col items-end">
-                                                                    <span className="text-[11px] font-black text-slate-900">{toNumber(roll.weight_kg, 0).toFixed(2)} KG</span>
-                                                                    <span className="text-[9px] font-bold text-slate-400 tracking-tighter uppercase line-clamp-1 truncate max-w-[120px]">{roll.variant}</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-[9px] font-semibold text-slate-500 mb-1">
-                                                                ID: <span className="font-bold text-slate-700 break-all">{roll.id}</span>
-                                                            </div>
-                                                            <div className="text-[9px] font-semibold text-slate-500 mb-2 truncate">
-                                                                {roll.location_name || '—'}
-                                                            </div>
-                                                            {roll.target_lane_label && (
-                                                                <div className="mb-2 rounded-xl border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-indigo-600">
-                                                                    {roll.target_lane_label}
-                                                                    {roll.target_layer_index ? ` • Layer ${roll.target_layer_index}` : ''}
-                                                                </div>
-                                                            )}
-                                                            <div className="flex items-center gap-4 text-[9px] font-bold text-slate-500">
-                                                                <span>{formatMm(roll.width_mm)}</span>
-                                                                <span className="text-slate-200">•</span>
-                                                                <span>{formatMicron(roll.thickness_micron)}</span>
-                                                                <span className="text-slate-200">•</span>
-                                                                <span className="text-blue-500">{roll.grade || '—'}</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    {reservedRolls.length === 0 && (
-                                                        <div className="py-6 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-300 gap-2">
-                                                            <span className="text-[9px] font-bold uppercase tracking-widest">No Rolls Reserved</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Bulk Consumption */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Bulk Materials</h4>
-                                                    <SemanticBadge kind="jobState" value={bulkPreview.length > 0 ? "READY" : "PENDING"} label={`${bulkPreview.length} active`} className="text-[9px]" />
-                                                </div>
-                                                <div className="grid gap-3">
-                                                    {bulkPreview.map((req: any, idx: number) => (
-                                                        <div key={req.material_id || idx} className="p-4 rounded-2xl bg-gradient-to-br from-white to-slate-50/50 border border-slate-100 shadow-sm group">
-                                                            <div className="font-black text-slate-900 text-xs tracking-tight mb-2 uppercase group-hover:text-blue-600 transition-colors">
-                                                                {req.material_name || req.category || 'Material'}
-                                                            </div>
-                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Theoretical</span>
-                                                                    <p className="text-xs font-black text-slate-800">{toNumber(req.theoretical_qty_kg ?? req.required_qty_kg, 0).toFixed(3)} KG</p>
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Planned</span>
-                                                                    <p className="text-xs font-black text-slate-800">{toNumber(req.planned_issue_qty_kg ?? req.required_qty_kg, 0).toFixed(3)} KG</p>
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Estimated Actual</span>
-                                                                    <p className="text-xs font-black text-slate-800">{toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0).toFixed(3)} KG</p>
-                                                                </div>
-                                                                <div className="space-y-1 text-right">
-                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Capture</span>
-                                                                    <Badge
-                                                                        variant="outline"
-                                                                        className={cn(
-                                                                            "text-[8px] font-black uppercase",
-                                                                            String(req.capture_mode || req.strategy || '').toUpperCase() === 'AUTO_ESTIMATED_CONFIRM'
-                                                                                ? "bg-amber-50 border-amber-200 text-amber-700"
-                                                                                : String(req.capture_mode || req.strategy || '').toUpperCase() === 'OPERATOR_REQUIRED'
-                                                                                    ? "bg-rose-50 border-rose-200 text-rose-700"
-                                                                                    : "bg-slate-100 border-slate-200"
-                                                                        )}
-                                                                    >
-                                                                        {String(req.capture_mode || req.strategy || 'AUTO_FROM_OUTPUT').replace(/_/g, '-')}
-                                                                    </Badge>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    {reconcilableBulkRows.length > 0 && (
-                                                        <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/50 space-y-4">
-                                                            <div className="space-y-1">
-                                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">
-                                                                    Material Reconciliation
-                                                                </div>
-                                                                <div className="text-[10px] text-amber-800 font-semibold">
-                                                                    Confirm or edit estimated actuals before step close. Materials on auto capture stay fully backend-managed.
-                                                                </div>
-                                                            </div>
-                                                            <div className="grid gap-3">
-                                                                {reconcilableBulkRows.map((req: any, idx: number) => {
-                                                                    const requirementId = String(req?.requirement_id || "").trim()
-                                                                    const draft = materialConfirmations[requirementId] || {
-                                                                        actual_issued_qty: toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0).toFixed(3),
-                                                                        actual_returned_qty: "0",
-                                                                        actual_scrap_qty: "0",
-                                                                        is_estimated: true,
-                                                                        return_mode: "EXACT_COLOR_RETURN" as const,
-                                                                        target_ink_material_id: "",
-                                                                    }
-                                                                    const estimate = toNumber(req.estimated_actual_qty_kg ?? req.actual_consumed_qty_kg ?? req.required_qty_kg, 0)
-                                                                    const granuleCodeOptions = Array.isArray(req?.granule_code_options) ? req.granule_code_options : []
-                                                                    const granuleAllocations =
-                                                                        draft.granule_code_allocations && draft.granule_code_allocations.length > 0
-                                                                            ? draft.granule_code_allocations
-                                                                            : (String(req?.category || '').toUpperCase() === 'GRANULE' && granuleCodeOptions.length > 0
-                                                                                ? [{ granule_code_id: String(granuleCodeOptions[0].granule_code_id), qty_kg: estimate > 0 ? estimate.toFixed(3) : '' }]
-                                                                                : [])
-
-                                                                    return (
-                                                                        <div key={req.requirement_id || req.material_id || idx} className="rounded-2xl border border-amber-200 bg-white/90 p-4 space-y-3">
-                                                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                                <div>
-                                                                                    <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">
-                                                                                        {req.material_name || req.category || "Material"}
-                                                                                    </div>
-                                                                                    <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                                                                                        {String(req.capture_mode || req.strategy || "AUTO_ESTIMATED_CONFIRM").replace(/_/g, " ")}
-                                                                                    </div>
-                                                                                </div>
-                                                                                <Button
-                                                                                    type="button"
-                                                                                    variant="outline"
-                                                                                    size="sm"
-                                                                                    className="h-8 rounded-xl border-amber-200 text-[10px] font-black uppercase tracking-widest"
-                                                                                    onClick={() => updateMaterialConfirmation(requirementId, {
-                                                                                        actual_issued_qty: estimate.toFixed(3),
-                                                                                        actual_returned_qty: "0",
-                                                                                        actual_scrap_qty: "0",
-                                                                                        is_estimated: true,
-                                                                                        return_mode: "EXACT_COLOR_RETURN",
-                                                                                        target_ink_material_id: "",
-                                                                                        granule_code_allocations:
-                                                                                            String(req?.category || '').toUpperCase() === 'GRANULE' && granuleCodeOptions.length > 0
-                                                                                                ? [{ granule_code_id: String(granuleCodeOptions[0].granule_code_id), qty_kg: estimate.toFixed(3) }]
-                                                                                                : [],
-                                                                                    })}
-                                                                                    disabled={!requirementId}
-                                                                                >
-                                                                                    Use Estimate
-                                                                                </Button>
-                                                                            </div>
-                                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                                                                <div className="space-y-1">
-                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Theoretical</span>
-                                                                                    <p className="text-[11px] font-black text-slate-800">{toNumber(req.theoretical_qty_kg ?? req.required_qty_kg, 0).toFixed(3)} KG</p>
-                                                                                </div>
-                                                                                <div className="space-y-1">
-                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Planned</span>
-                                                                                    <p className="text-[11px] font-black text-slate-800">{toNumber(req.planned_issue_qty_kg ?? req.required_qty_kg, 0).toFixed(3)} KG</p>
-                                                                                </div>
-                                                                                <div className="space-y-1">
-                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Estimated</span>
-                                                                                    <p className="text-[11px] font-black text-slate-800">{estimate.toFixed(3)} KG</p>
-                                                                                </div>
-                                                                                <div className="space-y-1 text-right">
-                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Status</span>
-                                                                                    <Badge
-                                                                                        variant="outline"
-                                                                                        className={cn(
-                                                                                            "text-[8px] font-black uppercase",
-                                                                                            draft.is_estimated
-                                                                                                ? "bg-amber-50 border-amber-200 text-amber-700"
-                                                                                                : "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                                                                        )}
-                                                                                    >
-                                                                                        {draft.is_estimated ? "Estimated" : "Confirmed"}
-                                                                                    </Badge>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="grid gap-3 md:grid-cols-3">
-                                                                                <div className="space-y-2">
-                                                                                    <Label className="text-[9px] font-black uppercase text-slate-500 ml-1">
-                                                                                        Issued (KG)
-                                                                                    </Label>
-                                                                                    <Input
-                                                                                        data-testid={`machine-material-issued-${requirementId}`}
-                                                                                        value={draft.actual_issued_qty}
-                                                                                        onChange={(e) => updateMaterialConfirmation(requirementId, {
-                                                                                            actual_issued_qty: e.target.value,
-                                                                                            is_estimated: false,
-                                                                                        })}
-                                                                                        placeholder="0.000"
-                                                                                        className="h-10 rounded-xl border-amber-200 bg-white font-bold"
-                                                                                        disabled={!requirementId}
-                                                                                    />
-                                                                                </div>
-                                                                                <div className="space-y-2">
-                                                                                    <Label className="text-[9px] font-black uppercase text-slate-500 ml-1">
-                                                                                        Returned (KG)
-                                                                                    </Label>
-                                                                                    <Input
-                                                                                        data-testid={`machine-material-returned-${requirementId}`}
-                                                                                        value={draft.actual_returned_qty}
-                                                                                        onChange={(e) => updateMaterialConfirmation(requirementId, {
-                                                                                            actual_returned_qty: e.target.value,
-                                                                                            is_estimated: false,
-                                                                                        })}
-                                                                                        placeholder="0.000"
-                                                                                        className="h-10 rounded-xl border-amber-200 bg-white font-bold"
-                                                                                        disabled={!requirementId}
-                                                                                    />
-                                                                                </div>
-                                                                                <div className="space-y-2">
-                                                                                    <Label className="text-[9px] font-black uppercase text-slate-500 ml-1">
-                                                                                        Scrap (KG)
-                                                                                    </Label>
-                                                                                    <Input
-                                                                                        data-testid={`machine-material-scrap-${requirementId}`}
-                                                                                        value={draft.actual_scrap_qty}
-                                                                                        onChange={(e) => updateMaterialConfirmation(requirementId, {
-                                                                                            actual_scrap_qty: e.target.value,
-                                                                                            is_estimated: false,
-                                                                                        })}
-                                                                                        placeholder="0.000"
-                                                                                        className="h-10 rounded-xl border-amber-200 bg-white font-bold"
-                                                                                        disabled={!requirementId}
-                                                                                    />
-                                                                                </div>
-                                                                            </div>
-                                                                            {String(req?.category || '').toUpperCase() === 'GRANULE' && (
-                                                                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-3">
-                                                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                                        <div>
-                                                                                            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-800">
-                                                                                                Granule code issue
-                                                                                            </div>
-                                                                                            <p className="text-[10px] font-semibold text-emerald-900">
-                                                                                                Split this material issue by granule code for stock and consumption reporting before release closes the step.
-                                                                                            </p>
-                                                                                        </div>
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            variant="outline"
-                                                                                            size="sm"
-                                                                                            className="h-8 rounded-xl border-emerald-200 bg-white text-[10px] font-black uppercase tracking-widest"
-                                                                                            disabled={!requirementId || granuleCodeOptions.length === 0}
-                                                                                            onClick={() => updateMaterialConfirmation(requirementId, {
-                                                                                                granule_code_allocations: [
-                                                                                                    ...granuleAllocations,
-                                                                                                    { granule_code_id: String(granuleCodeOptions[0]?.granule_code_id || ''), qty_kg: '' },
-                                                                                                ],
-                                                                                                is_estimated: false,
-                                                                                            })}
-                                                                                        >
-                                                                                            <Plus className="mr-1 h-3 w-3" /> Add Code
-                                                                                        </Button>
-                                                                                    </div>
-                                                                                    {granuleCodeOptions.length === 0 ? (
-                                                                                        <div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-[10px] font-bold text-amber-800">
-                                                                                            No granule quality-code stock is available at the selected issue location. Inward this granule with a code first.
-                                                                                        </div>
-                                                                                    ) : (
-                                                                                        <div className="space-y-2">
-                                                                                            {granuleAllocations.map((allocation, allocationIndex) => (
-                                                                                                <div key={`${requirementId}-granule-code-${allocationIndex}`} className="grid gap-2 md:grid-cols-[1fr_140px_40px]">
-                                                                                                    <Select
-                                                                                                        value={allocation.granule_code_id || String(granuleCodeOptions[0]?.granule_code_id || '')}
-                                                                                                        onValueChange={(value) => {
-                                                                                                            const nextAllocations = granuleAllocations.map((row, rowIndex) =>
-                                                                                                                rowIndex === allocationIndex ? { ...row, granule_code_id: value } : row
-                                                                                                            )
-                                                                                                            updateMaterialConfirmation(requirementId, {
-                                                                                                                granule_code_allocations: nextAllocations,
-                                                                                                                is_estimated: false,
-                                                                                                            })
-                                                                                                        }}
-                                                                                                    >
-                                                                                                        <SelectTrigger
-                                                                                                            data-testid={`machine-granule-code-${requirementId}-${allocationIndex}`}
-                                                                                                            className="h-10 rounded-xl border-emerald-200 bg-white font-bold text-[11px]"
-                                                                                                        >
-                                                                                                            <SelectValue placeholder="Select granule code" />
-                                                                                                        </SelectTrigger>
-                                                                                                        <SelectContent>
-                                                                                                            {granuleCodeOptions.map((option: any) => (
-                                                                                                                <SelectItem key={`${requirementId}-${option.granule_code_id}`} value={String(option.granule_code_id)}>
-                                                                                                                    {option.code}
-                                                                                                                    {` / ${toNumber(option.available_qty_kg, 0).toFixed(3)} kg`}
-                                                                                                                </SelectItem>
-                                                                                                            ))}
-                                                                                                        </SelectContent>
-                                                                                                    </Select>
-                                                                                                    <Input
-                                                                                                        data-testid={`machine-granule-code-qty-${requirementId}-${allocationIndex}`}
-                                                                                                        value={allocation.qty_kg}
-                                                                                                        onChange={(e) => {
-                                                                                                            const nextAllocations = granuleAllocations.map((row, rowIndex) =>
-                                                                                                                rowIndex === allocationIndex ? { ...row, qty_kg: e.target.value } : row
-                                                                                                            )
-                                                                                                            updateMaterialConfirmation(requirementId, {
-                                                                                                                granule_code_allocations: nextAllocations,
-                                                                                                                is_estimated: false,
-                                                                                                            })
-                                                                                                        }}
-                                                                                                        placeholder="KG"
-                                                                                                        className="h-10 rounded-xl border-emerald-200 bg-white font-bold"
-                                                                                                    />
-                                                                                                    <Button
-                                                                                                        type="button"
-                                                                                                        variant="ghost"
-                                                                                                        size="icon"
-                                                                                                        className="h-10 w-10 rounded-xl text-slate-500 hover:text-red-600"
-                                                                                                        disabled={granuleAllocations.length <= 1}
-                                                                                                        onClick={() => updateMaterialConfirmation(requirementId, {
-                                                                                                            granule_code_allocations: granuleAllocations.filter((_, rowIndex) => rowIndex !== allocationIndex),
-                                                                                                            is_estimated: false,
-                                                                                                        })}
-                                                                                                    >
-                                                                                                        <Trash2 className="h-4 w-4" />
-                                                                                                    </Button>
-                                                                                                </div>
-                                                                                            ))}
-                                                                                            <div className="text-[10px] font-bold text-emerald-900">
-                                                                                                Allocated {granuleAllocations.reduce((sum, row) => sum + toNumber(row.qty_kg, 0), 0).toFixed(3)} KG. It must match net consumed KG on close.
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                            {String(req?.category || '').toUpperCase() === 'INK' && (
-                                                                                <div className="grid gap-3 md:grid-cols-2">
-                                                                                    <div className="space-y-2">
-                                                                                        <Label className="text-[9px] font-black uppercase text-slate-500 ml-1">
-                                                                                            Ink Return Mode
-                                                                                        </Label>
-                                                                                        <Select
-                                                                                            value={draft.return_mode || "EXACT_COLOR_RETURN"}
-                                                                                            onValueChange={(value) =>
-                                                                                                updateMaterialConfirmation(requirementId, {
-                                                                                                    return_mode: value as 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN',
-                                                                                                    target_ink_material_id:
-                                                                                                        value === 'REMIXED_RETURN'
-                                                                                                            ? draft.target_ink_material_id || ''
-                                                                                                            : '',
-                                                                                                    is_estimated: false,
-                                                                                                })
-                                                                                            }
-                                                                                        >
-                                                                                            <SelectTrigger
-                                                                                                data-testid={`machine-material-return-mode-${requirementId}`}
-                                                                                                className="h-10 rounded-xl border-amber-200 bg-white font-bold text-[11px]"
-                                                                                            >
-                                                                                                <SelectValue />
-                                                                                            </SelectTrigger>
-                                                                                            <SelectContent>
-                                                                                                <SelectItem value="EXACT_COLOR_RETURN">Exact Color Return</SelectItem>
-                                                                                                <SelectItem value="REMIXED_RETURN">Remixed Return</SelectItem>
-                                                                                            </SelectContent>
-                                                                                        </Select>
-                                                                                    </div>
-                                                                                    <div className="space-y-2">
-                                                                                        <Label className="text-[9px] font-black uppercase text-slate-500 ml-1">
-                                                                                            Remix Target Ink
-                                                                                        </Label>
-                                                                                        <Select
-                                                                                            value={draft.target_ink_material_id || "__SAME__"}
-                                                                                            onValueChange={(value) =>
-                                                                                                updateMaterialConfirmation(requirementId, {
-                                                                                                    target_ink_material_id: value === "__SAME__" ? "" : value,
-                                                                                                    is_estimated: false,
-                                                                                                })
-                                                                                            }
-                                                                                            disabled={(draft.return_mode || 'EXACT_COLOR_RETURN') !== 'REMIXED_RETURN'}
-                                                                                        >
-                                                                                            <SelectTrigger
-                                                                                                data-testid={`machine-material-target-ink-${requirementId}`}
-                                                                                                className="h-10 rounded-xl border-amber-200 bg-white font-bold text-[11px]"
-                                                                                            >
-                                                                                                <SelectValue placeholder="Select target ink" />
-                                                                                            </SelectTrigger>
-                                                                                            <SelectContent>
-                                                                                                <SelectItem value="__SAME__">Same Ink (No Remix)</SelectItem>
-                                                                                                {bulkPreview
-                                                                                                    .filter((row: any) => String(row?.category || '').toUpperCase() === 'INK' && row?.material_id)
-                                                                                                    .map((row: any) => (
-                                                                                                        <SelectItem key={`ink-target-${row.material_id}`} value={String(row.material_id)}>
-                                                                                                            {row.material_name || row.material_id}
-                                                                                                        </SelectItem>
-                                                                                                    ))}
-                                                                                            </SelectContent>
-                                                                                        </Select>
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* WIP Pool */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">WIP Pool</h4>
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant="outline" className="text-[9px] bg-indigo-50/50 border-indigo-100 text-indigo-600 font-bold uppercase">
-                                                            {rollInputRequired ? 'POOL-IN' : 'CONTEXT'}
-                                                        </Badge>
-                                                        <Badge variant="outline" className="text-[9px] bg-slate-50 border-slate-200 text-slate-700 font-bold uppercase">
-                                                            {totalLineageWeightKg.toFixed(2)} KG TOTAL
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                                <div className="grid gap-3">
-                                                    {!rollInputRequired && (
-                                                        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-[10px] text-slate-600 font-semibold">
-                                                            WIP Pool is background-only for this step. Step output/consumption stays current-step only.
-                                                        </div>
-                                                    )}
-                                                    {rollInputRequired && wipPool.length === 0 && (
-                                                        <div className="p-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-700 space-y-2">
-                                                            <div className="text-[10px] font-black uppercase tracking-widest">No Compatible WIP Rolls</div>
-                                                            {(wipPoolMeta?.blocked_reasons || []).map((msg: string, idx: number) => (
-                                                                <div key={`wip-block-${idx}`} className="text-[10px] font-semibold">{msg}</div>
-                                                            ))}
-                                                            {(wipPoolMeta?.action_hints || []).map((msg: string, idx: number) => (
-                                                                <div key={`wip-hint-${idx}`} className="text-[10px] text-rose-600">{msg}</div>
-                                                            ))}
-                                                            <div className="flex gap-2 pt-1">
-                                                                <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => router.push('/production/work-center')}>
-                                                                    Open WCM
-                                                                </Button>
-                                                                <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => router.push('/inventory/inter-plant')}>
-                                                                    Open Inter-Plant
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {displayedWip.map((wip: any) => (
-                                                        <div key={wip.id} className="p-3 rounded-2xl bg-indigo-50/30 border border-indigo-100/50 flex items-center justify-between group">
-                                                            <div>
-                                                                <div className="font-black text-indigo-900 text-xs tracking-tight uppercase">{wip.label_id}</div>
-                                                                <div className="text-[9px] font-bold text-indigo-400/80 uppercase mt-0.5 tracking-tighter">{wip.variant || wip.material_name || '—'}</div>
-                                                                <div className="text-[8px] font-semibold text-indigo-500/80 uppercase">{wip.stage || '—'}</div>
-                                                                <div className="text-[8px] font-semibold text-indigo-500/80">
-                                                                    {formatMm(wip.width_mm)} • {formatMicron(wip.thickness_micron)} • {wip.grade || 'NO GRADE'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <span className="text-xs font-black text-indigo-700">{toNumber(wip.weight_kg, 0).toFixed(2)} KG</span>
-                                                                <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-tighter truncate max-w-[150px]">
-                                                                    {wip.location_name || '—'}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    {displayedWip.length === 0 && (
-                                                        <div className="py-4 border border-dashed border-indigo-100 rounded-2xl text-center text-[10px] font-semibold text-indigo-400">
-                                                            No lineage WIP rolls available.
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Column 2: Production Controls */}
-                            <Card className={cn(
-                                "col-span-5 border border-white/20 shadow-2xl shadow-indigo-200/10 bg-white/40 backdrop-blur-2xl rounded-[3rem] overflow-hidden flex flex-col transition-all duration-700",
-                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
-                            )}>
-                                <CardHeader className="py-4 px-6 border-b border-slate-100 bg-slate-50/50">
-                                    <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                        Execution workspace
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-6 space-y-6 overflow-y-auto scrollbar-hide flex-1">
-                                    {!selectedJob ? (
-                                        <div className="h-full flex flex-col items-center justify-center gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4 text-slate-400">
-                                            <div className="p-4 rounded-full bg-slate-50">
-                                                <Play className="h-8 w-8 opacity-20" />
-                                            </div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em]">Execution plane ready</p>
-                                            <p className="max-w-xs text-center text-[11px] font-semibold leading-5 text-slate-500">
-                                                Pick one live job and this plane becomes the only place the machine team needs for start, pause, output, scrap, and close.
-                                            </p>
-                                            <div className="mt-3 grid w-full max-w-xl gap-2 md:grid-cols-3">
-                                                {["1. Pick released job", "2. Start or resume", "3. Log output and actuals"].map((item) => (
-                                                    <div key={item} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
-                                                        {item}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {/* Main Job Context Card */}
-                                            <Card className="sticky top-0 z-20 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white shadow-2xl shadow-indigo-900/20">
-                                                <CardContent className="p-6 space-y-6">
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="min-w-0">
-                                                            <div className="text-[10px] font-black text-blue-300 uppercase tracking-[0.3em] mb-1">Sales product</div>
-                                                            <h2 className="text-3xl font-black tracking-tight leading-tight">{selectedProductName}</h2>
-                                                            <p className="mt-2 text-sm font-bold text-blue-100 line-clamp-1">{selectedCustomerName}</p>
-                                                            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                                                                {selectedJob.order_number ? `SO ${selectedJob.order_number}` : 'SO —'} · {machineDetail?.machine?.name || 'Machine terminal'}
-                                                            </p>
-                                                        </div>
-                                                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 font-black uppercase tracking-widest text-[10px] px-3">
-                                                            {behaviorDisplay}
-                                                        </Badge>
-                                                    </div>
-
-                                                    <div className="grid gap-3 md:grid-cols-3">
-                                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 md:col-span-2">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-blue-300">Size</span>
-                                                            <div className="mt-1 text-lg font-black text-white">{selectedGeometry.label}</div>
-                                                        </div>
-                                                        <div className="rounded-2xl border border-sky-400/20 bg-sky-400/10 p-3">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-sky-200">POD</span>
-                                                            <div className="mt-1 text-sm font-black text-white">{selectedPodLabel}</div>
-                                                        </div>
-                                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 md:col-span-3">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Add-ons</span>
-                                                            <div className="mt-1 text-sm font-black text-white">{selectedAddonsLabel}</div>
-                                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                                {selectedLayerChips.length > 0 ? selectedLayerChips.map((layer: string, idx: number) => (
-                                                                    <span key={`machine-selected-layer-${idx}`} className="rounded-lg bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase text-blue-100">
-                                                                        {layer}
-                                                                    </span>
-                                                                )) : (
-                                                                    <span className="rounded-lg bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase text-slate-400">
-                                                                        No layer snapshot
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-3 gap-4">
-                                                        <div className="space-y-1">
-                                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Target</span>
-                                                            <div className="text-lg font-black">{primaryTarget !== null ? primaryTarget.toFixed(2) : '—'} <span className="text-[10px] text-slate-500 font-bold uppercase">KG</span></div>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Produced</span>
-                                                            <div className="text-lg font-black text-emerald-400">{primaryProduced !== null ? primaryProduced.toFixed(2) : '—'} <span className="text-[10px] text-emerald-500/50 font-bold uppercase">KG</span></div>
-                                                        </div>
-                                                        <div className="space-y-1 text-right">
-                                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Balance</span>
-                                                            <div className="text-lg font-black text-amber-400">{primaryRemaining !== null ? primaryRemaining.toFixed(2) : '—'} <span className="text-[10px] text-amber-500/50 font-bold uppercase">KG</span></div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                                            <span className="text-slate-500 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Step Progress</span>
-                                                            <span className="text-white">{progressPct}%</span>
-                                                        </div>
-                                                        <div className="h-3 bg-white/5 rounded-full overflow-hidden p-[2px]">
-                                                            <div
-                                                                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                                                                style={{ width: `${progressPct}%` }}
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-3 gap-2 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                                                        <div>Exec V{executionVersion}</div>
-                                                        <div className="truncate">Step Src: {stepTargetSource}</div>
-                                                        <div className="truncate text-right">Order Src: {orderTargetSource}</div>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-
-                                            <Card className={cn(
-                                                "rounded-3xl border shadow-sm",
-                                                emphasizeGeometry
-                                                    ? "border-blue-200 bg-blue-50/70"
-                                                    : "border-slate-200 bg-slate-50/70"
-                                            )}>
-                                                <CardContent className="p-4 space-y-3">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Geometry Snapshot</Label>
-                                                        {emphasizeGeometry && (
-                                                            <Badge variant="outline" className="text-[9px] font-black uppercase bg-blue-100 border-blue-200 text-blue-700">
-                                                                Roll → Bulk Focus
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-3 text-[11px]">
-                                                        <div className="rounded-2xl bg-white border border-slate-100 p-3">
-                                                            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Base</div>
-                                                            <div className="font-black text-slate-800 mt-1">
-                                                                {baseWidthMm !== null ? baseWidthMm.toFixed(0) : '—'} mm × {baseHeightMm !== null ? baseHeightMm.toFixed(0) : '—'} mm
-                                                            </div>
-                                                            <div className="text-slate-500 mt-1">
-                                                                Area {baseAreaM2 !== null ? baseAreaM2.toFixed(3) : '—'} m2
-                                                            </div>
-                                                        </div>
-                                                        <div className="rounded-2xl bg-white border border-slate-100 p-3">
-                                                            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Effective</div>
-                                                            <div className="font-black text-slate-800 mt-1">
-                                                                {effectiveWidthMm !== null ? effectiveWidthMm.toFixed(0) : '—'} mm × {effectiveHeightMm !== null ? effectiveHeightMm.toFixed(0) : '—'} mm
-                                                            </div>
-                                                            <div className="text-slate-500 mt-1">
-                                                                Area {effectiveAreaM2 !== null ? effectiveAreaM2.toFixed(3) : '—'} m2 · POD {String(geometryCards?.pod_summary?.name || geometryCards?.pod_summary?.type || context?.job?.geometry?.pod?.name || 'None')}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {(geometryCards?.adjustments_summary || []).length > 0 && (
-                                                        <div className="rounded-2xl bg-white border border-slate-100 p-3">
-                                                            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-2">Adjustments</div>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {(geometryCards?.adjustments_summary || []).map((row: any, idx: number) => (
-                                                                    <Badge key={`geo-adj-${idx}`} variant="outline" className="text-[9px] font-bold bg-slate-50 border-slate-200 text-slate-700">
-                                                                        {row?.name || 'Adj'} {row?.value ?? ''}{row?.unit || ''}{row?.on ? ` on ${row.on}` : ''}
-                                                                    </Badge>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </CardContent>
-                                            </Card>
-
-                                            {/* Dynamic Output Entry Form */}
-                                            <div className="space-y-4 rounded-[1.8rem] border border-slate-200/90 bg-white/70 p-4" data-testid="machine-output-panel">
-                                                <div className="flex items-center justify-between gap-4 px-1">
-                                                    <div>
-                                                        <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Output Entry</Label>
-                                                        <div className="mt-1 text-[11px] font-semibold text-slate-500">Enter only the fields this step needs.</div>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        data-testid="machine-stage-output"
-                                                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500"
-                                                    >
-                                                        Output
-                                                    </button>
-                                                    {behavior === 'SPLIT' && (
-                                                        <Button variant="ghost" size="sm" onClick={addSplitRow} className="h-7 text-[10px] font-black text-blue-600 hover:text-blue-700 hover:bg-blue-50 uppercase tracking-widest">
-                                                            <Plus className="h-3 w-3 mr-1" /> Add Split
-                                                        </Button>
-                                                    )}
-                                                    {supportsDiscreteOutputRolls && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            data-testid="machine-add-create-row"
-                                                            onClick={addCreateRollRow}
-                                                            className="h-7 text-[10px] font-black text-blue-600 hover:text-blue-700 hover:bg-blue-50 uppercase tracking-widest"
-                                                        >
-                                                            <Plus className="h-3 w-3 mr-1" /> Add Output
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                                {allocationRequired && (
-                                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800">
-                                                        <div className="font-black uppercase tracking-wider text-[10px]">Roll Allocation Policy</div>
-                                                        <div className="mt-1">
-                                                            {laneGroupMode
-                                                                ? `Reserve at least one compatible roll in each lamination lane. Lanes ready: ${reservedLaneCount}/${requiredLaneCount || 2}.`
-                                                                : "Exactly one compatible roll must be reserved before start/log."} Reserved now: <span className="font-black">{reservedRolls.length}</span>.
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {supportsDiscreteOutputRolls && (
-                                                    <div className="p-4 rounded-3xl bg-slate-50/50 border border-slate-100 space-y-4">
-                                                        {laneGroupMode && laneGroups.length > 0 && (
-                                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                                                                {laneGroups.map((lane: any) => (
-                                                                    <div key={String(lane?.lane_key || lane?.lane_label)} className="rounded-2xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                                                                        <div className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{lane?.lane_label || lane?.lane_key || "Lane"}</div>
-                                                                        <div className="mt-1 text-xs font-black text-slate-900">{lane?.variant_name || lane?.family_name || lane?.source_role || "Required lane"}</div>
-                                                                        <div className="mt-1 text-[10px] font-semibold text-slate-600">
-                                                                            {[lane?.grade_name, lane?.thickness_micron ? `${lane.thickness_micron}μ` : null, lane?.width_mm ? `${lane.width_mm}mm` : null].filter(Boolean).join(" • ") || "Spec from layer snapshot"}
-                                                                        </div>
-                                                                        <div className="mt-1 text-[10px] font-bold text-indigo-700">
-                                                                            {(lane?.matched_rolls || lane?.rolls || []).length} roll(s) reserved
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                        {showPcsEntry && (
-                                                            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 flex items-center justify-between gap-3">
-                                                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Output Entry Mode</div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="sm"
-                                                                        variant={outputEntryMode === 'PCS' ? 'default' : 'outline'}
-                                                                        className="h-7 rounded-xl text-[9px] font-black uppercase tracking-wider px-3"
-                                                                        onClick={() => {
-                                                                            setOutputEntryMode('PCS');
-                                                                            setOutputWeightDirty(false);
-                                                                        }}
-                                                                    >
-                                                                        PCS-led
-                                                                    </Button>
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="sm"
-                                                                        variant={outputEntryMode === 'KG' ? 'default' : 'outline'}
-                                                                        className="h-7 rounded-xl text-[9px] font-black uppercase tracking-wider px-3"
-                                                                        onClick={() => setOutputEntryMode('KG')}
-                                                                    >
-                                                                        KG-led
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        <div className="space-y-3">
-                                                            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 space-y-3">
-                                                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Output Roll 1</div>
-                                                                <div className="grid grid-cols-2 gap-4">
-                                                                    <div className="space-y-2">
-                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Width (MM)</Label>
-                                                                        <Input
-                                                                            data-testid="machine-create-row-width-0"
-                                                                            value={outputWidthMm}
-                                                                            onChange={(e) => {
-                                                                                setOutputWidthDirty(true);
-                                                                                setOutputWidthMm(e.target.value);
-                                                                            }}
-                                                                            placeholder="0.00"
-                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-2">
-                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Weight (KG)</Label>
-                                                                        <Input
-                                                                            data-testid="machine-create-row-weight-0"
-                                                                            value={outputWeightKg}
-                                                                            onChange={(e) => handleOutputWeightChange(e.target.value)}
-                                                                            placeholder="0.00"
-                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                                {showPcsEntry && (
-                                                                    <div className="space-y-2">
-                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output PCS</Label>
-                                                                        <Input
-                                                                            data-testid="machine-output-pcs"
-                                                                            value={outputPcs}
-                                                                            onChange={(e) => handleOutputPcsChange(e.target.value)}
-                                                                            placeholder="0"
-                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                        />
-                                                                    </div>
-                                                                )}
-                                                                <div className="space-y-2">
-                                                                    <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output Length (M) <span className="text-[8px] font-medium opacity-50">(optional)</span></Label>
-                                                                    <Input
-                                                                        data-testid="machine-create-row-length-0"
-                                                                        value={outputLengthM}
-                                                                        onChange={(e) => setOutputLengthM(e.target.value)}
-                                                                        placeholder="0.00"
-                                                                        className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            {createRollRows.map((row, index) => (
-                                                                <div key={row.id} className="rounded-2xl border border-slate-200 bg-white/90 p-4 space-y-3">
-                                                                    <div className="flex items-center justify-between gap-3">
-                                                                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                                                                            Output Roll {index + 2}
-                                                                        </div>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            onClick={() => removeCreateRollRow(row.id)}
-                                                                            className="h-9 w-9 rounded-2xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-2 gap-4">
-                                                                        <div className="space-y-2">
-                                                                            <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Width (MM)</Label>
-                                                                            <Input
-                                                                                data-testid={`machine-create-row-width-${index + 1}`}
-                                                                                value={row.width_mm}
-                                                                                onChange={(e) => updateCreateRollRow(row.id, 'width_mm', e.target.value)}
-                                                                                placeholder="0.00"
-                                                                                className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                            />
-                                                                        </div>
-                                                                        <div className="space-y-2">
-                                                                            <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Weight (KG)</Label>
-                                                                            <Input
-                                                                                data-testid={`machine-create-row-weight-${index + 1}`}
-                                                                                value={row.weight_kg}
-                                                                                onChange={(e) => updateCreateRollRow(row.id, 'weight_kg', e.target.value)}
-                                                                                placeholder="0.00"
-                                                                                className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="space-y-2">
-                                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output Length (M) <span className="text-[8px] font-medium opacity-50">(optional)</span></Label>
-                                                                        <Input
-                                                                            data-testid={`machine-create-row-length-${index + 1}`}
-                                                                            value={row.length_m}
-                                                                            onChange={(e) => updateCreateRollRow(row.id, 'length_m', e.target.value)}
-                                                                            placeholder="0.00"
-                                                                            className="h-11 rounded-2xl border-slate-200 font-bold shadow-sm"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <div className="flex items-center justify-between rounded-2xl bg-blue-50/30 border border-blue-100 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-600">
-                                                            <span>{behavior === 'MULTI_INPUT_COMBINE' ? "Total Lamination Output" : "Total Create-New Output"}</span>
-                                                            <span>{createRollTotalKg.toFixed(3)} KG</span>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {(behavior === 'MODIFY_EXISTING' || behavior === 'NONE') && (
-                                                    <div className="p-4 rounded-3xl bg-slate-50/50 border border-slate-100 space-y-3">
-                                                        {showPcsEntry && (
-                                                            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 flex items-center justify-between gap-3">
-                                                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Output Entry Mode</div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="sm"
-                                                                        variant={outputEntryMode === 'PCS' ? 'default' : 'outline'}
-                                                                        className="h-7 rounded-xl text-[9px] font-black uppercase tracking-wider px-3"
-                                                                        onClick={() => {
-                                                                            setOutputEntryMode('PCS');
-                                                                            setOutputWeightDirty(false);
-                                                                        }}
-                                                                    >
-                                                                        PCS-led
-                                                                    </Button>
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="sm"
-                                                                        variant={outputEntryMode === 'KG' ? 'default' : 'outline'}
-                                                                        className="h-7 rounded-xl text-[9px] font-black uppercase tracking-wider px-3"
-                                                                        onClick={() => setOutputEntryMode('KG')}
-                                                                    >
-                                                                        KG-led
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        <div className={cn("gap-4", showPcsEntry ? "grid grid-cols-2" : "grid grid-cols-1")}>
-                                                            <div className="space-y-2">
-                                                                <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output Weight (KG)</Label>
-                                                                <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(e) => handleOutputWeightChange(e.target.value)} placeholder="0.00" className="h-12 rounded-2xl border-slate-200 font-black text-lg shadow-sm" />
-                                                            </div>
-                                                            {showPcsEntry && (
-                                                                <div className="space-y-2">
-                                                                    <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">Output PCS</Label>
-                                                                    <Input
-                                                                    data-testid="machine-output-pcs"
-                                                                    value={outputPcs}
-                                                                        onChange={(e) => handleOutputPcsChange(e.target.value)}
-                                                                        placeholder="0"
-                                                                        className="h-12 rounded-2xl border-slate-200 font-black text-lg shadow-sm"
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {showPcsEntry && (
-                                                            <div className="mt-2 text-[10px] font-semibold text-slate-500">
-                                                                {unitWeightG > 0
-                                                                    ? (outputEntryMode === 'KG'
-                                                                        ? 'KG-led auto-calculates PCS. You can still edit PCS before logging.'
-                                                                        : 'PCS-led auto-calculates KG. Switch to KG-led to drive by weight and auto-derive PCS.')
-                                                                    : 'Roll→Bulk requires PCS entry for every log.'}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {behavior === 'SPLIT' && (
-                                                    <div className="space-y-3">
-                                                        {splitRows.map((row) => (
-                                                            <div key={row.id} className="grid grid-cols-[1fr_1.2fr_auto] gap-3 items-end animate-in fade-in slide-in-from-right-2">
-                                                                <div className="space-y-1.5">
-                                                                    <Label className="text-[8px] font-black uppercase text-slate-400 ml-1">Width</Label>
-                                                                    <Input value={row.width_mm} onChange={(e) => updateSplitRow(row.id, 'width_mm', e.target.value)} className="h-11 rounded-2xl font-bold border-slate-200" />
-                                                                </div>
-                                                                <div className="space-y-1.5">
-                                                                    <Label className="text-[8px] font-black uppercase text-slate-400 ml-1">Weight</Label>
-                                                                    <Input value={row.weight_kg} onChange={(e) => updateSplitRow(row.id, 'weight_kg', e.target.value)} className="h-11 rounded-2xl font-bold border-slate-200" />
-                                                                </div>
-                                                                <Button variant="ghost" size="icon" onClick={() => removeSplitRow(row.id)} className="h-11 w-11 rounded-2xl text-slate-300 hover:text-rose-500 hover:bg-rose-50">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        ))}
-                                                        <div className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/30 border border-blue-100 text-[10px] font-black uppercase tracking-widest text-blue-600">
-                                                            <span>Calculated Total</span>
-                                                            <span>{splitTotalKg.toFixed(2)} KG</span>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Scrap & Remainder */}
-                                            <div className="p-4 rounded-3xl bg-rose-50/40 border border-rose-100 space-y-4">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-600">
-                                                    Scrap & Remainder
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">
-                                                            Scrap ({scrapEntryMode})
-                                                        </Label>
-                                                        <Select value={scrapEntryMode} onValueChange={(value) => setScrapEntryMode(value as 'KG' | 'PCS')}>
-                                                            <SelectTrigger className="h-9 rounded-xl border-rose-200 bg-white font-bold text-[11px]">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="KG">KG</SelectItem>
-                                                                <SelectItem value="PCS" disabled={unitWeightG <= 0}>PCS</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                            <Input
-                                                                ref={scrapInputRef}
-                                                                data-testid="machine-scrap-input"
-                                                                value={scrapEntryMode === 'PCS' ? scrapPcs : scrapKg}
-                                                            onChange={(e) => {
-                                                                if (scrapEntryMode === 'PCS') {
-                                                                    setScrapPcs(e.target.value);
-                                                                    return;
-                                                                }
-                                                                setScrapKg(e.target.value);
-                                                            }}
-                                                            placeholder={scrapEntryMode === 'PCS' ? "0" : "0.000"}
-                                                            className="h-11 rounded-2xl border-rose-200 bg-white font-bold shadow-sm"
-                                                        />
-                                                        {scrapEntryMode === 'PCS' ? (
-                                                            <div className="text-[10px] text-rose-600 font-semibold">
-                                                                Converted scrap weight: {scrapValue.toFixed(3)} KG.
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-[10px] text-rose-600 font-semibold">
-                                                                Roll-process scrap only. Bulk scrap is not entered here.
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-[9px] font-black uppercase text-slate-400 ml-1">
-                                                            Remainder Destination
-                                                        </Label>
-                                                        <Select value={remainderLocationId} onValueChange={setRemainderLocationId}>
-                                                            <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white font-semibold">
-                                                                <SelectValue placeholder="Default (Current Plant RM Location)" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value={DEFAULT_REMAINDER}>Default (Current Plant RM Location)</SelectItem>
-                                                                {remainderLocations.map((loc: any) => (
-                                                                    <SelectItem key={String(loc.id)} value={String(loc.id)}>
-                                                                        {loc.name}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <div className="text-[10px] text-slate-500 font-semibold">
-                                                            Default keeps remainder in current plant RM. Override applies to this output log only.
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {behavior === 'SPLIT' && splitRemainder !== null && (
-                                                    <div className="rounded-2xl bg-white border border-slate-200 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
-                                                        <span>Calculated Split Remainder</span>
-                                                        <span className="text-indigo-700">{splitRemainder.toFixed(3)} KG</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="rounded-2xl border border-blue-100 bg-blue-50/40 px-3 py-2">
-                                                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-700">Payload Preview (Next Log)</div>
-                                                <div className="mt-1 text-[10px] font-bold text-slate-600">
-                                                    Max allowed this log: <span className="text-blue-700 font-black">{maxOutputWithScrapKg.toFixed(3)} kg</span>
-                                                </div>
-                                                <div className="mt-2 grid grid-cols-3 gap-2">
-                                                    <div className="rounded-xl bg-white border border-blue-100 px-2 py-1.5">
-                                                        <div className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Output KG</div>
-                                                        <div className="text-[12px] font-black text-slate-900">{previewOutputKg.toFixed(3)}</div>
-                                                    </div>
-                                                    <div className="rounded-xl bg-white border border-blue-100 px-2 py-1.5">
-                                                        <div className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Output PCS</div>
-                                                        <div className="text-[12px] font-black text-slate-900">
-                                                            {showPcsEntry ? (previewOutputPcs !== null ? previewOutputPcs.toLocaleString() : '—') : 'N/A'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-xl bg-white border border-blue-100 px-2 py-1.5">
-                                                        <div className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Scrap KG Final</div>
-                                                        <div className="text-[12px] font-black text-slate-900">{scrapValue.toFixed(3)}</div>
-                                                    </div>
-                                                </div>
-                                                {exceedsOutputCap && (
-                                                    <div className="mt-2 text-[10px] font-black text-rose-600 uppercase tracking-wide">
-                                                        Output exceeds physical cap. Reduce output or scrap before logging.
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Action Engine Grid */}
-                                            <div className="grid grid-cols-2 gap-4 mt-auto">
-                                                    <Button
-                                                        data-testid="machine-start-step"
-                                                        onClick={() => startMutation.mutate()}
-                                                    disabled={!canStart || startMutation.isPending}
-                                                    className="h-16 rounded-[1.5rem] bg-gradient-to-r from-emerald-600 to-teal-500 border-none shadow-lg shadow-emerald-500/20 font-black text-xs uppercase tracking-widest transition-all hover:scale-[1.02] hover:shadow-emerald-500/40 active:scale-95 disabled:opacity-50"
-                                                >
-                                                    <Play className="h-5 w-5 mr-3 fill-current" />
-                                                    Start job
-                                                </Button>
-                                                <Button
-                                                    data-testid="machine-stop-step"
-                                                    variant="outline"
-                                                    onClick={() => stopMutation.mutate()}
-                                                    disabled={!canStop || stopMutation.isPending}
-                                                    className="h-16 rounded-[1.5rem] border-2 border-rose-200/50 bg-white shadow-lg shadow-rose-200/10 font-black text-xs uppercase tracking-widest transition-all hover:bg-rose-500 hover:text-white hover:border-transparent hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-                                                >
-                                                    <Pause className="h-5 w-5 mr-3 fill-current" />
-                                                    Pause Job
-                                                </Button>
-                                                <Button
-                                                    data-testid="machine-log-output"
-                                                    onClick={() =>
-                                                        logOutputMutation.mutate({
-                                                            scrapInputValue: scrapInputRef.current?.value ?? null,
-                                                            scrapEntryMode,
-                                                        })
-                                                    }
-                                                    disabled={!canLogOutput || logOutputMutation.isPending}
-                                                    className="h-16 rounded-[1.5rem] bg-white border-2 border-blue-600/50 text-blue-600 font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/10 transition-all hover:bg-blue-600 hover:text-white hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-                                                >
-                                                    <CheckCircle2 className="h-5 w-5 mr-3" />
-                                                    Log output
-                                                </Button>
-                                                <Button
-                                                    data-testid="machine-finalize-step"
-                                                    onClick={() => completeMutation.mutate()}
-                                                    disabled={!canComplete || completeMutation.isPending}
-                                                    className="h-16 rounded-[1.5rem] bg-gradient-to-r from-blue-700 to-indigo-600 text-white font-black text-xs uppercase tracking-widest shadow-2xl shadow-indigo-500/30 transition-all hover:scale-[1.02] hover:shadow-indigo-500/50 active:scale-95 disabled:opacity-50"
-                                                >
-                                                    <CheckCircle2 className="h-5 w-5 mr-3" />
-                                                    Finalize Step
-                                                </Button>
-                                            </div>
-
-                                            {/* Validation & Notes */}
-                                            <div className="space-y-4 pt-4 border-t border-slate-100">
-                                                <div className="space-y-2">
-                                                    <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Stop note or shop-floor comment</Label>
-                                                    <Input
-                                                        value={stopReason}
-                                                        onChange={(e) => setStopReason(e.target.value)}
-                                                        placeholder="Write a short reason if you pause the job or need to leave a note..."
-                                                        className="h-11 rounded-2xl bg-slate-50 border-none shadow-inner text-xs font-bold"
-                                                    />
-                                                </div>
-
-                                                {forceReasonRequired && (
-                                                    <div className="p-5 rounded-3xl bg-rose-50 border border-rose-100 space-y-4 animate-in zoom-in-95 duration-300">
-                                                        <div className="flex items-center gap-2 text-rose-600">
-                                                            <AlertCircle className="h-4 w-4" />
-                                                            <span className="text-[10px] font-black uppercase tracking-[0.22em]">Variance Detected</span>
-                                                        </div>
-                                                        <p className="text-[11px] font-bold text-rose-500 uppercase leading-relaxed">
-                                                            Material shortfall: {stepRemainingKg.toFixed(2)} KG ({progressPct}% completion).
-                                                            You must provide a justification to force-complete.
-                                                        </p>
-                                                        <Input
-                                                            value={forceReason}
-                                                            onChange={(e) => setForceReason(e.target.value)}
-                                                            placeholder="Provide justification..."
-                                                            className="h-12 rounded-2xl bg-white border-rose-200 focus:ring-rose-500 font-bold"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            <Card className={cn(
-                                "col-span-3 border border-white/20 shadow-2xl shadow-indigo-200/5 bg-white/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden flex flex-col transition-all duration-500",
-                                selectedJob ? "h-[calc(100vh-320px)]" : "min-h-[420px]"
-                            )}>
-                                <CardHeader className="py-5 px-6 border-b border-white/10 bg-white/10">
-                                    <CardTitle className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                        <Activity className="h-4 w-4 text-indigo-600" />
-                                        Live Telemetry Feed
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-3 space-y-3 overflow-y-auto text-sm">
-                                    {!selectedJob ? (
-                                        <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50/60 px-4 text-center">
-                                            <Activity className="h-8 w-8 text-slate-300" />
-                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Telemetry comes alive with the selected job</div>
-                                            <div className="max-w-xs text-[11px] font-semibold leading-5 text-slate-500">
-                                                Step progress, material counters, queue health, and live logs appear here as soon as a released job is selected.
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="p-4 rounded-3xl border border-blue-100 bg-blue-50/70 space-y-2">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Execution Health</div>
-                                                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                                    <div className="rounded-xl bg-white border border-blue-100 p-2">
-                                                        <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Input Ready</div>
-                                                        <div className={cn("font-black mt-1", telemetryHealth?.input_ready ? "text-emerald-600" : "text-rose-600")}>
-                                                            {telemetryHealth?.input_ready ? 'YES' : 'NO'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-xl bg-white border border-blue-100 p-2">
-                                                        <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Roll Shortage</div>
-                                                        <div className="font-black mt-1 text-amber-600">{toNumber(telemetryHealth?.roll_shortage_count, 0)}</div>
-                                                    </div>
-                                                    <div className="rounded-xl bg-white border border-blue-100 p-2">
-                                                        <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Step Progress</div>
-                                                        <div className="font-black mt-1 text-slate-800">
-                                                            {toNumber(telemetryHealth?.step_produced_kg, 0).toFixed(3)} / {toNumber(telemetryHealth?.step_target_kg, 0).toFixed(3)} kg
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-xl bg-white border border-blue-100 p-2">
-                                                        <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Remaining</div>
-                                                        <div className="font-black mt-1 text-indigo-700">{toNumber(telemetryHealth?.step_remaining_kg, 0).toFixed(3)} kg</div>
-                                                    </div>
-                                                </div>
-                                                <div className="text-[10px] text-blue-700 font-semibold">{telemetryHealth?.next_action_hint || 'No action hint.'}</div>
-                                            </div>
-
-                                            <details className="rounded-2xl border border-slate-200 bg-white p-3">
-                                                <summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                                    Inventory Counters (compact)
-                                                </summary>
-                                                <div className="grid gap-2 mt-3 text-[11px]">
-                                                    <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                                                        <span className="font-semibold text-slate-600">Bulk consumed</span>
-                                                        <span className="font-black text-slate-900">{toNumber(telemetryCounters?.bulk_consumed_kg, 0).toFixed(3)} kg</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                                                        <span className="font-semibold text-slate-600">Rolls consumed</span>
-                                                        <span className="font-black text-slate-900">{toNumber(telemetryCounters?.rolls_consumed_count, 0)} / {toNumber(telemetryCounters?.rolls_consumed_kg, 0).toFixed(3)} kg</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                                                        <span className="font-semibold text-slate-600">Rolls created</span>
-                                                        <span className="font-black text-slate-900">{toNumber(telemetryCounters?.rolls_created_count, 0)} / {toNumber(telemetryCounters?.rolls_created_kg, 0).toFixed(3)} kg</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                                                        <span className="font-semibold text-slate-600">Scrap</span>
-                                                        <span className="font-black text-rose-600">{toNumber(telemetryCounters?.scrap_kg, context?.live_consumption?.total_scrap_kg || 0).toFixed(3)} kg</span>
-                                                    </div>
-                                                </div>
-                                            </details>
-
-                                            <div className="rounded border border-slate-200 bg-white p-2">
-                                                <div className="text-xs text-slate-500 mb-1">Live Logs</div>
-                                                {telemetryLogs.length === 0 ? (
-                                                    <div className="text-xs text-slate-400">No events yet</div>
-                                                ) : (
-                                                    <div className="space-y-1">
-                                                        {telemetryLogs.slice(0, 12).map((evt: any, idx: number) => (
-                                                            <div key={`evt-${idx}`} className="text-xs text-slate-700 flex items-center justify-between gap-2">
-                                                                <div className="flex items-center gap-2 min-w-0">
-                                                                    <Badge variant="outline" className="text-[9px] font-bold h-5 px-1.5 uppercase">
-                                                                        {evt.type || 'EVENT'}
-                                                                    </Badge>
-                                                                    <span className="truncate">
-                                                                        {toNumber(evt.quantity_kg, 0).toFixed(3)} kg
-                                                                        {evt.roll_label ? ` • ${evt.roll_label}` : ''}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="text-[10px] text-slate-400 shrink-0">
-                                                                    {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <Button variant="outline" className="w-full" onClick={refreshAll}>
-                                                <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-                                            </Button>
-
-                                            {(completeMutation.data as any)?.interplant_dc?.dc_no && (
-                                                <div className="rounded border border-indigo-200 bg-indigo-50 p-2 text-xs text-indigo-700">
-                                                    <Truck className="h-3 w-3 inline mr-1" />
-                                                    Auto DC: {(completeMutation.data as any).interplant_dc.dc_no}
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-                                </CardContent>
-
-                            </Card>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <Label className={labelClass}>From roll</Label>
+                                <Select value={consumptionRollId} onValueChange={setConsumptionRollId}>
+                                    <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={SELECT_NONE}>No specific roll</SelectItem>
+                                        {reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div><Label className={labelClass}>Quantity kg</Label><Input value={consumptionQty} onChange={(event) => setConsumptionQty(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="number" step="0.001" /></div>
                         </div>
-                    </TabsContent>
-
-                    <TabsContent value="history" className="space-y-4 mt-0">
-                        <Card className="border-slate-200 shadow-sm bg-white/95">
-                            <CardHeader className="py-3 border-b bg-white">
-                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                    <BarChart3 className="h-4 w-4" />
-                                    Machine History
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-4 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Date From</Label>
-                                        <Input
-                                            type="date"
-                                            value={historyDateFrom}
-                                            onChange={(e) => setHistoryDateFrom(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Date To</Label>
-                                        <Input
-                                            type="date"
-                                            value={historyDateTo}
-                                            onChange={(e) => setHistoryDateTo(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Status</Label>
-                                        <Select
-                                            value={historyStatus}
-                                            onValueChange={(v) => setHistoryStatus(v as 'ALL' | 'NORMAL' | 'FORCED_VARIANCE')}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Status" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="ALL">ALL</SelectItem>
-                                                <SelectItem value="NORMAL">NORMAL</SelectItem>
-                                                <SelectItem value="FORCED_VARIANCE">FORCED_VARIANCE</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="flex items-end">
-                                        <Button
-                                            variant="outline"
-                                            className="w-full"
-                                            onClick={() => queryClient.invalidateQueries({ queryKey: ['machine-history', machineId] })}
-                                        >
-                                            <RefreshCw className="h-4 w-4 mr-1" />
-                                            Refresh
-                                        </Button>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><Checkbox checked={consumptionEstimated} onCheckedChange={(value) => setConsumptionEstimated(Boolean(value))} /> Estimated quantity</label>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-violet-700 to-violet-500 text-white" disabled={consumptionPending} onClick={onSaveConsumption}>Save consumption</Button></div>
+                    </>
+                ) : sublog === 'quality' ? (
+                    <>
+                        <DialogHeader><DialogTitle>Quality readings</DialogTitle><DialogDescription>Parameter set follows the current process type.</DialogDescription></DialogHeader>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            {qualityRows.map((row: QualityDraft, index: number) => (
+                                <div key={row.code} className="rounded-lg border border-cyan-100 bg-cyan-50/50 p-2">
+                                    <Label className={labelClass}>{row.label}</Label>
+                                    <Input value={row.value} onChange={(event) => setQualityRows((prev: QualityDraft[]) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} className={cn(inputClass, 'mt-1 font-mono')} />
+                                    <div className="mt-1 flex items-center justify-between gap-2">
+                                        <span className="text-[10px] text-slate-500">{row.spec_min !== undefined || row.spec_max !== undefined ? `spec ${row.spec_min ?? '-'}-${row.spec_max ?? '-'}` : 'observation'}</span>
+                                        <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-600"><Checkbox checked={row.in_spec} onCheckedChange={(value) => setQualityRows((prev: QualityDraft[]) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, in_spec: Boolean(value) } : item))} /> In spec</label>
                                     </div>
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div className="p-5 rounded-[2rem] bg-white/40 border border-white/40 shadow-sm backdrop-blur-md hover:bg-white/60 transition-all group">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Jobs Completed</div>
-                                        <div className="text-3xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">{toNumber(historyData?.summary?.jobs_completed, 0)}</div>
-                                    </div>
-                                    <div className="p-5 rounded-[2rem] bg-white/40 border border-white/40 shadow-sm backdrop-blur-md hover:bg-white/60 transition-all group">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Produced (kg)</div>
-                                        <div className="text-3xl font-black text-emerald-600 group-hover:scale-110 origin-left transition-transform">{toNumber(historyData?.summary?.produced_kg, 0).toFixed(2)}</div>
-                                    </div>
-                                    <div className="p-5 rounded-[2rem] bg-white/40 border border-white/40 shadow-sm backdrop-blur-md hover:bg-white/60 transition-all group">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Scrap (kg)</div>
-                                        <div className="text-3xl font-black text-amber-600 group-hover:scale-110 origin-left transition-transform">{toNumber(historyData?.summary?.scrap_kg, 0).toFixed(2)}</div>
-                                    </div>
-                                    <div className="p-5 rounded-[2rem] bg-white/40 border border-white/40 shadow-sm backdrop-blur-md hover:bg-white/60 transition-all group">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Forced Variance</div>
-                                        <div className="text-3xl font-black text-rose-600 group-hover:scale-110 origin-left transition-transform">{toNumber(historyData?.summary?.forced_variance_count, 0)}</div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            <Card className="border-slate-200 shadow-sm bg-white/95">
-                                <CardHeader className="py-3 border-b bg-white">
-                                    <CardTitle className="text-sm font-semibold">Daily Summary</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <div className="max-h-[380px] overflow-auto">
-                                        <table className="w-full text-sm">
-                                            <thead className="sticky top-0 bg-slate-50">
-                                                <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                                    <th className="px-3 py-2">Date</th>
-                                                    <th className="px-3 py-2">Jobs</th>
-                                                    <th className="px-3 py-2">Produced (kg)</th>
-                                                    <th className="px-3 py-2">Scrap (kg)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(historyData?.daily || []).length === 0 && !historyLoading ? (
-                                                    <tr>
-                                                        <td className="px-3 py-4 text-slate-400" colSpan={4}>No daily history found.</td>
-                                                    </tr>
-                                                ) : (
-                                                    (historyData?.daily || []).map((row) => (
-                                                        <tr key={row.date} className="border-t border-slate-100">
-                                                            <td className="px-3 py-2 font-medium text-slate-700">{row.date}</td>
-                                                            <td className="px-3 py-2 text-slate-700">{row.jobs_completed}</td>
-                                                            <td className="px-3 py-2 text-slate-700">{toNumber(row.produced_kg, 0).toFixed(3)}</td>
-                                                            <td className="px-3 py-2 text-slate-700">{toNumber(row.scrap_kg, 0).toFixed(3)}</td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="border-slate-200 shadow-sm bg-white/95">
-                                <CardHeader className="py-3 border-b bg-white">
-                                    <CardTitle className="text-sm font-semibold">Completed Jobs</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <div className="max-h-[380px] overflow-auto">
-                                        <table className="w-full text-sm">
-                                            <thead className="sticky top-0 bg-slate-50">
-                                                <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                                    <th className="px-3 py-2">Job</th>
-                                                    <th className="px-3 py-2">Step</th>
-                                                    <th className="px-3 py-2">Mode</th>
-                                                    <th className="px-3 py-2">Produced</th>
-                                                    <th className="px-3 py-2">Scrap</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(historyData?.jobs || []).length === 0 && !historyLoading ? (
-                                                    <tr>
-                                                        <td className="px-3 py-4 text-slate-400" colSpan={5}>No completed jobs in selected filters.</td>
-                                                    </tr>
-                                                ) : (
-                                                    (historyData?.jobs || []).map((row) => (
-                                                        <tr key={row.job_id} className="border-t border-slate-100">
-                                                            <td className="px-3 py-2">
-                                                                <div className="font-semibold text-slate-800">{row.job_number}</div>
-                                                                <div className="text-xs text-slate-500">{row.template_name}</div>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-slate-700">{row.step_name}</td>
-                                                            <td className="px-3 py-2">
-                                                                <Badge variant={row.completion_mode === 'FORCED_VARIANCE' ? 'destructive' : 'outline'}>
-                                                                    {row.completion_mode}
-                                                                </Badge>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-slate-700">{toNumber(row.produced_kg, 0).toFixed(3)} kg</td>
-                                                            <td className="px-3 py-2 text-slate-700">{toNumber(row.scrap_kg, 0).toFixed(3)} kg</td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            ))}
                         </div>
-                    </TabsContent>
-                </Tabs>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-cyan-600 to-sky-500 text-white" disabled={qualityPending} onClick={onSaveQuality}>Save readings</Button></div>
+                    </>
+                ) : null}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function ReasonChips({ reasons, value, onChange }: { reasons: string[]; value: string; onChange: (value: string) => void }) {
+    return (
+        <div>
+            <Label className={labelClass}>Reason</Label>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+                {reasons.map((reason) => (
+                    <Button key={reason} type="button" variant="outline" className={cn('h-9 rounded-full text-xs font-semibold', value === reason ? 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white' : 'bg-white')} onClick={() => onChange(reason)}>
+                        {reason}
+                    </Button>
+                ))}
             </div>
         </div>
     );

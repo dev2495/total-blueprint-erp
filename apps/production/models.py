@@ -813,6 +813,30 @@ class MaterialConsumptionLog(models.Model):
     class Meta:
         db_table = 'production_consumption_logs'
 
+
+class QualityReading(models.Model):
+    """
+    Event Log: process-specific quality readings captured from the machine terminal.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    production_job = models.ForeignKey(ProductionJob, on_delete=models.PROTECT, related_name='quality_readings')
+    process = models.ForeignKey('factory.Process', on_delete=models.PROTECT, related_name='quality_readings')
+    parameter_code = models.CharField(max_length=40)
+    value_numeric = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    value_text = models.CharField(max_length=80, blank=True, default="")
+    spec_min = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    spec_max = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    in_spec = models.BooleanField(default=True)
+    logged_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True)
+    logged_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'production_quality_readings'
+        indexes = [
+            models.Index(fields=['production_job', '-logged_at'], name='prod_quality_job_time'),
+            models.Index(fields=['parameter_code', '-logged_at'], name='prod_quality_param_time'),
+        ]
+
 class FinishedGoodsBatch(models.Model):
     """
     Represents a batch of Finished Goods for POUCH-type products.

@@ -10,14 +10,17 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db.models import Case, IntegerField, Sum, Value, When
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django.utils.dateparse import parse_date
 
 from apps.factory.models import Machine
-from apps.production.models import ProductionJob, JobExecutionLog, ScrapLog
+from apps.inventory.models import InventoryRoll
+from apps.materials.models import GranuleQualityCode, InventoryMaterial
+from apps.production.models import DowntimeLog, JobExecutionLog, MaterialConsumptionLog, ProductionJob, QualityReading, ScrapLog
 from apps.production.serializers import ProductionJobSerializer
 from apps.production.services import OperatorService
 from apps.production.services.services_execution import ExecutionService
@@ -61,6 +64,29 @@ def _scope_denied(machine_id):
         },
         status=status.HTTP_403_FORBIDDEN,
     )
+
+
+def _user_label(user):
+    if not user:
+        return None
+    try:
+        return user.get_full_name() or user.username
+    except Exception:
+        return str(user)
+
+
+def _machine_job_or_response(user, machine_id, job_id):
+    try:
+        machine = Machine.objects.get(id=machine_id)
+    except Machine.DoesNotExist:
+        return None, None, Response({"error": "Machine not found"}, status=status.HTTP_404_NOT_FOUND)
+    if not _ensure_machine_scope(user, machine.id):
+        return machine, None, _scope_denied(machine.id)
+    try:
+        job = ProductionJob.objects.select_related("current_process", "process").get(id=job_id, machine=machine)
+    except ProductionJob.DoesNotExist:
+        return machine, None, Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
+    return machine, job, None
 
 
 # ==============================================================================
@@ -195,7 +221,7 @@ def machine_start_job(request, machine_id, job_id):
     if not _ensure_machine_scope(request.user, machine.id):
         return _scope_denied(machine.id)
     try:
-        ProductionJob.objects.get(id=job_id, machine=machine)
+        job_for_completion = ProductionJob.objects.get(id=job_id, machine=machine)
     except ProductionJob.DoesNotExist:
         return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
     
@@ -337,7 +363,7 @@ def machine_complete_job(request, machine_id, job_id):
     if not _ensure_machine_scope(request.user, machine.id):
         return _scope_denied(machine.id)
     try:
-        ProductionJob.objects.get(id=job_id, machine=machine)
+        job_for_completion = ProductionJob.objects.get(id=job_id, machine=machine)
     except ProductionJob.DoesNotExist:
         return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -713,3 +739,281 @@ def machine_log_scrap(request, machine_id, job_id):
             {"error": {"code": "MACHINE_LOG_SCRAP_FAILED", "message": "Unable to log scrap."}},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def machine_log_downtime(request, machine_id, job_id):
+    """
+    Log downtime for a job on this machine.
+    Route: POST /api/production/machine/<machine_id>/jobs/<job_id>/log-downtime/
+    """
+    _, job, error_response = _machine_job_or_response(request.user, machine_id, job_id)
+    if error_response:
+        return error_response
+
+    reason = str(request.data.get("reason") or "").strip().upper()
+    if reason not in {choice[0] for choice in DowntimeLog.REASON_CHOICES}:
+        return Response({"error": "reason must be one of BREAKDOWN, MAINTENANCE, MATERIAL, MANPOWER, POWER, OTHER"}, status=status.HTTP_400_BAD_REQUEST)
+
+    start_raw = request.data.get("start_time")
+    end_raw = request.data.get("end_time")
+    start_time = parse_datetime(start_raw) if start_raw else timezone.now()
+    end_time = parse_datetime(end_raw) if end_raw else None
+    if not start_time:
+        return Response({"error": "Invalid start_time format."}, status=status.HTTP_400_BAD_REQUEST)
+    if end_raw and not end_time:
+        return Response({"error": "Invalid end_time format."}, status=status.HTTP_400_BAD_REQUEST)
+    if end_time and end_time < start_time:
+        return Response({"error": "end_time cannot be before start_time."}, status=status.HTTP_400_BAD_REQUEST)
+
+    notes = str(request.data.get("notes") or "")
+    auto_stop_raw = request.data.get("auto_stop")
+    auto_stop = (
+        str(auto_stop_raw).strip().lower() not in {"false", "0", "no", "off"}
+        if auto_stop_raw is not None
+        else reason in {"BREAKDOWN", "POWER"}
+    )
+
+    try:
+        OperatorService.log_downtime(job.id, start_time, end_time, reason, request.user, notes=notes)
+        if auto_stop and str(job.job_state).upper() == "EXECUTING":
+            job = OperatorService.pause_job(job.id, f"Downtime: {reason}", request.user)
+        payload = ProductionJobSerializer(job).data
+        payload["downtime"] = {
+            "reason": reason,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat() if end_time else None,
+            "notes": notes,
+            "auto_stop": auto_stop,
+        }
+        return Response(payload)
+    except Exception:
+        logger.exception("Machine log-downtime failed machine_id=%s job_id=%s", machine_id, job_id)
+        return Response(
+            {"error": {"code": "MACHINE_LOG_DOWNTIME_FAILED", "message": "Unable to log downtime."}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def machine_log_consumption(request, machine_id, job_id):
+    """
+    Log a measured/manual material consumption row for this machine job.
+    Route: POST /api/production/machine/<machine_id>/jobs/<job_id>/log-consumption/
+    """
+    _, job, error_response = _machine_job_or_response(request.user, machine_id, job_id)
+    if error_response:
+        return error_response
+
+    material_id = str(request.data.get("material_id") or "").strip()
+    roll_id = str(request.data.get("roll_id") or "").strip()
+    quantity_raw = request.data.get("quantity")
+    if not material_id and not roll_id:
+        return Response({"error": "material_id or roll_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+    if quantity_raw in (None, ""):
+        return Response({"error": "quantity is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        quantity = Decimal(str(quantity_raw))
+    except Exception:
+        return Response({"error": "quantity must be numeric"}, status=status.HTTP_400_BAD_REQUEST)
+    if quantity <= 0:
+        return Response({"error": "quantity must be greater than zero"}, status=status.HTTP_400_BAD_REQUEST)
+
+    roll = None
+    if roll_id:
+        roll = InventoryRoll.objects.filter(id=roll_id).select_related("material").first()
+        if not roll:
+            return Response({"error": "roll_id is invalid"}, status=status.HTTP_400_BAD_REQUEST)
+        if not material_id:
+            material_id = str(roll.material_id)
+
+    material = InventoryMaterial.objects.filter(id=material_id).first()
+    if not material:
+        return Response({"error": "material_id is invalid"}, status=status.HTTP_400_BAD_REQUEST)
+    if roll and roll.material_id and str(roll.material_id) != str(material.id):
+        return Response({"error": "roll_id does not belong to material_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+    granule_code_id = str(request.data.get("granule_code_id") or "").strip() or None
+    granule_code = None
+    if granule_code_id:
+        granule_code = GranuleQualityCode.objects.filter(id=granule_code_id, granule=material).first()
+        if not granule_code:
+            return Response({"error": "granule_code_id does not belong to material_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+    uom = str(request.data.get("uom") or "KG").strip().upper() or "KG"
+    is_estimated = bool(request.data.get("is_estimated"))
+
+    try:
+        log = MaterialConsumptionLog.objects.create(
+            production_job=job,
+            material=material,
+            granule_code=granule_code,
+            roll=roll,
+            quantity=quantity,
+            uom=uom,
+            is_estimated=is_estimated,
+        )
+        return Response(
+            {
+                "id": str(log.id),
+                "material_id": str(material.id),
+                "material_code": material.code,
+                "material_name": material.name,
+                "granule_code_id": str(granule_code.id) if granule_code else None,
+                "quantity": float(log.quantity),
+                "uom": log.uom,
+                "is_estimated": log.is_estimated,
+                "logged_at": log.logged_at.isoformat() if log.logged_at else None,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+    except Exception:
+        logger.exception("Machine log-consumption failed machine_id=%s job_id=%s", machine_id, job_id)
+        return Response(
+            {"error": {"code": "MACHINE_LOG_CONSUMPTION_FAILED", "message": "Unable to log consumption."}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def machine_log_quality(request, machine_id, job_id):
+    """
+    Log process-specific quality readings for this machine job.
+    Route: POST /api/production/machine/<machine_id>/jobs/<job_id>/log-quality/
+    """
+    _, job, error_response = _machine_job_or_response(request.user, machine_id, job_id)
+    if error_response:
+        return error_response
+    process = job.current_process or job.process
+    if not process:
+        return Response({"error": "Current process is required for quality readings."}, status=status.HTTP_400_BAD_REQUEST)
+
+    readings = request.data.get("readings") or []
+    if not isinstance(readings, list) or not readings:
+        return Response({"error": "readings must contain at least one row"}, status=status.HTTP_400_BAD_REQUEST)
+
+    created = []
+    try:
+        for row in readings:
+            if not isinstance(row, dict):
+                return Response({"error": "Each reading must be an object"}, status=status.HTTP_400_BAD_REQUEST)
+            code = str(row.get("code") or row.get("parameter_code") or "").strip().upper()
+            if not code:
+                return Response({"error": "Each reading requires code"}, status=status.HTTP_400_BAD_REQUEST)
+
+            def _decimal_or_none(key):
+                value = row.get(key)
+                if value in (None, ""):
+                    return None
+                return Decimal(str(value))
+
+            reading = QualityReading.objects.create(
+                production_job=job,
+                process=process,
+                parameter_code=code,
+                value_numeric=_decimal_or_none("value_numeric"),
+                value_text=str(row.get("value_text") or ""),
+                spec_min=_decimal_or_none("spec_min"),
+                spec_max=_decimal_or_none("spec_max"),
+                in_spec=bool(row.get("in_spec", True)),
+                logged_by=request.user,
+            )
+            created.append(str(reading.id))
+        return Response({"created": created}, status=status.HTTP_201_CREATED)
+    except Exception:
+        logger.exception("Machine log-quality failed machine_id=%s job_id=%s", machine_id, job_id)
+        return Response(
+            {"error": {"code": "MACHINE_LOG_QUALITY_FAILED", "message": "Unable to log quality readings."}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def machine_job_events(request, machine_id, job_id):
+    """
+    Mixed live event feed for the machine terminal.
+    Route: GET /api/production/machine/<machine_id>/jobs/<job_id>/events/?limit=20
+    """
+    _, job, error_response = _machine_job_or_response(request.user, machine_id, job_id)
+    if error_response:
+        return error_response
+    try:
+        limit = int(request.query_params.get("limit") or 20)
+    except Exception:
+        limit = 20
+    limit = max(1, min(100, limit))
+
+    events = []
+    for log in job.execution_logs.select_related("logged_by").order_by("-logged_at")[:limit]:
+        events.append({
+            "id": str(log.id),
+            "type": "OUTPUT",
+            "ts": log.logged_at.isoformat() if log.logged_at else None,
+            "quantity": float(log.quantity or 0),
+            "uom": log.uom,
+            "label": f"{float(log.quantity or 0):.3f} {log.uom}",
+            "user": _user_label(log.logged_by),
+        })
+    for log in job.scrap_logs.select_related("logged_by").order_by("-logged_at")[:limit]:
+        events.append({
+            "id": str(log.id),
+            "type": "SCRAP",
+            "ts": log.logged_at.isoformat() if log.logged_at else None,
+            "quantity": float(log.quantity or 0),
+            "uom": log.uom,
+            "reason": log.reason,
+            "label": f"{float(log.quantity or 0):.3f} {log.uom} · {log.reason}",
+            "user": _user_label(log.logged_by),
+        })
+    for log in job.downtime_logs.select_related("logged_by").order_by("-created_at")[:limit]:
+        events.append({
+            "id": f"{log.id}-start",
+            "type": "DOWNTIME_START",
+            "ts": log.start_time.isoformat() if log.start_time else None,
+            "reason": log.reason,
+            "label": log.reason,
+            "user": _user_label(log.logged_by),
+        })
+        if log.end_time:
+            events.append({
+                "id": f"{log.id}-end",
+                "type": "DOWNTIME_END",
+                "ts": log.end_time.isoformat(),
+                "reason": log.reason,
+                "duration_min": log.duration_minutes,
+                "label": f"{log.duration_minutes:.0f} min · {log.reason}",
+                "user": _user_label(log.logged_by),
+            })
+    for log in job.consumption_logs.select_related("material", "granule_code").order_by("-logged_at")[:limit]:
+        events.append({
+            "id": str(log.id),
+            "type": "CONSUMPTION",
+            "ts": log.logged_at.isoformat() if log.logged_at else None,
+            "quantity": float(log.quantity or 0),
+            "uom": log.uom,
+            "material": log.material.code if log.material else None,
+            "granule_code": log.granule_code.code if log.granule_code else None,
+            "is_estimated": log.is_estimated,
+            "label": f"{float(log.quantity or 0):.3f} {log.uom} · {log.material.code if log.material else 'Material'}",
+            "user": "system" if log.is_estimated else None,
+        })
+    for log in job.quality_readings.select_related("logged_by").order_by("-logged_at")[:limit]:
+        value = log.value_text or (str(log.value_numeric) if log.value_numeric is not None else "")
+        events.append({
+            "id": str(log.id),
+            "type": "QUALITY",
+            "ts": log.logged_at.isoformat() if log.logged_at else None,
+            "parameter": log.parameter_code,
+            "value": value,
+            "in_spec": log.in_spec,
+            "label": f"{log.parameter_code} · {value}".strip(" ·"),
+            "user": _user_label(log.logged_by),
+        })
+
+    events.sort(key=lambda event: event.get("ts") or "", reverse=True)
+    return Response({"events": events[:limit]})

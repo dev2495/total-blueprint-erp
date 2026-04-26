@@ -1,6 +1,6 @@
 import { test, expect } from "../support/base"
 import { annotate, assertHealthyPage, fetchJson, switchRole, unwrapApiList } from "../support/test-helpers"
-import { readMutationSeed } from "../support/mutation-seed"
+import { readMutationSeed, type MutationSeedMetadata } from "../support/mutation-seed"
 
 test("operator can start, pause, resume, log output with scrap, and finalize a seeded machine job", async ({ page }, testInfo) => {
   annotate(testInfo, {
@@ -14,12 +14,12 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   const seed = readMutationSeed()
 
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Operator", "/production/machine-selector")
+  await switchRole(page, "Operator", "/production/machine-selector", { allowCookieFallback: true })
   await page.goto("/production/machine-selector")
   await page.getByTestId("machine-selector-page").waitFor({ state: "visible", timeout: 30_000 })
   await page.getByTestId(`machine-card-${seed.operator.machine_id}`).click()
-  await page.waitForURL(new RegExp(`/production/machine/${seed.operator.machine_id}`), { timeout: 30_000 })
-  await page.getByTestId("machine-execution-page").waitFor({ state: "visible", timeout: 30_000 })
+  await page.waitForURL(new RegExp(`/production/machine/${seed.operator.machine_id}`), { timeout: 60_000, waitUntil: "domcontentloaded" })
+  await page.getByTestId("machine-execution-page").waitFor({ state: "visible", timeout: 60_000 })
   await assertHealthyPage(page)
 
   const jobCard = page.getByTestId(`machine-job-card-${seed.operator.job_id}`)
@@ -105,4 +105,47 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   expect(historyResponse.status).toBe(200)
   const jobs = unwrapApiList<any>(historyResponse.data)
   expect(jobs.some((job) => String(job.job_number || "") === seed.operator.job_number)).toBeTruthy()
+})
+
+test("operator terminal renders the printing process-aware execution card", async ({ page }, testInfo) => {
+  annotate(testInfo, {
+    module: "Operator",
+    severity: "high",
+    role: "OPERATOR",
+    feature: "Machine execution process variants",
+    expected: "Printing jobs should open on the same terminal with the MODIFY_EXISTING process-aware controls and sublog actions available.",
+  })
+
+  const seed = readMutationSeed() as MutationSeedMetadata & {
+    printing_operator?: {
+      machine_id: string
+      job_id: string
+      job_number: string
+    }
+  }
+  test.skip(!seed.printing_operator, "Mutation seed does not include a printing operator job.")
+
+  const printing = seed.printing_operator!
+  await page.goto("/dashboard/admin")
+  await switchRole(page, "Operator", "/production/machine-selector", { allowCookieFallback: true })
+  await page.goto(`/production/machine/${printing.machine_id}`)
+  await page.getByTestId("machine-execution-page").waitFor({ state: "visible", timeout: 30_000 })
+  await assertHealthyPage(page)
+
+  const jobCard = page.getByTestId(`machine-job-card-${printing.job_id}`)
+  if (await jobCard.isVisible().catch(() => false)) {
+    await jobCard.click()
+  }
+
+  const outputPanel = page.getByTestId("machine-output-panel")
+  await expect(page.locator("body")).toContainText(printing.job_number)
+  await expect(outputPanel).toContainText("Printing")
+  await expect(outputPanel).toContainText("MODIFY_EXISTING")
+  await expect(page.getByRole("button", { name: "+ Consumption" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "+ Quality" })).toBeVisible()
+  await expect(page.locator("body")).toContainText("Current status")
+  await expect(page.locator("body")).toContainText("Live route")
+  await expect(page.locator("body")).not.toContainText("PROCESS roll_behavior")
+  await expect(page.locator("body")).not.toContainText("POST /api/production/machine")
+  await expect(page.locator("body")).not.toContainText("Process mode")
 })

@@ -185,7 +185,7 @@ class OperatorService:
         return job
 
     @staticmethod
-    def log_downtime(job_id: str, start_time, end_time, reason: str, user):
+    def log_downtime(job_id: str, start_time, end_time, reason: str, user, notes: str = ""):
         job = ProductionJob.objects.get(id=job_id)
         
         DowntimeLog.objects.create(
@@ -193,6 +193,7 @@ class OperatorService:
             start_time=start_time,
             end_time=end_time,
             reason=reason,
+            notes=notes or "",
             logged_by=user,
             **build_shift_fields_for_job(job, ts=start_time),
         )

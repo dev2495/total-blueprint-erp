@@ -11,6 +11,7 @@ from .views_machine import (
     machine_detail, machine_queue,
     machine_start_job, machine_stop_job, machine_log_output, machine_complete_job,
     machine_job_context, machine_job_satisfaction, machine_history,
+    machine_job_events, machine_log_consumption, machine_log_downtime, machine_log_quality,
     machine_log_scrap, operator_machines
 )
 
@@ -43,7 +44,11 @@ urlpatterns = [
     path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/complete/', machine_complete_job, name='machine-complete-job'),
     path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/context/', machine_job_context, name='machine-job-context'),
     path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/satisfaction/', machine_job_satisfaction, name='machine-job-satisfaction'),
+    path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/events/', machine_job_events, name='machine-job-events'),
     path('machine/<uuid:machine_id>/history/', machine_history, name='machine-history'),
     path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/log-scrap/', machine_log_scrap, name='machine-log-scrap'),
+    path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/log-downtime/', machine_log_downtime, name='machine-log-downtime'),
+    path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/log-consumption/', machine_log_consumption, name='machine-log-consumption'),
+    path('machine/<uuid:machine_id>/jobs/<uuid:job_id>/log-quality/', machine_log_quality, name='machine-log-quality'),
     path('operator/machines/', operator_machines, name='operator-machines'),
 ]
