@@ -14,7 +14,7 @@ from rest_framework.views import exception_handler
 logger = logging.getLogger(__name__)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'HEAD'])
 @permission_classes([AllowAny])
 def health_live(request):
     """Liveness probe: process is alive and can serve requests."""
@@ -26,7 +26,7 @@ def health_live(request):
     return JsonResponse(payload, status=200)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'HEAD'])
 @permission_classes([AllowAny])
 def health_ready(request):
     """Readiness probe: validates critical dependencies (DB, Redis, Celery)."""
@@ -80,7 +80,7 @@ def health_ready(request):
 
 
 # Backward compatibility endpoint.
-@api_view(['GET'])
+@api_view(['GET', 'HEAD'])
 @permission_classes([AllowAny])
 def health_check(request):
     payload = {
@@ -101,6 +101,8 @@ def custom_exception_handler(exc, context):
 
     if isinstance(exc, (NotAuthenticated, AuthenticationFailed, PermissionDenied)):
         logger.info("Auth/permission exception intercepted: %s", str(exc))
+    elif response is not None and response.status_code < 500:
+        logger.warning("Client exception intercepted: %s", str(exc), exc_info=True)
     else:
         logger.error("Global exception intercepted: %s", str(exc), exc_info=True)
 

@@ -9,6 +9,10 @@ class HealthEndpointTests(TestCase):
         self.assertEqual(body.get("status"), "ok")
         self.assertIn("timestamp", body)
 
+    def test_live_endpoint_allows_head_probe(self):
+        response = self.client.head("/api/health/live/")
+        self.assertEqual(response.status_code, 200)
+
     def test_ready_endpoint_contract(self):
         response = self.client.get("/api/health/ready/")
         self.assertIn(response.status_code, (200, 503))
@@ -18,3 +22,7 @@ class HealthEndpointTests(TestCase):
         self.assertIn("database", body["checks"])
         self.assertIn("redis", body["checks"])
         self.assertIn("celery", body["checks"])
+
+    def test_ready_endpoint_allows_head_probe(self):
+        response = self.client.head("/api/health/ready/")
+        self.assertIn(response.status_code, (200, 503))
