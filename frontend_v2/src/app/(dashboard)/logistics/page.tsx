@@ -152,7 +152,7 @@ export default function LogisticsHubPage() {
           label="Dispatch weight"
           value={loading ? "..." : `${Number(summary.total_weight_kg || 0).toFixed(1)} kg`}
           helper="Total shipped weight inside the current report window."
-          tone="bg-indigo-50 text-indigo-700"
+          tone="bg-blue-50 text-blue-700"
           icon={Boxes}
         />
       </section>
@@ -191,7 +191,7 @@ export default function LogisticsHubPage() {
         <Card className="rounded-[2rem] border border-slate-200/80 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
-              <Factory className="h-5 w-5 text-indigo-600" />
+              <Factory className="h-5 w-5 text-blue-600" />
               Top dispatch customers
             </CardTitle>
           </CardHeader>
@@ -212,7 +212,7 @@ export default function LogisticsHubPage() {
                     tick={{ fontSize: 12, fill: "#475569", fontWeight: 700 }}
                   />
                   <Tooltip />
-                  <Bar dataKey="weight_kg" fill="#4f46e5" radius={[0, 10, 10, 0]} />
+                  <Bar dataKey="weight_kg" fill="#2563eb" radius={[0, 10, 10, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

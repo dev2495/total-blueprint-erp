@@ -259,7 +259,7 @@ export default function InventoryHealthPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
               <CircleDot
-                className="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors"
+                className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors"
                 strokeWidth={1.5}
               />
               WIP Availability
@@ -423,7 +423,7 @@ export default function InventoryHealthPage() {
       <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
         <CardHeader className="border-b border-slate-100 bg-white pb-6 pt-6 px-6">
           <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Activity className="h-5 w-5 text-indigo-500" strokeWidth={2.5} />
+            <Activity className="h-5 w-5 text-blue-500" strokeWidth={2.5} />
             Active Diagnostic Log
           </CardTitle>
           <CardDescription className="font-medium text-slate-500">
@@ -480,7 +480,7 @@ export default function InventoryHealthPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 text-xs font-bold border-indigo-200 text-indigo-700 bg-indigo-50 shadow-sm hover:bg-indigo-100 hidden group-hover:flex"
+                        className="h-8 text-xs font-bold border-blue-200 text-blue-700 bg-blue-50 shadow-sm hover:bg-blue-100 hidden group-hover:flex"
                         onClick={() => setResolvingId(alert.id)}
                       >
                         <CheckSquare
@@ -517,7 +517,7 @@ export default function InventoryHealthPage() {
               placeholder="Resolution context matrix (e.g., Physical cycle count matching, API offset bypassed...)"
               value={resolveNote}
               onChange={(e) => setResolveNote(e.target.value)}
-              className="bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 min-h-[120px]"
+              className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500 min-h-[120px]"
             />
           </div>
           <DialogFooter>
@@ -531,7 +531,7 @@ export default function InventoryHealthPage() {
             <Button
               onClick={handleResolve}
               disabled={!resolveNote}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md"
             >
               Mark Matrix Resolved
             </Button>

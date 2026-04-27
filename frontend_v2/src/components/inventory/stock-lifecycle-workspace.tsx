@@ -48,11 +48,11 @@ const TAB_CONFIG: Array<{
   sub: string
   icon: any
 }> = [
-  { id: "opening", label: "Opening Stock", sub: "Start FY balances", icon: Scale },
-  { id: "count", label: "Stock Count", sub: "Physical vs system", icon: ClipboardList },
+  { id: "opening", label: "Opening Stock", sub: "FY starting balance", icon: Scale },
+  { id: "count", label: "Stock Count", sub: "Floor count vs system", icon: ClipboardList },
   { id: "stockcard", label: "Stock Card", sub: "Running ledger", icon: Table2 },
-  { id: "yearclose", label: "Year Close", sub: "Seal and roll forward", icon: LockKeyhole },
-  { id: "correction", label: "FY Correction", sub: "Approved post-close fix", icon: RotateCcw },
+  { id: "yearclose", label: "Year Close", sub: "Lock and roll forward", icon: LockKeyhole },
+  { id: "correction", label: "FY Correction", sub: "Closed-year approved fix", icon: RotateCcw },
   { id: "help", label: "Help & Flow", sub: "Rules and diagrams", icon: BookOpenCheck },
 ]
 
@@ -147,7 +147,7 @@ export function StockLifecycleWorkspace() {
     <div data-testid="stock-lifecycle-workspace" className="mx-auto w-full max-w-[1520px] min-w-0 space-y-5 pb-10">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-800 text-sm font-black text-white">T</div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-sm font-black text-white">T</div>
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Total Poly Print ERP</div>
             <div className="text-sm font-black text-slate-950">Stock Lifecycle</div>
@@ -158,7 +158,7 @@ export function StockLifecycleWorkspace() {
             <LockKeyhole className="h-3.5 w-3.5" />
             Closed years are correction-only
           </span>
-          <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">{currentFy()} - Open</span>
+          <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">FY {currentFy()} - Apr to Mar</span>
         </div>
       </div>
 
@@ -178,7 +178,7 @@ export function StockLifecycleWorkspace() {
                     onClick={() => setTab(tab.id)}
                     className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${
                       active
-                        ? "border-blue-700 bg-gradient-to-br from-blue-700 to-indigo-900 text-white shadow-[0_14px_28px_-18px_rgba(29,78,216,0.7)]"
+                        ? "border-blue-700 bg-gradient-to-br from-blue-700 to-blue-900 text-white shadow-[0_14px_28px_-18px_rgba(29,78,216,0.7)]"
                         : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50"
                     }`}
                   >
@@ -200,7 +200,7 @@ export function StockLifecycleWorkspace() {
               <ShieldCheck className="h-4 w-4" />
               One lifecycle pattern
             </div>
-            Sheet - Enter - Validate - Preview - Approve - Post. Opening, counts, close, correction, and stock cards now live in one workspace.
+            Daily steps: Sheet - Enter - Validate - Preview - Approve - Post. Use Opening for start balance, Stock Count for open FY differences, and FY Correction only after close.
           </div>
         </aside>
 
@@ -234,7 +234,7 @@ function Hero({
   metrics: Array<{ label: string; value: string; sub: string }>
 }) {
   return (
-    <section className="relative min-w-0 overflow-hidden rounded-[24px] bg-[radial-gradient(800px_400px_at_85%_0%,rgba(59,130,246,0.35),transparent_60%),radial-gradient(600px_300px_at_10%_100%,rgba(139,92,246,0.35),transparent_65%),linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#312e81_100%)] p-6 text-white shadow-[0_28px_90px_-46px_rgba(15,23,42,0.65)]">
+    <section className="relative min-w-0 overflow-hidden rounded-[24px] bg-[radial-gradient(900px_500px_at_90%_-10%,rgba(59,130,246,0.55),transparent_60%),radial-gradient(700px_400px_at_0%_110%,rgba(37,99,235,0.45),transparent_65%),linear-gradient(135deg,#0b1f55_0%,#1e3a8a_50%,#2563eb_100%)] p-6 text-white shadow-[0_28px_90px_-46px_rgba(15,23,42,0.65)]">
       <div className="pointer-events-none absolute inset-0 opacity-60 [background:linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)_0_0/42px_100%,linear-gradient(0deg,rgba(255,255,255,0.06)_1px,transparent_1px)_0_0/100%_42px]" />
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
@@ -307,32 +307,32 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
     OPENING_STOCK: {
       tab: "Opening",
       title: `Opening Stock - FY ${financialYear}`,
-      copy: "Declare the start-of-year balance for bulk, rolls, and packaging. Opening posts as OPENING_BALANCE and does not pollute purchase GRN reports.",
-      create: "New opening sheet",
-      qtyLabel: "Opening qty",
-      submit: "Submit opening",
-      post: "Post opening",
+      copy: "Use at FY start or migration only. This sets the approved starting balance for bulk, rolls, and packaging; it is not a purchase GRN.",
+      create: "Start opening sheet",
+      qtyLabel: "Opening balance qty",
+      submit: "Send opening for approval",
+      post: "Post opening balance",
       empty: "No opening rows yet. Create a sheet, add rows, validate, preview, approve, and post.",
     },
     PHYSICAL_COUNT: {
       tab: "Stock Count",
       title: "Stock Count Reconciliation",
-      copy: "Freeze live system stock, enter the floor count, preview shortage or excess, then post only the variance with audit trail.",
-      create: "New count sheet",
-      qtyLabel: "Counted qty",
-      submit: "Submit count",
+      copy: "Use during the open FY when floor stock differs from system stock. Load live stock, enter the physical count, then post only the shortage or excess.",
+      create: "Start count sheet",
+      qtyLabel: "Physical count qty",
+      submit: "Send count for approval",
       post: "Post variance",
       empty: "No count rows yet. Create a sheet and load live stock, or add focused count rows manually.",
     },
     FY_CORRECTION: {
       tab: "FY Correction",
-      title: "Financial Year Correction",
-      copy: "Use this only for approved corrections after period close. The reason is mandatory and the correction remains visible in Audit Center and Stock Card.",
-      create: "New correction",
-      qtyLabel: "Corrected qty",
-      submit: "Submit correction",
-      post: "Post correction",
-      empty: "No correction rows yet. Add only the affected material/location rows and write the authority in notes.",
+      title: "Closed FY Correction",
+      copy: "Use only after an FY is closed and an approved late correction is needed. The reason is mandatory, and the next FY opening impact stays visible.",
+      create: "Start correction sheet",
+      qtyLabel: "Corrected closing qty",
+      submit: "Send correction for approval",
+      post: "Post closed-FY correction",
+      empty: "No correction rows yet. Add only affected material/location rows and write the approval authority in notes.",
     },
   }[mode]
 
@@ -341,6 +341,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
   const { data: materials = [] } = useQuery({ queryKey: ["master-library"], queryFn: () => masterDataService.getLibrary() })
   const { data: grades = [] } = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades() })
   const { data: granuleCodes = [] } = useQuery({ queryKey: ["granule-codes"], queryFn: () => masterDataService.getGranuleCodes({ status: "ACTIVE" }) })
+  const { data: periods = [] } = useQuery({ queryKey: ["inventory-audit-periods"], queryFn: inventoryService.getAuditPeriods })
 
   useEffect(() => {
     if (!selectedPlant && plants.length) setSelectedPlant(String((plants as any[])[0].id))
@@ -372,6 +373,12 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
   }, [materials, stockClass])
 
   const selectedMaterial = filteredMaterials.find((m: any) => String(m.id) === String(line.material))
+  const selectedPeriod = periods.find((period) => period.financial_year === financialYear)
+  const fyStatusCopy = selectedPeriod
+    ? `Selected FY is ${String(selectedPeriod.status || "").toLowerCase().replace(/_/g, " ")}.`
+    : mode === "FY_CORRECTION"
+      ? "Choose a closed FY. Backend will block open-year correction."
+      : "If this FY is not started, the backend will create or validate the period."
   const plantLocations = selectedPlant ? (locations as any[]).filter((loc) => String(loc.plant) === String(selectedPlant)) : (locations as any[])
   const visibleLines = useMemo(() => {
     const q = lineSearch.trim().toLowerCase()
@@ -562,8 +569,15 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Field label="Financial year">
-              <Input data-testid="stock-lifecycle-financial-year" value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} />
+            <Field label="FY period (Apr-Mar)">
+              <Input
+                data-testid="stock-lifecycle-financial-year"
+                aria-label="Financial year period"
+                placeholder="2026-2027"
+                value={financialYear}
+                onChange={(event) => setFinancialYear(event.target.value)}
+              />
+              <div className="text-xs font-semibold leading-5 text-slate-500">{fyStatusCopy}</div>
             </Field>
             <Field label="Plant">
               <Select value={selectedPlant || "__none__"} onValueChange={(value) => setSelectedPlant(value === "__none__" ? "" : value)}>
@@ -574,7 +588,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Working sheet">
+            <Field label="Active sheet">
               <Select value={currentBatch?.id || "__none__"} onValueChange={(value) => setSelectedBatchId(value === "__none__" ? "" : value)}>
                 <SelectTrigger><SelectValue placeholder={isFetching ? "Loading..." : "No sheet"} /></SelectTrigger>
                 <SelectContent>
@@ -585,8 +599,8 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label={mode === "FY_CORRECTION" ? "Reason / authority" : "Notes"}>
-              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={mode === "FY_CORRECTION" ? "Required: what changed, why, who approved, source document" : "Physical count reference, import file, or operator note"} />
+            <Field label={mode === "FY_CORRECTION" ? "Correction reason and approval" : "Reference notes"}>
+              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={mode === "FY_CORRECTION" ? "Required: what changed, why, who approved, and source document" : "Count sheet, import file, store note, or approval reference"} />
             </Field>
 
             {currentBatch ? (
@@ -687,7 +701,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
             </div>
 
             <div className="flex min-w-0 flex-col gap-3 rounded-[16px] border border-slate-200 bg-slate-50 p-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0 text-sm font-semibold text-slate-600">Import the exact template, paste a focused line, or load live system stock for count and correction.</div>
+              <div className="min-w-0 text-sm font-semibold text-slate-600">Import the template, add one focused line, or load live system stock for Stock Count and FY Correction.</div>
               <div className="grid w-full min-w-0 gap-2 sm:grid-cols-2 xl:flex xl:w-auto xl:flex-wrap xl:justify-end">
                 <Input className="min-w-0 bg-white sm:col-span-2 xl:w-[220px]" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
                 {mode !== "OPENING_STOCK" ? (
@@ -757,7 +771,7 @@ function PreviewPanel({ preview }: { preview: any }) {
             {preview.ok ? "Preview is green" : "Preview has blockers"}
           </div>
           <div className={`mt-1 text-sm ${preview.ok ? "text-emerald-800" : "text-rose-800"}`}>
-            This post will write {preview.transaction_count || 0} transaction(s). Impact: {qty(preview.impact?.bulk_kg || 0, "kg bulk")}, {qty(preview.impact?.roll_kg || 0, "kg rolls")}, {qty(preview.impact?.packaging_qty || 0, "packaging")}, {money(preview.impact?.value || 0)}.
+            This approval will write {preview.transaction_count || 0} stock transaction(s). Impact: {qty(preview.impact?.bulk_kg || 0, "kg bulk")}, {qty(preview.impact?.roll_kg || 0, "kg rolls")}, {qty(preview.impact?.packaging_qty || 0, "packaging")}, {money(preview.impact?.value || 0)}.
           </div>
         </div>
         <Badge className={preview.ok ? "bg-emerald-700" : "bg-rose-700"}>{preview.ok ? "Ready for approval" : `${preview.blockers?.length || 0} blockers`}</Badge>
@@ -784,10 +798,10 @@ function LineTable({ lines, empty, mode }: { lines: InventoryAuditLine[]; empty:
             <th className="px-4 py-3">Class</th>
             <th className="px-4 py-3">Material</th>
             <th className="px-4 py-3">Location</th>
-            <th className="px-4 py-3 text-right">System</th>
-            <th className="px-4 py-3 text-right">{mode === "OPENING_STOCK" ? "Opening" : "Entered"}</th>
-            <th className="px-4 py-3 text-right">Variance</th>
-            <th className="px-4 py-3 text-right">Value</th>
+            <th className="px-4 py-3 text-right">System qty</th>
+            <th className="px-4 py-3 text-right">{mode === "OPENING_STOCK" ? "Opening balance" : mode === "PHYSICAL_COUNT" ? "Physical count" : "Corrected closing"}</th>
+            <th className="px-4 py-3 text-right">Delta</th>
+            <th className="px-4 py-3 text-right">Value impact</th>
             <th className="px-4 py-3">Validation</th>
           </tr>
         </thead>
@@ -884,16 +898,16 @@ function YearClosePanel() {
     <div className="space-y-5">
       <Hero
         eyebrow="Stock Lifecycle - Year Close"
-        title={`Year Close - ${financialYear}`}
-        copy="Run the close checklist, snapshot stock, lock the year, and generate next-year opening balances from the approved closing state."
+        title={`FY Close - ${financialYear}`}
+        copy="Preview closing stock, clear blockers, lock this FY, and create the next FY opening balance from the approved closing state."
         actions={
           <>
-            <Button className="rounded-full bg-white text-slate-950 hover:bg-blue-50" disabled={startPeriod.isPending} onClick={() => startPeriod.mutate()}>Open period</Button>
-            <Button variant="outline" className="rounded-full border-white/25 bg-white/10 text-white hover:bg-white/20" onClick={exportPreview}><Download className="mr-2 h-4 w-4" />Export preview</Button>
+            <Button className="rounded-full bg-white text-slate-950 hover:bg-blue-50" disabled={startPeriod.isPending} onClick={() => startPeriod.mutate()}>Open FY period</Button>
+            <Button variant="outline" className="rounded-full border-white/25 bg-white/10 text-white hover:bg-white/20" onClick={exportPreview}><Download className="mr-2 h-4 w-4" />Export close preview</Button>
           </>
         }
         metrics={[
-          { label: "Status", value: period?.status || "None", sub: period?.financial_year || "Start period" },
+          { label: "FY status", value: period?.status || "None", sub: period?.financial_year || "Start period" },
           { label: "Bulk kg", value: qty(preview?.totals?.bulk_kg || 0), sub: "Closing snapshot" },
           { label: "Roll kg", value: qty(preview?.totals?.roll_kg || 0), sub: "Serialized stock" },
           { label: "Packaging", value: qty(preview?.totals?.packaging_qty || 0), sub: "Base UOM" },
@@ -903,7 +917,7 @@ function YearClosePanel() {
 
       <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
         <CardContent className="grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-[180px_240px_minmax(0,1fr)_auto_auto] xl:items-end">
-          <Field label="Financial year"><Input value={financialYear} onChange={(event) => setFinancialYear(event.target.value)} /></Field>
+          <Field label="FY period (Apr-Mar)"><Input value={financialYear} placeholder="2026-2027" onChange={(event) => setFinancialYear(event.target.value)} /></Field>
           <Field label="Plant">
             <Select value={selectedPlant || "__none__"} onValueChange={(value) => setSelectedPlant(value === "__none__" ? "" : value)}>
               <SelectTrigger><SelectValue placeholder="Select plant" /></SelectTrigger>
@@ -916,14 +930,14 @@ function YearClosePanel() {
           <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-600">
             {isFetching ? "Refreshing close preview..." : `Rows: ${preview?.totals?.rows || 0} - Value: ${money(preview?.totals?.value || 0)}`}
           </div>
-          <Button variant="outline" disabled={!period || beginClose.isPending} onClick={() => beginClose.mutate()}><RefreshCw className="mr-2 h-4 w-4" />Begin close</Button>
-          <Button className="bg-slate-950 hover:bg-slate-800" disabled={!period || !selectedPlant || closePeriod.isPending || Boolean(preview?.blockers?.length)} onClick={() => closePeriod.mutate()}><LockKeyhole className="mr-2 h-4 w-4" />Execute close</Button>
+          <Button variant="outline" disabled={!period || beginClose.isPending} onClick={() => beginClose.mutate()}><RefreshCw className="mr-2 h-4 w-4" />Start close check</Button>
+          <Button className="bg-slate-950 hover:bg-slate-800" disabled={!period || !selectedPlant || closePeriod.isPending || Boolean(preview?.blockers?.length)} onClick={() => closePeriod.mutate()}><LockKeyhole className="mr-2 h-4 w-4" />Close FY + next opening</Button>
         </CardContent>
       </Card>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
-          <CardHeader><CardTitle className="text-lg font-black">Closing Stock Snapshot</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg font-black">Approved Closing Snapshot</CardTitle></CardHeader>
           <CardContent className="max-w-full overflow-x-auto">
             <table className="w-full min-w-[780px] text-sm">
               <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Class</th><th>Material</th><th>Location</th><th className="text-right">Qty</th><th>UOM</th></tr></thead>
@@ -936,7 +950,7 @@ function YearClosePanel() {
           </CardContent>
         </Card>
         <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
-          <CardHeader><CardTitle className="text-lg font-black">Close Checklist</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg font-black">FY Close Checklist</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {checks.map((check) => <CheckRow key={check.code} ok={check.ok} label={check.label} />)}
             {preview?.blockers?.length ? (
@@ -967,15 +981,15 @@ function CheckRow({ ok, label }: { ok: boolean; label: string }) {
 
 function LifecycleHelpPanel() {
   const formulas = [
-    { label: "Opening Stock", math: "opening_qty sets the FY start balance", note: "Opening is absolute. If rate is blank, backend resolves USER -> pool WAC -> last GRN -> material standard -> zero warning." },
+    { label: "Opening Stock", math: "opening_qty sets the FY start balance", note: "Opening is absolute and should be posted before movement starts. If rate is blank, backend resolves USER -> pool WAC -> last GRN -> material standard -> zero warning." },
     { label: "Weighted Average Cost", math: "new_rate = (old_qty x old_rate + in_qty x in_rate) / new_qty", note: "Inward, opening, count excess, and correction inflows recompute WAC at 4 decimals. Outflows keep the existing rate." },
-    { label: "Stock Count", math: "variance = counted_qty - system_qty", note: "Positive variance posts COUNT_EXCESS. Negative variance posts COUNT_SHORT. The rate freezes at count time." },
+    { label: "Stock Count", math: "variance = physical_count_qty - system_qty", note: "Use this in an open FY. Positive variance posts COUNT_EXCESS. Negative variance posts COUNT_SHORT. The rate freezes at count time." },
     { label: "Stock Card", math: "balance = previous_balance + signed_qty", note: "Rows show transaction rate, running WAC, and running value. FY close snapshots are skipped because they are proof rows." },
-    { label: "FY Correction", math: "closed FY delta = corrected_qty - system_qty", note: "Closed-year corrections also create an OPENING_BALANCE_ADJUST row in next FY, so opening continuity is visible instead of silently edited." },
+    { label: "FY Correction", math: "closed FY delta = corrected_closing_qty - system_qty", note: "Use this only after close with approval notes. It also creates an OPENING_BALANCE_ADJUST row in the next FY so continuity is visible instead of silently edited." },
   ]
   const flow = [
-    "Create sheet with FY, plant, notes, and class.",
-    "Enter rows manually, import CSV/XLSX, or load live system stock.",
+    "Choose FY period, plant, sheet type, and notes.",
+    "Enter rows manually, import CSV/XLSX, or load live system stock for count/correction.",
     "Validate material, location, quantity, roll size, duplicate labels, and FY rules.",
     "Preview kg, WAC rate, value, and source rows before any stock moves.",
     "Submit and approve with maker-checker separation.",
@@ -993,7 +1007,7 @@ function LifecycleHelpPanel() {
       <Hero
         eyebrow="Stock Lifecycle - Help"
         title="Lifecycle Help & Flow"
-        copy="A daily operator guide for opening stock, physical count, stock card reconciliation, year close, and closed-year corrections. The rules below match the backend posting logic."
+        copy="A daily operator guide for opening stock, physical count, stock card reconciliation, year close, and approved closed-FY corrections. The rules below match the backend posting logic."
         actions={<Button className="rounded-full bg-white text-slate-950 hover:bg-blue-50" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Print guide</Button>}
         metrics={[
           { label: "Pattern", value: "6 steps", sub: "Sheet to post" },
@@ -1063,11 +1077,11 @@ function LifecycleHelpPanel() {
           <CardHeader><CardTitle className="text-lg font-black">What users do every day</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
             {[
-              ["Opening", "Use once at FY start or migration. Enter absolute balances and post only after approval."],
-              ["Count", "Load live stock, enter physical count, preview shortage/excess, approve, and post variance."],
+              ["Opening", "Use once at FY start or migration. Enter approved starting balances and post only after approval."],
+              ["Count", "For open FY only. Load live stock, enter physical count, preview shortage/excess, approve, and post variance."],
               ["Stock Card", "Filter by FY, material, plant, and location to see source, in, out, balance, rate, and value."],
-              ["Year Close", "Preview closing stock, clear blockers, execute close, and generate next FY opening rows."],
-              ["Correction", "For closed years only. State why, approve separately, post delta, and sync next opening."],
+              ["Year Close", "Preview closing stock, clear blockers, close the FY, and generate next FY opening rows."],
+              ["Correction", "For closed FY only. State why, approve separately, post delta, and sync next opening."],
               ["Help", "Keep this guide open during training, month-end count, and yearly close rehearsal."],
             ].map(([title, text]) => (
               <div key={title} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -1111,7 +1125,7 @@ function StockCardPanel() {
       <Hero
         eyebrow="Stock Lifecycle - Stock Card"
         title="Material Stock Card"
-        copy="Running balance ledger for any material, plant, and location. Every source row is traceable back to GRN, count, opening, correction, roll movement, or packaging transaction."
+        copy="Running balance ledger for any FY, material, plant, and location. Every source row traces back to GRN, opening, stock count, FY correction, roll movement, or packaging transaction."
         actions={<Button className="rounded-full bg-white text-slate-950 hover:bg-blue-50" onClick={exportLedger}><Download className="mr-2 h-4 w-4" />Export ledger</Button>}
         metrics={[
           { label: "Opening", value: qty(stockCard?.opening_qty || 0), sub: "Opening balance rows" },
@@ -1124,32 +1138,44 @@ function StockCardPanel() {
 
       <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
         <CardContent className="grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <Input data-testid="stock-card-financial-year" value={filters.financial_year || currentFy()} onChange={(event) => setFilters((prev) => ({ ...prev, financial_year: event.target.value }))} placeholder="FY 2026-2027" />
-          <Select value={filters.material || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, material: value }))}>
-            <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All materials</SelectItem>
-              {(materials as any[]).map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.code} - {m.name || m.code}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filters.plant || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, plant: value, location: "__all__" }))}>
-            <SelectTrigger><SelectValue placeholder="Plant" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All plants</SelectItem>
-              {(plants as any[]).map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.code ? `${p.code} - ${p.name}` : p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filters.location || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, location: value }))}>
-            <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All locations</SelectItem>
-              {(locations as any[])
-                .filter((l) => !filters.plant || filters.plant === "__all__" || String(l.plant) === String(filters.plant))
-                .map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.code ? `${l.code} - ${l.name}` : l.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input type="date" value={filters.from || ""} onChange={(event) => setFilters((prev) => ({ ...prev, from: event.target.value }))} />
-          <Input type="date" value={filters.to || ""} onChange={(event) => setFilters((prev) => ({ ...prev, to: event.target.value }))} />
+          <Field label="FY period">
+            <Input data-testid="stock-card-financial-year" value={filters.financial_year || currentFy()} onChange={(event) => setFilters((prev) => ({ ...prev, financial_year: event.target.value }))} placeholder="2026-2027" />
+          </Field>
+          <Field label="Material">
+            <Select value={filters.material || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, material: value }))}>
+              <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All materials</SelectItem>
+                {(materials as any[]).map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.code} - {m.name || m.code}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Plant">
+            <Select value={filters.plant || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, plant: value, location: "__all__" }))}>
+              <SelectTrigger><SelectValue placeholder="Plant" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All plants</SelectItem>
+                {(plants as any[]).map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.code ? `${p.code} - ${p.name}` : p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Location">
+            <Select value={filters.location || "__all__"} onValueChange={(value) => setFilters((prev) => ({ ...prev, location: value }))}>
+              <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All locations</SelectItem>
+                {(locations as any[])
+                  .filter((l) => !filters.plant || filters.plant === "__all__" || String(l.plant) === String(filters.plant))
+                  .map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.code ? `${l.code} - ${l.name}` : l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="From date">
+            <Input type="date" value={filters.from || ""} onChange={(event) => setFilters((prev) => ({ ...prev, from: event.target.value }))} />
+          </Field>
+          <Field label="To date">
+            <Input type="date" value={filters.to || ""} onChange={(event) => setFilters((prev) => ({ ...prev, to: event.target.value }))} />
+          </Field>
         </CardContent>
       </Card>
 

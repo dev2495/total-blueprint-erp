@@ -23,8 +23,8 @@ export const getColumns = ({ onEdit, onDelete }: ColumnsProps): ColumnDef<Vendor
         header: () => <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Entity Name</div>,
         cell: ({ row }) => (
             <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center border border-indigo-100">
-                    <Building2 className="h-4 w-4 text-indigo-500" />
+                <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                    <Building2 className="h-4 w-4 text-blue-500" />
                 </div>
                 <div className="font-bold text-slate-900 uppercase text-[11px] tracking-tight">{row.getValue("name")}</div>
             </div>

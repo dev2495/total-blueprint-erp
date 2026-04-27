@@ -300,7 +300,7 @@ export default function GranulesPage() {
             stats={[
                 { label: "Granules", value: (granules || []).length, subLabel: "Raw material masters", icon: Package, toneClassName: "bg-emerald-50 text-emerald-700" },
                 { label: "Visible", value: filteredGranules.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
-                { label: "Granule masters", value: new Set((granules || []).map((item) => item.code)).size, subLabel: "Master identifiers", icon: Tag, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Granule masters", value: new Set((granules || []).map((item) => item.code)).size, subLabel: "Master identifiers", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Granule codes", value: totalQualityCodes, subLabel: `${activeQualityCodes} active code options`, icon: Tags, toneClassName: "bg-cyan-50 text-cyan-700" },
             ]}
             chips={[

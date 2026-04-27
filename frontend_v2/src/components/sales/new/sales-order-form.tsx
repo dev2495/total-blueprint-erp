@@ -414,7 +414,7 @@ export default function SalesOrderForm() {
         const inherited = [
             selectedRepeatOrder.customer_name ? `Customer: ${selectedRepeatOrder.customer_name}` : null,
             item.template_name || item.template ? `Template: ${item.template_name || item.template}` : null,
-            geometry?.finished_good_type ? `FG type: ${String(geometry.finished_good_type).toUpperCase()}` : null,
+            geometry?.finished_good_type ? `Finished good: ${String(geometry.finished_good_type).toUpperCase() === "ROLL" ? "ROLL" : "POUCH"}` : null,
             Array.isArray(item.layer_snapshot) && item.layer_snapshot.length ? `Film stack: ${item.layer_snapshot.length} layer(s)` : null,
             printing?.enabled ? `Printing: ${String(printing.type || "Enabled").toUpperCase()}` : "Printing: not enabled",
             packaging?.primary_inner_pack?.enabled || packaging?.roll_dispatch_pack?.enabled ? "Packaging profile copied from previous order" : null,
@@ -655,14 +655,14 @@ export default function SalesOrderForm() {
             if (order && order.items?.length > 0) {
                 const item = order.items[0]
                 const itemGeometry = item.geometry_snapshot || {}
-                const repeatedFgType = String(itemGeometry?.finished_good_type || "POUCH").toUpperCase()
+                const repeatedFgType = String(itemGeometry?.finished_good_type || "POUCH").toUpperCase() === "ROLL" ? "ROLL" : "POUCH"
                 const repeatedFaces = Math.max(
                     1,
                     Number(itemGeometry?.multipliers?.faces || itemGeometry?.faces || 1)
                 )
                 form.setValue("customer_name", order.customer_name)
                 form.setValue("template_id", item.template)
-                form.setValue("fg_type", item.geometry_snapshot?.finished_good_type || "POUCH")
+                form.setValue("fg_type", repeatedFgType)
                 form.setValue("roll_form", item.geometry_snapshot?.roll_form || "FLAT")
                 form.setValue("geometry", {
                     base: {
@@ -1204,8 +1204,8 @@ export default function SalesOrderForm() {
                                                             name="geometry.base.width_mm"
                                                             render={({ field }) => (
                                                                 <FormItem>
-                                                                    <Label className="text-[10px] font-bold">Width (mm) <span className="text-indigo-500">✎</span></Label>
-                                                                    <FormControl><Input type="number" className="h-9 text-xs border-indigo-200 focus:border-indigo-400" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
+                                                                    <Label className="text-[10px] font-bold">Width (mm) <span className="text-blue-500">✎</span></Label>
+                                                                    <FormControl><Input type="number" className="h-9 text-xs border-blue-200 focus:border-blue-400" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
                                                                 </FormItem>
                                                             )}
                                                         />
@@ -1220,8 +1220,8 @@ export default function SalesOrderForm() {
                                                             name="geometry.base.height_mm"
                                                             render={({ field }) => (
                                                                 <FormItem>
-                                                                    <Label className="text-[10px] font-bold">Height (mm) <span className="text-indigo-500">✎</span></Label>
-                                                                    <FormControl><Input type="number" className="h-9 text-xs border-indigo-200 focus:border-indigo-400" {...field} value={field.value ?? ""} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
+                                                                    <Label className="text-[10px] font-bold">Height (mm) <span className="text-blue-500">✎</span></Label>
+                                                                    <FormControl><Input type="number" className="h-9 text-xs border-blue-200 focus:border-blue-400" {...field} value={field.value ?? ""} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
                                                                 </FormItem>
                                                             )}
                                                         />
@@ -1312,10 +1312,10 @@ export default function SalesOrderForm() {
 
                                             <div className="space-y-4 border-t pt-4">
                                                 <div className="flex items-center justify-between">
-                                                    <h4 className="text-[11px] font-bold uppercase text-slate-400">Physical Adjustments <span className="text-indigo-500">✎</span></h4>
+                                                    <h4 className="text-[11px] font-bold uppercase text-slate-400">Physical Adjustments <span className="text-blue-500">✎</span></h4>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-slate-400">Effective:</span>
-                                                        <Badge variant="secondary" className="bg-indigo-50 text-indigo-600 text-[10px] font-bold border-none">
+                                                        <Badge variant="secondary" className="bg-blue-50 text-blue-600 text-[10px] font-bold border-none">
                                                             {activePreview?.physics?.geometry_snapshot?.effective_width_mm || 0}W × {fgType === "ROLL"
                                                                 ? `${previewRoll?.derived_length_m || 0}M`
                                                                 : `${activePreview?.physics?.geometry_snapshot?.effective_height_mm || 0}H`}
@@ -1324,8 +1324,8 @@ export default function SalesOrderForm() {
                                                 </div>
                                                 {adjFields.map((field, index) => (
                                                     <div key={field.id} className="flex gap-2 items-center bg-slate-50/50 p-2 rounded border border-slate-100">
-                                                        <Input {...form.register(`geometry.adjustments.${index}.name`)} placeholder="Name" className="h-8 text-xs bg-white w-full border-indigo-200" />
-                                                        <Input {...form.register(`geometry.adjustments.${index}.value`, { valueAsNumber: true })} type="number" placeholder="mm" className="h-8 text-xs bg-white w-20 border-indigo-200" />
+                                                        <Input {...form.register(`geometry.adjustments.${index}.name`)} placeholder="Name" className="h-8 text-xs bg-white w-full border-blue-200" />
+                                                        <Input {...form.register(`geometry.adjustments.${index}.value`, { valueAsNumber: true })} type="number" placeholder="mm" className="h-8 text-xs bg-white w-20 border-blue-200" />
                                                         <Select
                                                             value={form.watch(`geometry.adjustments.${index}.impact`) || "WIDTH"}
                                                             onValueChange={(val) => form.setValue(`geometry.adjustments.${index}.impact`, val as "WIDTH" | "HEIGHT" | "BOTH")}
@@ -1342,7 +1342,7 @@ export default function SalesOrderForm() {
                                                 ))}
                                                 <div className="flex items-center gap-3">
                                                     {adjFields.length === 0 && <p className="text-[10px] text-slate-400 italic">No custom geometry adjustments.</p>}
-                                                    <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50" onClick={() => appendAdj({ name: "", value: 0, impact: "WIDTH" })}>
+                                                    <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] font-bold border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => appendAdj({ name: "", value: 0, impact: "WIDTH" })}>
                                                         + Add Adjustment
                                                     </Button>
                                                 </div>
@@ -1369,7 +1369,7 @@ export default function SalesOrderForm() {
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                className="h-7 text-[10px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                                className="h-7 text-[10px] font-bold border-blue-200 text-blue-600 hover:bg-blue-50"
                                                 onClick={() => appendLayer({ family_id: "", variant_id: "", thickness_micron: 0, roll_width_mm: 0, grade_id: null })}
                                             >
                                                 + Add Layer
@@ -1900,7 +1900,7 @@ export default function SalesOrderForm() {
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
-                                                    className="h-7 text-[10px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                                    className="h-7 text-[10px] font-bold border-blue-200 text-blue-600 hover:bg-blue-50"
                                                     onClick={() => appendAddon({ addon_id: "", qty: 1, applies_to: "NONE" } as any)}
                                                 >
                                                     + Add Add-on
@@ -2161,7 +2161,7 @@ export default function SalesOrderForm() {
                                             <div className="flex items-center justify-between">
                                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Planned Issue</p>
                                                 {activePreview.bom_preview?.planning_summary && (
-                                                    <Badge variant="outline" className="text-[9px] h-4 border-indigo-200 text-indigo-700 bg-indigo-50">
+                                                    <Badge variant="outline" className="text-[9px] h-4 border-blue-200 text-blue-700 bg-blue-50">
                                                         {Number(activePreview.bom_preview.planning_summary.planned_issue_total_qty || 0).toFixed(3)} KG planned
                                                     </Badge>
                                                 )}

@@ -95,7 +95,7 @@ export default function ProcessRatesPage() {
         return (
             <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
                 <div className="text-center space-y-4">
-                    <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mx-auto" />
+                    <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
                     <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 italic">Syncing Process Economics...</p>
                 </div>
             </div>
@@ -107,11 +107,11 @@ export default function ProcessRatesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
-                        <Activity className="h-3 w-3 fill-indigo-600" /> Operational Finance
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
+                        <Activity className="h-3 w-3 fill-blue-600" /> Operational Finance
                     </div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 flex items-center gap-3 italic">
-                        Process <span className="text-indigo-600">Rates</span>
+                        Process <span className="text-blue-600">Rates</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-sm flex items-center gap-2">
                         Configure baseline hourly costs for each factory stage <ChevronRight className="h-3 w-3" /> Machine & Process Level
@@ -120,7 +120,7 @@ export default function ProcessRatesPage() {
 
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
-                        <Button className="h-12 px-8 rounded-xl bg-slate-900 hover:bg-indigo-600 text-white font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-slate-200 active:scale-95 transition-all group">
+                        <Button className="h-12 px-8 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-slate-200 active:scale-95 transition-all group">
                             <Plus className="h-4 w-4 mr-2" /> New Override
                         </Button>
                     </DialogTrigger>
@@ -197,7 +197,7 @@ export default function ProcessRatesPage() {
                                     createMutation.mutate(payload);
                                 }}
                                 disabled={createMutation.isPending || !newRate.process}
-                                className="w-full h-12 rounded-xl bg-slate-900 hover:bg-indigo-600 text-white font-black uppercase text-[11px] tracking-[0.2em] shadow-lg"
+                                className="w-full h-12 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black uppercase text-[11px] tracking-[0.2em] shadow-lg"
                             >
                                 {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registry Override"}
                             </Button>
@@ -211,7 +211,7 @@ export default function ProcessRatesPage() {
                 <CardHeader className="bg-slate-900 text-white p-8 flex flex-row items-center justify-between">
                     <div className="space-y-1">
                         <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-3">
-                            <Building className="h-4 w-4 text-indigo-400" />
+                            <Building className="h-4 w-4 text-blue-400" />
                             Master Process Rate Matrix
                         </CardTitle>
                         <p className="text-[10px] font-bold text-slate-500 uppercase italic tracking-widest">These rates drive the deterministic costing engine</p>
@@ -313,7 +313,7 @@ export default function ProcessRatesPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {[
                     { title: "Power Consumption", icon: Zap, color: "text-amber-500", bg: "bg-amber-50/30", border: "border-amber-100", desc: "Electricity rates for machinery (₹/hr). Typically drives 30-50% of conversion costs." },
-                    { title: "Labor Allocation", icon: Users, color: "text-indigo-500", bg: "bg-indigo-50/30", border: "border-indigo-100", desc: "Weighted average salary per operator divided by shift hours. Includes benefits & ESIC." },
+                    { title: "Labor Allocation", icon: Users, color: "text-blue-500", bg: "bg-blue-50/30", border: "border-blue-100", desc: "Weighted average salary per operator divided by shift hours. Includes benefits & ESIC." },
                     { title: "Fixed Overheads", icon: Building, color: "text-slate-400", bg: "bg-slate-50/50", border: "border-slate-100", desc: "Amortized plant rent, maintenance, and administrative allocation. Updated quarterly." }
                 ].map((item, i) => (
                     <Card key={i} className={cn("border-none shadow-md rounded-[2.5rem] p-8", item.bg, "border", item.border)}>

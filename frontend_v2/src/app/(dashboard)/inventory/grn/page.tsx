@@ -99,10 +99,10 @@ export default function GRNPage() {
                     <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
                         GRN
                         <span className="text-slate-300 font-light translate-y-[2px]">/</span>
-                        <span className="text-indigo-600 italic">Dock</span>
+                        <span className="text-blue-600 italic">Dock</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-xs flex items-center gap-2 italic">
-                        Processing incoming material streams <Activity className="h-3.5 w-3.5 text-indigo-400" />
+                        Processing incoming material streams <Activity className="h-3.5 w-3.5 text-blue-400" />
                     </p>
                 </div>
             </div>
@@ -138,13 +138,13 @@ export default function GRNPage() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-8">
                 <div className="flex justify-center">
                     <TabsList className="bg-white/50 backdrop-blur-md p-1 rounded-2xl border border-slate-200 shadow-sm h-14">
-                        <TabsTrigger value="bulk" data-testid="grn-tab-bulk" className="rounded-xl px-8 h-12 data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-xl transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                        <TabsTrigger value="bulk" data-testid="grn-tab-bulk" className="rounded-xl px-8 h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xl transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                             <Package className="h-4 w-4" /> Bulk Material
                         </TabsTrigger>
-                        <TabsTrigger value="roll" data-testid="grn-tab-roll" className="rounded-xl px-8 h-12 data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-xl transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                        <TabsTrigger value="roll" data-testid="grn-tab-roll" className="rounded-xl px-8 h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xl transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                             <Layers className="h-4 w-4" /> Roll Stock
                         </TabsTrigger>
-                        <TabsTrigger value="packaging" data-testid="grn-tab-packaging" className="rounded-xl px-8 h-12 data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-xl transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                        <TabsTrigger value="packaging" data-testid="grn-tab-packaging" className="rounded-xl px-8 h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xl transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                             <Package className="h-4 w-4" /> Packaging
                         </TabsTrigger>
                     </TabsList>
@@ -304,7 +304,7 @@ function BulkGRNForm() {
         <Card className="border-none shadow-premium rounded-[2.5rem] bg-white/70 backdrop-blur-md overflow-hidden max-w-4xl mx-auto">
             <CardHeader className="p-8 pb-2 border-b border-slate-50 bg-slate-50/30">
                 <CardTitle className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                    <Dna className="h-6 w-6 text-indigo-500" />
+                    <Dna className="h-6 w-6 text-blue-500" />
                     Inward Bulk Material
                 </CardTitle>
                 <CardDescription className="text-[10px] font-bold uppercase text-slate-400 tracking-widest pl-9">
@@ -323,7 +323,7 @@ function BulkGRNForm() {
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Plant</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" data-testid="bulk-grn-plant">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" data-testid="bulk-grn-plant">
                                                     <SelectValue placeholder="Select Plant" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -352,7 +352,7 @@ function BulkGRNForm() {
                                             value={field.value}
                                         >
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" data-testid="bulk-grn-location">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" data-testid="bulk-grn-location">
                                                     <SelectValue placeholder="Select Location" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -376,7 +376,7 @@ function BulkGRNForm() {
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Vendor</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" data-testid="bulk-grn-vendor">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" data-testid="bulk-grn-vendor">
                                                     <SelectValue placeholder="Select Vendor" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -413,8 +413,8 @@ function BulkGRNForm() {
                                         className={cn(
                                             'rounded-full border px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] transition-colors',
                                             materialLane === lane.value
-                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-100'
-                                                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                                                ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600'
                                         )}
                                     >
                                         {lane.label}
@@ -436,8 +436,8 @@ function BulkGRNForm() {
                                     </FormLabel>
                                     <FormControl>
                                         {lockedMaterial ? (
-                                            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4" data-testid="bulk-grn-locked-material">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">{lockedMaterial.category}</div>
+                                            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4" data-testid="bulk-grn-locked-material">
+                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-500">{lockedMaterial.category}</div>
                                                 <div className="mt-2 text-lg font-black tracking-tight text-slate-900">{lockedMaterial.name}</div>
                                                 <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{lockedMaterial.code}</div>
                                                 <div className="mt-3 text-xs text-slate-500">System-managed chemistry master. No alternate adhesive or solvent can be picked here.</div>
@@ -503,7 +503,7 @@ function BulkGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Quantity (KG)</FormLabel>
                                         <FormControl>
-                                            <Input data-testid="bulk-grn-quantity" type="number" step="0.001" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold text-lg" />
+                                            <Input data-testid="bulk-grn-quantity" type="number" step="0.001" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold text-lg" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -516,7 +516,7 @@ function BulkGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Cost per KG (₹)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.01" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold text-lg" />
+                                            <Input type="number" step="0.01" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold text-lg" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -529,7 +529,7 @@ function BulkGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Reference (Invoice/Challan)</FormLabel>
                                         <FormControl>
-                                            <Input {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" />
+                                            <Input {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -537,7 +537,7 @@ function BulkGRNForm() {
                             />
                         </div>
 
-                        <Button type="submit" data-testid="bulk-grn-submit" disabled={mutation.isPending} className="w-full h-14 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl shadow-xl shadow-indigo-200 hover:shadow-2xl transition-all active-scale font-black uppercase tracking-[0.2em] mt-4">
+                        <Button type="submit" data-testid="bulk-grn-submit" disabled={mutation.isPending} className="w-full h-14 bg-blue-600 hover:bg-slate-900 text-white rounded-2xl shadow-xl shadow-blue-200 hover:shadow-2xl transition-all active-scale font-black uppercase tracking-[0.2em] mt-4">
                             {mutation.isPending && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                             Execute Inward
                         </Button>
@@ -651,7 +651,7 @@ function RollGRNForm() {
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Plant</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" data-testid="roll-grn-plant">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" data-testid="roll-grn-plant">
                                                     <SelectValue placeholder="Select Plant" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -678,7 +678,7 @@ function RollGRNForm() {
                                             value={field.value}
                                         >
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" data-testid="roll-grn-location">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" data-testid="roll-grn-location">
                                                     <SelectValue placeholder="Select Location" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -702,7 +702,7 @@ function RollGRNForm() {
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Vendor</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" data-testid="roll-grn-vendor">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" data-testid="roll-grn-vendor">
                                                     <SelectValue placeholder="Select Vendor" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -757,7 +757,7 @@ function RollGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Reference</FormLabel>
                                         <FormControl>
-                                            <Input {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" />
+                                            <Input {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -772,7 +772,7 @@ function RollGRNForm() {
                                     <Layers className="h-4 w-4 text-emerald-500" />
                                     Roll Manifold
                                 </h3>
-                                <Button type="button" size="sm" onClick={() => append({ label_id: "", thickness_micron: 0, width_mm: 0, weight_kg: 0, grade_id: "" })} className="rounded-xl bg-white text-indigo-600 border border-indigo-100 shadow-sm hover:shadow-md hover:bg-indigo-50 font-black uppercase text-[10px] tracking-widest h-9">
+                                <Button type="button" size="sm" onClick={() => append({ label_id: "", thickness_micron: 0, width_mm: 0, weight_kg: 0, grade_id: "" })} className="rounded-xl bg-white text-blue-600 border border-blue-100 shadow-sm hover:shadow-md hover:bg-blue-50 font-black uppercase text-[10px] tracking-widest h-9">
                                     <Plus className="h-3.5 w-3.5 mr-1" /> Add Entry
                                 </Button>
                             </div>
@@ -782,7 +782,7 @@ function RollGRNForm() {
 
                             <div className="space-y-3">
                                 {fields.map((field, index) => (
-                                    <div key={field.id} className="flex flex-col md:flex-row gap-3 items-end p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-indigo-200 transition-colors">
+                                    <div key={field.id} className="flex flex-col md:flex-row gap-3 items-end p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
                                         <div className="bg-slate-100 text-slate-400 font-black text-[10px] h-6 w-6 rounded-full flex items-center justify-center shrink-0 mb-3 md:mb-0">
                                             {index + 1}
                                         </div>
@@ -928,7 +928,7 @@ function PackagingGRNForm() {
         <Card className="border-none shadow-premium rounded-[2.5rem] bg-white/70 backdrop-blur-md overflow-hidden max-w-4xl mx-auto">
             <CardHeader className="p-8 pb-2 border-b border-slate-50 bg-slate-50/30">
                 <CardTitle className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                    <Package className="h-6 w-6 text-indigo-500" />
+                    <Package className="h-6 w-6 text-blue-500" />
                     Inward Packaging Material
                 </CardTitle>
                 <CardDescription className="text-[10px] font-bold uppercase text-slate-400 tracking-widest pl-9">
@@ -947,7 +947,7 @@ function PackagingGRNForm() {
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Plant</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold">
                                                     <SelectValue placeholder="Select Plant" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -976,7 +976,7 @@ function PackagingGRNForm() {
                                             value={field.value}
                                         >
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold">
                                                     <SelectValue placeholder="Select Location" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -1000,7 +1000,7 @@ function PackagingGRNForm() {
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Vendor</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold">
+                                                <SelectTrigger className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold">
                                                     <SelectValue placeholder="Select Vendor" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -1047,7 +1047,7 @@ function PackagingGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Quantity ({qtyUom})</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.001" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold text-lg" />
+                                            <Input type="number" step="0.001" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold text-lg" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -1060,7 +1060,7 @@ function PackagingGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Cost per {qtyUom} (₹)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.01" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold text-lg" />
+                                            <Input type="number" step="0.01" {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold text-lg" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -1073,7 +1073,7 @@ function PackagingGRNForm() {
                                     <FormItem>
                                         <FormLabel className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Reference</FormLabel>
                                         <FormControl>
-                                            <Input {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-indigo-600 font-bold" />
+                                            <Input {...field} className="h-12 border-2 border-slate-100 bg-white rounded-xl focus:border-blue-600 font-bold" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -1081,7 +1081,7 @@ function PackagingGRNForm() {
                             />
                         </div>
 
-                        <Button type="submit" disabled={mutation.isPending} className="w-full h-14 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl shadow-xl shadow-indigo-200 hover:shadow-2xl transition-all active-scale font-black uppercase tracking-[0.2em] mt-4">
+                        <Button type="submit" disabled={mutation.isPending} className="w-full h-14 bg-blue-600 hover:bg-slate-900 text-white rounded-2xl shadow-xl shadow-blue-200 hover:shadow-2xl transition-all active-scale font-black uppercase tracking-[0.2em] mt-4">
                             {mutation.isPending && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                             Execute Packaging Inward
                         </Button>

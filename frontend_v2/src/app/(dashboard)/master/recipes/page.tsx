@@ -104,9 +104,9 @@ export default function RecipesPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search by variant or grade..."
             stats={[
-                { label: "Recipes", value: (recipes || []).length, subLabel: "Configured formulations", icon: Palette, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Recipes", value: (recipes || []).length, subLabel: "Configured formulations", icon: Palette, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Active", value: (recipes || []).filter((recipe) => recipe.is_active).length, subLabel: "Ready for production planning", icon: Factory, toneClassName: "bg-emerald-50 text-emerald-700" },
-                { label: "Variants covered", value: new Set((recipes || []).map((recipe) => recipe.film_variant_name)).size, subLabel: "Film variants with a recipe", icon: Layers, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Variants covered", value: new Set((recipes || []).map((recipe) => recipe.film_variant_name)).size, subLabel: "Film variants with a recipe", icon: Layers, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Visible", value: filteredRecipes.length, subLabel: "Matching current search", icon: Layers, toneClassName: "bg-slate-50 text-slate-700" },
             ]}
             chips={[

@@ -50,3 +50,28 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
   await expect(page.getByTestId("cylinder-finalization-checklist")).toContainText(/Cell Depth|Vendor/i)
   await expect(page.getByTestId("cylinder-dialog")).toBeVisible()
 })
+
+test("artwork dialog blocks cylinder generation until print colors are assigned", async ({ page }, testInfo) => {
+  annotate(testInfo, {
+    module: "Engineering",
+    severity: "high",
+    feature: "Artwork color readiness",
+    expected: "Users should see the missing-color blocker before generating cylinders or attempting approval.",
+  })
+
+  const stamp = Date.now()
+  const sampleImage = path.resolve(process.cwd(), "tests/e2e/fixtures/artwork-sample.png")
+
+  await page.goto("/engineering/artworks")
+  await assertHealthyPage(page)
+  await page.getByTestId("artwork-upload-button").click()
+  await page.getByTestId("artwork-dialog").waitFor({ state: "visible" })
+  await page.getByTestId("artwork-design-code").fill(`UIE2E-NOCOLOR-${String(stamp).slice(-6)}`)
+  await page.getByTestId("artwork-name").fill(`UI E2E Missing Color ${stamp}`)
+  await selectRadixOption(page, "artwork-print-type", "ROTO")
+  await page.getByTestId("artwork-image-input").setInputFiles(sampleImage)
+
+  await expect(page.getByTestId("artwork-approval-blockers")).toContainText(/at least one front or back print color/i)
+  await expect(page.getByTestId("artwork-roto-checklist")).toContainText(/BLOCK: At least one print color assigned/i)
+  await expect(page.getByTestId("artwork-generate-cylinders")).toBeDisabled()
+})

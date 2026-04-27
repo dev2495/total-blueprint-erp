@@ -1,27 +1,35 @@
 .shell {
   min-height: 100vh;
-  background: #f4f6fb;
-  padding: 8px;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
+  padding: 1.25rem;
 }
 
 .shellFrame {
-  height: calc(100vh - 16px);
+  min-height: calc(100vh - 2.5rem);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  overflow: hidden;
+  gap: 1rem;
+  overflow: visible;
 }
 
 .headerBar {
   display: grid;
-  grid-template-columns: minmax(0, 180px) minmax(220px, 320px) auto auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
   align-items: center;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  padding: clamp(1rem, 2vw, 1.35rem);
+  border-radius: 1.65rem;
+  border: 1px solid rgba(226, 232, 240, 0.82);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 18px 48px -38px rgba(15, 23, 42, 0.28);
+}
+
+@media (min-width: 1180px) {
+  .headerBar {
+    grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 18rem) minmax(15rem, 18rem) auto;
+  }
 }
 
 .headerTitleWrap {
@@ -36,12 +44,12 @@
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #4f46e5;
+  color: #2563eb;
 }
 
 .headerTitle {
-  margin: 2px 0 0;
-  font-size: 0.95rem;
+  margin: 0.25rem 0 0;
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
   font-weight: 900;
   letter-spacing: -0.03em;
   color: #0f172a;
@@ -58,17 +66,20 @@
 
 .inlineLabel,
 .compactLabel {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #334155;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #64748b;
 }
 
 .inlineSelect,
 .compactSelect,
 .compactInput {
-  height: 32px;
+  height: 40px;
   background: #fff;
-  font-size: 0.78rem;
+  border-radius: 0.95rem;
+  font-size: 0.86rem;
 }
 
 .headerStatChip,
@@ -99,7 +110,7 @@
 .chipSku {
   background: #eef2ff;
   border-color: #c7d2fe;
-  color: #4338ca;
+  color: #1d4ed8;
 }
 
 .chipVariant {
@@ -111,7 +122,7 @@
 .chipTemplate {
   background: #f5f3ff;
   border-color: #ddd6fe;
-  color: #6d28d9;
+  color: #2563eb;
 }
 
 .chipType {
@@ -169,7 +180,7 @@
 }
 
 .submitBtn {
-  height: 32px;
+  height: 40px;
   border-radius: 999px;
   background: #111827;
   color: #fff;
@@ -183,21 +194,21 @@
 
 .mainLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+  gap: 1rem;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .workColumn {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 1rem;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
+  overflow-y: visible;
+  padding-right: 0;
 }
 
 .cartRail {
@@ -205,7 +216,7 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-radius: 12px;
+  border-radius: 1.65rem;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
@@ -215,9 +226,9 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 12px;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1.65rem;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -231,7 +242,7 @@
 }
 
 .panelLabel {
-  font-size: 0.64rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -247,9 +258,15 @@
 
 .sourceRow {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) 180px auto;
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
   align-items: end;
+}
+
+@media (min-width: 1280px) {
+  .sourceRow {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) 180px auto;
+  }
 }
 
 .fieldBlock,
@@ -277,13 +294,13 @@
 
 .searchInput {
   padding-left: 30px;
-  height: 32px;
+  height: 40px;
   background: #fff;
   font-size: 0.78rem;
 }
 
 .addSharedBtn {
-  height: 32px;
+  height: 40px;
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 700;
@@ -508,7 +525,7 @@
 .sourceBadge {
   background: #eef2ff;
   border-color: #c7d2fe;
-  color: #4338ca;
+  color: #1d4ed8;
 }
 
 .neutralBadge {

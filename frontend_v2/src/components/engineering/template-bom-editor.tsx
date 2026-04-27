@@ -373,7 +373,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                         ) : (
                             <Button
                                 size="sm"
-                                className="h-9 rounded-xl bg-slate-950 px-4 text-[11px] font-black text-white hover:bg-indigo-600"
+                                className="h-9 rounded-xl bg-slate-950 px-4 text-[11px] font-black text-white hover:bg-blue-600"
                                 onClick={handleSync}
                                 disabled={isReadOnly || isSyncing || !hasRoute}
                             >
@@ -428,7 +428,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                                 <div>
                                     <div className="flex items-center gap-2 text-sm font-black text-slate-950">
-                                        <GitBranch className="h-4 w-4 text-indigo-600" />
+                                        <GitBranch className="h-4 w-4 text-blue-600" />
                                         Stage controls
                                     </div>
                                     <p className="mt-1 text-xs font-semibold text-slate-500">Open only the step you need. Output rules affect the machine capture screen.</p>
@@ -451,13 +451,13 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         <Collapsible key={step.id} open={isExpanded} onOpenChange={() => toggleStep(step.id)}>
                                             <div className={cn(
                                                 "overflow-hidden rounded-3xl border bg-white transition-all duration-200",
-                                                isExpanded ? "border-indigo-200 shadow-lg shadow-indigo-500/10" : "border-slate-200 hover:border-slate-300"
+                                                isExpanded ? "border-blue-200 shadow-lg shadow-blue-500/10" : "border-slate-200 hover:border-slate-300"
                                             )}>
                                                 <CollapsibleTrigger asChild>
                                                     <button type="button" className="flex w-full items-center gap-4 p-4 text-left">
                                                         <div className={cn(
                                                             "grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-sm font-black",
-                                                            isExpanded ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"
+                                                            isExpanded ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
                                                         )}>
                                                             {step.sequence_number}
                                                         </div>
@@ -565,10 +565,10 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                     />
                                                                 </div>
                                                                 {isLamination ? (
-                                                                    <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3">
+                                                                    <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
                                                                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                                                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Lamination lanes</Label>
-                                                                            <Badge className="border border-indigo-100 bg-white text-[10px] text-indigo-700">Lane A + Lane B</Badge>
+                                                                            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Lamination lanes</Label>
+                                                                            <Badge className="border border-blue-100 bg-white text-[10px] text-blue-700">Lane A + Lane B</Badge>
                                                                         </div>
                                                                         <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
                                                                             <div>
@@ -593,11 +593,11 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                             </div>
                                                                         </div>
                                                                         <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                                                            <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2">
+                                                                            <div className="rounded-xl border border-blue-100 bg-white px-3 py-2">
                                                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Lane A</div>
                                                                                 <div className="mt-1 text-xs font-bold text-slate-700">{Number(draft.lamination_pass_index || 1) <= 1 ? "Layer 1 rolls" : "Previous laminate WIP"}</div>
                                                                             </div>
-                                                                            <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2">
+                                                                            <div className="rounded-xl border border-blue-100 bg-white px-3 py-2">
                                                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Lane B</div>
                                                                                 <div className="mt-1 text-xs font-bold text-slate-700">Layer {Math.max(2, Number(draft.lamination_pass_index || 1) + 1)} rolls</div>
                                                                             </div>
@@ -692,7 +692,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                         size="sm"
                                                                         className={cn(
                                                                             "h-8 rounded-xl px-3 text-[11px] font-bold",
-                                                                            isMappedHere ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500"
+                                                                            isMappedHere ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500"
                                                                         )}
                                                                         disabled={isReadOnly || isRowPending}
                                                                         onClick={() => {
@@ -729,8 +729,8 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                     )}
                                                     <div className="mt-2 flex items-center gap-2">
                                                         {isRowPending ? (
-                                                            <div className="grid h-7 w-7 place-items-center rounded-full bg-indigo-50">
-                                                                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                                                            <div className="grid h-7 w-7 place-items-center rounded-full bg-blue-50">
+                                                                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
                                                             </div>
                                                         ) : null}
                                                         {mapped ? (

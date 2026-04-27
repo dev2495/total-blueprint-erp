@@ -47,7 +47,7 @@ export default function CapabilityMatrixPage() {
             <Card className="border-slate-200 shadow-sm">
                 <CardContent className="flex items-start justify-between gap-4 p-6">
                     <div>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-indigo-700">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">
                             <Layers3 className="h-3.5 w-3.5" />
                             Capability Matrix
                         </div>

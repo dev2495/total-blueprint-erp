@@ -99,22 +99,20 @@ export const test = base.extend<{ autoAuth: boolean }>({
         await page.waitForTimeout(Math.min(2_000 * (attempt + 1), 6_000))
       }
 
-      if (!sessionProbe?.ok) {
-        throw new Error(`Failed to establish authenticated UI session (${sessionProbe.status}): ${sessionProbe.detail}`)
-      }
-
-      const requestState = await requestContext.storageState()
-      if (requestState.cookies.length) {
-        await page.context().addCookies(requestState.cookies)
-      }
-      await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
-      await clearRoleOverride(page)
-      try {
-        await waitForShell(7_500)
-        return
-      } catch {
-        // Some runs keep the browser on /login even after the API session is valid.
-        // Fall back to the real UI login flow to restore the client auth shell.
+      if (sessionProbe?.ok) {
+        const requestState = await requestContext.storageState()
+        if (requestState.cookies.length) {
+          await page.context().addCookies(requestState.cookies)
+        }
+        await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
+        await clearRoleOverride(page)
+        try {
+          await waitForShell(7_500)
+          return
+        } catch {
+          // Some runs keep the browser on /login even after the API session is valid.
+          // Fall back to the real UI login flow to restore the client auth shell.
+        }
       }
 
       await page.goto("/login", { waitUntil: "domcontentloaded" })

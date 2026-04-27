@@ -40,7 +40,7 @@ export default function LedgerPage() {
             case 'DISPATCH': return cn(base, "text-amber-600 bg-amber-50 border-amber-100")
             case 'CONSUMPTION': return cn(base, "text-rose-600 bg-rose-50 border-rose-100")
             case 'RECEIVE': return cn(base, "text-emerald-600 bg-emerald-50 border-emerald-100")
-            case 'TRANSFER': return cn(base, "text-indigo-600 bg-indigo-50 border-indigo-100")
+            case 'TRANSFER': return cn(base, "text-blue-600 bg-blue-50 border-blue-100")
             default: return cn(base, "text-slate-600 bg-slate-50 border-slate-200")
         }
     }
@@ -65,14 +65,14 @@ export default function LedgerPage() {
                     <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
                         Inventory
                         <span className="text-slate-300 font-light translate-y-[2px]">/</span>
-                        <span className="text-indigo-600 italic">Ledger</span>
+                        <span className="text-blue-600 italic">Ledger</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-xs flex items-center gap-2 italic">
                         Immutable record of all stock movements across the network
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button variant="outline" className="h-11 rounded-xl border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wide hover:bg-white hover:text-indigo-600 shadow-sm active-scale">
+                    <Button variant="outline" className="h-11 rounded-xl border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wide hover:bg-white hover:text-blue-600 shadow-sm active-scale">
                         <CalendarClock className="h-4 w-4 mr-2" /> 30-Day History
                     </Button>
                 </div>
@@ -110,7 +110,7 @@ export default function LedgerPage() {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input
                                     placeholder="Search ledger..."
-                                    className="pl-10 h-10 w-[250px] rounded-xl border-slate-200 bg-white font-bold text-xs shadow-sm focus:border-indigo-600 transition-all"
+                                    className="pl-10 h-10 w-[250px] rounded-xl border-slate-200 bg-white font-bold text-xs shadow-sm focus:border-blue-600 transition-all"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -125,7 +125,7 @@ export default function LedgerPage() {
                                     <SelectItem value="DISPATCH" className="font-bold text-xs text-amber-600">Outward (Dispatch)</SelectItem>
                                     <SelectItem value="RECEIVE" className="font-bold text-xs text-blue-600">Receive</SelectItem>
                                     <SelectItem value="CONSUMPTION" className="font-bold text-xs text-rose-600">Consumption</SelectItem>
-                                    <SelectItem value="TRANSFER" className="font-bold text-xs text-indigo-600">Transfer</SelectItem>
+                                    <SelectItem value="TRANSFER" className="font-bold text-xs text-blue-600">Transfer</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -134,7 +134,7 @@ export default function LedgerPage() {
                 <CardContent className="p-0">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Syncing Ledger...</p>
                         </div>
                     ) : (
@@ -183,7 +183,7 @@ export default function LedgerPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     {entry.item_label_id ? (
-                                                        <div className="font-mono font-black text-[11px] text-slate-900 group-hover:text-indigo-600 transition-colors">{entry.item_label_id}</div>
+                                                        <div className="font-mono font-black text-[11px] text-slate-900 group-hover:text-blue-600 transition-colors">{entry.item_label_id}</div>
                                                     ) : (
                                                         <div className="text-[11px] font-black text-slate-700 uppercase">{entry.material_name}</div>
                                                     )}

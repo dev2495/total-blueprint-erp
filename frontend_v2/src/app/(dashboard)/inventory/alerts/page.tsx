@@ -174,7 +174,7 @@ export default function AlertsCenterPage() {
         <SummaryStatCard label="Open alerts" value={openAlerts.length.toLocaleString()} subLabel="Alerts still needing action" icon={Siren} toneClassName="bg-rose-50 text-rose-700" />
         <SummaryStatCard label="Critical now" value={criticalCount.toLocaleString()} subLabel="Highest-severity unresolved alerts" icon={AlertTriangle} toneClassName="bg-orange-50 text-orange-700" />
         <SummaryStatCard label="Resolved in view" value={resolvedAlerts.length.toLocaleString()} subLabel="Closed alerts within the current filter" icon={CheckCircle2} toneClassName="bg-emerald-50 text-emerald-700" />
-        <SummaryStatCard label="Current filter" value={filterResolved === false ? "Open" : filterResolved === true ? "Resolved" : "All"} subLabel={`${filteredAlerts.length.toLocaleString()} alert rows visible`} icon={TimerReset} toneClassName="bg-indigo-50 text-indigo-700" />
+        <SummaryStatCard label="Current filter" value={filterResolved === false ? "Open" : filterResolved === true ? "Resolved" : "All"} subLabel={`${filteredAlerts.length.toLocaleString()} alert rows visible`} icon={TimerReset} toneClassName="bg-blue-50 text-blue-700" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -243,7 +243,7 @@ export default function AlertsCenterPage() {
             </div>
           ) : (
             filteredAlerts.map((alert) => (
-              <div key={alert.id} className={`rounded-[1.5rem] border p-5 transition-colors ${alert.resolved ? "border-slate-200 bg-slate-50/70" : "border-slate-200 bg-white hover:bg-indigo-50/20"}`}>
+              <div key={alert.id} className={`rounded-[1.5rem] border p-5 transition-colors ${alert.resolved ? "border-slate-200 bg-slate-50/70" : "border-slate-200 bg-white hover:bg-blue-50/20"}`}>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">

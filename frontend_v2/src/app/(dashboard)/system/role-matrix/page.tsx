@@ -607,7 +607,7 @@ export default function RoleMatrixPage() {
                                         {Object.entries(groupedPermissionRows).map(([moduleKey, rows]) => (
                                             <div key={moduleKey} className="mb-6 last:mb-0">
                                                 <div className="mb-2 flex items-center gap-2 border-b pb-2">
-                                                    <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                                                    <span className="h-2 w-2 rounded-full bg-blue-500" />
                                                     <h4 className="text-sm font-bold uppercase tracking-wide text-slate-700">{humanize(moduleKey)}</h4>
                                                 </div>
                                                 <div className="grid gap-2 md:grid-cols-2">
@@ -617,7 +617,7 @@ export default function RoleMatrixPage() {
                                                         return (
                                                             <label
                                                                 key={row.permission}
-                                                                className={`flex items-start justify-between rounded-md border px-3 py-2 ${checked ? "bg-indigo-50 border-indigo-200" : "bg-white"
+                                                                className={`flex items-start justify-between rounded-md border px-3 py-2 ${checked ? "bg-blue-50 border-blue-200" : "bg-white"
                                                                     }`}
                                                             >
                                                                 <div className="flex items-start gap-3">

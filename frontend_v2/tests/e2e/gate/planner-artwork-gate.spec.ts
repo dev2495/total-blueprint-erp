@@ -5,7 +5,8 @@ import { test, expect } from "../support/base"
 import { annotate, assertHealthyPage } from "../support/test-helpers"
 
 function readPlannerGateSeed() {
-  const filePath = path.resolve(process.cwd(), "../.runtime/ui-e2e/planner-gate-seed.json")
+  const repoRoot = resolveRepoRoot()
+  const filePath = path.resolve(repoRoot, ".runtime/ui-e2e/planner-gate-seed.json")
   if (!fs.existsSync(filePath)) return null
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as {
     order_id?: string
@@ -14,9 +15,32 @@ function readPlannerGateSeed() {
   }
 }
 
+function resolveRepoRoot() {
+  const candidates = [
+    process.env.REPO_ROOT,
+    path.resolve(process.cwd(), ".."),
+    path.resolve(__dirname, "../../../.."),
+  ].filter(Boolean) as string[]
+  const repoRoot = candidates.find((candidate) => fs.existsSync(path.resolve(candidate, "scripts/seed_ui_e2e_planner_gate.py")))
+  if (!repoRoot) {
+    throw new Error(`Planner gate repo root missing. Tried: ${candidates.join(", ")}`)
+  }
+  return repoRoot
+}
+
 function reseedPlannerGate() {
-  const repoRoot = path.resolve(process.cwd(), "..")
-  const python = process.env.UI_E2E_PYTHON || path.resolve(repoRoot, "venv_311/bin/python")
+  const repoRoot = resolveRepoRoot()
+  const pythonCandidates = [
+    process.env.UI_E2E_PYTHON,
+    process.env.BACKEND_PYTHON,
+    "/tmp/tberp_backend_venv/bin/python",
+    path.resolve(repoRoot, "venv_311/bin/python"),
+    path.resolve(repoRoot, ".venv/bin/python"),
+  ].filter(Boolean) as string[]
+  const python = pythonCandidates.find((candidate) => fs.existsSync(candidate))
+  if (!python) {
+    throw new Error(`No backend Python runtime found for planner gate seed. Tried: ${pythonCandidates.join(", ")}`)
+  }
   execFileSync(python, [path.resolve(repoRoot, "scripts/seed_ui_e2e_planner_gate.py")], {
     cwd: repoRoot,
     env: process.env,
@@ -48,7 +72,7 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
   await expect(page.getByText(/Loading planner truth/i)).toHaveCount(0, { timeout: 30_000 })
 
   const seed = readPlannerGateSeed()
-  const queueSearch = page.getByPlaceholder(/search order, customer, template/i)
+  const queueSearch = page.getByPlaceholder(/search order, customer/i).first()
   if (seed?.order_number) {
     await queueSearch.fill(seed.order_number)
     await page.waitForTimeout(300)

@@ -102,6 +102,9 @@ export interface SalesSkuVariant {
     chemicals_snapshot: any;
     addons_snapshot: any[];
     packaging_snapshot: any;
+    derived_from_planner_variant?: string | null;
+    derived_from_planner_variant_code?: string | null;
+    derived_from_planner_variant_name?: string | null;
     template?: string;
     template_name?: string;
     created_at: string;
@@ -430,8 +433,13 @@ export interface QuotationConvertResult {
 }
 
 export const salesService = {
-    getOrders: async () => {
-        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/");
+    getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number }) => {
+        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", {
+            params: {
+                limit: 220,
+                ...(params || {}),
+            },
+        });
         return unwrapList<SalesOrder>(data);
     },
 
@@ -471,8 +479,7 @@ export const salesService = {
     },
 
     getRecentOrders: async () => {
-        // Assuming recently created orders (no special endpoint needed based on current usage, just main list)
-        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/");
+        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", { params: { limit: 50 } });
         return unwrapList<SalesOrder>(data);
     },
 

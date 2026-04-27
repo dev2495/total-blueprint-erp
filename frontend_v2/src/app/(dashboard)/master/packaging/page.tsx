@@ -328,10 +328,10 @@ export default function PackagingMasterPage() {
         </Dialog>
       }
       stats={[
-        { label: "Total SKUs", value: stats.total, icon: Package, toneClassName: "bg-indigo-50 text-indigo-600" },
+        { label: "Total SKUs", value: stats.total, icon: Package, toneClassName: "bg-blue-50 text-blue-600" },
         { label: "Purchased", value: stats.purchased, icon: ShoppingBag, toneClassName: "bg-amber-50 text-amber-600" },
         { label: "In-House", value: stats.inHouse, icon: Factory, toneClassName: "bg-emerald-50 text-emerald-600" },
-        { label: "Dual Supply", value: stats.both, icon: PackageOpen, toneClassName: "bg-violet-50 text-violet-600" },
+        { label: "Dual Supply", value: stats.both, icon: PackageOpen, toneClassName: "bg-blue-50 text-blue-600" },
       ]}
       chips={[
         { kind: "packagingKind", value: "INNER_POUCH" },

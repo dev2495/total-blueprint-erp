@@ -147,7 +147,7 @@ const getLocationColor = (type: string) => {
         case "FG": return "bg-green-100 text-green-700 hover:bg-green-200"
         case "RM": return "bg-blue-100 text-blue-700 hover:bg-blue-200"
         case "WIP": return "bg-orange-100 text-orange-700 hover:bg-orange-200"
-        case "QC": return "bg-purple-100 text-purple-700 hover:bg-purple-200"
+        case "QC": return "bg-blue-100 text-blue-700 hover:bg-blue-200"
         case "DISPATCH": return "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
         default: return "bg-slate-100 text-slate-700 hover:bg-slate-200"
     }

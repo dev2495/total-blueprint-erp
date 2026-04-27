@@ -53,7 +53,7 @@ export default function AdhesivesSolventsPage() {
             <Card className="border-none shadow-premium rounded-[1.75rem] bg-white/90">
                 <CardHeader className="border-b border-slate-100/80">
                     <CardTitle className="flex items-center gap-2 text-base font-black text-slate-900">
-                        <Lock className="h-4 w-4 text-indigo-600" />
+                        <Lock className="h-4 w-4 text-blue-600" />
                         Locked chemistry policy
                     </CardTitle>
                     <CardDescription className="text-xs text-slate-500">

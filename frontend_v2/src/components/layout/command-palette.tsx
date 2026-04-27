@@ -79,9 +79,9 @@ function TypeIcon({ type }: { type: string }) {
         case "customer":
             return <Users className="mr-2 h-4 w-4 text-amber-500" />
         case "machine":
-            return <Cpu className="mr-2 h-4 w-4 text-violet-500" />
+            return <Cpu className="mr-2 h-4 w-4 text-blue-500" />
         case "work_center":
-            return <Building2 className="mr-2 h-4 w-4 text-indigo-500" />
+            return <Building2 className="mr-2 h-4 w-4 text-sky-500" />
         case "route":
             return <Compass className="mr-2 h-4 w-4 text-slate-500" />
         default:
@@ -104,7 +104,7 @@ function StatusBadge({ status }: { status?: string }) {
     )
 }
 
-export function CommandPalette({ compact = false }: { compact?: boolean }) {
+export function CommandPalette({ compact = false, triggerTestId = "command-palette-trigger" }: { compact?: boolean; triggerTestId?: string }) {
     const [open, setOpen] = React.useState(false)
     const [query, setQuery] = React.useState("")
     const [loading, setLoading] = React.useState(false)
@@ -256,7 +256,7 @@ export function CommandPalette({ compact = false }: { compact?: boolean }) {
         <>
             <button
                 onClick={() => setOpen(true)}
-                data-testid="command-palette-trigger"
+                data-testid={triggerTestId}
                 className={cn(
                     "relative inline-flex min-w-0 max-w-full items-center justify-start border border-slate-200 bg-slate-50/60 font-medium text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50",
                     compact

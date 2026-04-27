@@ -55,8 +55,7 @@ export function localize(text: LocalizedText | string | undefined, locale: HelpL
 export function getRoleGuide(roleCode?: string | null): RoleGuide | undefined {
   const normalized = String(roleCode || "").toUpperCase();
   if (!normalized) return undefined;
-  return ROLE_GUIDES.find((guide) => guide.roleCode === normalized)
-    || (normalized === "SUPER_ADMIN" ? ROLE_GUIDES.find((guide) => guide.roleCode === "ADMIN") : undefined);
+  return ROLE_GUIDES.find((guide) => guide.roleCode === normalized);
 }
 
 export function resolvePageGuide(pathname: string, roleCode?: string | null): PageGuide | undefined {

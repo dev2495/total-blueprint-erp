@@ -65,7 +65,7 @@ export default function CylinderManagementPage() {
         </Button>
       }
       stats={[
-        { label: "Total Cylinders", value: stats.total, icon: Disc, toneClassName: "bg-indigo-50 text-indigo-600" },
+        { label: "Total Cylinders", value: stats.total, icon: Disc, toneClassName: "bg-blue-50 text-blue-600" },
         { label: "Draft", value: stats.draft, icon: Pencil, toneClassName: "bg-amber-50 text-amber-600" },
         { label: "Production Ready", value: stats.ready, icon: Disc, toneClassName: "bg-emerald-50 text-emerald-600" },
         { label: "Service Focus", value: stats.service, icon: Wrench, toneClassName: "bg-rose-50 text-rose-600" },
@@ -90,7 +90,7 @@ export default function CylinderManagementPage() {
                 {row.artwork_image ? (
                   <img src={row.artwork_image} alt={row.artwork_name || row.name} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-indigo-50 text-slate-400">
+                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
                     <Disc className="h-12 w-12" />
                   </div>
                 )}

@@ -6,17 +6,23 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .shell {
-    padding: 3px 5px 5px;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    font-family: 'Satoshi', 'Inter', system-ui, sans-serif;
+    gap: 1rem;
+    font-family: 'Inter', 'SF Pro Text', system-ui, sans-serif;
     color: #0f172a;
     max-width: 1600px;
     margin: 0 auto;
     width: 100%;
     min-height: calc(100vh - 24px);
-    overflow: hidden;
+    overflow: visible;
+    background:
+        linear-gradient(0deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px) 0 0 / 24px 100%,
+        linear-gradient(90deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px) 0 0 / 100% 24px,
+        radial-gradient(900px 600px at 100% -10%, rgba(59, 130, 246, 0.1) 0%, transparent 55%),
+        radial-gradient(700px 500px at -10% 110%, rgba(37, 99, 235, 0.1) 0%, transparent 60%),
+        linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -27,10 +33,36 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 4px;
+    gap: 1rem;
     flex-wrap: wrap;
     animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) backwards;
-    padding: 0 1px;
+    padding: clamp(1.35rem, 2.6vw, 1.9rem);
+    border-radius: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    background:
+        radial-gradient(900px 500px at 90% -10%, rgba(59, 130, 246, 0.55) 0%, transparent 60%),
+        radial-gradient(700px 400px at 0% 110%, rgba(37, 99, 235, 0.45) 0%, transparent 65%),
+        linear-gradient(135deg, #0b1f55 0%, #1e3a8a 50%, #2563eb 100%);
+    box-shadow: 0 28px 70px -42px rgba(37, 99, 235, 0.72);
+    position: relative;
+    overflow: hidden;
+}
+
+.pageHeader::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: linear-gradient(90deg, rgba(0,0,0,0.55), transparent 75%);
+    pointer-events: none;
+}
+
+.pageHeader > * {
+    position: relative;
+    z-index: 1;
 }
 
 .eyebrow {
@@ -38,19 +70,24 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.22em;
-    color: #94a3b8;
-    margin-bottom: 2px;
+    color: #bfdbfe;
+    margin-bottom: 0.45rem;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
 .pageTitle {
-    font-size: 22px;
+    font-size: clamp(2rem, 4vw, 3.1rem);
     font-weight: 900;
-    color: #0f172a;
-    letter-spacing: -0.04em;
+    color: #ffffff !important;
+    letter-spacing: 0;
     line-height: 1.1;
+    text-shadow: 0 18px 42px rgba(15, 23, 42, 0.28);
+}
+
+.pageHeader p {
+    color: #dbeafe !important;
 }
 
 .headerActions {
@@ -64,7 +101,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 7px 12px;
+    padding: 0.7rem 1rem;
     border-radius: 24px;
     font-size: 10.5px;
     font-weight: 700;
@@ -72,7 +109,7 @@
     text-decoration: none;
     transition: all 0.18s;
     border: 1.5px solid #e2e8f0;
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.94);
     color: #334155;
 }
 
@@ -168,7 +205,7 @@
 }
 
 .analyticsAccentIndigo {
-    background: linear-gradient(90deg, #818cf8, #4f46e5);
+    background: linear-gradient(90deg, #60a5fa, #2563eb);
 }
 
 .analyticsAccentAmber {
@@ -206,7 +243,7 @@
     box-shadow: 0 4px 16px rgba(0,0,0,0.06);
 }
 
-.kpiChipQueue::before { background: linear-gradient(90deg, #6366f1, #4338ca); opacity: 1; }
+.kpiChipQueue::before { background: linear-gradient(90deg, #2563eb, #1d4ed8); opacity: 1; }
 .kpiChipActive::before { background: linear-gradient(90deg, #10b981, #059669); opacity: 1; }
 .kpiChipBlocked::before { background: linear-gradient(90deg, #f59e0b, #d97706); opacity: 1; }
 .kpiChipCoverage::before { background: linear-gradient(90deg, #0ea5e9, #0284c7); opacity: 1; }
@@ -355,7 +392,7 @@
 }
 
 .queueRailTitleLeft svg {
-    color: #6366f1;
+    color: #2563eb;
     width: 15px;
     height: 15px;
 }
@@ -396,14 +433,14 @@
 }
 
 .filterChip:hover {
-    border-color: #c7d2fe;
-    color: #4f46e5;
+    border-color: #bfdbfe;
+    color: #2563eb;
 }
 
 .filterChipActive {
-    border-color: #818cf8;
-    background: #eef2ff;
-    color: #4f46e5;
+    border-color: #60a5fa;
+    background: #eff6ff;
+    color: #2563eb;
 }
 
 .artworkAlert {
@@ -414,14 +451,14 @@
     margin: 10px 12px 2px;
     padding: 9px 12px;
     border-radius: 12px;
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
 }
 
 .artworkAlertText {
     font-size: 12px;
     font-weight: 700;
-    color: #3730a3;
+    color: #1e3a8a;
     flex: 1;
     line-height: 1.3;
 }
@@ -457,8 +494,8 @@
 }
 
 .queueItemSelected {
-    background: #eef2ff;
-    border-color: #c7d2fe;
+    background: #eff6ff;
+    border-color: #bfdbfe;
     box-shadow: 0 2px 8px rgba(99,102,241,0.1);
 }
 
@@ -469,7 +506,7 @@
     top: 20%;
     height: 60%;
     width: 3px;
-    background: #6366f1;
+    background: #2563eb;
     border-radius: 0 2px 2px 0;
 }
 
@@ -524,7 +561,7 @@
 
 .queueBadgeReady { background: #dcfce7; color: #14532d; border: 1px solid #bbf7d0; }
 .queueBadgeBlocked { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-.queueBadgeArtwork { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+.queueBadgeArtwork { background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; }
 
 .coverageBarWrap {
     margin-top: 8px;
@@ -602,7 +639,7 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.2em;
-    color: #6366f1;
+    color: #2563eb;
     margin-bottom: 4px;
 }
 
@@ -678,15 +715,15 @@
     margin: 14px 24px 0;
     padding: 14px 18px;
     border-radius: 14px;
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
     display: flex;
     align-items: flex-start;
     gap: 10px;
 }
 
 .artworkGateBannerIcon {
-    color: #4338ca;
+    color: #1d4ed8;
     flex-shrink: 0;
     margin-top: 1px;
 }
@@ -700,14 +737,14 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: #4338ca;
+    color: #1d4ed8;
     margin-bottom: 3px;
 }
 
 .artworkGateMsg {
     font-size: 13px;
     font-weight: 600;
-    color: #3730a3;
+    color: #1e3a8a;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1111,9 +1148,9 @@
     align-items: center;
     min-height: 18px;
     border-radius: 999px;
-    border: 1px solid #c7d2fe;
-    background: #eef2ff;
-    color: #4338ca;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
     padding: 0 5px;
     font-size: 8px;
     font-weight: 900;
@@ -1231,8 +1268,8 @@
 
 .wipModePillActive {
     border-color: #a5b4fc;
-    background: #eef2ff;
-    color: #4338ca;
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .wipModePill:disabled {
@@ -1262,8 +1299,8 @@
 
 .wipChooserOptionActive {
     border-color: #a5b4fc;
-    background: #eef2ff;
-    box-shadow: 0 8px 18px rgba(99, 102, 241, 0.12);
+    background: #eff6ff;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
 }
 
 .wipChooserOptionTop {
@@ -1283,7 +1320,7 @@
 .wipChooserOptionQty {
     font-size: 10px;
     font-weight: 800;
-    color: #4338ca;
+    color: #1d4ed8;
     white-space: nowrap;
 }
 
@@ -1348,9 +1385,9 @@
 .scrollPillList::-webkit-scrollbar-thumb { background: #dbe4f0; border-radius: 999px; }
 
 .factPillStrong {
-    background: #eef2ff;
-    border-color: #c7d2fe;
-    color: #4338ca;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
 }
 
 .sectionHeader {
@@ -1372,7 +1409,7 @@
 }
 
 .sectionTitle svg {
-    color: #6366f1;
+    color: #2563eb;
     width: 14px;
     height: 14px;
     flex-shrink: 0;
@@ -1406,13 +1443,13 @@
 }
 
 .sourceBtn:hover:not(:disabled) {
-    border-color: #c7d2fe;
+    border-color: #bfdbfe;
     background: #fafbff;
 }
 
 .sourceBtnActive {
-    border-color: #6366f1;
-    background: linear-gradient(135deg, #eef2ff 0%, #f8faff 100%);
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff 0%, #f8faff 100%);
     box-shadow: 0 8px 24px -12px rgba(99,102,241,0.22);
 }
 
@@ -1438,7 +1475,7 @@
 }
 
 .sourceBtnActive .sourceBtnIcon svg {
-    color: #4338ca;
+    color: #1d4ed8;
 }
 
 .sourceBtnIcon svg {
@@ -1454,7 +1491,7 @@
 }
 
 .sourceBtnActive .sourceBtnLabel {
-    color: #4338ca;
+    color: #1d4ed8;
 }
 
 .sourceBtnDesc {
@@ -1478,7 +1515,7 @@
 
 .sourceBtnActive .sourceBtnCount {
     background: #e0e7ff;
-    color: #4338ca;
+    color: #1d4ed8;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1575,7 +1612,7 @@
 
 .wipPanelIndigo {
     background: linear-gradient(135deg, #eef4ff 0%, #f8fbff 100%);
-    border-color: #c7d2fe;
+    border-color: #bfdbfe;
 }
 
 .wipPanelLabel {
@@ -1583,7 +1620,7 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: #4338ca;
+    color: #1d4ed8;
     margin-bottom: 6px;
 }
 
@@ -1607,7 +1644,7 @@
 
 .wipRouteCard {
     border-radius: 12px;
-    border: 1px solid #c7d2fe;
+    border: 1px solid #bfdbfe;
     background: #ffffff;
     padding: 11px 13px;
     margin-top: 8px;
@@ -1673,7 +1710,7 @@
 }
 
 .accordionTriggerLabel svg {
-    color: #6366f1;
+    color: #2563eb;
     width: 14px;
     height: 14px;
 }
@@ -1831,7 +1868,7 @@
 }
 
 .railCardTitle svg {
-    color: #6366f1;
+    color: #2563eb;
     width: 14px;
     height: 14px;
     flex-shrink: 0;
@@ -1843,7 +1880,7 @@
     padding: 14px 16px;
 }
 
-.recCardInfo { background: #eef2ff; border: 1px solid #c7d2fe; }
+.recCardInfo { background: #eff6ff; border: 1px solid #bfdbfe; }
 .recCardWarn { background: #fffbeb; border: 1px solid #fde68a; }
 .recCardCrit { background: #fff1f2; border: 1px solid #fecdd3; }
 
@@ -1852,7 +1889,7 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: #4338ca;
+    color: #1d4ed8;
     margin-bottom: 4px;
     display: flex;
     align-items: center;
@@ -2101,8 +2138,8 @@
 
 /* Artwork gate in rail */
 .artworkRailCard {
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
     border-radius: 14px;
     padding: 10px 11px;
     box-shadow: 0 3px 12px rgba(99,102,241,0.06);
@@ -2111,7 +2148,7 @@
 .artworkRailTitle {
     font-size: 12px;
     font-weight: 800;
-    color: #4338ca;
+    color: #1d4ed8;
     margin-bottom: 4px;
     display: flex;
     align-items: center;
@@ -2120,7 +2157,7 @@
 
 .artworkRailMsg {
     font-size: 11px;
-    color: #3730a3;
+    color: #1e3a8a;
     margin-bottom: 12px;
     line-height: 1.4;
 }
@@ -2142,7 +2179,7 @@
     white-space: nowrap;
 }
 
-.badgeIndigo { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.badgeIndigo { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .badgeGreen { background: #dcfce7; border-color: #bbf7d0; color: #15803d; }
 .badgeAmber { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .badgeRose { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
@@ -2230,8 +2267,8 @@
 
 .auditPillActive {
     border-color: #a5b4fc;
-    background: #eef2ff;
-    color: #4338ca;
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .auditSearch {
@@ -2463,9 +2500,9 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    border: 1px solid #c7d2fe;
-    background: #eef2ff;
-    color: #4338ca;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
     border-radius: 999px;
     min-height: 22px;
     padding: 0 9px;
@@ -2480,9 +2517,9 @@
 }
 
 .auditExpandButton:hover:not(:disabled) {
-    border-color: #818cf8;
+    border-color: #60a5fa;
     background: #e0e7ff;
-    color: #3730a3;
+    color: #1e3a8a;
 }
 
 .auditExpandChevron {
@@ -2578,7 +2615,7 @@
     right: 0;
     height: 3px;
     border-radius: 14px 14px 0 0;
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    background: linear-gradient(90deg, #2563eb, #60a5fa);
     opacity: 0.9;
 }
 
@@ -2731,7 +2768,7 @@
     flex-shrink: 0;
 }
 
-.kanbanReleasedDot { background: #6366f1; }
+.kanbanReleasedDot { background: #2563eb; }
 .kanbanExecutingDot { background: #0ea5e9; }
 .kanbanPausedDot { background: #f59e0b; }
 .kanbanCompletedDot { background: #10b981; }
@@ -2861,14 +2898,14 @@
 }
 
 .btnXsIndigo {
-    background: #4f46e5;
+    background: #2563eb;
     color: #ffffff;
-    border-color: #4f46e5;
+    border-color: #2563eb;
 }
 
 .btnXsIndigo:hover:not(:disabled) {
-    background: #4338ca;
-    border-color: #4338ca;
+    background: #1d4ed8;
+    border-color: #1d4ed8;
 }
 
 .btnXs:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -2908,14 +2945,14 @@
 }
 
 .queueFocusBtn:hover {
-    border-color: #818cf8;
-    color: #4338ca;
+    border-color: #60a5fa;
+    color: #1d4ed8;
 }
 
 .commandDeck {
     padding: 6px 8px;
     background:
-        radial-gradient(circle at top right, rgba(99, 102, 241, 0.06), transparent 34%),
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 34%),
         linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 }
 
@@ -2956,9 +2993,9 @@
     gap: 5px;
     padding: 6px 10px;
     border-radius: 999px;
-    border: 1px solid #c7d2fe;
-    background: #eef2ff;
-    color: #4338ca;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
     font-size: 10px;
     font-weight: 800;
     cursor: pointer;
@@ -3089,16 +3126,16 @@
 .statusRibbon {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 5px;
+    gap: 0.75rem;
     animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) 0.04s backwards;
 }
 
 .statusRibbonCard {
-    border-radius: 12px;
+    border-radius: 1.1rem;
     border: 1px solid #e2e8f0;
     background: rgba(255, 255, 255, 0.95);
-    padding: 3px 5px;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    padding: 0.85rem 1rem;
+    box-shadow: 0 16px 36px -32px rgba(15, 23, 42, 0.35);
     position: relative;
     overflow: hidden;
 }
@@ -3108,12 +3145,12 @@
     position: absolute;
     inset: 0 0 auto;
     height: 2px;
-    background: linear-gradient(90deg, rgba(99, 102, 241, 0.35), rgba(34, 197, 94, 0.25));
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.35), rgba(34, 197, 94, 0.25));
     opacity: 0.8;
 }
 
 .statusRibbonTitle {
-    font-size: 8px;
+    font-size: 0.62rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.18em;
@@ -3121,7 +3158,7 @@
 }
 
 .statusRibbonRows {
-    margin-top: 3px;
+    margin-top: 0.5rem;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -3138,17 +3175,17 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    font-size: 9px;
+    font-size: 0.72rem;
     color: #475569;
 }
 
 .statusRibbonRowTop strong {
-    font-size: 10px;
+    font-size: 0.82rem;
     color: #0f172a;
 }
 
 .statusRibbonTrack {
-    height: 3px;
+    height: 4px;
     border-radius: 999px;
     background: #e2e8f0;
     overflow: hidden;
@@ -3161,7 +3198,7 @@
 }
 
 .statusRibbonIndigo {
-    background: linear-gradient(90deg, #818cf8, #4f46e5);
+    background: linear-gradient(90deg, #60a5fa, #2563eb);
 }
 
 .statusRibbonAmber {
@@ -3241,10 +3278,10 @@
 }
 
 .queueDockFilterActive {
-    border-color: #c7d2fe;
-    background: #eef2ff;
-    color: #4338ca;
-    box-shadow: 0 8px 18px rgba(99, 102, 241, 0.12);
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
 }
 
 .queueFocusBanner {
@@ -3254,9 +3291,9 @@
     gap: 10px;
     width: 100%;
     border-radius: 14px;
-    border: 1px solid #c7d2fe;
-    background: linear-gradient(180deg, #eef2ff 0%, #f8faff 100%);
-    color: #4338ca;
+    border: 1px solid #bfdbfe;
+    background: linear-gradient(180deg, #eff6ff 0%, #f8faff 100%);
+    color: #1d4ed8;
     padding: 10px 12px;
     font-size: 11px;
     font-weight: 700;
@@ -3268,7 +3305,7 @@
     min-height: 26px;
     padding: 0 10px;
     border-radius: 999px;
-    background: #4f46e5;
+    background: #2563eb;
     color: #ffffff;
     font-size: 10px;
     font-weight: 800;
@@ -3306,7 +3343,7 @@
 
 .queueDockRowActive {
     border-color: #a5b4fc;
-    background: linear-gradient(180deg, #eef2ff 0%, #ffffff 100%);
+    background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
     box-shadow: 0 18px 36px rgba(79, 70, 229, 0.14);
 }
 
@@ -3365,9 +3402,9 @@
 }
 
 .queueDockBadgeArtwork {
-    background: #eef2ff;
-    color: #4338ca;
-    border-color: #c7d2fe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
 }
 
 .queueDockMeta {
@@ -3407,7 +3444,7 @@
 
 .queueDockRowAction:hover {
     border-color: #a5b4fc;
-    box-shadow: 0 10px 22px rgba(99, 102, 241, 0.12);
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
     transform: translateY(-1px);
 }
 
@@ -3697,6 +3734,673 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   §20B — MOCKUP-FIDELITY OPERATING DESK
+   ═══════════════════════════════════════════════════════════════════ */
+
+.pageHeader {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 1.35rem;
+    padding: clamp(1.45rem, 2.8vw, 2.1rem);
+    border-radius: 2rem;
+    background:
+        linear-gradient(rgba(255,255,255,0.065) 1px, transparent 1px) 0 0 / 52px 52px,
+        linear-gradient(90deg, rgba(255,255,255,0.065) 1px, transparent 1px) 0 0 / 52px 52px,
+        radial-gradient(900px 460px at 100% 0%, rgba(79, 70, 229, 0.42) 0%, transparent 62%),
+        linear-gradient(135deg, #17245f 0%, #26358e 48%, #3d6df2 100%);
+    box-shadow: 0 24px 62px -34px rgba(37, 99, 235, 0.8);
+}
+
+.pageHeader::after {
+    display: none;
+}
+
+.heroTop {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.heroCopy {
+    max-width: 48rem;
+}
+
+.heroSubtitle {
+    margin-top: 0.5rem;
+    max-width: 46rem;
+    color: rgba(255,255,255,0.76) !important;
+    font-size: 0.93rem;
+    line-height: 1.55;
+    font-weight: 600;
+}
+
+.heroKpiGrid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.heroGlassCard {
+    min-height: 5.6rem;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.11);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+    padding: 0.85rem 0.95rem;
+    color: #ffffff;
+    backdrop-filter: blur(16px);
+}
+
+.heroGlassLabel {
+    color: rgba(255,255,255,0.68);
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    line-height: 1.3;
+}
+
+.heroGlassValue {
+    margin-top: 0.45rem;
+    font-size: 1.85rem;
+    line-height: 1;
+    font-weight: 950;
+}
+
+.heroGlassSub {
+    margin-top: 0.35rem;
+    color: rgba(255,255,255,0.68);
+    font-size: 0.72rem;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.inlineError {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 1.1rem;
+    border: 1px solid #fecdd3;
+    background: #fff1f2;
+    padding: 0.9rem 1rem;
+    color: #9f1239;
+}
+
+.inlineErrorTitle {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.86rem;
+    font-weight: 900;
+}
+
+.inlineError p {
+    margin-top: 0.25rem;
+    color: #be123c;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    font-weight: 600;
+}
+
+.inlineErrorAction {
+    min-height: 2.35rem;
+    border-radius: 999px;
+    border: 1px solid #fecdd3;
+    background: #ffffff;
+    padding: 0 1rem;
+    color: #9f1239;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.tabsBar {
+    border-radius: 1.1rem;
+    padding: 0 1rem;
+    border-color: #e2e8f0;
+    box-shadow: 0 18px 40px -34px rgba(15, 23, 42, 0.42);
+}
+
+.tabBtn {
+    min-height: 3.2rem;
+    border-radius: 0;
+    padding: 0 1rem;
+    border-bottom: 3px solid transparent;
+    font-size: 0.8rem;
+    text-transform: none;
+}
+
+.tabBtnActive {
+    background: transparent;
+    color: #5b21b6;
+    border-bottom-color: #7c3aed;
+    box-shadow: none;
+}
+
+.tabBtnActive .tabCount {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.planningDesk {
+    grid-template-columns: minmax(21rem, 4fr) minmax(0, 8fr);
+    gap: 0;
+    border-radius: 1.45rem;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    overflow: hidden;
+    box-shadow: 0 18px 46px -36px rgba(15,23,42,0.36);
+}
+
+.queueDock {
+    position: relative;
+    top: auto;
+    border: 0;
+    border-right: 1px solid #e2e8f0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+}
+
+.queueDockHeader {
+    padding: 1rem;
+    gap: 0.75rem;
+}
+
+.queueDockBody {
+    max-height: min(calc(100vh - 18rem), 56rem);
+    padding: 1rem;
+    gap: 0.85rem;
+}
+
+.queueDockRow {
+    border-radius: 1rem;
+    padding: 1rem;
+    gap: 0.7rem;
+}
+
+.queueDockRowActive {
+    border-color: #c4b5fd;
+    background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 100%);
+    box-shadow: inset 4px 0 0 #7c3aed, 0 16px 34px -28px rgba(88, 28, 135, 0.62);
+}
+
+.queueDockOrder {
+    font-size: 0.94rem;
+    letter-spacing: 0;
+}
+
+.queueDockCustomer,
+.queueDockMeta {
+    font-size: 0.76rem;
+}
+
+.workspaceOuter {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.28fr);
+    gap: 0.9rem;
+    padding: 1rem;
+    min-height: min(calc(100vh - 18rem), 56rem);
+    overflow: visible;
+    background: linear-gradient(180deg, rgba(245,243,255,0.55) 0%, #ffffff 72%);
+}
+
+.workspaceMain {
+    max-height: min(calc(100vh - 19rem), 55rem);
+    gap: 0.85rem;
+    padding-right: 0.25rem;
+}
+
+.workspaceCard {
+    border-radius: 1.2rem;
+    box-shadow: 0 12px 30px -28px rgba(15,23,42,0.34);
+}
+
+.operatingDeskCard {
+    padding: 0;
+}
+
+.commandDeckTop {
+    padding: 1rem 1rem 0.75rem;
+    gap: 1rem;
+}
+
+.commandDeckTitle {
+    font-size: clamp(1.25rem, 2vw, 1.7rem);
+    letter-spacing: 0;
+}
+
+.commandDeckSub {
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.commandActions {
+    gap: 0.5rem;
+}
+
+.sourcePillGroup {
+    padding: 0.2rem;
+}
+
+.sourcePill {
+    min-height: 2rem;
+    padding: 0 0.75rem;
+    font-size: 0.72rem;
+}
+
+.btnSave,
+.btnRelease,
+.secondaryAction {
+    min-height: 2.25rem;
+    padding: 0 0.9rem;
+    font-size: 0.78rem;
+}
+
+.operatingDeskSheet {
+    margin: 0;
+    border: 0;
+    border-top: 1px solid #eef2f7;
+    border-radius: 0 0 1.2rem 1.2rem;
+    background: transparent;
+    padding: 1rem;
+    gap: 0.9rem;
+}
+
+.specDeckCard,
+.releaseLogicCard,
+.inventoryDrillCard {
+    border-radius: 1.2rem;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    padding: 1rem;
+    box-shadow: 0 14px 34px -32px rgba(15,23,42,0.38);
+}
+
+.specDeckCard {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+}
+
+.specDeckTop,
+.releaseLogicHeader,
+.inventoryDrillHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.specDeckLabel {
+    color: #64748b;
+    font-size: 0.64rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+}
+
+.specDeckTitle {
+    margin-top: 0.35rem;
+    color: #0f172a;
+    font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+    line-height: 1.2;
+    font-weight: 950;
+}
+
+.specDeckSub,
+.releaseLogicSub {
+    margin-top: 0.25rem;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    font-weight: 650;
+}
+
+.specDeckSig,
+.releaseLogicNow {
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.45rem 0.7rem;
+    color: #64748b;
+    font-size: 0.67rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.releaseLogicNow {
+    color: #5b21b6;
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
+
+.specDeckChipRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0.85rem 0;
+}
+
+.salesDetailGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    grid-auto-rows: minmax(5.1rem, auto);
+}
+
+.salesDetailCell {
+    min-height: 5.1rem;
+    border-radius: 1rem;
+    padding: 0.85rem 0.95rem;
+    gap: 0.22rem;
+}
+
+.detailLabel {
+    color: #64748b;
+    font-size: 0.63rem;
+    letter-spacing: 0.14em;
+}
+
+.detailValue {
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+    line-height: 1.25;
+}
+
+.detailSub {
+    margin-top: 0.15rem;
+    font-size: 0.74rem;
+    line-height: 1.35;
+}
+
+.layerSection {
+    margin-top: 0.85rem;
+    border-radius: 1rem;
+    padding: 0.85rem;
+}
+
+.layerVisibleList {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+}
+
+.layerVisibleRow {
+    min-height: 4rem;
+    border-radius: 0.9rem;
+    padding: 0.8rem 0.9rem;
+}
+
+.layerVisibleTitle {
+    font-size: 0.85rem;
+}
+
+.layerVisibleText {
+    font-size: 0.74rem;
+    line-height: 1.35;
+}
+
+.releasePathGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.releasePathCard {
+    position: relative;
+    min-width: 0;
+    border-radius: 1.1rem;
+    border: 2px dashed #e2e8f0;
+    padding: 1rem;
+    background: #f8fafc;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.releasePathCard:hover {
+    transform: translateY(-1px);
+}
+
+.releasePathFg {
+    border-color: #bef264;
+    background: #f7fee7;
+}
+
+.releasePathWip {
+    border-color: #fcd34d;
+    background: #fffbeb;
+}
+
+.releasePathFresh {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.releasePathChosen {
+    border-style: solid;
+    box-shadow: 0 18px 34px -28px rgba(22, 101, 52, 0.55);
+}
+
+.releasePathMuted {
+    opacity: 0.54;
+}
+
+.releasePathBadge {
+    display: inline-flex;
+    min-height: 1.4rem;
+    align-items: center;
+    border-radius: 999px;
+    background: #7c3aed;
+    color: #ffffff;
+    padding: 0 0.55rem;
+    font-size: 0.58rem;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.releasePathKicker {
+    margin-top: 0.65rem;
+    color: #475569;
+    font-size: 0.63rem;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+}
+
+.releasePathTitle {
+    margin-top: 0.35rem;
+    color: #0f172a;
+    font-size: 1.05rem;
+    line-height: 1.2;
+    font-weight: 950;
+}
+
+.releasePathCopy {
+    margin-top: 0.4rem;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    font-weight: 650;
+}
+
+.releasePathStats {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.3rem 0.65rem;
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
+.releasePathStats span {
+    color: #64748b;
+    font-weight: 700;
+}
+
+.releasePathStats strong {
+    min-width: 0;
+    color: #0f172a;
+    font-weight: 950;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.releasePathAction {
+    display: inline-flex;
+    width: 100%;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.95rem;
+    border-radius: 0.75rem;
+    border: 0;
+    background: #4b9f6b;
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 950;
+}
+
+.releasePathWip .releasePathAction {
+    background: #e8ad62;
+}
+
+.releasePathFresh .releasePathAction {
+    background: #ffffff;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.releasePathAction:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.wipChooserCard {
+    border-radius: 1.1rem;
+    padding: 0.9rem;
+}
+
+.inventoryDrillCard {
+    padding: 0;
+    overflow: hidden;
+}
+
+.inventoryDrillHeader {
+    padding: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.inventoryLink {
+    min-height: 2rem;
+    border: 0;
+    background: transparent;
+    color: #6d28d9;
+    font-size: 0.78rem;
+    font-weight: 950;
+}
+
+.inventoryList {
+    display: flex;
+    flex-direction: column;
+}
+
+.inventoryRow {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(5rem, auto) auto;
+    gap: 0.9rem;
+    align-items: center;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #eef2f7;
+    background: #ffffff;
+    padding: 0.95rem 1rem;
+    text-align: left;
+}
+
+.inventoryRow:last-child {
+    border-bottom: 0;
+}
+
+.inventoryRow:hover,
+.inventoryRowActive {
+    background: #f5f3ff;
+}
+
+.inventoryKind {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.4rem;
+    min-height: 1.6rem;
+    border-radius: 999px;
+    border: 1px solid #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 0.68rem;
+    font-weight: 950;
+}
+
+.inventoryMain {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.inventoryMain strong {
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 950;
+    overflow-wrap: anywhere;
+}
+
+.inventoryMain small {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+.inventoryQty {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 950;
+    text-align: right;
+}
+
+.inventoryAction {
+    min-height: 2.1rem;
+    border-radius: 0.7rem;
+    background: #4b9f6b;
+    color: #ffffff;
+    padding: 0 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.76rem;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.releaseRail {
+    max-height: min(calc(100vh - 19rem), 55rem);
+    gap: 0.75rem;
+}
+
+.railCard,
+.artworkRailCard {
+    border-radius: 1.05rem;
+    padding: 0.95rem;
+    box-shadow: 0 14px 34px -30px rgba(15,23,42,0.36);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    §21 — LOADING
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -3896,4 +4600,63 @@
     .factCell { border-right: none; border-bottom: 1px solid #f1f5f9; }
     .pageTitle { font-size: 22px; }
     .wipGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1500px) {
+    .heroKpiGrid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .workspaceOuter {
+        grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.3fr);
+    }
+}
+
+@media (max-width: 1200px) {
+    .heroKpiGrid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .planningDesk {
+        grid-template-columns: 1fr;
+    }
+    .queueDock {
+        border-right: 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .workspaceOuter {
+        grid-template-columns: 1fr;
+    }
+    .workspaceMain,
+    .releaseRail,
+    .queueDockBody {
+        max-height: none;
+    }
+    .releasePathGrid,
+    .salesDetailGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .pageHeader {
+        border-radius: 1.35rem;
+    }
+    .heroTop,
+    .specDeckTop,
+    .releaseLogicHeader,
+    .inventoryDrillHeader,
+    .inlineError {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .heroKpiGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .inventoryRow {
+        grid-template-columns: 1fr;
+    }
+    .inventoryQty,
+    .inventoryAction {
+        justify-self: start;
+        text-align: left;
+    }
 }

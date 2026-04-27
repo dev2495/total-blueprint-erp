@@ -146,6 +146,7 @@ export default function DispatchBayPage() {
                         <h1 className="mt-1 max-w-3xl text-2xl font-black tracking-tight">What can go out today</h1>
                         <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-600">Everything Packing Yard has explicitly handed over. Cards below show every sales order with released units, so dispatch can plan trucks before building a challan.</p>
                         <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Dispatch terminal</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Released units</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Selected tray</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Challan details</span>
@@ -199,7 +200,7 @@ export default function DispatchBayPage() {
                                         <span>{readyPct}% ready</span>
                                         <span>{readyUnits} unit{readyUnits === 1 ? "" : "s"}</span>
                                     </div>
-                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{ width: `${readyPct}%` }} /></div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-500" style={{ width: `${readyPct}%` }} /></div>
                                 </div>
                                 </div>
                             </button>
@@ -336,7 +337,7 @@ export default function DispatchBayPage() {
                                 <thead className="text-[10px] uppercase tracking-[0.22em] text-slate-400"><tr><th className="py-3 text-left">Challan</th><th className="text-left">Customer</th><th>Status</th><th>Vehicle</th><th>Transport</th><th>Dispatch date</th><th className="text-right">Actions</th></tr></thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {history.map((row: DeliveryChallan) => (
-                                        <tr key={row.id}>
+                                        <tr key={row.id} data-testid={`dispatch-challan-row-${row.id}`}>
                                             <td className="py-4 font-black">{row.dc_no}</td>
                                             <td>{row.customer_name}</td>
                                             <td>
@@ -346,7 +347,7 @@ export default function DispatchBayPage() {
                                             <td>{row.transporter_name || row.lr_number || "-"}</td>
                                             <td>{row.dispatch_date ? new Date(row.dispatch_date).toLocaleString() : "-"}</td>
                                             <td className="space-x-2 text-right">
-                                                <Button size="sm" variant="outline" onClick={() => window.open(logisticsService.getChallanPrintUrl(row.id), "_blank")}><Printer className="mr-1 h-3 w-3" /> Print</Button>
+                                                <Button size="sm" variant="outline" data-testid={`dispatch-print-${row.id}`} onClick={() => window.open(logisticsService.getChallanPrintUrl(row.id), "_blank")}><Printer className="mr-1 h-3 w-3" /> Print</Button>
                                                 {row.status === "DRAFT" && <Button size="sm" onClick={() => dispatchMutation.mutate(row.id)}>Dispatch</Button>}
                                             </td>
                                         </tr>

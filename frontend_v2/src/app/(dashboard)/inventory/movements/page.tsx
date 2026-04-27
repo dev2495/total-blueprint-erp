@@ -106,10 +106,10 @@ export default function RollMovementsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <section className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-indigo-500/12 via-cyan-400/10 to-emerald-400/10" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-blue-500/12 via-cyan-400/10 to-emerald-400/10" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">
               <History className="h-3.5 w-3.5" />
               Movement Ledger
             </div>
@@ -139,7 +139,7 @@ export default function RollMovementsPage() {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryStatCard label="Visible moves" value={filteredMovements.length.toLocaleString()} subLabel="Current movement rows in view" icon={History} toneClassName="bg-indigo-50 text-indigo-700" />
+        <SummaryStatCard label="Visible moves" value={filteredMovements.length.toLocaleString()} subLabel="Current movement rows in view" icon={History} toneClassName="bg-blue-50 text-blue-700" />
         <SummaryStatCard label="Production moves" value={productionMoves.toLocaleString()} subLabel="Moves posted by production outputs" icon={Package} toneClassName="bg-blue-50 text-blue-700" />
         <SummaryStatCard label="Dispatch moves" value={dispatchMoves.toLocaleString()} subLabel="Movements headed to shipment" icon={Truck} toneClassName="bg-amber-50 text-amber-700" />
         <SummaryStatCard label="Route spread" value={movementPlants.size.toLocaleString()} subLabel={newestMove ? `Latest move at ${formatDate(newestMove.timestamp)}` : "No movement data yet"} icon={MapPin} toneClassName="bg-emerald-50 text-emerald-700" />
@@ -215,9 +215,9 @@ export default function RollMovementsPage() {
           ) : (
             <div className="divide-y divide-slate-100">
               {filteredMovements.map((movement) => (
-                <div key={movement.id} className="flex flex-col gap-4 p-5 transition-colors hover:bg-indigo-50/20 xl:flex-row xl:items-center xl:justify-between">
+                <div key={movement.id} className="flex flex-col gap-4 p-5 transition-colors hover:bg-blue-50/20 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 text-indigo-700">
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
                       <Package className="h-5 w-5" />
                     </div>
                     <div>

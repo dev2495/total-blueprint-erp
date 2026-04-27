@@ -61,7 +61,7 @@ type InventorySavedView = {
   updatedAt: string
 }
 
-const CHART_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
+const CHART_COLORS = ["#0f766e", "#2563eb", "#3b82f6", "#ea580c", "#dc2626", "#0891b2", "#65a30d", "#475569"]
 const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
 const FILTER_TRIGGER_BASE_CLASS =
   "h-10 rounded-full px-4 text-xs font-black transition-all duration-150 focus:ring-2 focus:ring-teal-100 data-[state=open]:border-[#0d9488] data-[state=open]:bg-[#f0fdfa] data-[state=open]:text-[#0f172a]"
@@ -383,6 +383,16 @@ function stockValueBand(kind: "bulk" | "packaging", row: any) {
 function packagingSupplyMode(row: any, packagingMaterials: any[]) {
   const material = packagingMaterials.find((item) => String(item.id) === String(row.material))
   return upper(material?.packaging_supply_mode || row.packaging_supply_mode || "PURCHASED")
+}
+
+function packagingBaseUom(row: any, packagingMaterials: any[] = []) {
+  const material = packagingMaterials.find((item) => String(item.id) === String(row.material))
+  return String(row.base_uom || material?.base_uom || "PCS").toUpperCase()
+}
+
+function packagingRowsUom(rows: any[], packagingMaterials: any[] = []) {
+  const units = Array.from(new Set(rows.map((row) => packagingBaseUom(row, packagingMaterials)).filter(Boolean)))
+  return units.length === 1 ? units[0] : "qty"
 }
 
 function dateInRange(date: string | null | undefined, from: string, to: string) {
@@ -720,13 +730,13 @@ export function InventoryWorkspaceShell() {
       rollGrade: optionsFromValues(allRollRows.map((row) => clean(row.grade_name || row.grade_id)), "All Grade"),
       rollFamily: optionsFromValues(allRollRows.map((row) => clean(row.family_display_name || row.reporting_group || row.material_name)), "All Family"),
       rollJob: optionsFromValues(allRollRows.map((row) => clean(row.created_job_number || row.production_job_number || row.created_job_id || row.production_job_id)), "All Job"),
-      bulkMaterial: optionsFromPairs(allBulkRows.map((row) => [row.material, `${row.material_code || "MAT"} - ${row.material_name || "Material"}`]), "All Product"),
+      bulkMaterial: optionsFromPairs(allBulkRows.map((row) => [row.material, `${row.material_code || "Material"} - ${row.material_name || "Material"}`]), "All Product"),
       bulkCategory: optionsFromValues(allBulkRows.map((row) => upper(row.material_category || "OTHER")), "All Category"),
       bulkGranule: optionsFromValues(allBulkRows.map((row) => clean(row.granule_quality_code || row.granule_quality_code_id)), "All Granule"),
       packagingSku: optionsFromPairs((packagingMaterials as any[]).map((row) => [row.id, `${row.code || "SKU"} - ${row.name || "Packaging"}`]), "All SKU"),
       packagingKind: optionsFromValues(allPackagingRows.map((row) => upper(row.packaging_kind || "OTHER")), "All Kind"),
       packagingSupplyMode: optionsFromValues((packagingMaterials as any[]).map((row) => upper(row.packaging_supply_mode || "PURCHASED")), "All Supply"),
-      grnMaterial: optionsFromPairs(allGrnRows.map((row) => [row.material, `${row.material_code || row.label_id || "MAT"} - ${row.material_name || row.label_id || "Material"}`]), "All Material"),
+      grnMaterial: optionsFromPairs(allGrnRows.map((row) => [row.material, `${row.material_code || row.label_id || "Material"} - ${row.material_name || row.label_id || "Material"}`]), "All Material"),
       grnVendor: optionsFromPairs([
         ...((vendors as Vendor[]).map((row) => [row.code || row.name, row.code ? `${row.code} - ${row.name}` : row.name] as [unknown, unknown])),
         ...allGrnRows.map((row) => [
@@ -947,7 +957,7 @@ export function InventoryFilterBar({
       ? "Search roll label, material, job, location..."
       : tab === "bulk"
         ? "Search material, category, granule, location..."
-        : "Search SKU, packaging kind, location..."
+        : "Search packaging material, code, kind, plant, or location..."
   const resetPayload = {
     q: null,
     plant: null,
@@ -1503,6 +1513,7 @@ export function InventoryPulsePanel({
   const plantData = useMemo(() => groupSum(rows, (row) => row.plant_name || "Unknown", (row) => kind === "packaging" ? num(row.qty) : kind === "bulk" ? num(row.qty_kg) : num(row.weight_kg)), [kind, rows])
   const ageData = useMemo(() => groupSum(rows, (row) => ageBand(row.created_at || row.updated_at), (row) => kind === "packaging" ? num(row.qty) : kind === "bulk" ? num(row.qty_kg) : num(row.weight_kg), 3), [kind, rows])
   const txData = useMemo(() => groupSum(txRows, (row) => row.type || "OTHER", (row) => Math.abs(num(row.qty))), [txRows])
+  const packagingUom = useMemo(() => kind === "packaging" ? packagingRowsUom(rows, packagingMaterials) : "kg", [kind, rows, packagingMaterials])
   const stageData = useMemo(() => {
     if (kind === "rolls") return groupSum(rows, (row) => row.stage_name || row.status || "Stock", () => 1, 8)
     if (kind === "bulk") return groupSum(rows, (row) => row.granule_quality_code || row.material_category || "Stock", (row) => num(row.qty_kg), 8)
@@ -1514,8 +1525,8 @@ export function InventoryPulsePanel({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <InventoryKpiCard label={kind === "rolls" ? "Rolls" : "Stock Nodes"} value={metrics.count} note="Visible rows" icon={Layers3} accent="bg-indigo-500" />
-        <InventoryKpiCard label={kind === "packaging" ? "On Hand Qty" : "On Hand KG"} value={kind === "packaging" ? formatQty(metrics.totalKg) : formatKg(metrics.totalKg)} note="Filtered stock position" icon={Warehouse} accent="bg-emerald-500" />
+        <InventoryKpiCard label={kind === "rolls" ? "Rolls" : "Stock Nodes"} value={metrics.count} note="Visible rows" icon={Layers3} accent="bg-blue-500" />
+        <InventoryKpiCard label={kind === "packaging" ? "On Hand Qty" : "On Hand KG"} value={kind === "packaging" ? formatQty(metrics.totalKg, packagingUom) : formatKg(metrics.totalKg)} note="Filtered stock position" icon={Warehouse} accent="bg-emerald-500" />
         <InventoryKpiCard label="Reserved / Locked" value={kind === "rolls" ? formatKg(metrics.reserved) : "-"} note={kind === "rolls" ? "Reserved roll mass" : "No lock column in v1"} icon={ShieldCheck} accent="bg-amber-500" />
         <InventoryKpiCard label="Visible Value" value={kind === "rolls" ? "-" : formatMoney(metrics.value)} note="Based on avg cost" icon={Package} accent="bg-cyan-500" />
         <InventoryKpiCard label="Aged Lines" value={metrics.aged} note="More than 30 days" icon={AlertTriangle} accent="bg-rose-500" />
@@ -1526,11 +1537,11 @@ export function InventoryPulsePanel({
         <ChartCard title="Plant Allocation" data={plantData} chart="donut" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
-        <FreshnessBandCard data={ageData} total={kind === "packaging" ? metrics.totalKg : metrics.totalKg} unit={kind === "packaging" ? "qty" : "kg"} />
+        <FreshnessBandCard data={ageData} total={kind === "packaging" ? metrics.totalKg : metrics.totalKg} unit={kind === "packaging" ? packagingUom.toLowerCase() : "kg"} />
         <StageDistributionCard data={kind === "packaging" && txData.length ? txData : stageData} title={kind === "rolls" ? "Rolls by production stage" : kind === "bulk" ? "Bulk by quality / category" : "Packaging movement / kind"} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <LargestPositionsCard kind={kind} rows={rows} onBrowse={onBrowse} />
+        <LargestPositionsCard kind={kind} rows={rows} packagingMaterials={packagingMaterials} onBrowse={onBrowse} />
         <AgeHeatmap kind={kind} rows={rows} onBrowse={onBrowse} />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -1607,8 +1618,8 @@ function StageDistributionCard({ data, title }: { data: Array<{ name: string; va
           <div className="flex h-[240px] items-end justify-around gap-4 border-t border-slate-100 pt-5">
             {data.slice(0, 8).map((row, index) => (
               <div key={row.name} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                <div className="text-xs font-black text-indigo-600">{formatShort(row.value)}</div>
-                <div className="w-full max-w-[68px] rounded-t-lg bg-indigo-500 shadow-sm" style={{ height: `${Math.max(18, (row.value / max) * 180)}px`, opacity: 0.92 - index * 0.03 }} />
+                <div className="text-xs font-black text-blue-600">{formatShort(row.value)}</div>
+                <div className="w-full max-w-[68px] rounded-t-lg bg-blue-500 shadow-sm" style={{ height: `${Math.max(18, (row.value / max) * 180)}px`, opacity: 0.92 - index * 0.03 }} />
                 <div className="w-full truncate text-center text-[11px] font-semibold text-slate-500">{row.name.replaceAll("_", " ")}</div>
               </div>
             ))}
@@ -1619,14 +1630,15 @@ function StageDistributionCard({ data, title }: { data: Array<{ name: string; va
   )
 }
 
-function LargestPositionsCard({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; onBrowse?: (updates: Record<string, string | null>) => void }) {
+function LargestPositionsCard({ kind, rows, packagingMaterials = [], onBrowse }: { kind: "rolls" | "bulk" | "packaging"; rows: any[]; packagingMaterials?: any[]; onBrowse?: (updates: Record<string, string | null>) => void }) {
   const positions = useMemo(() => {
     const grouped = groupSum(rows, (row) => stockTitle(kind, row), (row) => stockQty(kind, row), 5)
     return grouped.map((item) => {
       const sample = rows.find((row) => stockTitle(kind, row) === item.name)
-      return { ...item, subtitle: sample ? stockSubtitle(kind, sample) : "Filtered stock" }
+      const unit = kind === "packaging" && sample ? packagingBaseUom(sample, packagingMaterials) : kind === "packaging" ? "qty" : "kg"
+      return { ...item, subtitle: sample ? stockSubtitle(kind, sample) : "Filtered stock", unit }
     })
-  }, [kind, rows])
+  }, [kind, rows, packagingMaterials])
   return (
     <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
@@ -1643,7 +1655,7 @@ function LargestPositionsCard({ kind, rows, onBrowse }: { kind: "rolls" | "bulk"
                   <span className="block truncate text-base font-black text-slate-950">{row.name}</span>
                   <span className="block truncate text-xs font-semibold text-slate-500">{row.subtitle}</span>
                 </span>
-                <span className="text-lg font-black text-emerald-700">{formatShort(row.value)} {kind === "packaging" ? "qty" : "kg"}</span>
+                <span className="text-lg font-black text-emerald-700">{formatShort(row.value)} {row.unit}</span>
               </button>
             ))}
           </div>
@@ -1930,7 +1942,7 @@ export function InventoryBrowseTable({ kind, rows, mode, packagingMaterials = []
 
 function InventoryRow({ kind, row, packagingMaterials }: { kind: "rolls" | "bulk" | "packaging"; row: any; packagingMaterials: any[] }) {
   const material = packagingMaterials.find((item) => String(item.id) === String(row.material))
-  const qty = kind === "rolls" ? formatKg(num(row.weight_kg)) : kind === "bulk" ? formatKg(num(row.qty_kg)) : formatQty(num(row.qty), row.base_uom)
+  const qty = kind === "rolls" ? formatKg(num(row.weight_kg)) : kind === "bulk" ? formatKg(num(row.qty_kg)) : formatQty(num(row.qty), packagingBaseUom(row, packagingMaterials))
   const ageDate = row.created_at || row.updated_at
   return (
     <TableRow>
@@ -1950,7 +1962,7 @@ function InventoryRow({ kind, row, packagingMaterials }: { kind: "rolls" | "bulk
 function InventoryCard({ kind, row, packagingMaterials }: { kind: "rolls" | "bulk" | "packaging"; row: any; packagingMaterials: any[] }) {
   const material = packagingMaterials.find((item) => String(item.id) === String(row.material))
   const title = kind === "rolls" ? row.label_id : row.material_name
-  const qty = kind === "rolls" ? formatKg(num(row.weight_kg)) : kind === "bulk" ? formatKg(num(row.qty_kg)) : formatQty(num(row.qty), row.base_uom)
+  const qty = kind === "rolls" ? formatKg(num(row.weight_kg)) : kind === "bulk" ? formatKg(num(row.qty_kg)) : formatQty(num(row.qty), packagingBaseUom(row, packagingMaterials))
   return (
     <Card className="rounded-[20px] border-slate-200 shadow-sm">
       <CardContent className="space-y-3 p-4">
@@ -1989,7 +2001,7 @@ export function GrnHistoryTab({ rows, loading, onChanged }: { rows: GrnHistoryRo
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
-        <SummaryStatCard label="Inward Rows" value={rows.length} subLabel="Bulk, roll, and packaging" icon={CalendarDays} toneClassName="bg-indigo-50 text-indigo-600" />
+        <SummaryStatCard label="Inward Rows" value={rows.length} subLabel="Bulk, roll, and packaging" icon={CalendarDays} toneClassName="bg-blue-50 text-blue-600" />
         <SummaryStatCard label="Inward KG / Qty" value={rows.reduce((sum, row) => sum + num(row.quantity), 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} subLabel="Current filtered history" icon={Warehouse} toneClassName="bg-emerald-50 text-emerald-600" />
         <SummaryStatCard label="Correction Policy" value="Immutable" subLabel="Edits post audited deltas" icon={ShieldCheck} toneClassName="bg-amber-50 text-amber-600" />
       </div>

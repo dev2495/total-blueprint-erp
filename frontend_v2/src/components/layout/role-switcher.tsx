@@ -14,9 +14,15 @@ import { ShieldCheck } from "lucide-react"
 import { ROLES, getLandingPage } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
-export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
+export function RoleSwitcher({ compact = false, triggerTestId = "role-switcher-trigger" }: { compact?: boolean; triggerTestId?: string }) {
     const { user, effectiveRole } = useAuth()
     const [currentRole, setCurrentRole] = useState<string>("")
+    const baseRoleCode = String(user?.role_info?.code || user?.entitlements?.role || "").toUpperCase()
+    const canSwitchRoles = Boolean(
+        user?.is_owner ||
+        user?.is_superuser ||
+        ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(baseRoleCode),
+    )
 
     useEffect(() => {
         if (effectiveRole) {
@@ -26,7 +32,7 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
         }
     }, [effectiveRole, user])
 
-    if (!user?.is_owner && user?.role_info?.code !== "ADMIN") {
+    if (!canSwitchRoles) {
         return null
     }
 
@@ -57,7 +63,7 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
                             ? "h-10 w-[132px] rounded-2xl px-3 text-[11px] font-black uppercase tracking-[0.14em]"
                             : "h-8 w-[160px] text-xs font-bold",
                     )}
-                    data-testid="role-switcher-trigger"
+                    data-testid={triggerTestId}
                 >
                     {compact ? <ShieldCheck className="mr-1.5 h-3.5 w-3.5 text-amber-600" /> : null}
                     <SelectValue placeholder="Switch Role" />

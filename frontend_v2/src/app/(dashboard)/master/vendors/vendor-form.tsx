@@ -350,7 +350,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
                     <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-indigo-600" />
+                        <MapPin className="h-4 w-4 text-blue-600" />
                         <div>
                             <p className="text-sm font-black text-slate-900">Primary Mailing Address</p>
                             <p className="text-xs font-semibold text-slate-500">Main commercial/contact address for this vendor.</p>
@@ -556,9 +556,9 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                 </div>
 
                 {isJobworkVendor && (
-                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-4">
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 space-y-4">
                         <div>
-                            <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-700">Jobwork controls</p>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Jobwork controls</p>
                             <p className="text-xs font-semibold text-slate-500">Optional routing and QC details for jobwork vendors only.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -585,7 +585,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                                 control={form.control}
                                 name="qc_required"
                                 render={({ field }) => (
-                                    <FormItem className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-3 py-2.5 mt-6">
+                                    <FormItem className="flex items-center justify-between rounded-xl border border-blue-100 bg-white px-3 py-2.5 mt-6">
                                         <div>
                                             <Label className="text-xs font-bold text-slate-500 uppercase">QC Required on Return</Label>
                                             <p className="text-xs text-slate-400 mt-1">Optional. Enable only if returns must stay blocked for QC.</p>

@@ -4,6 +4,8 @@ import path from "node:path"
 const projectRoot = path.resolve(process.cwd())
 const appRoot = path.join(projectRoot, "src", "app")
 const sidebarPath = path.join(projectRoot, "src", "components", "layout", "sidebar.tsx")
+const sidebarNavPath = path.join(projectRoot, "src", "lib", "sidebar-nav.ts")
+const navigationRoutesPath = path.join(projectRoot, "src", "lib", "navigation-routes.ts")
 
 const PARENT_ROUTE_FALLBACKS = {
   "/production": "/production/planner",
@@ -34,6 +36,12 @@ function toRouteFromPageFile(filePath) {
   return normalizeRoute(`/${segments.join("/")}`)
 }
 
+function parseStringArraySet(source, setName) {
+  const block = source.match(new RegExp(`${setName}\\s*=\\s*new Set<string>\\(\\[([\\s\\S]*?)\\]\\)`))
+  if (!block) return new Set()
+  return new Set([...block[1].matchAll(/["']([^"']+)["']/g)].map((match) => normalizeRoute(match[1])))
+}
+
 async function walk(dir, files = []) {
   const rows = await fs.readdir(dir, { withFileTypes: true })
   for (const row of rows) {
@@ -50,8 +58,10 @@ async function walk(dir, files = []) {
 }
 
 async function main() {
-  const [sidebarText, pageFiles] = await Promise.all([
+  const [sidebarText, sidebarNavText, navigationRoutesText, pageFiles] = await Promise.all([
     fs.readFile(sidebarPath, "utf8"),
+    fs.readFile(sidebarNavPath, "utf8"),
+    fs.readFile(navigationRoutesPath, "utf8"),
     walk(appRoot),
   ])
 
@@ -63,8 +73,12 @@ async function main() {
     }
   }
 
-  const hrefMatches = [...sidebarText.matchAll(/href:\s*["']([^"']+)["']/g)].map((match) => normalizeRoute(match[1]))
+  const hrefMatches = [...`${sidebarText}\n${sidebarNavText}`.matchAll(/href:\s*["']([^"']+)["']/g)].map((match) => normalizeRoute(match[1]))
   const uniqueHrefs = [...new Set(hrefMatches)]
+  if (uniqueHrefs.length === 0) {
+    console.error("Navigation route validation failed: no sidebar hrefs were discovered.")
+    process.exit(1)
+  }
 
   const failures = []
   for (const href of uniqueHrefs) {
@@ -79,8 +93,18 @@ async function main() {
   const fallbackMissingTargets = Object.entries(PARENT_ROUTE_FALLBACKS)
     .filter(([, target]) => !exactRoutes.has(normalizeRoute(target)))
     .map(([source, target]) => ({ source, target }))
+  const exactNavigableRoutes = parseStringArraySet(navigationRoutesText, "EXACT_NAVIGABLE_ROUTES")
+  const resolverFailures = []
+  for (const href of uniqueHrefs) {
+    const direct = exactNavigableRoutes.has(href)
+    const fallback = PARENT_ROUTE_FALLBACKS[href]
+    const fallbackResolvable = fallback ? exactNavigableRoutes.has(normalizeRoute(fallback)) : false
+    if (!direct && !fallbackResolvable) {
+      resolverFailures.push({ href, fallback: fallback || null })
+    }
+  }
 
-  if (failures.length || fallbackMissingTargets.length) {
+  if (failures.length || fallbackMissingTargets.length || resolverFailures.length) {
     console.error("Navigation route validation failed.")
     if (failures.length) {
       console.error("Unresolvable sidebar hrefs:")
@@ -94,10 +118,16 @@ async function main() {
         console.error(`  - ${row.source} -> ${row.target}`)
       }
     }
+    if (resolverFailures.length) {
+      console.error("Sidebar hrefs missing from resolveNavigableRoute():")
+      for (const row of resolverFailures) {
+        console.error(`  - ${row.href}${row.fallback ? ` (fallback => ${row.fallback})` : ""}`)
+      }
+    }
     process.exit(1)
   }
 
-  console.log(`Navigation route validation passed. Checked ${uniqueHrefs.length} sidebar routes.`)
+  console.log(`Navigation route validation passed. Checked ${uniqueHrefs.length} sidebar routes and ${exactNavigableRoutes.size} resolver routes.`)
 }
 
 main().catch((error) => {

@@ -125,7 +125,7 @@ export function ReportAdminCenter() {
         <Card className="mx-auto max-w-3xl rounded-[2rem] border-white/10 bg-white/95 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.6)]">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-2xl font-black text-slate-900">
-              <ShieldCheck className="h-6 w-6 text-indigo-600" />
+              <ShieldCheck className="h-6 w-6 text-blue-600" />
               Report Center Restricted
             </CardTitle>
             <CardDescription>

@@ -290,7 +290,7 @@ export default function GovernancePage() {
         <div className="p-6 lg:p-8 space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-widest">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-widest">
                         <ShieldCheck className="h-3 w-3" /> P0 Governance Console
                     </div>
                     <h1 className="text-2xl font-black tracking-tight text-slate-900">RBAC + Notification Operations</h1>

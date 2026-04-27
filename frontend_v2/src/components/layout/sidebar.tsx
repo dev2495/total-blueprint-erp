@@ -17,9 +17,9 @@ export function Sidebar() {
       <aside
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
-        style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+          style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         className={cn(
-          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[1.65rem] border border-white bg-white shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-slate-950/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-300",
+          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-3xl border border-white bg-white/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-slate-950/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-300",
           isExpanded
             ? "w-[284px] shadow-[0_34px_96px_-54px_rgba(15,23,42,0.46)]"
             : "w-[64px] shadow-[0_22px_64px_-46px_rgba(15,23,42,0.52)]",
@@ -27,7 +27,7 @@ export function Sidebar() {
       >
         <div
           className={cn(
-            "flex h-[78px] shrink-0 items-center border-b border-slate-100/90 transition-all duration-300",
+            "flex h-[78px] shrink-0 items-center border-b border-slate-100/90 bg-white/70 transition-all duration-300",
             isExpanded ? "justify-between px-5" : "justify-center px-2",
           )}
         >
@@ -41,7 +41,7 @@ export function Sidebar() {
               aria-label={isPinned ? "Unpin navigation" : "Pin navigation"}
               className={cn(
                 "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-950",
-                isPinned ? "border-slate-300 bg-slate-950 text-white hover:text-white" : "border-slate-200 bg-white shadow-sm",
+                isPinned ? "border-blue-700 bg-blue-700 text-white hover:text-white" : "border-slate-200 bg-white shadow-sm",
               )}
             >
               {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
@@ -71,7 +71,7 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-slate-100/90 bg-white p-2">
+        <div className="shrink-0 border-t border-slate-100/90 bg-white/75 p-2">
           {isExpanded ? <SidebarFooterProfile /> : <SidebarFooterProfile compact />}
         </div>
       </aside>

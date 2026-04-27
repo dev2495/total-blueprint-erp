@@ -14,7 +14,6 @@ import {
     Activity,
     Database,
     Server,
-    Users,
     AlertCircle,
     Clock,
     RotateCcw,
@@ -110,7 +109,7 @@ export default function SystemHealthDashboard() {
     if (isLoading) {
         return (
             <div className="p-8 flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-4 shadow-premium"></div>
+                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4 shadow-premium"></div>
                 <div className="text-slate-500 font-medium tracking-wide">Initializing Command Center...</div>
             </div>
         )
@@ -168,41 +167,70 @@ export default function SystemHealthDashboard() {
                 } catch {}
             `}</Script>
 
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white/60 backdrop-blur-xl p-6 rounded-3xl border border-white shadow-premium relative overflow-hidden">
-                <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="relative z-10">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 mb-3">
-                        <Activity className="w-3.5 h-3.5 text-indigo-600" />
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-indigo-600">Command Center</span>
+            <section className="erp-admin-hero rounded-3xl border border-white/10 px-6 py-6 text-white shadow-xl sm:px-8">
+                <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="max-w-3xl">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+                            <Activity className="h-3.5 w-3.5" />
+                            Command center
+                        </div>
+                        <h1 className="mt-3 font-display text-[2rem] font-bold leading-tight tracking-normal text-white sm:text-[2.6rem]">
+                            System Admin Console
+                        </h1>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
+                            Platform telemetry & infrastructure maintenance. Every refresh hits the live cluster.
+                        </p>
                     </div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-1">
-                        System Admin Console
-                    </h1>
-                    <p className="text-slate-500 font-medium">Platform Telemetry & Infrastructure Maintenance</p>
-                </div>
-                <div className="flex items-center gap-3 relative z-10">
-                    <div className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border shadow-sm transition-colors",
-                        system.status === 'online'
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                    )}>
-                        {system.status === 'online' ? (
-                            <><div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" /> ONLINE</>
-                        ) : (
-                            <><AlertCircle className="h-4 w-4" /> OFFLINE</>
-                        )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className={cn(
+                            "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur",
+                            system.status === "online"
+                                ? "border-emerald-300/30 bg-white/10 text-emerald-100"
+                                : "border-rose-300/30 bg-white/10 text-rose-100"
+                        )}>
+                            {system.status === "online" ? (
+                                <><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" /> Online</>
+                            ) : (
+                                <><AlertCircle className="h-4 w-4" /> Offline</>
+                            )}
+                        </div>
+                        <Button
+                            onClick={() => refetch()}
+                            className="h-10 rounded-2xl border border-white/20 bg-white/10 px-5 text-white shadow-none hover:bg-white/20"
+                        >
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            Refresh vitals
+                        </Button>
                     </div>
-                    <Button
-                        onClick={() => refetch()}
-                        className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-premium hover:shadow-premium-hover transition-all active-scale h-10 px-5"
-                    >
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                        Refresh Vitals
-                    </Button>
                 </div>
-            </div>
+
+                <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                    {[
+                        { label: "Uptime", value: system.uptime, sub: "since restart" },
+                        { label: "Active users", value: system.active_users, sub: "last 24h" },
+                        { label: "Error rate", value: system.error_rate, sub: "success margin", good: true },
+                        { label: "DB latency", value: system.db_health, sub: "connected · healthy" },
+                        { label: "DB size", value: `${system.db_size_mb}MB`, sub: "active volume" },
+                        { label: "Storage", value: `${system.disk_usage}%`, sub: system.disk_usage > 90 ? "near limit" : "capacity normal", danger: system.disk_usage > 90 },
+                    ].map((metric) => (
+                        <div
+                            key={metric.label}
+                            className={cn(
+                                "rounded-2xl border bg-white/10 p-4 text-white backdrop-blur",
+                                metric.danger ? "border-rose-300/45" : "border-white/15"
+                            )}
+                        >
+                            <div className={cn("text-[10px] font-black uppercase tracking-[0.2em]", metric.danger ? "text-rose-100" : "text-white/65")}>
+                                {metric.label}
+                            </div>
+                            <div className={cn("mt-2 truncate font-display text-[1.75rem] font-bold leading-none", metric.good ? "text-emerald-100" : metric.danger ? "text-rose-100" : "text-white")}>
+                                {metric.value}
+                            </div>
+                            <div className={cn("mt-2 text-[11px]", metric.danger ? "text-rose-100/80" : "text-white/65")}>{metric.sub}</div>
+                        </div>
+                    ))}
+                </div>
+            </section>
 
             <Card className="border border-sky-100 bg-white/80 backdrop-blur-xl shadow-premium">
                 <CardHeader className="pb-3">
@@ -236,14 +264,13 @@ export default function SystemHealthDashboard() {
                 </CardContent>
             </Card>
 
-            {/* Hardware Telemetry Rings */}
             <div className="grid gap-6 md:grid-cols-3">
                 <div className="bg-white/60 backdrop-blur-xl rounded-3xl border border-white shadow-premium p-6 flex flex-col items-center justify-center hover:bg-white/80 transition-colors">
                     <HealthRing
                         value={system.cpu_usage}
                         label="CPU Utilization"
                         icon={Cpu}
-                        colorClass={system.cpu_usage > 80 ? "text-rose-500" : system.cpu_usage > 60 ? "text-amber-500" : "text-indigo-500"}
+                        colorClass={system.cpu_usage > 80 ? "text-rose-500" : system.cpu_usage > 60 ? "text-amber-500" : "text-blue-500"}
                     />
                 </div>
                 <div className="bg-white/60 backdrop-blur-xl rounded-3xl border border-white shadow-premium p-6 flex flex-col items-center justify-center hover:bg-white/80 transition-colors">
@@ -264,81 +291,11 @@ export default function SystemHealthDashboard() {
                 </div>
             </div>
 
-            {/* Core Metrics Grid */}
-            <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-6">
-                <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-premium p-5 group hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            <Clock className="h-4 w-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Uptime</span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-800">{system.uptime}</div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-1">Since Last Restart</div>
-                </div>
-
-                <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-premium p-5 group hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition-colors">
-                            <Users className="h-4 w-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Users</span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-800">{system.active_users}</div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-1">In Last 24 Hours</div>
-                </div>
-
-                <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-premium p-5 group hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                            <ShieldCheck className="h-4 w-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Error Rate</span>
-                    </div>
-                    <div className="text-2xl font-black text-emerald-600">{system.error_rate}</div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-1">Request Success Margin</div>
-                </div>
-
-                <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-premium p-5 group hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                            <Database className="h-4 w-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">DB Latency</span>
-                    </div>
-                    <div className="text-lg font-black text-slate-800 truncate" title={system.db_health}>{system.db_health}</div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-1">Connection Health</div>
-                </div>
-
-                <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-premium p-5 group hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-colors">
-                            <HardDrive className="h-4 w-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">DB Size</span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-800">{system.db_size_mb} <span className="text-sm font-bold text-slate-500">MB</span></div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-1">Active Data Volume</div>
-                </div>
-
-                <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-premium p-5 group hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                            <Activity className="h-4 w-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">PG Conns</span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-800">{system.active_connections}</div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-1">Active DB Queries</div>
-                </div>
-            </div>
-
-            {/* Logs and Actions */}
             <div className="grid gap-6 md:grid-cols-3">
                 <div className="col-span-2 bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-premium overflow-hidden flex flex-col">
                     <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/50">
                         <div className="flex items-center gap-3">
-                            <Server className="h-5 w-5 text-indigo-500" />
+                            <Server className="h-5 w-5 text-blue-500" />
                             <h2 className="text-lg font-black text-slate-800 tracking-tight">System Event Stream</h2>
                         </div>
                         <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200">Live</Badge>
@@ -375,11 +332,11 @@ export default function SystemHealthDashboard() {
                     </div>
                 </div>
 
-                <div className="col-span-1 bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-premium flex flex-col relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
-                    <div className="px-6 py-5 border-b border-slate-100">
-                        <h2 className="text-lg font-black text-slate-800 tracking-tight">Maintenance tasks</h2>
-                        <p className="text-xs text-slate-500 font-medium mt-1">Infrastructure Ops</p>
+                <div className="col-span-1 bg-slate-950 text-white rounded-3xl border border-slate-900 shadow-premium flex flex-col relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-emerald-400" />
+                    <div className="px-6 py-5 border-b border-white/10">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/55">Maintenance tasks</div>
+                        <h2 className="mt-1 text-lg font-black tracking-tight text-white">Infrastructure Ops</h2>
                     </div>
                     <div className="p-6 space-y-4">
                         <Button
@@ -391,7 +348,7 @@ export default function SystemHealthDashboard() {
                                     error: 'Failed to restart services.',
                                 });
                             }}
-                            className="w-full justify-start h-12 rounded-xl text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-colors bg-white font-bold"
+                            className="w-full justify-start h-12 rounded-xl border-white/10 bg-white/10 text-rose-100 hover:bg-white/20 hover:text-rose-50 transition-colors font-bold"
                         >
                             <RotateCcw className="h-4 w-4 mr-3" />
                             Restart Services
@@ -409,7 +366,7 @@ export default function SystemHealthDashboard() {
                                     error: 'Failed to clear cache.',
                                 });
                             }}
-                            className="w-full justify-start h-12 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors bg-white font-bold"
+                            className="w-full justify-start h-12 rounded-xl border-white/10 bg-white/10 text-white/85 hover:bg-white/20 hover:text-white transition-colors font-bold"
                         >
                             <Trash2 className="h-4 w-4 mr-3" />
                             Clear System Cache
@@ -427,7 +384,7 @@ export default function SystemHealthDashboard() {
                                     error: 'Vacuum operation failed.',
                                 });
                             }}
-                            className="w-full justify-start h-12 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors bg-white font-bold"
+                            className="w-full justify-start h-12 rounded-xl border-white/10 bg-white/10 text-white/85 hover:bg-white/20 hover:text-white transition-colors font-bold"
                         >
                             <Database className="h-4 w-4 mr-3" />
                             Vacuum Database

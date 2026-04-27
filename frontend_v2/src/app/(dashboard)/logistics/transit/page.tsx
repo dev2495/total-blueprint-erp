@@ -18,7 +18,7 @@ export default function TransitPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <section className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-cyan-500/12 via-indigo-500/10 to-emerald-400/10" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-cyan-500/12 via-blue-500/10 to-emerald-400/10" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-100 bg-cyan-50/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-700">
@@ -48,7 +48,7 @@ export default function TransitPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryStatCard label="In active transit" value="8" subLabel="Shipments still on the road" icon={Truck} toneClassName="bg-cyan-50 text-cyan-700" />
-        <SummaryStatCard label="Destinations live" value="6" subLabel="Unique route endpoints in today’s lane mix" icon={MapPin} toneClassName="bg-indigo-50 text-indigo-700" />
+        <SummaryStatCard label="Destinations live" value="6" subLabel="Unique route endpoints in today’s lane mix" icon={MapPin} toneClassName="bg-blue-50 text-blue-700" />
         <SummaryStatCard label="Average transit time" value="2.5 days" subLabel="Rolling average for active dispatch lanes" icon={Clock3} toneClassName="bg-amber-50 text-amber-700" />
         <SummaryStatCard label="Delivered today" value="3" subLabel="Completed drop-offs already closed" icon={CheckCircle2} toneClassName="bg-emerald-50 text-emerald-700" />
       </div>

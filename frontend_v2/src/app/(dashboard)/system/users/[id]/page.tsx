@@ -456,7 +456,7 @@ export default function UserDetailPage() {
                 </Alert>
             ) : null}
 
-            <Card className="border-indigo-100 bg-indigo-50/40">
+            <Card className="border-blue-100 bg-blue-50/40">
                 <CardContent className="pt-5">
                     <div className="grid gap-3 md:grid-cols-3">
                         {setupSteps.map((step) => {
@@ -467,8 +467,8 @@ export default function UserDetailPage() {
                                     type="button"
                                     onClick={() => setActiveTab(step.key)}
                                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${activeTab === step.key
-                                        ? "border-indigo-300 bg-white shadow-sm"
-                                        : "border-indigo-100 bg-white/80 hover:border-indigo-200"
+                                        ? "border-blue-300 bg-white shadow-sm"
+                                        : "border-blue-100 bg-white/80 hover:border-blue-200"
                                         }`}
                                 >
                                     {complete ? (
@@ -494,14 +494,14 @@ export default function UserDetailPage() {
 
             <Card className="border-slate-200 bg-white" data-testid="user-access-contract">
                 <CardContent className="grid gap-4 pt-5 md:grid-cols-4">
-                    <button type="button" onClick={() => setActiveTab("role")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-indigo-300">
+                    <button type="button" onClick={() => setActiveTab("role")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Base role assigned</div>
                         <div className="mt-2 text-base font-black text-slate-950">{selectedRole ? getCanonicalRoleLabel(selectedRole.code, selectedRole.name) : "Not selected"}</div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                            {selectedRole ? <Badge className="bg-indigo-600">{selectedRole.code}</Badge> : <Badge variant="outline">Required before save</Badge>}
+                            {selectedRole ? <Badge className="bg-blue-600">{selectedRole.code}</Badge> : <Badge variant="outline">Required before save</Badge>}
                         </div>
                     </button>
-                    <button type="button" onClick={() => { setActiveTab("role"); setShowBasePermissions(true); setShowAdvancedAccess(permissionOverridesAllowed) }} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-indigo-300">
+                    <button type="button" onClick={() => { setActiveTab("role"); setShowBasePermissions(true); setShowAdvancedAccess(permissionOverridesAllowed) }} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Base permissions</div>
                         <div className="mt-2 text-2xl font-black text-slate-950">{roleDefaultPermissions.length}</div>
                         <div className="mt-1 text-xs font-semibold text-slate-500">Included from the selected role baseline.</div>
@@ -511,7 +511,7 @@ export default function UserDetailPage() {
                         <div className="mt-2 text-2xl font-black text-slate-950">{permissionOverridesAllowed ? "ON" : "OFF"}</div>
                         <div className="mt-1 text-xs font-semibold text-amber-800">{selectedExtraPermissions.length} user-level extra permission(s).</div>
                     </button>
-                    <button type="button" onClick={() => setActiveTab("assignments")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-indigo-300">
+                    <button type="button" onClick={() => setActiveTab("assignments")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Floor scope</div>
                         <div className="mt-2 text-base font-black text-slate-950">{selectedWcIds.length} WC / {selectedMachineIds.length} machines</div>
                         <div className="mt-1 text-xs font-semibold text-slate-500">Required for WCM, Planner, and Operator roles.</div>
@@ -523,13 +523,13 @@ export default function UserDetailPage() {
                 <form className="space-y-6" onSubmit={handleSave}>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="w-full justify-start border-b bg-transparent p-0">
-                            <TabsTrigger value="basic" className="data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 rounded-none">
+                            <TabsTrigger value="basic" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-none">
                                 Basic Info
                             </TabsTrigger>
-                            <TabsTrigger value="role" className="data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 rounded-none">
+                            <TabsTrigger value="role" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-none">
                                 Role & Access
                             </TabsTrigger>
-                            <TabsTrigger value="assignments" className="data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 rounded-none">
+                            <TabsTrigger value="assignments" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-none">
                                 Assignments
                             </TabsTrigger>
                         </TabsList>
@@ -538,7 +538,7 @@ export default function UserDetailPage() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-lg flex items-center gap-2">
-                                        <Shield className="h-5 w-5 text-indigo-600" /> Account Details
+                                        <Shield className="h-5 w-5 text-blue-600" /> Account Details
                                     </CardTitle>
                                     <CardDescription>Fill mandatory fields first: username and email.</CardDescription>
                                 </CardHeader>
@@ -635,7 +635,7 @@ export default function UserDetailPage() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-lg flex items-center gap-2">
-                                        <Key className="h-5 w-5 text-indigo-600" /> Step 2: Choose Role
+                                        <Key className="h-5 w-5 text-blue-600" /> Step 2: Choose Role
                                     </CardTitle>
                                     <CardDescription>Select one role baseline first. Only then add extra access if required.</CardDescription>
                                 </CardHeader>
@@ -669,7 +669,7 @@ export default function UserDetailPage() {
                                     {selectedRole ? (
                                         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <Badge className="bg-indigo-600">{selectedRole.code}</Badge>
+                                                <Badge className="bg-blue-600">{selectedRole.code}</Badge>
                                                 <span className="text-sm text-slate-600">{getCanonicalRoleLabel(selectedRole.code, selectedRole.name)}</span>
                                                 <Badge variant="outline">{roleDefaultPermissions.length} base permissions</Badge>
                                             </div>
@@ -686,7 +686,7 @@ export default function UserDetailPage() {
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
                                             <CardTitle className="text-lg flex items-center gap-2">
-                                                <Shield className="h-5 w-5 text-indigo-600" /> Advanced Access Overrides
+                                                <Shield className="h-5 w-5 text-blue-600" /> Advanced Access Overrides
                                             </CardTitle>
                                             <CardDescription>
                                                 Keep the role baseline clean. Add only the minimum extra access this user actually needs.
@@ -790,7 +790,7 @@ export default function UserDetailPage() {
                                                         {Object.entries(permissionsByCategory).map(([category, perms]) => (
                                                             <div key={category} className="mb-6 last:mb-0">
                                                                 <div className="mb-3 flex items-center gap-2 border-b pb-2">
-                                                                    <span className="h-2 w-2 rounded-full bg-indigo-400"></span>
+                                                                    <span className="h-2 w-2 rounded-full bg-blue-400"></span>
                                                                     <h4 className="text-sm font-bold uppercase tracking-wider text-slate-700">{category}</h4>
                                                                 </div>
                                                                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -802,7 +802,7 @@ export default function UserDetailPage() {
                                                                             <label
                                                                                 key={perm.permission}
                                                                                 className={`flex items-start justify-between gap-3 rounded-lg border p-3 transition ${isChecked
-                                                                                    ? "border-indigo-200 bg-white shadow-sm"
+                                                                                    ? "border-blue-200 bg-white shadow-sm"
                                                                                     : "border-slate-200 bg-white hover:border-slate-300"
                                                                                     }`}
                                                                             >
@@ -850,7 +850,7 @@ export default function UserDetailPage() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-lg flex items-center gap-2">
-                                        <Building2 className="h-5 w-5 text-indigo-600" /> Work Center Assignment
+                                        <Building2 className="h-5 w-5 text-blue-600" /> Work Center Assignment
                                     </CardTitle>
                                     <CardDescription>
                                         {showWcSelect
@@ -934,7 +934,7 @@ export default function UserDetailPage() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-lg flex items-center gap-2">
-                                        <Cog className="h-5 w-5 text-indigo-600" /> Machine Assignment
+                                        <Cog className="h-5 w-5 text-blue-600" /> Machine Assignment
                                     </CardTitle>
                                     <CardDescription>
                                         {showMachineSelect

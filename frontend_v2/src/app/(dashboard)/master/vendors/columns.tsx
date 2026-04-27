@@ -116,7 +116,7 @@ export const getColumns = ({ onEdit, onDelete }: ActionProps): ColumnDef<Vendor>
             const isJobwork = row.original.type === "JOBWORK" || row.original.type === "BOTH"
             if (!isJobwork) return <div className="text-xs text-slate-400">-</div>
             return (
-                <Badge variant="outline" className={`text-[10px] font-bold ${row.original.qc_required ? "text-indigo-700 bg-indigo-50 border-indigo-200" : "text-slate-500 bg-slate-50 border-slate-200"}`}>
+                <Badge variant="outline" className={`text-[10px] font-bold ${row.original.qc_required ? "text-blue-700 bg-blue-50 border-blue-200" : "text-slate-500 bg-slate-50 border-slate-200"}`}>
                     {row.original.qc_required ? "REQUIRED" : "OPTIONAL"}
                 </Badge>
             )

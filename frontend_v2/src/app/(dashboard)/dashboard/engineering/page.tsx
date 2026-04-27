@@ -31,7 +31,7 @@ export default function EngineeringDashboard() {
                 </div>
                 <div className="flex gap-3">
                     <Link href="/engineering/artworks/new">
-                        <Button className="bg-indigo-600 hover:bg-indigo-700">
+                        <Button className="bg-blue-600 hover:bg-blue-700">
                             <Palette className="mr-2 h-4 w-4" /> New Artwork
                         </Button>
                     </Link>
@@ -55,7 +55,7 @@ export default function EngineeringDashboard() {
                         {[1, 2, 3].map((_, i) => (
                             <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-8 w-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                    <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
                                         <FileText className="h-4 w-4" />
                                     </div>
                                     <div>

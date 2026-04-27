@@ -180,7 +180,7 @@ function LifecycleColumn({
                                     </div>
                                     <div className="flex items-center gap-1">
                                         {(challan as any).is_system_generated && (
-                                            <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700">
+                                            <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700">
                                                 AUTO
                                             </Badge>
                                         )}
@@ -216,7 +216,7 @@ function LifecycleColumn({
                                     <Badge variant="outline" className="text-[10px]">
                                         BULK {bulkLines}
                                     </Badge>
-                                    <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50">
+                                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 bg-blue-50">
                                         OUT {outputLines}
                                     </Badge>
                                     <Badge
@@ -235,7 +235,7 @@ function LifecycleColumn({
                                 </div>
                                 {(outputLines > 0 || remainderLines > 0) && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
-                                        <div className="rounded-md border border-indigo-100 bg-indigo-50/50 px-2 py-1.5 text-indigo-700">
+                                        <div className="rounded-md border border-blue-100 bg-blue-50/50 px-2 py-1.5 text-blue-700">
                                             Output: {outputOut.toFixed(3)} out / {outputIn.toFixed(3)} in kg
                                         </div>
                                         <div className="rounded-md border border-amber-100 bg-amber-50/50 px-2 py-1.5 text-amber-700">

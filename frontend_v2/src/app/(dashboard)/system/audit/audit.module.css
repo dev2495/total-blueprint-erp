@@ -14,7 +14,7 @@
     background:
         radial-gradient(circle at 16% 18%, rgba(96, 165, 250, 0.52), transparent 28%),
         radial-gradient(circle at 78% 4%, rgba(16, 185, 129, 0.24), transparent 22%),
-        linear-gradient(135deg, #0f172a 0%, #1e3a8a 48%, #312e81 100%);
+        linear-gradient(135deg, #0f172a 0%, #1e3a8a 48%, #0b1f55 100%);
     color: #ffffff;
     padding: 30px 34px;
     box-shadow: 0 32px 92px -58px rgba(15, 23, 42, 0.75);
@@ -114,7 +114,7 @@
 .chipBlue { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .chipGreen { background: #ecfdf5; border-color: #bbf7d0; color: #047857; }
 .chipAmber { background: #fffbeb; border-color: #fde68a; color: #b45309; }
-.chipPurple { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
+.chipPurple { background: #f5f3ff; border-color: #ddd6fe; color: #2563eb; }
 .chipTeal { background: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
 .chipRed { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 .chipPink { background: #fdf2f8; border-color: #fbcfe8; color: #be185d; }
@@ -403,7 +403,7 @@
 
 .avatar1 { background: linear-gradient(135deg, #2563eb, #60a5fa); }
 .avatar2 { background: linear-gradient(135deg, #059669, #34d399); }
-.avatar3 { background: linear-gradient(135deg, #7c3aed, #a78bfa); }
+.avatar3 { background: linear-gradient(135deg, #3b82f6, #93c5fd); }
 .avatar4 { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
 .avatar5 { background: linear-gradient(135deg, #dc2626, #fb7185); }
 .avatar6 { background: linear-gradient(135deg, #0f766e, #2dd4bf); }

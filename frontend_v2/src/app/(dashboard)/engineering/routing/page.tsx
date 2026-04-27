@@ -148,7 +148,7 @@ function RoutingRuleForm({ initialData, allProcesses, onSubmit, isLoading }: { i
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
-                    <Button type="submit" disabled={isLoading} className="bg-indigo-600 hover:bg-indigo-700">
+                    <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save Routing Rule
                     </Button>
@@ -271,7 +271,7 @@ export default function RoutingRulesPage() {
                                                     <div className={cn(
                                                         "flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm bg-white",
                                                         i === 0 ? "border-emerald-200 text-emerald-700" :
-                                                            i === arr.length - 1 ? "border-indigo-200 text-indigo-700" : "border-slate-200 text-slate-600"
+                                                            i === arr.length - 1 ? "border-blue-200 text-blue-700" : "border-slate-200 text-slate-600"
                                                     )}>
                                                         {i === 0 ? <Factory className="h-3 w-3" /> : <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />}
                                                         {proc?.name || procId}

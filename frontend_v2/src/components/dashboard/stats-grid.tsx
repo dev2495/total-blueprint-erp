@@ -17,9 +17,9 @@ const TONES: Tone[] = [
     value: "text-sky-950",
   },
   {
-    shell: "border-violet-200/80 bg-[linear-gradient(180deg,rgba(245,243,255,0.94),rgba(255,255,255,0.98))]",
-    icon: "bg-violet-500 text-white",
-    value: "text-violet-950",
+    shell: "border-blue-200/80 bg-[linear-gradient(180deg,rgba(239,246,255,0.94),rgba(255,255,255,0.98))]",
+    icon: "bg-blue-600 text-white",
+    value: "text-blue-950",
   },
   {
     shell: "border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.94),rgba(255,255,255,0.98))]",

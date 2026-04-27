@@ -41,8 +41,8 @@ export default function MasterDataPage() {
             icon: Tag,
             count: count(commercialFamilies),
             description: "Business-friendly naming groups used across stock explorer, planner, and reports",
-            color: "text-violet-600",
-            bg: "bg-violet-50"
+            color: "text-blue-600",
+            bg: "bg-blue-50"
         },
         {
             title: "Film Families",
@@ -59,8 +59,8 @@ export default function MasterDataPage() {
             icon: Filter,
             count: count(filmVariants),
             description: "Specific variants with thickness and treatments",
-            color: "text-indigo-600",
-            bg: "bg-indigo-50"
+            color: "text-blue-600",
+            bg: "bg-blue-50"
         },
         {
             title: "Inks",
@@ -87,8 +87,8 @@ export default function MasterDataPage() {
             count: count(recipes),
             status: recipesQuery.isError ? "error" : undefined,
             description: "Extrusion and mixing formulations",
-            color: "text-purple-600",
-            bg: "bg-purple-50"
+            color: "text-blue-600",
+            bg: "bg-blue-50"
         },
         {
             title: "Granules",
@@ -132,8 +132,8 @@ export default function MasterDataPage() {
             icon: Package,
             count: count(packaging),
             description: "Inner packs, gonnies, sheets, tape and dispatch consumables",
-            color: "text-indigo-600",
-            bg: "bg-indigo-50"
+            color: "text-blue-600",
+            bg: "bg-blue-50"
         },
         {
             title: "POD Materials",
@@ -163,10 +163,10 @@ export default function MasterDataPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search master data registries..."
             stats={[
-                { label: "Total masters", value: "12", subLabel: "Active registries", icon: LayoutGrid, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Total masters", value: "12", subLabel: "Active registries", icon: LayoutGrid, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Materials", value: String(materialCount), subLabel: "Film, ink, adhesive, granule", icon: Layers, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Partners", value: String(partnerCount), subLabel: "Customers and vendors", icon: Users, toneClassName: "bg-emerald-50 text-emerald-700" },
-                { label: "Recipes", value: String(recipeCount), subLabel: "Formulation masters", icon: Palette, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Recipes", value: String(recipeCount), subLabel: "Formulation masters", icon: Palette, toneClassName: "bg-blue-50 text-blue-700" },
             ]}
             chips={[
                 { kind: "materialCategory", value: "FILM" },
@@ -193,7 +193,7 @@ export default function MasterDataPage() {
                                 </div>
 
                                 <div className="mt-auto">
-                                    <h3 className="font-bold text-base sm:text-lg text-slate-900 mb-1.5 group-hover:text-indigo-600 transition-colors">
+                                    <h3 className="font-bold text-base sm:text-lg text-slate-900 mb-1.5 group-hover:text-blue-600 transition-colors">
                                         {master.title}
                                     </h3>
                                     <p className="text-[13px] text-slate-500 font-medium leading-relaxed mb-4">

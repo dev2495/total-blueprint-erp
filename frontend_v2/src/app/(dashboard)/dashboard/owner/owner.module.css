@@ -34,7 +34,7 @@
     left: -10%;
     width: 60%;
     height: 200%;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.15) 0%, transparent 70%);
     transform: rotate(25deg);
     pointer-events: none;
 }
@@ -135,7 +135,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: #6366f1;
+    background: #2563eb;
     color: white;
     border: none;
     padding: 8px 16px;
@@ -144,11 +144,11 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 .refreshBtn:hover {
-    background: #4f46e5;
+    background: #2563eb;
     transform: translateY(-1px);
 }
 
@@ -200,11 +200,11 @@
 }
 
 .kpiCard:nth-child(1)::before {
-    background: #6366f1;
+    background: #2563eb;
 }
 
 .kpiCard:nth-child(2)::before {
-    background: #8b5cf6;
+    background: #60a5fa;
 }
 
 .kpiCard:nth-child(3)::before {
@@ -246,11 +246,11 @@
 
 /* Gradients for KPI icons */
 .gIndigo {
-    background: linear-gradient(135deg, #6366f1, #4338ca);
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
 }
 
 .gViolet {
-    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    background: linear-gradient(135deg, #60a5fa, #2563eb);
 }
 
 .gEmerald {
@@ -377,7 +377,7 @@
 }
 
 .sectionTitle svg {
-    color: #6366f1;
+    color: #2563eb;
 }
 
 /* ─────────────── STATUS STRIP ─────────────── */
@@ -459,11 +459,11 @@
 }
 
 .statusIndigo .statusVal {
-    color: #4338ca;
+    color: #1d4ed8;
 }
 
 .statusIndigo .statusSub {
-    color: #6366f1;
+    color: #2563eb;
 }
 
 /* ─────────────── P&L ROW ─────────────── */
@@ -553,7 +553,7 @@
 
 .finBarFill {
     height: 100%;
-    background: linear-gradient(90deg, #818cf8, #6366f1);
+    background: linear-gradient(90deg, #818cf8, #2563eb);
     border-radius: 3px;
     transition: width 1s ease;
 }
@@ -730,7 +730,7 @@
 }
 
 .fillIndigo {
-    background: linear-gradient(90deg, #818cf8, #6366f1);
+    background: linear-gradient(90deg, #818cf8, #2563eb);
 }
 
 /* ─────────────── TABLES & MISC ROWS ─────────────── */
@@ -770,7 +770,7 @@
 .jobNumber {
     font-size: 12px;
     font-weight: 800;
-    color: #4f46e5;
+    color: #2563eb;
     width: 60px;
 }
 
@@ -841,7 +841,7 @@
 
 .inkBadge {
     background: #e0e7ff;
-    color: #4338ca;
+    color: #1d4ed8;
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 11px;
@@ -980,7 +980,7 @@
 
 .skuBarFill {
     height: 100%;
-    background: #6366f1;
+    background: #2563eb;
     border-radius: 3px;
 }
 

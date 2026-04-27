@@ -25,14 +25,14 @@ export function SummaryStatCard({
   compact = false,
 }: SummaryStatCardProps) {
   return (
-    <Card className={cn("border-0 shadow-sm ring-1 ring-slate-100", className)}>
+    <Card className={cn("overflow-hidden border-slate-200/80 shadow-sm ring-1 ring-slate-100", className)}>
       <CardContent className={cn(compact ? "p-4" : "p-5")}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className={cn("font-black uppercase text-slate-400", compact ? "text-[9px] tracking-[0.22em]" : "text-[10px] tracking-[0.18em]")}>
               {label}
             </div>
-            <div className={cn("font-black tracking-tight text-slate-900", compact ? "mt-1.5 text-xl leading-none" : "mt-2 text-2xl")}>
+            <div className={cn("font-display font-bold tracking-normal text-slate-950", compact ? "mt-1.5 text-xl leading-none" : "mt-2 text-2xl")}>
               {value}
             </div>
             {subLabel ? (

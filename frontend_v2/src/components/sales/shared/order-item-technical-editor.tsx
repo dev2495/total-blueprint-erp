@@ -666,15 +666,15 @@ export default function OrderItemTechnicalEditor({
             </Section>
 
             <Section
-                title="Print & Chemistry"
-                description="Artwork, color counts, inks, and lamination chemistry."
-                dataTestId="sku-variant-section-print-chemistry"
+                title="Printing"
+                description="Artwork, color counts, print method, and ink load."
+                dataTestId="sku-variant-section-printing"
             >
                 <div className="space-y-4">
                     <div className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
                         <div>
                             <Label>Printing Enabled</Label>
-                            <p className="text-xs text-slate-500">Commercial confirmation drives print BOM and artwork rules.</p>
+                            <p className="text-xs text-slate-500">Turn on only when this SKU needs printed artwork and ink BOM.</p>
                         </div>
                         <Switch
                             checked={item.printing.enabled}
@@ -688,120 +688,118 @@ export default function OrderItemTechnicalEditor({
                         />
                     </div>
                     {item.printing.enabled ? (
-                        <>
-                            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-                                <div className="space-y-2">
-                                    <Label>Method</Label>
-                                    <Select
-                                        value={item.printing.type}
-                                        onValueChange={(value) =>
-                                            updateItem((current) => ({
-                                                ...current,
-                                                printing: { ...current.printing, type: value as OrderItemDraft["printing"]["type"] },
-                                                savedPreview: null,
-                                            }))
-                                        }
-                                    >
-                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="FLEXO">FLEXO</SelectItem>
-                                            <SelectItem value="ROTO">ROTO</SelectItem>
-                                            <SelectItem value="DIGITAL">DIGITAL</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Substrate Mode</Label>
-                                    <Select
-                                        value={item.printing.substrate_mode}
-                                        onValueChange={(value) =>
-                                            updateItem((current) => ({
-                                                ...current,
-                                                printing: { ...current.printing, substrate_mode: value as OrderItemDraft["printing"]["substrate_mode"] },
-                                                savedPreview: null,
-                                            }))
-                                        }
-                                    >
-                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="SHEET">SHEET</SelectItem>
-                                            <SelectItem value="TUBING">TUBING</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Total Ink GSM</Label>
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={String(item.printing.ink_gsm_total)}
-                                        onChange={(event) =>
-                                            updateItem((current) => ({
-                                                ...current,
-                                                printing: { ...current.printing, ink_gsm_total: asNumber(event.target.value, 0) },
-                                                savedPreview: null,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Front Colors</Label>
-                                    <Input
-                                        type="number"
-                                        value={String(item.printing.front_colors_count)}
-                                        onChange={(event) =>
-                                            updateItem((current) => ({
-                                                ...current,
-                                                printing: { ...current.printing, front_colors_count: asNumber(event.target.value, 0) },
-                                                savedPreview: null,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Back Colors</Label>
-                                    <Input
-                                        type="number"
-                                        value={String(item.printing.back_colors_count)}
-                                        onChange={(event) =>
-                                            updateItem((current) => ({
-                                                ...current,
-                                                printing: { ...current.printing, back_colors_count: asNumber(event.target.value, 0) },
-                                                savedPreview: null,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Approved Artwork</Label>
-                                    <Select
-                                        value={item.printing.artwork_id || "__NONE__"}
-                                        onValueChange={(value) =>
-                                            updateItem((current) => ({
-                                                ...current,
-                                                printing: {
-                                                    ...current.printing,
-                                                    artwork_id: value === "__NONE__" ? "" : value,
-                                                    defer_artwork_to_planner: false,
-                                                },
-                                                savedPreview: null,
-                                            }))
-                                        }
-                                        disabled={item.printing.defer_artwork_to_planner}
-                                    >
-                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Select artwork" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__NONE__">Select artwork</SelectItem>
-                                            {artworks.map((artwork: any) => (
-                                                <SelectItem key={artwork.id} value={String(artwork.id)}>
-                                                    {artwork.design_code} - {artwork.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                            <div className="space-y-2">
+                                <Label>Method</Label>
+                                <Select
+                                    value={item.printing.type}
+                                    onValueChange={(value) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: { ...current.printing, type: value as OrderItemDraft["printing"]["type"] },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="FLEXO">FLEXO</SelectItem>
+                                        <SelectItem value="ROTO">ROTO</SelectItem>
+                                        <SelectItem value="DIGITAL">DIGITAL</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                            <div className="space-y-2">
+                                <Label>Substrate Mode</Label>
+                                <Select
+                                    value={item.printing.substrate_mode}
+                                    onValueChange={(value) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: { ...current.printing, substrate_mode: value as OrderItemDraft["printing"]["substrate_mode"] },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="SHEET">SHEET</SelectItem>
+                                        <SelectItem value="TUBING">TUBING</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Total Ink GSM</Label>
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={String(item.printing.ink_gsm_total)}
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: { ...current.printing, ink_gsm_total: asNumber(event.target.value, 0) },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Front Colors</Label>
+                                <Input
+                                    type="number"
+                                    value={String(item.printing.front_colors_count)}
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: { ...current.printing, front_colors_count: asNumber(event.target.value, 0) },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Back Colors</Label>
+                                <Input
+                                    type="number"
+                                    value={String(item.printing.back_colors_count)}
+                                    onChange={(event) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: { ...current.printing, back_colors_count: asNumber(event.target.value, 0) },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Approved Artwork</Label>
+                                <Select
+                                    value={item.printing.artwork_id || "__NONE__"}
+                                    onValueChange={(value) =>
+                                        updateItem((current) => ({
+                                            ...current,
+                                            printing: {
+                                                ...current.printing,
+                                                artwork_id: value === "__NONE__" ? "" : value,
+                                                defer_artwork_to_planner: false,
+                                            },
+                                            savedPreview: null,
+                                        }))
+                                    }
+                                    disabled={item.printing.defer_artwork_to_planner}
+                                >
+                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Select artwork" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="__NONE__">Select artwork</SelectItem>
+                                        {artworks.map((artwork: any) => (
+                                            <SelectItem key={artwork.id} value={String(artwork.id)}>
+                                                {artwork.design_code} - {artwork.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2 2xl:col-span-3">
                                 <div>
                                     <Label>Defer Artwork To Planner</Label>
                                     <p className="text-xs text-slate-500">Allow commercial confirmation before final artwork assignment.</p>
@@ -821,51 +819,58 @@ export default function OrderItemTechnicalEditor({
                                     }
                                 />
                             </div>
-                            {item.film_layers.length > 1 ? (
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label>Adhesive GSM</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={String(item.chemicals.adhesive_gsm)}
-                                            onChange={(event) =>
-                                                updateItem((current) => ({
-                                                    ...current,
-                                                    chemicals: { ...current.chemicals, adhesive_gsm: asNumber(event.target.value, 0) },
-                                                    savedPreview: null,
-                                                }))
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Solvent GSM</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={String(item.chemicals.solvent_gsm)}
-                                            onChange={(event) =>
-                                                updateItem((current) => ({
-                                                    ...current,
-                                                    chemicals: { ...current.chemicals, solvent_gsm: asNumber(event.target.value, 0) },
-                                                    savedPreview: null,
-                                                }))
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
-                                    Chemistry applies only to multi-layer structures.
-                                </div>
-                            )}
-                        </>
+                        </div>
                     ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-                            Printing is not enabled for this order item.
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                            Printing is off. Lamination chemistry can still be set below when the film stack requires it.
                         </div>
                     )}
                 </div>
+            </Section>
+
+            <Section
+                title="Chemistry & Lamination"
+                description="Adhesive and solvent inputs for laminated structures; independent of printing."
+                dataTestId="sku-variant-section-chemistry"
+            >
+                {item.film_layers.length > 1 ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label>Adhesive GSM</Label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                value={String(item.chemicals.adhesive_gsm)}
+                                onChange={(event) =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        chemicals: { ...current.chemicals, adhesive_gsm: asNumber(event.target.value, 0) },
+                                        savedPreview: null,
+                                    }))
+                                }
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Solvent GSM</Label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                value={String(item.chemicals.solvent_gsm)}
+                                onChange={(event) =>
+                                    updateItem((current) => ({
+                                        ...current,
+                                        chemicals: { ...current.chemicals, solvent_gsm: asNumber(event.target.value, 0) },
+                                        savedPreview: null,
+                                    }))
+                                }
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                        Chemistry is not required for a single-layer structure.
+                    </div>
+                )}
             </Section>
 
             <Section

@@ -51,7 +51,7 @@ export const getColumns = ({ onEdit, onDelete }: {
             header: () => <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Credit Exposure</span>,
             cell: ({ row }) => (
                 <div className="flex flex-col">
-                    <span className="text-[11px] font-black text-indigo-600">LIMIT: ₹{Number(row.original.credit_limit || 0).toLocaleString()}</span>
+                    <span className="text-[11px] font-black text-blue-600">LIMIT: ₹{Number(row.original.credit_limit || 0).toLocaleString()}</span>
                     <span className="text-[9px] font-bold text-slate-400 uppercase">{row.original.credit_days || 0} DAYS TERM · {row.original.interest_calculation || "NO INTEREST RULE"}</span>
                 </div>
             )
@@ -75,7 +75,7 @@ export const getColumns = ({ onEdit, onDelete }: {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all active-scale"
+                        className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all active-scale"
                         onClick={() => onEdit(row.original)}
                     >
                         <Pencil className="h-3.5 w-3.5" />

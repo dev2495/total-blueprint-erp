@@ -299,7 +299,7 @@ export default function MRPCenter() {
         <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-indigo-600">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">
                 <BrainCircuit className="h-3.5 w-3.5" />
                 Material Planning Center
               </div>
@@ -560,7 +560,7 @@ export default function MRPCenter() {
                         </Badge>
                       </div>
                       <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-indigo-500" style={{ width: `${coveredPct}%` }} />
+                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${coveredPct}%` }} />
                       </div>
                       <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-600 md:grid-cols-3">
                         <span className="rounded-xl bg-white px-3 py-2">Required<br /><strong className="text-sm text-slate-900">{formatKg(requirement.required)}</strong></span>
@@ -606,7 +606,7 @@ export default function MRPCenter() {
                                 action === "PURCHASE"
                                   ? "border-amber-200 bg-amber-50 text-amber-700"
                                   : action === "PRODUCE"
-                                  ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                                  ? "border-blue-200 bg-blue-50 text-blue-700"
                                   : "border-emerald-200 bg-emerald-50 text-emerald-700"
                               }
                             >
@@ -738,12 +738,12 @@ function MetricCard({
   tone: "indigo" | "emerald" | "rose" | "sky" | "amber" | "violet";
 }) {
   const toneMap = {
-    indigo: "bg-indigo-50 text-indigo-700",
+    indigo: "bg-blue-50 text-blue-700",
     emerald: "bg-emerald-50 text-emerald-700",
     rose: "bg-rose-50 text-rose-700",
     sky: "bg-sky-50 text-sky-700",
     amber: "bg-amber-50 text-amber-700",
-    violet: "bg-violet-50 text-violet-700",
+    violet: "bg-blue-50 text-blue-700",
   } as const;
 
   return (
@@ -775,9 +775,9 @@ function PostureTile({
 }) {
   const toneMap = {
     amber: "border-amber-200 bg-amber-50 text-amber-700",
-    indigo: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    indigo: "border-blue-200 bg-blue-50 text-blue-700",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    violet: "border-violet-200 bg-violet-50 text-violet-700",
+    violet: "border-blue-200 bg-blue-50 text-blue-700",
   } as const;
 
   return (

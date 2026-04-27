@@ -55,7 +55,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
 
     if (!segments.length) {
         return (
-            <div className={wrapperClass} data-testid="location-capsule">
+            <div className={wrapperClass} data-testid={compact ? "location-capsule-compact" : "location-capsule"}>
                 <span className="whitespace-nowrap">Home</span>
             </div>
         )
@@ -73,7 +73,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
     })
 
     return (
-        <div className={wrapperClass} data-testid="location-capsule">
+        <div className={wrapperClass} data-testid={compact ? "location-capsule-compact" : "location-capsule"}>
             <div className="flex min-w-max items-center">
                 {crumbs.map((crumb, index) => {
                     const isLast = index === crumbs.length - 1
@@ -86,7 +86,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
                             {!isLast && breadcrumbHref ? (
                                 <Link
                                     href={breadcrumbHref}
-                                    data-testid={`breadcrumb-link-${crumb.segment.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`}
+                                    data-testid={`${compact ? "breadcrumb-link-compact" : "breadcrumb-link"}-${crumb.segment.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`}
                                     data-route={crumb.target}
                                     className="text-slate-500 hover:text-slate-700"
                                 >

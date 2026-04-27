@@ -43,7 +43,7 @@ function VisualTreeNode({ node }: { node: any }) {
                 {node.active_job ? (
                     <div className="flex items-center justify-between border-t border-black/5 pt-2 mt-1">
                         <span className="text-[9px] font-black uppercase tracking-widest opacity-50">Active Job</span>
-                        <span className="text-[10px] font-black text-indigo-600 truncate max-w-[120px]">{node.active_job}</span>
+                        <span className="text-[10px] font-black text-blue-600 truncate max-w-[120px]">{node.active_job}</span>
                     </div>
                 ) : (
                     <div className="flex items-center justify-between border-t border-black/5 pt-2 mt-1 opacity-50">
@@ -74,8 +74,8 @@ function PlantTreeView({ node }: { node: any }) {
                 {/* 1. PLANT ROOT */}
                 <div className="w-56 shrink-0 flex flex-col justify-center relative z-10">
                     <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl border border-slate-700">
-                        <div className="p-3 bg-indigo-500/20 rounded-xl w-fit mb-4">
-                            <Factory className="h-6 w-6 text-indigo-400" />
+                        <div className="p-3 bg-blue-500/20 rounded-xl w-fit mb-4">
+                            <Factory className="h-6 w-6 text-blue-400" />
                         </div>
                         <h2 className="text-3xl font-black tracking-tighter mb-1 leading-none break-words">{node.label}</h2>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plant Facility</span>
@@ -97,9 +97,9 @@ function PlantTreeView({ node }: { node: any }) {
                                 <div className="absolute left-[-3rem] top-12 w-[3rem] h-[3px] bg-slate-200"></div>
 
                                 {/* Work Center Node */}
-                                <div className="w-64 shrink-0 bg-white border-2 border-slate-100 rounded-2xl p-5 z-10 shadow-sm relative hover:border-indigo-300 transition-colors">
+                                <div className="w-64 shrink-0 bg-white border-2 border-slate-100 rounded-2xl p-5 z-10 shadow-sm relative hover:border-blue-300 transition-colors">
                                     <div className="flex items-center justify-between mb-4">
-                                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg w-fit">
+                                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg w-fit">
                                             <Box className="h-4 w-4" strokeWidth={2.5} />
                                         </div>
                                         <Badge variant="secondary" className="bg-slate-100 text-[9px] uppercase tracking-widest text-slate-500 font-black">{machines.length} Nodes</Badge>
@@ -191,9 +191,9 @@ export default function FactoryOverviewPage() {
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 space-y-6">
                     <div className="relative">
-                        <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full animate-pulse" />
+                        <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse" />
                         <div className="h-16 w-16 bg-white rounded-2xl ring-1 ring-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center justify-center relative z-10">
-                            <RefreshCw className="h-6 w-6 animate-spin text-indigo-500" strokeWidth={2.5} />
+                            <RefreshCw className="h-6 w-6 animate-spin text-blue-500" strokeWidth={2.5} />
                         </div>
                     </div>
                     <div className="space-y-1 text-center">

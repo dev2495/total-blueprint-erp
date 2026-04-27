@@ -104,9 +104,9 @@ export default function FilmFamiliesPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search film families..."
             stats={[
-                { label: "Film families", value: (families || []).length, subLabel: "Base material structures", icon: Layers, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Film families", value: (families || []).length, subLabel: "Base material structures", icon: Layers, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Visible", value: filteredFamilies.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
-                { label: "Linked aliases", value: (families || []).filter((family) => Boolean((family as any).commercial_family || (family as any).commercial_family_name)).length, subLabel: "Business family naming attached", icon: Tag, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "Linked aliases", value: (families || []).filter((family) => Boolean((family as any).commercial_family || (family as any).commercial_family_name)).length, subLabel: "Business family naming attached", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Avg density", value: `${avgDensity} g/cc`, subLabel: "Used by the physics layer", icon: FlaskConical, toneClassName: "bg-cyan-50 text-cyan-700" },
             ]}
             chips={[

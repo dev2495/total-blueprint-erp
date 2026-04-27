@@ -108,11 +108,11 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 
 /* ─────────────── Colors ─────────────── */
 const JOB_COLORS: Record<string, string> = {
-    RUNNING: "#6366f1", COMPLETED: "#10b981", PAUSED: "#06b6d4",
+    RUNNING: "#2563eb", COMPLETED: "#10b981", PAUSED: "#06b6d4",
     PENDING: "#78716c", CANCELLED: "#f43f5e", DRAFT: "#f59e0b",
-    RELEASED: "#8b5cf6", EXECUTING: "#38bdf8", PLANNED: "#10b981",
+    RELEASED: "#60a5fa", EXECUTING: "#38bdf8", PLANNED: "#10b981",
 };
-const INV_COLORS = ["#6366f1", "#06b6d4", "#10b981"];
+const INV_COLORS = ["#2563eb", "#06b6d4", "#10b981"];
 
 /* ─────────────── MAIN PAGE ─────────────── */
 export default function OwnerDashboardPage() {
@@ -289,7 +289,7 @@ export default function OwnerDashboardPage() {
                     <div className={styles.finBreakCard}><div className={styles.finBreakLabel}>Revenue</div><div className={styles.finBreakVal} style={{ color: "#a5b4fc" }}>{fmtCurr(parseFloat(String(finSum.revenue || 0)))}</div><div className={styles.finBreakSub}>Total billings</div></div>
                     <div className={styles.finBreakCard}><div className={styles.finBreakLabel}>COGS</div><div className={styles.finBreakVal} style={{ color: "#f87171" }}>{fmtCurr(totalCogs)}</div><div className={styles.finBreakSub}>Materials + conversion</div></div>
                     <div className={styles.finBreakCard}><div className={styles.finBreakLabel}>Gross Profit</div><div className={styles.finBreakVal} style={{ color: "#34d399" }}>{fmtCurr(grossProfit)}</div><div className={styles.finBreakSub}>{fmt(grossMarginPct)}% margin</div></div>
-                    <div className={styles.finBreakCard}><div className={styles.finBreakLabel}>Overheads</div><div className={styles.finBreakVal} style={{ color: "#c4b5fd" }}>{fmtCurr(totalOverheads)}</div><div className={styles.finBreakSub}>Elec + Labor + Other</div></div>
+                    <div className={styles.finBreakCard}><div className={styles.finBreakLabel}>Overheads</div><div className={styles.finBreakVal} style={{ color: "#bfdbfe" }}>{fmtCurr(totalOverheads)}</div><div className={styles.finBreakSub}>Elec + Labor + Other</div></div>
                 </div>
                 {finSum.overheads && (
                     <>
@@ -322,16 +322,16 @@ export default function OwnerDashboardPage() {
                             <AreaChart data={finTrend.length > 0 ? finTrend : productionTrend} margin={{ top: 5, right: 8, left: -15, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="revG" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.03} />
+                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.35} />
+                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.03} />
                                     </linearGradient>
                                     <linearGradient id="profG" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                                         <stop offset="95%" stopColor="#10b981" stopOpacity={0.03} />
                                     </linearGradient>
                                     <linearGradient id="prodG" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.03} />
+                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.35} />
+                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.03} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,102,241,0.1)" />
@@ -340,12 +340,12 @@ export default function OwnerDashboardPage() {
                                 <Tooltip content={<ChartTooltip />} />
                                 {finTrend.length > 0 ? (
                                     <>
-                                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1" strokeWidth={2} fill="url(#revG)" dot={false} />
+                                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#2563eb" strokeWidth={2} fill="url(#revG)" dot={false} />
                                         <Area type="monotone" dataKey="net_profit" name="Net Profit" stroke="#10b981" strokeWidth={2} fill="url(#profG)" dot={false} />
                                         <Legend wrapperStyle={{ fontSize: 10, color: "#64748b" }} />
                                     </>
                                 ) : (
-                                    <Area type="monotone" dataKey="value" name="Output KG" stroke="#6366f1" strokeWidth={2} fill="url(#prodG)" dot={false} />
+                                    <Area type="monotone" dataKey="value" name="Output KG" stroke="#2563eb" strokeWidth={2} fill="url(#prodG)" dot={false} />
                                 )}
                             </AreaChart>
                         </ResponsiveContainer>
@@ -462,7 +462,7 @@ export default function OwnerDashboardPage() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie data={jobDist} dataKey="count" nameKey="job_state" cx="50%" cy="50%" innerRadius={42} outerRadius={60} paddingAngle={3}>
-                                            {jobDist.map((e: any, i: number) => <Cell key={i} fill={JOB_COLORS[e.job_state] ?? "#6366f1"} />)}
+                                            {jobDist.map((e: any, i: number) => <Cell key={i} fill={JOB_COLORS[e.job_state] ?? "#2563eb"} />)}
                                         </Pie>
                                         <Tooltip content={<ChartTooltip />} />
                                     </PieChart>
@@ -478,7 +478,7 @@ export default function OwnerDashboardPage() {
                                 {jobDist.map((d: any, i: number) => (
                                     <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                            <div style={{ width: 6, height: 6, borderRadius: 2, background: JOB_COLORS[d.job_state] ?? "#6366f1" }} />
+                                            <div style={{ width: 6, height: 6, borderRadius: 2, background: JOB_COLORS[d.job_state] ?? "#2563eb" }} />
                                             <span style={{ fontSize: 10, color: "#64748b", fontWeight: 600 }}>{d.job_state}</span>
                                         </div>
                                         <span style={{ fontSize: 10, color: "#a5b4fc", fontWeight: 800 }}>{d.count}</span>
@@ -501,7 +501,7 @@ export default function OwnerDashboardPage() {
                                         <XAxis dataKey="shift_code" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
                                         <YAxis tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
                                         <Tooltip content={<ChartTooltip />} />
-                                        <Bar dataKey="output_kg" name="Output KG" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={22} />
+                                        <Bar dataKey="output_kg" name="Output KG" fill="#2563eb" radius={[3, 3, 0, 0]} maxBarSize={22} />
                                         <Bar dataKey="scrap_kg" name="Scrap KG" fill="#f43f5e" radius={[3, 3, 0, 0]} maxBarSize={22} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -541,7 +541,7 @@ export default function OwnerDashboardPage() {
                         </div>
                     )) : (
                         <div className={styles.emptyState} style={{ flexDirection: "column", gap: 6 }}>
-                            <Factory size={20} style={{ color: "#4f46e5", opacity: 0.4 }} />
+                            <Factory size={20} style={{ color: "#2563eb", opacity: 0.4 }} />
                             <span>No active jobs</span>
                         </div>
                     )}
@@ -666,7 +666,7 @@ export default function OwnerDashboardPage() {
                         </div>
                         <div className={styles.finBreakCard}>
                             <div className={styles.finBreakLabel}>POD Bulk Orders</div>
-                            <div className={styles.finBreakVal} style={{ color: "#a78bfa" }}>{fmt(podKpis.bulk_orders, 0)}</div>
+                            <div className={styles.finBreakVal} style={{ color: "#93c5fd" }}>{fmt(podKpis.bulk_orders, 0)}</div>
                             <div className={styles.finBreakSub}>{fmt(podKpis.bulk_target_kg)} KG target</div>
                         </div>
                     </div>

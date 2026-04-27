@@ -268,7 +268,7 @@ function statusTone(status: string) {
     const normalized = String(status || "").toUpperCase()
     if (normalized === "APPROVED" || normalized === "CONVERTED") return "bg-emerald-50 text-emerald-700 border-emerald-200"
     if (normalized === "REJECTED" || normalized === "EXPIRED") return "bg-rose-50 text-rose-700 border-rose-200"
-    if (normalized === "SENT") return "bg-indigo-50 text-indigo-700 border-indigo-200"
+    if (normalized === "SENT") return "bg-blue-50 text-blue-700 border-blue-200"
     return "bg-amber-50 text-amber-700 border-amber-200"
 }
 
@@ -896,7 +896,7 @@ export default function QuotationWorkspace() {
                                         <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Active lines</div>
                                         <div className="mt-1 text-base font-black text-slate-950">One line at a time</div>
                                     </div>
-                                    <Button className="rounded-2xl bg-indigo-600 hover:bg-indigo-500" data-testid="quotation-add-line" onClick={addLine}>
+                                    <Button className="rounded-2xl bg-blue-600 hover:bg-blue-500" data-testid="quotation-add-line" onClick={addLine}>
                                         <Plus className="mr-2 h-4 w-4" /> Add
                                     </Button>
                                 </div>
@@ -906,7 +906,7 @@ export default function QuotationWorkspace() {
                                             key={line.localId}
                                             type="button"
                                             onClick={() => setActiveLineId(line.localId)}
-                                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${line.localId === activeLineId ? "border-indigo-200 bg-indigo-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${line.localId === activeLineId ? "border-blue-200 bg-blue-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
@@ -998,7 +998,7 @@ export default function QuotationWorkspace() {
                                         <ArrowUpRight className="mr-2 h-4 w-4" /> Open PDF
                                     </Button>
                                     <Button
-                                        className="rounded-2xl bg-indigo-600 hover:bg-indigo-500"
+                                        className="rounded-2xl bg-blue-600 hover:bg-blue-500"
                                         data-testid="quotation-convert-order"
                                         onClick={() => convertMutation.mutate(draft.id!)}
                                         disabled={convertMutation.isPending}
@@ -1325,7 +1325,7 @@ function QuoteWorkbench({
                                 <InspectorRow label="Margin" value={`${asNumber(quoteSummary.margin_percent, 0).toFixed(1)}%`} />
                             </div>
                             {draft.converted_sales_order_number ? (
-                                <Link href={`/sales/orders/${draft.converted_sales_order}`} className="mt-4 inline-flex items-center gap-2 text-sm font-black text-indigo-600 hover:text-indigo-500">
+                                <Link href={`/sales/orders/${draft.converted_sales_order}`} className="mt-4 inline-flex items-center gap-2 text-sm font-black text-blue-600 hover:text-blue-500">
                                     Open Converted Order <ArrowUpRight className="h-4 w-4" />
                                 </Link>
                             ) : null}
@@ -1707,7 +1707,7 @@ function CustomQuoteLane({
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
                         <Badge className="border border-slate-200 bg-white text-slate-700">{activeTemplate?.name || "Template-led custom line"}</Badge>
-                        {lockedPouchStyle ? <Badge className="border border-violet-200 bg-violet-50 text-violet-700">{lockedPouchStyle.replaceAll("_", " ")}</Badge> : null}
+                        {lockedPouchStyle ? <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{lockedPouchStyle.replaceAll("_", " ")}</Badge> : null}
                         <Badge className="border border-amber-200 bg-amber-50 text-amber-700">Expert mode</Badge>
                     </div>
                 </div>

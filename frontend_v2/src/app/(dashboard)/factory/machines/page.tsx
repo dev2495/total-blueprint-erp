@@ -386,7 +386,7 @@ export default function MachinesPage() {
             description="Manage specific production units and equipment within your work centers."
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            searchPlaceholder="Search by code, name, or work center..."
+            searchPlaceholder="Search machines by code, name, or work center..."
             actions={
                 <Dialog open={isCreateOpen} onOpenChange={(open) => {
                     setIsCreateOpen(open)
@@ -466,7 +466,7 @@ export default function MachinesPage() {
                             <CardContent className="pt-6">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
                                             <Zap className="h-6 w-6" />
                                         </div>
                                         <div>
@@ -483,7 +483,7 @@ export default function MachinesPage() {
                                                 <span className="text-slate-500">{wc?.name || "No WC"}</span>
                                             </div>
                                             <div className="mt-2">
-                                                <Badge variant="outline" className="border-indigo-200 text-indigo-700">
+                                                <Badge variant="outline" className="border-blue-200 text-blue-700">
                                                     {machine.cost_absorption_group_code || wc?.default_cost_absorption_group_code || "Inherited from work center"}
                                                 </Badge>
                                             </div>

@@ -156,7 +156,7 @@ const shouldBypassRefresh = (url: string): boolean => {
 const isOnLoginRoute = (): boolean => {
     if (typeof window === "undefined") return false;
     const pathname = String(window.location.pathname || "").toLowerCase();
-    return pathname === "/login" || pathname.startsWith("/login/");
+    return pathname === "/login" || pathname.startsWith("/login/") || pathname === "/admin-login" || pathname.startsWith("/admin-login/");
 };
 
 const hasRetryHeader = (headers: AxiosRequestConfig["headers"]): boolean => {

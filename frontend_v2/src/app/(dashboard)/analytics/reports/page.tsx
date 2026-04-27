@@ -338,7 +338,7 @@ export default function ReportsHubPage() {
                         description="Keep the summary stable, make the active report tab do the heavy lifting, and jump into the exact report route from here."
                         actions={(
                             <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <SelectedTabIcon className="h-4 w-4 text-indigo-600" />
+                                <SelectedTabIcon className="h-4 w-4 text-blue-600" />
                                 <span>{payload.generated_at ? `Generated ${new Date(payload.generated_at).toLocaleString()}` : "Awaiting first run"}</span>
                                 <Badge variant="outline">Live</Badge>
                             </div>
@@ -356,7 +356,7 @@ export default function ReportsHubPage() {
                                             onClick={() => setTab(item.id)}
                                             className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
                                                 active
-                                                    ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                    ? "border-blue-300 bg-blue-50 text-blue-700"
                                                     : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                                             }`}
                                         >
@@ -395,7 +395,7 @@ export default function ReportsHubPage() {
                                 <div className="space-y-4">
                                     <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4">
                                         <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                                            <Activity className="h-4 w-4 text-indigo-600" />
+                                            <Activity className="h-4 w-4 text-blue-600" />
                                             Live Reporting Signals
                                         </div>
                                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -478,7 +478,7 @@ export default function ReportsHubPage() {
 
                                 <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4">
                                     <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                                        <Activity className="h-4 w-4 text-indigo-600" />
+                                        <Activity className="h-4 w-4 text-blue-600" />
                                         Active report workspace
                                     </div>
                                     <ScrollArea className="mt-4 h-[520px] pr-3">
@@ -608,7 +608,7 @@ export default function ReportsHubPage() {
                                                         href={analyticsApi.getReportRunPreviewUrl(run.id)}
                                                         target="_blank"
                                                         rel="noreferrer"
-                                                        className="inline-flex font-semibold text-indigo-600 hover:text-indigo-700"
+                                                        className="inline-flex font-semibold text-blue-600 hover:text-blue-700"
                                                     >
                                                         Preview PDF
                                                     </a>

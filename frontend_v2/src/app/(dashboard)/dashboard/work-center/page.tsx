@@ -27,7 +27,7 @@ const clusterTone: Record<string, string> = {
   blocked: "bg-rose-50 text-rose-700 border-rose-200",
   idle: "bg-slate-50 text-slate-700 border-slate-200",
   no_operator: "bg-amber-50 text-amber-700 border-amber-200",
-  no_machine: "bg-violet-50 text-violet-700 border-violet-200",
+  no_machine: "bg-blue-50 text-blue-700 border-blue-200",
 };
 
 export default function WorkCenterDashboard() {
@@ -75,9 +75,9 @@ export default function WorkCenterDashboard() {
       <section className="rounded-[30px] border border-slate-200/80 bg-gradient-to-br from-[#0f172a] via-[#162451] to-[#233ea8] p-7 text-white shadow-[0_24px_90px_rgba(15,23,42,0.18)]">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-indigo-200">Execution Command Deck</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-blue-200">Execution Command Deck</div>
             <h1 className="text-4xl font-black tracking-tight">Work Center Command Deck</h1>
-            <p className="max-w-2xl text-sm font-semibold leading-6 text-indigo-100/90">
+            <p className="max-w-2xl text-sm font-semibold leading-6 text-blue-100/90">
               Shift health, machine readiness, blockers, and live execution discipline for assigned work centers.
             </p>
           </div>

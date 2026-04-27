@@ -184,8 +184,8 @@ export default function InksPage() {
             searchPlaceholder="Search inks..."
             stats={[
                 { label: "Ink masters", value: totalInks.length, subLabel: "Registered colors and bases", icon: Droplets, toneClassName: "bg-cyan-50 text-cyan-700" },
-                { label: "POLY base", value: polyBaseCount, subLabel: "Polyethylene print base", icon: Palette, toneClassName: "bg-indigo-50 text-indigo-700" },
-                { label: "PET base", value: petBaseCount, subLabel: "Polyester print base", icon: Palette, toneClassName: "bg-violet-50 text-violet-700" },
+                { label: "POLY base", value: polyBaseCount, subLabel: "Polyethylene print base", icon: Palette, toneClassName: "bg-blue-50 text-blue-700" },
+                { label: "PET base", value: petBaseCount, subLabel: "Polyester print base", icon: Palette, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Visible", value: filteredInks.length, subLabel: "Matching current search", icon: ShieldCheck, toneClassName: "bg-slate-50 text-slate-700" },
             ]}
             chips={[

@@ -69,8 +69,8 @@ const originRegistry: Record<string, SemanticMeta> = {
   IN_HOUSE: {
     label: "In-house made",
     icon: Factory,
-    badgeClassName: "border-indigo-200 bg-indigo-50 text-indigo-700",
-    softSurfaceClassName: "border-indigo-100 bg-indigo-50/70 text-indigo-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#4F46E5",
   },
   PURCHASED: {
@@ -83,8 +83,8 @@ const originRegistry: Record<string, SemanticMeta> = {
   JOBWORK_RETURN: {
     label: "Jobwork return",
     icon: Workflow,
-    badgeClassName: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
-    softSurfaceClassName: "border-fuchsia-100 bg-fuchsia-50/70 text-fuchsia-900",
+    badgeClassName: "border-sky-200 bg-sky-50 text-sky-700",
+    softSurfaceClassName: "border-sky-100 bg-sky-50/70 text-sky-900",
     chartColor: "#C026D3",
   },
   INTERPLANT_IN: {
@@ -190,15 +190,15 @@ const processStateRegistry: Record<string, SemanticMeta> = {
   LAMINATED: {
     label: "Laminated",
     icon: Layers,
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
-    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#7C3AED",
   },
   SLIT: {
     label: "Slit",
     icon: Layers,
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
-    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#7C3AED",
   },
   FINISHED_GOOD: {
@@ -214,8 +214,8 @@ const materialCategoryRegistry: Record<string, SemanticMeta> = {
   FILM: {
     label: "Film",
     icon: Layers,
-    badgeClassName: "border-indigo-200 bg-indigo-50 text-indigo-700",
-    softSurfaceClassName: "border-indigo-100 bg-indigo-50/70 text-indigo-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#4F46E5",
   },
   INK: {
@@ -266,8 +266,8 @@ const packagingKindRegistry: Record<string, SemanticMeta> = {
   INNER_POUCH: {
     label: "Inner pouch",
     icon: PackageOpen,
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
-    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#7C3AED",
   },
   GONNY: {
@@ -287,8 +287,8 @@ const packagingKindRegistry: Record<string, SemanticMeta> = {
   FILM: {
     label: "Film",
     icon: Layers,
-    badgeClassName: "border-indigo-200 bg-indigo-50 text-indigo-700",
-    softSurfaceClassName: "border-indigo-100 bg-indigo-50/70 text-indigo-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#4F46E5",
   },
   BOX: {
@@ -318,8 +318,8 @@ const packingModeRegistry: Record<string, SemanticMeta> = {
   PRIMARY_PACKS: {
     label: "Primary packs to gonny",
     icon: PackageCheck,
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
-    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#7C3AED",
   },
 }
@@ -380,8 +380,8 @@ const dispatchStatusRegistry: Record<string, SemanticMeta> = {
   IN_TRANSIT: {
     label: "In transit",
     icon: Truck,
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
-    softSurfaceClassName: "border-violet-100 bg-violet-50/70 text-violet-900",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    softSurfaceClassName: "border-blue-100 bg-blue-50/70 text-blue-900",
     chartColor: "#7C3AED",
   },
   DELIVERED: {

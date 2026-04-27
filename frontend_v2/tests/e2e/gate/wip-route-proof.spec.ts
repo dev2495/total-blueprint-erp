@@ -26,16 +26,25 @@ type WipRouteTruthProof = {
 }
 
 function readRouteProof(): WipRouteTruthProof {
+  const repoRoots = Array.from(
+    new Set(
+      [
+        path.resolve(process.cwd(), ".."),
+        path.resolve(__dirname, "../../../.."),
+        process.env.REPO_ROOT,
+      ].filter(Boolean) as string[],
+    ),
+  )
   const candidates = [
-    path.resolve(process.cwd(), "../.runtime/ui-e2e/acceptance/wip_route_truth.json"),
-    path.resolve(process.cwd(), "../.runtime/acceptance/wip_route_truth.json"),
+    ...repoRoots.map((repoRoot) => path.resolve(repoRoot, ".runtime/ui-e2e/acceptance/wip_route_truth.json")),
+    ...repoRoots.map((repoRoot) => path.resolve(repoRoot, ".runtime/acceptance/wip_route_truth.json")),
   ]
     .filter((candidate) => fs.existsSync(candidate))
     .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs)
 
   const proofPath = candidates[0]
   if (!proofPath) {
-    throw new Error("WIP route truth artifact missing in both .runtime/ui-e2e/acceptance and .runtime/acceptance")
+    throw new Error(`WIP route truth artifact missing. Checked repo roots: ${repoRoots.join(", ")}`)
   }
   return JSON.parse(fs.readFileSync(proofPath, "utf8")) as WipRouteTruthProof
 }

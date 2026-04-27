@@ -18,10 +18,10 @@ export default function FactoryAdminPage() {
 
     const sections = [
         { title: "Visual Overview", href: "/factory/overview", icon: LayoutDashboard, description: "Real-time hierarchy tree", color: "bg-blue-50 text-blue-600" },
-        { title: "Plants", href: "/factory/plants", icon: Factory, description: "Manage factory locations", color: "bg-indigo-50 text-indigo-600" },
+        { title: "Plants", href: "/factory/plants", icon: Factory, description: "Manage factory locations", color: "bg-blue-50 text-blue-600" },
         { title: "Work Centers", href: "/factory/work-centers", icon: Boxes, description: "Production work centers", color: "bg-emerald-50 text-emerald-600" },
         { title: "Machines", href: "/factory/machines", icon: Cpu, description: "Machine master data", color: "bg-amber-50 text-amber-600" },
-        { title: "Locations", href: "/factory/locations", icon: MapPin, description: "Inventory locations", color: "bg-purple-50 text-purple-600" },
+        { title: "Locations", href: "/factory/locations", icon: MapPin, description: "Inventory locations", color: "bg-blue-50 text-blue-600" },
         { title: "Processes", href: "/factory/processes", icon: Settings, description: "Manufacturing processes", color: "bg-rose-50 text-rose-600" },
     ]
 
@@ -67,7 +67,7 @@ export default function FactoryAdminPage() {
                                     <section.icon className="h-6 w-6" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-lg group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{section.title}</CardTitle>
+                                    <CardTitle className="text-lg group-hover:text-blue-600 transition-colors uppercase tracking-tight">{section.title}</CardTitle>
                                     <p className="text-sm text-slate-400 font-medium">{section.description}</p>
                                 </div>
                             </CardHeader>

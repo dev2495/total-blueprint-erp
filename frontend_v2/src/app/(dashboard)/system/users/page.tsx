@@ -43,10 +43,10 @@ export default function UsersPage() {
                     <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
                         Identity
                         <span className="text-slate-300 font-light translate-y-[2px]">/</span>
-                        <span className="text-indigo-600 italic">Control</span>
+                        <span className="text-blue-600 italic">Control</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-xs flex items-center gap-2 italic">
-                        Managing {users?.length || 0} authenticated entities across {totalRoles} authority roles <Activity className="h-3.5 w-3.5 text-indigo-400" />
+                        Managing {users?.length || 0} authenticated entities across {totalRoles} authority roles <Activity className="h-3.5 w-3.5 text-blue-400" />
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -66,7 +66,7 @@ export default function UsersPage() {
             {/* Stats Cards - Recalibrated Scale */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { label: "Authenticated", value: users?.length || 0, icon: Users, color: "text-indigo-600", bg: "bg-indigo-50", desc: "Total system identities" },
+                    { label: "Authenticated", value: users?.length || 0, icon: Users, color: "text-blue-600", bg: "bg-blue-50", desc: "Total system identities" },
                     { label: "Active Pulse", value: activeUsers, icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50", desc: "Entities with live access" },
                     { label: "Authority Matrix", value: totalRoles, icon: Shield, color: "text-amber-600", bg: "bg-amber-50", desc: "Defined permission tiers" },
                     { label: "Recent Activity", value: "Sync OK", icon: Zap, color: "text-rose-600", bg: "bg-rose-50", desc: "Access logs normalized" }
@@ -90,7 +90,7 @@ export default function UsersPage() {
             <Card className="border-none shadow-premium rounded-[2rem] bg-white overflow-hidden">
                 <CardHeader className="p-6 pb-2 border-b border-slate-50 bg-slate-50/30">
                     <CardTitle className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2 italic uppercase">
-                        <Key className="h-4 w-4 text-indigo-500" />
+                        <Key className="h-4 w-4 text-blue-500" />
                         Identity Registry
                     </CardTitle>
                 </CardHeader>
@@ -118,7 +118,7 @@ export default function UsersPage() {
                     </div>
                     <CardHeader className="p-6 pb-2">
                         <CardTitle className="text-sm font-black uppercase tracking-widest italic flex items-center gap-2">
-                            <ShieldCheck className="h-4 w-4 text-indigo-400" />
+                            <ShieldCheck className="h-4 w-4 text-blue-400" />
                             Policy Snapshot
                         </CardTitle>
                     </CardHeader>
@@ -132,12 +132,12 @@ export default function UsersPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="border-none shadow-premium rounded-[1.5rem] bg-indigo-600 text-white overflow-hidden relative flex flex-col justify-center items-center p-6 text-center group">
+                <Card className="border-none shadow-premium rounded-[1.5rem] bg-blue-600 text-white overflow-hidden relative flex flex-col justify-center items-center p-6 text-center group">
                     <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <ShieldCheck className="h-6 w-6 text-white" />
                     </div>
                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] italic">Governance Active</h4>
-                    <p className="text-[11px] font-bold text-indigo-100 mt-2 leading-relaxed opacity-70 uppercase">RBAC Synchronized with <br /> Central Authority</p>
+                    <p className="text-[11px] font-bold text-blue-100 mt-2 leading-relaxed opacity-70 uppercase">RBAC Synchronized with <br /> Central Authority</p>
                 </Card>
             </div>
         </div>

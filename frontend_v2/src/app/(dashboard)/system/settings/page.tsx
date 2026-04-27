@@ -57,7 +57,7 @@ export default function SettingsPage() {
       <Card className="border-slate-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg font-black text-slate-900">
-            <BellRing className="h-5 w-5 text-indigo-600" />
+            <BellRing className="h-5 w-5 text-blue-600" />
             New report model
           </CardTitle>
           <CardDescription>Use the report center for activation and manual generation. Use the notification tray for visibility when daily packs are created.</CardDescription>

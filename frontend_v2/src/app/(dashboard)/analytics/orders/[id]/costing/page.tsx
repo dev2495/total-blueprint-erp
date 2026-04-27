@@ -36,7 +36,7 @@ export default function OrderProfitabilityPage() {
     if (isLoading) {
         return (
             <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
-                <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+                <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
             </div>
         )
     }
@@ -52,7 +52,7 @@ export default function OrderProfitabilityPage() {
                 <Button
                     onClick={() => calculateMutation.mutate()}
                     disabled={calculateMutation.isPending}
-                    className="h-12 px-8 rounded-xl bg-slate-900 hover:bg-indigo-600 text-white font-black uppercase text-xs tracking-[0.2em] shadow-xl"
+                    className="h-12 px-8 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black uppercase text-xs tracking-[0.2em] shadow-xl"
                 >
                     {calculateMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                     Initialize Cost Calculation
@@ -66,14 +66,14 @@ export default function OrderProfitabilityPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <Link href="/analytics/costing" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-indigo-600 transition-colors mb-4 group">
+                    <Link href="/analytics/costing" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-blue-600 transition-colors mb-4 group">
                         <ArrowLeft className="h-3 w-3 group-hover:-translate-x-1 transition-transform" /> Back to Center
                     </Link>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
-                        <ShoppingCart className="h-3 w-3 fill-indigo-600" /> Order Intelligence
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
+                        <ShoppingCart className="h-3 w-3 fill-blue-600" /> Order Intelligence
                     </div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 flex items-center gap-3 italic">
-                        {cost.order_number} <span className="text-indigo-600">Profitability</span>
+                        {cost.order_number} <span className="text-blue-600">Profitability</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-sm flex items-center gap-2 uppercase tracking-wide">
                         {cost.customer_name} <ChevronRight className="h-3 w-3" /> {cost.product_name}
@@ -114,7 +114,7 @@ export default function OrderProfitabilityPage() {
                 <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[
                         { label: "Sales Price", value: `₹${Math.round(Number(cost.selling_price)).toLocaleString()}`, icon: DollarSign, color: "text-emerald-600", desc: "Total billable value" },
-                        { label: "Material Cost", value: `₹${Math.round(Number(cost.material_cost)).toLocaleString()}`, icon: Layers, color: "text-indigo-600", desc: "Film + Ink + POD + RM" },
+                        { label: "Material Cost", value: `₹${Math.round(Number(cost.material_cost)).toLocaleString()}`, icon: Layers, color: "text-blue-600", desc: "Film + Ink + POD + RM" },
                         { label: "Conversion Cost", value: `₹${Math.round(Number(cost.conversion_cost)).toLocaleString()}`, icon: Activity, color: "text-amber-600", desc: "Process hourly overheads" }
                     ].map((kpi, i) => (
                         <Card key={i} className="border-none shadow-soft rounded-[2rem] p-8 bg-white group hover:shadow-xl transition-all">
@@ -136,7 +136,7 @@ export default function OrderProfitabilityPage() {
                             </div>
                             <div className="flex items-center gap-6">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-indigo-600" />
+                                    <div className="w-3 h-3 rounded-full bg-blue-600" />
                                     <span className="text-[10px] font-black uppercase text-slate-500">Materials ({(Number(cost.material_cost) / Number(cost.total_cost) * 100).toFixed(0)}%)</span>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -146,7 +146,7 @@ export default function OrderProfitabilityPage() {
                             </div>
                         </div>
                         <div className="h-6 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-                            <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${(Number(cost.material_cost) / Number(cost.total_cost) * 100)}%` }} />
+                            <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${(Number(cost.material_cost) / Number(cost.total_cost) * 100)}%` }} />
                             <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${(Number(cost.conversion_cost) / Number(cost.total_cost) * 100)}%` }} />
                         </div>
                     </Card>
@@ -158,7 +158,7 @@ export default function OrderProfitabilityPage() {
                 <Card className="border-none shadow-premium rounded-[2.5rem] overflow-hidden bg-white">
                     <CardHeader className="bg-slate-50 p-8 border-b border-slate-100">
                         <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-900 flex items-center gap-3">
-                            <Layers className="h-4 w-4 text-indigo-500" />
+                            <Layers className="h-4 w-4 text-blue-500" />
                             Material Components
                         </CardTitle>
                     </CardHeader>

@@ -201,7 +201,7 @@ function eventTone(type?: string) {
     const normalized = String(type || '').toUpperCase();
     if (normalized.includes('SCRAP')) return 'bg-rose-500';
     if (normalized.includes('DOWN')) return 'bg-slate-500';
-    if (normalized.includes('CONSUMPTION')) return 'bg-violet-600';
+    if (normalized.includes('CONSUMPTION')) return 'bg-blue-600';
     if (normalized.includes('QUALITY')) return 'bg-cyan-500';
     if (normalized.includes('ROLL')) return 'bg-blue-500';
     return 'bg-emerald-500';
@@ -229,11 +229,11 @@ function specChips(spec: any, selectedJob: any, context: any) {
     return [
         { label: spec.fgType || selectedJob?.output_form || 'FG', tone: 'bg-rose-50 text-rose-800 border-rose-200' },
         { label: spec.size?.label || 'Size not captured', tone: 'bg-sky-50 text-sky-800 border-sky-200' },
-        thickness ? { label: thickness, tone: 'bg-indigo-50 text-indigo-800 border-indigo-200' } : null,
-        variant ? { label: variant, tone: 'bg-violet-50 text-violet-800 border-violet-200' } : null,
+        thickness ? { label: thickness, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
+        variant ? { label: variant, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
         grade ? { label: grade, tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' } : null,
-        spec.printingLabel ? { label: spec.printingLabel, tone: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200' } : null,
-        template ? { label: template, tone: 'bg-purple-50 text-purple-800 border-purple-200' } : null,
+        spec.printingLabel ? { label: spec.printingLabel, tone: 'bg-sky-50 text-sky-800 border-sky-200' } : null,
+        template ? { label: template, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
     ].filter(Boolean) as Array<{ label: string; tone: string }>;
 }
 
@@ -1704,11 +1704,11 @@ function ProcessLogForm(props: any) {
             ) : null}
 
             {reconcilableBulkRows.length ? (
-                <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3">
+                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
                     <div className="mb-2 flex items-center justify-between">
                         <div>
-                            <div className={cn(labelClass, 'text-violet-800')}>Material actuals</div>
-                            <div className="text-[11px] text-violet-900/70">Confirm measured issue/return/scrap before closing this step.</div>
+                            <div className={cn(labelClass, 'text-blue-800')}>Material actuals</div>
+                            <div className="text-[11px] text-blue-900/70">Confirm measured issue/return/scrap before closing this step.</div>
                         </div>
                     </div>
                     <div className="space-y-2">
@@ -1717,7 +1717,7 @@ function ProcessLogForm(props: any) {
                             const draft = materialConfirmations[requirementId];
                             if (!draft) return null;
                             return (
-                                <div key={requirementId} className="grid gap-2 rounded-lg border border-violet-100 bg-white p-2 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] md:items-end">
+                                <div key={requirementId} className="grid gap-2 rounded-lg border border-blue-100 bg-white p-2 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] md:items-end">
                                     <div>
                                         <div className="text-xs font-black text-slate-900">{row.material_name || row.material_code || 'Material'}</div>
                                         <div className="text-[10px] font-semibold text-slate-500">Required {kg(row.required_qty_kg || row.theoretical_qty_kg)}</div>
@@ -2037,7 +2037,7 @@ function SublogDialog(props: any) {
                             <div><Label className={labelClass}>Quantity kg</Label><Input value={consumptionQty} onChange={(event) => setConsumptionQty(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="number" step="0.001" /></div>
                         </div>
                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><Checkbox checked={consumptionEstimated} onCheckedChange={(value) => setConsumptionEstimated(Boolean(value))} /> Estimated quantity</label>
-                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-violet-700 to-violet-500 text-white" disabled={consumptionPending} onClick={onSaveConsumption}>Save consumption</Button></div>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-blue-700 to-blue-500 text-white" disabled={consumptionPending} onClick={onSaveConsumption}>Save consumption</Button></div>
                     </>
                 ) : sublog === 'quality' ? (
                     <>

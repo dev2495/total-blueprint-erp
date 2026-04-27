@@ -25,17 +25,26 @@ type InhousePackagingProof = {
 }
 
 function readAcceptanceProof(): InhousePackagingProof {
+  const repoRoots = Array.from(
+    new Set(
+      [
+        path.resolve(process.cwd(), ".."),
+        path.resolve(__dirname, "../../../.."),
+        process.env.REPO_ROOT,
+      ].filter(Boolean) as string[],
+    ),
+  )
   const candidates = [
-    path.resolve(process.cwd(), "../.runtime/final-go-live-acceptance/inhouse_packaging_proof.json"),
-    path.resolve(process.cwd(), "../.runtime/ui-e2e/acceptance/inhouse_packaging_proof.json"),
-    path.resolve(process.cwd(), "../.runtime/acceptance/inhouse_packaging_proof.json"),
+    ...repoRoots.map((repoRoot) => path.resolve(repoRoot, ".runtime/final-go-live-acceptance/inhouse_packaging_proof.json")),
+    ...repoRoots.map((repoRoot) => path.resolve(repoRoot, ".runtime/ui-e2e/acceptance/inhouse_packaging_proof.json")),
+    ...repoRoots.map((repoRoot) => path.resolve(repoRoot, ".runtime/acceptance/inhouse_packaging_proof.json")),
   ]
     .filter((candidate) => fs.existsSync(candidate))
     .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs)
 
   const proofPath = candidates[0]
   if (!proofPath) {
-    throw new Error("Acceptance proof missing in both .runtime/ui-e2e/acceptance and .runtime/acceptance")
+    throw new Error(`Acceptance proof missing. Checked repo roots: ${repoRoots.join(", ")}`)
   }
   return JSON.parse(fs.readFileSync(proofPath, "utf8")) as InhousePackagingProof
 }
@@ -67,14 +76,15 @@ test("produced in-house packaging is visible across packaging inventory, packing
   await assertHealthyPage(page)
 
   const packagingSearch = page.getByPlaceholder(/Search packaging material, code, kind, plant, or location/i).first()
+  const packagingPage = page.locator("body")
 
   await packagingSearch.fill(String(innerSku?.code || "PACK_INNER_100_INHOUSE"))
-  await expect(page.locator("tbody").first()).toContainText(String(innerSku?.code || "PACK_INNER_100_INHOUSE"))
-  await expect(page.locator("tbody").first()).toContainText(formatQty(proof.stock.after_consumption.inner_pouch_pcs, "PCS"))
+  await expect(packagingPage).toContainText(String(innerSku?.code || "PACK_INNER_100_INHOUSE"))
+  await expect(packagingPage).toContainText(formatQty(proof.stock.after_consumption.inner_pouch_pcs, "PCS"))
 
   await packagingSearch.fill(String(sheetSku?.code || "PACK_ROLL_SHEET_INHOUSE"))
-  await expect(page.locator("tbody").first()).toContainText(String(sheetSku?.code || "PACK_ROLL_SHEET_INHOUSE"))
-  await expect(page.locator("tbody").first()).toContainText(formatQty(proof.stock.after_consumption.sheet_kg, "KG"))
+  await expect(packagingPage).toContainText(String(sheetSku?.code || "PACK_ROLL_SHEET_INHOUSE"))
+  await expect(packagingPage).toContainText(formatQty(proof.stock.after_consumption.sheet_kg, "KG"))
 
   await page.goto("/logistics/packing", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
@@ -92,8 +102,7 @@ test("produced in-house packaging is visible across packaging inventory, packing
 
   const salesOrderLabel = String(proofChallan?.so_number || proofChallan?.sales_order_number || "")
   if (salesOrderLabel) {
-    await page.getByTestId("packing-sales-order-select").click()
-    await page.getByRole("option", { name: new RegExp(salesOrderLabel, "i") }).click()
+    await page.getByRole("button", { name: new RegExp(salesOrderLabel, "i") }).first().click()
   }
 
   await expect(page.locator("body")).toContainText(String(primaryPackGonny?.label || ""))

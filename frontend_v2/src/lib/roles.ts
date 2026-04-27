@@ -10,6 +10,7 @@ export const ROLE_LANDING_PAGES: Record<string, string> = {
   SALES: '/dashboard/sales',
   PLANNER: '/dashboard/planner',
   WORK_CENTER_MANAGER: '/production/work-center',
+  OPERATOR: '/production/machine-selector',
   STORE: '/inventory/roll-explorer',
   DISPATCH: '/dashboard/logistics',
   ENGINEERING: '/engineering/artworks',
@@ -19,10 +20,11 @@ export const ROLE_LANDING_PAGES: Record<string, string> = {
 export const CANONICAL_ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
   OWNER: 'Owner',
-  SUPER_ADMIN: 'Admin',
+  SUPER_ADMIN: 'Super Admin',
   SALES: 'Sales',
   PLANNER: 'Planner',
   WORK_CENTER_MANAGER: 'Work Center Manager',
+  OPERATOR: 'Operator',
   ENGINEERING: 'Engineering',
   STORE: 'Store',
   DISPATCH: 'Dispatch',
@@ -30,10 +32,8 @@ export const CANONICAL_ROLE_LABELS: Record<string, string> = {
 }
 
 export const LEGACY_ROLE_CODE_ALIASES: Record<string, string> = {
-  SUPER_ADMIN: 'ADMIN',
   ENGINEER: 'ENGINEERING',
   WC_MANAGER: 'WORK_CENTER_MANAGER',
-  OPERATOR: 'WORK_CENTER_MANAGER',
   INVENTORY: 'STORE',
   PRODUCTION_MANAGER: 'PLANT_MANAGER',
 }

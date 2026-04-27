@@ -101,7 +101,7 @@ export default function MachineSelectorPage() {
             {/* Rich Background Elements */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
                 <div className="absolute -top-[10%] -left-[10%] h-[34%] w-[34%] rounded-full bg-blue-100/45 blur-[120px]" />
-                <div className="absolute top-[20%] -right-[5%] h-[28%] w-[28%] rounded-full bg-indigo-100/30 blur-[100px]" />
+                <div className="absolute top-[20%] -right-[5%] h-[28%] w-[28%] rounded-full bg-blue-100/30 blur-[100px]" />
                 <div className="absolute -bottom-[10%] left-[20%] h-[24%] w-[24%] rounded-full bg-amber-100/35 blur-[110px]" />
             </div>
 
@@ -112,7 +112,7 @@ export default function MachineSelectorPage() {
                         Production Floor Terminal
                     </div>
                     <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4 animate-in fade-in slide-in-from-bottom-3 duration-700 delay-100">
-                        Select Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Machine</span>
+                        Select Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-blue-600">Machine</span>
                     </h1>
                     <p className="text-slate-500 text-lg max-w-2xl font-medium animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
                         You can operate {machines.length} active machines across your assigned work centers. Select a terminal to monitor and log execution.
@@ -152,8 +152,8 @@ export default function MachineSelectorPage() {
                                 <div className={cn(
                                     'absolute -inset-0.5 rounded-3xl blur transition duration-500',
                                     isLastUsed
-                                        ? 'bg-gradient-to-r from-emerald-500 to-indigo-500 opacity-25'
-                                        : 'bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-20',
+                                        ? 'bg-gradient-to-r from-emerald-500 to-blue-500 opacity-25'
+                                        : 'bg-gradient-to-r from-blue-500 to-blue-500 opacity-0 group-hover:opacity-20',
                                 )}></div>
 
                                 <Card
@@ -173,9 +173,9 @@ export default function MachineSelectorPage() {
                                     <div className={cn(
                                         "h-1.5 w-full",
                                         isLastUsed
-                                            ? 'bg-gradient-to-r from-emerald-500 to-indigo-500'
+                                            ? 'bg-gradient-to-r from-emerald-500 to-blue-500'
                                             : isActive
-                                                ? "bg-gradient-to-r from-blue-500 to-indigo-500"
+                                                ? "bg-gradient-to-r from-blue-500 to-blue-500"
                                                 : "bg-slate-300"
                                     )} />
 
@@ -229,7 +229,7 @@ export default function MachineSelectorPage() {
                                         {/* Status Area */}
                                         <div className="relative min-h-[90px]">
                                             {isExecuting ? (
-                                                <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 rounded-2xl border border-blue-100/50 shadow-inner group-hover:shadow-md transition-shadow">
+                                                <div className="p-4 bg-gradient-to-br from-blue-50/50 to-blue-50/50 rounded-2xl border border-blue-100/50 shadow-inner group-hover:shadow-md transition-shadow">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <div className="relative">
                                                             <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-20"></div>

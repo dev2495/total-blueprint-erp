@@ -102,7 +102,7 @@ export default function EngineeringTemplatesPage() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'DRAFT': return <Badge variant="secondary">Draft</Badge>
-            case 'ENGINEERING': return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200">Engineering</Badge>
+            case 'ENGINEERING': return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">Engineering</Badge>
             case 'APPROVED': return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">Approved</Badge>
             case 'LIVE': return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">Live</Badge>
             case 'OBSOLETE': return <Badge variant="outline" className="text-slate-400">Obsolete</Badge>
@@ -117,7 +117,7 @@ export default function EngineeringTemplatesPage() {
                     <div className="max-w-2xl">
                         <div className="mb-2 flex items-center gap-2">
                             <Badge variant="outline" className="border-slate-900 bg-slate-900 px-2 py-0.5 text-[10px] font-black tracking-[0.18em] text-white">ENGINEERING HUB</Badge>
-                            <Badge variant="outline" className="border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[10px] font-black tracking-[0.18em] text-indigo-700">ROUTE CONTRACTS</Badge>
+                            <Badge variant="outline" className="border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-black tracking-[0.18em] text-blue-700">ROUTE CONTRACTS</Badge>
                         </div>
                         <h1 className="text-3xl font-black tracking-tight text-slate-950">
                             Template Studio
@@ -140,7 +140,7 @@ export default function EngineeringTemplatesPage() {
                 </div>
                 <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
                     <Button
-                        className="h-11 rounded-xl bg-indigo-600 px-7 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-indigo-100 hover:bg-slate-950"
+                        className="h-11 rounded-xl bg-blue-600 px-7 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-blue-100 hover:bg-slate-950"
                         onClick={() => setCreateOpen(true)}
                     >
                         <Plus className="mr-2 h-4 w-4" /> New Template
@@ -238,7 +238,7 @@ export default function EngineeringTemplatesPage() {
                             placeholder="Search template name or id..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-9 font-semibold focus-visible:ring-indigo-500"
+                            className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-9 font-semibold focus-visible:ring-blue-500"
                         />
                     </div>
                     <div className="flex flex-wrap items-center gap-2 xl:border-l xl:border-slate-100 xl:pl-4">
@@ -316,10 +316,10 @@ export default function EngineeringTemplatesPage() {
                             ) : (
                                 <>
                                     {visibleTemplates.map((t) => (
-                                        <TableRow key={t.id} className="group cursor-pointer border-b border-slate-100 transition-colors hover:bg-indigo-50/30">
+                                        <TableRow key={t.id} className="group cursor-pointer border-b border-slate-100 transition-colors hover:bg-blue-50/30">
                                             <TableCell className="px-6 py-5">
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-black tracking-tight text-slate-950 transition-colors group-hover:text-indigo-600">{t.name}</span>
+                                                    <span className="text-sm font-black tracking-tight text-slate-950 transition-colors group-hover:text-blue-600">{t.name}</span>
                                                     <span className="mt-1 text-[10px] font-semibold text-slate-400">ID {t.id.slice(0, 8)} · route {t.routing_rule_name || "not linked"}</span>
                                                 </div>
                                             </TableCell>
@@ -338,7 +338,7 @@ export default function EngineeringTemplatesPage() {
                                                 <span className="text-xs font-bold text-slate-600">v{t.version}</span>
                                             </TableCell>
                                             <TableCell className="text-right px-6">
-                                                <Button variant="outline" size="sm" asChild className="rounded-xl border-slate-200 bg-white font-bold hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600">
+                                                <Button variant="outline" size="sm" asChild className="rounded-xl border-slate-200 bg-white font-bold hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600">
                                                     <Link href={`/engineering/templates/${t.id}`}>
                                                         Studio <ArrowRight className="h-3 w-3 ml-1" />
                                                     </Link>

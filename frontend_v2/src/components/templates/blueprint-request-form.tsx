@@ -101,7 +101,7 @@ export function BlueprintRequestForm({ onSubmit, isLoading, initialValues }: Blu
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 relative">
-                    <span className="absolute -top-2 left-3 bg-white px-2 text-[9px] font-black uppercase text-indigo-500 tracking-widest border border-indigo-100 rounded-md">Geometry</span>
+                    <span className="absolute -top-2 left-3 bg-white px-2 text-[9px] font-black uppercase text-blue-500 tracking-widest border border-blue-100 rounded-md">Geometry</span>
                     <FormField control={form.control} name="geometry.width_mm" render={({ field }) => (
                         <FormItem>
                             <FormLabel className="text-[10px] uppercase text-slate-400 font-bold">Width (mm)</FormLabel>
@@ -157,7 +157,7 @@ export function BlueprintRequestForm({ onSubmit, isLoading, initialValues }: Blu
                 </div>
 
                 <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
-                    <Button type="submit" disabled={isLoading} className="bg-indigo-600 hover:bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale">
+                    <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale">
                         {initialValues ? 'SAVE CHANGES' : <><Plus className="h-4 w-4 mr-2" /> CREATE DRAFT</>}
                     </Button>
                 </div>

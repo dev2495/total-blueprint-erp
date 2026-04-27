@@ -93,7 +93,7 @@ export default function VendorsPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search by name or code..."
             stats={[
-                { label: "Partners", value: (vendors || []).length, subLabel: "Suppliers and job workers", icon: Truck, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Partners", value: (vendors || []).length, subLabel: "Suppliers and job workers", icon: Truck, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Active", value: (vendors || []).filter((vendor) => vendor.status === "ACTIVE").length, subLabel: "Ready for purchase or jobwork", icon: ShieldCheck, toneClassName: "bg-emerald-50 text-emerald-700" },
                 { label: "Jobwork ready", value: (vendors || []).filter((vendor) => ["JOBWORK", "BOTH"].includes(vendor.type)).length, subLabel: "Can receive outsourced work", icon: Factory, toneClassName: "bg-cyan-50 text-cyan-700" },
                 { label: "QC required", value: (vendors || []).filter((vendor) => Boolean(vendor.qc_required)).length, subLabel: "Extra incoming quality checks", icon: ShieldCheck, toneClassName: "bg-amber-50 text-amber-700" },

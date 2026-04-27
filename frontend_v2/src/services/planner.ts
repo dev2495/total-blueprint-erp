@@ -402,6 +402,9 @@ export interface PlannerControlHubParams {
     history_query?: string;
     history_source?: "ALL" | "FG" | "WIP" | "FRESH" | string;
     history_order_kind?: "ALL" | "SALES" | "STOCK" | string;
+    detail_order_kind?: "sales" | "stock" | string;
+    detail_order_id?: string;
+    timeout_ms?: number;
 }
 
 export interface PlannerAllocationPayload {
@@ -454,6 +457,11 @@ export interface CreateStockOrderPayload {
     start_step_index: number;
     stop_step_index?: number;
     preferred_plant_id?: string;
+}
+
+export interface CreateStockOrdersBulkResponse {
+    created: any[];
+    failed: Array<{ index: number; error: string | Record<string, unknown> }>;
 }
 
 export interface PlannerSkuVariantPreset {
@@ -583,6 +591,22 @@ export const plannerService = {
         return data;
     },
 
+    createStockOrdersBulk: async (rows: CreateStockOrderPayload[], idempotencyKey?: string): Promise<CreateStockOrdersBulkResponse> => {
+        const { data } = await api.post(
+            '/api/production/planner/create-stock-orders-bulk/',
+            { rows },
+            { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined },
+        );
+        return data;
+    },
+
+    matchRecipe: async (invariantSignature: string) => {
+        const { data } = await api.get('/api/production/planner/match-recipe/', {
+            params: { invariant_signature: invariantSignature },
+        });
+        return data;
+    },
+
     getPlannerSkus: async (params?: { template_id?: string; active?: boolean }) => {
         const { data } = await api.get<MaybePaginated<PlannerSkuPreset>>('/api/production/planner/sku-catalog/', { params });
         return unwrapList<PlannerSkuPreset>(data);
@@ -628,7 +652,10 @@ export const plannerService = {
                 history_query: params?.history_query || undefined,
                 history_source: params?.history_source || undefined,
                 history_order_kind: params?.history_order_kind || undefined,
+                detail_order_kind: params?.detail_order_kind || undefined,
+                detail_order_id: params?.detail_order_id || undefined,
             },
+            timeout: params?.timeout_ms ?? 30000,
         });
         if (!data || typeof data !== "object" || Array.isArray(data)) {
             throw new Error("Invalid planner control-hub response payload")

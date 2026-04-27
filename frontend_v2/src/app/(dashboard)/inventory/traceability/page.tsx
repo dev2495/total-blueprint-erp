@@ -48,7 +48,7 @@ function statusTone(status?: string | null): "default" | "secondary" | "outline"
 function roleTone(role?: string | null): string {
     const key = String(role || "").toUpperCase();
     if (key === "REMAINDER") return "bg-amber-100 text-amber-700 border-amber-200";
-    if (key === "OUTPUT" || key === "SPLIT_OUTPUT") return "bg-indigo-100 text-indigo-700 border-indigo-200";
+    if (key === "OUTPUT" || key === "SPLIT_OUTPUT") return "bg-blue-100 text-blue-700 border-blue-200";
     if (key === "FG") return "bg-emerald-100 text-emerald-700 border-emerald-200";
     return "bg-slate-100 text-slate-700 border-slate-200";
 }
@@ -76,13 +76,13 @@ function NodeCard({ node, isChild = false, isLast = false }: { node: GenealogyNo
             <div
                 className={cn(
                     "relative z-10 rounded-2xl border bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md",
-                    !isChild ? "border-indigo-300 ring-4 ring-indigo-50/50" : "border-slate-200"
+                    !isChild ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200"
                 )}
             >
                 <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="min-w-0 flex items-start gap-3">
                         {!isChild ? (
-                            <div className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="bg-blue-100 text-blue-700 w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm">
                                 <GitCommit className="h-5 w-5" />
                             </div>
                         ) : (
@@ -93,7 +93,7 @@ function NodeCard({ node, isChild = false, isLast = false }: { node: GenealogyNo
                         <div>
                             <div className="font-black text-slate-900 text-[15px] truncate flex items-center gap-2">
                                 {node.label_id}
-                                {node.job_number && <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md uppercase font-bold tracking-wider">Job {node.job_number}</span>}
+                                {node.job_number && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md uppercase font-bold tracking-wider">Job {node.job_number}</span>}
                             </div>
                             <div className="text-xs text-slate-500 font-semibold truncate flex items-center gap-1.5 mt-0.5">
                                 {node.material_name || "Unknown Material"}
@@ -350,7 +350,7 @@ export default function RollTraceabilityPage() {
                             <Card className="rounded-[2rem] border border-white/60 bg-white/80">
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-sm font-black tracking-wider uppercase text-slate-800 flex items-center gap-2">
-                                        <Layers className="h-4 w-4 text-indigo-600" />
+                                        <Layers className="h-4 w-4 text-blue-600" />
                                         Genealogy Tree
                                     </CardTitle>
                                 </CardHeader>
@@ -395,7 +395,7 @@ export default function RollTraceabilityPage() {
                                                 </div>
                                             )}
                                             {event.reason && <div className="text-xs text-slate-500 mt-1">{event.reason}</div>}
-                                            {event.job && <div className="text-xs text-indigo-600 mt-1 font-semibold">Job: {event.job}</div>}
+                                            {event.job && <div className="text-xs text-blue-600 mt-1 font-semibold">Job: {event.job}</div>}
                                         </div>
                                     ))}
                                 </CardContent>

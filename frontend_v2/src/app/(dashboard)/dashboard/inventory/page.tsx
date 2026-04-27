@@ -38,7 +38,7 @@ import {
 } from "recharts";
 import { useInView } from "react-intersection-observer";
 
-const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+const COLORS = ["#60a5fa", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
 function ScrollTriggeredChart({
   children,
@@ -164,7 +164,7 @@ export default function InventoryDashboard() {
       {/* SaaS Subtle Hero Hub */}
       <div className="relative overflow-hidden rounded-3xl bg-slate-900 border border-slate-800 p-8 text-white shadow-2xl shadow-slate-900/20">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-indigo-500/5 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-blue-500/5 blur-3xl" />
 
         <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
           <div>

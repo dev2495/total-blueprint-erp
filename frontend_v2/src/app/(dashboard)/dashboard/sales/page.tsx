@@ -35,7 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-const CHART_COLORS = ["#4f46e5", "#7c3aed", "#0ea5e9", "#10b981", "#f59e0b", "#f97316"]
+const CHART_COLORS = ["#2563eb", "#3b82f6", "#0ea5e9", "#10b981", "#f59e0b", "#f97316"]
 
 function metricValue(metrics: any[], label: string) {
     return metrics.find((metric) => String(metric?.label || "").toLowerCase() === label.toLowerCase()) || null
@@ -78,7 +78,7 @@ export default function SalesDashboard() {
             value: compactValue(metricValue(metrics, "Pipeline Volume")?.value),
             sublabel: compactValue(metricValue(metrics, "Pipeline Volume")?.unit),
             icon: Layers3,
-            tone: "bg-indigo-50 text-indigo-700",
+            tone: "bg-blue-50 text-blue-700",
         },
         {
             label: "Revenue (MTD)",
@@ -105,22 +105,22 @@ export default function SalesDashboard() {
 
     return (
         <div className="space-y-5 pb-8">
-            <section className="overflow-hidden rounded-[2rem] border border-slate-200/70 bg-[linear-gradient(135deg,#1e1b4b_0%,#4338ca_46%,#6366f1_100%)] px-5 py-5 text-white shadow-[0_24px_80px_-36px_rgba(49,46,129,0.55)] md:px-6">
+            <section className="overflow-hidden rounded-[2rem] border border-slate-200/70 bg-[linear-gradient(135deg,#1e1b4b_0%,#1d4ed8_46%,#2563eb_100%)] px-5 py-5 text-white shadow-[0_24px_80px_-36px_rgba(49,46,129,0.55)] md:px-6">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                     <div className="max-w-3xl space-y-3">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-indigo-100">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-blue-100">
                             <Target className="h-3.5 w-3.5" />
                             Commercial Command
                         </div>
                         <div>
                             <h1 className="text-3xl font-black tracking-[-0.05em] md:text-4xl">Sales Command Center</h1>
-                            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-indigo-100/90">
+                            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-blue-100/90">
                                 Compact commercial landing with queue pressure, dispatch-ready demand, customer mix, and recent order movement.
                             </p>
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button asChild className="h-11 rounded-full bg-white px-5 text-sm font-black text-indigo-700 hover:bg-indigo-50">
+                        <Button asChild className="h-11 rounded-full bg-white px-5 text-sm font-black text-blue-700 hover:bg-blue-50">
                             <Link href="/sales/orders/create">
                                 <ShoppingCart className="mr-2 h-4 w-4" />
                                 Create Order
@@ -146,7 +146,7 @@ export default function SalesDashboard() {
                 <PanelCard
                     title="Sales Velocity"
                     description="30-day commercial volume and order creation pulse."
-                    action={<Badge variant="outline" className="rounded-full border-indigo-200 bg-indigo-50 text-indigo-700">Auto-refreshing</Badge>}
+                    action={<Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">Auto-refreshing</Badge>}
                 >
                     {trendData.length ? (
                         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
@@ -155,15 +155,15 @@ export default function SalesDashboard() {
                                     <AreaChart data={trendData}>
                                         <defs>
                                             <linearGradient id="sales-volume-fill" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.28} />
-                                                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.02} />
+                                                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
+                                                <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                                         <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
                                         <Tooltip />
-                                        <Area type="monotone" dataKey="weight" stroke="#4f46e5" strokeWidth={2.5} fill="url(#sales-volume-fill)" />
+                                        <Area type="monotone" dataKey="weight" stroke="#2563eb" strokeWidth={2.5} fill="url(#sales-volume-fill)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
@@ -238,7 +238,7 @@ export default function SalesDashboard() {
                     title="Recent Commercial Activity"
                     description="Latest order movement with direct jump to the register."
                     action={
-                        <Button asChild variant="ghost" className="h-8 rounded-full px-3 text-xs font-black text-indigo-700 hover:bg-indigo-50">
+                        <Button asChild variant="ghost" className="h-8 rounded-full px-3 text-xs font-black text-blue-700 hover:bg-blue-50">
                             <Link href="/sales/orders">Open register</Link>
                         </Button>
                     }
@@ -269,7 +269,7 @@ export default function SalesDashboard() {
                                 <div key={`${alert.type}-${index}`} className="flex items-start gap-3 rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
                                     <div className={cn(
                                         "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                                        alert.type === "overdue" ? "bg-rose-100 text-rose-600" : "bg-indigo-100 text-indigo-700"
+                                        alert.type === "overdue" ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-700"
                                     )}>
                                         {alert.type === "overdue" ? <AlertTriangle className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                                     </div>
@@ -285,16 +285,16 @@ export default function SalesDashboard() {
                     </PanelCard>
 
                     <PanelCard title="Monthly Target Pulse" description="Simple commercial forecast against the current monthly target.">
-                        <div className="rounded-[1.2rem] border border-indigo-200 bg-[linear-gradient(135deg,#eef2ff,#eefbf7)] p-4">
+                        <div className="rounded-[1.2rem] border border-blue-200 bg-[linear-gradient(135deg,#eef2ff,#eefbf7)] p-4">
                             <div className="flex items-end justify-between gap-3">
                                 <div>
-                                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-500">Progress</div>
+                                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-500">Progress</div>
                                     <div className="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900">{Number(forecast.percentage || 0)}%</div>
                                 </div>
-                                <Badge variant="outline" className="rounded-full border-indigo-200 bg-white text-indigo-700">Live target</Badge>
+                                <Badge variant="outline" className="rounded-full border-blue-200 bg-white text-blue-700">Live target</Badge>
                             </div>
                             <div className="mt-4 h-3 overflow-hidden rounded-full bg-white">
-                                <div className="h-full rounded-full bg-indigo-600 transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, Number(forecast.percentage || 0)))}%` }} />
+                                <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, Number(forecast.percentage || 0)))}%` }} />
                             </div>
                             <div className="mt-3 text-sm font-medium leading-6 text-slate-600">{compactValue(forecast.status_text)}</div>
                         </div>

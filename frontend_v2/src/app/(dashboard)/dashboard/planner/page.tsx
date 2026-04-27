@@ -122,7 +122,7 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-const PIE_COLORS = ["#111827", "#2563eb", "#14b8a6", "#f59e0b", "#8b5cf6", "#ef4444"];
+const PIE_COLORS = ["#111827", "#2563eb", "#14b8a6", "#f59e0b", "#60a5fa", "#ef4444"];
 
 export default function PlannerDashboardPage() {
   const [countdown, setCountdown] = useState(30);

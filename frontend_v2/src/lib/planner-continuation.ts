@@ -1,12 +1,12 @@
 export function plannerContinuationTone(mode?: string | null) {
   const normalized = String(mode || "").toUpperCase()
   if (normalized === "EXACT_FG") return "border-emerald-200 bg-emerald-50 text-emerald-800"
-  if (normalized === "EXACT_STOCK_ROUTE") return "border-indigo-200 bg-indigo-50 text-indigo-800"
+  if (normalized === "EXACT_STOCK_ROUTE") return "border-blue-200 bg-blue-50 text-blue-800"
   if (normalized === "CARRY_FORWARD_WIP") return "border-sky-200 bg-sky-50 text-sky-800"
   if (normalized === "SHARED_INVARIANT_ROUTE") return "border-amber-200 bg-amber-50 text-amber-800"
   if (normalized === "UPSTREAM_ROUTE") return "border-teal-200 bg-teal-50 text-teal-800"
-  if (normalized === "POD_BULK") return "border-violet-200 bg-violet-50 text-violet-800"
-  if (normalized === "PACKAGING_STOCK") return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800"
+  if (normalized === "POD_BULK") return "border-blue-200 bg-blue-50 text-blue-800"
+  if (normalized === "PACKAGING_STOCK") return "border-sky-200 bg-sky-50 text-sky-800"
   return "border-slate-200 bg-slate-50 text-slate-700"
 }
 

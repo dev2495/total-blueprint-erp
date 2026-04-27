@@ -69,8 +69,8 @@ function statusTone(status: string) {
     if (normalized === "COMPLETED") return "border-emerald-200 bg-emerald-50 text-emerald-700"
     if (normalized === "CANCELLED") return "border-rose-200 bg-rose-50 text-rose-700"
     if (normalized === "EXECUTING") return "border-red-200 bg-red-50 text-red-700"
-    if (normalized === "RELEASED" || normalized === "PLANNED") return "border-indigo-200 bg-indigo-50 text-indigo-700"
-    if (normalized === "PACKING_READY") return "border-violet-200 bg-violet-50 text-violet-700"
+    if (normalized === "RELEASED" || normalized === "PLANNED") return "border-blue-200 bg-blue-50 text-blue-700"
+    if (normalized === "PACKING_READY") return "border-blue-200 bg-blue-50 text-blue-700"
     if (normalized === "IN_TRANSIT" || normalized === "DISPATCH_READY") return "border-cyan-200 bg-cyan-50 text-cyan-700"
     if (normalized === "ON_HOLD" || normalized === "PAUSED" || normalized === "PLANNING_REQUIRED") return "border-amber-200 bg-amber-50 text-amber-700"
     return "border-slate-200 bg-slate-50 text-slate-700"
@@ -155,7 +155,7 @@ export default function OrderTrackingPage() {
                                 Back to sales orders
                             </Button>
                             <div>
-                                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-600">Live tracking</div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-600">Live tracking</div>
                                 <div className="mt-1 flex flex-wrap items-center gap-3">
                                     <h1 className="text-2xl font-black tracking-tight text-slate-900">{data.order_number}</h1>
                                     <span className={cn("rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]", statusTone(data.status))}>
@@ -176,11 +176,11 @@ export default function OrderTrackingPage() {
                             <div className="flex items-center justify-between">
                                 <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Fulfillment truth</div>
                                 <div className="text-right">
-                                    <div className="text-xl font-black text-indigo-600">{safeNumber(progress.completion_percentage).toFixed(0)}%</div>
+                                    <div className="text-xl font-black text-blue-600">{safeNumber(progress.completion_percentage).toFixed(0)}%</div>
                                     <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Complete</div>
                                 </div>
                             </div>
-                            <ProgressRow label="Produced" value={safeNumber(progress.produced)} total={safeNumber(progress.ordered)} percent={progressBars.producedPct} tone="bg-indigo-500" />
+                            <ProgressRow label="Produced" value={safeNumber(progress.produced)} total={safeNumber(progress.ordered)} percent={progressBars.producedPct} tone="bg-blue-500" />
                             <ProgressRow label="Packed" value={safeNumber(progress.packed)} total={safeNumber(progress.ordered)} percent={progressBars.packedPct} tone="bg-cyan-500" />
                             <ProgressRow label="Dispatched" value={safeNumber(progress.dispatched)} total={safeNumber(progress.ordered)} percent={progressBars.dispatchedPct} tone="bg-emerald-500" />
                             <div className="text-[11px] text-slate-500">
@@ -336,7 +336,7 @@ export default function OrderTrackingPage() {
                                         <div className="mt-2 flex flex-wrap gap-2">
                                             <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">{line.fg_type}</span>
                                             {line.roll_form ? <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700">{line.roll_form}</span> : null}
-                                            {line.printing_enabled ? <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-[10px] font-bold text-fuchsia-700">{line.printing_type || "PRINT"}</span> : null}
+                                            {line.printing_enabled ? <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700">{line.printing_type || "PRINT"}</span> : null}
                                         </div>
                                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                             <Metric label="Ordered" value={`${safeNumber(line.ordered_kg).toFixed(2)} kg`} />
@@ -384,10 +384,10 @@ function ProgressRow({
 function KpiCard({ icon: Icon, title, value, tone }: { icon: any; title: string; value: string; tone: string }) {
     const toneClass =
         tone === "blue" ? "bg-blue-50 text-blue-700" :
-        tone === "indigo" ? "bg-indigo-50 text-indigo-700" :
+        tone === "indigo" ? "bg-blue-50 text-blue-700" :
         tone === "amber" ? "bg-amber-50 text-amber-700" :
         tone === "emerald" ? "bg-emerald-50 text-emerald-700" :
-        tone === "violet" ? "bg-violet-50 text-violet-700" :
+        tone === "violet" ? "bg-blue-50 text-blue-700" :
         "bg-slate-100 text-slate-700"
 
     return (
@@ -408,7 +408,7 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: any
         <Card className="rounded-3xl border border-slate-200 bg-white">
             <CardHeader className="border-b border-slate-100 pb-4">
                 <CardTitle className="flex items-center gap-2 text-base font-black text-slate-900">
-                    <Icon className="h-4 w-4 text-indigo-600" />
+                    <Icon className="h-4 w-4 text-blue-600" />
                     {title}
                 </CardTitle>
             </CardHeader>

@@ -129,8 +129,8 @@ export function WorkCenterPerformanceReport({ wcId, onBack, onSelectMachine }: {
                             <AreaChart data={charts.trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorWcOutput" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
-                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -140,7 +140,7 @@ export function WorkCenterPerformanceReport({ wcId, onBack, onSelectMachine }: {
                                     contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     itemStyle={{ color: '#1e293b' }}
                                 />
-                                <Area type="monotone" dataKey="output" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorWcOutput)" strokeWidth={2} name="Output (kg)" />
+                                <Area type="monotone" dataKey="output" stroke="#60a5fa" fillOpacity={1} fill="url(#colorWcOutput)" strokeWidth={2} name="Output (kg)" />
                                 <Area type="monotone" dataKey="scrap" stroke="#ef4444" fill="none" strokeWidth={2} name="Scrap (kg)" />
                             </AreaChart>
                         </ResponsiveContainer>

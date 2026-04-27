@@ -128,7 +128,7 @@ export default function AnalyticsPage() {
       })).filter((row: any) => row.value !== null)
     : []
   const plannerSourceData = [
-    { name: "Direct FG", value: toNullableNumber(plannerSourceMix.direct_fg_orders), color: "#4f46e5" },
+    { name: "Direct FG", value: toNullableNumber(plannerSourceMix.direct_fg_orders), color: "#2563eb" },
     { name: "Invariant", value: toNullableNumber(plannerSourceMix.invariant_orders), color: "#0891b2" },
     { name: "Upstream", value: toNullableNumber(plannerSourceMix.upstream_orders), color: "#16a34a" },
     { name: "Fresh Make", value: toNullableNumber(plannerSourceMix.fresh_make_orders), color: "#f59e0b" },
@@ -142,7 +142,7 @@ export default function AnalyticsPage() {
     { label: "Output", value: `${fmt(metrics.production_output_kg, 0)} KG`, hint: "Current production period" },
   ]
   const operationalPulse = [
-    { label: "OEE", value: Number(metrics.oee || 0), target: 85, tone: "bg-indigo-500" },
+    { label: "OEE", value: Number(metrics.oee || 0), target: 85, tone: "bg-blue-500" },
     { label: "Utilization", value: Number(metrics.utilization || 0), target: 90, tone: "bg-cyan-500" },
     { label: "Efficiency", value: Number(metrics.efficiency || 0), target: 92, tone: "bg-emerald-500" },
     { label: "Scrap", value: Number(metrics.scrap_rate || 0), target: 2.5, inverse: true, tone: "bg-rose-500" },
@@ -237,7 +237,7 @@ export default function AnalyticsPage() {
                     <div className="text-sm font-black text-slate-900">{row.username}</div>
                     <div className="text-xs font-semibold text-slate-500">{fmt(row.events, 0)} execution event(s)</div>
                   </div>
-                  <div className="text-sm font-black text-indigo-700">{fmt(row.output_kg, 0)} KG</div>
+                  <div className="text-sm font-black text-blue-700">{fmt(row.output_kg, 0)} KG</div>
                 </div>
               </div>
             )) : (
@@ -268,7 +268,7 @@ export default function AnalyticsPage() {
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                       <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
                       <Tooltip />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#4f46e5" />
+                      <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#2563eb" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -364,7 +364,7 @@ export default function AnalyticsPage() {
                       <div className="text-sm font-black text-slate-900">{row.sku_name}</div>
                       <div className="text-xs font-semibold text-slate-500">{fmt(row.orders, 0)} orders · {fmt(row.repeat_orders, 0)} repeat</div>
                     </div>
-                    <div className="text-sm font-black text-indigo-700">{fmt(row.weight_kg, 1)} KG</div>
+                    <div className="text-sm font-black text-blue-700">{fmt(row.weight_kg, 1)} KG</div>
                   </div>
                 </div>
               )) : (
@@ -598,7 +598,7 @@ function SignalRow({ title, value, hint }: { title: string; value: string; hint:
   return (
     <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
       <div className="text-sm font-black text-slate-900">{title}</div>
-      <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-indigo-700">{value}</div>
+      <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-blue-700">{value}</div>
       <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">{hint}</div>
     </div>
   )

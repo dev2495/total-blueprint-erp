@@ -22,7 +22,7 @@ function initialsFromName(name: string, fallback = "U") {
     return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 }
 
-export function UserProfileMenu() {
+export function UserProfileMenu({ triggerTestId = "profile-menu-trigger" }: { triggerTestId?: string }) {
     const { user, effectiveRole, logout } = useAuth();
     if (!user) return null;
 
@@ -39,7 +39,7 @@ export function UserProfileMenu() {
                     className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 py-1.5 shadow-sm transition hover:bg-slate-50"
                     type="button"
                     aria-label="Open profile menu"
-                    data-testid="profile-menu-trigger"
+                    data-testid={triggerTestId}
                 >
                     <Avatar className="h-8 w-8">
                         <AvatarImage src={user.avatar_url || ""} alt={displayName} />

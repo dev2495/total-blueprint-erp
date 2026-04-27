@@ -429,7 +429,7 @@ function GradeSelector({
 
 function lineSourceTone(sourceType: LineSource) {
     if (sourceType === "SKU") return "bg-emerald-50 text-emerald-700 border-emerald-200"
-    if (sourceType === "REPEAT") return "bg-indigo-50 text-indigo-700 border-indigo-200"
+    if (sourceType === "REPEAT") return "bg-blue-50 text-blue-700 border-blue-200"
     return "bg-amber-50 text-amber-700 border-amber-200"
 }
 
@@ -1043,11 +1043,11 @@ export default function SalesOrderWorkspace() {
                                                             const selectedVariant = variants.find((variant: any) => String(variant.id) === String(layer.variant_id))
                                                             const selectedFamily = families.find((family: any) => String(family.id) === String(layer.family_id))
                                                             return (
-                                                                <div key={layer.localId} className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 shadow-sm md:grid-cols-2 xl:grid-cols-6">
+                                                                <div key={layer.localId} className="grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4 shadow-sm md:grid-cols-2 xl:grid-cols-6">
                                                                     <div className="md:col-span-2 xl:col-span-6">
                                                                         <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/80 bg-white/80 px-4 py-3">
                                                                             <div>
-                                                                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">Layer {index + 1}</div>
+                                                                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-500">Layer {index + 1}</div>
                                                                                 <div className="mt-1 text-base font-black text-slate-950">
                                                                                     {selectedVariant?.name || selectedFamily?.name || "Select film variant"}
                                                                                 </div>

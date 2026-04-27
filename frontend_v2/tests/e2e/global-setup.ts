@@ -477,6 +477,7 @@ export default async function globalSetup(config: FullConfig) {
     run(preferredPython, [path.join(repoRoot, "scripts/seed_ui_e2e_planner_gate.py")], repoRoot, bootstrapEnv)
     run(preferredPython, [path.join(repoRoot, "scripts/seed_ui_e2e_mutations.py")], repoRoot, bootstrapEnv)
     run(preferredPython, [path.join(repoRoot, "scripts/seed_ui_e2e_sales.py")], repoRoot, bootstrapEnv)
+    run(preferredPython, [path.join(repoRoot, "scripts/run_dryfruit_courier_ui_proof.py")], repoRoot, bootstrapEnv)
     run(preferredPython, [path.join(repoRoot, "scripts/write_uat_green_manifest.py")], repoRoot, bootstrapEnv)
   }
 

@@ -151,7 +151,7 @@ export default function InventoryHistoryPage() {
             value={snapshots.length.toLocaleString()}
             subLabel={`${latestSnapshots.length} plants represented in the latest cycle`}
             icon={Camera}
-            toneClassName="bg-indigo-50 text-indigo-700"
+            toneClassName="bg-blue-50 text-blue-700"
           />
           <SummaryStatCard
             label="Latest stock estate"

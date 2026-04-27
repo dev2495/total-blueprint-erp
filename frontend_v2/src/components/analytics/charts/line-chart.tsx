@@ -17,7 +17,7 @@ interface LineChartProps {
     color?: string
 }
 
-export function LineChart({ data, xKey, yKey, color = "#6366f1" }: LineChartProps) {
+export function LineChart({ data, xKey, yKey, color = "#2563eb" }: LineChartProps) {
     if (!data || data.length === 0) {
         return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No data available</div>
     }

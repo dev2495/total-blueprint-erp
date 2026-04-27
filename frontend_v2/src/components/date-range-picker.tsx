@@ -23,7 +23,7 @@ export function CalendarDateRangePicker({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-        <CalendarIcon className="h-4 w-4 text-indigo-500" />
+        <CalendarIcon className="h-4 w-4 text-blue-500" />
         <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Window</span>
       </div>
       <Input

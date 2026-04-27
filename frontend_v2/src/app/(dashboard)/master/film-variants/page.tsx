@@ -100,7 +100,7 @@ export default function FilmVariantsPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search variants..."
             stats={[
-                { label: "Variants", value: (variants || []).length, subLabel: "Distinct sellable or process variants", icon: Tag, toneClassName: "bg-indigo-50 text-indigo-700" },
+                { label: "Variants", value: (variants || []).length, subLabel: "Distinct sellable or process variants", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Visible", value: filteredVariants.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
                 { label: "Extrudable", value: (variants || []).filter((variant) => Boolean(variant.is_extrudable)).length, subLabel: "Can be made in-house", icon: Factory, toneClassName: "bg-emerald-50 text-emerald-700" },
                 { label: "Purchasable", value: (variants || []).filter((variant) => Boolean(variant.is_purchasable)).length, subLabel: "Can be bought from vendors", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },

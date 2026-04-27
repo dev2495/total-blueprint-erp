@@ -43,7 +43,7 @@ export function LiveJobFeed({ jobs = [] }: { jobs: JobItem[] }) {
                                     <span className="text-sm font-bold text-slate-900">{job.progress}%</span>
                                     <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                         <div
-                                            className="h-full bg-indigo-500 rounded-full transition-all duration-1000"
+                                            className="h-full bg-blue-500 rounded-full transition-all duration-1000"
                                             style={{ width: `${job.progress}%` }}
                                         />
                                     </div>

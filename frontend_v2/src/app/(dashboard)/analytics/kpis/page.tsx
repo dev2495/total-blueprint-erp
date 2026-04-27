@@ -47,7 +47,7 @@ import {
   Cell,
 } from "recharts";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#60a5fa"];
 
 function ScrollTriggeredChart({
   children,
@@ -80,7 +80,7 @@ export default function KPIDashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
           <p className="text-slate-500 font-medium">
             Aggregating Global Metrics...
           </p>
@@ -211,7 +211,7 @@ export default function KPIDashboardPage() {
             onClick={() => refetch()}
             className="shadow-sm"
           >
-            <RefreshCw className="h-4 w-4 mr-2 text-indigo-600" />
+            <RefreshCw className="h-4 w-4 mr-2 text-blue-600" />
             Live Sync
           </Button>
         </div>
@@ -222,10 +222,10 @@ export default function KPIDashboardPage() {
         {/* REVENUE */}
         <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <TrendingUp className="h-24 w-24 text-indigo-600" />
+            <TrendingUp className="h-24 w-24 text-blue-600" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-indigo-600 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-blue-600 uppercase tracking-wider text-xs">
               Gross Revenue (MTD)
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-slate-900">
@@ -254,7 +254,7 @@ export default function KPIDashboardPage() {
               )}
             </div>
           </CardContent>
-          <div className="h-1 w-full bg-indigo-500 absolute bottom-0"></div>
+          <div className="h-1 w-full bg-blue-500 absolute bottom-0"></div>
         </Card>
 
         {/* NET PROFIT */}
@@ -421,7 +421,7 @@ export default function KPIDashboardPage() {
         <Card className="shadow-sm border-slate-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Layers className="h-4 w-4 text-indigo-500" />
+              <Layers className="h-4 w-4 text-blue-500" />
               Material Control
             </CardTitle>
           </CardHeader>
@@ -475,7 +475,7 @@ export default function KPIDashboardPage() {
         <Card className="col-span-2 shadow-sm border-slate-200">
           <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-indigo-500" />
+              <TrendingUp className="h-5 w-5 text-blue-500" />
               6-Month P&L Growth
             </CardTitle>
             <CardDescription>
@@ -491,8 +491,8 @@ export default function KPIDashboardPage() {
                 >
                   <defs>
                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient
                       id="colorProfit"
@@ -547,7 +547,7 @@ export default function KPIDashboardPage() {
                     type="monotone"
                     dataKey="revenue"
                     name="Rev (₹)"
-                    stroke="#4f46e5"
+                    stroke="#2563eb"
                     strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorRev)"
@@ -670,15 +670,15 @@ export default function KPIDashboardPage() {
                 </Badge>
               </div>
             </div>
-            <div className="p-6 bg-indigo-50/50">
+            <div className="p-6 bg-blue-50/50">
               <div className="text-sm font-medium text-slate-500 mb-1">
                 Net Flowing Profit
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-indigo-700">
+                <span className="text-2xl font-bold text-blue-700">
                   {formatCurrency(financial_summary?.net_profit || 0)}
                 </span>
-                <Badge className="bg-indigo-600 hover:bg-indigo-700 font-bold">
+                <Badge className="bg-blue-600 hover:bg-blue-700 font-bold">
                   NET {financial_summary?.net_margin_pct?.toFixed(1)}%
                 </Badge>
               </div>
@@ -886,7 +886,7 @@ export default function KPIDashboardPage() {
         <Card className="shadow-sm border-slate-200">
           <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5 text-indigo-500" />
+              <Users className="h-5 w-5 text-blue-500" />
               Top Customers (Volume)
             </CardTitle>
             <CardDescription>
@@ -934,7 +934,7 @@ export default function KPIDashboardPage() {
                   />
                   <Bar
                     dataKey="total_weight"
-                    fill="#8b5cf6"
+                    fill="#60a5fa"
                     radius={[0, 4, 4, 0]}
                     barSize={15}
                   />
@@ -1008,7 +1008,7 @@ export default function KPIDashboardPage() {
         <Card className="shadow-sm border-slate-200">
           <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5 text-indigo-500" />
+              <Package className="h-5 w-5 text-blue-500" />
               Inventory Spread
             </CardTitle>
             <CardDescription>RM vs WIP vs Finished Goods</CardDescription>

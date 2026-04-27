@@ -39,7 +39,24 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { normalizeProductSpec } from "@/lib/product-spec"
 import OrderItemTechnicalEditor from "@/components/sales/shared/order-item-technical-editor"
+import {
+    SalesOverflowChipGroup,
+    SalesSavedViewsBar,
+    SalesSmartRangeFilter,
+    SalesVariantCard,
+    SALES_GRADE_PRIORITY,
+    SALES_MATERIAL_PRIORITY,
+    SALES_SUPPORTED_FG_TYPES,
+    salesMaterialFilterLabel,
+    salesSortChipOptions,
+    salesUniqueText,
+    salesVariantSpecSource,
+    specMatchesFilters,
+    type SalesOverflowChipOption,
+    type SalesSavedViewFilters,
+} from "@/components/sales/sales-flow-ui"
 import {
     asNumber,
     buildOrderItemPayload,
@@ -58,6 +75,7 @@ import { engineeringService } from "@/services/engineering"
 import { filmFamilyService } from "@/services/film-families"
 import { filmVariantService } from "@/services/film-variants"
 import { masterDataService } from "@/services/master-data"
+import { recipeService } from "@/services/recipes"
 import {
     type BatchCreateOrderResult,
     type RepeatLineCandidate,
@@ -106,6 +124,24 @@ type ChipTone =
     | "qty"
     | "value"
     | "status"
+
+function uniqueBatchText(values: Array<string | null | undefined>) {
+    return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)))
+}
+
+function makeBatchRangePresets(values: Array<number | null | undefined>, suffix: string) {
+    const counts = new Map<number, number>()
+    values.forEach((value) => {
+        const num = Number(value)
+        if (!Number.isFinite(num) || num <= 0) return
+        const rounded = Math.round(num)
+        counts.set(rounded, (counts.get(rounded) || 0) + 1)
+    })
+    return Array.from(counts.entries())
+        .sort((left, right) => right[1] - left[1] || left[0] - right[0])
+        .slice(0, 10)
+        .map(([value, count]) => ({ value: String(value), label: `${value} ${suffix}`, count }))
+}
 
 function chipToneClass(tone: ChipTone) {
     switch (tone) {
@@ -435,6 +471,12 @@ export default function SalesOrderBatchWorkspace() {
     const [selectedSharedVariantId, setSelectedSharedVariantId] = useState("")
     const [skuSearch, setSkuSearch] = useState("")
     const [variantSearch, setVariantSearch] = useState("")
+    const [fgTypeFilter, setFgTypeFilter] = useState("all")
+    const [sizeFilter, setSizeFilter] = useState("")
+    const [heightFilter, setHeightFilter] = useState("")
+    const [materialFilter, setMaterialFilter] = useState("")
+    const [gradeFilter, setGradeFilter] = useState("")
+    const [thicknessFilter, setThicknessFilter] = useState("")
     const [repeatSearch, setRepeatSearch] = useState("")
     const [saveSkuOpen, setSaveSkuOpen] = useState(false)
     const [saveSkuTarget, setSaveSkuTarget] = useState<OrderItemDraft | null>(null)
@@ -473,6 +515,7 @@ export default function SalesOrderBatchWorkspace() {
         queryKey: ["packaging-materials"],
         queryFn: masterDataService.getPackaging,
     })
+    const { data: masterGrades = [] } = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades() })
     const { data: podProfiles = [] } = useQuery({ queryKey: ["pod-sku-variants", "sales-batch"], queryFn: () => masterDataService.getPodSkuVariants({ active: true }) })
     const { data: salesSkus = [] } = useQuery({
         queryKey: ["sales-skus", customerId],
@@ -578,11 +621,40 @@ export default function SalesOrderBatchWorkspace() {
         return () => window.clearTimeout(handle)
     }, [activeOrder?.localId, activeItem?.template_id, activePreviewSignature, families, variants, addonsMaster, previewNonce])
 
+    const currentSavedViewFilters: SalesSavedViewFilters = {
+        skuSearch,
+        variantSearch,
+        fgTypeFilter,
+        sizeFilter,
+        heightFilter,
+        materialFilter,
+        gradeFilter,
+        thicknessFilter,
+    }
+
+    const applySavedViewFilters = (filters: SalesSavedViewFilters) => {
+        if (typeof filters.skuSearch === "string") setSkuSearch(filters.skuSearch)
+        if (typeof filters.variantSearch === "string") setVariantSearch(filters.variantSearch)
+        if (typeof filters.fgTypeFilter === "string") setFgTypeFilter(filters.fgTypeFilter)
+        if (typeof filters.sizeFilter === "string") setSizeFilter(filters.sizeFilter)
+        if (typeof filters.heightFilter === "string") setHeightFilter(filters.heightFilter)
+        if (typeof filters.materialFilter === "string") setMaterialFilter(filters.materialFilter)
+        if (typeof filters.variantFilter === "string") setMaterialFilter(filters.variantFilter)
+        if (typeof filters.gradeFilter === "string") setGradeFilter(filters.gradeFilter)
+        if (typeof filters.thicknessFilter === "string") setThicknessFilter(filters.thicknessFilter)
+    }
+
     const filteredSkus = useMemo(() => {
         const query = skuSearch.trim().toLowerCase()
-        if (!query) return salesSkus
         return salesSkus.filter((sku) =>
-            [sku.code, sku.name, sku.default_line_name, sku.template_name, sku.commercial_family_name]
+            [
+                sku.code,
+                sku.name,
+                sku.default_line_name,
+                sku.template_name,
+                sku.commercial_family_name,
+                ...(sku.variants || []).map((variant) => normalizeProductSpec(salesVariantSpecSource(sku, variant)).searchText),
+            ]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(query))
         )
@@ -593,16 +665,62 @@ export default function SalesOrderBatchWorkspace() {
         [filteredSkus, salesSkus, selectedSkuId]
     )
 
+    const selectedVariantSpecs = useMemo(() => {
+        const source = selectedSkuVariants.length ? selectedSkuVariants : selectedSku?.variants || []
+        return source.map((variant) => ({
+            variant,
+            spec: normalizeProductSpec(salesVariantSpecSource(selectedSku, variant)),
+        }))
+    }, [selectedSku, selectedSkuVariants])
+    const materialOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const labels = salesUniqueText([
+            ...SALES_MATERIAL_PRIORITY,
+            ...families.flatMap((family: any) => [family?.code, family?.name]),
+            ...variants.flatMap((variant: any) => [variant?.code, variant?.name, variant?.parent_family_name]),
+            ...selectedVariantSpecs.flatMap(({ spec }) => spec.layers.flatMap((layer) => [salesMaterialFilterLabel(layer.variantName), salesMaterialFilterLabel(layer.variantCode)])),
+        ]).map(salesMaterialFilterLabel).filter(Boolean)
+        return salesSortChipOptions(
+            salesUniqueText(labels).map((material) => ({
+                value: material,
+                label: material,
+                count: selectedVariantSpecs.filter(({ spec }) => spec.searchText.toLowerCase().includes(material.toLowerCase())).length,
+                tone: "material" as const,
+            })),
+            SALES_MATERIAL_PRIORITY
+        )
+    }, [families, selectedVariantSpecs, variants])
+    const gradeOptions = useMemo<SalesOverflowChipOption[]>(() => (
+        salesSortChipOptions(
+            uniqueBatchText([
+                ...SALES_GRADE_PRIORITY,
+                ...masterGrades.map((grade: any) => grade?.name || grade?.code),
+                ...selectedVariantSpecs.flatMap(({ spec }) => spec.layers.map((layer) => layer.grade)),
+            ])
+                .map((grade) => ({
+                value: grade,
+                label: grade,
+                count: selectedVariantSpecs.filter(({ spec }) => spec.layers.some((layer) => String(layer.grade || "").toLowerCase().includes(grade.toLowerCase()))).length,
+                tone: "grade" as const,
+            })),
+            SALES_GRADE_PRIORITY
+        )
+    ), [masterGrades, selectedVariantSpecs])
+    const widthPresets = useMemo(() => makeBatchRangePresets(selectedVariantSpecs.flatMap(({ spec }) => [spec.size.widthMm, ...spec.layers.map((layer) => layer.widthMm)]), "mm"), [selectedVariantSpecs])
+    const heightPresets = useMemo(() => makeBatchRangePresets(selectedVariantSpecs.map(({ spec }) => spec.size.heightMm), "mm"), [selectedVariantSpecs])
+    const thicknessPresets = useMemo(() => makeBatchRangePresets(selectedVariantSpecs.flatMap(({ spec }) => spec.layers.map((layer) => layer.thicknessMicron)), "μ"), [selectedVariantSpecs])
+
     const filteredSelectedVariants = useMemo(() => {
         const source = selectedSkuVariants.length ? selectedSkuVariants : selectedSku?.variants || []
         const query = variantSearch.trim().toLowerCase()
-        if (!query) return source
-        return source.filter((variant) =>
-            [variant.code, variant.name, variant.template_name].some((value) =>
+        return source.filter((variant) => {
+            const spec = normalizeProductSpec(salesVariantSpecSource(selectedSku, variant))
+            if (!specMatchesFilters(spec, { fgTypeFilter, sizeFilter, heightFilter, variantFilter: materialFilter, gradeFilter, thicknessFilter })) return false
+            if (!query) return true
+            return [variant.code, variant.name, variant.template_name, spec.searchText].some((value) =>
                 String(value || "").toLowerCase().includes(query)
             )
-        )
-    }, [selectedSku, selectedSkuVariants, variantSearch])
+        })
+    }, [fgTypeFilter, gradeFilter, heightFilter, materialFilter, selectedSku, selectedSkuVariants, sizeFilter, thicknessFilter, variantSearch])
 
     const selectedSharedVariant = useMemo(
         () => filteredSelectedVariants.find((variant) => variant.id === selectedSharedVariantId) || filteredSelectedVariants[0] || null,
@@ -658,7 +776,7 @@ export default function SalesOrderBatchWorkspace() {
                 code: saveSkuForm.variantCode.trim().toUpperCase(),
                 name: saveSkuForm.variantName.trim(),
                 active: true,
-                finished_good_type: normalizedItemPayload.fg_type,
+                finished_good_type: normalizedItemPayload.fg_type === "ROLL" ? "ROLL" : "POUCH",
                 roll_form: normalizedItemPayload.roll_form,
                 geometry_snapshot: normalizedItemPayload.geometry,
                 layer_snapshot: normalizedItemPayload.film_layers,
@@ -802,6 +920,11 @@ export default function SalesOrderBatchWorkspace() {
         setSelectedSharedVariantId("")
         setSkuSearch("")
         setVariantSearch("")
+        setFgTypeFilter("all")
+        setSizeFilter("")
+        setMaterialFilter("")
+        setGradeFilter("")
+        setThicknessFilter("")
         setRepeatSearch("")
     }
 
@@ -1072,6 +1195,83 @@ export default function SalesOrderBatchWorkspace() {
                                 </Button>
                             </div>
 
+                            <div className="mt-4">
+                                <SalesSavedViewsBar
+                                    scope="order_create"
+                                    currentFilters={currentSavedViewFilters}
+                                    onApply={applySavedViewFilters}
+                                />
+                            </div>
+
+                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(9rem,0.85fr)_minmax(0,1fr)]">
+                                <div className={styles.fieldBlock}>
+                                    <Label className={styles.compactLabel}>Finished good</Label>
+                                    <Select value={fgTypeFilter} onValueChange={setFgTypeFilter} disabled={!customerId}>
+                                        <SelectTrigger className={styles.compactSelect}><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All products</SelectItem>
+                                            {SALES_SUPPORTED_FG_TYPES.map((type) => (
+                                                <SelectItem key={type} value={type}>{type === "ROLL" ? "Roll" : "Pouch"}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-[1.15rem] border border-slate-200 bg-white p-2">
+                                    <SalesSmartRangeFilter label="Width" value={sizeFilter} onChange={setSizeFilter} placeholder="200 / 1070" suffix="mm" presets={widthPresets} />
+                                    <SalesSmartRangeFilter label="Height" value={heightFilter} onChange={setHeightFilter} placeholder="200-320" suffix="mm" presets={heightPresets} />
+                                    <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} onChange={setThicknessFilter} placeholder="12 / 47 / 50" suffix="μ" presets={thicknessPresets} />
+                                    <SalesOverflowChipGroup label="Material" value={materialFilter} onChange={setMaterialFilter} options={materialOptions} maxInline={4} allValue="" disabled={!customerId} />
+                                    <SalesOverflowChipGroup label="Grade" value={gradeFilter} onChange={setGradeFilter} options={gradeOptions} maxInline={4} allValue="" disabled={!customerId} />
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-10 rounded-full bg-white text-xs font-black uppercase tracking-[0.12em] xl:col-span-2"
+                                    onClick={() => {
+                                        setVariantSearch("")
+                                        setFgTypeFilter("all")
+                                        setSizeFilter("")
+                                        setHeightFilter("")
+                                        setMaterialFilter("")
+                                        setGradeFilter("")
+                                        setThicknessFilter("")
+                                    }}
+                                    disabled={!customerId}
+                                >
+                                    Reset
+                                </Button>
+                            </div>
+
+                            <div className="mt-4">
+                                {!customerId ? (
+                                    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                        Select a bill-to customer to load SKU variants.
+                                    </div>
+                                ) : !selectedSku ? (
+                                    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                        Pick an SKU from the dropdown. The matching variants will appear here as cards.
+                                    </div>
+                                ) : filteredSelectedVariants.length ? (
+                                    <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                                        {filteredSelectedVariants.map((variant) => (
+                                            <SalesVariantCard
+                                                key={variant.id}
+                                                sku={selectedSku}
+                                                variant={variant}
+                                                selected={selectedSharedVariantId === variant.id}
+                                                added={queue.some((order) => order.sourceMeta.includes(variant.code))}
+                                                onSelect={() => setSelectedSharedVariantId(variant.id)}
+                                                onAdd={() => addSharedSkuToBatch(selectedSku, variant)}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                        No variants match this saved view or filter setup.
+                                    </div>
+                                )}
+                            </div>
+
                             <div className={styles.sourceMeta}>
                                 <InfoChip tone="sku">{selectedSku?.code || "No SKU"}</InfoChip>
                                 <InfoChip tone="variant">{selectedSharedVariant?.code || "No variant"}</InfoChip>
@@ -1272,18 +1472,21 @@ export default function SalesOrderBatchWorkspace() {
                                                 value={activeOrder.item.template_id || "__NONE__"}
                                                 onValueChange={(value) => {
                                                     const selected = templates.find((template: any) => String(template.id) === value)
-                                                    updateQueuedOrder(activeOrder.localId, (order) => ({
-                                                        ...order,
-                                                        item: {
-                                                            ...order.item,
-                                                            template_id: value === "__NONE__" ? "" : value,
-                                                            finished_good_type: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() as OrderItemDraft["finished_good_type"],
-                                                            qty_uom: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "KG" : order.item.qty_uom,
-                                                            price_basis: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "KG" : order.item.price_basis,
-                                                            roll_form: String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? (order.item.roll_form || "FLAT") : "",
-                                                            savedPreview: null,
-                                                        },
-                                                    }))
+                                                    updateQueuedOrder(activeOrder.localId, (order) => {
+                                                        const selectedType = String(selected?.fg_type || order.item.finished_good_type).toUpperCase() === "ROLL" ? "ROLL" : "POUCH"
+                                                        return {
+                                                            ...order,
+                                                            item: {
+                                                                ...order.item,
+                                                                template_id: value === "__NONE__" ? "" : value,
+                                                                finished_good_type: selectedType as OrderItemDraft["finished_good_type"],
+                                                                qty_uom: selectedType === "ROLL" ? "KG" : order.item.qty_uom,
+                                                                price_basis: selectedType === "ROLL" ? "KG" : order.item.price_basis,
+                                                                roll_form: selectedType === "ROLL" ? (order.item.roll_form || "FLAT") : "",
+                                                                savedPreview: null,
+                                                            },
+                                                        }
+                                                    })
                                                 }}
                                             >
                                                 <SelectTrigger data-testid="sales-batch-template" className={styles.compactSelect}>

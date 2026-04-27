@@ -34,7 +34,7 @@ const PRIORITY_COLORS: Record<string, string> = {
     URGENT: 'bg-red-100 text-red-700',
 }
 
-export function NotificationBell() {
+export function NotificationBell({ triggerTestId = "notification-bell-trigger" }: { triggerTestId?: string }) {
     const router = useRouter()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
@@ -130,7 +130,7 @@ export function NotificationBell() {
                     variant="ghost"
                     size="icon"
                     className="relative h-9 w-9 rounded-full hover:bg-slate-100"
-                    data-testid="notification-bell-trigger"
+                    data-testid={triggerTestId}
                 >
                     <Bell className="h-5 w-5 text-slate-600" />
                     {unreadCount > 0 && (
@@ -158,7 +158,7 @@ export function NotificationBell() {
                             variant="ghost"
                             size="sm"
                             onClick={handleMarkAllAsRead}
-                            className="h-8 rounded-lg text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            className="h-8 rounded-lg text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                         >
                             <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
                             Mark all read
@@ -168,7 +168,7 @@ export function NotificationBell() {
                 <div className="max-h-[calc(72vh-69px)] overflow-y-auto">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12">
-                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" />
+                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
                             <span className="text-xs text-slate-400 font-medium mt-3">Loading notifications...</span>
                         </div>
                     ) : notifications.length === 0 ? (
@@ -198,8 +198,8 @@ export function NotificationBell() {
                                             }
                                         }}
                                         className={cn(
-                                            "flex w-full cursor-pointer gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-indigo-300",
-                                            !notification.is_read && "bg-indigo-50/30"
+                                            "flex w-full cursor-pointer gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-blue-300",
+                                            !notification.is_read && "bg-blue-50/30"
                                         )}
                                     >
                                         <div className={cn(
@@ -241,7 +241,7 @@ export function NotificationBell() {
                                                 {href ? (
                                                     <>
                                                         <span className="text-slate-200">·</span>
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600">
                                                             Open
                                                             <ExternalLink className="h-3 w-3" />
                                                         </span>

@@ -55,6 +55,8 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await expect(page.getByTestId("stock-lifecycle-workspace")).toBeVisible()
   await expectNoPageOverflow(page)
   await expect(page.locator("body")).toContainText("Opening Stock")
+  await expect(page.locator("body")).toContainText("FY period (Apr-Mar)")
+  await expect(page.locator("body")).toContainText("Opening balance qty")
   await expect(page.locator("body")).toContainText("Sheet - Enter - Validate - Preview - Approve - Post")
 
   await page.getByTestId("stock-lifecycle-tab-count").click()
@@ -62,6 +64,7 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await expectNoPageOverflow(page)
   await expect(page.locator("body")).toContainText("Stock Count Reconciliation")
   await expect(page.locator("body")).toContainText("Load live stock")
+  await expect(page.locator("body")).toContainText("Physical count qty")
 
   await page.getByTestId("stock-lifecycle-tab-stockcard").click()
   await expect(page).toHaveURL(/tab=stockcard/)
@@ -80,8 +83,9 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await page.getByTestId("stock-lifecycle-tab-correction").click()
   await expect(page).toHaveURL(/tab=correction/)
   await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Financial Year Correction")
-  await expect(page.locator("body")).toContainText("Reason / authority")
+  await expect(page.locator("body")).toContainText("Closed FY Correction")
+  await expect(page.locator("body")).toContainText("Correction reason and approval")
+  await expect(page.locator("body")).toContainText("Corrected closing qty")
   await expect(page.getByTestId("stock-lifecycle-financial-year")).toHaveValue(previousFy())
 
   await page.getByTestId("stock-lifecycle-tab-help").click()

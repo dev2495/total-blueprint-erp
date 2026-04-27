@@ -177,7 +177,7 @@ function VendorForm({ initialData, onSubmit, isLoading }: { initialData?: Vendor
                 />
 
                 <div className="flex justify-end gap-2 pt-4">
-                    <Button type="submit" disabled={isLoading} className="bg-indigo-600 hover:bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale">
+                    <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale">
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save Entity
                     </Button>
@@ -247,7 +247,7 @@ export default function VendorsPage() {
                     <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
                         Vendor
                         <span className="text-slate-300 font-light translate-y-[2px]">/</span>
-                        <span className="text-indigo-600 italic">Master</span>
+                        <span className="text-blue-600 italic">Master</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-xs flex items-center gap-2 italic">
                         Managing {stats.total} suppliers and external partners
@@ -256,7 +256,7 @@ export default function VendorsPage() {
                 <div className="flex items-center gap-3">
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
-                            <Button className="h-11 px-8 rounded-xl bg-slate-900 hover:bg-indigo-600 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 transition-all active-scale">
+                            <Button className="h-11 px-8 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 transition-all active-scale">
                                 <Plus className="h-4 w-4 mr-2" /> Onboard Entity
                             </Button>
                         </DialogTrigger>
@@ -276,7 +276,7 @@ export default function VendorsPage() {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { label: "Total Partners", value: stats.total, icon: Container, color: "text-indigo-600", bg: "bg-indigo-50" },
+                    { label: "Total Partners", value: stats.total, icon: Container, color: "text-blue-600", bg: "bg-blue-50" },
                     { label: "Material Suppliers", value: stats.rm, icon: Truck, color: "text-emerald-600", bg: "bg-emerald-50" },
                     { label: "Job Workers", value: stats.jobwork, icon: Factory, color: "text-amber-600", bg: "bg-amber-50" },
                     { label: "Service Providers", value: stats.service, icon: Briefcase, color: "text-rose-600", bg: "bg-rose-50" },

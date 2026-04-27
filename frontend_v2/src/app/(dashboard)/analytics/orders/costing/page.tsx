@@ -38,7 +38,7 @@ export default function OrderProfitabilityListPage() {
         return (
             <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
                 <div className="text-center space-y-4">
-                    <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mx-auto" />
+                    <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
                     <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 italic">Downloading Profitability Ledger...</p>
                 </div>
             </div>
@@ -50,11 +50,11 @@ export default function OrderProfitabilityListPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
-                        <DollarSign className="h-3 w-3 fill-indigo-600" /> Commercial Analytics
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
+                        <DollarSign className="h-3 w-3 fill-blue-600" /> Commercial Analytics
                     </div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 flex items-center gap-3 italic">
-                        Order <span className="text-indigo-600">Profitability</span>
+                        Order <span className="text-blue-600">Profitability</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-sm flex items-center gap-2">
                         Comprehensive ledger of all produced orders and their financial performance <ChevronRight className="h-3 w-3" /> SKU Level
@@ -74,7 +74,7 @@ export default function OrderProfitabilityListPage() {
                     <Button variant="outline" className="h-12 w-12 rounded-xl bg-white border-white shadow-md p-0 hover:bg-slate-50">
                         <Filter className="h-4 w-4 text-slate-600" />
                     </Button>
-                    <Button className="h-12 px-6 rounded-xl bg-slate-900 border-none shadow-xl hover:bg-indigo-600 text-white font-black uppercase text-[10px] tracking-widest transition-all">
+                    <Button className="h-12 px-6 rounded-xl bg-slate-900 border-none shadow-xl hover:bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest transition-all">
                         <Download className="h-4 w-4 mr-2" /> Export
                     </Button>
                 </div>
@@ -86,7 +86,7 @@ export default function OrderProfitabilityListPage() {
                     <TableHeader className="bg-slate-50">
                         <TableRow className="border-none">
                             <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 px-8 italic">Order Details</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center text-indigo-600 font-black tracking-widest leading-none mt-1">Direct Material</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center text-blue-600 font-black tracking-widest leading-none mt-1">Direct Material</TableHead>
                             <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center">Conversion</TableHead>
                             <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center">Total Cost</TableHead>
                             <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center">Sales Price</TableHead>
@@ -116,7 +116,7 @@ export default function OrderProfitabilityListPage() {
                                         <div className="flex flex-col">
                                             <span className="font-black text-slate-900 uppercase tracking-tight text-[14px] leading-tight italic">{o.order_number}</span>
                                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1">{o.customer_name}</span>
-                                            <span className="text-[10px] font-bold text-indigo-500 uppercase mt-1 italic">{o.product_name}</span>
+                                            <span className="text-[10px] font-bold text-blue-500 uppercase mt-1 italic">{o.product_name}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -155,7 +155,7 @@ export default function OrderProfitabilityListPage() {
                                     </TableCell>
                                     <TableCell className="text-right px-8">
                                         <Link href={`/analytics/orders/${o.sales_order_item}/costing`}>
-                                            <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-100 group-hover:border-indigo-100 transition-all">
+                                            <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 group-hover:border-blue-100 transition-all">
                                                 <ArrowRight className="h-4 w-4" />
                                             </Button>
                                         </Link>
@@ -184,7 +184,7 @@ export default function OrderProfitabilityListPage() {
                     </div>
                 </div>
                 <div className="bg-white px-6 py-3 rounded-2xl border border-white shadow-md">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Evaluated Orders: <span className="text-indigo-600">{orderCosts?.length || 0}</span></p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Evaluated Orders: <span className="text-blue-600">{orderCosts?.length || 0}</span></p>
                 </div>
             </div>
 

@@ -93,9 +93,9 @@ export default function LogisticsDashboard() {
             value: String(summary.inTransit),
             unit: "Active",
             icon: Truck,
-            color: "text-indigo-600",
-            bg: "bg-indigo-50",
-            ring: "ring-indigo-200"
+            color: "text-blue-600",
+            bg: "bg-blue-50",
+            ring: "ring-blue-200"
         },
         {
             id: "shipped",
@@ -113,7 +113,7 @@ export default function LogisticsDashboard() {
         <div className="space-y-8 pb-10 max-w-7xl mx-auto block xl:px-4">
             {/* Header / Hero Section */}
             <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-8 shadow-sm">
-                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-amber-500/5 blur-3xl pointer-events-none" />
 
                 <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
@@ -126,7 +126,7 @@ export default function LogisticsDashboard() {
                         <p className="text-slate-500 max-w-md font-medium">Govern all outbound delivery flows, print challans, and track active transport.</p>
                     </div>
                     <Link href="/logistics/dispatch">
-                        <Button size="lg" className="bg-indigo-600 text-white hover:bg-indigo-700 font-bold px-8 rounded-xl shadow-md transition-all">
+                        <Button size="lg" className="bg-blue-600 text-white hover:bg-blue-700 font-bold px-8 rounded-xl shadow-md transition-all">
                             <Truck className="mr-2 h-5 w-5" /> Open Dispatch Bay
                         </Button>
                     </Link>
@@ -180,7 +180,7 @@ export default function LogisticsDashboard() {
                                             <Cell key={`cell-${index}`} fill={
                                                 entry.name === "Drafts" ? "#f59e0b" :
                                                     entry.name === "Dispatched" ? "#3b82f6" :
-                                                        entry.name === "In Transit" ? "#8b5cf6" : "#10b981"
+                                                        entry.name === "In Transit" ? "#60a5fa" : "#10b981"
                                             } />
                                         ))}
                                     </Bar>
@@ -198,17 +198,17 @@ export default function LogisticsDashboard() {
                                 <CardTitle className="text-lg font-black text-slate-900">Execution Ledger</CardTitle>
                                 <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-wider">Latest Validated DCs</CardDescription>
                             </div>
-                            <Activity className="h-5 w-5 text-indigo-400 animate-pulse" />
+                            <Activity className="h-5 w-5 text-blue-400 animate-pulse" />
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-0 p-0">
                         {summary.recentChallans.map((challan: any) => (
                             <div key={challan.id} className="flex flex-col p-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
                                 <div className="flex justify-between items-start mb-1">
-                                    <span className="text-sm font-black text-slate-900 font-mono group-hover:text-indigo-600 transition-colors">{challan.dc_no}</span>
+                                    <span className="text-sm font-black text-slate-900 font-mono group-hover:text-blue-600 transition-colors">{challan.dc_no}</span>
                                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${challan.status === "DRAFT" ? "bg-amber-50 text-amber-600" :
-                                            challan.status === "DISPATCHED" ? "bg-indigo-50 text-indigo-600" :
-                                                challan.status === "IN_TRANSIT" ? "bg-purple-50 text-purple-600" :
+                                            challan.status === "DISPATCHED" ? "bg-blue-50 text-blue-600" :
+                                                challan.status === "IN_TRANSIT" ? "bg-blue-50 text-blue-600" :
                                                     "bg-emerald-50 text-emerald-600"
                                         }`}>
                                         {challan.status}

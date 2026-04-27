@@ -119,7 +119,7 @@ export default function EngineeringApprovalsPage() {
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex items-center gap-2">
                                                         {t.routing_rule ? (
-                                                            <Badge variant="default" className="bg-indigo-50 hover:bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] h-5">
+                                                            <Badge variant="default" className="bg-blue-50 hover:bg-blue-50 text-blue-700 border border-blue-100 text-[9px] h-5">
                                                                 Route Bound
                                                             </Badge>
                                                         ) : (

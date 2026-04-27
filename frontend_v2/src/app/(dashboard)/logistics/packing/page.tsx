@@ -15,6 +15,7 @@ import { logisticsService, type Gonny, type SOPackingSummary } from "@/services/
 import { masterDataService, type PackagingMaterial } from "@/services/master-data"
 
 const n = (value: unknown, digits = 1) => Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
+const kg = (value: unknown) => `${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`
 const err = (error: any) => error?.response?.data?.error || error?.response?.data?.detail || error?.message || "Request failed."
 
 function Stat({ label, value, hint, tone = "slate" }: { label: string; value: string; hint: string; tone?: "slate" | "emerald" | "amber" | "blue" }) {
@@ -140,6 +141,7 @@ export default function PackingYardPage() {
                         <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-600">No sales-order selection is needed to understand the yard. These numbers cover finished batches, open gonnies, sealed gonnies, and rolls that still need handoff.</p>
                         <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Batches</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Open / sealed gonnies</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Create gonny</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Seal weight</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">Dispatch handoff</span>
@@ -153,7 +155,7 @@ export default function PackingYardPage() {
                 <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                     <Stat label="Pouch batches waiting" value={n(board.data?.totals.pending_batches || 0, 0)} hint={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs pending`} tone="amber" />
                     <Stat label="Open gonnies" value={n(board.data?.totals.open_gonnies || 0, 0)} hint="need sealing + gross check" tone="blue" />
-                    <Stat label="Sealed gonnies ready" value={n(board.data?.totals.sealed_waiting_release || board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} pcs can move`} tone="emerald" />
+                    <Stat label="Ready for dispatch" value={n(board.data?.totals.sealed_waiting_release || board.data?.totals.ready_gonnies || 0, 0)} hint={`${n(board.data?.totals.ready_gonnies_pcs || 0, 0)} sealed gonnies can move`} tone="emerald" />
                     <Stat label="Rolls ready" value={n(board.data?.totals.ready_rolls || 0, 0)} hint={`${n(board.data?.totals.ready_rolls_kg || 0)} kg releasable`} tone="blue" />
                     <Stat label="Net product ready" value={`${n(readyNet)} kg`} hint="billable product weight" />
                     <Stat label="Gross shipment ready" value={`${n(readyGross)} kg`} hint="with gonnies + rolls" />
@@ -193,7 +195,7 @@ export default function PackingYardPage() {
                                         <span>{readyPct}% of yard units ready</span>
                                         <span>{readyUnits} of {totalUnits}</span>
                                     </div>
-                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{ width: `${readyPct}%` }} /></div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-500" style={{ width: `${readyPct}%` }} /></div>
                                 </div>
                                 </div>
                             </button>
@@ -305,9 +307,9 @@ export default function PackingYardPage() {
                                                         <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${gonny.status === "SEALED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{gonny.status}</span>
                                                     </div>
                                                     <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                                                        <div className="rounded-2xl bg-slate-50 p-2"><b>{n(gonny.net_product_weight_kg)}</b><br />net kg</div>
-                                                        <div className="rounded-2xl bg-blue-50 p-2"><b>{n(getGonnyExpected(gonny))}</b><br />expected</div>
-                                                        <div className="rounded-2xl bg-emerald-50 p-2"><b>{gonny.gross_weight_kg ? n(gonny.gross_weight_kg) : "-"}</b><br />actual</div>
+                                                        <div className="rounded-2xl bg-slate-50 p-2"><b>{kg(gonny.net_product_weight_kg)}</b><br />net</div>
+                                                        <div className="rounded-2xl bg-blue-50 p-2"><b>{kg(getGonnyExpected(gonny))}</b><br />expected</div>
+                                                        <div className="rounded-2xl bg-emerald-50 p-2"><b>{gonny.gross_weight_kg ? kg(gonny.gross_weight_kg) : "-"}</b><br />actual</div>
                                                     </div>
                                                     <div className="mt-4 flex flex-wrap gap-2">
                                                         {gonny.status === "OPEN" && <Button size="sm" onClick={() => { setSealGonny(gonny); setActualGross(String(getGonnyExpected(gonny) || "")); }}>Seal gonny</Button>}
@@ -405,10 +407,10 @@ export default function PackingYardPage() {
                             <div className="rounded-3xl bg-slate-50 p-4">
                                 <div className="font-black">{sealGonny.label_id}</div>
                                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
-                                    <div><b>{n(sealGonny.net_product_weight_kg)}</b><br />product net</div>
+                                    <div><b>{kg(sealGonny.net_product_weight_kg)}</b><br />product net</div>
                                     <div><b>{n(sealGonny.inner_pack_tare_kg)}</b><br />inner tare</div>
                                     <div><b>{n(sealGonny.secondary_pack_tare_kg)}</b><br />gonny tare</div>
-                                    <div><b>{n(expected)}</b><br />expected gross</div>
+                                    <div><b>{kg(expected)}</b><br />expected gross</div>
                                 </div>
                             </div>
                             <div>

@@ -34,7 +34,7 @@ export function Header() {
     }
 
     return (
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/80 bg-white/95 px-3 py-2 shadow-premium backdrop-blur-xl transition-all duration-300 md:left-4 md:right-4 md:top-3 md:rounded-[1.75rem] md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:sticky lg:left-auto lg:right-auto lg:top-4 lg:mx-8 lg:px-6">
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/80 bg-white/90 px-3 py-2 shadow-premium backdrop-blur-xl transition-all duration-300 md:left-4 md:right-4 md:top-3 md:rounded-3xl md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:sticky lg:left-auto lg:right-auto lg:top-4 lg:mx-8 lg:px-6">
             <div className="flex w-full flex-col gap-2.5 lg:hidden">
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
@@ -43,7 +43,7 @@ export function Header() {
                                 <Button
                                     variant="outline"
                                     size="icon"
-                                    className="h-11 w-11 rounded-2xl border-slate-200 bg-white/95 shadow-sm"
+                                    className="h-11 w-11 rounded-xl border-slate-200 bg-white/95 shadow-sm"
                                     data-testid="mobile-nav-trigger"
                                 >
                                     <Menu className="h-5 w-5" />
@@ -74,7 +74,7 @@ export function Header() {
                                 </div>
                             </SheetContent>
                         </Sheet>
-                        <div className="min-w-0 rounded-2xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm">
+                        <div className="min-w-0 rounded-xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm">
                             <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Current role</div>
                             <div className="truncate text-[11px] font-bold text-slate-800">{getRoleDisplayName()}</div>
                         </div>
@@ -82,17 +82,17 @@ export function Header() {
 
                     <div className="flex shrink-0 items-center gap-1.5">
                         <ContextHelpSheet />
-                        <NotificationBell />
-                        <UserProfileMenu />
+                        <NotificationBell triggerTestId="notification-bell-trigger-mobile" />
+                        <UserProfileMenu triggerTestId="profile-menu-trigger-mobile" />
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
-                        <CommandPalette compact />
+                        <CommandPalette compact triggerTestId="command-palette-trigger-mobile" />
                     </div>
                     <div className="shrink-0">
-                        <RoleSwitcher compact />
+                        <RoleSwitcher compact triggerTestId="role-switcher-trigger-mobile" />
                     </div>
                 </div>
 
@@ -101,7 +101,7 @@ export function Header() {
                         <LocationCapsule compact />
                     </div>
                     {Boolean(user?.email_missing) && pathname !== "/profile" ? (
-                        <Button asChild variant="outline" className="h-10 shrink-0 rounded-2xl border-amber-300 bg-amber-50 px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                            <Button asChild variant="outline" className="h-10 shrink-0 rounded-xl border-amber-300 bg-amber-50 px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100">
                             <Link href="/profile">
                                 <AlertTriangle className="mr-1.5 h-4 w-4" />
                                 Email
@@ -125,7 +125,7 @@ export function Header() {
                     <div className="relative z-10 hidden md:block">
                         <RoleSwitcher />
                     </div>
-                    <div className="hidden items-center gap-2 rounded-2xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm md:flex">
+                    <div className="hidden items-center gap-2 rounded-xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm md:flex">
                         <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 lg:text-[11px]">
                             {getRoleDisplayName()}

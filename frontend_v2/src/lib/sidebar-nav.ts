@@ -63,7 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Operations",
     href: "/production",
     icon: Factory,
-    roles: ["ADMIN", "OWNER", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
+    roles: ["ADMIN", "OWNER", "PLANNER", "WORK_CENTER_MANAGER", "OPERATOR", "PLANT_MANAGER"],
     permissionModules: ["production"],
     children: [
       {
@@ -98,7 +98,7 @@ export const NAV_ITEMS: NavItem[] = [
         title: "WCM Command Deck",
         href: "/dashboard/work-center",
         icon: LayoutDashboard,
-        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER", "OPERATOR"],
         permissions: ["production.view", "production.manage"],
       },
       {

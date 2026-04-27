@@ -19,6 +19,7 @@ interface User {
     role_info?: { id: string; code: string; name: string };
     full_name: string;
     is_owner: boolean;
+    is_superuser?: boolean;
     extra_permissions?: string[];
     entitlements?: {
         role: string;
@@ -46,6 +47,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const SESSION_IDLE_WINDOW_MS = 20 * 60 * 1000;
 const SESSION_KEEPALIVE_INTERVAL_MS = 60 * 1000;
 const SESSION_KEEPALIVE_GRACE_MS = 5 * 60 * 1000;
+
+function isAuthRoute(pathname: string) {
+    return pathname === "/login" || pathname.startsWith("/login/") || pathname === "/admin-login" || pathname.startsWith("/admin-login/");
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
@@ -100,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const initAuth = async () => {
             const initialPath = typeof window !== "undefined" ? String(window.location.pathname || "").toLowerCase() : "";
-            if (initialPath === "/login" || initialPath.startsWith("/login/")) {
+            if (isAuthRoute(initialPath)) {
                 await ensureCsrfToken();
                 await hydrateSession({ attempts: 1, clearOnFailure: false });
                 setLoading(false);
@@ -145,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const currentPath = String(pathname || "").toLowerCase();
         if (loading) return;
-        if (!currentPath || currentPath === "/login" || currentPath.startsWith("/login/")) return;
+        if (!currentPath || isAuthRoute(currentPath)) return;
         if (user) return;
 
         let cancelled = false;
@@ -169,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window === "undefined") return;
         if (loading || !user) return;
         const currentPath = String(pathname || "").toLowerCase();
-        if (currentPath === "/login" || currentPath.startsWith("/login/")) return;
+        if (isAuthRoute(currentPath)) return;
 
         let cancelled = false;
         const keepalive = async () => {
@@ -281,7 +286,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const currentPath = String(pathname || "").toLowerCase();
-        if (!loading && user && (currentPath === "/login" || currentPath.startsWith("/login/"))) {
+        if (!loading && user && isAuthRoute(currentPath)) {
             const landing = getLandingPageForUser(user);
             router.replace(landing);
         }

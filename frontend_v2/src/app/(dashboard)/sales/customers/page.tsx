@@ -269,7 +269,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
 
                 <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-5 space-y-5">
                     <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-indigo-600" />
+                        <MapPin className="h-4 w-4 text-blue-600" />
                         <div>
                             <div className="text-sm font-black text-slate-900">Primary Mailing Address</div>
                             <div className="text-xs font-medium text-slate-500">Default legal and communication address for this customer.</div>
@@ -553,16 +553,16 @@ export default function CustomersPage() {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
                         <Globe className="h-3 w-3" /> Global Directory
                     </div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 flex items-center gap-3">
                         Commercial
                         <span className="text-slate-300 font-light translate-y-[2px]">/</span>
-                        <span className="text-indigo-600 italic">Customers</span>
+                        <span className="text-blue-600 italic">Customers</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-sm flex items-center gap-2">
-                        Tracking {customers?.length || 0} authenticated corporate entities <Activity className="h-3.5 w-3.5 text-indigo-400" />
+                        Tracking {customers?.length || 0} authenticated corporate entities <Activity className="h-3.5 w-3.5 text-blue-400" />
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -590,7 +590,7 @@ export default function CustomersPage() {
                 {isLoading ? (
                     <div className="flex h-[400px] items-center justify-center bg-white/50 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-slate-200">
                         <div className="text-center space-y-4">
-                            <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto" />
+                            <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto" />
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Master Data...</p>
                         </div>
                     </div>
@@ -611,7 +611,7 @@ export default function CustomersPage() {
                 )}
 
                 {/* Decorative Elements */}
-                <div className="absolute -top-10 -right-10 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -z-10" />
+                <div className="absolute -top-10 -right-10 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -z-10" />
                 <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -z-10" />
             </div>
 

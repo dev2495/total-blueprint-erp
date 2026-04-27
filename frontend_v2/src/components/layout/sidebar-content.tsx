@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef } from "react";
 import { Zap } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getLandingPage } from "@/lib/roles";
 import { NAV_ITEMS, canAccessNavTarget } from "@/lib/sidebar-nav";
@@ -65,12 +64,12 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
       href={getLandingPage(userRoleCode)}
       className={cn("group flex items-center gap-3", compact ? "justify-center" : "")}
     >
-      <div className="flex h-11 w-11 items-center justify-center rounded-[1.15rem] bg-slate-950 text-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.85)] transition-colors group-hover:bg-slate-900">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-[0_12px_30px_-18px_rgba(37,99,235,0.9)] transition-transform duration-200 group-hover:-translate-y-px">
         <Zap className="h-4 w-4 fill-white" strokeWidth={1.5} />
       </div>
       {!compact ? (
         <div className="flex flex-col leading-none">
-          <span className="text-[13px] font-bold tracking-[0.08em] text-slate-950 transition-colors group-hover:text-slate-700">
+          <span className="text-[13px] font-extrabold tracking-[0.08em] text-slate-950 transition-colors group-hover:text-blue-800">
             TOTAL POLY PRINT
           </span>
           <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-500">
@@ -108,12 +107,11 @@ export function SidebarNavContent({
   if (!user) return null;
 
   return (
-    <TooltipProvider delayDuration={80}>
-      <nav
-        ref={navRef}
-        className={cn("space-y-1", mobile ? "pb-6" : "", compact ? "space-y-2" : "")}
-        data-testid={mobile ? "mobile-sidebar-nav" : "sidebar-nav"}
-      >
+    <nav
+      ref={navRef}
+      className={cn("space-y-1", mobile ? "pb-6" : "", compact ? "space-y-2" : "")}
+      data-testid={mobile ? "mobile-sidebar-nav" : compact ? "compact-sidebar-nav" : "sidebar-nav"}
+    >
         {authorizedItems.map((item, index) => {
           const authorizedChildren = item.children?.filter((child) => {
             const isAuth = isAuthorized(child);
@@ -160,33 +158,29 @@ export function SidebarNavContent({
             return (
               <div key={index} className="space-y-2">
                 {compactLinks.map((link) => (
-                  <Tooltip key={link.href}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={link.href}
-                        onClick={onNavigate}
-                        data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
-                        data-route={link.href}
-                        data-active={link.active ? "true" : undefined}
-                        className={cn(
-                          "relative mx-auto flex h-11 w-11 items-center justify-center rounded-[1rem] border transition-all duration-150",
-                          link.active
-                            ? "border-indigo-500 bg-indigo-600 text-white shadow-[0_16px_28px_-18px_rgba(79,70,229,0.9)]"
-                            : "border-transparent bg-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-950",
-                        )}
-                      >
-                        <link.icon className="h-4 w-4" strokeWidth={link.active ? 2.1 : 1.8} />
-                        {link.badge ? (
-                          <span className="absolute -right-1 -top-1 rounded-full bg-slate-950 px-1.5 py-0.5 text-[8px] font-bold text-white">
-                            {link.badge}
-                          </span>
-                        ) : null}
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="rounded-xl border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xl">
-                      {link.title}
-                    </TooltipContent>
-                  </Tooltip>
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={onNavigate}
+                    title={link.title}
+                    aria-label={link.title}
+                    data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
+                    data-route={link.href}
+                    data-active={link.active ? "true" : undefined}
+                    className={cn(
+                      "relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-150",
+                      link.active
+                        ? "border-blue-500 bg-blue-700 text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
+                        : "border-transparent bg-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                    )}
+                  >
+                    <link.icon className="h-4 w-4" strokeWidth={link.active ? 2.1 : 1.8} />
+                    {link.badge ? (
+                      <span className="absolute -right-1 -top-1 rounded-full bg-slate-950 px-1.5 py-0.5 text-[8px] font-bold text-white">
+                        {link.badge}
+                      </span>
+                    ) : null}
+                  </Link>
                 ))}
               </div>
             );
@@ -202,10 +196,10 @@ export function SidebarNavContent({
                   data-route={item.href}
                   data-active={isActive ? "true" : undefined}
                     className={cn(
-                    "group flex items-center gap-3 rounded-[1rem] px-3 py-2.5 text-[13px] font-medium transition-all duration-150",
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                     isActive
-                      ? "bg-slate-950 text-white shadow-[0_16px_28px_-20px_rgba(15,23,42,0.8)] font-semibold"
-                      : "text-slate-600 hover:bg-white hover:text-slate-950",
+                      ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
                     mobile ? "px-3 py-2.5 text-[13px]" : "",
                   )}
                 >
@@ -245,10 +239,10 @@ export function SidebarNavContent({
                           data-route={child.href}
                           data-active={isChildActive ? "true" : undefined}
                           className={cn(
-                            "group flex items-center gap-3 rounded-[1rem] px-3 py-2.5 text-[13px] font-medium transition-all duration-150",
+                            "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                             isChildActive
-                              ? "bg-slate-950 text-white shadow-[0_16px_28px_-20px_rgba(15,23,42,0.8)] font-semibold"
-                              : "text-slate-600 hover:bg-white hover:text-slate-950",
+                              ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
+                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
                             mobile ? "px-3 py-2.5 text-[13px]" : "",
                           )}
                         >
@@ -284,8 +278,7 @@ export function SidebarNavContent({
             </div>
           );
         })}
-      </nav>
-    </TooltipProvider>
+    </nav>
   );
 }
 
@@ -296,25 +289,20 @@ export function SidebarFooterProfile({ compact = false }: { compact?: boolean })
 
   if (compact) {
     return (
-      <TooltipProvider delayDuration={80}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[1rem] border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm">
-              {user.username.substring(0, 2).toUpperCase()}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="rounded-xl border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xl">
-            {(user.full_name || user.username)} · {user.role_info?.name || "System User"}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <div
+        className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm"
+        title={`${user.full_name || user.username} - ${user.role_info?.name || "System User"}`}
+        aria-label={`${user.full_name || user.username} - ${user.role_info?.name || "System User"}`}
+      >
+        {user.username.substring(0, 2).toUpperCase()}
+      </div>
     );
   }
 
   return (
     <div
       className={cn(
-        "group flex items-center gap-3 rounded-[1rem] bg-transparent p-2 transition-all hover:bg-white",
+        "group flex items-center gap-3 rounded-xl bg-transparent p-2 transition-all hover:bg-slate-100",
         compact ? "p-3" : ""
       )}
     >

@@ -141,4 +141,4 @@ writeAggregateSummary(
   { gateExitCode, mutationsExitCode, observationsExitCode },
 )
 
-process.exit(gateExitCode || mutationsExitCode || 0)
+process.exit(gateExitCode || mutationsExitCode || observationsExitCode || 0)

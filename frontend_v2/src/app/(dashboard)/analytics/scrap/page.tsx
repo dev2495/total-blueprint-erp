@@ -96,7 +96,7 @@ export default function ScrapAnalyticsPage() {
                 <KpiCard icon={<Wrench className="h-4 w-4 text-amber-600" />} label="Adjustment Scrap" value={`${toKg(summary.adjustment_scrap_kg)} kg`} />
                 <KpiCard icon={<AlertTriangle className="h-4 w-4 text-rose-700" />} label="Total Scrap" value={`${toKg(summary.total_scrap_kg)} kg`} />
                 <KpiCard icon={<Factory className="h-4 w-4 text-emerald-600" />} label="Output" value={`${toKg(summary.total_output_kg)} kg`} />
-                <KpiCard icon={<Factory className="h-4 w-4 text-indigo-600" />} label="Consumed" value={`${toKg(summary.total_consumed_kg)} kg`} />
+                <KpiCard icon={<Factory className="h-4 w-4 text-blue-600" />} label="Consumed" value={`${toKg(summary.total_consumed_kg)} kg`} />
                 <KpiCard icon={<AlertTriangle className="h-4 w-4 text-orange-600" />} label="Scrap Rate" value={`${Number(summary.scrap_rate_percent || 0).toFixed(2)}%`} />
             </div>
 

@@ -23,15 +23,15 @@ export function PageHeader({
 }: PageHeaderProps) {
     return (
         <div className={cn("space-y-4 pb-4", className)}>
-            <div className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/78 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.45)] backdrop-blur-xl sm:px-6 sm:py-6 lg:px-7">
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="erp-hero overflow-hidden rounded-3xl border border-white/10 px-5 py-5 shadow-xl backdrop-blur-xl sm:px-6 sm:py-6 lg:px-7">
+                <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                     <div className="max-w-4xl space-y-2">
-                        <div className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/85 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 shadow-sm">
-                            Premium Workspace
+                        <div className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/80 shadow-sm">
+                            Total Poly Print ERP
                         </div>
-                        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl lg:text-[2rem]">{title}</h1>
+                        <h1 className="font-display text-2xl font-bold tracking-normal text-white sm:text-3xl lg:text-[2.1rem]">{title}</h1>
                         {description && (
-                            <p className="max-w-3xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                            <p className="max-w-3xl text-sm leading-6 text-slate-200 sm:text-[15px]">
                                 {description}
                             </p>
                         )}

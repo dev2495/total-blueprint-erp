@@ -19,11 +19,11 @@ export function JobCard({ job }: JobCardProps) {
     const inputRolls = reservedRolls || []
 
     return (
-        <Card className="border-l-4 border-l-indigo-600 shadow-sm">
+        <Card className="border-l-4 border-l-blue-600 shadow-sm">
             <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                     <div>
-                        <CardDescription className="text-xs font-mono uppercase tracking-widest text-indigo-500">
+                        <CardDescription className="text-xs font-mono uppercase tracking-widest text-blue-500">
                             {job.job_number}
                         </CardDescription>
                         <CardTitle className="text-xl font-bold mt-1 text-slate-800">
@@ -57,23 +57,23 @@ export function JobCard({ job }: JobCardProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {inputRolls.length ? (
                             inputRolls.map((roll: any) => (
-                                <div key={roll.id} className="flex flex-col gap-1.5 bg-indigo-50/30 p-2.5 rounded-lg border border-indigo-100/50">
+                                <div key={roll.id} className="flex flex-col gap-1.5 bg-blue-50/30 p-2.5 rounded-lg border border-blue-100/50">
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-mono font-bold text-slate-900">{roll.label_id}</span>
                                         <Badge variant="outline" className={`text-[9px] font-bold px-1.5 py-0 ${roll.status === 'IN_PROCESS' ? 'bg-green-500 text-white border-transparent' :
                                             roll.status === 'CONSUMED' ? 'bg-slate-200 text-slate-600 border-transparent' :
-                                                'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                                'bg-blue-100 text-blue-700 border-blue-200'
                                             }`}>
                                             {roll.status}
                                         </Badge>
                                     </div>
                                     <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
                                         <span>{roll.width_mm}mm × {roll.thickness_micron || '-'}µ</span>
-                                        <span className="font-bold text-indigo-600">{roll.weight_kg?.toFixed(2)} KG</span>
+                                        <span className="font-bold text-blue-600">{roll.weight_kg?.toFixed(2)} KG</span>
                                     </div>
                                     <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
                                         <div
-                                            className="bg-indigo-500 h-full"
+                                            className="bg-blue-500 h-full"
                                             style={{ width: `${Math.min(100, (roll.weight_kg / (roll.initial_weight || roll.weight_kg)) * 100)}%` }}
                                         />
                                     </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -22,11 +23,24 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  SalesOverflowChipGroup,
+  SalesSavedViewsBar,
+  SalesSmartRangeFilter,
+  SALES_GRADE_PRIORITY,
+  SALES_MATERIAL_PRIORITY,
+  salesMaterialFilterLabel,
+  salesSortChipOptions,
+  salesUniqueText,
+  type SalesOverflowChipOption,
+  type SalesSavedViewFilters,
+} from "@/components/sales/sales-flow-ui"
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { masterDataService } from "@/services/master-data"
 import { plannerService, type PlannerSkuPreset, type PlannerSkuVariantPreset } from "@/services/planner"
+import { recipeService } from "@/services/recipes"
 import styles from "./planner-sku-catalog.module.css"
 
 type LaunchKind = PlannerSkuVariantPreset["launch_kind"]
@@ -109,19 +123,19 @@ type FamilyDraft = {
 }
 
 const launchKindLabel: Record<string, string> = {
-  FINAL_ROLL: "Final Roll",
-  SHARED_INVARIANT_ROLL: "Shared Invariant",
-  BASE_UPSTREAM_ROLL: "Base / Upstream",
-  PACKAGING_STOCK: "Packaging Stock",
-  POD_STOCK: "POD Stock",
+  FINAL_ROLL: "Final roll / pouch",
+  SHARED_INVARIANT_ROLL: "Shared invariant roll",
+  BASE_UPSTREAM_ROLL: "Base / upstream WIP",
+  PACKAGING_STOCK: "Packaging stock",
+  POD_STOCK: "POD stock",
 }
 
 function outputClassLabel(output: PlannerOutputClass) {
-  if (output === "FG") return "FG"
-  if (output === "INVARIANT") return "Invariant Roll"
-  if (output === "WIP") return "WIP for FG"
-  if (output === "POD") return "POD"
-  return "Packaging"
+  if (output === "FG") return "Final roll / pouch"
+  if (output === "INVARIANT") return "Invariant roll"
+  if (output === "WIP") return "WIP for roll / pouch"
+  if (output === "POD") return "POD stock"
+  return "Packaging stock"
 }
 
 function outputClassForLaunchKind(kind: LaunchKind): PlannerOutputClass {
@@ -178,7 +192,7 @@ function plannerUiStateForOutput(output: PlannerOutputClass) {
 
 function kindTone(kind?: string) {
   const normalized = String(kind || "").toUpperCase()
-  if (normalized === "SHARED_INVARIANT_ROLL") return "border-indigo-200 bg-indigo-50 text-indigo-700"
+  if (normalized === "SHARED_INVARIANT_ROLL") return "border-blue-200 bg-blue-50 text-blue-700"
   if (normalized === "BASE_UPSTREAM_ROLL") return "border-amber-200 bg-amber-50 text-amber-700"
   if (normalized === "PACKAGING_STOCK") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (normalized === "POD_STOCK") return "border-sky-200 bg-sky-50 text-sky-700"
@@ -188,6 +202,44 @@ function kindTone(kind?: string) {
 function asNumber(value: unknown, fallback = 0) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function parsePlannerSkuRange(value: string) {
+  const raw = value.trim()
+  if (!raw) return { min: null as number | null, max: null as number | null }
+  const parts = raw.split(/[,-]/).map((part) => Number(part.trim())).filter(Number.isFinite)
+  if (!parts.length) return { min: null, max: null }
+  if (parts.length === 1) return { min: parts[0], max: parts[0] }
+  return { min: Math.min(parts[0], parts[1]), max: Math.max(parts[0], parts[1]) }
+}
+
+function plannerSkuNumberMatches(value: number | null | undefined, rangeText: string) {
+  const { min, max } = parsePlannerSkuRange(rangeText)
+  if (min === null && max === null) return true
+  const num = Number(value)
+  if (!Number.isFinite(num)) return false
+  if (min !== null && max !== null && min === max) return Math.round(num) === Math.round(min)
+  if (min !== null && num < min) return false
+  if (max !== null && num > max) return false
+  return true
+}
+
+function makePlannerSkuRangePresets(values: Array<number | null | undefined>, suffix: string) {
+  const counts = new Map<number, number>()
+  values.forEach((value) => {
+    const num = Number(value)
+    if (!Number.isFinite(num) || num <= 0) return
+    const rounded = Math.round(num)
+    counts.set(rounded, (counts.get(rounded) || 0) + 1)
+  })
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0] - right[0])
+    .slice(0, 10)
+    .map(([value, count]) => ({ value: String(value), label: `${value} ${suffix}`, count }))
+}
+
+function uniquePlannerSkuText(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)))
 }
 
 function makeLayer(): LayerDraft {
@@ -437,16 +489,23 @@ function buildVariantPayload(draft: VariantDraft, familyId: string) {
 }
 
 export default function PlannerSkuCatalogPage() {
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [search, setSearch] = useState("")
   const [launchFilter, setLaunchFilter] = useState<string>("ALL")
+  const [materialFilter, setMaterialFilter] = useState("")
+  const [gradeFilter, setGradeFilter] = useState("")
+  const [widthFilter, setWidthFilter] = useState("")
+  const [heightFilter, setHeightFilter] = useState("")
+  const [thicknessFilter, setThicknessFilter] = useState("")
   const [selectedSkuId, setSelectedSkuId] = useState("")
   const [familyDialogOpen, setFamilyDialogOpen] = useState(false)
   const [familyDraft, setFamilyDraft] = useState<FamilyDraft>(emptyFamilyDraft())
   const [variantDialogOpen, setVariantDialogOpen] = useState(false)
   const [variantDraft, setVariantDraft] = useState<VariantDraft>(emptyVariantDraft(null))
   const [editingVariant, setEditingVariant] = useState<PlannerSkuVariantPreset | null>(null)
+  const [queryVariantDialogOpened, setQueryVariantDialogOpened] = useState(false)
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
 
   const skuQuery = useQuery({
@@ -474,6 +533,7 @@ export default function PlannerSkuCatalogPage() {
   const variantsQuery = useQuery({ queryKey: ["planner-sku-catalog-variants"], queryFn: masterDataService.getFilmVariants, staleTime: 60_000 })
   const addonsQuery = useQuery({ queryKey: ["planner-sku-catalog-addons"], queryFn: masterDataService.getAddons, staleTime: 60_000 })
   const packagingQuery = useQuery({ queryKey: ["planner-sku-catalog-packaging"], queryFn: masterDataService.getPackaging, staleTime: 60_000 })
+  const gradesQuery = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades(), staleTime: 60_000 })
   const podQuery = useQuery({
     queryKey: ["planner-sku-catalog-pod"],
     queryFn: () => masterDataService.getPodSkuVariants({ active: true }),
@@ -490,15 +550,167 @@ export default function PlannerSkuCatalogPage() {
   const plants = Array.isArray(plantsQuery.data) ? plantsQuery.data : []
   const filmFamilies = Array.isArray(familiesQuery.data) ? familiesQuery.data : []
   const filmVariants = Array.isArray(variantsQuery.data) ? variantsQuery.data : []
+  const masterGrades = Array.isArray(gradesQuery.data) ? gradesQuery.data : []
   const addonsMaster = Array.isArray(addonsQuery.data) ? addonsQuery.data : []
   const packagingMaterials = Array.isArray(packagingQuery.data) ? packagingQuery.data : []
   const podSkuVariants = Array.isArray(podQuery.data) ? podQuery.data : []
   const routeSteps = Array.isArray(routeStepsQuery.data) ? routeStepsQuery.data : []
 
+  const launchKindOptions = useMemo<SalesOverflowChipOption[]>(() => {
+    const kinds = ["FINAL_ROLL", "SHARED_INVARIANT_ROLL", "BASE_UPSTREAM_ROLL", "PACKAGING_STOCK", "POD_STOCK"] as const
+    return kinds.map((kind) => ({
+      value: kind,
+      label: outputClassLabel(outputClassForLaunchKind(kind)),
+      count: plannerSkus.reduce((sum, sku) => sum + (sku.variants || []).filter((variant) => variant.launch_kind === kind).length, 0),
+      tone: kind === "FINAL_ROLL"
+        ? "fgRoll"
+        : kind === "SHARED_INVARIANT_ROLL"
+          ? "template"
+          : kind === "BASE_UPSTREAM_ROLL"
+            ? "fgPouch"
+            : kind === "PACKAGING_STOCK"
+              ? "pack"
+              : "material",
+    }))
+  }, [plannerSkus])
+  const filmFamilyById = useMemo(
+    () => new Map(filmFamilies.map((family: any) => [String(family.id), family])),
+    [filmFamilies]
+  )
+  const filmVariantById = useMemo(
+    () => new Map(filmVariants.map((variant: any) => [String(variant.id), variant])),
+    [filmVariants]
+  )
+  const plannerVariantLens = useMemo(() => (
+    plannerSkus.flatMap((sku) =>
+      (sku.variants || []).map((variant) => {
+        const geometry = variant.geometry_snapshot || {}
+        const layers = Array.isArray(variant.layer_snapshot) ? variant.layer_snapshot : []
+        const layerMaterials = layers.flatMap((layer: any) => {
+          const family = filmFamilyById.get(String(layer.family_id || ""))
+          const filmVariant = filmVariantById.get(String(layer.variant_id || ""))
+          return [
+            layer.family_name,
+            layer.variant_name,
+            (family as any)?.name,
+            (family as any)?.code,
+            (filmVariant as any)?.name,
+            (filmVariant as any)?.code,
+          ]
+        })
+        const grades = layers.flatMap((layer: any) => {
+          const filmVariant = filmVariantById.get(String(layer.variant_id || ""))
+          return [
+            layer.grade,
+            layer.grade_name,
+            (filmVariant as any)?.grade,
+            (filmVariant as any)?.grade_name,
+            (filmVariant as any)?.grade_display_name,
+          ]
+        })
+        const widths = [
+          asNumber((variant as any).width_mm || geometry.width_mm, 0),
+          ...layers.map((layer: any) => asNumber(layer.roll_width_mm || layer.width_mm, 0)),
+        ].filter((value) => value > 0)
+        const heights = [asNumber((variant as any).height_mm || geometry.height_mm, 0)].filter((value) => value > 0)
+        const thicknesses = layers.map((layer: any) => asNumber(layer.thickness_micron, 0)).filter((value) => value > 0)
+        const searchText = [
+          sku.code,
+          sku.name,
+          sku.template_name,
+          variant.code,
+          variant.name,
+          variant.template_name,
+          variant.planner_stock_class,
+          variant.launch_kind,
+          geometry.roll_form,
+          ...layerMaterials,
+          ...grades,
+          ...widths.map((value) => `${value}mm`),
+          ...heights.map((value) => `${value}mm`),
+          ...thicknesses.map((value) => `${value}u`),
+        ].filter(Boolean).join(" ").toLowerCase()
+        return { sku, variant, layerMaterials: uniquePlannerSkuText(layerMaterials as any), grades: uniquePlannerSkuText(grades as any), widths, heights, thicknesses, searchText }
+      })
+    )
+  ), [filmFamilyById, filmVariantById, plannerSkus])
+  const plannerVariantLensById = useMemo(
+    () => new Map(plannerVariantLens.map((entry) => [String(entry.variant.id), entry])),
+    [plannerVariantLens]
+  )
+  const materialOptions = useMemo<SalesOverflowChipOption[]>(() => {
+    const labels = salesUniqueText([
+      ...SALES_MATERIAL_PRIORITY,
+      ...filmFamilies.flatMap((family: any) => [family?.code, family?.name]),
+      ...filmVariants.flatMap((variant: any) => [variant?.code, variant?.name, variant?.parent_family_name]),
+      ...plannerVariantLens.flatMap((entry) => entry.layerMaterials.map(salesMaterialFilterLabel)),
+    ]).map(salesMaterialFilterLabel).filter(Boolean)
+    return salesSortChipOptions(
+      salesUniqueText(labels).map((material) => ({
+        value: material,
+        label: material,
+        count: plannerVariantLens.filter((entry) => entry.searchText.includes(material.toLowerCase())).length,
+        tone: "material" as const,
+      })),
+      SALES_MATERIAL_PRIORITY
+    )
+  }, [filmFamilies, filmVariants, plannerVariantLens])
+  const gradeOptions = useMemo<SalesOverflowChipOption[]>(() => (
+    salesSortChipOptions(
+      uniquePlannerSkuText([
+        ...SALES_GRADE_PRIORITY,
+        ...masterGrades.map((grade: any) => grade?.name || grade?.code),
+        ...plannerVariantLens.flatMap((entry) => entry.grades),
+      ])
+        .map((grade) => ({
+        value: grade,
+        label: grade,
+        count: plannerVariantLens.filter((entry) => entry.grades.some((value) => value.toLowerCase().includes(grade.toLowerCase()))).length,
+        tone: "grade" as const,
+      })),
+      SALES_GRADE_PRIORITY
+    )
+  ), [masterGrades, plannerVariantLens])
+  const widthPresets = useMemo(() => makePlannerSkuRangePresets(plannerVariantLens.flatMap((entry) => entry.widths), "mm"), [plannerVariantLens])
+  const heightPresets = useMemo(() => makePlannerSkuRangePresets(plannerVariantLens.flatMap((entry) => entry.heights), "mm"), [plannerVariantLens])
+  const thicknessPresets = useMemo(() => makePlannerSkuRangePresets(plannerVariantLens.flatMap((entry) => entry.thicknesses), "μ"), [plannerVariantLens])
+
+  function plannerVariantPassesFilters(variant: PlannerSkuVariantPreset) {
+    const lens = plannerVariantLensById.get(String(variant.id))
+    if (!lens) return true
+    if (materialFilter && !lens.searchText.includes(materialFilter.toLowerCase())) return false
+    if (gradeFilter && !lens.grades.some((value) => value.toLowerCase().includes(gradeFilter.toLowerCase()))) return false
+    if (widthFilter && !lens.widths.some((value) => plannerSkuNumberMatches(value, widthFilter))) return false
+    if (heightFilter && !lens.heights.some((value) => plannerSkuNumberMatches(value, heightFilter))) return false
+    if (thicknessFilter && !lens.thicknesses.some((value) => plannerSkuNumberMatches(value, thicknessFilter))) return false
+    return true
+  }
+
+  const plannerSkuSavedFilters: SalesSavedViewFilters = {
+    search,
+    launchFilter,
+    materialFilter,
+    gradeFilter,
+    widthFilter,
+    heightFilter,
+    thicknessFilter,
+  }
+
+  function applyPlannerSkuSavedFilters(filters: SalesSavedViewFilters) {
+    setSearch(String(filters.search || ""))
+    setLaunchFilter(String(filters.launchFilter || "ALL"))
+    setMaterialFilter(String(filters.materialFilter || ""))
+    setGradeFilter(String(filters.gradeFilter || ""))
+    setWidthFilter(String(filters.widthFilter || ""))
+    setHeightFilter(String(filters.heightFilter || ""))
+    setThicknessFilter(String(filters.thicknessFilter || ""))
+  }
+
   const filteredSkus = useMemo(() => {
     return plannerSkus.filter((sku) => {
       const variantMatches = (sku.variants || []).filter((variant) => {
         if (launchFilter !== "ALL" && String(variant.launch_kind || "") !== launchFilter) return false
+        if (!plannerVariantPassesFilters(variant)) return false
         if (!deferredSearch) return true
         return [variant.code, variant.name, variant.template_name, variant.planner_stock_class]
           .filter(Boolean)
@@ -510,7 +722,7 @@ export default function PlannerSkuCatalogPage() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(deferredSearch))
     })
-  }, [deferredSearch, launchFilter, plannerSkus])
+  }, [deferredSearch, gradeFilter, heightFilter, launchFilter, materialFilter, plannerSkus, plannerVariantLensById, thicknessFilter, widthFilter])
 
   useEffect(() => {
     if (!filteredSkus.length) {
@@ -525,9 +737,11 @@ export default function PlannerSkuCatalogPage() {
   const selectedSku = filteredSkus.find((sku) => String(sku.id) === String(selectedSkuId)) || null
   const selectedVariants = useMemo(() => {
     const variants = selectedSku?.variants || []
-    if (launchFilter === "ALL") return variants
-    return variants.filter((variant) => String(variant.launch_kind || "") === launchFilter)
-  }, [launchFilter, selectedSku])
+    return variants.filter((variant) => {
+      if (launchFilter !== "ALL" && String(variant.launch_kind || "") !== launchFilter) return false
+      return plannerVariantPassesFilters(variant)
+    })
+  }, [gradeFilter, heightFilter, launchFilter, materialFilter, plannerVariantLensById, selectedSku, thicknessFilter, widthFilter])
 
   useEffect(() => {
     if (!variantDraft.template || !routeSteps.length) return
@@ -615,6 +829,14 @@ export default function PlannerSkuCatalogPage() {
     setVariantDraft(variant ? variantDraftFromPreset(variant) : emptyVariantDraft(selectedSku))
     setVariantDialogOpen(true)
   }
+
+  useEffect(() => {
+    if (queryVariantDialogOpened) return
+    if (searchParams?.get("create_variant") !== "1") return
+    if (!selectedSku) return
+    setQueryVariantDialogOpened(true)
+    openVariantSheet(null)
+  }, [queryVariantDialogOpened, searchParams, selectedSku])
 
   function patchVariant(patch: Partial<VariantDraft>) {
     setVariantDraft((current) => ({ ...current, ...patch }))
@@ -744,6 +966,72 @@ export default function PlannerSkuCatalogPage() {
           <div className={styles.kpiLabel}>Filtered mode</div>
           <div className={styles.kpiValueSm}>{launchFilter === "ALL" ? "All launch kinds" : launchKindLabel[launchFilter] || launchFilter}</div>
         </div>
+        <div className={styles.kpiChip}>
+          <div className={styles.kpiLabel}>Visible families</div>
+          <div className={styles.kpiValue}>{filteredSkus.length}</div>
+        </div>
+        <div className={styles.kpiChip}>
+          <div className={styles.kpiLabel}>Visible presets</div>
+          <div className={styles.kpiValue}>{filteredSkus.reduce((sum, sku) => sum + (sku.variants?.length || 0), 0)}</div>
+        </div>
+      </section>
+
+      <SalesSavedViewsBar
+        scope="planner_sku"
+        currentFilters={plannerSkuSavedFilters}
+        onApply={applyPlannerSkuSavedFilters}
+        viewCounts={{
+          "Active presets": plannerSkus.reduce((sum, sku) => sum + (sku.variants?.length || 0), 0),
+          "Final roll / pouch": launchKindOptions.find((option) => option.value === "FINAL_ROLL")?.count || 0,
+          "Invariant rolls": launchKindOptions.find((option) => option.value === "SHARED_INVARIANT_ROLL")?.count || 0,
+          "POD stock": launchKindOptions.find((option) => option.value === "POD_STOCK")?.count || 0,
+          "Packaging stock": launchKindOptions.find((option) => option.value === "PACKAGING_STOCK")?.count || 0,
+        }}
+      />
+
+      <section className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-[0_16px_38px_-34px_rgba(15,23,42,0.35)]">
+        <div className="mb-3 grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_auto] xl:items-center">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 text-sm font-semibold"
+              placeholder="Search family, preset, template, material, grade..."
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-full bg-white px-5 text-xs font-black uppercase tracking-[0.12em]"
+            onClick={() => {
+              setSearch("")
+              setLaunchFilter("ALL")
+              setMaterialFilter("")
+              setGradeFilter("")
+              setWidthFilter("")
+              setHeightFilter("")
+              setThicknessFilter("")
+            }}
+          >
+            Reset spec filters
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+          <SalesSmartRangeFilter label="Width" value={widthFilter} onChange={setWidthFilter} placeholder="440 / 1070" suffix="mm" presets={widthPresets} />
+          <SalesSmartRangeFilter label="Height" value={heightFilter} onChange={setHeightFilter} placeholder="200-320" suffix="mm" presets={heightPresets} />
+          <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} onChange={setThicknessFilter} placeholder="20-80" suffix="μ" presets={thicknessPresets} />
+          <SalesOverflowChipGroup label="Material" value={materialFilter} onChange={setMaterialFilter} options={materialOptions} maxInline={4} allValue="" />
+          <SalesOverflowChipGroup label="Grade" value={gradeFilter} onChange={setGradeFilter} options={gradeOptions} maxInline={4} allValue="" />
+          <SalesOverflowChipGroup
+            label="Launch kind"
+            value={launchFilter}
+            onChange={setLaunchFilter}
+            allValue="ALL"
+            options={launchKindOptions}
+            maxInline={3}
+          />
+        </div>
       </section>
 
       <section className={styles.layoutGrid}>
@@ -754,28 +1042,7 @@ export default function PlannerSkuCatalogPage() {
               Planner families
             </div>
           </div>
-          <div className={styles.searchWrap}>
-            <Search className={styles.searchIcon} />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className={styles.searchInput}
-              placeholder="Search family, preset, template…"
-            />
-          </div>
-          <div className={styles.launchFilterRow}>
-            <button type="button" className={cn(styles.filterChip, launchFilter === "ALL" && styles.filterChipActive)} onClick={() => setLaunchFilter("ALL")}>All</button>
-            {(["FINAL_ROLL", "SHARED_INVARIANT_ROLL", "BASE_UPSTREAM_ROLL", "PACKAGING_STOCK", "POD_STOCK"] as const).map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                className={cn(styles.filterChip, launchFilter === kind && styles.filterChipActive)}
-                onClick={() => setLaunchFilter(kind)}
-              >
-                {outputClassLabel(outputClassForLaunchKind(kind))}
-              </button>
-            ))}
-          </div>
+          <div className={styles.railSearchNote}>Use the command filters above, then pick a family here.</div>
           <ScrollArea className={styles.railScroll}>
             <div className={styles.skuList}>
               {filteredSkus.map((sku) => {
@@ -797,7 +1064,11 @@ export default function PlannerSkuCatalogPage() {
                   </button>
                 )
               })}
-              {!filteredSkus.length ? <div className={styles.emptyState}>No planner families match the current filters.</div> : null}
+              {!filteredSkus.length ? (
+                <div className={styles.emptyState}>
+                  No planner families match this view. Clear the search or save a narrower view after changing the launch filter.
+                </div>
+              ) : null}
             </div>
           </ScrollArea>
         </aside>
@@ -894,7 +1165,7 @@ export default function PlannerSkuCatalogPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </Button>
-                        <Button asChild className="rounded-full bg-indigo-600 text-white hover:bg-indigo-500">
+                        <Button asChild className="rounded-full bg-blue-600 text-white hover:bg-blue-500">
                           <Link href={`/production/planner/stock-orders/create?preset=${variant.id}`}>
                             Launch
                             <ArrowRight className="ml-2 h-3.5 w-3.5" />
@@ -1011,19 +1282,19 @@ export default function PlannerSkuCatalogPage() {
                   <div className={styles.readonlyField}>{selectedSku ? `${selectedSku.code} · ${selectedSku.name}` : "Select a family from the rail"}</div>
                 </div>
                 <div>
-                  <Label>Output type</Label>
+                  <Label>Stock route</Label>
                   <Select value={variantOutputClass} onValueChange={(value: PlannerOutputClass) => syncOutputClass(value)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="FG">FG</SelectItem>
-                      <SelectItem value="INVARIANT">Invariant Roll</SelectItem>
-                      <SelectItem value="WIP">WIP for FG</SelectItem>
-                      <SelectItem value="POD">POD</SelectItem>
-                      <SelectItem value="PACKAGING">Packaging</SelectItem>
+                      <SelectItem value="FG">Final roll / pouch</SelectItem>
+                      <SelectItem value="INVARIANT">Invariant roll</SelectItem>
+                      <SelectItem value="WIP">WIP for roll / pouch</SelectItem>
+                      <SelectItem value="POD">POD stock</SelectItem>
+                      <SelectItem value="PACKAGING">Packaging stock</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className={styles.inlineHint}>
-                    Output fixes launch intent and stock class. Keep geometry and material snapshots as the real product truth.
+                    Route class controls stock intent. Finished goods are only roll or pouch.
                   </div>
                 </div>
                 <div>
@@ -1096,7 +1367,7 @@ export default function PlannerSkuCatalogPage() {
               </div>
               <div className={styles.formGrid}>
                 <div>
-                  <Label>Finished good type</Label>
+                  <Label>Finished good</Label>
                   <Select value={variantDraft.finished_good_type} onValueChange={(value: FgType) => syncFinishedGoodType(value)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1251,14 +1522,9 @@ export default function PlannerSkuCatalogPage() {
             <section className={styles.sheetSection}>
               <div className={styles.sheetSectionHeader}>
                 <div>
-                  <div className={styles.sectionEyebrow}>Printing and add-ons</div>
-                  <h3 className={styles.sheetSectionTitle}>Decoration inputs</h3>
-                </div>
-              </div>
-              <div className={styles.inlineSwitchRow}>
-                <div>
-                  <div className={styles.metaLabel}>Printing enabled</div>
-                  <div className={styles.inlineHint}>Keep artwork and print chemistry tied to the preset.</div>
+                  <div className={styles.sectionEyebrow}>Printing</div>
+                  <h3 className={styles.sheetSectionTitle}>Artwork, color, and ink inputs</h3>
+                  <div className={styles.inlineHint}>Printing is optional. Lamination chemistry is managed in the next card.</div>
                 </div>
                 <Switch checked={variantDraft.printing_enabled} onCheckedChange={(checked) => patchVariant({ printing_enabled: checked })} />
               </div>
@@ -1301,6 +1567,22 @@ export default function PlannerSkuCatalogPage() {
                     <Label>Artwork ID</Label>
                     <Input value={variantDraft.artwork_id} onChange={(event) => patchVariant({ artwork_id: event.target.value })} placeholder="Optional artwork reference" />
                   </div>
+                </div>
+              ) : (
+                <div className={styles.emptyState}>No printing required for this preset.</div>
+              )}
+            </section>
+
+            <section className={styles.sheetSection}>
+              <div className={styles.sheetSectionHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Chemistry and lamination</div>
+                  <h3 className={styles.sheetSectionTitle}>Adhesive and solvent inputs</h3>
+                  <div className={styles.inlineHint}>Use this for lamination even when printing is disabled.</div>
+                </div>
+              </div>
+              {variantDraft.layer_snapshot.length > 1 ? (
+                <div className={styles.formGrid}>
                   <div>
                     <Label>Adhesive GSM</Label>
                     <Input type="number" value={variantDraft.adhesive_gsm} onChange={(event) => patchVariant({ adhesive_gsm: Number(event.target.value || 0) })} />
@@ -1310,9 +1592,17 @@ export default function PlannerSkuCatalogPage() {
                     <Input type="number" value={variantDraft.solvent_gsm} onChange={(event) => patchVariant({ solvent_gsm: Number(event.target.value || 0) })} />
                   </div>
                 </div>
-              ) : null}
-              <div className={styles.sheetSectionSubRow}>
-                <div className={styles.sectionEyebrow}>Add-ons</div>
+              ) : (
+                <div className={styles.emptyState}>Single-layer presets do not need lamination chemistry.</div>
+              )}
+            </section>
+
+            <section className={styles.sheetSection}>
+              <div className={styles.sheetSectionHeader}>
+                <div>
+                  <div className={styles.sectionEyebrow}>Add-ons</div>
+                  <h3 className={styles.sheetSectionTitle}>Extra physical operations</h3>
+                </div>
                 <Button variant="outline" size="sm" className="rounded-full" onClick={() => patchVariant({ addons_snapshot: [...variantDraft.addons_snapshot, makeAddon()] })}>
                   <Plus className="mr-2 h-3.5 w-3.5" />
                   Add add-on

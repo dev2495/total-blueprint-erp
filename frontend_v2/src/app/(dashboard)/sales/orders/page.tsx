@@ -1,57 +1,79 @@
 "use client"
 
 import Link from "next/link"
-import { type ReactNode, useMemo, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ColumnDef } from "@tanstack/react-table"
-import { Activity, CheckCircle2, Loader2, Plus, Search, SlidersHorizontal, XCircle } from "lucide-react"
+import {
+    Activity,
+    ArrowUpDown,
+    CalendarDays,
+    CheckCircle2,
+    Download,
+    Grid2X2,
+    Loader2,
+    Plus,
+    Search,
+    SlidersHorizontal,
+    XCircle,
+} from "lucide-react"
 import { toast } from "sonner"
 
-import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+    formatSalesDate,
+    formatSalesMoney,
+    SalesOverflowChipGroup,
+    SalesSavedViewsBar,
+    SalesSmartRangeFilter,
+    SalesSpecChip,
+    SALES_GRADE_PRIORITY,
+    SALES_MATERIAL_PRIORITY,
+    SALES_SUPPORTED_FG_TYPES,
+    salesMaterialFilterLabel,
+    salesSortChipOptions,
+    salesUniqueText,
+    type SalesOverflowChipOption,
+    type SalesSavedViewFilters,
+} from "@/components/sales/sales-flow-ui"
 import { cn } from "@/lib/utils"
-import { normalizeProductSpec } from "@/lib/product-spec"
+import { normalizeProductSpec, type ProductSpec } from "@/lib/product-spec"
+import { filmFamilyService } from "@/services/film-families"
+import { filmVariantService } from "@/services/film-variants"
+import { recipeService } from "@/services/recipes"
 import { type SalesOrder, salesService } from "@/services/sales"
 
-type OrderTab = "active" | "completed"
-type CompletedStatusFilter = "ALL" | "COMPLETED" | "CANCELLED"
-type CompletedTypeFilter = "ALL" | "POUCH" | "ROLL"
-type CompletedWindowFilter = "ALL" | "30" | "90" | "180"
+type OrderTab = "queue" | "history"
+type StatusFilter = "ALL" | "DRAFT" | "CONFIRMED" | "PLANNING_REQUIRED" | "PLANNED" | "RELEASED" | "PACKING_READY" | "DISPATCH_READY" | "COMPLETED" | "CANCELLED"
+type DeliveryWindow = "ALL" | "THIS_WEEK" | "OVERDUE" | "NO_DATE"
 
-function formatDate(value: string) {
-    if (!value) return "No date"
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+type EnrichedOrder = {
+    order: SalesOrder
+    spec: ProductSpec
+    normalizedStatus: string
+    searchable: string
 }
+
+const PAGE_SIZE = 80
+
+const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
+    { value: "PLANNING_REQUIRED", label: "Planning" },
+    { value: "PLANNED", label: "Planned" },
+    { value: "RELEASED", label: "Released" },
+    { value: "PACKING_READY", label: "Packing" },
+    { value: "DISPATCH_READY", label: "Dispatch" },
+]
 
 function safeNumber(value: unknown) {
     const num = Number(value)
     return Number.isFinite(num) ? num : 0
 }
 
-function firstLineLabel(order: SalesOrder) {
-    const summary = order.item_summary || {}
-    const variantLabel = [summary.variant_code, summary.variant_name].filter(Boolean).join(" · ")
-    return variantLabel || summary.template_name || order.order_name || order.order_number
-}
-
-function progressParts(order: SalesOrder) {
-    const summary = order.fulfillment_summary || {}
-    const qty = order.qty_summary || {}
-    const orderedBasis = qty.ordered_pcs ?? qty.ordered_kg ?? 0
-    const producedBasis = qty.ordered_pcs != null ? safeNumber(summary.produced_pcs) : safeNumber(summary.produced_kg)
-    const dispatchedBasis = qty.ordered_pcs != null ? safeNumber(summary.dispatched_pcs) : safeNumber(summary.dispatched_kg)
-    const remainingBasis = qty.ordered_pcs != null ? safeNumber(summary.remaining_pcs) : safeNumber(summary.remaining_kg)
-    const total = Math.max(orderedBasis, producedBasis, dispatchedBasis + remainingBasis, 0)
-    if (!total) return { dispatchedPct: 0, producedOpenPct: 0, remainingPct: 0 }
-    const dispatchedPct = Math.max(0, Math.min(100, (dispatchedBasis / total) * 100))
-    const producedOpenPct = Math.max(0, Math.min(100 - dispatchedPct, ((producedBasis - dispatchedBasis) / total) * 100))
-    const remainingPct = Math.max(0, 100 - dispatchedPct - producedOpenPct)
-    return { dispatchedPct, producedOpenPct, remainingPct }
+function compact(value: number | null | undefined, maxDigits = 1) {
+    const num = Number(value)
+    if (!Number.isFinite(num)) return ""
+    if (Number.isInteger(num)) return num.toLocaleString("en-IN")
+    return num.toLocaleString("en-IN", { maximumFractionDigits: maxDigits })
 }
 
 function isCompletedOrder(order: SalesOrder) {
@@ -62,77 +84,336 @@ function canCancelBeforeRelease(order: SalesOrder) {
     return ["DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"].includes(String(order.status || "").toUpperCase())
 }
 
-function withinDays(value: string | null | undefined, days: number) {
-    if (!value) return false
-    const timestamp = new Date(value).getTime()
-    if (Number.isNaN(timestamp)) return false
-    return Date.now() - timestamp <= days * 24 * 60 * 60 * 1000
+function deliveryMatches(value: string | null | undefined, window: DeliveryWindow) {
+    if (window === "ALL") return true
+    if (!value) return window === "NO_DATE"
+    const ts = new Date(value).getTime()
+    if (Number.isNaN(ts)) return window === "NO_DATE"
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const end = new Date(today)
+    end.setDate(today.getDate() + 7)
+    if (window === "OVERDUE") return ts < today.getTime()
+    if (window === "THIS_WEEK") return ts >= today.getTime() && ts <= end.getTime()
+    return true
 }
 
-function badgeTone(kind: "type" | "geometry" | "layer" | "printing" | "pod" | "template" | "stock" | "packaging") {
-    switch (kind) {
-        case "type":
-            return "border-orange-200 bg-orange-50 text-orange-700"
-        case "geometry":
-            return "border-teal-200 bg-teal-50 text-teal-700"
-        case "layer":
-            return "border-amber-200 bg-amber-50 text-amber-700"
-        case "printing":
-            return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700"
-        case "pod":
-            return "border-rose-200 bg-rose-50 text-rose-700"
-        case "template":
-            return "border-violet-200 bg-violet-50 text-violet-700"
-        case "stock":
-            return "border-indigo-200 bg-indigo-50 text-indigo-700"
-        case "packaging":
-            return "border-emerald-200 bg-emerald-50 text-emerald-700"
-        default:
-            return "border-slate-200 bg-slate-50 text-slate-700"
+function orderQuantityLabel(order: SalesOrder) {
+    const qty = order.qty_summary || {}
+    if (qty.ordered_pcs != null) return `${safeNumber(qty.ordered_pcs).toLocaleString("en-IN")} pcs`
+    return `${safeNumber(qty.ordered_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg`
+}
+
+function progressParts(order: SalesOrder) {
+    const summary = order.fulfillment_summary || {}
+    const qty = order.qty_summary || {}
+    const orderedBasis = safeNumber(qty.ordered_pcs ?? qty.ordered_kg)
+    const producedBasis = qty.ordered_pcs != null ? safeNumber(summary.produced_pcs) : safeNumber(summary.produced_kg)
+    const dispatchedBasis = qty.ordered_pcs != null ? safeNumber(summary.dispatched_pcs) : safeNumber(summary.dispatched_kg)
+    const remainingBasis = qty.ordered_pcs != null ? safeNumber(summary.remaining_pcs) : safeNumber(summary.remaining_kg)
+    const total = Math.max(orderedBasis, producedBasis, dispatchedBasis + remainingBasis, 0)
+    if (!total) return { pct: 0, producedLabel: "0", totalLabel: orderQuantityLabel(order), dispatchedPct: 0, producedOpenPct: 0, remainingPct: 100 }
+    const dispatchedPct = Math.max(0, Math.min(100, (dispatchedBasis / total) * 100))
+    const producedOpenPct = Math.max(0, Math.min(100 - dispatchedPct, ((producedBasis - dispatchedBasis) / total) * 100))
+    return {
+        pct: Math.max(0, Math.min(100, safeNumber(summary.completion_percent) || ((producedBasis / total) * 100))),
+        producedLabel: qty.ordered_pcs != null ? compact(producedBasis, 0) : `${compact(producedBasis, 1)} kg`,
+        totalLabel: qty.ordered_pcs != null ? `${compact(total, 0)} pcs` : `${compact(total, 1)} kg`,
+        dispatchedPct,
+        producedOpenPct,
+        remainingPct: Math.max(0, 100 - dispatchedPct - producedOpenPct),
     }
 }
 
-function Pill({ children, kind }: { children: ReactNode; kind: Parameters<typeof badgeTone>[0] }) {
+function statusTone(status: string) {
+    const normalized = String(status || "").toUpperCase()
+    if (normalized === "COMPLETED") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    if (normalized === "CANCELLED") return "border-rose-200 bg-rose-50 text-rose-700"
+    if (normalized === "PLANNING_REQUIRED") return "border-amber-200 bg-amber-50 text-amber-700"
+    if (normalized === "PLANNED") return "border-blue-200 bg-blue-50 text-blue-700"
+    if (normalized === "RELEASED") return "border-blue-200 bg-blue-50 text-blue-700"
+    if (normalized === "PACKING_READY" || normalized === "DISPATCH_READY") return "border-cyan-200 bg-cyan-50 text-cyan-700"
+    return "border-slate-200 bg-slate-50 text-slate-700"
+}
+
+function fgTone(value?: string) {
+    const normalized = String(value || "").toUpperCase()
+    if (normalized === "ROLL") return "fgRoll" as const
+    if (normalized === "POUCH") return "fgPouch" as const
+    return "muted" as const
+}
+
+function layerChipLabel(layer: ProductSpec["layers"][number]) {
+    return [
+        `L${layer.index}`,
+        layer.variantName || layer.variantCode,
+        layer.grade,
+        layer.thicknessMicron !== null ? `${compact(layer.thicknessMicron, 1)}μ` : "",
+        layer.widthMm !== null ? `${compact(layer.widthMm, 0)}mm` : "",
+    ].filter(Boolean).join(" · ")
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>, limit = 40) {
+    return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean))).slice(0, limit)
+}
+
+function parseRange(value: string) {
+    const raw = value.trim()
+    if (!raw) return { min: null as number | null, max: null as number | null }
+    const parts = raw.split(/[,-]/).map((part) => Number(part.trim())).filter(Number.isFinite)
+    if (!parts.length) return { min: null, max: null }
+    if (parts.length === 1) return { min: parts[0], max: parts[0] }
+    return { min: Math.min(parts[0], parts[1]), max: Math.max(parts[0], parts[1]) }
+}
+
+function numberInRange(value: number | null, rangeText: string) {
+    const { min, max } = parseRange(rangeText)
+    if (min === null && max === null) return true
+    if (value === null) return false
+    if (min !== null && max !== null && min === max) return Math.round(value) === Math.round(min)
+    if (min !== null && value < min) return false
+    if (max !== null && value > max) return false
+    return true
+}
+
+function specMatches({
+    spec,
+    fgTypeFilter,
+    materialFilter,
+    gradeFilter,
+    sizeFilter,
+    heightFilter,
+    thicknessFilter,
+}: {
+    spec: ProductSpec
+    fgTypeFilter: string
+    materialFilter: string
+    gradeFilter: string
+    sizeFilter: string
+    heightFilter: string
+    thicknessFilter: string
+}) {
+    const fgType = String(spec.size.finishedGoodType || "").toUpperCase()
+    if (fgTypeFilter !== "all" && fgType !== fgTypeFilter.toUpperCase()) return false
+    if (materialFilter !== "all") {
+        const haystack = spec.layers.map((layer) => `${layer.variantName} ${layer.variantCode} ${layer.label}`).join(" ").toLowerCase()
+        if (!haystack.includes(materialFilter.toLowerCase())) return false
+    }
+    if (gradeFilter !== "all") {
+        const haystack = spec.layers.map((layer) => layer.grade).join(" ").toLowerCase()
+        if (!haystack.includes(gradeFilter.toLowerCase())) return false
+    }
+    if (sizeFilter.trim()) {
+        const q = sizeFilter.trim().toLowerCase()
+        const numericMatch = numberInRange(spec.size.widthMm, q)
+        if (!numericMatch && !spec.size.label.toLowerCase().includes(q)) return false
+    }
+    if (heightFilter.trim() && !numberInRange(spec.size.heightMm, heightFilter)) return false
+    if (thicknessFilter.trim()) {
+        const rangeMatch = spec.layers.some((layer) => numberInRange(layer.thicknessMicron, thicknessFilter))
+        if (!rangeMatch) return false
+    }
+    return true
+}
+
+function HeroMetric({
+    label,
+    value,
+    sub,
+}: {
+    label: string
+    value: string | number
+    sub?: string
+}) {
     return (
-        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", badgeTone(kind))}>
+        <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/65">{label}</div>
+            <div className="mt-2 text-3xl font-black tracking-tight">{value}</div>
+            {sub ? <div className="mt-1 text-xs font-semibold text-white/65">{sub}</div> : null}
+        </div>
+    )
+}
+
+function FilterPill({
+    active,
+    children,
+    onClick,
+}: {
+    active?: boolean
+    children: ReactNode
+    onClick: () => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-black transition hover:border-blue-300 hover:bg-blue-50",
+                active ? "border-blue-500 bg-blue-600 text-white shadow-[0_14px_24px_-18px_rgba(37,99,235,0.7)]" : "border-slate-200 bg-white text-slate-700"
+            )}
+        >
             {children}
+        </button>
+    )
+}
+
+function makeRangePresets(values: Array<number | null | undefined>, suffix: string) {
+    const counts = new Map<number, number>()
+    values.forEach((value) => {
+        const num = Number(value)
+        if (!Number.isFinite(num) || num <= 0) return
+        const rounded = Math.round(num)
+        counts.set(rounded, (counts.get(rounded) || 0) + 1)
+    })
+    return Array.from(counts.entries())
+        .sort((left, right) => right[1] - left[1] || left[0] - right[0])
+        .slice(0, 10)
+        .map(([value, count]) => ({ value: String(value), label: `${value} ${suffix}`, count }))
+}
+
+function StatusBadge({ status }: { status: string }) {
+    return (
+        <span className={cn("inline-flex rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em]", statusTone(status))}>
+            {String(status || "Status").replaceAll("_", " ")}
         </span>
     )
 }
 
-function StatusPill({ status }: { status: string }) {
-    const normalized = String(status || "").toUpperCase()
-    const tone = normalized === "COMPLETED"
-        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-        : normalized === "CANCELLED"
-            ? "border-rose-200 bg-rose-50 text-rose-700"
-            : normalized === "PACKING_READY"
-                ? "border-violet-200 bg-violet-50 text-violet-700"
-            : normalized === "DISPATCH_READY"
-                ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                : normalized === "RELEASED"
-                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                    : normalized === "PLANNING_REQUIRED"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-slate-200 bg-slate-50 text-slate-700"
-    return <span className={cn("inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]", tone)}>{normalized}</span>
+function AttributeChips({ order, spec }: { order: SalesOrder; spec: ProductSpec }) {
+    const fg = String(spec.size.finishedGoodType || order.item_summary?.finished_good_type || "").toUpperCase()
+    const printLabel = order.item_summary?.printing_summary || (spec.podLabels.find((label) => /print|flexo|roto|color/i.test(label)) || "No print")
+    const addons = spec.hasAddons ? spec.addonLabels.slice(0, 2) : []
+    const pod = spec.hasPod ? spec.podLabels.filter((label) => !/print|flexo|roto|color/i.test(label)).slice(0, 1) : []
+    const layers = spec.layers.slice(0, 3)
+    return (
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+            {fg ? <SalesSpecChip tone={fgTone(fg)}>{fg}</SalesSpecChip> : null}
+            <SalesSpecChip tone="size">{spec.size.label}</SalesSpecChip>
+            {layers.map((layer) => (
+                <SalesSpecChip key={`${layer.index}-${layer.label}`} tone="material" className="max-w-[18rem] truncate">
+                    {layerChipLabel(layer)}
+                </SalesSpecChip>
+            ))}
+            {spec.layers.length > layers.length ? <SalesSpecChip tone="material">+{spec.layers.length - layers.length} layers</SalesSpecChip> : null}
+            {printLabel ? <SalesSpecChip tone={printLabel === "No print" ? "muted" : "print"}>{printLabel}</SalesSpecChip> : null}
+            {spec.templateName ? <SalesSpecChip tone="template">{spec.templateName}</SalesSpecChip> : null}
+            {pod.length ? pod.map((label) => <SalesSpecChip key={`pod-${label}`} tone="pack">POD {label}</SalesSpecChip>) : null}
+            {addons.length ? addons.map((label) => <SalesSpecChip key={`addon-${label}`} tone="pack">{label}</SalesSpecChip>) : null}
+        </div>
+    )
+}
+
+function OrderQueueRow({
+    item,
+    tab,
+    onCancel,
+    cancelPending,
+}: {
+    item: EnrichedOrder
+    tab: OrderTab
+    onCancel: (order: SalesOrder) => void
+    cancelPending: boolean
+}) {
+    const { order, spec } = item
+    const progress = progressParts(order)
+    const variantId = spec.variantCode || order.item_summary?.variant_code || order.item_summary?.template_tag || "Variant pending"
+    const variantLabel = spec.variantName || order.item_summary?.variant_name || order.line_name || spec.productName
+    const isHistory = tab === "history"
+
+    return (
+        <div className="grid min-h-[5.5rem] min-w-[1120px] grid-cols-[10rem_13rem_minmax(27rem,1fr)_15rem_12rem_10rem] items-center gap-4 border-b border-slate-100 px-4 py-3 transition hover:bg-blue-50/45">
+            <div className="min-w-0">
+                <div className="font-mono text-sm font-black text-blue-900">{order.order_number}</div>
+                <div className="mt-1 truncate text-xs font-bold text-slate-600">{order.customer_name || "Customer"}</div>
+                <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{order.order_type || "MTO"}</div>
+            </div>
+            <div className="min-w-0">
+                <div className="truncate font-mono text-xs font-black text-slate-950">{variantId}</div>
+                <div className="mt-1 line-clamp-2 text-xs font-bold text-slate-500">{variantLabel}</div>
+            </div>
+            <AttributeChips order={order} spec={spec} />
+            <div className="min-w-0">
+                <div className="text-xs font-black text-slate-700">
+                    {progress.producedLabel} / {progress.totalLabel} · {compact(progress.pct, 0)}%
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div className="flex h-full">
+                        <div className="bg-emerald-500" style={{ width: `${progress.dispatchedPct}%` }} />
+                        <div className="bg-blue-500" style={{ width: `${progress.producedOpenPct}%` }} />
+                        <div className="bg-slate-200" style={{ width: `${progress.remainingPct}%` }} />
+                    </div>
+                </div>
+            </div>
+            <div className="min-w-0 text-xs">
+                <div className="font-black text-slate-900">{formatSalesDate(order.delivery_date)}</div>
+                <div className="mt-1 truncate font-semibold text-slate-500">{order.plant_name || order.ship_to_customer_name || "Plant pending"}</div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+                <StatusBadge status={order.status} />
+                {canCancelBeforeRelease(order) && !isHistory ? (
+                    <button
+                        type="button"
+                        aria-label={`Cancel ${order.order_number}`}
+                        disabled={cancelPending}
+                        onClick={() => onCancel(order)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-100 bg-white text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                    >
+                        <XCircle className="h-4 w-4" />
+                    </button>
+                ) : null}
+                <Button asChild variant="outline" size="sm" className="h-8 rounded-full bg-white px-3 text-[11px] font-black">
+                    <Link href={`/sales/orders/${order.id}/tracking`}>
+                        <Activity className="mr-1.5 h-3.5 w-3.5" />
+                        Track
+                    </Link>
+                </Button>
+            </div>
+        </div>
+    )
 }
 
 export default function SalesOrdersPage() {
     const queryClient = useQueryClient()
-    const [tab, setTab] = useState<OrderTab>("active")
+    const [tab, setTab] = useState<OrderTab>("queue")
     const [searchText, setSearchText] = useState("")
-    const [completedStatus, setCompletedStatus] = useState<CompletedStatusFilter>("ALL")
-    const [completedType, setCompletedType] = useState<CompletedTypeFilter>("ALL")
-    const [completedWindow, setCompletedWindow] = useState<CompletedWindowFilter>("90")
-    const [variantFilter, setVariantFilter] = useState("")
-    const [gradeFilter, setGradeFilter] = useState("")
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL")
+    const [fgTypeFilter, setFgTypeFilter] = useState("all")
+    const [materialFilter, setMaterialFilter] = useState("all")
+    const [gradeFilter, setGradeFilter] = useState("all")
     const [thicknessFilter, setThicknessFilter] = useState("")
     const [sizeFilter, setSizeFilter] = useState("")
+    const [heightFilter, setHeightFilter] = useState("")
+    const [deliveryWindow, setDeliveryWindow] = useState<DeliveryWindow>("ALL")
+    const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE)
+    const deferredSearchText = useDeferredValue(searchText.trim())
+    const serverStatusFilter = statusFilter !== "ALL"
+        ? statusFilter
+        : tab === "history"
+            ? "COMPLETED,CANCELLED"
+            : undefined
+    const serverLimit = deferredSearchText || tab === "history" ? 500 : 220
+
     const { data: orders = [], isLoading } = useQuery({
-        queryKey: ["sales-orders"],
-        queryFn: () => salesService.getOrders(),
+        queryKey: ["sales-orders", { q: deferredSearchText, status: serverStatusFilter || "ALL", limit: serverLimit }],
+        queryFn: () => salesService.getOrders({
+            q: deferredSearchText || undefined,
+            status: serverStatusFilter,
+            limit: serverLimit,
+        }),
     })
+    const { data: masterGrades = [] } = useQuery({
+        queryKey: ["recipe-grades"],
+        queryFn: () => recipeService.getGrades(),
+    })
+    const { data: filmFamilies = [] } = useQuery({
+        queryKey: ["film-families"],
+        queryFn: filmFamilyService.getAll,
+    })
+    const { data: filmVariants = [] } = useQuery({
+        queryKey: ["film-variants"],
+        queryFn: filmVariantService.getAll,
+    })
+
     const cancelOrder = useMutation({
         mutationFn: ({ id, reason }: { id: string; reason: string }) => salesService.cancelOrder(id, reason),
         onSuccess: () => {
@@ -146,389 +427,341 @@ export default function SalesOrdersPage() {
         },
     })
 
-    const activeOrders = useMemo(() => orders.filter((order) => !isCompletedOrder(order)), [orders])
-    const completedOrders = useMemo(() => orders.filter((order) => isCompletedOrder(order)), [orders])
-    const shownOrders = useMemo(() => {
-        const list = tab === "active" ? activeOrders : completedOrders
-        return list.filter((order) => {
-            const haystack = [
-                order.order_number,
-                order.order_name,
-                order.customer_name,
-                order.status,
-                order.item_summary?.variant_code,
-                order.item_summary?.variant_name,
-                order.item_summary?.template_name,
-                order.item_summary?.template_tag,
-                order.item_summary?.search_text,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase()
-
-            if (searchText.trim() && !haystack.includes(searchText.trim().toLowerCase())) {
-                return false
-            }
-
+    const enrichedOrders = useMemo<EnrichedOrder[]>(() => (
+        orders.map((order) => {
             const spec = normalizeProductSpec(order)
-            if (variantFilter.trim()) {
-                const q = variantFilter.trim().toLowerCase()
-                const match = [spec.variantCode, spec.variantName, ...spec.layers.flatMap((layer) => [layer.variantCode, layer.variantName, layer.label])]
-                    .join(" ")
-                    .toLowerCase()
-                    .includes(q)
-                if (!match) return false
+            const normalizedStatus = String(order.status || "").toUpperCase()
+            return {
+                order,
+                spec,
+                normalizedStatus,
+                searchable: [
+                    order.order_number,
+                    order.order_name,
+                    order.customer_name,
+                    order.ship_to_customer_name,
+                    order.status,
+                    order.remarks,
+                    spec.searchText,
+                ].join(" ").toLowerCase(),
             }
-            if (gradeFilter.trim()) {
-                const q = gradeFilter.trim().toLowerCase()
-                if (!spec.layers.map((layer) => layer.grade).join(" ").toLowerCase().includes(q)) return false
-            }
-            if (thicknessFilter.trim()) {
-                const q = thicknessFilter.trim().toLowerCase()
-                if (!spec.layers.map((layer) => `${layer.thicknessMicron ?? ""}`).join(" ").toLowerCase().includes(q)) return false
-            }
-            if (sizeFilter.trim()) {
-                const q = sizeFilter.trim().toLowerCase()
-                if (!spec.size.label.toLowerCase().includes(q)) return false
-            }
+        })
+    ), [orders])
 
-            if (tab === "completed") {
-                const normalizedStatus = String(order.status || "").toUpperCase()
-                const finishedGoodType = String(order.item_summary?.finished_good_type || "").toUpperCase()
-                if (completedStatus !== "ALL" && normalizedStatus !== completedStatus) {
-                    return false
-                }
-                if (completedType !== "ALL" && finishedGoodType !== completedType) {
-                    return false
-                }
-                if (completedWindow !== "ALL" && !withinDays(order.created_at, Number(completedWindow))) {
-                    return false
-                }
-            }
+    const activeOrders = useMemo(() => enrichedOrders.filter((item) => !isCompletedOrder(item.order)), [enrichedOrders])
+    const historyOrders = useMemo(() => enrichedOrders.filter((item) => isCompletedOrder(item.order)), [enrichedOrders])
+    const totalValue = useMemo(() => enrichedOrders.reduce((sum, item) => sum + safeNumber(item.order.total_value), 0), [enrichedOrders])
+    const awaitingPlanning = activeOrders.filter((item) => item.normalizedStatus === "PLANNING_REQUIRED").length
+    const thisWeek = enrichedOrders.filter((item) => deliveryMatches(item.order.delivery_date, "THIS_WEEK")).length
+    const overdue = activeOrders.filter((item) => deliveryMatches(item.order.delivery_date, "OVERDUE")).length
 
+    const materialOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const labels = salesUniqueText([
+            ...SALES_MATERIAL_PRIORITY,
+            ...filmFamilies.flatMap((family: any) => [family?.code, family?.name]),
+            ...filmVariants.flatMap((variant: any) => [variant?.code, variant?.name, variant?.parent_family_name]),
+            ...enrichedOrders.flatMap((item) => item.spec.layers.flatMap((layer) => [salesMaterialFilterLabel(layer.variantName), salesMaterialFilterLabel(layer.variantCode)])),
+        ]).map(salesMaterialFilterLabel).filter(Boolean)
+        return salesSortChipOptions(
+            salesUniqueText(labels).map((material) => {
+                const needle = material.toLowerCase()
+                const count = enrichedOrders.filter((item) =>
+                    item.spec.layers.some((layer) =>
+                        [layer.variantName, layer.variantCode, layer.label, salesMaterialFilterLabel(layer.variantName), salesMaterialFilterLabel(layer.variantCode)]
+                            .filter(Boolean)
+                            .some((value) => String(value).toLowerCase().includes(needle))
+                    )
+                ).length
+                return { value: material, label: material, count, tone: "material" as const }
+            }),
+            SALES_MATERIAL_PRIORITY
+        )
+    }, [enrichedOrders, filmFamilies, filmVariants])
+    const gradeOptions = useMemo<SalesOverflowChipOption[]>(() => (
+        salesSortChipOptions(
+            uniqueNonEmpty([
+                ...SALES_GRADE_PRIORITY,
+                ...masterGrades.map((grade: any) => grade?.name || grade?.code),
+                ...enrichedOrders.flatMap((item) => item.spec.layers.map((layer) => layer.grade)),
+            ]).map((grade) => ({
+                value: grade,
+                label: grade,
+                count: enrichedOrders.filter((item) => item.spec.layers.some((layer) => String(layer.grade || "").toLowerCase().includes(grade.toLowerCase()))).length,
+                tone: "grade" as const,
+            })),
+            SALES_GRADE_PRIORITY
+        )
+    ), [enrichedOrders, masterGrades])
+
+    const widthPresets = useMemo(() => makeRangePresets(enrichedOrders.flatMap((item) => [item.spec.size.widthMm, ...item.spec.layers.map((layer) => layer.widthMm)]), "mm"), [enrichedOrders])
+    const heightPresets = useMemo(() => makeRangePresets(enrichedOrders.map((item) => item.spec.size.heightMm), "mm"), [enrichedOrders])
+    const thicknessPresets = useMemo(() => makeRangePresets(enrichedOrders.flatMap((item) => item.spec.layers.map((layer) => layer.thicknessMicron)), "μ"), [enrichedOrders])
+
+    const statusCounts = useMemo(() => {
+        const counts: Record<string, number> = {}
+        for (const item of activeOrders) counts[item.normalizedStatus] = (counts[item.normalizedStatus] || 0) + 1
+        return counts
+    }, [activeOrders])
+
+    const currentFilters: SalesSavedViewFilters = {
+        tab,
+        searchText,
+        statusFilter,
+        fgTypeFilter,
+        materialFilter,
+        gradeFilter,
+        thicknessFilter,
+        sizeFilter,
+        heightFilter,
+        deliveryWindow,
+    }
+
+    const applySavedFilters = (filters: SalesSavedViewFilters) => {
+        if (typeof filters.tab === "string") {
+            setTab(filters.tab === "history" ? "history" : "queue")
+        }
+        if (typeof filters.searchText === "string") setSearchText(filters.searchText)
+        if (typeof filters.statusFilter === "string") setStatusFilter(filters.statusFilter as StatusFilter)
+        if (typeof filters.fgTypeFilter === "string") setFgTypeFilter(filters.fgTypeFilter)
+        if (typeof filters.materialFilter === "string") setMaterialFilter(filters.materialFilter)
+        if (typeof filters.variantFilter === "string") setMaterialFilter(filters.variantFilter)
+        if (typeof filters.gradeFilter === "string") setGradeFilter(filters.gradeFilter)
+        if (typeof filters.thicknessFilter === "string") setThicknessFilter(filters.thicknessFilter)
+        if (typeof filters.sizeFilter === "string") setSizeFilter(filters.sizeFilter)
+        if (typeof filters.heightFilter === "string") setHeightFilter(filters.heightFilter)
+        if (typeof filters.deliveryWindow === "string") setDeliveryWindow(filters.deliveryWindow as DeliveryWindow)
+    }
+
+    const shownOrders = useMemo(() => {
+        const list = tab === "history" ? historyOrders : activeOrders
+        const q = searchText.trim().toLowerCase()
+        return list.filter((item) => {
+            if (q && !item.searchable.includes(q)) return false
+            if (!specMatches({ spec: item.spec, fgTypeFilter, materialFilter, gradeFilter, sizeFilter, heightFilter, thicknessFilter })) return false
+            if (statusFilter !== "ALL" && item.normalizedStatus !== statusFilter) return false
+            if (!deliveryMatches(item.order.delivery_date, deliveryWindow)) return false
             return true
         })
-    }, [activeOrders, completedOrders, completedStatus, completedType, completedWindow, gradeFilter, searchText, sizeFilter, tab, thicknessFilter, variantFilter])
+    }, [activeOrders, deliveryWindow, fgTypeFilter, gradeFilter, heightFilter, historyOrders, materialFilter, searchText, sizeFilter, statusFilter, tab, thicknessFilter])
 
-    const columns: ColumnDef<SalesOrder>[] = [
-        {
-            accessorKey: "order_number",
-            header: () => <span className="pl-2 text-[11px] font-semibold text-slate-500">ORDER</span>,
-            cell: ({ row }) => (
-                <div className="pl-2">
-                    <div className="text-sm font-black text-slate-900">{row.original.order_number}</div>
-                    <div className="mt-0.5 text-[11px] font-semibold text-slate-700">{row.original.order_name || "Single order"}</div>
-                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                        {formatDate(row.original.created_at)}
-                    </div>
-                </div>
-            ),
-        },
-        {
-            accessorKey: "customer_name",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">CUSTOMER</span>,
-            cell: ({ row }) => (
-                <div>
-                    <div className="text-sm font-semibold text-slate-800">{row.original.customer_name}</div>
-                    <div className="mt-1 text-[11px] text-slate-500">
-                        Ship to {row.original.ship_to_customer_name || row.original.customer_name}
-                    </div>
-                    <div className="mt-1 text-[11px] text-slate-500">
-                        {row.original.delivery_date ? `Delivery ${formatDate(row.original.delivery_date)}` : "Delivery pending"}
-                    </div>
-                    {row.original.remarks ? <div className="mt-1 line-clamp-1 text-[11px] text-amber-700">Note: {row.original.remarks}</div> : null}
-                </div>
-            ),
-        },
-        {
-            id: "item_summary",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">SKU / PRODUCT TRUTH</span>,
-            cell: ({ row }) => {
-                const summary = row.original.item_summary || {}
-                const spec = normalizeProductSpec(row.original)
-                const claimed = summary.claimed_stock_order_nos || []
-                return (
-                    <div className="min-w-[360px]">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-black text-slate-900">{spec.productName || firstLineLabel(row.original)}</span>
-                            {(summary.line_count || 0) > 1 ? (
-                                <Pill kind="stock">+{(summary.line_count || 1) - 1} more</Pill>
-                            ) : null}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                            {summary.finished_good_type ? <Pill kind="type">{summary.finished_good_type}</Pill> : null}
-                            {spec.size.label ? <Pill kind="geometry">{spec.size.label}</Pill> : null}
-                            {spec.layers.length
-                                ? spec.layers.map((layer) => <Pill key={`${row.original.id}-${layer.index}-${layer.label}`} kind="layer">{layer.label}</Pill>)
-                                : summary.layer_count
-                                    ? <Pill kind="layer">{summary.layer_count} layer(s)</Pill>
-                                    : null}
-                            {spec.podLabels.length ? spec.podLabels.map((label) => <Pill key={`${row.original.id}-pod-${label}`} kind="pod">{label}</Pill>) : summary.printing_summary ? <Pill kind="printing">{summary.printing_summary}</Pill> : null}
-                            {spec.addonLabels.length ? spec.addonLabels.slice(0, 4).map((label) => <Pill key={`${row.original.id}-addon-${label}`} kind="packaging">{label}</Pill>) : summary.packaging_summary ? <Pill kind="packaging">{summary.packaging_summary}</Pill> : null}
-                            {summary.template_tag ? <Pill kind="template">{summary.template_tag}</Pill> : null}
-                            {claimed.length ? <Pill kind="stock">Stock {claimed.join(", ")}</Pill> : null}
-                        </div>
-                        <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-black uppercase text-slate-600">
-                            <span className="rounded-lg bg-slate-50 px-2 py-1">Grade {spec.layers.map((layer) => layer.grade).filter(Boolean).slice(0, 2).join(", ") || "—"}</span>
-                            <span className="rounded-lg bg-slate-50 px-2 py-1">Thick {spec.layers.map((layer) => layer.thicknessMicron).filter((value) => value != null).slice(0, 2).join(", ") || "—"}u</span>
-                            <span className="rounded-lg bg-slate-50 px-2 py-1">Width {spec.layers.map((layer) => layer.widthMm).filter((value) => value != null).slice(0, 2).join(", ") || "—"}mm</span>
-                        </div>
-                        <div className="mt-1 text-[11px] text-slate-500">{spec.templateName || "Template pending"}</div>
-                    </div>
-                )
-            },
-        },
-        {
-            id: "qty_progress",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">QTY / FULFILLMENT</span>,
-            cell: ({ row }) => {
-                const qty = row.original.qty_summary || {}
-                const summary = row.original.fulfillment_summary || {}
-                const progress = progressParts(row.original)
-                return (
-                    <div className="min-w-[280px]">
-                        <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-slate-700">
-                            <Pill kind="type">{safeNumber(qty.ordered_kg).toFixed(2)} kg</Pill>
-                            <Pill kind="geometry">{qty.ordered_pcs != null ? `${safeNumber(qty.ordered_pcs)} pcs` : "— pcs"}</Pill>
-                        </div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div className="flex h-full w-full">
-                                <div className="bg-emerald-500" style={{ width: `${progress.dispatchedPct}%` }} />
-                                <div className="bg-indigo-500" style={{ width: `${progress.producedOpenPct}%` }} />
-                                <div className="bg-slate-200" style={{ width: `${progress.remainingPct}%` }} />
-                            </div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500">
-                            <span>Produced {safeNumber(summary.produced_kg).toFixed(2)} kg</span>
-                            <span>Dispatched {safeNumber(summary.dispatched_kg).toFixed(2)} kg</span>
-                            <span>Remaining {safeNumber(summary.remaining_kg).toFixed(2)} kg</span>
-                            {summary.produced_pcs != null ? <span>Produced {safeNumber(summary.produced_pcs)} pcs</span> : null}
-                            {summary.dispatched_pcs != null ? <span>Dispatched {safeNumber(summary.dispatched_pcs)} pcs</span> : null}
-                            {summary.remaining_pcs != null ? <span>Remaining {safeNumber(summary.remaining_pcs)} pcs</span> : null}
-                        </div>
-                    </div>
-                )
-            },
-        },
-        {
-            accessorKey: "status",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">STATUS</span>,
-            cell: ({ row }) => (
-                <div className="space-y-2">
-                    <StatusPill status={row.original.status} />
-                    <div className="text-[11px] font-medium text-slate-500">
-                        {safeNumber(row.original.fulfillment_summary?.completion_percent).toFixed(0)}% complete
-                    </div>
-                </div>
-            ),
-        },
-        {
-            id: "actions",
-            header: () => <span className="text-[11px] font-semibold text-slate-500">ACTION</span>,
-            cell: ({ row }) => (
-                <div className="flex items-center justify-end gap-2 pr-2">
-                    {canCancelBeforeRelease(row.original) ? (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded-lg border-rose-200 text-rose-700 hover:bg-rose-50"
-                            disabled={cancelOrder.isPending}
-                            onClick={() => {
-                                const reason = window.prompt("Reason for cancelling this sales order before planner release?")
-                                if (reason === null) return
-                                cancelOrder.mutate({ id: row.original.id, reason })
-                            }}
-                        >
-                            <XCircle className="mr-2 h-3.5 w-3.5" />
-                            Cancel
-                        </Button>
-                    ) : null}
-                    <Link href={`/sales/orders/${row.original.id}/tracking`}>
-                        <Button variant="outline" size="sm" className="h-8 rounded-lg">
-                            <Activity className="mr-2 h-3.5 w-3.5" />
-                            Track
-                        </Button>
-                    </Link>
-                </div>
-            ),
-        },
-    ]
+    const visibleOrders = shownOrders.slice(0, visibleLimit)
+
+    useEffect(() => {
+        setVisibleLimit(PAGE_SIZE)
+    }, [deliveryWindow, fgTypeFilter, gradeFilter, heightFilter, materialFilter, searchText, sizeFilter, statusFilter, tab, thicknessFilter])
+
+    function resetFilters() {
+        setSearchText("")
+        setStatusFilter("ALL")
+        setFgTypeFilter("all")
+        setMaterialFilter("all")
+        setGradeFilter("all")
+        setThicknessFilter("")
+        setSizeFilter("")
+        setHeightFilter("")
+        setDeliveryWindow("ALL")
+    }
+
+    function handleCancel(order: SalesOrder) {
+        const reason = window.prompt("Reason for cancelling this sales order before planner release?")
+        if (reason === null) return
+        cancelOrder.mutate({ id: order.id, reason })
+    }
 
     return (
-        <div className="min-h-screen space-y-5 bg-[#f4f6fb] p-4 lg:p-6" data-testid="sales-orders-list-page">
-            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.28)] lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">Commercial Queue</div>
-                    <h1 className="mt-1 text-xl font-black tracking-tight text-slate-900">Sales Orders</h1>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Dense queue with product truth pills, KG and PCS progress, and a completed-order audit desk.
-                    </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
-                        <button
-                            type="button"
-                            onClick={() => setTab("active")}
-                            className={cn(
-                                "rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]",
-                                tab === "active" ? "bg-slate-950 text-white" : "text-slate-600"
-                            )}
-                        >
-                            Active Orders {activeOrders.length}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setTab("completed")}
-                            className={cn(
-                                "rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]",
-                                tab === "completed" ? "bg-emerald-600 text-white" : "text-slate-600"
-                            )}
-                        >
-                            Completed Orders {completedOrders.length}
-                        </button>
+        <div className="min-h-screen space-y-5 bg-[#f8fafc] p-4 lg:p-6" data-testid="sales-orders-list-page">
+            <section className="overflow-hidden rounded-[1.75rem] bg-[radial-gradient(circle_at_85%_0%,rgba(59,130,246,0.4),transparent_45%),linear-gradient(135deg,#0b1f55_0%,#1e3a8a_54%,#3b82f6_100%)] p-5 text-white shadow-[0_28px_70px_-44px_rgba(29,78,216,0.75)]">
+                <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-200">Sales · Order operations</div>
+                        <h1 className="mt-2 text-3xl font-black tracking-tight">Sales Orders</h1>
+                        <p className="mt-1 text-sm font-semibold text-blue-100">
+                            One bounded order queue with product size, layers, material, grade, thickness, delivery, and history in the same lens.
+                        </p>
                     </div>
-                    <Link href="/sales/orders/create">
-                        <Button className="h-9 rounded-full bg-slate-950 px-5 text-xs font-bold uppercase tracking-[0.14em] text-white hover:bg-slate-800">
-                            <Plus className="mr-2 h-4 w-4" />
-                            New Order
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button asChild variant="outline" className="h-10 rounded-full border-white/20 bg-white/10 text-xs font-black text-white hover:bg-white hover:text-blue-900">
+                            <Link href="/sales/sku-catalog">SKU Studio</Link>
                         </Button>
-                    </Link>
-                </div>
-            </div>
-
-            {isLoading ? (
-                <div className="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white">
-                    <div className="text-center">
-                        <Loader2 className="mx-auto h-7 w-7 animate-spin text-slate-500" />
-                        <div className="mt-3 text-sm font-medium text-slate-500">Loading sales queue…</div>
+                        <Button asChild className="h-10 rounded-full bg-white px-5 text-xs font-black uppercase tracking-[0.14em] text-blue-900 hover:bg-blue-50">
+                            <Link href="/sales/orders/create">
+                                <Plus className="mr-2 h-4 w-4" />
+                                New order
+                            </Link>
+                        </Button>
                     </div>
                 </div>
-            ) : (
-                <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_34px_-28px_rgba(15,23,42,0.3)]">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                        <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-500">
-                                {tab === "active" ? "Operational queue" : "Completed order audit"}
-                            </div>
-                            <div className="mt-1 text-sm text-slate-500">
-                                {tab === "active"
-                                    ? "Watch technical truth, production progress, and dispatch readiness in one dense row."
-                                    : "Track older completed and cancelled orders without leaving the queue desk."}
-                            </div>
+                <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                    <HeroMetric label="Active" value={activeOrders.length} sub="open orders" />
+                    <HeroMetric label="Awaiting planning" value={awaitingPlanning} sub="needs action" />
+                    <HeroMetric label="This week" value={thisWeek} sub="deliveries due" />
+                    <HeroMetric label="Overdue" value={overdue} sub="action required" />
+                    <HeroMetric label="Total value" value={formatSalesMoney(totalValue)} sub="in flight" />
+                    <HeroMetric label="On-time %" value="-" sub="trailing 30d" />
+                </div>
+            </section>
+
+            <SalesSavedViewsBar
+                scope="orders"
+                currentFilters={currentFilters}
+                onApply={applySavedFilters}
+                viewCounts={{
+                    "My active queue": activeOrders.length,
+                    "Awaiting planning": awaitingPlanning,
+                    "This week's deliveries": thisWeek,
+                    Overdue: overdue,
+                    "Pouches this week": activeOrders.filter((item) => String(item.spec.size.finishedGoodType || item.order.item_summary?.finished_good_type || "").toUpperCase() === "POUCH").length,
+                    "LDPE rolls": activeOrders.filter((item) => item.spec.searchText.includes("ldpe") && String(item.spec.size.finishedGoodType || "").toUpperCase() === "ROLL").length,
+                }}
+            />
+
+            <section className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-[0_16px_44px_-40px_rgba(15,23,42,0.38)]" data-testid="sales-order-filters">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="relative min-w-[16rem] flex-1">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                            value={searchText}
+                            onChange={(event) => setSearchText(event.target.value)}
+                            placeholder="Search SO number, customer, SKU code, size, grade, addon..."
+                            className="h-11 rounded-xl border-slate-200 bg-white pl-10 text-sm font-semibold shadow-none"
+                        />
+                    </div>
+                    <Button type="button" variant="outline" className="h-11 rounded-xl bg-white text-xs font-black">
+                        <ArrowUpDown className="mr-2 h-4 w-4" />
+                        Sort: delivery date
+                    </Button>
+                    <Button type="button" variant="outline" className="h-11 rounded-xl bg-white text-xs font-black">
+                        <Grid2X2 className="mr-2 h-4 w-4" />
+                        Layout
+                    </Button>
+                    <Button type="button" variant="outline" className="h-11 rounded-xl bg-white text-xs font-black">
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                    </Button>
+                </div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_auto_auto_auto] xl:items-center">
+                    <SalesOverflowChipGroup
+                        label="Finished good"
+                        value={fgTypeFilter}
+                        onChange={setFgTypeFilter}
+                        maxInline={3}
+                        options={SALES_SUPPORTED_FG_TYPES.map((value) => ({
+                            value,
+                            label: value,
+                            count: enrichedOrders.filter((item) => String(item.spec.size.finishedGoodType || item.order.item_summary?.finished_good_type || "").toUpperCase() === value).length,
+                            tone: fgTone(value),
+                        }))}
+                    />
+                    <SalesSmartRangeFilter label="Width" value={sizeFilter} placeholder="440" suffix="mm" presets={widthPresets} onChange={setSizeFilter} />
+                    <SalesSmartRangeFilter label="Height" value={heightFilter} placeholder="200-320" suffix="mm" presets={heightPresets} onChange={setHeightFilter} />
+                    <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} placeholder="20-80" suffix="μ" presets={thicknessPresets} onChange={setThicknessFilter} />
+                </div>
+                <div className="mt-2 grid gap-2 border-t border-slate-100 pt-3 xl:grid-cols-2">
+                    <SalesOverflowChipGroup label="Material" value={materialFilter} onChange={setMaterialFilter} options={materialOptions} maxInline={4} />
+                    <SalesOverflowChipGroup label="Grade" value={gradeFilter} onChange={setGradeFilter} options={gradeOptions} maxInline={4} />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                    <SalesOverflowChipGroup
+                        label="Status"
+                        value={statusFilter}
+                        allValue="ALL"
+                        allLabel={`All · ${activeOrders.length}`}
+                        onChange={(value) => setStatusFilter(value as StatusFilter)}
+                        maxInline={3}
+                        options={STATUS_FILTERS.map((status) => ({
+                            value: status.value,
+                            label: `${status.label} · ${statusCounts[status.value] || 0}`,
+                            tone: status.value === "PLANNING_REQUIRED" ? "fgPouch" : status.value === "PLANNED" ? "size" : status.value === "RELEASED" ? "material" : "pack",
+                        }))}
+                    />
+                    <span className="inline-flex h-9 shrink-0 items-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Delivery</span>
+                    {([
+                        ["ALL", "All dates"],
+                        ["THIS_WEEK", "This week"],
+                        ["OVERDUE", "Overdue"],
+                        ["NO_DATE", "No date"],
+                    ] as Array<[DeliveryWindow, string]>).map(([value, label]) => (
+                        <FilterPill key={value} active={deliveryWindow === value} onClick={() => setDeliveryWindow(deliveryWindow === value ? "ALL" : value)}>
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            {label}
+                        </FilterPill>
+                    ))}
+                    <Button type="button" variant="outline" onClick={resetFilters} className="h-9 shrink-0 rounded-full bg-white px-4 text-xs font-black">
+                        Reset
+                    </Button>
+                </div>
+            </section>
+
+            <section className="overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_16px_44px_-40px_rgba(15,23,42,0.38)]">
+                <div className="flex flex-col gap-3 border-b border-slate-200 px-4 pt-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-center overflow-x-auto">
+                        {[
+                            ["queue", "Order queue", activeOrders.length],
+                            ["history", "All history", historyOrders.length],
+                        ].map(([value, label, count]) => (
+                            <button
+                                key={String(value)}
+                                type="button"
+                                onClick={() => setTab(value as OrderTab)}
+                                className={cn(
+                                    "inline-flex h-11 shrink-0 items-center gap-2 border-b-2 px-4 text-sm font-black transition",
+                                    tab === value ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-900"
+                                )}
+                            >
+                                {label}
+                                <span className="text-slate-400">{count}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 pb-3 text-xs font-black text-slate-600">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+                            <SlidersHorizontal className="h-4 w-4 text-slate-400" />
+                            {shownOrders.length} visible
+                        </span>
+                        <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-2 md:inline-flex">
+                            Rendering {visibleOrders.length} for speed
+                        </span>
+                    </div>
+                </div>
+
+                {isLoading ? (
+                    <div className="flex h-[360px] items-center justify-center">
+                        <div className="text-center">
+                            <Loader2 className="mx-auto h-7 w-7 animate-spin text-slate-500" />
+                            <div className="mt-3 text-sm font-bold text-slate-500">Loading sales queue...</div>
                         </div>
-                        {tab === "completed" ? (
-                            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Audit-ready history
+                    </div>
+                ) : shownOrders.length ? (
+                    <div className="overflow-x-auto">
+                        <div className="grid min-w-[1120px] grid-cols-[10rem_13rem_minmax(27rem,1fr)_15rem_12rem_10rem] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                            <div>Order # · Customer</div>
+                            <div>SKU / Variant ID</div>
+                            <div>Variant attributes</div>
+                            <div>Progress</div>
+                            <div>Delivery · Plant</div>
+                            <div className="text-right">Status</div>
+                        </div>
+                        {visibleOrders.map((item) => (
+                            <OrderQueueRow key={item.order.id} item={item} tab={tab} onCancel={handleCancel} cancelPending={cancelOrder.isPending} />
+                        ))}
+                        {visibleOrders.length < shownOrders.length ? (
+                            <div className="flex justify-center p-4">
+                                <Button type="button" variant="outline" className="rounded-full bg-white px-5 text-xs font-black" onClick={() => setVisibleLimit((value) => value + PAGE_SIZE)}>
+                                    Show next {Math.min(PAGE_SIZE, shownOrders.length - visibleOrders.length)} orders
+                                </Button>
                             </div>
                         ) : null}
                     </div>
-                    <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                            <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
-                                <div className="relative min-w-0 flex-1 lg:max-w-sm">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                    <Input
-                                        value={searchText}
-                                        onChange={(event) => setSearchText(event.target.value)}
-                                        placeholder={tab === "completed" ? "Search completed order, customer, SKU, template..." : "Search order number, customer, SKU..."}
-                                        className="h-10 rounded-full border-slate-200 bg-white pl-9 text-sm"
-                                    />
-                                </div>
-                                {tab === "completed" ? (
-                                    <div className="flex flex-col gap-3 sm:flex-row">
-                                        <Select value={completedStatus} onValueChange={(value) => setCompletedStatus(value as CompletedStatusFilter)}>
-                                            <SelectTrigger className="h-10 min-w-[150px] rounded-full border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.12em]">
-                                                <SelectValue placeholder="Status" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="ALL">All statuses</SelectItem>
-                                                <SelectItem value="COMPLETED">Completed</SelectItem>
-                                                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <Select value={completedType} onValueChange={(value) => setCompletedType(value as CompletedTypeFilter)}>
-                                            <SelectTrigger className="h-10 min-w-[150px] rounded-full border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.12em]">
-                                                <SelectValue placeholder="Type" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="ALL">All products</SelectItem>
-                                                <SelectItem value="POUCH">Pouch</SelectItem>
-                                                <SelectItem value="ROLL">Roll</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <Select value={completedWindow} onValueChange={(value) => setCompletedWindow(value as CompletedWindowFilter)}>
-                                            <SelectTrigger className="h-10 min-w-[150px] rounded-full border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.12em]">
-                                                <SelectValue placeholder="Window" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="30">Last 30 days</SelectItem>
-                                                <SelectItem value="90">Last 90 days</SelectItem>
-                                                <SelectItem value="180">Last 180 days</SelectItem>
-                                                <SelectItem value="ALL">All history</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ) : null}
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                                <Input
-                                    value={sizeFilter}
-                                    onChange={(event) => setSizeFilter(event.target.value)}
-                                    placeholder="Size 180 x 240"
-                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
-                                />
-                                <Input
-                                    value={variantFilter}
-                                    onChange={(event) => setVariantFilter(event.target.value)}
-                                    placeholder="Variant LDPE / PET"
-                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
-                                />
-                                <Input
-                                    value={gradeFilter}
-                                    onChange={(event) => setGradeFilter(event.target.value)}
-                                    placeholder="Grade GP / slip"
-                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
-                                />
-                                <Input
-                                    value={thicknessFilter}
-                                    onChange={(event) => setThicknessFilter(event.target.value)}
-                                    placeholder="Thickness 12 / 50"
-                                    className="h-10 rounded-full border-slate-200 bg-white text-xs font-semibold"
-                                />
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">
-                                    <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
-                                    {shownOrders.length} visible row{shownOrders.length === 1 ? "" : "s"}
-                                </div>
-                                {(tab === "completed" || searchText || sizeFilter || variantFilter || gradeFilter || thicknessFilter) ? (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        className="h-9 rounded-full px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 hover:bg-white hover:text-slate-900"
-                                        onClick={() => {
-                                            setSearchText("")
-                                            setCompletedStatus("ALL")
-                                            setCompletedType("ALL")
-                                            setCompletedWindow("90")
-                                            setSizeFilter("")
-                                            setVariantFilter("")
-                                            setGradeFilter("")
-                                            setThicknessFilter("")
-                                        }}
-                                    >
-                                        Reset filters
-                                    </Button>
-                                ) : null}
-                            </div>
+                ) : (
+                    <div className="flex min-h-[320px] items-center justify-center px-4 py-12 text-center">
+                        <div>
+                            <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" />
+                            <div className="mt-3 text-lg font-black text-slate-900">No orders match this view</div>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">Clear filters or open a saved view to bring the queue back.</p>
                         </div>
                     </div>
-                    <div className="overflow-x-auto">
-                        <DataTable columns={columns} data={shownOrders} />
-                    </div>
-                </Card>
-            )}
+                )}
+            </section>
         </div>
     )
 }

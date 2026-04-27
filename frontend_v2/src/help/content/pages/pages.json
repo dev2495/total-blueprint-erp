@@ -262,6 +262,136 @@
     ]
   },
   {
+    "routePattern": "/analytics/capability-matrix",
+    "title": {
+      "en": "Capability Matrix",
+      "hi": "Capability Matrix गाइड"
+    },
+    "module": "Analytics",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANNER",
+      "PLANT_MANAGER",
+      "ENGINEERING"
+    ],
+    "summary": {
+      "en": "Capability Matrix gives owners and managers report-ready numbers with traceable filters and export context.",
+      "hi": "Capability Matrix स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Capability Matrix to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Capability Matrix का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/analytics",
+      "/system/report-center",
+      "/dashboard/owner"
+    ],
+    "screenshotKeys": [
+      "analytics-capability-matrix-overview",
+      "analytics-capability-matrix-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/analytics/costing",
     "title": {
       "en": "Analytics • Costing",
@@ -1925,6 +2055,132 @@
     ]
   },
   {
+    "routePattern": "/analytics/reports/interplant",
+    "title": {
+      "en": "Inter-Plant Report",
+      "hi": "Inter-Plant Report गाइड"
+    },
+    "module": "Analytics",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "STORE"
+    ],
+    "summary": {
+      "en": "Inter-Plant Report gives owners and managers report-ready numbers with traceable filters and export context.",
+      "hi": "Inter-Plant Report स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Inter-Plant Report to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Inter-Plant Report का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/analytics",
+      "/system/report-center",
+      "/dashboard/owner"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/analytics/reports/inventory",
     "title": {
       "en": "Analytics • Reports • Inventory",
@@ -2933,6 +3189,136 @@
       "/analytics",
       "/analytics/costing",
       "/analytics/inventory-health"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/dashboard",
+    "title": {
+      "en": "Dashboard Hub",
+      "hi": "Dashboard Hub गाइड"
+    },
+    "module": "Dashboard",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "SALES",
+      "PLANNER",
+      "WORK_CENTER_MANAGER",
+      "STORE",
+      "DISPATCH",
+      "ENGINEERING",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Dashboard Hub helps users complete dashboard work with clear checks and recovery steps.",
+      "hi": "Dashboard Hub स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Dashboard Hub to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Dashboard Hub का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "dashboard-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/master",
+      "/system/audit"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -4087,6 +4473,131 @@
     ]
   },
   {
+    "routePattern": "/engineering",
+    "title": {
+      "en": "Engineering Hub",
+      "hi": "Engineering Hub गाइड"
+    },
+    "module": "Engineering",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "ENGINEERING"
+    ],
+    "summary": {
+      "en": "Engineering Hub keeps artwork, color, tooling, and approval readiness visible before production release.",
+      "hi": "Engineering Hub स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Engineering Hub to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Engineering Hub का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "engineering-approval-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/engineering/artworks",
+      "/engineering/cylinders",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/engineering/approvals",
     "title": {
       "en": "Engineering • Approvals",
@@ -4966,6 +5477,131 @@
       "/engineering/approvals",
       "/engineering/approvals/[id]",
       "/engineering/artworks"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/engineering/tooling",
+    "title": {
+      "en": "Tool Room",
+      "hi": "Tool Room गाइड"
+    },
+    "module": "Engineering",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "ENGINEERING"
+    ],
+    "summary": {
+      "en": "Tool Room keeps artwork, color, tooling, and approval readiness visible before production release.",
+      "hi": "Tool Room स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Tool Room to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Tool Room का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "engineering-approval-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/engineering/artworks",
+      "/engineering/cylinders",
+      "/system/audit"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -6284,6 +6920,142 @@
     ]
   },
   {
+    "routePattern": "/inventory",
+    "title": {
+      "en": "Inventory Workspace",
+      "hi": "Inventory Workspace गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANNER",
+      "WORK_CENTER_MANAGER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Inventory Workspace keeps stock movement, count, ledger, and period actions in one auditable operating flow.",
+      "hi": "Inventory Workspace स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Inventory Workspace to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Inventory Workspace का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/inventory/stock-card",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/inventory/alerts",
     "title": {
       "en": "Inventory • Alerts",
@@ -6663,6 +7435,140 @@
       "/inventory/alerts",
       "/inventory/bulk",
       "/inventory/grn"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/fy-correction",
+    "title": {
+      "en": "FY Correction",
+      "hi": "FY Correction गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "FY Correction keeps stock movement, count, ledger, and period actions in one auditable operating flow.",
+      "hi": "FY Correction स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use FY Correction to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "FY Correction का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/inventory/stock-card",
+      "/system/audit"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -7448,6 +8354,140 @@
     ]
   },
   {
+    "routePattern": "/inventory/opening-stock",
+    "title": {
+      "en": "Opening Stock",
+      "hi": "Opening Stock गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Opening Stock keeps stock movement, count, ledger, and period actions in one auditable operating flow.",
+      "hi": "Opening Stock स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Opening Stock to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Opening Stock का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/inventory/stock-card",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/inventory/packaging",
     "title": {
       "en": "Inventory • Packaging",
@@ -7838,6 +8878,408 @@
     ]
   },
   {
+    "routePattern": "/inventory/stock-card",
+    "title": {
+      "en": "Stock Card",
+      "hi": "Stock Card गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Stock Card keeps stock movement, count, ledger, and period actions in one auditable operating flow.",
+      "hi": "Stock Card स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Stock Card to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Stock Card का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/stock-count",
+    "title": {
+      "en": "Stock Count",
+      "hi": "Stock Count गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Stock Count keeps stock movement, count, ledger, and period actions in one auditable operating flow.",
+      "hi": "Stock Count स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Stock Count to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Stock Count का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/inventory/stock-card",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/stock-lifecycle",
+    "title": {
+      "en": "Stock Lifecycle",
+      "hi": "Stock Lifecycle गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Stock Lifecycle keeps opening stock, physical count, stock card, year close, and closed-FY correction in one auditable operating flow.",
+      "hi": "Stock Lifecycle स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Stock Lifecycle to choose the FY period, enter the right quantity field, preview the number impact, and move through approval without guessing the next step.",
+      "hi": "Stock Lifecycle का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Use Opening Stock for FY starting balance, Stock Count for open-FY floor differences, and FY Correction only after the FY is closed.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Check FY period, plant, material, location, quantity, and rate before previewing impact.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "FY period (Apr-Mar)",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Use a year like 2026-2027. Open years allow opening/count sheets; closed years allow only approved FY Correction.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity field",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Opening uses opening balance qty, Stock Count uses physical count qty, and FY Correction uses corrected closing qty.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Correction reason and approval",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Closed-FY corrections require what changed, why it changed, who approved it, and the source document.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-card",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/inventory/traceability",
     "title": {
       "en": "Inventory • Traceability",
@@ -8089,6 +9531,140 @@
       "/inventory/alerts",
       "/inventory/bulk",
       "/inventory/bulk-transactions"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/year-close",
+    "title": {
+      "en": "Year Close",
+      "hi": "Year Close गाइड"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Year Close keeps stock movement, count, ledger, and period actions in one auditable operating flow.",
+      "hi": "Year Close स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Year Close to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Year Close का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      },
+      {
+        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
+        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      },
+      {
+        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
+        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/inventory/stock-card",
+      "/system/audit"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -8976,6 +10552,129 @@
       "/master",
       "/master/add-ons",
       "/master/film-families"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/master/commercial-families",
+    "title": {
+      "en": "Commercial Families",
+      "hi": "Commercial Families गाइड"
+    },
+    "module": "Master",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN"
+    ],
+    "summary": {
+      "en": "Commercial Families maintains commercial master data used by sales, costing, and planning.",
+      "hi": "Commercial Families स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Commercial Families to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Commercial Families का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "master-data-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/master",
+      "/system/audit"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -10254,133 +11953,6 @@
     ]
   },
   {
-    "routePattern": "/orders/[id]/tracking",
-    "title": {
-      "en": "Orders • Details • Tracking",
-      "hi": "Orders • Details • Tracking गाइड"
-    },
-    "module": "Order Management",
-    "roles": [
-      "ADMIN",
-      "OWNER",
-      "SUPER_ADMIN",
-      "SALES",
-      "PLANNER",
-      "PLANT_MANAGER"
-    ],
-    "summary": {
-      "en": "Use this page to monitor end-to-end order lifecycle and fulfillment readiness.",
-      "hi": "इस पेज का उपयोग ऑर्डर लाइफसायकल और पूर्ति तत्परता की एंड-टू-एंड निगरानी के लिए करें।"
-    },
-    "purpose": {
-      "en": "This guide helps users complete all key tasks on Orders • Details • Tracking without process ambiguity.",
-      "hi": "यह गाइड उपयोगकर्ताओं को Orders • Details • Tracking पर सभी मुख्य कार्य बिना प्रक्रिया भ्रम के पूरा करने में मदद करती है।"
-    },
-    "prerequisites": [
-      {
-        "en": "Confirm role access and location context before making changes.",
-        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
-      },
-      {
-        "en": "Validate upstream data (master/order/job) is already approved.",
-        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
-      }
-    ],
-    "keyActions": [
-      {
-        "en": "Review page KPIs or status cards to identify pending actions.",
-        "hi": "लंबित कार्य पहचानने के लिए KPI या स्टेटस कार्ड की समीक्षा करें।"
-      },
-      {
-        "en": "Apply filters, open target record, and verify required fields.",
-        "hi": "फिल्टर लागू करें, लक्ष्य रिकॉर्ड खोलें, और आवश्यक फ़ील्ड सत्यापित करें।"
-      },
-      {
-        "en": "Submit action, confirm success toast, and re-check downstream impact.",
-        "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
-      }
-    ],
-    "fieldHelp": [
-      {
-        "field": {
-          "en": "Primary Selector",
-          "hi": "प्राथमिक चयन"
-        },
-        "help": {
-          "en": "Always choose the correct plant/work center/machine context first.",
-          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
-        }
-      },
-      {
-        "field": {
-          "en": "Status",
-          "hi": "स्थिति"
-        },
-        "help": {
-          "en": "Status transitions are controlled; only valid next states are allowed.",
-          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
-        }
-      },
-      {
-        "field": {
-          "en": "Audit Notes",
-          "hi": "ऑडिट नोट्स"
-        },
-        "help": {
-          "en": "Record reason codes and comments for every override decision.",
-          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
-        }
-      }
-    ],
-    "decisionFlowId": "order-tracking-flow",
-    "commonErrors": [
-      {
-        "error": {
-          "en": "Permission denied / action hidden",
-          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
-        },
-        "reason": {
-          "en": "Role matrix or governance visibility is missing for this module/action.",
-          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
-        }
-      },
-      {
-        "error": {
-          "en": "Validation failed on submit",
-          "hi": "सबमिट पर वैलिडेशन विफल"
-        },
-        "reason": {
-          "en": "Mandatory fields are blank or context selection is inconsistent.",
-          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
-        }
-      }
-    ],
-    "recoverySteps": [
-      {
-        "en": "Refresh the page and re-open the target record from list view.",
-        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
-      },
-      {
-        "en": "Validate role override context, then retry with correct module permissions.",
-        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
-      },
-      {
-        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
-        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
-      }
-    ],
-    "relatedRoutes": [
-      "/orders",
-      "/orders/[id]",
-      "/orders/create"
-    ],
-    "screenshotKeys": [],
-    "faqRefs": [
-      "faq-access-control",
-      "faq-data-refresh"
-    ]
-  },
-  {
     "routePattern": "/orders/create",
     "title": {
       "en": "Orders • Create",
@@ -10505,6 +12077,133 @@
       "orders-create-overview",
       "orders-create-workflow"
     ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/production",
+    "title": {
+      "en": "Production Hub",
+      "hi": "Production Hub गाइड"
+    },
+    "module": "Production",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANNER",
+      "WORK_CENTER_MANAGER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Production Hub keeps planner and shop-floor execution aligned to approved orders, stock, and route state.",
+      "hi": "Production Hub स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Production Hub to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Production Hub का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/planner",
+      "/production/machine-selector",
+      "/inventory/stock-lifecycle"
+    ],
+    "screenshotKeys": [],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -11021,6 +12720,132 @@
       "/production/machine-selector",
       "/production/machine/[machine_id]",
       "/production/planner"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/production/planner/sku-catalog",
+    "title": {
+      "en": "Planner SKU Library",
+      "hi": "Planner SKU Library गाइड"
+    },
+    "module": "Production",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Planner SKU Library keeps planner and shop-floor execution aligned to approved orders, stock, and route state.",
+      "hi": "Planner SKU Library स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Planner SKU Library to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Planner SKU Library का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/planner",
+      "/production/machine-selector",
+      "/inventory/stock-lifecycle"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -11669,6 +13494,131 @@
       "profile-overview",
       "profile-workflow"
     ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/sales",
+    "title": {
+      "en": "Sales Hub",
+      "hi": "Sales Hub गाइड"
+    },
+    "module": "Sales",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Sales Hub keeps commercial order entry and reusable SKU decisions consistent before planner release.",
+      "hi": "Sales Hub स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Sales Hub to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Sales Hub का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "sales-order-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/sales/orders",
+      "/sales/sku-catalog",
+      "/production/planner"
+    ],
+    "screenshotKeys": [],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -12440,6 +14390,378 @@
     ]
   },
   {
+    "routePattern": "/sales/sku-catalog",
+    "title": {
+      "en": "Sales SKU Catalog",
+      "hi": "Sales SKU Catalog गाइड"
+    },
+    "module": "Sales",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Sales SKU Catalog keeps commercial order entry and reusable SKU decisions consistent before planner release.",
+      "hi": "Sales SKU Catalog स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Sales SKU Catalog to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Sales SKU Catalog का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "sales-order-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/sales/orders",
+      "/production/planner"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/system",
+    "title": {
+      "en": "System Hub",
+      "hi": "System Hub गाइड"
+    },
+    "module": "System",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN"
+    ],
+    "summary": {
+      "en": "System Hub keeps governance, audit, users, and report controls visible to owner/admin roles.",
+      "hi": "System Hub स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use System Hub to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "System Hub का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "system-governance-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/system/users",
+      "/system/role-matrix",
+      "/system/governance"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/system/audit",
+    "title": {
+      "en": "Audit Center",
+      "hi": "Audit Center गाइड"
+    },
+    "module": "System",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN"
+    ],
+    "summary": {
+      "en": "Audit Center keeps governance, audit, users, and report controls visible to owner/admin roles.",
+      "hi": "Audit Center स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Audit Center to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Audit Center का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "system-governance-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/system/users",
+      "/system/role-matrix",
+      "/system/governance"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/system/governance",
     "title": {
       "en": "System • Governance",
@@ -12561,6 +14883,130 @@
       "system-governance-overview",
       "system-governance-workflow"
     ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/system/report-center",
+    "title": {
+      "en": "Report Center",
+      "hi": "Report Center गाइड"
+    },
+    "module": "System",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN"
+    ],
+    "summary": {
+      "en": "Report Center keeps governance, audit, users, and report controls visible to owner/admin roles.",
+      "hi": "Report Center स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+    },
+    "purpose": {
+      "en": "Use Report Center to complete the page workflow without guessing which status, filter, or approval step comes next.",
+      "hi": "Report Center का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm your role, plant, and operating context before changing records.",
+        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
+        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review the page summary, filters, and pending cards before taking action.",
+        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+      },
+      {
+        "en": "Open the target record and verify mandatory fields, status, owner, and references.",
+        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+      },
+      {
+        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
+        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context गाइड"
+        },
+        "help": {
+          "en": "Plant, role, and date/FY filters decide which records and actions are valid.",
+          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "Status गाइड"
+        },
+        "help": {
+          "en": "Treat status as the gate. If the next action is hidden, check role access and required upstream approval.",
+          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "Audit Notes गाइड"
+        },
+        "help": {
+          "en": "Write the reason, reference, and approver when the action changes stock, approval, or user visibility.",
+          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Action hidden or permission denied",
+          "hi": "Action hidden or permission denied गाइड"
+        },
+        "reason": {
+          "en": "Role, module permission, or governance visibility does not allow this step.",
+          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed गाइड"
+        },
+        "reason": {
+          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
+          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
+        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+      },
+      {
+        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
+        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+      },
+      {
+        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
+        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/system/users",
+      "/system/role-matrix",
+      "/system/governance"
+    ],
+    "screenshotKeys": [],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"

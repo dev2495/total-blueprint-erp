@@ -399,7 +399,7 @@ export default function WorkCentersPage() {
                                         </CardHeader>
                                         <CardContent className="pt-6">
                                             <div className="flex items-center gap-3 mb-4">
-                                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
                                                     <Layers className="h-6 w-6" />
                                                 </div>
                                                 <div>

@@ -85,7 +85,7 @@ export function MaterialPicker({
                     <div className="flex items-center gap-2 truncate pr-2">
                         {selectedItem ? (
                             <>
-                                <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0">
+                                <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0">
                                     {selectedItem.code}
                                 </span>
                                 <span className="truncate text-slate-900 font-semibold text-sm">
@@ -123,7 +123,7 @@ export function MaterialPicker({
                             <CommandGroup
                                 key={group}
                                 heading={
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 px-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 px-1">
                                         — {group}
                                     </span>
                                 }
@@ -140,7 +140,7 @@ export function MaterialPicker({
                                         }}
                                         className={cn(
                                             "flex items-center gap-2 px-3 py-2 cursor-pointer rounded-md mx-1 mb-0.5",
-                                            "hover:bg-indigo-50 aria-selected:bg-indigo-600 aria-selected:text-white",
+                                            "hover:bg-blue-50 aria-selected:bg-blue-600 aria-selected:text-white",
                                             "transition-colors group"
                                         )}
                                     >
@@ -154,13 +154,13 @@ export function MaterialPicker({
                                         </span>
                                         {/* Category/Family badge (shown inline) */}
                                         {(item.category || item.type) && (
-                                            <span className="text-[9px] font-bold uppercase text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-white/20 group-aria-selected:text-white">
+                                            <span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-white/20 group-aria-selected:text-white">
                                                 {item.category || item.type}
                                             </span>
                                         )}
                                         {/* Check */}
                                         {String(value) === String(item.id) && (
-                                            <Check className="h-4 w-4 text-indigo-600 group-aria-selected:text-white shrink-0" />
+                                            <Check className="h-4 w-4 text-blue-600 group-aria-selected:text-white shrink-0" />
                                         )}
                                     </CommandItem>
                                 ))}

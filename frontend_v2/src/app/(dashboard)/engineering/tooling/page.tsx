@@ -101,7 +101,7 @@ export default function ToolingPage() {
       searchPlaceholder="Search tool code, plant, type, rack, slot, or status"
       actions={<Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Add Tool</Button></DialogTrigger><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Create Tool Asset</DialogTitle></DialogHeader><ToolAssetForm plants={plants} locations={locations} vendors={vendors} onSubmit={(payload: any) => createMutation.mutate(payload)} busy={createMutation.isPending} /></DialogContent></Dialog>}
       stats={[
-        { label: "Tracked Tools", value: stats.total, icon: Wrench, toneClassName: "bg-indigo-50 text-indigo-600" },
+        { label: "Tracked Tools", value: stats.total, icon: Wrench, toneClassName: "bg-blue-50 text-blue-600" },
         { label: "Ready", value: stats.ready, icon: Factory, toneClassName: "bg-emerald-50 text-emerald-600" },
         { label: "Service Due", value: stats.service, icon: MapPin, toneClassName: "bg-amber-50 text-amber-600" },
         { label: "Retired", value: stats.retired, icon: Trash2, toneClassName: "bg-rose-50 text-rose-600" },

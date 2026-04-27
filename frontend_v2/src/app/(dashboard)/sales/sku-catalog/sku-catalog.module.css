@@ -2,7 +2,7 @@
   min-height: 100vh;
   padding: 1.5rem;
   background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.1), transparent 28%),
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 28%),
     linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
   display: flex;
   flex-direction: column;
@@ -16,11 +16,32 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  border-radius: 1.85rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  background: rgba(255, 255, 255, 0.95);
-  padding: 1.45rem;
-  box-shadow: 0 18px 40px -34px rgba(15, 23, 42, 0.18);
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background:
+    linear-gradient(135deg, rgba(49, 32, 138, 0.98), rgba(111, 48, 224, 0.96)),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 28%);
+  padding: clamp(1.4rem, 3vw, 2rem);
+  box-shadow: 0 28px 70px -42px rgba(76, 29, 149, 0.72);
+  overflow: hidden;
+  position: relative;
+}
+
+.pageHeader::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.55), transparent 76%);
+  pointer-events: none;
+}
+
+.pageHeader > * {
+  position: relative;
+  z-index: 1;
 }
 @media (min-width: 1024px) {
   .pageHeader {
@@ -44,7 +65,11 @@
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.22em;
-  color: #6366f1;
+  color: #2563eb;
+}
+
+.pageHeader .pageEyebrow {
+  color: #d8d1ff;
 }
 
 .pageTitle {
@@ -57,12 +82,31 @@
   color: #020617;
 }
 
+.pageHeader .pageTitle {
+  color: #ffffff;
+  text-shadow: 0 16px 38px rgba(15, 23, 42, 0.28);
+}
+
 .pageDescription {
   margin-top: 0.75rem;
   font-size: 0.92rem;
   line-height: 1.65;
   color: #475569;
   max-width: 52rem;
+}
+
+.pageHeader .pageDescription {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.pageHeader .pageBtnOutline {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.pageHeader .pageBtnPrimary {
+  border-color: #0f172a;
+  background: #0f172a;
 }
 
 .pageActions {
@@ -349,7 +393,7 @@
 .statusVariantSelected {
   border-color: #c7d2fe;
   background: #fff;
-  color: #4338ca;
+  color: #1d4ed8;
 }
 
 /* ── METRIC STRIP (inner) ── */

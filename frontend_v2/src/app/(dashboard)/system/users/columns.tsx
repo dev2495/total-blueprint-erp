@@ -28,10 +28,10 @@ export const getColumns = ({ onDelete }: ColumnsProps): ColumnDef<User>[] => [
         cell: ({ row }) => (
             <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-white transition-colors">
-                    <UserCheck className="h-4 w-4 text-slate-400 group-hover:text-indigo-600" />
+                    <UserCheck className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                 </div>
                 <div className="flex flex-col">
-                    <Link href={`/system/users/${row.original.id}`} className="font-black text-slate-900 hover:text-indigo-600 transition-colors uppercase text-[11px] tracking-tight">
+                    <Link href={`/system/users/${row.original.id}`} className="font-black text-slate-900 hover:text-blue-600 transition-colors uppercase text-[11px] tracking-tight">
                         {row.getValue("username")}
                     </Link>
                     {row.original.is_owner && (
@@ -61,7 +61,7 @@ export const getColumns = ({ onDelete }: ColumnsProps): ColumnDef<User>[] => [
             if (!role) return <span className="text-[10px] font-black text-slate-300 italic uppercase">No Protocol</span>;
             return (
                 <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-indigo-50/50 text-indigo-600 border-indigo-100 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md italic">
+                    <Badge variant="outline" className="bg-blue-50/50 text-blue-600 border-blue-100 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md italic">
                         {role.code}
                     </Badge>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
@@ -123,7 +123,7 @@ export const getColumns = ({ onDelete }: ColumnsProps): ColumnDef<User>[] => [
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl border-none shadow-2xl p-2 min-w-[160px] bg-white/95 backdrop-blur-md ring-1 ring-slate-100">
                             <DropdownMenuLabel className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-3 pb-2 italic">Entity Protocols</DropdownMenuLabel>
-                            <DropdownMenuItem asChild className="rounded-lg py-2.5 focus:bg-indigo-50 focus:text-indigo-600 transition-colors cursor-pointer">
+                            <DropdownMenuItem asChild className="rounded-lg py-2.5 focus:bg-blue-50 focus:text-blue-600 transition-colors cursor-pointer">
                                 <Link href={`/system/users/${user.id}`} className="flex items-center w-full">
                                     <Eye className="mr-3 h-3.5 w-3.5" />
                                     <span className="text-[10px] font-black uppercase tracking-widest">Access Profile</span>

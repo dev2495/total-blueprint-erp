@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -18,7 +19,25 @@ import {
 
 import styles from "./sku-catalog.module.css"
 import { cn } from "@/lib/utils"
+import { normalizeProductSpec } from "@/lib/product-spec"
 import OrderItemTechnicalEditor from "@/components/sales/shared/order-item-technical-editor"
+import {
+    SalesLayerTable,
+    SalesOverflowChipGroup,
+    SalesSavedViewsBar,
+    SalesSmartRangeFilter,
+    SalesSpecChips,
+    SALES_GRADE_PRIORITY,
+    SALES_MATERIAL_PRIORITY,
+    SALES_SUPPORTED_FG_TYPES,
+    salesMaterialFilterLabel,
+    salesSortChipOptions,
+    salesUniqueText,
+    salesVariantSpecSource,
+    specMatchesFilters,
+    type SalesOverflowChipOption,
+    type SalesSavedViewFilters,
+} from "@/components/sales/sales-flow-ui"
 import {
     asNumber,
     buildPreviewPayload,
@@ -54,6 +73,7 @@ import { engineeringService } from "@/services/engineering"
 import { filmFamilyService } from "@/services/film-families"
 import { filmVariantService } from "@/services/film-variants"
 import { masterDataService } from "@/services/master-data"
+import { recipeService } from "@/services/recipes"
 import {
     type RepeatLineCandidate,
     type SalesSku,
@@ -102,7 +122,8 @@ function prepareDraftForSku(sku: SalesSku, templates: any[]) {
     item.template_id = sku.template
     item.line_name = sku.default_line_name || sku.name
     const template = templates.find((row: any) => String(row.id) === String(sku.template))
-    const fgType = String(template?.fg_type || item.finished_good_type).toUpperCase() as OrderItemDraft["finished_good_type"]
+    const templateFgType = String(template?.fg_type || item.finished_good_type).toUpperCase()
+    const fgType = (templateFgType === "ROLL" ? "ROLL" : "POUCH") as OrderItemDraft["finished_good_type"]
     item.finished_good_type = fgType
     item.qty_uom = fgType === "ROLL" ? "KG" : item.qty_uom
     item.price_basis = fgType === "ROLL" ? "KG" : item.price_basis
@@ -110,7 +131,26 @@ function prepareDraftForSku(sku: SalesSku, templates: any[]) {
     return item
 }
 
+function uniqueText(values: Array<string | null | undefined>) {
+    return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)))
+}
+
+function makeSkuRangePresets(values: Array<number | null | undefined>, suffix: string) {
+    const counts = new Map<number, number>()
+    values.forEach((value) => {
+        const num = Number(value)
+        if (!Number.isFinite(num) || num <= 0) return
+        const rounded = Math.round(num)
+        counts.set(rounded, (counts.get(rounded) || 0) + 1)
+    })
+    return Array.from(counts.entries())
+        .sort((left, right) => right[1] - left[1] || left[0] - right[0])
+        .slice(0, 10)
+        .map(([value, count]) => ({ value: String(value), label: `${value} ${suffix}`, count }))
+}
+
 export default function SalesSkuCatalogPage() {
+    const searchParams = useSearchParams()
     const queryClient = useQueryClient()
     const { toast } = useToast()
 
@@ -120,6 +160,11 @@ export default function SalesSkuCatalogPage() {
     const [templateFilter, setTemplateFilter] = useState("all")
     const [usageCustomerId, setUsageCustomerId] = useState("all")
     const [usageOnly, setUsageOnly] = useState(false)
+    const [sizeFilter, setSizeFilter] = useState("")
+    const [heightFilter, setHeightFilter] = useState("")
+    const [variantFilter, setVariantFilter] = useState("")
+    const [gradeFilter, setGradeFilter] = useState("")
+    const [thicknessFilter, setThicknessFilter] = useState("")
     const [selectedSkuId, setSelectedSkuId] = useState("")
     const [selectedVariantId, setSelectedVariantId] = useState("")
     const [skuDialogOpen, setSkuDialogOpen] = useState(false)
@@ -139,6 +184,7 @@ export default function SalesSkuCatalogPage() {
     const [variantPreviewLoading, setVariantPreviewLoading] = useState(false)
     const [variantPreviewNonce, setVariantPreviewNonce] = useState(0)
     const [usageDialogOpen, setUsageDialogOpen] = useState(false)
+    const [queryVariantDialogOpened, setQueryVariantDialogOpened] = useState(false)
     const deferredSearch = useDeferredValue(search)
 
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: masterDataService.getCustomers })
@@ -157,6 +203,7 @@ export default function SalesSkuCatalogPage() {
         queryKey: ["packaging-materials"],
         queryFn: masterDataService.getPackaging,
     })
+    const { data: masterGrades = [] } = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades() })
     const { data: podProfiles = [] } = useQuery({ queryKey: ["pod-sku-variants", "sku-catalog"], queryFn: () => masterDataService.getPodSkuVariants({ active: true }) })
     const { data: salesSkus = [] } = useQuery({
         queryKey: ["sales-skus", usageCustomerId, activeFilter],
@@ -187,15 +234,92 @@ export default function SalesSkuCatalogPage() {
         enabled: Boolean(variantDialog.item.printing.enabled && !variantDialog.item.printing.defer_artwork_to_planner && variantDialog.open),
     })
 
+    const currentSavedViewFilters: SalesSavedViewFilters = {
+        search,
+        activeFilter,
+        fgTypeFilter,
+        templateFilter,
+        usageCustomerId,
+        usageOnly,
+        sizeFilter,
+        heightFilter,
+        variantFilter,
+        gradeFilter,
+        thicknessFilter,
+    }
+
+    const applySavedViewFilters = (filters: SalesSavedViewFilters) => {
+        if (typeof filters.search === "string") setSearch(filters.search)
+        if (typeof filters.activeFilter === "string") setActiveFilter(filters.activeFilter)
+        if (typeof filters.fgTypeFilter === "string") setFgTypeFilter(filters.fgTypeFilter)
+        if (typeof filters.templateFilter === "string") setTemplateFilter(filters.templateFilter)
+        if (typeof filters.usageCustomerId === "string") setUsageCustomerId(filters.usageCustomerId)
+        if (typeof filters.usageOnly === "boolean") setUsageOnly(filters.usageOnly)
+        if (typeof filters.sizeFilter === "string") setSizeFilter(filters.sizeFilter)
+        if (typeof filters.heightFilter === "string") setHeightFilter(filters.heightFilter)
+        if (typeof filters.variantFilter === "string") setVariantFilter(filters.variantFilter)
+        if (typeof filters.gradeFilter === "string") setGradeFilter(filters.gradeFilter)
+        if (typeof filters.thicknessFilter === "string") setThicknessFilter(filters.thicknessFilter)
+    }
+
+    const skuVariantSpecs = useMemo(
+        () =>
+            salesSkus.flatMap((sku) =>
+                (sku.variants || []).map((variant) => ({
+                    sku,
+                    variant,
+                    spec: normalizeProductSpec(salesVariantSpecSource(sku, variant)),
+                }))
+            ),
+        [salesSkus]
+    )
+    const materialOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const labels = salesUniqueText([
+            ...SALES_MATERIAL_PRIORITY,
+            ...families.flatMap((family: any) => [family?.code, family?.name]),
+            ...variants.flatMap((variant: any) => [variant?.code, variant?.name, variant?.parent_family_name]),
+            ...skuVariantSpecs.flatMap(({ spec }) => spec.layers.flatMap((layer) => [salesMaterialFilterLabel(layer.variantName), salesMaterialFilterLabel(layer.variantCode)])),
+        ]).map(salesMaterialFilterLabel).filter(Boolean)
+        return salesSortChipOptions(
+            salesUniqueText(labels).map((material) => ({
+                value: material,
+                label: material,
+                count: skuVariantSpecs.filter(({ spec }) => spec.searchText.toLowerCase().includes(material.toLowerCase())).length,
+                tone: "material" as const,
+            })),
+            SALES_MATERIAL_PRIORITY
+        )
+    }, [families, skuVariantSpecs, variants])
+    const gradeOptions = useMemo<SalesOverflowChipOption[]>(() => (
+        salesSortChipOptions(
+            uniqueText([
+                ...SALES_GRADE_PRIORITY,
+                ...masterGrades.map((grade: any) => grade?.name || grade?.code),
+                ...skuVariantSpecs.flatMap(({ spec }) => spec.layers.map((layer) => layer.grade)),
+            ])
+                .map((grade) => ({
+                value: grade,
+                label: grade,
+                count: skuVariantSpecs.filter(({ spec }) => spec.layers.some((layer) => String(layer.grade || "").toLowerCase().includes(grade.toLowerCase()))).length,
+                tone: "grade" as const,
+            })),
+            SALES_GRADE_PRIORITY
+        )
+    ), [masterGrades, skuVariantSpecs])
+    const widthPresets = useMemo(() => makeSkuRangePresets(skuVariantSpecs.flatMap(({ spec }) => [spec.size.widthMm, ...spec.layers.map((layer) => layer.widthMm)]), "mm"), [skuVariantSpecs])
+    const heightPresets = useMemo(() => makeSkuRangePresets(skuVariantSpecs.map(({ spec }) => spec.size.heightMm), "mm"), [skuVariantSpecs])
+    const thicknessPresets = useMemo(() => makeSkuRangePresets(skuVariantSpecs.flatMap(({ spec }) => spec.layers.map((layer) => layer.thicknessMicron)), "μ"), [skuVariantSpecs])
+
     const filteredSkus = useMemo(() => {
         const query = deferredSearch.trim().toLowerCase()
         return salesSkus.filter((sku) => {
             if (usageOnly && usageCustomerId !== "all" && !asNumber(sku.customer_usage_count, 0)) return false
             if (templateFilter !== "all" && String(sku.template) !== templateFilter) return false
-            if (fgTypeFilter !== "all") {
-                const hasFgType = (sku.variants || []).some((variant) => String(variant.finished_good_type || "").toUpperCase() === fgTypeFilter.toUpperCase())
-                if (!hasFgType) return false
-            }
+            const matchingVariants = (sku.variants || []).filter((variant) => {
+                const spec = normalizeProductSpec(salesVariantSpecSource(sku, variant))
+                return specMatchesFilters(spec, { fgTypeFilter, sizeFilter, heightFilter, variantFilter, gradeFilter, thicknessFilter })
+            })
+            if (!matchingVariants.length && (sku.variants || []).length) return false
             if (!query) return true
             return [
                 sku.code,
@@ -203,12 +327,15 @@ export default function SalesSkuCatalogPage() {
                 sku.default_line_name,
                 sku.template_name,
                 sku.commercial_family_name,
-                ...(sku.variants || []).flatMap((variant) => [variant.code, variant.name]),
+                ...(sku.variants || []).flatMap((variant) => {
+                    const spec = normalizeProductSpec(salesVariantSpecSource(sku, variant))
+                    return [variant.code, variant.name, spec.searchText]
+                }),
             ]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(query))
         })
-    }, [deferredSearch, fgTypeFilter, salesSkus, templateFilter, usageCustomerId, usageOnly])
+    }, [deferredSearch, fgTypeFilter, gradeFilter, heightFilter, salesSkus, sizeFilter, templateFilter, thicknessFilter, usageCustomerId, usageOnly, variantFilter])
 
     const selectedSku = useMemo(
         () => filteredSkus.find((sku) => sku.id === selectedSkuId) || salesSkus.find((sku) => sku.id === selectedSkuId) || null,
@@ -217,13 +344,24 @@ export default function SalesSkuCatalogPage() {
 
     const selectedSkuVariants = useMemo(() => {
         const source = selectedSku?.variants || []
-        if (fgTypeFilter === "all") return source
-        return source.filter((variant) => String(variant.finished_good_type || "").toUpperCase() === fgTypeFilter.toUpperCase())
-    }, [fgTypeFilter, selectedSku])
+        return source.filter((variant) => {
+            const spec = normalizeProductSpec(salesVariantSpecSource(selectedSku, variant))
+            return specMatchesFilters(spec, { fgTypeFilter, sizeFilter, heightFilter, variantFilter, gradeFilter, thicknessFilter })
+        })
+    }, [fgTypeFilter, gradeFilter, heightFilter, selectedSku, sizeFilter, thicknessFilter, variantFilter])
 
     const selectedVariant = useMemo(
         () => selectedSkuVariants.find((variant) => variant.id === selectedVariantId) || null,
         [selectedSkuVariants, selectedVariantId]
+    )
+    const dialogPlannerMatch = useMemo(() => {
+        if (!variantDialog.variantId) return null
+        return selectedSku?.variants?.find((variant) => variant.id === variantDialog.variantId) || null
+    }, [selectedSku, variantDialog.variantId])
+
+    const selectedVariantSpec = useMemo(
+        () => selectedVariant ? normalizeProductSpec(salesVariantSpecSource(selectedSku, selectedVariant)) : null,
+        [selectedSku, selectedVariant]
     )
 
     useEffect(() => {
@@ -435,6 +573,14 @@ export default function SalesSkuCatalogPage() {
         })
     }
 
+    useEffect(() => {
+        if (queryVariantDialogOpened) return
+        if (searchParams?.get("create_variant") !== "1") return
+        if (!selectedSku) return
+        setQueryVariantDialogOpened(true)
+        openCreateVariantDialog()
+    }, [queryVariantDialogOpened, searchParams, selectedSku])
+
     const openVariantEditor = (mode: "edit" | "clone", variant: SalesSkuVariant) => {
         if (!selectedSku) return
         const draft = orderItemFromVariant(selectedSku, variant)
@@ -498,6 +644,12 @@ export default function SalesSkuCatalogPage() {
                 </div>
             </section>
 
+            <SalesSavedViewsBar
+                scope="sku_catalog"
+                currentFilters={currentSavedViewFilters}
+                onApply={applySavedViewFilters}
+            />
+
             <section className={styles.filterBar} data-testid="sales-sku-catalog-filters">
                 <div className={styles.filterRow}>
                     <div className={styles.searchCell}>
@@ -523,15 +675,19 @@ export default function SalesSkuCatalogPage() {
                         </Select>
                     </div>
                     <div className={cn(styles.filterCell, "space-y-2")}>
-                        <Label className={styles.filterLabel}>FG Type</Label>
-                        <Select value={fgTypeFilter} onValueChange={setFgTypeFilter}>
-                            <SelectTrigger className="h-10 rounded-2xl bg-slate-50"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                <SelectItem value="POUCH">POUCH</SelectItem>
-                                <SelectItem value="ROLL">ROLL</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <SalesOverflowChipGroup
+                            label="Finished good"
+                            value={fgTypeFilter}
+                            onChange={setFgTypeFilter}
+                            allValue="all"
+                            options={SALES_SUPPORTED_FG_TYPES.map((type) => ({
+                                value: type,
+                                label: type === "ROLL" ? "Roll" : "Pouch",
+                                count: skuVariantSpecs.filter(({ variant }) => String(variant.finished_good_type || "").toUpperCase() === type).length,
+                                tone: type === "ROLL" ? "fgRoll" : "fgPouch",
+                            }))}
+                            maxInline={3}
+                        />
                     </div>
                     <div className={cn(styles.filterCell, "space-y-2")}>
                         <Label className={styles.filterLabel}>Template</Label>
@@ -568,6 +724,33 @@ export default function SalesSkuCatalogPage() {
                         </div>
                         <Switch checked={usageOnly} onCheckedChange={setUsageOnly} />
                     </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <SalesSmartRangeFilter label="Width" value={sizeFilter} onChange={setSizeFilter} placeholder="420 / 1070" suffix="mm" presets={widthPresets} />
+                    <SalesSmartRangeFilter label="Height" value={heightFilter} onChange={setHeightFilter} placeholder="200-320" suffix="mm" presets={heightPresets} />
+                    <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} onChange={setThicknessFilter} placeholder="12 / 47 / 50" suffix="μ" presets={thicknessPresets} />
+                    <SalesOverflowChipGroup label="Material" value={variantFilter} onChange={setVariantFilter} options={materialOptions} maxInline={4} allValue="" />
+                    <SalesOverflowChipGroup label="Grade" value={gradeFilter} onChange={setGradeFilter} options={gradeOptions} maxInline={4} allValue="" />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-full bg-white px-5 text-xs font-black uppercase tracking-[0.12em]"
+                        onClick={() => {
+                            setSearch("")
+                            setActiveFilter("active")
+                            setFgTypeFilter("all")
+                            setTemplateFilter("all")
+                            setUsageCustomerId("all")
+                            setUsageOnly(false)
+                            setSizeFilter("")
+                            setHeightFilter("")
+                            setVariantFilter("")
+                            setGradeFilter("")
+                            setThicknessFilter("")
+                        }}
+                    >
+                        Reset
+                    </Button>
                 </div>
             </section>
             <div className={styles.mainGrid}>
@@ -699,23 +882,26 @@ export default function SalesSkuCatalogPage() {
                                                     ) : null}
                                                     {selectedSkuVariants.map((variant) => {
                                                         const isSelected = variant.id === selectedVariantId
+                                                        const spec = normalizeProductSpec(salesVariantSpecSource(selectedSku, variant))
                                                         return (
                                                             <button
                                                                 key={variant.id}
                                                                 type="button"
                                                                 data-testid="sales-sku-variant-item"
                                                                 onClick={() => setSelectedVariantId(variant.id)}
-                                                                className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isSelected ? "border-indigo-200 bg-indigo-50 text-slate-950 shadow-[0_18px_45px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
+                                                                className={`w-full rounded-[1.6rem] border p-4 text-left transition ${isSelected ? "border-blue-200 bg-blue-50 text-slate-950 shadow-[0_18px_45px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-white/96 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_-36px_rgba(15,23,42,0.28)]"}`}
                                                             >
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="space-y-2">
                                                                         <div className="break-words text-sm font-black leading-5">{variant.code}</div>
                                                                         <div className="break-words text-sm leading-5 text-slate-700">{variant.name}</div>
                                                                         <div className="flex flex-wrap gap-2">
-                                                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isSelected ? "border-indigo-200 bg-white text-indigo-700" : skuStatusTone(variant.active)}`}>
+                                                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isSelected ? "border-blue-200 bg-white text-blue-700" : skuStatusTone(variant.active)}`}>
                                                                                 {variant.active ? "ACTIVE" : "INACTIVE"}
                                                                             </span>
-                                                                            <Badge variant="outline">{variant.finished_good_type}</Badge>
+                                                                            <span className="inline-flex rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700">
+                                                                                {spec.size.label}
+                                                                            </span>
                                                                         </div>
                                                                     </div>
                                                                     <div className={styles.itemMeta}>
@@ -725,6 +911,15 @@ export default function SalesSkuCatalogPage() {
                                                                             : `${variant.geometry_snapshot?.base?.width_mm || variant.geometry_snapshot?.width_mm || 0}W x ${variant.geometry_snapshot?.base?.height_mm || variant.geometry_snapshot?.height_mm || 0}H`}
                                                                         </div>
                                                                     </div>
+                                                                </div>
+                                                                <div className="mt-3">
+                                                                    <SalesSpecChips
+                                                                        spec={spec}
+                                                                        fgType={variant.finished_good_type}
+                                                                        printingLabel={variant.printing_snapshot?.enabled ? `${variant.printing_snapshot?.type || "PRINT"} F${variant.printing_snapshot?.front_colors_count || 0}/B${variant.printing_snapshot?.back_colors_count || 0}` : "No print"}
+                                                                        compact
+                                                                        maxAddonLabels={1}
+                                                                    />
                                                                 </div>
                                                             </button>
                                                         )
@@ -786,22 +981,16 @@ export default function SalesSkuCatalogPage() {
                                                             <div className="mt-2 text-sm font-black text-slate-900">{selectedVariant.template_name || selectedSku.template_name}</div>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-4 flex flex-wrap gap-2">
-                                                        <Badge variant="outline">
-                                                            {selectedVariant.finished_good_type === "ROLL"
-                                                                ? selectedVariant.roll_form || "FLAT"
-                                                                : `${selectedVariant.geometry_snapshot?.base?.width_mm || selectedVariant.geometry_snapshot?.width_mm || 0} x ${selectedVariant.geometry_snapshot?.base?.height_mm || selectedVariant.geometry_snapshot?.height_mm || 0}`}
-                                                        </Badge>
-                                                        <Badge variant="outline">{(selectedVariant.layer_snapshot || []).length} layer(s)</Badge>
-                                                        <Badge variant="outline">
-                                                            {selectedVariant.printing_snapshot?.enabled
-                                                                ? `${selectedVariant.printing_snapshot?.type || "PRINT"} F${selectedVariant.printing_snapshot?.front_colors_count || 0}/B${selectedVariant.printing_snapshot?.back_colors_count || 0}`
-                                                                : "No print"}
-                                                        </Badge>
-                                                        <Badge variant="outline">{(selectedVariant.addons_snapshot || []).length} add-on(s)</Badge>
-                                                        {selectedVariant.packaging_snapshot?.primary_inner_pack?.enabled ? <Badge variant="outline">Primary pack</Badge> : null}
-                                                        {selectedVariant.packaging_snapshot?.pod?.enabled ? <Badge variant="outline">POD enabled</Badge> : null}
-                                                    </div>
+                                                    {selectedVariantSpec ? (
+                                                        <div className="mt-5 space-y-4">
+                                                            <SalesSpecChips
+                                                                spec={selectedVariantSpec}
+                                                                fgType={selectedVariant.finished_good_type}
+                                                                printingLabel={selectedVariant.printing_snapshot?.enabled ? `${selectedVariant.printing_snapshot?.type || "PRINT"} F${selectedVariant.printing_snapshot?.front_colors_count || 0}/B${selectedVariant.printing_snapshot?.back_colors_count || 0}` : "No print"}
+                                                            />
+                                                            <SalesLayerTable spec={selectedVariantSpec} />
+                                                        </div>
+                                                    ) : null}
                                                 </div>
                                             ) : (
                                                 <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
@@ -924,7 +1113,7 @@ export default function SalesSkuCatalogPage() {
                                             {variantDialog.code || "Variant code"} • {variantDialog.name || "Variant name"}
                                         </div>
                                         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                                            Build a clean sales preset. Flow is always: geometry, film layers, printing and chemicals, add-ons, then packaging and POD.
+                                            Build a clean sales preset. Flow is geometry, film layers, optional printing, independent lamination chemistry, add-ons, then packaging and POD.
                                         </p>
                                     </div>
                                 </div>
@@ -947,8 +1136,8 @@ export default function SalesSkuCatalogPage() {
                                         <div className={styles.metricValueSm}>{templates.find((template: any) => String(template.id) === String(variantDialog.item.template_id))?.name || "Choose template"}</div>
                                     </div>
                                     <div className={styles.metricCard}>
-                                        <div className={styles.metricLabel}>FG Type</div>
-                                        <div className={styles.metricValue}>{variantDialog.item.finished_good_type || "Pending"}</div>
+                                        <div className={styles.metricLabel}>Finished good</div>
+                                        <div className={styles.metricValue}>{variantDialog.item.finished_good_type === "ROLL" ? "ROLL" : variantDialog.item.finished_good_type ? "POUCH" : "Pending"}</div>
                                     </div>
                                     <div className={styles.metricCard}>
                                         <div className={styles.metricLabel}>Layers</div>
@@ -983,6 +1172,37 @@ export default function SalesSkuCatalogPage() {
                                 {variantDialog.item.packaging_snapshot.primary_inner_pack.enabled ? <Badge variant="outline">Primary pack</Badge> : null}
                                 {variantDialog.item.packaging_snapshot.pod.enabled ? <Badge variant="outline">POD enabled</Badge> : null}
                             </div>
+                        </div>
+
+                        <div className={cn(
+                            "rounded-[1.35rem] border p-4",
+                            dialogPlannerMatch?.derived_from_planner_variant
+                                ? "border-emerald-200 bg-emerald-50/90"
+                                : "border-amber-200 bg-amber-50/90"
+                        )}>
+                            <div className={cn(
+                                "text-[10px] font-black uppercase tracking-[0.22em]",
+                                dialogPlannerMatch?.derived_from_planner_variant ? "text-emerald-700" : "text-amber-800"
+                            )}>
+                                Derived from planner variant
+                            </div>
+                            {dialogPlannerMatch?.derived_from_planner_variant ? (
+                                <>
+                                    <div className="mt-1 text-sm font-bold text-emerald-950">
+                                        Matches PlannerSkuVariant {dialogPlannerMatch.derived_from_planner_variant_code || dialogPlannerMatch.derived_from_planner_variant}
+                                    </div>
+                                    <div className="mt-1 text-xs text-emerald-800/80">
+                                        Production knows the recipe. Match is stored on the sales variant.
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="mt-1 text-sm font-bold text-amber-950">No planner recipe linked yet.</div>
+                                    <div className="mt-1 text-xs text-amber-900/80">
+                                        Save the variant, then match by invariant signature before production relies on it.
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <OrderItemTechnicalEditor

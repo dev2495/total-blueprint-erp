@@ -36,6 +36,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
+import {
+    SalesOverflowChipGroup,
+    SalesSavedViewsBar,
+    SalesSmartRangeFilter,
+    SALES_GRADE_PRIORITY,
+    SALES_MATERIAL_PRIORITY,
+    SALES_SUPPORTED_FG_TYPES,
+    salesMaterialFilterLabel,
+    salesSortChipOptions,
+    salesUniqueText,
+    type SalesOverflowChipOption,
+    type SalesSavedViewFilters,
+} from "@/components/sales/sales-flow-ui"
+import { recipeService } from "@/services/recipes"
+import { masterDataService } from "@/services/master-data"
 import styles from "./planner-tower.module.css"
 
 type PlannerTab = "planning" | "active" | "jobs" | "history"
@@ -44,6 +59,8 @@ type QueueFilter = "ALL" | "ARTWORK_GATE" | "BLOCKED" | "READY"
 type DetailSectionKey = "route" | "material"
 type WipMode = "EXACT" | "INVARIANT"
 type HistoryDaysFilter = "TODAY" | "7" | "30" | "90" | "ALL"
+type PlannerDueFilter = "ALL" | "TODAY" | "THREE_DAYS" | "THIS_WEEK" | "OVERDUE" | "NO_DATE"
+type PlannerSourceFilter = "ALL" | "FG" | "WIP" | "FRESH"
 
 type AllocationState = {
     inventory_type: "ROLL" | "FG_BATCH"
@@ -59,6 +76,13 @@ type OrderPlanState = {
 const rowKey = (row: PlannerControlOrder) => {
     const kind = String(row.order_kind || "").trim().toLowerCase()
     return `${kind}:${row.order_id}`
+}
+const parsePlannerRowKey = (value: string) => {
+    const [kind, ...idParts] = String(value || "").split(":")
+    const orderKind = kind?.trim().toLowerCase()
+    const orderId = idParts.join(":").trim()
+    if (!orderKind || !orderId) return null
+    return { orderKind, orderId }
 }
 const inventoryKey = (row: PlannerInventoryOption) => `${row.inventory_type}:${row.inventory_id}`
 
@@ -165,6 +189,126 @@ function selectedDateNumber(value?: string | null) {
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return Number.MAX_SAFE_INTEGER
     return parsed.getTime()
+}
+
+function parsePlannerRange(value: string) {
+    const raw = value.trim()
+    if (!raw) return { min: null as number | null, max: null as number | null }
+    const parts = raw.split(/[,-]/).map((part) => Number(part.trim())).filter(Number.isFinite)
+    if (!parts.length) return { min: null, max: null }
+    if (parts.length === 1) return { min: parts[0], max: parts[0] }
+    return { min: Math.min(parts[0], parts[1]), max: Math.max(parts[0], parts[1]) }
+}
+
+function plannerNumberInRange(value: number | null | undefined, rangeText: string) {
+    const { min, max } = parsePlannerRange(rangeText)
+    if (min === null && max === null) return true
+    const num = Number(value)
+    if (!Number.isFinite(num)) return false
+    if (min !== null && max !== null && min === max) return Math.round(num) === Math.round(min)
+    if (min !== null && num < min) return false
+    if (max !== null && num > max) return false
+    return true
+}
+
+function plannerRangePresets(values: Array<number | null | undefined>, suffix: string) {
+    const counts = new Map<number, number>()
+    values.forEach((value) => {
+        const num = Number(value)
+        if (!Number.isFinite(num) || num <= 0) return
+        const rounded = Math.round(num)
+        counts.set(rounded, (counts.get(rounded) || 0) + 1)
+    })
+    return Array.from(counts.entries())
+        .sort((left, right) => right[1] - left[1] || left[0] - right[0])
+        .slice(0, 10)
+        .map(([value, count]) => ({ value: String(value), label: `${value} ${suffix}`, count }))
+}
+
+function plannerDateMatches(value: string | null | undefined, filter: PlannerDueFilter) {
+    if (filter === "ALL") return true
+    if (!value) return filter === "NO_DATE"
+    const ts = new Date(value).getTime()
+    if (!Number.isFinite(ts)) return filter === "NO_DATE"
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const oneDay = 24 * 60 * 60 * 1000
+    if (filter === "OVERDUE") return ts < today.getTime()
+    if (filter === "TODAY") return ts >= today.getTime() && ts < today.getTime() + oneDay
+    if (filter === "THREE_DAYS") return ts >= today.getTime() && ts <= today.getTime() + oneDay * 3
+    if (filter === "THIS_WEEK") return ts >= today.getTime() && ts <= today.getTime() + oneDay * 7
+    return true
+}
+
+function plannerRowBlob(row: PlannerControlOrder) {
+    const layerText = [
+        ...(Array.isArray(row.display_layers) ? row.display_layers : []),
+        ...(Array.isArray(row.layer_summary) ? row.layer_summary : []),
+        ...(Array.isArray(row.layer_snapshot) ? row.layer_snapshot.map((layer, index) => summarizeLayerRow(layer, index)) : []),
+    ].join(" ")
+    const materialText = (row.workspace?.material_plan_lines || row.material_plan_lines || [])
+        .map((line) => [line.material_code, line.material_name, line.category_code].filter(Boolean).join(" "))
+        .join(" ")
+    return [
+        row.order_number,
+        row.customer_name,
+        row.display_name,
+        row.template_name,
+        row.fg_type,
+        row.final_product_type,
+        row.planned_output_type,
+        row.stock_strategy,
+        (row as any).planner_stock_class,
+        row.spec_signature,
+        row.order_fact_sheet?.customer_name,
+        row.order_fact_sheet?.display_name,
+        row.order_fact_sheet?.template_name,
+        row.order_fact_sheet?.release_risk,
+        (row.order_fact_sheet as any)?.packaging_summary,
+        layerText,
+        materialText,
+    ].filter(Boolean).join(" ").toLowerCase()
+}
+
+function plannerRowWidth(row: PlannerControlOrder) {
+    return Number(row.effective_dims?.width_mm ?? row.geometry_override?.width_mm ?? row.roll_invariants?.width_mm ?? row.geometry_snapshot?.base?.width_mm ?? row.geometry_snapshot?.width_mm ?? null)
+}
+
+function plannerRowHeight(row: PlannerControlOrder) {
+    return Number(row.effective_dims?.height_mm ?? row.geometry_override?.height_mm ?? row.geometry_snapshot?.base?.height_mm ?? row.geometry_snapshot?.height_mm ?? null)
+}
+
+function plannerRowThicknesses(row: PlannerControlOrder) {
+    const values = Array.isArray(row.layer_snapshot)
+        ? row.layer_snapshot.map((layer) => Number(layer?.thickness_micron || layer?.gauge_micron || 0)).filter((value) => value > 0)
+        : []
+    const invariantThickness = Number(row.roll_invariants?.thickness_micron || 0)
+    if (invariantThickness > 0) values.push(invariantThickness)
+    return values
+}
+
+function plannerRowSource(row: PlannerControlOrder): PlannerSourceFilter {
+    const stats = sourceStats(row)
+    if (stats.hasFg) return "FG"
+    if (stats.hasWip) return "WIP"
+    return "FRESH"
+}
+
+function plannerSpecChips(row: PlannerControlOrder) {
+    const fgType = String(row.fg_type || row.final_product_type || row.planned_output_type || "").toUpperCase()
+    const width = plannerRowWidth(row)
+    const height = plannerRowHeight(row)
+    const thickness = plannerRowThicknesses(row)[0]
+    const blob = plannerRowBlob(row)
+    const material = ["PET", "PE", "LDPE", "LLDPE", "HDPE", "POLYESTER", "CPP", "BOPP", "PP"].find((value) => blob.includes(value.toLowerCase()))
+    const grade = ["GP", "SP", "MET10", "FG", "SLIP"].find((value) => blob.includes(value.toLowerCase()))
+    return [
+        fgType ? { label: fgType, className: "border-rose-200 bg-rose-50 text-rose-700" } : null,
+        width || height ? { label: `${Number.isFinite(width) && width > 0 ? width.toFixed(0) : "-"} × ${Number.isFinite(height) && height > 0 ? height.toFixed(0) : "-"} mm`, className: "border-sky-200 bg-sky-50 text-sky-700" } : null,
+        thickness ? { label: `${thickness.toFixed(thickness % 1 ? 1 : 0)}μ`, className: "border-blue-200 bg-blue-50 text-blue-700" } : null,
+        material ? { label: material, className: "border-blue-200 bg-blue-50 text-blue-700" } : null,
+        grade ? { label: grade, className: "border-emerald-200 bg-emerald-50 text-emerald-700" } : null,
+    ].filter(Boolean) as Array<{ label: string; className: string }>
 }
 
 function queuePriorityScore(row: PlannerControlOrder): number {
@@ -334,6 +478,15 @@ export default function PlannerControlTowerPage() {
     const [selectedPlanningRowKey, setSelectedPlanningRowKey] = useState("")
     const [queueFilter, setQueueFilter] = useState<QueueFilter>("ALL")
     const [queueSearch, setQueueSearch] = useState("")
+    const [fgTypeFilter, setFgTypeFilter] = useState("all")
+    const [materialFilter, setMaterialFilter] = useState("all")
+    const [gradeFilter, setGradeFilter] = useState("all")
+    const [widthFilter, setWidthFilter] = useState("")
+    const [heightFilter, setHeightFilter] = useState("")
+    const [thicknessFilter, setThicknessFilter] = useState("")
+    const [dueFilter, setDueFilter] = useState<PlannerDueFilter>("ALL")
+    const [plantFilter, setPlantFilter] = useState("all")
+    const [sourcePathFilter, setSourcePathFilter] = useState<PlannerSourceFilter>("ALL")
     const [historyDaysFilter, setHistoryDaysFilter] = useState<HistoryDaysFilter>("30")
     const [historySearch, setHistorySearch] = useState("")
     const [historySourceFilter, setHistorySourceFilter] = useState<"ALL" | "FG" | "WIP" | "FRESH">("ALL")
@@ -343,7 +496,7 @@ export default function PlannerControlTowerPage() {
     const [wipModeMap, setWipModeMap] = useState<Record<string, WipMode>>({})
     const [wipCandidateMap, setWipCandidateMap] = useState<Record<string, string>>({})
     const [expandedSections, setExpandedSections] = useState<Record<DetailSectionKey, boolean>>({
-        route: false,
+        route: true,
         material: false,
     })
 
@@ -357,41 +510,55 @@ export default function PlannerControlTowerPage() {
     const queuePreferenceInitialized = useRef(false)
 
     const historyDaysValue = historyDaysFilter === "TODAY" ? 1 : historyDaysFilter === "ALL" ? null : Number(historyDaysFilter)
+    const selectedDetailKey = parsePlannerRowKey(selectedPlanningRowKey)
     const { data: hubData, isLoading, isError, error, refetch } = useQuery({
-        queryKey: ["planner-control-hub-v2", historyDaysFilter, historySearch, historySourceFilter, historyOrderKindFilter],
+        queryKey: [
+            "planner-control-hub-v2",
+            historyDaysFilter,
+            historySearch,
+            historySourceFilter,
+            historyOrderKindFilter,
+            selectedDetailKey?.orderKind || "",
+            selectedDetailKey?.orderId || "",
+        ],
         queryFn: () =>
             plannerService.getControlHub({
                 planning_limit: 18,
                 active_limit: 24,
-                history_limit: 120,
+                history_limit: 48,
                 history_days: historyDaysValue,
                 history_query: historySearch.trim() || undefined,
                 history_source: historySourceFilter,
                 history_order_kind: historyOrderKindFilter,
+                detail_order_kind: selectedDetailKey?.orderKind,
+                detail_order_id: selectedDetailKey?.orderId,
             }),
-        refetchInterval: 15000,
+        refetchInterval: 60000,
         refetchOnWindowFocus: true,
-        retry: 2,
+        retry: 1,
         retryDelay: 1500,
     })
 
     const { data: jobs = [] } = useQuery({
         queryKey: ["planner-jobs-v2"],
         queryFn: plannerService.getJobs,
-        refetchInterval: 15000,
+        refetchInterval: 60000,
         refetchOnWindowFocus: true,
-        retry: 2,
+        retry: 1,
         retryDelay: 1500,
     })
-
-    useEffect(() => {
-        if (!isLoading) return
-        const timer = window.setTimeout(() => {
-            refetch()
-            queryClient.invalidateQueries({ queryKey: ["planner-jobs-v2"] })
-        }, 6000)
-        return () => window.clearTimeout(timer)
-    }, [isLoading, refetch, queryClient])
+    const { data: masterGrades = [] } = useQuery({
+        queryKey: ["recipe-grades"],
+        queryFn: () => recipeService.getGrades(),
+    })
+    const { data: filmFamilies = [] } = useQuery({
+        queryKey: ["film-families"],
+        queryFn: masterDataService.getFilmFamilies,
+    })
+    const { data: filmVariants = [] } = useQuery({
+        queryKey: ["film-variants"],
+        queryFn: masterDataService.getFilmVariants,
+    })
 
     const queueRows = useMemo(() => hubData?.orders || [], [hubData])
     const prioritizedQueueRows = useMemo(
@@ -406,6 +573,82 @@ export default function PlannerControlTowerPage() {
             }),
         [queueRows]
     )
+    const plannerFgTypeOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const counts = new Map<string, number>()
+        prioritizedQueueRows.forEach((row) => {
+            const value = String(row.fg_type || row.final_product_type || row.planned_output_type || "").trim().toUpperCase()
+            if (!value) return
+            counts.set(value, (counts.get(value) || 0) + 1)
+        })
+        return SALES_SUPPORTED_FG_TYPES.map((value) => ({
+            value,
+            label: value,
+            count: counts.get(value) || 0,
+            tone: value === "ROLL" ? "fgRoll" as const : "fgPouch" as const,
+        }))
+    }, [prioritizedQueueRows])
+    const plannerMaterialOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const candidates = salesUniqueText([
+            ...SALES_MATERIAL_PRIORITY,
+            ...filmFamilies.flatMap((family: any) => [family?.code, family?.name]),
+            ...filmVariants.flatMap((variant: any) => [variant?.code, variant?.name, variant?.parent_family_name]),
+        ]).map(salesMaterialFilterLabel).filter(Boolean)
+        return salesSortChipOptions(
+            salesUniqueText(candidates).map((value) => ({
+                value,
+                label: value,
+                count: prioritizedQueueRows.filter((row) => plannerRowBlob(row).includes(value.toLowerCase())).length,
+                tone: "material" as const,
+            })),
+            SALES_MATERIAL_PRIORITY
+        )
+    }, [filmFamilies, filmVariants, prioritizedQueueRows])
+    const plannerGradeOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const values = new Set<string>()
+        const starterGrades = SALES_GRADE_PRIORITY
+        masterGrades.forEach((grade: any) => {
+            const value = String(grade?.name || grade?.code || grade || "").trim()
+            if (value) values.add(value)
+        })
+        starterGrades.forEach((value) => values.add(value))
+        return Array.from(values)
+            .map((value) => ({
+                value,
+                label: value,
+                count: prioritizedQueueRows.filter((row) => plannerRowBlob(row).includes(value.toLowerCase())).length,
+                tone: "grade" as const,
+            }))
+            .sort((left, right) => {
+                const priority = SALES_GRADE_PRIORITY
+                const leftIndex = priority.indexOf(left.value.toUpperCase())
+                const rightIndex = priority.indexOf(right.value.toUpperCase())
+                if (leftIndex !== -1 || rightIndex !== -1) return (leftIndex === -1 ? 999 : leftIndex) - (rightIndex === -1 ? 999 : rightIndex)
+                return right.count - left.count || left.label.localeCompare(right.label)
+            })
+    }, [masterGrades, prioritizedQueueRows])
+    const plannerWidthPresets = useMemo(
+        () => plannerRangePresets(prioritizedQueueRows.map((row) => plannerRowWidth(row)), "mm"),
+        [prioritizedQueueRows]
+    )
+    const plannerHeightPresets = useMemo(
+        () => plannerRangePresets(prioritizedQueueRows.map((row) => plannerRowHeight(row)), "mm"),
+        [prioritizedQueueRows]
+    )
+    const plannerThicknessPresets = useMemo(
+        () => plannerRangePresets(prioritizedQueueRows.flatMap((row) => plannerRowThicknesses(row)), "μ"),
+        [prioritizedQueueRows]
+    )
+    const plannerPlantOptions = useMemo<SalesOverflowChipOption[]>(() => {
+        const counts = new Map<string, number>()
+        prioritizedQueueRows.forEach((row) => {
+            const value = String((row as any).plant_name || (row as any).default_plant_name || (row as any).plant || "").trim()
+            if (!value) return
+            counts.set(value, (counts.get(value) || 0) + 1)
+        })
+        return Array.from(counts.entries())
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([value, count]) => ({ value, label: value, count, tone: "muted" as const }))
+    }, [prioritizedQueueRows])
     const visibleQueueRows = useMemo(
         () =>
             prioritizedQueueRows.filter((row) => {
@@ -415,21 +658,43 @@ export default function PlannerControlTowerPage() {
                 if (queueFilter === "READY") return blockerCount === 0 && !row.artwork_gate?.active
                 return true
             }).filter((row) => {
+                const blob = plannerRowBlob(row)
+                const fgType = String(row.fg_type || row.final_product_type || row.planned_output_type || "").trim().toUpperCase()
+                if (fgTypeFilter !== "all" && fgType !== fgTypeFilter.toUpperCase()) return false
+                if (materialFilter !== "all" && !blob.includes(materialFilter.toLowerCase())) return false
+                if (gradeFilter !== "all" && !blob.includes(gradeFilter.toLowerCase())) return false
+                if (sourcePathFilter !== "ALL" && plannerRowSource(row) !== sourcePathFilter) return false
+                if (!plannerDateMatches(row.delivery_date || row.order_fact_sheet?.delivery_date, dueFilter)) return false
+                if (plantFilter !== "all") {
+                    const plantText = String((row as any).plant_name || (row as any).default_plant_name || (row as any).plant || "").trim()
+                    if (plantText !== plantFilter) return false
+                }
+                if (!plannerNumberInRange(plannerRowWidth(row), widthFilter)) return false
+                if (!plannerNumberInRange(plannerRowHeight(row), heightFilter)) return false
+                if (thicknessFilter.trim()) {
+                    const values = plannerRowThicknesses(row)
+                    if (!values.length || !values.some((value) => plannerNumberInRange(value, thicknessFilter))) return false
+                }
+                return true
+            }).filter((row) => {
                 const search = queueSearch.trim().toLowerCase()
                 if (!search) return true
-                return [
-                    row.order_number,
-                    row.customer_name,
-                    row.display_name,
-                    row.template_name,
-                    row.order_fact_sheet?.customer_name,
-                    row.order_fact_sheet?.display_name,
-                    row.order_fact_sheet?.template_name,
-                ]
-                    .filter(Boolean)
-                    .some((value) => String(value).toLowerCase().includes(search))
+                return plannerRowBlob(row).includes(search)
             }),
-        [prioritizedQueueRows, queueFilter, queueSearch]
+        [
+            prioritizedQueueRows,
+            queueFilter,
+            queueSearch,
+            fgTypeFilter,
+            materialFilter,
+            gradeFilter,
+            widthFilter,
+            heightFilter,
+            thicknessFilter,
+            dueFilter,
+            plantFilter,
+            sourcePathFilter,
+        ]
     )
     const artworkGateRows = useMemo(
         () => prioritizedQueueRows.filter((row) => Boolean(row.artwork_gate?.active)),
@@ -544,6 +809,47 @@ export default function PlannerControlTowerPage() {
             : "",
     ].filter(Boolean).join(" · ") || "No packaging rules"
     const selectedPodCardLabel = String((selectedFactSheet as any)?.pod_label || "").trim() || "No POD stock linked"
+    const plannerSavedFilters: SalesSavedViewFilters = {
+        activeTab,
+        queueFilter,
+        queueSearch,
+        fgTypeFilter,
+        materialFilter,
+        gradeFilter,
+        widthFilter,
+        heightFilter,
+        thicknessFilter,
+        dueFilter,
+        plantFilter,
+        sourcePathFilter,
+    }
+    const applyPlannerSavedFilters = (filters: SalesSavedViewFilters) => {
+        if (typeof filters.activeTab === "string") setActiveTab(filters.activeTab as PlannerTab)
+        if (typeof filters.queueFilter === "string") setQueueFilter(filters.queueFilter as QueueFilter)
+        setQueueSearch(String(filters.queueSearch || ""))
+        setFgTypeFilter(String(filters.fgTypeFilter || "all"))
+        setMaterialFilter(String(filters.materialFilter || "all"))
+        setGradeFilter(String(filters.gradeFilter || "all"))
+        setWidthFilter(String(filters.widthFilter || ""))
+        setHeightFilter(String(filters.heightFilter || ""))
+        setThicknessFilter(String(filters.thicknessFilter || ""))
+        setDueFilter(String(filters.dueFilter || "ALL") as PlannerDueFilter)
+        setPlantFilter(String(filters.plantFilter || "all"))
+        setSourcePathFilter(String(filters.sourcePathFilter || "ALL") as PlannerSourceFilter)
+    }
+    const resetPlannerFilters = () => {
+        setQueueFilter("ALL")
+        setQueueSearch("")
+        setFgTypeFilter("all")
+        setMaterialFilter("all")
+        setGradeFilter("all")
+        setWidthFilter("")
+        setHeightFilter("")
+        setThicknessFilter("")
+        setDueFilter("ALL")
+        setPlantFilter("all")
+        setSourcePathFilter("ALL")
+    }
 
     useEffect(() => {
         if (queuePreferenceInitialized.current) return
@@ -570,7 +876,7 @@ export default function PlannerControlTowerPage() {
 
     useEffect(() => {
         setExpandedSections({
-            route: false,
+            route: true,
             material: false,
         })
     }, [selectedPlanningRowKey])
@@ -763,7 +1069,7 @@ export default function PlannerControlTowerPage() {
             const assignedArtworkId = String(result?.artwork_id || "").trim()
             const clearedItemId = String(result?.item_id || "").trim()
             const targetRowKey = rowKey(row)
-            queryClient.setQueryData<ControlHubResponse>(["planner-control-hub-v2"], (current) => {
+            queryClient.setQueriesData<ControlHubResponse>({ queryKey: ["planner-control-hub-v2"] }, (current) => {
                 if (!current) return current
                 const patchRow = (entry: PlannerControlOrder): PlannerControlOrder => {
                     if (rowKey(entry) !== targetRowKey) return entry
@@ -908,57 +1214,16 @@ export default function PlannerControlTowerPage() {
         }
     }
 
-    // ─── LOADING STATE ───────────────────────────────────────────────
-    if (isLoading) {
-        return (
-            <div className={styles.shell}>
-                <div className={styles.pageHeader}>
-                    <div>
-                        <div className={styles.eyebrow}><Zap className="h-3 w-3" /> Production / Planner</div>
-                        <h1 className={styles.pageTitle}>Planner Operating Desk</h1>
-                    </div>
-                </div>
-                <div className={styles.loadingRow}>
-                    <Loader2 className={cn("h-5 w-5", styles.spin)} />
-                    Loading planner queue…
-                </div>
-            </div>
-        )
-    }
-
-    // ─── ERROR STATE ─────────────────────────────────────────────────
-    if (isError) {
-        return (
-            <div className={styles.shell}>
-                <div className={styles.pageHeader}>
-                    <div>
-                        <div className={styles.eyebrow}><Zap className="h-3 w-3" /> Production / Planner</div>
-                        <h1 className={styles.pageTitle}>Control Tower</h1>
-                    </div>
-                </div>
-                <div className={cn(styles.workspaceCard)}>
-                    <div className={styles.sectionWrap} style={{ background: "#fff1f2" }}>
-                        <div className={styles.sectionTitle} style={{ color: "#9f1239" }}>
-                            <AlertTriangle className="h-4 w-4" />
-                            Failed to load planner data
-                        </div>
-                        <p style={{ fontSize: 13, color: "#be123c", marginTop: 6 }}>
-                            {(error as any)?.response?.data?.error || (error as Error)?.message || "Could not load planner control-hub payload."}
-                        </p>
-                        <button onClick={() => refetch()} className={cn(styles.btnXs, "mt-4")}>
-                            Retry
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     // ─── MAIN RENDER ────────────────────────────────────────────────
     const selectedPlanState = selectedPlanningRow ? getPlanState(selectedPlanningRow) : null
     const selectedStats = selectedPlanningRow ? sourceStats(selectedPlanningRow) : { fgMatchCount: 0, wipMatchCount: 0, hasFg: false, hasWip: false }
+    const selectedAllInventoryOptions = selectedPlanningRow
+        ? (selectedPlanningRow.workspace?.inventory_options || selectedPlanningRow.inventory_options || [])
+        : []
+    const selectedFgInventoryOptions = selectedAllInventoryOptions.filter((inv) => Boolean(inv.is_final_step))
+    const selectedWipInventoryOptions = selectedAllInventoryOptions.filter((inv) => !Boolean(inv.is_final_step))
     const selectedInventoryOptions = selectedPlanningRow
-        ? ((selectedPlanningRow.workspace?.inventory_options || selectedPlanningRow.inventory_options || []).filter((inv) => {
+        ? (selectedAllInventoryOptions.filter((inv) => {
             if (!selectedPlanState) return false
             if (selectedPlanState.option === "FG") return Boolean(inv.is_final_step)
             if (selectedPlanState.option === "WIP_CONTINUE") return !Boolean(inv.is_final_step)
@@ -1045,6 +1310,8 @@ export default function PlannerControlTowerPage() {
     const selectedInvariantCandidates = selectedPlanningRow ? getWipCandidates(selectedPlanningRow, "INVARIANT") : []
     const selectedWipCandidates = selectedWipMode === "EXACT" ? selectedExactCandidates : selectedInvariantCandidates
     const selectedWipCandidate = selectedPlanningRow ? getSelectedWipCandidate(selectedPlanningRow, selectedWipMode) : null
+    const selectedFgQtyAvailable = selectedFgInventoryOptions.reduce((sum, inv) => sum + Number(inv.allocatable_qty_kg || 0), 0)
+    const selectedWipQtyAvailable = selectedWipCandidates.reduce((sum, candidate) => sum + continuationCandidateQty(candidate), 0)
     const selectedRouteAccordionMeta = selectedPlanState?.option === "FRESH"
         ? `Fresh route · ${selectedRouteSpanLabel}`
         : selectedPlanState?.option === "FG"
@@ -1059,13 +1326,6 @@ export default function PlannerControlTowerPage() {
                 ? "Continue exact WIP"
                 : "Continue from invariant"
             : "Run fresh production"
-    const selectedSuggestedActionHelp = selectedPlanState?.option === "FG"
-        ? `${selectedStats.fgMatchCount} FG match${selectedStats.fgMatchCount === 1 ? "" : "es"} available for direct dispatch`
-        : selectedPlanState?.option === "WIP_CONTINUE"
-            ? selectedWipMode === "EXACT"
-                ? `${selectedExactCandidates.length} exact continuation match${selectedExactCandidates.length === 1 ? "" : "es"} available`
-                : `${selectedInvariantCandidates.length} invariant or upstream match${selectedInvariantCandidates.length === 1 ? "" : "es"} available`
-            : selectedPlanningRow?.display_action_help || "No reusable stock selected. Planner will create the route from the start."
     const selectedInventoryHeadline = selectedPlanState?.option === "FG"
         ? `${selectedStats.fgMatchCount} FG lot${selectedStats.fgMatchCount === 1 ? "" : "s"} ready`
         : selectedPlanState?.option === "WIP_CONTINUE"
@@ -1073,13 +1333,6 @@ export default function PlannerControlTowerPage() {
                 ? `${selectedExactCandidates.length} exact WIP match${selectedExactCandidates.length === 1 ? "" : "es"}`
                 : `${selectedInvariantCandidates.length} invariant match${selectedInvariantCandidates.length === 1 ? "" : "es"}`
             : "Fresh route will run"
-    const selectedInventoryMeta = selectedPlanState?.option === "FG"
-        ? `${selectedStats.fgMatchCount} finished lot${selectedStats.fgMatchCount === 1 ? "" : "s"} can ship this order now.`
-        : selectedPlanState?.option === "WIP_CONTINUE"
-            ? selectedWipCandidate
-                ? `${continuationCandidateLabel(selectedWipCandidate)} · ${continuationCandidateQty(selectedWipCandidate).toFixed(1)} KG ready`
-                : "Pick the WIP source below before release."
-            : "No stock choice is needed before release."
     const selectedStockSnapshot = selectedPlanState?.option === "FG"
         ? `${selectedStats.fgMatchCount} FG ready`
         : selectedPlanState?.option === "WIP_CONTINUE"
@@ -1128,21 +1381,6 @@ export default function PlannerControlTowerPage() {
                     ? `Selected invariant source: ${continuationCandidateLabel(selectedWipCandidate)}`
                     : "Pick the invariant source before release."
             : "Release will create a fresh production route."
-    const selectedInventoryPreviewLines = selectedPlanState?.option === "FG"
-        ? (selectedInventoryOptions.slice(0, 1).map((inv) => {
-            const invRecord = inv as unknown as Record<string, unknown>
-            const name = String(
-                invRecord.batch_number ||
-                invRecord.roll_number ||
-                inv.display_name ||
-                inv.label ||
-                "FG lot"
-            ).trim()
-            const qty = Number(inv.allocatable_qty_kg || 0).toFixed(1)
-            const state = String(inv.process_state_label || "FG ready").trim()
-            return `${name} · ${qty} KG · ${state}`
-        }))
-        : []
     const releaseActionDisabled = planMutation.isPending || resumeRouteMutation.isPending || !releaseReady || releaseBlockedBySelection
     const today = Date.now()
     const msPerDay = 24 * 60 * 60 * 1000
@@ -1168,40 +1406,62 @@ export default function PlannerControlTowerPage() {
         const delta = parsed - today
         return delta >= 0 && delta <= msPerDay * 3
     }).length
-    const statusRibbonCards = [
+    const fgDirectCount = prioritizedQueueRows.filter((row) => plannerRowSource(row) === "FG").length
+    const wipConvertibleCount = prioritizedQueueRows.filter((row) => plannerRowSource(row) === "WIP").length
+    const freshRequiredCount = prioritizedQueueRows.filter((row) => plannerRowSource(row) === "FRESH").length
+    const awaitingMaterialCount = prioritizedQueueRows.filter((row) => Number(row.summary?.coverage_pct || 0) > 0 && Number(row.summary?.coverage_pct || 0) < 100).length
+    const heroKpis = [
         {
-            key: "source",
-            title: "Source path mix",
-            toneClass: styles.statusRibbonIndigo,
-            rows: [
-                { label: "FG ready", value: prioritizedQueueRows.filter((row) => sourceStats(row).hasFg).length },
-                { label: "WIP ready", value: prioritizedQueueRows.filter((row) => sourceStats(row).hasWip).length },
-                { label: "Fresh", value: prioritizedQueueRows.filter((row) => !sourceStats(row).hasFg && !sourceStats(row).hasWip).length },
-            ],
+            key: "open",
+            label: "Open jobs",
+            value: queueRows.length + activeRows.length,
+            sub: `${activeRows.length} released / in production`,
         },
         {
-            key: "due",
-            title: "Due pressure",
-            toneClass: styles.statusRibbonAmber,
-            rows: [
-                { label: "Overdue", value: overdueCount },
-                { label: "0-3 days", value: dueSoonCount },
-                { label: "Later", value: Math.max(0, prioritizedQueueRows.length - overdueCount - dueSoonCount) },
-            ],
+            key: "overdue",
+            label: "Overdue",
+            value: overdueCount,
+            sub: `${dueSoonCount} due in 3 days`,
         },
         {
-            key: "release",
-            title: "Release state",
-            toneClass: styles.statusRibbonEmerald,
-            rows: [
-                { label: "Artwork", value: artworkGateRows.length },
-                { label: "Blocked", value: releaseBlockedCount },
-                { label: "Ready", value: readyNowCount },
-            ],
+            key: "artwork",
+            label: "Awaiting artwork",
+            value: artworkGateRows.length,
+            sub: `${releaseBlockedCount} blocked rows`,
+        },
+        {
+            key: "material",
+            label: "Awaiting material",
+            value: awaitingMaterialCount,
+            sub: "short coverage rows",
+        },
+        {
+            key: "fg",
+            label: "FG-direct ready",
+            value: fgDirectCount,
+            sub: "ship without conversion",
+        },
+        {
+            key: "wip",
+            label: "WIP-convertible",
+            value: wipConvertibleCount,
+            sub: "resume stopped stock",
+        },
+        {
+            key: "fresh",
+            label: "Fresh required",
+            value: freshRequiredCount,
+            sub: "no inventory match",
         },
     ]
 
-    const planningWorkspace = queueRows.length === 0 ? (
+    const planningWorkspace = isLoading && queueRows.length === 0 ? (
+        <div className={styles.emptyState} style={{ marginTop: 8 }}>
+            <Loader2 className={cn(styles.emptyIcon, styles.spin, "h-12 w-12")} />
+            <div className={styles.emptyTitle}>Loading planner queue</div>
+            <p className={styles.emptySub}>Building the operating desk and selected match details.</p>
+        </div>
+    ) : queueRows.length === 0 ? (
         <div className={styles.emptyState} style={{ marginTop: 8 }}>
             <PackageCheck className={cn(styles.emptyIcon, "h-12 w-12")} />
             <div className={styles.emptyTitle}>Queue empty</div>
@@ -1297,6 +1557,16 @@ export default function PlannerControlTowerPage() {
                                     <span>{String(row.order_kind || "").toUpperCase()}</span>
                                     <span>{dueLabel}</span>
                                     <span>{Number(row.required_qty_kg || 0).toFixed(1)} KG</span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {plannerSpecChips(row).slice(0, 5).map((chip) => (
+                                        <span
+                                            key={`${key}-spec-${chip.label}`}
+                                            className={cn("inline-flex min-h-6 items-center rounded-full border px-2 py-0.5 text-[10px] font-black", chip.className)}
+                                        >
+                                            {chip.label}
+                                        </span>
+                                    ))}
                                 </div>
                                 <div className={styles.queueDockSignals}>
                                     <span className={styles.queueSignal}>FG {stats.fgMatchCount}</span>
@@ -1428,25 +1698,190 @@ export default function PlannerControlTowerPage() {
                                 </div>
 
                                 <div className={styles.operatingDeskSheet} data-testid="planner-operating-sheet">
-                                    <div className={styles.routeKpiRow}>
-                                        <div className={styles.routeKpi}>
-                                            <div className={styles.routeKpiLabel}>Suggested action</div>
-                                            <div className={styles.routeKpiValue}>{selectedSuggestedAction}</div>
-                                            <div className={styles.routeKpiSub}>{selectedSuggestedActionHelp}</div>
+                                    <section className={styles.specDeckCard}>
+                                        <div className={styles.specDeckTop}>
+                                            <div>
+                                                <div className={styles.specDeckLabel}>Spec · what is this</div>
+                                                <div className={styles.specDeckTitle}>{selectedSkuLabel}</div>
+                                                <div className={styles.specDeckSub}>{selectedSkuSubLabel}</div>
+                                            </div>
+                                            <div className={styles.specDeckSig}>
+                                                spec_sig · {String(selectedPlanningRow.spec_signature || "").slice(0, 12) || "pending"}
+                                            </div>
                                         </div>
-                                        <div className={styles.routeKpi}>
-                                            <div className={styles.routeKpiLabel}>Available inventory</div>
-                                            <div className={styles.routeKpiValue}>{selectedInventoryHeadline}</div>
-                                            <div className={styles.routeKpiSub}>{selectedInventoryMeta}</div>
-                                            {selectedPlanState?.option !== "FRESH" && selectedInventoryPreviewLines.length ? (
-                                                <div className={styles.routeKpiList}>
-                                                    {selectedInventoryPreviewLines.map((line) => (
-                                                        <div key={line} className={styles.routeKpiListItem}>{line}</div>
-                                                    ))}
+                                        <div className={styles.specDeckChipRow}>
+                                            {plannerSpecChips(selectedPlanningRow).map((chip) => (
+                                                <span
+                                                    key={`sheet-spec-${chip.label}`}
+                                                    className={cn("inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-black", chip.className)}
+                                                >
+                                                    {chip.label}
+                                                </span>
+                                            ))}
+                                        </div>
+
+                                        <div className={styles.salesDetailGrid}>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>Customer</div>
+                                                <div className={styles.detailValue}>{selectedFactSheet?.customer_name || selectedPlanningRow.customer_name || "Customer pending"}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>Demand</div>
+                                                <div className={styles.detailValue}>{selectedDemandLabel}</div>
+                                                <div className={styles.detailSub}>{selectedDueCompactLabel}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>SKU / variant</div>
+                                                <div className={styles.detailValue}>{selectedVariantLabel}</div>
+                                                <div className={styles.detailSub}>{selectedSkuSubLabel}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>Geometry</div>
+                                                <div className={styles.detailValue}>{selectedSizeLabel}</div>
+                                                <div className={styles.detailSub}>{selectedGeometrySubLabel}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>Printing</div>
+                                                <div className={styles.detailValue}>{selectedPrintingLabel}</div>
+                                                <div className={styles.detailSub}>{selectedArtworkLabel}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>Add-ons</div>
+                                                <div className={styles.detailValue}>{selectedAddonsLabel}</div>
+                                                <div className={styles.detailSub}>{selectedAddonDetails.length ? `${selectedAddonDetails.length} linked` : "No add-ons"}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>Packaging</div>
+                                                <div className={styles.detailValue}>{selectedPackagingCardLabel}</div>
+                                                <div className={styles.detailSub}>{selectedPackagingSubLabel}</div>
+                                            </div>
+                                            <div className={styles.salesDetailCell}>
+                                                <div className={styles.detailLabel}>POD</div>
+                                                <div className={styles.detailValue}>{selectedPodCardLabel}</div>
+                                                <div className={styles.detailSub}>{selectedPodSubLabel}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.layerSection}>
+                                            <div className={styles.layerSectionHeader}>
+                                                <div className={styles.detailLabel}>Layers</div>
+                                                <div className={styles.layerSectionMeta}>
+                                                    {selectedLayerCards.length
+                                                    ? `${selectedLayerCards.length} layer${selectedLayerCards.length === 1 ? "" : "s"}`
+                                                    : "No layer stack captured"}
                                                 </div>
-                                            ) : null}
+                                            </div>
+                                            <div className={styles.layerVisibleList}>
+                                                {selectedLayerCards.length ? selectedLayerCards.map((layerCard, index) => (
+                                                    <div
+                                                        key={`${rowKey(selectedPlanningRow)}-sheet-layer-${index}-${layerCard.key}`}
+                                                        className={styles.layerVisibleRow}
+                                                        title={[layerCard.title, layerCard.subtitle, ...(layerCard.metrics || [])].filter(Boolean).join(" · ")}
+                                                    >
+                                                        <div className={styles.layerVisibleRowTop}>
+                                                            <div className={styles.layerVisibleBadge}>{layerCard.badge}</div>
+                                                            <div className={styles.layerVisibleMetrics}>
+                                                                {(layerCard.metrics || []).map((metric) => (
+                                                                    <span key={`${layerCard.key}-${metric}`} className={styles.layerVisibleMetric}>
+                                                                        {metric}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div className={styles.layerVisibleTitle}>{layerCard.title}</div>
+                                                        <div className={styles.layerVisibleText}>{layerCard.subtitle}</div>
+                                                    </div>
+                                                )) : <span className={styles.detailMuted}>No layer stack captured.</span>}
+                                            </div>
                                         </div>
-                                    </div>
+                                    </section>
+
+                                    <section className={styles.releaseLogicCard} id="release-logic-card">
+                                        <div className={styles.releaseLogicHeader}>
+                                            <div>
+                                                <div className={styles.specDeckLabel}>Release logic · how to ship this</div>
+                                                <div className={styles.releaseLogicSub}>Match engine · invariant signature · {String((selectedPlanningRow as any).invariant_signature || selectedPlanningRow.spec_signature || "").slice(0, 12) || "pending"}</div>
+                                            </div>
+                                            <div className={styles.releaseLogicNow}>{selectedSuggestedAction}</div>
+                                        </div>
+                                        <div className={styles.releasePathGrid}>
+                                            <div className={cn(
+                                                styles.releasePathCard,
+                                                styles.releasePathFg,
+                                                selectedPlanState?.option === "FG" && styles.releasePathChosen,
+                                                !isSourceOptionEnabled(selectedPlanningRow, "FG") && styles.releasePathMuted
+                                            )}>
+                                                <div className={styles.releasePathBadge}>{selectedPlanState?.option === "FG" ? "Chosen" : isSourceOptionEnabled(selectedPlanningRow, "FG") ? "Available" : "Skipped"}</div>
+                                                <div className={styles.releasePathKicker}>Path 1 · FG-direct</div>
+                                                <div className={styles.releasePathTitle}>Ship FG directly</div>
+                                                <div className={styles.releasePathCopy}>No conversion. Pull from existing finished-goods lots.</div>
+                                                <div className={styles.releasePathStats}>
+                                                    <span>Lots matched</span><strong>{selectedStats.fgMatchCount}</strong>
+                                                    <span>Total qty</span><strong>{selectedFgQtyAvailable.toFixed(0)} KG</strong>
+                                                    <span>Plant</span><strong>Best same-plant lot</strong>
+                                                    <span>Confidence</span><strong>{selectedStats.fgMatchCount > 0 ? "100%" : "0%"}</strong>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className={styles.releasePathAction}
+                                                    disabled={!isSourceOptionEnabled(selectedPlanningRow, "FG")}
+                                                    onClick={() => updatePlanState(selectedPlanningRow, { option: "FG" })}
+                                                >
+                                                    Use FG-direct →
+                                                </button>
+                                            </div>
+
+                                            <div className={cn(
+                                                styles.releasePathCard,
+                                                styles.releasePathWip,
+                                                selectedPlanState?.option === "WIP_CONTINUE" && styles.releasePathChosen,
+                                                !isSourceOptionEnabled(selectedPlanningRow, "WIP_CONTINUE") && styles.releasePathMuted
+                                            )}>
+                                                <div className={styles.releasePathBadge}>{selectedPlanState?.option === "WIP_CONTINUE" ? "Chosen" : isSourceOptionEnabled(selectedPlanningRow, "WIP_CONTINUE") ? "Available" : "Skipped"}</div>
+                                                <div className={styles.releasePathKicker}>Path 2 · INV-convert</div>
+                                                <div className={styles.releasePathTitle}>Convert WIP roll</div>
+                                                <div className={styles.releasePathCopy}>Take a shared invariant roll or stopped route, finish the remaining steps.</div>
+                                                <div className={styles.releasePathStats}>
+                                                    <span>WIP lots matched</span><strong>{selectedStats.wipMatchCount || selectedWipInventoryOptions.length}</strong>
+                                                    <span>Total qty</span><strong>{selectedWipQtyAvailable.toFixed(0)} KG</strong>
+                                                    <span>Mode</span><strong>{selectedWipMode === "EXACT" ? "Exact route" : "Invariant"}</strong>
+                                                    <span>Confidence</span><strong>{selectedStats.wipMatchCount > 0 ? "85%" : "0%"}</strong>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className={styles.releasePathAction}
+                                                    disabled={!isSourceOptionEnabled(selectedPlanningRow, "WIP_CONTINUE")}
+                                                    onClick={() => updatePlanState(selectedPlanningRow, { option: "WIP_CONTINUE" })}
+                                                >
+                                                    Use INV-convert
+                                                </button>
+                                            </div>
+
+                                            <div className={cn(
+                                                styles.releasePathCard,
+                                                styles.releasePathFresh,
+                                                selectedPlanState?.option === "FRESH" && styles.releasePathChosen
+                                            )}>
+                                                <div className={styles.releasePathBadge}>{selectedPlanState?.option === "FRESH" ? "Chosen" : "Available"}</div>
+                                                <div className={styles.releasePathKicker}>Path 3 · Fresh run</div>
+                                                <div className={styles.releasePathTitle}>Schedule fresh job</div>
+                                                <div className={styles.releasePathCopy}>Use the planner recipe and release a full route only when FG/WIP cannot cover it.</div>
+                                                <div className={styles.releasePathStats}>
+                                                    <span>Planner recipe</span><strong>{selectedVariantLabel}</strong>
+                                                    <span>ETA</span><strong>{routeLast > routeStart ? `${routeLast - routeStart + 1} steps` : "Direct"}</strong>
+                                                    <span>Capacity window</span><strong>Check on release</strong>
+                                                    <span>Confidence</span><strong>100%</strong>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className={styles.releasePathAction}
+                                                    onClick={() => updatePlanState(selectedPlanningRow, { option: "FRESH" })}
+                                                >
+                                                    Schedule fresh
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </section>
 
                                     {selectedPlanState?.option === "WIP_CONTINUE" ? (
                                         <div className={styles.wipChooserCard}>
@@ -1513,80 +1948,69 @@ export default function PlannerControlTowerPage() {
                                         </div>
                                     ) : null}
 
-                                    <div className={styles.salesDetailGrid}>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>Customer</div>
-                                            <div className={styles.detailValue}>{selectedFactSheet?.customer_name || selectedPlanningRow.customer_name || "Customer pending"}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>Demand</div>
-                                            <div className={styles.detailValue}>{selectedDemandLabel}</div>
-                                            <div className={styles.detailSub}>{selectedDueCompactLabel}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>SKU / variant</div>
-                                            <div className={styles.detailValue}>{selectedVariantLabel}</div>
-                                            <div className={styles.detailSub}>{selectedSkuSubLabel}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>Geometry</div>
-                                            <div className={styles.detailValue}>{selectedSizeLabel}</div>
-                                            <div className={styles.detailSub}>{selectedGeometrySubLabel}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>Printing</div>
-                                            <div className={styles.detailValue}>{selectedPrintingLabel}</div>
-                                            <div className={styles.detailSub}>{selectedArtworkLabel}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>Add-ons</div>
-                                            <div className={styles.detailValue}>{selectedAddonsLabel}</div>
-                                            <div className={styles.detailSub}>{selectedAddonDetails.length ? `${selectedAddonDetails.length} linked` : "No add-ons"}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>Packaging</div>
-                                            <div className={styles.detailValue}>{selectedPackagingCardLabel}</div>
-                                            <div className={styles.detailSub}>{selectedPackagingSubLabel}</div>
-                                        </div>
-                                        <div className={styles.salesDetailCell}>
-                                            <div className={styles.detailLabel}>POD</div>
-                                            <div className={styles.detailValue}>{selectedPodCardLabel}</div>
-                                            <div className={styles.detailSub}>{selectedPodSubLabel}</div>
-                                        </div>
-                                    </div>
-
-                                        <div className={styles.layerSection}>
-                                            <div className={styles.layerSectionHeader}>
-                                                <div className={styles.detailLabel}>Layers</div>
-                                                <div className={styles.layerSectionMeta}>
-                                                    {selectedLayerCards.length
-                                                    ? `${selectedLayerCards.length} layer${selectedLayerCards.length === 1 ? "" : "s"}`
-                                                    : "No layer stack captured"}
-                                                </div>
+                                    <section className={styles.inventoryDrillCard}>
+                                        <div className={styles.inventoryDrillHeader}>
+                                            <div>
+                                                <div className={styles.specDeckLabel}>Available inventory · drill-down</div>
+                                                <div className={styles.releaseLogicSub}>{selectedInventoryHeadline} · ranked by freshness × distance × qty fit</div>
                                             </div>
-                                        <div className={styles.layerVisibleList}>
-                                            {selectedLayerCards.length ? selectedLayerCards.map((layerCard, index) => (
-                                                <div
-                                                    key={`${rowKey(selectedPlanningRow)}-sheet-layer-${index}-${layerCard.key}`}
-                                                    className={styles.layerVisibleRow}
-                                                    title={[layerCard.title, layerCard.subtitle, ...(layerCard.metrics || [])].filter(Boolean).join(" · ")}
-                                                >
-                                                    <div className={styles.layerVisibleRowTop}>
-                                                        <div className={styles.layerVisibleBadge}>{layerCard.badge}</div>
-                                                        <div className={styles.layerVisibleMetrics}>
-                                                            {(layerCard.metrics || []).map((metric) => (
-                                                                <span key={`${layerCard.key}-${metric}`} className={styles.layerVisibleMetric}>
-                                                                    {metric}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <div className={styles.layerVisibleTitle}>{layerCard.title}</div>
-                                                    <div className={styles.layerVisibleText}>{layerCard.subtitle}</div>
-                                                </div>
-                                            )) : <span className={styles.detailMuted}>No layer stack captured.</span>}
+                                            <button type="button" className={styles.inventoryLink}>View match-engine →</button>
                                         </div>
-                                    </div>
+                                        {selectedPlanState?.option === "FRESH" ? (
+                                            <div className={styles.emptyDashed}>Fresh route selected. No inventory source has to be claimed before release.</div>
+                                        ) : selectedPlanState?.option === "WIP_CONTINUE" ? (
+                                            <div className={styles.inventoryList}>
+                                                {selectedWipCandidates.length ? selectedWipCandidates.slice(0, 5).map((candidate) => {
+                                                    const candidateKey = continuationCandidateKey(candidate)
+                                                    const active = selectedWipCandidate && continuationCandidateKey(selectedWipCandidate) === candidateKey
+                                                    return (
+                                                        <button
+                                                            key={`inventory-wip-${candidateKey}`}
+                                                            type="button"
+                                                            className={cn(styles.inventoryRow, active && styles.inventoryRowActive)}
+                                                            onClick={() => setWipCandidateMap((prev) => ({ ...prev, [rowKey(selectedPlanningRow)]: candidateKey }))}
+                                                        >
+                                                            <span className={styles.inventoryKind}>WIP</span>
+                                                            <span className={styles.inventoryMain}>
+                                                                <strong>{continuationCandidateLabel(candidate)}</strong>
+                                                                <small>{continuationCandidateStepLabel(candidate)}</small>
+                                                            </span>
+                                                            <span className={styles.inventoryQty}>{continuationCandidateQty(candidate).toFixed(1)} KG</span>
+                                                            <span className={styles.inventoryAction}>{active ? "Selected" : "Use lot →"}</span>
+                                                        </button>
+                                                    )
+                                                }) : <div className={styles.emptyDashed}>No WIP source matches this row.</div>}
+                                            </div>
+                                        ) : (
+                                            <div className={styles.inventoryList}>
+                                                {selectedFgInventoryOptions.length ? selectedFgInventoryOptions.slice(0, 5).map((inv) => {
+                                                    const invRecord = inv as unknown as Record<string, unknown>
+                                                    const name = String(invRecord.batch_number || invRecord.roll_number || inv.display_name || inv.label || "FG lot").trim()
+                                                    const sub = [
+                                                        inv.process_state_label || "FG ready",
+                                                        invRecord.age_label,
+                                                        invRecord.completed_step_label,
+                                                    ].filter(Boolean).join(" · ")
+                                                    return (
+                                                        <button
+                                                            key={`inventory-fg-${inventoryKey(inv)}`}
+                                                            type="button"
+                                                            className={styles.inventoryRow}
+                                                            onClick={() => updatePlanState(selectedPlanningRow, { option: "FG" })}
+                                                        >
+                                                            <span className={styles.inventoryKind}>FG</span>
+                                                            <span className={styles.inventoryMain}>
+                                                                <strong>{name}</strong>
+                                                                <small>{sub || selectedSourcePathHelp}</small>
+                                                            </span>
+                                                            <span className={styles.inventoryQty}>{Number(inv.allocatable_qty_kg || 0).toFixed(1)} KG</span>
+                                                            <span className={styles.inventoryAction}>Use this lot →</span>
+                                                        </button>
+                                                    )
+                                                }) : <div className={styles.emptyDashed}>No finished-goods lot matches this row.</div>}
+                                            </div>
+                                        )}
+                                    </section>
                                 </div>
                             </div>
 
@@ -1717,7 +2141,7 @@ export default function PlannerControlTowerPage() {
                                     </div>
                                     {selectedArtworkGateItems.length > 1 ? (
                                         <div style={{ marginBottom: 8 }}>
-                                            <Label className="mb-1 block text-[11px] font-bold uppercase text-indigo-700">Pending line</Label>
+                                            <Label className="mb-1 block text-[11px] font-bold uppercase text-blue-700">Pending line</Label>
                                             <Select
                                                 value={selectedArtworkGateItemId}
                                                 onValueChange={(v) => setArtworkItemSelection((prev) => ({ ...prev, [rowKey(selectedPlanningRow)]: v }))}
@@ -1739,7 +2163,7 @@ export default function PlannerControlTowerPage() {
                                         </div>
                                     ) : null}
                                     <div style={{ marginBottom: 10 }}>
-                                        <Label className="mb-1 block text-[11px] font-bold uppercase text-indigo-700">Approved artwork</Label>
+                                        <Label className="mb-1 block text-[11px] font-bold uppercase text-blue-700">Approved artwork</Label>
                                         <Select
                                             value={selectedArtworkId}
                                             onValueChange={(v) => setArtworkSelection((prev) => ({ ...prev, [rowKey(selectedPlanningRow)]: v }))}
@@ -1768,7 +2192,7 @@ export default function PlannerControlTowerPage() {
                                     <Button
                                         className="w-full h-8 text-xs"
                                         variant="outline"
-                                        style={{ borderColor: "#c7d2fe", background: "#ffffff", color: "#4338ca" }}
+                                        style={{ borderColor: "#bfdbfe", background: "#ffffff", color: "#1d4ed8" }}
                                         onClick={() => assignArtworkMutation.mutate(selectedPlanningRow)}
                                         data-testid={`planner-assign-artwork-${rowKey(selectedPlanningRow)}`}
                                         disabled={
@@ -1855,52 +2279,137 @@ export default function PlannerControlTowerPage() {
 
             {/* ── PAGE HEADER ── */}
             <header className={styles.pageHeader}>
-                <div>
-                    <div className={styles.eyebrow}><Zap className="h-3 w-3" /> Production / Planner</div>
-                    <h1 className={styles.pageTitle}>Planner Operating Desk</h1>
+                <div className={styles.heroTop}>
+                    <div className={styles.heroCopy}>
+                        <div className={styles.eyebrow}><Zap className="h-3 w-3" /> Production / Planner</div>
+                        <h1 className={styles.pageTitle}>Planner Operating Desk</h1>
+                        <p className={styles.heroSubtitle}>
+                            Triage incoming sales orders. Match against finished goods, work-in-process, or schedule fresh runs. Same chip taxonomy as sales, so planners can filter and release faster.
+                        </p>
+                    </div>
+                    <div className={styles.headerActions}>
+                        <Link href="/production/planner/stock-orders/create" className={cn(styles.headerBtn, styles.headerBtnPrimary)}>
+                            <Plus className="h-3.5 w-3.5" />
+                            Stock Order
+                        </Link>
+                        <Link href="/production/planner/sku-catalog" className={styles.headerBtn}>
+                            SKU Library
+                        </Link>
+                        <Link href="/engineering/templates" className={styles.headerBtn}>
+                            Templates
+                        </Link>
+                        <button type="button" className={styles.headerBtn} onClick={() => refetch()}>
+                            {isLoading ? <Loader2 className={cn("h-3.5 w-3.5", styles.spin)} /> : null}
+                            Refresh
+                        </button>
+                    </div>
                 </div>
-                <div className={styles.headerActions}>
-                    <Link href="/production/planner/sku-catalog" className={styles.headerBtn}>
-                        SKU Library
-                    </Link>
-                    <Link href="/engineering/templates" className={styles.headerBtn}>
-                        Templates
-                    </Link>
-                    <Link href="/production/planner/stock-orders/create" className={cn(styles.headerBtn, styles.headerBtnPrimary)}>
-                        <Plus className="h-3.5 w-3.5" />
-                        Create Stock Order
-                    </Link>
+                <div className={styles.heroKpiGrid} data-testid="planner-status-ribbon">
+                    {heroKpis.map((item) => (
+                        <div key={item.key} className={styles.heroGlassCard}>
+                            <div className={styles.heroGlassLabel}>{item.label}</div>
+                            <div className={styles.heroGlassValue}>{item.value}</div>
+                            <div className={styles.heroGlassSub}>{item.sub}</div>
+                        </div>
+                    ))}
                 </div>
             </header>
 
-            <section className={styles.statusRibbon} data-testid="planner-status-ribbon">
-                {statusRibbonCards.map((card) => {
-                    const total = card.rows.reduce((sum, row) => sum + row.value, 0)
-                    return (
-                        <div key={card.key} className={styles.statusRibbonCard}>
-                            <div className={styles.statusRibbonTitle}>{card.title}</div>
-                            <div className={styles.statusRibbonRows}>
-                                {card.rows.map((row) => {
-                                    const pct = total > 0 ? (row.value / total) * 100 : 0
-                                    return (
-                                        <div key={`${card.key}-${row.label}`} className={styles.statusRibbonRow}>
-                                            <div className={styles.statusRibbonRowTop}>
-                                                <span>{row.label}</span>
-                                                <strong>{row.value}</strong>
-                                            </div>
-                                            <div className={styles.statusRibbonTrack}>
-                                                <div
-                                                    className={cn(styles.statusRibbonFill, card.toneClass)}
-                                                    style={{ width: `${row.value > 0 ? Math.max(8, pct) : 0}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
+            {isError ? (
+                <section className={styles.inlineError} role="alert">
+                    <div>
+                        <div className={styles.inlineErrorTitle}>
+                            <AlertTriangle className="h-4 w-4" />
+                            Planner data is delayed
                         </div>
-                    )
-                })}
+                        <p>{(error as any)?.response?.data?.error || (error as Error)?.message || "Could not load planner control-hub payload."}</p>
+                    </div>
+                    <button type="button" onClick={() => refetch()} className={styles.inlineErrorAction}>Retry</button>
+                </section>
+            ) : null}
+
+            <SalesSavedViewsBar
+                scope="planner_queue"
+                currentFilters={plannerSavedFilters}
+                onApply={applyPlannerSavedFilters}
+                viewCounts={{
+                    "My planning queue": queueRows.length,
+                    "Ready to release": readyNowCount,
+                    "Artwork blocked": artworkGateRows.length,
+                    "FG direct": prioritizedQueueRows.filter((row) => plannerRowSource(row) === "FG").length,
+                    "WIP convertible": prioritizedQueueRows.filter((row) => plannerRowSource(row) === "WIP").length,
+                }}
+                className="mb-4"
+            />
+
+            <section className="mb-4 rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-[0_16px_38px_-34px_rgba(15,23,42,0.35)]" data-testid="planner-filter-surface">
+                <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_auto] xl:items-start">
+                    <Input
+                        value={queueSearch}
+                        onChange={(event) => setQueueSearch(event.target.value)}
+                        placeholder="Search order, customer, SKU, size, grade, material..."
+                        className="h-11 rounded-2xl border-slate-200 bg-slate-50 text-sm font-semibold"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            className={cn(
+                                "inline-flex h-10 items-center rounded-full border px-4 text-xs font-black transition",
+                                sourcePathFilter === "ALL" && queueFilter === "ALL" && !queueSearch && fgTypeFilter === "all" && materialFilter === "all" && gradeFilter === "all" && !widthFilter && !heightFilter && !thicknessFilter && dueFilter === "ALL" && plantFilter === "all"
+                                    ? "border-slate-950 bg-slate-950 text-white"
+                                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                            )}
+                            onClick={resetPlannerFilters}
+                        >
+                            Reset
+                        </button>
+                    </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <SalesOverflowChipGroup
+                        label="Finished good"
+                        value={fgTypeFilter}
+                        onChange={setFgTypeFilter}
+                        options={plannerFgTypeOptions}
+                        maxInline={3}
+                    />
+                    <SalesSmartRangeFilter label="Width" value={widthFilter} onChange={setWidthFilter} placeholder="300-1200" suffix="mm" presets={plannerWidthPresets} />
+                    <SalesSmartRangeFilter label="Height" value={heightFilter} onChange={setHeightFilter} placeholder="120-320" suffix="mm" presets={plannerHeightPresets} />
+                    <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} onChange={setThicknessFilter} placeholder="20-80" suffix="μ" presets={plannerThicknessPresets} />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+                    <SalesOverflowChipGroup label="Material" value={materialFilter} onChange={setMaterialFilter} options={plannerMaterialOptions} maxInline={4} />
+                    <SalesOverflowChipGroup label="Grade" value={gradeFilter} onChange={setGradeFilter} options={plannerGradeOptions} maxInline={4} />
+                    <SalesOverflowChipGroup
+                        label="Source"
+                        value={sourcePathFilter}
+                        onChange={(value) => setSourcePathFilter(value as PlannerSourceFilter)}
+                        allValue="ALL"
+                        options={[
+                            { value: "FG", label: "FG ready", count: prioritizedQueueRows.filter((row) => plannerRowSource(row) === "FG").length, tone: "pack" },
+                            { value: "WIP", label: "WIP ready", count: prioritizedQueueRows.filter((row) => plannerRowSource(row) === "WIP").length, tone: "template" },
+                            { value: "FRESH", label: "Fresh", count: prioritizedQueueRows.filter((row) => plannerRowSource(row) === "FRESH").length, tone: "muted" },
+                        ]}
+                        maxInline={3}
+                    />
+                    <SalesOverflowChipGroup
+                        label="Due"
+                        value={dueFilter}
+                        onChange={(value) => setDueFilter(value as PlannerDueFilter)}
+                        allValue="ALL"
+                        options={[
+                            { value: "OVERDUE", label: "Overdue", count: overdueCount, tone: "fgRoll" },
+                            { value: "TODAY", label: "Today", tone: "fgPouch" },
+                            { value: "THREE_DAYS", label: "3 days", count: dueSoonCount, tone: "template" },
+                            { value: "THIS_WEEK", label: "This week", tone: "pack" },
+                            { value: "NO_DATE", label: "No date", tone: "muted" },
+                        ]}
+                        maxInline={3}
+                    />
+                    {plannerPlantOptions.length ? (
+                        <SalesOverflowChipGroup label="Plant" value={plantFilter} onChange={setPlantFilter} options={plannerPlantOptions} maxInline={3} />
+                    ) : null}
+                </div>
             </section>
 
             {/* ── TABS ── */}

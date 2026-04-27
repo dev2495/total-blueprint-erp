@@ -87,7 +87,7 @@ const STREAMS: StreamMeta[] = [
     { id: "trace", modeKey: "operations", label: "Operational Flow", short: "Trace", color: "#3b82f6", chipClass: styles.chipBlue, icon: Workflow },
     { id: "production", modeKey: "production", label: "Production Runs", short: "Produce", color: "#10b981", chipClass: styles.chipGreen, icon: Layers },
     { id: "inventory", modeKey: "inventory", label: "Inventory Movement", short: "Move", color: "#f59e0b", chipClass: styles.chipAmber, icon: Box },
-    { id: "master_data", modeKey: "master_data", label: "Master Data", short: "Edit", color: "#8b5cf6", chipClass: styles.chipPurple, icon: Database },
+    { id: "master_data", modeKey: "master_data", label: "Master Data", short: "Edit", color: "#60a5fa", chipClass: styles.chipPurple, icon: Database },
     { id: "sessions", modeKey: "sessions", label: "Session & Login", short: "Auth", color: "#14b8a6", chipClass: styles.chipTeal, icon: LogIn },
     { id: "permissions", modeKey: "permissions", label: "Permissions", short: "Access", color: "#ef4444", chipClass: styles.chipRed, icon: ShieldCheck },
     { id: "reports", modeKey: "reports", label: "Report Archives", short: "Report", color: "#ec4899", chipClass: styles.chipPink, icon: FileStack },
@@ -105,7 +105,7 @@ const RANGE_OPTIONS: Array<{ value: DateRange; label: string }> = [
 
 const SEVERITY_ORDER: Record<Severity, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const ACTION_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#14b8a6", "#ef4444", "#ec4899", "#64748b"];
+const ACTION_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#60a5fa", "#14b8a6", "#ef4444", "#ec4899", "#64748b"];
 
 function asRecord(value: unknown): Record<string, unknown> {
     return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -597,8 +597,8 @@ function ActivityHeatmap({ events }: { events: AuditEvent[] }) {
     const colorFor = (value: number) => {
         if (!value) return "#eef2ff";
         const ratio = value / heat.max;
-        if (ratio >= 0.75) return "#312e81";
-        if (ratio >= 0.5) return "#4f46e5";
+        if (ratio >= 0.75) return "#0b1f55";
+        if (ratio >= 0.5) return "#2563eb";
         if (ratio >= 0.25) return "#818cf8";
         return "#c7d2fe";
     };

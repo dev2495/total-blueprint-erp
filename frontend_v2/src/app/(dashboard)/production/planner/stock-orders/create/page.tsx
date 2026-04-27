@@ -114,7 +114,7 @@ function makeLocalId() {
 }
 
 function launchModeLabel(mode: LauncherMode) {
-  if (mode === "FINAL_ROLL") return "Final FG"
+  if (mode === "FINAL_ROLL") return "Final roll / pouch"
   if (mode === "SHARED_INVARIANT_ROLL") return "Shared invariant"
   if (mode === "BASE_UPSTREAM_ROLL") return "Base / upstream"
   if (mode === "POD_STOCK") return "POD stock"
@@ -122,19 +122,31 @@ function launchModeLabel(mode: LauncherMode) {
 }
 
 function plannerOutputLabel(output: PlannerOutputClass) {
-  if (output === "FG") return "FG"
-  if (output === "INVARIANT") return "Invariant Roll"
-  if (output === "WIP") return "WIP for FG"
+  if (output === "FG") return "Final roll / pouch"
+  if (output === "INVARIANT") return "Invariant roll"
+  if (output === "WIP") return "WIP for roll / pouch"
+  if (output === "POD") return "POD stock"
+  return "Packaging stock"
+}
+
+function plannerOutputShortLabel(output: PlannerOutputClass) {
+  if (output === "FG") return "Final"
+  if (output === "INVARIANT") return "Invariant"
+  if (output === "WIP") return "WIP"
   if (output === "POD") return "POD"
   return "Packaging"
 }
 
 function plannerOutputCopy(output: PlannerOutputClass) {
-  if (output === "FG") return "Direct finished stock ready for allocation."
+  if (output === "FG") return "Final roll or pouch stock ready for allocation."
   if (output === "INVARIANT") return "Reusable shared intermediate roll for repeat continuation."
-  if (output === "WIP") return "Route-stopped stock held for later FG continuation."
+  if (output === "WIP") return "Route-stopped stock held for later roll or pouch continuation."
   if (output === "POD") return "Planner-owned POD replenishment built on the same production engine."
   return "Packaging replenishment using the same route, material, and consumption truth."
+}
+
+function normalizePlannerFgType(value: unknown): "POUCH" | "ROLL" {
+  return String(value || "").toUpperCase() === "ROLL" ? "ROLL" : "POUCH"
 }
 
 function outputClassForMode(mode: LauncherMode): PlannerOutputClass {
@@ -417,7 +429,7 @@ export default function PlannerStockOrderStudioPage() {
     return reasons
   }, [selectedLaneIsSales, selectedSalesVariant])
 
-  const finalProductType = stockPurpose === "PACKAGING" ? null : String(selectedTemplate?.fg_type || fgType || "POUCH").toUpperCase()
+  const finalProductType = stockPurpose === "PACKAGING" ? null : normalizePlannerFgType(selectedTemplate?.fg_type || fgType)
   const routeLastIndex = routeSteps.length ? Number(routeSteps[routeSteps.length - 1]?.index ?? routeSteps.length - 1) : 0
   const stopsAtFinalStep = Number(stopStepIndex ?? routeLastIndex) >= routeLastIndex
   const packagingOutputUom = String(selectedPackagingMaterial?.base_uom || "").toUpperCase()
@@ -622,7 +634,7 @@ export default function PlannerStockOrderStudioPage() {
     const base = geometry.base || {}
     const printing = input.printing || {}
     const chemicals = printing.chemicals || {}
-    const nextFgType = String(input.fgType || geometry.finished_good_type || "POUCH").toUpperCase() as "POUCH" | "ROLL"
+    const nextFgType = normalizePlannerFgType(input.fgType || geometry.finished_good_type)
     const nextRollForm = String(input.rollForm || geometry.roll_form || "FLAT").toUpperCase() as "FLAT" | "FOLDED" | "TUBING"
 
     setTemplateId(String(input.templateId || ""))
@@ -802,7 +814,7 @@ export default function PlannerStockOrderStudioPage() {
     if (!selectedSalesVariant || !selectedLaneIsSales) return
     seedCommonState({
       templateId: selectedSalesVariant.template || selectedSalesSku?.template,
-      fgType: selectedSalesVariant.finished_good_type,
+      fgType: normalizePlannerFgType(selectedSalesVariant.finished_good_type),
       rollForm: selectedSalesVariant.roll_form,
       geometry: selectedSalesVariant.geometry_snapshot,
       layers: selectedSalesVariant.layer_snapshot,
@@ -812,7 +824,7 @@ export default function PlannerStockOrderStudioPage() {
       },
       addons: selectedSalesVariant.addons_snapshot,
       packaging: selectedSalesVariant.packaging_snapshot,
-      quantityUom: selectedSalesVariant.finished_good_type === "ROLL" ? "KG" : "PCS",
+      quantityUom: normalizePlannerFgType(selectedSalesVariant.finished_good_type) === "ROLL" ? "KG" : "PCS",
       stockPurpose: "PRODUCT",
       stockStrategy: launcherMode === "FINAL_ROLL" ? "FINAL_STOCK" : "INTERMEDIATE_POOL",
       lineLabel: selectedSalesVariant.name || selectedSalesSku?.name || selectedSalesSku?.code,
@@ -972,7 +984,7 @@ export default function PlannerStockOrderStudioPage() {
   const showSeededSpecOverrides = selectedLaneIsCustom || showTechnicalSnapshot
   const routeStepsAreEditable = selectedLaneIsCustom || selectedLaneIsSales
   const laneSummaryCopy = selectedLaneIsSales
-    ? "Sales SKU gives the approved commercial spec. Route start and stop are chosen here so the same sales SKU can launch FG, invariant rolls, or held WIP."
+    ? "Sales SKU gives the approved commercial spec. Route start and stop decide whether this launches final roll/pouch stock, invariant rolls, or held WIP."
     : selectedLaneIsPlanner
       ? "Planner preset already owns route span, stock intent, geometry, and material truth. Confirm quantity, adjust only when needed, and queue the line."
       : "Custom is the full manual path. Use it only when neither a planner preset nor a sales SKU can express the job correctly."
@@ -1173,22 +1185,53 @@ export default function PlannerStockOrderStudioPage() {
       return
     }
 
+    const releasableLines = cartLines.filter((line) => ["draft", "failed"].includes(line.submitStatus))
+
     try {
       setSubmittingCart(true)
       let createdCount = 0
       let failedCount = 0
 
-      for (const line of cartLines) {
-        if (!["draft", "failed"].includes(line.submitStatus)) continue
-
+      releasableLines.forEach((line) => {
         updateCartLine(line.localId, (current) => ({
           ...current,
           submitStatus: "submitting",
           submitError: "",
         }))
+      })
 
+      let bulkCreated: any[] = []
+      try {
+        const bulk = await plannerService.createStockOrdersBulk(
+          releasableLines.map((line) => line.payload),
+          makeLocalId(),
+        )
+        bulkCreated = Array.isArray(bulk.created) ? bulk.created : []
+      } catch (error: any) {
+        const failed = error?.response?.data?.failed
+        const fallbackError = String(error?.response?.data?.error || error?.message || "Could not create this stock order.")
+        releasableLines.forEach((line, index) => {
+          const rowError = Array.isArray(failed)
+            ? failed.find((row: any) => Number(row?.index) === index)?.error
+            : null
+          updateCartLine(line.localId, (current) => ({
+            ...current,
+            submitStatus: "failed",
+            submitError: typeof rowError === "string" ? rowError : rowError ? JSON.stringify(rowError) : fallbackError,
+          }))
+        })
+        toast({
+          title: "Batch release blocked",
+          description: "No orders were created because at least one cart line failed contract validation.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      for (const createdOrder of bulkCreated) {
+        const line = releasableLines[Number(createdOrder?.index)]
+        if (!line) continue
         try {
-          const createdOrder = await plannerService.createStockOrder(line.payload)
           const orderId = String(createdOrder?.order_id || createdOrder?.stock_order_id || "")
           if (!orderId) throw new Error("Stock order was created without an order id.")
           const createdOrderNumber = String(createdOrder?.order_number || "")
@@ -1245,6 +1288,52 @@ export default function PlannerStockOrderStudioPage() {
   }
 
   const showRouteSelectors = routeStepsAreEditable && routeSteps.length > 0
+  const previewUnitWeight = asNumber(preview?.unit_weight_g, Number.NaN)
+  const previewArea = asNumber(previewGeometry.area_m2 || previewRoll?.area_m2, Number.NaN)
+  const previewWidth = asNumber(
+    previewGeometry.effective_width_mm ||
+      previewGeometry.width_mm ||
+      previewRoll?.width_mm ||
+      layers[0]?.roll_width_mm ||
+      widthMm,
+    0,
+  )
+  const previewHeight = asNumber(
+    previewGeometry.effective_height_mm ||
+      previewGeometry.height_mm ||
+      (finalProductType === "ROLL" ? layers[0]?.roll_width_mm : heightMm),
+    0,
+  )
+  const previewUnitWeightLabel = Number.isFinite(previewUnitWeight) && previewUnitWeight > 0
+    ? `${previewUnitWeight.toFixed(2)} g`
+    : "—"
+  const previewTotalWeightLabel = currentEstimatedKg !== null
+    ? `${currentEstimatedKg.toFixed(2)} KG`
+    : currentEstimatedPcs !== null
+      ? `${currentEstimatedPcs.toLocaleString()} PCS`
+      : "—"
+  const previewGeometryLabel = finalProductType === "ROLL"
+    ? `${previewWidth || "—"} mm roll${rollForm ? ` · ${rollForm}` : ""}`
+    : `${previewWidth || "—"} × ${previewHeight || "—"} mm`
+  const previewGeometryMeta = finalProductType === "ROLL"
+    ? [
+        previewRoll?.derived_length_m ? `${asNumber(previewRoll.derived_length_m, 0).toFixed(0)} m derived length` : null,
+        Number.isFinite(previewArea) ? `area ${previewArea.toFixed(4)} m2/m` : null,
+      ].filter(Boolean).join(" · ") || "Roll output"
+    : [
+        previewGeometry.style || previewGeometry.pouch_style ? `style ${String(previewGeometry.style || previewGeometry.pouch_style).toUpperCase()}` : null,
+        Number.isFinite(previewArea) ? `area ${previewArea.toFixed(4)} m2` : null,
+      ].filter(Boolean).join(" · ") || "Finished pouch"
+  const previewBom = (preview?.bom || preview?.physics?.bom || {}) as Record<string, any>
+  const previewBomCount = (key: string) => (Array.isArray(previewBom?.[key]) ? previewBom[key].length : 0)
+  const previewBomRows = [
+    { label: "Films", value: Math.max(previewBomCount("films"), (payload as any).film_layers?.length || 0), required: true },
+    { label: "Granules", value: previewBomCount("granules"), required: true },
+    { label: "Inks", value: previewBomCount("inks"), required: printingEnabled },
+    { label: "Chemicals", value: previewBomCount("chemicals"), required: printingEnabled || adhesiveGsm > 0 || solventGsm > 0 },
+    { label: "Add-ons", value: Math.max(previewBomCount("addons"), (payload as any).addons?.length || 0), required: Boolean((payload as any).addons?.length) },
+  ]
+  const previewStatusLabel = previewError ? "Check inputs" : preview ? "Preview ready" : previewing ? "Previewing" : "Waiting for preview"
 
   return (
     <div className={styles.shell} data-testid="planner-stock-launch-studio">
@@ -1253,7 +1342,11 @@ export default function PlannerStockOrderStudioPage() {
         <button type="button" className={styles.backBtn} onClick={() => router.push("/production/planner")} title="Back to Planner">
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <h1 className={styles.title}>Create Stock Orders</h1>
+        <div className={styles.titleBlock}>
+          <span className={styles.eyebrow}>Production · Planner</span>
+          <h1 className={styles.title}>Create Stock Order</h1>
+          <p className={styles.subtitle}>Launch from sales SKU, planner preset, or custom spec with the same route math.</p>
+        </div>
         <div className={styles.headerSpacer} />
 
         <div className={styles.pillToggle}>
@@ -1299,7 +1392,7 @@ export default function PlannerStockOrderStudioPage() {
                   : outputDisabledReasons[output] || plannerOutputCopy(output)
               }
             >
-              {output === "INVARIANT" ? "INV" : output === "PACKAGING" ? "PKG" : output}
+              {plannerOutputShortLabel(output)}
             </button>
           ))}
         </div>
@@ -1325,7 +1418,21 @@ export default function PlannerStockOrderStudioPage() {
 
           {/* SKU Picker */}
           <div className={styles.panel}>
-            <span className={styles.panelLabel}>{plannerLaneLabel(launchLane)} source</span>
+            <div className={styles.panelTopline}>
+              <span className={styles.panelLabel}>{plannerLaneLabel(launchLane)} source</span>
+              {selectedLaneIsSales ? (
+                <button type="button" className={styles.panelActionLink} onClick={() => router.push("/sales/sku-catalog?create_variant=1")}>
+                  <Plus className="h-3 w-3" />
+                  Create new sales variant
+                </button>
+              ) : null}
+              {selectedLaneIsPlanner ? (
+                <button type="button" className={styles.panelActionLink} onClick={() => router.push("/production/planner/sku-catalog?create_variant=1")}>
+                  <Plus className="h-3 w-3" />
+                  Create planner variant
+                </button>
+              ) : null}
+            </div>
             <div className={styles.skuRow}>
               {selectedLaneIsSales ? (
                 <>
@@ -1361,7 +1468,7 @@ export default function PlannerStockOrderStudioPage() {
                       <SelectContent>
                         {filteredVariantList.map((variant: any) => (
                           <SelectItem key={variant.id} value={String(variant.id)}>
-                            {variant.code} · {variant.name} · {variant.finished_good_type}
+                            {variant.code} · {variant.name} · {normalizePlannerFgType(variant.finished_good_type)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1454,18 +1561,18 @@ export default function PlannerStockOrderStudioPage() {
           {/* Line Composer */}
           <div className={styles.panel}>
             <div className={styles.composer}>
-              {/* Row 1: Label + Qty + UOM */}
+              {/* Row 1: Label + Quantity + Unit */}
               <div className={styles.formRow}>
                 <div className={cn(styles.fieldBlock, styles.fieldFlex)}>
                   <Label>Line label</Label>
                   <Input value={lineLabel} onChange={(event) => setLineLabel(event.target.value)} placeholder={seededIdentityLabel} />
                 </div>
                 <div className={cn(styles.fieldBlock, styles.fieldQty)}>
-                  <Label>Qty</Label>
+                  <Label>Quantity</Label>
                   <Input data-testid="planner-stock-qty" type="number" value={quantity} onChange={(event) => setQuantity(Number(event.target.value || 0))} />
                 </div>
                 <div className={cn(styles.fieldBlock, styles.fieldUom)}>
-                  <Label>UOM</Label>
+                  <Label>Unit</Label>
                   <Select value={quantityUom} onValueChange={(value: any) => setQuantityUom(value)} disabled={selectedLaneIsPlanner || (stockPurpose === "PACKAGING" && !!packagingOutputUom)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1583,18 +1690,61 @@ export default function PlannerStockOrderStudioPage() {
                 </div>
               ) : null}
 
-              {/* Preview strip */}
-              <div className={styles.previewStrip}>
-                <span className={cn(styles.previewChip, styles.previewChipKg)}>
-                  {currentEstimatedKg !== null ? `${currentEstimatedKg.toFixed(2)} kg` : "— kg"}
-                </span>
-                <span className={cn(styles.previewChip, styles.previewChipPcs)}>
-                  {currentEstimatedPcs !== null ? `${currentEstimatedPcs} pcs` : "— pcs"}
-                </span>
-                <span className={styles.previewChip}>{plannerOutputLabel(selectedOutputClass)}</span>
-                <span className={styles.previewChip}>{resolvedRouteLabel}</span>
-                <span className={styles.previewChip}>{selectedVariantSummary}</span>
-                {previewing ? <RefreshCw className="h-3 w-3 animate-spin" style={{ color: "#64748b" }} /> : null}
+              <div className={styles.previewCard}>
+                <div className={styles.previewCardHeader}>
+                  <div>
+                    <span className={styles.panelLabel}>Preview · live math from physics engine</span>
+                    <p className={styles.previewCopy}>Same preview contract used by sales order and planner stock creation.</p>
+                  </div>
+                  <Badge variant="outline" className={cn(styles.previewStatus, previewError && styles.previewStatusError)}>
+                    {previewing ? <RefreshCw className="mr-1 h-3 w-3 animate-spin" /> : null}
+                    {previewStatusLabel}
+                  </Badge>
+                </div>
+
+                <div className={styles.previewMetricGrid}>
+                  <div className={styles.previewMetric}>
+                    <span>Unit weight</span>
+                    <strong>{previewUnitWeightLabel}</strong>
+                  </div>
+                  <div className={styles.previewMetric}>
+                    <span>Total weight</span>
+                    <strong>{previewTotalWeightLabel}</strong>
+                  </div>
+                  <div className={styles.previewMetric}>
+                    <span>Geometry</span>
+                    <strong>{previewGeometryLabel}</strong>
+                    <small>{previewGeometryMeta}</small>
+                  </div>
+                  <div className={styles.previewMetric}>
+                    <span>Output</span>
+                    <strong>{plannerOutputLabel(selectedOutputClass)}</strong>
+                    <small>{strategySummary}</small>
+                  </div>
+                </div>
+
+                <div className={styles.previewStrip}>
+                  <span className={cn(styles.previewChip, styles.previewChipKg)}>
+                    {currentEstimatedKg !== null ? `${currentEstimatedKg.toFixed(2)} KG` : "— KG"}
+                  </span>
+                  <span className={cn(styles.previewChip, styles.previewChipPcs)}>
+                    {currentEstimatedPcs !== null ? `${currentEstimatedPcs.toLocaleString()} PCS` : "— PCS"}
+                  </span>
+                  <span className={styles.previewChip}>{resolvedRouteLabel}</span>
+                  <span className={styles.previewChip}>{selectedVariantSummary}</span>
+                </div>
+
+                <div className={styles.previewBomGrid}>
+                  {previewBomRows.map((row) => {
+                    const ok = row.value > 0 || !row.required
+                    return (
+                      <div key={row.label} className={cn(styles.previewBomRow, ok ? styles.previewBomOk : styles.previewBomWarn)}>
+                        <span>{row.label}</span>
+                        <strong>{row.value ? `${row.value} line${row.value === 1 ? "" : "s"}` : row.required ? "Needed" : "0 lines"}</strong>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               {previewError ? (
@@ -1615,7 +1765,7 @@ export default function PlannerStockOrderStudioPage() {
                 {!selectedLaneIsPlanner ? (
                   <label className={styles.compactSwitch}>
                     <Switch checked={saveAsPlannerPreset} onCheckedChange={setSaveAsPlannerPreset} />
-                    <span>Preset</span>
+                    <span>Save as preset</span>
                   </label>
                 ) : null}
                 <Button data-testid="planner-stock-add-to-cart" className={styles.addBtn} onClick={addCurrentLineToCart} disabled={!canQueue || submittingCart}>
@@ -1631,7 +1781,7 @@ export default function PlannerStockOrderStudioPage() {
                   setShowTechnicalSnapshot((open) => !open)
                   setShowAdvancedCustom((open) => !open)
                 }}>
-                  {showTechnicalSnapshot ? "Hide spec" : "Spec editor"}
+                  {showTechnicalSnapshot ? "Hide spec editor" : "Open spec editor"}
                 </Button>
               </div>
             </div>
@@ -1717,9 +1867,11 @@ export default function PlannerStockOrderStudioPage() {
                     </div>
 
                     <div className={styles.specCard}>
-                      <div className={styles.sectionLabel}>Printing and additives</div>
-                      <div className={styles.toggleBar}>
-                        <span>Printing enabled</span>
+                      <div className={styles.inlineHeader}>
+                        <div>
+                          <div className={styles.sectionLabel}>Printing</div>
+                          <div className={styles.inlineHint}>Artwork, color counts, and ink load only.</div>
+                        </div>
                         <Switch checked={printingEnabled} onCheckedChange={setPrintingEnabled} />
                       </div>
                       {printingEnabled ? (
@@ -1746,11 +1898,11 @@ export default function PlannerStockOrderStudioPage() {
                             </Select>
                           </div>
                           <div className={styles.fieldBlock}>
-                            <Label>Front colours</Label>
+                            <Label>Front colors</Label>
                             <Input type="number" value={frontColorsCount} onChange={(event) => setFrontColorsCount(Number(event.target.value || 0))} />
                           </div>
                           <div className={styles.fieldBlock}>
-                            <Label>Back colours</Label>
+                            <Label>Back colors</Label>
                             <Input type="number" value={backColorsCount} onChange={(event) => setBackColorsCount(Number(event.target.value || 0))} />
                           </div>
                           <div className={styles.fieldBlock}>
@@ -1762,21 +1914,32 @@ export default function PlannerStockOrderStudioPage() {
                             <Input value={artworkId} onChange={(event) => setArtworkId(event.target.value)} placeholder="Optional" />
                           </div>
                         </div>
-                      ) : null}
+                      ) : <div className={styles.emptyState}>No print BOM for this stock order.</div>}
+                    </div>
 
-                      <div className={styles.tightGrid}>
-                        <div className={styles.fieldBlock}>
-                          <Label>Adhesive GSM</Label>
-                          <Input type="number" value={adhesiveGsm} onChange={(event) => setAdhesiveGsm(Number(event.target.value || 0))} />
+                    <div className={styles.specCard}>
+                      <div className={styles.sectionLabel}>Chemistry and lamination</div>
+                      <div className={styles.inlineHint}>Adhesive and solvent are separate from printing.</div>
+                      {layers.length > 1 ? (
+                        <div className={styles.tightGrid}>
+                          <div className={styles.fieldBlock}>
+                            <Label>Adhesive GSM</Label>
+                            <Input type="number" value={adhesiveGsm} onChange={(event) => setAdhesiveGsm(Number(event.target.value || 0))} />
+                          </div>
+                          <div className={styles.fieldBlock}>
+                            <Label>Solvent GSM</Label>
+                            <Input type="number" value={solventGsm} onChange={(event) => setSolventGsm(Number(event.target.value || 0))} />
+                          </div>
                         </div>
-                        <div className={styles.fieldBlock}>
-                          <Label>Solvent GSM</Label>
-                          <Input type="number" value={solventGsm} onChange={(event) => setSolventGsm(Number(event.target.value || 0))} />
-                        </div>
-                      </div>
+                      ) : <div className={styles.emptyState}>Single-layer stock does not need lamination chemistry.</div>}
+                    </div>
 
+                    <div className={styles.specCard}>
                       <div className={styles.inlineHeader}>
-                        <Label>Add-ons</Label>
+                        <div>
+                          <div className={styles.sectionLabel}>Add-ons</div>
+                          <div className={styles.inlineHint}>Extra operations that affect dimensions or output.</div>
+                        </div>
                         <Button variant="outline" size="sm" onClick={() => setAddons((current) => [...current, { addon_id: "", qty: 1, applies_to: "NONE" }])}>
                           Add add-on
                         </Button>

@@ -184,7 +184,7 @@ export function ContextHelpSheet() {
                 <ul className="space-y-2">
                   {related.map((route) => (
                     <li key={route}>
-                      <Link href={`/help?route=${encodeURIComponent(route)}`} className="text-sm font-medium text-indigo-700 hover:text-indigo-900">
+                      <Link href={`/help?route=${encodeURIComponent(route)}`} className="text-sm font-medium text-blue-700 hover:text-blue-900">
                         {route}
                       </Link>
                     </li>

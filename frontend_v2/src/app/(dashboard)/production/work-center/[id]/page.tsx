@@ -1419,7 +1419,7 @@ export default function WCMTerminal() {
             <div className="min-h-screen bg-[#f7f8fb] text-slate-900" data-testid="wcm-terminal-page">
                 <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
                     <div className="flex h-14 w-full items-center gap-4 px-6">
-                        <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-sm font-semibold text-white shadow-sm">W</div>
+                        <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-sm font-semibold text-white shadow-sm">W</div>
                         <div className="leading-tight">
                             <div className="text-sm font-semibold tracking-tight">ERP · Production</div>
                             <div className="text-[11px] text-slate-500">Work Center Terminal</div>
@@ -1469,7 +1469,7 @@ export default function WCMTerminal() {
                             {[
                                 ["Running", stats.running, "text-emerald-600"],
                                 ["Waiting", stats.waiting, "text-slate-950"],
-                                ["Ready to run", queueCounts.executionReady, "text-indigo-700"],
+                                ["Ready to run", queueCounts.executionReady, "text-blue-700"],
                                 ["No machine", queueCounts.noMachine, "text-amber-700"],
                             ].map(([label, value, tone]) => (
                                 <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -1526,7 +1526,7 @@ export default function WCMTerminal() {
                                 <span className="text-slate-500">Filters:</span>
                                 {queueSearch && <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 font-medium text-slate-600">Search · {queueSearch}</span>}
                                 {queueStatusFilter !== "ALL" && <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 font-medium text-slate-600">Status · {queueStatusFilter}</span>}
-                                <button type="button" onClick={() => { setQueueSearch(""); setQueueStatusFilter("ALL") }} className="font-semibold text-indigo-600 hover:underline">
+                                <button type="button" onClick={() => { setQueueSearch(""); setQueueStatusFilter("ALL") }} className="font-semibold text-blue-600 hover:underline">
                                     Clear all
                                 </button>
                             </div>
@@ -1543,7 +1543,7 @@ export default function WCMTerminal() {
                                             <div className="text-lg font-semibold text-slate-950">WCM audit and production history</div>
                                             <p className="mt-1 text-sm text-slate-500">Search actions, material issue, machine release, output, scrap, and close records.</p>
                                         </div>
-                                        {isLoadingHistory && <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />}
+                                        {isLoadingHistory && <Loader2 className="h-5 w-5 animate-spin text-blue-600" />}
                                     </div>
                                     <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_140px]">
                                         <div className="relative">
@@ -1595,14 +1595,14 @@ export default function WCMTerminal() {
                                                         <div className="min-w-[260px] flex-1">
                                                             <div className="flex flex-wrap items-center gap-2">
                                                                 <div className="font-semibold text-slate-900">{job.customer_name || spec.customerName || "Customer"}</div>
-                                                                <span className="text-sm font-semibold text-indigo-700">{job.order_number || spec.orderNumber || "SO —"}</span>
+                                                                <span className="text-sm font-semibold text-blue-700">{job.order_number || spec.orderNumber || "SO —"}</span>
                                                             </div>
                                                             <div className="text-sm text-slate-500">{spec.productName} · {spec.size.label}</div>
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                                 {spec.layers.slice(0, 4).map((layer) => (
                                                                     <span key={`${assignment.id}-${layer.index}`} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">{layerQueueLabel(layer)}</span>
                                                                 ))}
-                                                                {spec.podLabels.map((label) => <span key={`${assignment.id}-pod-${label}`} className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-fuchsia-700">PoD · {label}</span>)}
+                                                                {spec.podLabels.map((label) => <span key={`${assignment.id}-pod-${label}`} className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-sky-700">PoD · {label}</span>)}
                                                                 {spec.addonLabels.map((label) => <span key={`${assignment.id}-addon-${label}`} className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-orange-700">+ {label}</span>)}
                                                             </div>
                                                             <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
@@ -1659,7 +1659,7 @@ export default function WCMTerminal() {
                                         onClick={() => setActiveAssignmentId(assignment.id)}
                                         className={cn(
                                             "overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md",
-                                            activeAssignmentId === assignment.id ? "border-indigo-500 ring-2 ring-indigo-100" : "border-slate-200"
+                                            activeAssignmentId === assignment.id ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"
                                         )}
                                     >
                                         <div className="flex flex-col xl:flex-row">
@@ -1672,7 +1672,7 @@ export default function WCMTerminal() {
                                                         </div>
                                                         <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                                                             <span className="text-xl font-semibold tracking-tight text-slate-950">{job.customer_name || spec.customerName || "Customer not captured"}</span>
-                                                            <span className="font-semibold text-indigo-700">{job.order_number || spec.orderNumber || "SO not captured"}</span>
+                                                            <span className="font-semibold text-blue-700">{job.order_number || spec.orderNumber || "SO not captured"}</span>
                                                         </div>
                                                         <div className="mt-0.5 text-sm text-slate-600">
                                                             <span className="font-medium text-slate-800">{spec.productName}</span>
@@ -1683,7 +1683,7 @@ export default function WCMTerminal() {
                                                         <span className={cn(
                                                             "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
                                                             status === "EXECUTION_READY" ? "bg-emerald-50 text-emerald-700" :
-                                                                status === "ASSIGNED" ? "bg-cyan-50 text-cyan-700" : "bg-indigo-50 text-indigo-700"
+                                                                status === "ASSIGNED" ? "bg-cyan-50 text-cyan-700" : "bg-blue-50 text-blue-700"
                                                         )}>
                                                             {status === "EXECUTION_READY" ? "✓ Execution Ready" : status === "ASSIGNED" ? `● Assigned${assignment.assigned_machine_name ? ` to ${assignment.assigned_machine_name}` : ""}` : "◷ WC Ready"}
                                                         </span>
@@ -1696,7 +1696,7 @@ export default function WCMTerminal() {
                                                     {spec.layers.slice(0, 4).map((layer) => (
                                                         <span key={`${assignment.id}-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layerQueueLabel(layer)}</span>
                                                     ))}
-                                                    {spec.podLabels.map((label) => <span key={label} className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1 text-xs font-semibold text-fuchsia-700">PoD · {label}</span>)}
+                                                    {spec.podLabels.map((label) => <span key={label} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">PoD · {label}</span>)}
                                                     {spec.addonLabels.map((label) => <span key={label} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">+ {label}</span>)}
                                                 </div>
 
@@ -1707,7 +1707,7 @@ export default function WCMTerminal() {
                                                             <span>{Math.round(percent)}%</span>
                                                         </div>
                                                         <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
-                                                            <span className="block h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${percent}%` }} />
+                                                            <span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-500" style={{ width: `${percent}%` }} />
                                                         </div>
                                                         <div className="mt-2 flex flex-wrap items-baseline gap-5">
                                                             <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(target || 0, selectedPrimaryUom, selectedPrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{selectedPrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Step target</div></div>
@@ -1740,7 +1740,7 @@ export default function WCMTerminal() {
                                                         <a
                                                             href={assignment.assigned_machine ? `/production/machine/${assignment.assigned_machine}` : "#"}
                                                             onClick={(event) => { if (!assignment.assigned_machine) event.preventDefault() }}
-                                                            className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold", assignment.assigned_machine ? "bg-indigo-600 text-white hover:bg-indigo-700" : "bg-slate-100 text-slate-400")}
+                                                            className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold", assignment.assigned_machine ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400")}
                                                         >
                                                             Open terminal
                                                         </a>
@@ -1775,7 +1775,7 @@ export default function WCMTerminal() {
                                             <h2 className="mt-1 text-2xl font-semibold leading-tight tracking-tight text-slate-950">{selectedSpec.productName}</h2>
                                             <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
                                                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">{selectedJob?.customer_name || selectedSpec.customerName || "Customer not captured"}</span>
-                                                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-700">{selectedJob?.order_number || selectedSpec.orderNumber || "SO not captured"}</span>
+                                                <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-700">{selectedJob?.order_number || selectedSpec.orderNumber || "SO not captured"}</span>
                                                 {selectedSpec.templateName || selectedJob?.template_name ? (
                                                     <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">{selectedSpec.templateName || selectedJob?.template_name}</span>
                                                 ) : null}
@@ -1808,12 +1808,12 @@ export default function WCMTerminal() {
                                             <div className="mt-1 text-lg font-semibold leading-tight text-slate-950">{selectedOutputForm || selectedSpec.size.finishedGoodType || "Output"}</div>
                                             <div className="mt-2 text-[11px] font-semibold text-slate-500">{selectedSpec.layers.length || 0} layer{selectedSpec.layers.length === 1 ? "" : "s"} in this sales specification</div>
                                         </div>
-                                        <div className="rounded-xl border border-fuchsia-100 bg-fuchsia-50 p-3">
-                                            <div className="text-[10px] font-black uppercase tracking-wider text-fuchsia-700">POD</div>
+                                        <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-sky-700">POD</div>
                                             <div className="mt-1 flex flex-wrap gap-1.5">
                                                 {selectedSpec.podLabels.length ? selectedSpec.podLabels.map((label) => (
-                                                    <span key={`selected-pod-${label}`} className="rounded-full border border-fuchsia-200 bg-white px-2 py-1 text-xs font-semibold text-fuchsia-700">{label}</span>
-                                                )) : <span className="text-sm font-semibold text-fuchsia-900">{selectedPodLabel}</span>}
+                                                    <span key={`selected-pod-${label}`} className="rounded-full border border-sky-200 bg-white px-2 py-1 text-xs font-semibold text-sky-700">{label}</span>
+                                                )) : <span className="text-sm font-semibold text-sky-900">{selectedPodLabel}</span>}
                                             </div>
                                         </div>
                                         <div className="rounded-xl border border-orange-100 bg-orange-50 p-3">
@@ -1878,9 +1878,9 @@ export default function WCMTerminal() {
                                         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700">{activeStatus}</span>
                                     </div>
                                     <div className="mt-4 grid gap-3 md:grid-cols-3">
-                                        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-indigo-600">Step target</div>
-                                            <div className="mt-1 text-sm font-semibold text-indigo-950">{formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                                            <div className="text-[10px] uppercase tracking-wider text-blue-600">Step target</div>
+                                            <div className="mt-1 text-sm font-semibold text-blue-950">{formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
                                         </div>
                                         <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
                                             <div className="text-[10px] uppercase tracking-wider text-amber-700">Remaining</div>
@@ -1893,7 +1893,7 @@ export default function WCMTerminal() {
                                         </div>
                                     </div>
                                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                                        <span className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-indigo-500" style={{ width: `${progressPercent}%` }} />
+                                        <span className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${progressPercent}%` }} />
                                     </div>
                                 </section>
 
@@ -1972,7 +1972,7 @@ export default function WCMTerminal() {
                                                         <div>
                                                             <div className="flex flex-wrap items-center gap-2">
                                                                 <div className="font-semibold text-slate-950">{materialName}</div>
-                                                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", isGranule ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700")}>{materialIssueKindLabel(row)}</span>
+                                                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", isGranule ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700")}>{materialIssueKindLabel(row)}</span>
                                                             </div>
                                                             <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                                 <span>Need {issueTarget > 0 ? `${issueTarget.toFixed(3)} kg` : "not planned"}</span>
@@ -2132,11 +2132,11 @@ export default function WCMTerminal() {
             <div className="flex min-h-0 flex-col gap-6">
                 <Tabs value={activeMainTab} onValueChange={(v: any) => setActiveMainTab(v)} className="w-full">
                     <TabsList className="bg-white border p-1 h-12 rounded-xl shadow-sm">
-                        <TabsTrigger value="terminal" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
+                        <TabsTrigger value="terminal" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
                             Run Step
                         </TabsTrigger>
                         {isManager && (
-                            <TabsTrigger value="history" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all">
+                            <TabsTrigger value="history" className="px-8 font-black uppercase tracking-wider data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
                                 Past Jobs
                             </TabsTrigger>
                         )}
@@ -2157,10 +2157,10 @@ export default function WCMTerminal() {
                                 ))}
                             </CardContent>
                         </Card>
-                        <Card className="border-indigo-100 bg-indigo-50/70 shadow-sm">
+                        <Card className="border-blue-100 bg-blue-50/70 shadow-sm">
                             <CardContent className="grid gap-3 p-4 md:grid-cols-[1.5fr_1fr_1fr]">
-                                <div className="rounded-2xl border border-indigo-200 bg-white px-4 py-3">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700">Next action now</div>
+                                <div className="rounded-2xl border border-blue-200 bg-white px-4 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">Next action now</div>
                                     <div className="mt-2 text-lg font-black text-slate-900">{wcmNextAction}</div>
                                     <div className="mt-1 text-sm text-slate-600">{wcmStatusSummary}</div>
                                 </div>
@@ -2268,8 +2268,8 @@ export default function WCMTerminal() {
                                                 className={cn(
                                                     "p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md",
                                                     activeAssignmentId === assignment.id
-                                                        ? "bg-white border-indigo-500 shadow-indigo-100 ring-1 ring-indigo-500"
-                                                        : "bg-white border-slate-200 hover:border-indigo-300"
+                                                        ? "bg-white border-blue-500 shadow-blue-100 ring-1 ring-blue-500"
+                                                        : "bg-white border-slate-200 hover:border-blue-300"
                                                 )}
                                             >
                                                 <div className="flex justify-between items-start gap-2">
@@ -2286,7 +2286,7 @@ export default function WCMTerminal() {
                                                     {queueLayers.length > 0 && (
                                                         <div className="flex flex-wrap gap-1">
                                                             {queueLayers.slice(0, 2).map((layer: string, index: number) => (
-                                                                <span key={`${assignment.id}-layer-${index}`} className="rounded-md bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase text-indigo-700">
+                                                                <span key={`${assignment.id}-layer-${index}`} className="rounded-md bg-blue-50 px-2 py-1 text-[9px] font-black uppercase text-blue-700">
                                                                     {layer}
                                                                 </span>
                                                             ))}
@@ -2330,7 +2330,7 @@ export default function WCMTerminal() {
                                                 <div className="space-y-4 border-b border-slate-100 pb-4">
                                                     <div className="flex justify-between gap-4">
                                                         <div className="min-w-0">
-                                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Sales product</div>
+                                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Sales product</div>
                                                             <div className="mt-1 text-2xl font-black leading-tight text-slate-950">{selectedProductName}</div>
                                                             <div className="mt-1 text-sm font-bold text-slate-600">{selectedJob?.customer_name || "—"}</div>
                                                             <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -2339,7 +2339,7 @@ export default function WCMTerminal() {
                                                         </div>
                                                         <div className="shrink-0 text-right">
                                                             <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Step Target</div>
-                                                            <div className="text-4xl font-black text-indigo-600 leading-none">
+                                                            <div className="text-4xl font-black text-blue-600 leading-none">
                                                                 {formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)}
                                                                 <span className="text-sm ml-1 text-slate-400 uppercase">{selectedPrimaryUom}</span>
                                                             </div>
@@ -2349,8 +2349,8 @@ export default function WCMTerminal() {
                                                         </div>
                                                     </div>
                                                     <div className="grid gap-3 md:grid-cols-3">
-                                                        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 md:col-span-2">
-                                                            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Size</div>
+                                                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 md:col-span-2">
+                                                            <div className="text-[10px] font-black uppercase tracking-widest text-blue-700">Size</div>
                                                             <div className="mt-1 text-lg font-black text-slate-950">{selectedGeometry.label}</div>
                                                         </div>
                                                         <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
@@ -2442,10 +2442,10 @@ export default function WCMTerminal() {
                                                     </div>
                                                 </div>
 
-                                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3" data-testid="wcm-current-step-policy">
+                                                <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 space-y-3" data-testid="wcm-current-step-policy">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div>
-                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Current Step Material Policy</div>
+                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Current Step Material Policy</div>
                                                             <div className="mt-1 text-sm font-semibold text-slate-900">
                                                                 Change this only when the running step needs a real issue exception.
                                                             </div>
@@ -2455,7 +2455,7 @@ export default function WCMTerminal() {
                                                         </div>
                                                         <Button
                                                             size="sm"
-                                                            className="bg-indigo-600 hover:bg-indigo-700"
+                                                            className="bg-blue-600 hover:bg-blue-700"
                                                             onClick={() => stepPolicyMutation.mutate()}
                                                             disabled={stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy}
                                                             data-testid="wcm-save-current-step-policy"
@@ -2465,7 +2465,7 @@ export default function WCMTerminal() {
                                                         </Button>
                                                     </div>
                                                     {!hasEditableCurrentStepPolicy ? (
-                                                        <div className="rounded-xl border border-dashed border-indigo-200 bg-white/80 px-4 py-5 text-sm text-slate-500">
+                                                        <div className="rounded-xl border border-dashed border-blue-200 bg-white/80 px-4 py-5 text-sm text-slate-500">
                                                             This step has no editable issue rule. Use the template or route setup if this step should allow a WCM override.
                                                         </div>
                                                     ) : (
@@ -2477,7 +2477,7 @@ export default function WCMTerminal() {
                                                                     reason: "",
                                                                 }
                                                                 return (
-                                                                    <div key={item.policy_key} className="rounded-xl border border-indigo-100 bg-white p-3 space-y-3">
+                                                                    <div key={item.policy_key} className="rounded-xl border border-blue-100 bg-white p-3 space-y-3">
                                                                         <div className="flex items-start justify-between gap-3">
                                                                             <div>
                                                                                 <div className="text-sm font-black text-slate-900">{item.material_name}</div>
@@ -2560,7 +2560,7 @@ export default function WCMTerminal() {
                                                                                 />
                                                                             </div>
                                                                         </div>
-                                                                        <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-[11px] text-indigo-800">
+                                                                        <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
                                                                             Use a change only when the real shop-floor issue is different from the template rule. This change affects the current running step only.
                                                                         </div>
                                                                     </div>
@@ -2640,11 +2640,11 @@ export default function WCMTerminal() {
                                                             </div>
                                                         ) : (
                                                             displayLayers.map((layer: any, idx: number) => (
-                                                                <div key={idx} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden group hover:border-indigo-300 transition-colors">
+                                                                <div key={idx} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden group hover:border-blue-300 transition-colors">
                                                                     <div className="bg-slate-50/80 group-hover:bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
                                                                         <div>
                                                                             <div className="flex items-center gap-2">
-                                                                                <div className="h-4 w-4 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] text-white font-bold">{layer.index}</div>
+                                                                                <div className="h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold">{layer.index}</div>
                                                                                 <div className="text-[13px] font-black text-slate-800 uppercase tracking-tight">
                                                                                     {layer.variant_name || layer.name || `Layer ${layer.index}`}
                                                                                 </div>
@@ -2655,7 +2655,7 @@ export default function WCMTerminal() {
                                                                             </div>
                                                                         </div>
                                                                         <div className="text-right">
-                                                                            <div className="text-[13px] font-mono font-black text-indigo-700 italic">
+                                                                            <div className="text-[13px] font-mono font-black text-blue-700 italic">
                                                                                 {layer.weight_kg != null ? `${Number(layer.weight_kg || 0).toFixed(3)} kg` : "—"}
                                                                             </div>
                                                                             <div className="text-[9px] font-black text-slate-400 uppercase">Layer Weight</div>
@@ -2667,7 +2667,7 @@ export default function WCMTerminal() {
                                                                             <table className="w-full text-[11px]">
                                                                                 <tbody className="divide-y divide-slate-100">
                                                                                     {layer.materials.map((m: any, mIdx: number) => (
-                                                                                        <tr key={mIdx} className="hover:bg-indigo-50/20 transition-colors">
+                                                                                        <tr key={mIdx} className="hover:bg-blue-50/20 transition-colors">
                                                                                             <td className="pl-10 py-2.5 text-slate-600 font-semibold">
                                                                                                 <div className="flex items-center gap-3">
                                                                                                     <ArrowDownRight className="h-3 w-3 text-slate-300" />
@@ -2707,7 +2707,7 @@ export default function WCMTerminal() {
                                                                         <div className="flex items-center gap-2">
                                                                             <div className="text-xs font-bold text-slate-700">{item.name || item.code}</div>
                                                                             {item.scope === "OTHER_STEP" && (
-                                                                                <Badge variant="outline" className="h-4 text-[9px] bg-indigo-50 text-indigo-700 border-indigo-200">Prior Step</Badge>
+                                                                                <Badge variant="outline" className="h-4 text-[9px] bg-blue-50 text-blue-700 border-blue-200">Prior Step</Badge>
                                                                             )}
                                                                             {item.scope !== "STEP" && item.scope !== "OTHER_STEP" && (
                                                                                 <Badge variant="outline" className="h-4 text-[9px] bg-slate-100 text-slate-600 border-slate-200">Reference</Badge>
@@ -2956,10 +2956,10 @@ export default function WCMTerminal() {
                                                                 <div className="mt-2 text-2xl font-black text-amber-900">{fallbackRollsAvailable}</div>
                                                                 <div className="text-[11px] text-amber-700">Compatible manual-only candidates</div>
                                                             </div>
-                                                            <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 px-3 py-3">
-                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Reserved</div>
-                                                                <div className="mt-2 text-2xl font-black text-indigo-900">{effectiveRollsReserved}/{rollsRequired}</div>
-                                                                <div className="text-[11px] text-indigo-700">Current-step assignment truth</div>
+                                                            <div className="rounded-xl border border-blue-200 bg-blue-50/50 px-3 py-3">
+                                                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Reserved</div>
+                                                                <div className="mt-2 text-2xl font-black text-blue-900">{effectiveRollsReserved}/{rollsRequired}</div>
+                                                                <div className="text-[11px] text-blue-700">Current-step assignment truth</div>
                                                             </div>
                                                             <div className="rounded-xl border border-slate-200 bg-slate-900 px-3 py-3 text-white">
                                                                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Slot Coverage</div>
@@ -2975,7 +2975,7 @@ export default function WCMTerminal() {
                                                             <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
                                                                 Missing lineage {missingLineageRolls}
                                                             </Badge>
-                                                            <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                                                            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
                                                                 Missing assignment {rollsMissing}
                                                             </Badge>
                                                             {fallbackRollsAvailable > 0 && (
@@ -2988,16 +2988,16 @@ export default function WCMTerminal() {
                                                     {satisfactionStatus?.input_form === "ROLL" && laneGroups.length > 0 && (
                                                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                                                             {laneGroups.map((lane: any) => (
-                                                                <div key={String(lane?.lane_key || lane?.lane_label)} className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3">
+                                                                <div key={String(lane?.lane_key || lane?.lane_label)} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
                                                                     <div className="flex items-start justify-between gap-3">
                                                                         <div>
-                                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">{lane?.lane_label || lane?.lane_key || "Lane"}</div>
+                                                                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-500">{lane?.lane_label || lane?.lane_key || "Lane"}</div>
                                                                             <div className="mt-1 text-sm font-black text-slate-900">{lane?.variant_name || lane?.family_name || lane?.source_role || "Required lane"}</div>
                                                                             <div className="mt-1 text-[11px] font-semibold text-slate-600">
                                                                                 {[lane?.grade_name, lane?.thickness_micron ? `${lane.thickness_micron}μ` : null, lane?.width_mm ? `${lane.width_mm}mm` : null].filter(Boolean).join(" • ") || "Spec comes from layer snapshot"}
                                                                             </div>
                                                                         </div>
-                                                                        <Badge variant="outline" className="border-indigo-200 bg-white text-[10px] text-indigo-700">
+                                                                        <Badge variant="outline" className="border-blue-200 bg-white text-[10px] text-blue-700">
                                                                             {(lane?.matched_rolls || lane?.rolls || []).length} roll(s)
                                                                         </Badge>
                                                                     </div>
@@ -3009,7 +3009,7 @@ export default function WCMTerminal() {
                                                                             </div>
                                                                         ))}
                                                                         {(lane?.matched_rolls || lane?.rolls || []).length === 0 ? (
-                                                                            <div className="rounded-xl border border-dashed border-indigo-200 bg-white/50 px-2.5 py-2 text-[10px] font-bold text-indigo-500">
+                                                                            <div className="rounded-xl border border-dashed border-blue-200 bg-white/50 px-2.5 py-2 text-[10px] font-bold text-blue-500">
                                                                                 No compatible roll assigned to this lane yet.
                                                                             </div>
                                                                         ) : null}
@@ -3030,9 +3030,9 @@ export default function WCMTerminal() {
                                                                     <div
                                                                         key={roll.id}
                                                                         data-testid={`wcm-assigned-roll-${String(roll.id)}`}
-                                                                        className="flex items-center gap-3 p-2 bg-indigo-50/50 border border-indigo-100 rounded-lg group"
+                                                                        className="flex items-center gap-3 p-2 bg-blue-50/50 border border-blue-100 rounded-lg group"
                                                                     >
-                                                                        <div className="h-2 w-2 rounded-full bg-indigo-500" />
+                                                                        <div className="h-2 w-2 rounded-full bg-blue-500" />
                                                                         <div className="flex-1 min-w-0">
                                                                             <p className="text-[11px] font-bold text-slate-900 truncate uppercase">{roll.label_id}</p>
                                                                             <p className="text-[10px] text-slate-600 font-semibold truncate">{roll.material_name}</p>
@@ -3041,7 +3041,7 @@ export default function WCMTerminal() {
                                                                                 {roll.grade_name ? ` • ${roll.grade_name}` : ""}
                                                                             </p>
                                                                             {roll.target_lane_label ? (
-                                                                                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-indigo-600">
+                                                                                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-blue-600">
                                                                                     {roll.target_lane_label}
                                                                                     {roll.target_layer_index ? ` • Layer ${roll.target_layer_index}` : ""}
                                                                                 </p>
@@ -3068,7 +3068,7 @@ export default function WCMTerminal() {
                                                                                 <Trash2 className="h-3 w-3" />
                                                                             </Button>
                                                                         )}
-                                                                        <CheckCircle2 className="h-4 w-4 text-indigo-500 shrink-0" />
+                                                                        <CheckCircle2 className="h-4 w-4 text-blue-500 shrink-0" />
                                                                     </div>
                                                                 ))}
                                                                 {assignedRollsForDisplay.length === 0 && (
@@ -3134,7 +3134,7 @@ export default function WCMTerminal() {
                                                         </div>
                                                         <Button
                                                             variant="outline"
-                                                            className="h-10 px-6 border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-black"
+                                                            className="h-10 px-6 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-black"
                                                             data-testid="wcm-save-machine"
                                                             onClick={() => {
                                                                 if (!selectedMachineId) {
@@ -3166,7 +3166,7 @@ export default function WCMTerminal() {
                                                             className={cn(
                                                                 "w-full h-14 text-base font-black uppercase tracking-wider shadow-lg transition-all",
                                                                 canPushToOperator
-                                                                    ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
+                                                                    ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
                                                                     : "bg-slate-200 text-slate-400 cursor-not-allowed"
                                                             )}
                                                             disabled={!canPushToOperator || mutation.isPending}
@@ -3227,7 +3227,7 @@ export default function WCMTerminal() {
                                                 >
                                                     <div className={cn(
                                                         "absolute top-0 left-0 w-1.5 h-full",
-                                                        isRunning ? "bg-indigo-500" : "bg-amber-400"
+                                                        isRunning ? "bg-blue-500" : "bg-amber-400"
                                                     )} />
 
                                                     <div className="flex items-start justify-between mb-4">
@@ -3239,7 +3239,7 @@ export default function WCMTerminal() {
                                                         </div>
                                                         <Badge className={cn(
                                                             "text-[9px] font-black uppercase px-2 py-0 border",
-                                                            isRunning ? "bg-indigo-50 text-indigo-600 border-indigo-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                                                            isRunning ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-amber-50 text-amber-600 border-amber-100"
                                                         )}>
                                                             {isRunning ? "RUNNING" : "SENT TO MACHINE"}
                                                         </Badge>
@@ -3250,7 +3250,7 @@ export default function WCMTerminal() {
                                                             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-tight line-clamp-1">
                                                                 {job.product_name || job.template_name}
                                                             </div>
-                                                            <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
+                                                            <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-0.5">
                                                                 {job.process_code}
                                                             </div>
                                                         </div>
@@ -3266,7 +3266,7 @@ export default function WCMTerminal() {
                                                                 <div
                                                                     className={cn(
                                                                         "h-full rounded-full transition-all duration-1000",
-                                                                        isRunning ? "bg-indigo-500" : "bg-amber-400"
+                                                                        isRunning ? "bg-blue-500" : "bg-amber-400"
                                                                     )}
                                                                     style={{ width: `${Math.min(100, (Number(job.produced_qty || 0) / Number(job.quantity || 1)) * 100)}%` }}
                                                                 />
@@ -3764,7 +3764,7 @@ function RollAssignmentModal({
                 size="sm"
                 disabled={disabled}
                 onClick={() => setOpen(true)}
-                className="h-7 border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-7 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold px-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {disabled ? "ROLLS ASSIGNED" : "ALLOCATE ROLLS"}
             </Button>
@@ -3807,10 +3807,10 @@ function RollAssignmentModal({
                             <div className="mt-2 text-2xl font-black text-amber-900">{Number((wipPoolMeta as any)?.fallback_roll_count || fallbackCandidateCount || 0)}</div>
                             <div className="text-[11px] text-amber-700">Manual assignment only</div>
                         </div>
-                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Required</div>
-                            <div className="mt-2 text-2xl font-black text-indigo-900">{Number(required || 0)}</div>
-                            <div className="text-[11px] text-indigo-700">Rolls needed for this step</div>
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-3">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Required</div>
+                            <div className="mt-2 text-2xl font-black text-blue-900">{Number(required || 0)}</div>
+                            <div className="text-[11px] text-blue-700">Rolls needed for this step</div>
                         </div>
                         <div className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-3 text-white">
                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Slot Coverage</div>
@@ -3883,15 +3883,15 @@ function RollAssignmentModal({
                                             className={cn(
                                                 "flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer group",
                                                 selectedRollIds.includes(rollId)
-                                                    ? "border-indigo-500 bg-indigo-50/30 shadow-sm"
+                                                    ? "border-blue-500 bg-blue-50/30 shadow-sm"
                                                     : "border-slate-100 hover:border-slate-200"
                                             )}
                                         >
                                             <div className={cn(
                                                 "h-6 w-6 rounded-md border-2 flex items-center justify-center transition-all",
                                                 selectedRollIds.includes(rollId)
-                                                    ? "bg-indigo-600 border-indigo-600 text-white"
-                                                    : "bg-white border-slate-200 group-hover:border-indigo-300"
+                                                    ? "bg-blue-600 border-blue-600 text-white"
+                                                    : "bg-white border-slate-200 group-hover:border-blue-300"
                                             )}>
                                                 {selectedRollIds.includes(rollId) && <CheckCircle2 className="h-4 w-4" />}
                                             </div>
@@ -3906,7 +3906,7 @@ function RollAssignmentModal({
                                                         <Badge className="bg-amber-100 text-amber-800 text-[10px] font-bold">PURCHASED FALLBACK</Badge>
                                                     )}
                                                     {String(roll.roll_source || "").toUpperCase() === "COMPATIBLE_FALLBACK" && (
-                                                        <Badge className="bg-indigo-100 text-indigo-700 text-[10px] font-bold">COMPATIBLE FALLBACK</Badge>
+                                                        <Badge className="bg-blue-100 text-blue-700 text-[10px] font-bold">COMPATIBLE FALLBACK</Badge>
                                                     )}
                                                 </div>
                                                 <div className="text-[11px] font-medium text-slate-600">
@@ -3924,7 +3924,7 @@ function RollAssignmentModal({
                                                     variant={selectedRollIds.includes(rollId) ? "default" : "outline"}
                                                     className={cn(
                                                         "relative z-10 h-7 shrink-0 px-4 text-[10px] font-black uppercase tracking-tighter",
-                                                        selectedRollIds.includes(rollId) ? "bg-indigo-600" : "text-indigo-600 border-indigo-200"
+                                                        selectedRollIds.includes(rollId) ? "bg-blue-600" : "text-blue-600 border-blue-200"
                                                     )}
                                                     onClick={(e) => {
                                                         e.preventDefault()
@@ -4051,7 +4051,7 @@ function RollAssignmentModal({
                         <Button variant="ghost" onClick={() => setOpen(false)} className="font-bold">CANCEL</Button>
                         {activeTab === "local" ? (
                             <Button
-                                className="bg-indigo-600 hover:bg-indigo-700 font-black px-8"
+                                className="bg-blue-600 hover:bg-blue-700 font-black px-8"
                                 disabled={
                                     selectedRollIds.length === 0
                                     || mutation.isPending

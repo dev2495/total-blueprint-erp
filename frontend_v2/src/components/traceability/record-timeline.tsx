@@ -122,7 +122,7 @@ export function RecordTimelinePanel({
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.85fr)]">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-indigo-500" />
+                <Clock3 className="h-4 w-4 text-blue-500" />
                 <h3 className="text-sm font-black uppercase tracking-[0.22em] text-slate-500">Event History</h3>
               </div>
 
@@ -136,7 +136,7 @@ export function RecordTimelinePanel({
                         className="relative flex gap-4 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm"
                       >
                         <div className="relative flex flex-col items-center">
-                          <div className="mt-1.5 h-3.5 w-3.5 rounded-full bg-indigo-500 ring-4 ring-indigo-100" />
+                          <div className="mt-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
                           {index < timeline.length - 1 ? <div className="mt-2 h-full w-px flex-1 bg-slate-200" /> : null}
                         </div>
 
@@ -144,7 +144,7 @@ export function RecordTimelinePanel({
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant="outline" className="rounded-full border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">
+                                <Badge variant="outline" className="rounded-full border-blue-100 bg-blue-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
                                   {event.event_type || "EVENT"}
                                 </Badge>
                                 {event.entity_type ? (
@@ -208,7 +208,7 @@ export function RecordTimelinePanel({
 
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <ArrowUpRight className="h-4 w-4 text-indigo-500" />
+                <ArrowUpRight className="h-4 w-4 text-blue-500" />
                 <h3 className="text-sm font-black uppercase tracking-[0.22em] text-slate-500">Related Records</h3>
               </div>
 

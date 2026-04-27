@@ -397,7 +397,7 @@ export default function PlantsPage() {
                                                     Legal Profile Pending
                                                 </Badge>
                                             )}
-                                            <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700">
+                                            <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700">
                                                 {plant.default_cost_absorption_group_code || "No cost group"}
                                             </Badge>
                                         </div>

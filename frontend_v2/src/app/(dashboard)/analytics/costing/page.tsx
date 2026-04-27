@@ -83,7 +83,7 @@ function MasterAssignmentCard({
                 <div className="font-medium text-slate-900">{item.title}</div>
                 <div className="mt-1 text-xs text-slate-500">{item.subtitle}</div>
               </div>
-              <Badge variant="outline" className="border-indigo-200 text-indigo-700">{item.group}</Badge>
+              <Badge variant="outline" className="border-blue-200 text-blue-700">{item.group}</Badge>
             </div>
           </div>
         )) : (
@@ -522,7 +522,7 @@ export default function CostingCenterPage() {
                       key={item.id}
                       type="button"
                       onClick={() => setSelectedMonthId(item.id)}
-                      className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${selectedMonthId === item.id ? "border-indigo-300 bg-indigo-50" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                      className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${selectedMonthId === item.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
