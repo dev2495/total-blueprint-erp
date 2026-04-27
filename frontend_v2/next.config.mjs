@@ -11,7 +11,7 @@ const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    outputFileTracingRoot: path.resolve(configDir, ".."),
+    outputFileTracingRoot: configDir,
     allowedDevOrigins: ["127.0.0.1", "localhost"],
     // Prevent Next from rewriting trailing slashes on API routes.
     // We handle `/api/*` slash compatibility at the Django layer.
@@ -22,10 +22,14 @@ const nextConfig = {
                 source: "/api/:path*",
                 destination: `${localProxyTarget}/api/:path*`,
             },
+            {
+                source: "/media/:path*",
+                destination: `${localProxyTarget}/media/:path*`,
+            },
         ];
     },
-    webpack: (config, { dev }) => {
-        if (dev && process.env.DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE === '1') {
+    webpack: (config) => {
+        if (process.env.DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE === '1') {
             config.cache = false;
         }
         return config;

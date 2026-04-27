@@ -29,6 +29,7 @@
 .env
 .env.local
 .env.*.local
+media/
 frontend_v2/.env*
 
 # Runtime, dependency, and build output.

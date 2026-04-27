@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, Eye, Image as ImageIcon, Palette, Plus, Search, ShieldCheck, UploadCloud } from "lucide-react"
 
@@ -11,6 +11,53 @@ import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 import { engineeringService, type Artwork } from "@/services/engineering"
 import { ArtworkDialog } from "@/components/engineering/artwork-dialog"
+
+function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">(artwork.image ? "loading" : "failed")
+
+  useEffect(() => {
+    if (!artwork.image) {
+      setLoadState("failed")
+      return
+    }
+
+    let cancelled = false
+    const image = new window.Image()
+    setLoadState("loading")
+    image.onload = () => {
+      if (cancelled) return
+      setLoadState(image.naturalWidth > 0 && image.naturalHeight > 0 ? "ready" : "failed")
+    }
+    image.onerror = () => {
+      if (!cancelled) setLoadState("failed")
+    }
+    image.src = artwork.image
+
+    return () => {
+      cancelled = true
+    }
+  }, [artwork.image])
+
+  if (artwork.image && loadState === "ready") {
+    return (
+      <img
+        src={artwork.image}
+        alt={artwork.name}
+        className="h-full w-full object-cover"
+        onLoad={(event) => {
+          if (!event.currentTarget.naturalWidth || !event.currentTarget.naturalHeight) setLoadState("failed")
+        }}
+        onError={() => setLoadState("failed")}
+      />
+    )
+  }
+
+  return (
+    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
+      <ImageIcon className="h-12 w-12" />
+    </div>
+  )
+}
 
 export default function EngineeringArtworksPage() {
   const queryClient = useQueryClient()
@@ -57,7 +104,7 @@ export default function EngineeringArtworksPage() {
         { label: "Total Assets", value: stats.total, icon: ImageIcon, toneClassName: "bg-pink-50 text-pink-600" },
         { label: "Approved", value: stats.approved, icon: ShieldCheck, toneClassName: "bg-emerald-50 text-emerald-600" },
         { label: "Pending", value: stats.pending, icon: UploadCloud, toneClassName: "bg-amber-50 text-amber-600" },
-        { label: "Cylinder Ready", value: stats.mapped, icon: CheckCircle2, toneClassName: "bg-violet-50 text-violet-600" },
+        { label: "Cylinder Ready", value: stats.mapped, icon: CheckCircle2, toneClassName: "bg-blue-50 text-blue-600" },
       ]}
       chips={[
         { kind: "approval", value: "APPROVED", label: "Approved artwork" },
@@ -93,13 +140,7 @@ export default function EngineeringArtworksPage() {
                 }}
               >
                 <div className="relative h-52 w-full overflow-hidden bg-slate-100">
-                  {artwork.image ? (
-                    <img src={artwork.image} alt={artwork.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-pink-50 text-slate-400">
-                      <ImageIcon className="h-12 w-12" />
-                    </div>
-                  )}
+                  <ArtworkThumbnail artwork={artwork} />
                 </div>
                 <CardContent className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-3">

@@ -145,6 +145,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             if (savedId) {
                 setActiveArtworkId(savedId)
             }
+            if (saved?.image) {
+                setPreviewUrl(String(saved.image))
+            }
             queryClient.invalidateQueries({ queryKey: ["artworks"] })
             toast({ title: "Draft Saved" })
             if (isCreateMode) {
@@ -217,7 +220,11 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         return Array.from(uniq).sort()
     }, [inks])
     const colorList = [...frontColors, ...backColors].map(c => String(c).trim().toUpperCase()).filter(Boolean)
+    const hasPrintColors = colorList.length > 0
+    const colorContractOk = hasPrintColors && frontColorCount === frontColors.length && backColorCount === backColors.length
+    const filePathAsset = String(form.watch("file_path") || "").trim()
     const hasImage = !!previewUrl
+    const hasProductionAsset = hasImage || !!filePathAsset
 
     const finalizedCylinders = useMemo(
         () => (artworkCylinders || []).filter((row: any) => !Boolean(row?.is_draft)),
@@ -267,8 +274,13 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         () => [
             {
                 id: "image",
-                label: "Artwork image uploaded",
-                ok: hasImage,
+                label: "Artwork image or file uploaded",
+                ok: hasProductionAsset,
+            },
+            {
+                id: "colors-assigned",
+                label: "At least one print color assigned",
+                ok: hasPrintColors,
             },
             {
                 id: "front-colors",
@@ -300,7 +312,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             },
         ],
         [
-            hasImage,
+            hasProductionAsset,
+            hasPrintColors,
             frontColorCount,
             frontColors.length,
             backColorCount,
@@ -314,7 +327,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
 
     const approvalBlockers = useMemo(() => {
         const blockers: string[] = []
-        if (!hasImage) blockers.push("Upload artwork image.")
+        if (!hasProductionAsset) blockers.push("Upload artwork image or file.")
+        if (!hasPrintColors) blockers.push("Add at least one front or back print color.")
         if (frontColorCount !== frontColors.length) blockers.push("Front color list/count mismatch.")
         if (backColorCount !== backColors.length) blockers.push("Back color list/count mismatch.")
         if (!activeArtworkId) blockers.push("Save draft before approval.")
@@ -325,7 +339,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         }
         return blockers
     }, [
-        hasImage,
+        hasProductionAsset,
+        hasPrintColors,
         frontColorCount,
         frontColors.length,
         backColorCount,
@@ -337,6 +352,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         incompleteFinalizedSlots,
     ])
     const canApprove = !isApproved && approvalBlockers.length === 0
+    const canGenerateCylinders = printType === "ROTO" && colorContractOk
 
     useEffect(() => {
         form.setValue("front_colors_count", frontColors.length, { shouldValidate: true })
@@ -390,7 +406,15 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         <div className="space-y-4">
                                             {previewUrl && (
                                                 <div className="relative w-full max-h-[300px] flex items-center justify-center rounded-2xl overflow-hidden border bg-slate-50/50 shadow-inner group p-2">
-                                                    <img src={previewUrl} alt="Artwork Preview" className="max-w-full max-h-[280px] w-auto h-auto object-contain drop-shadow-sm" />
+                                                    <img
+                                                        src={previewUrl}
+                                                        alt="Artwork Preview"
+                                                        className="max-w-full max-h-[280px] w-auto h-auto object-contain drop-shadow-sm"
+                                                        onLoad={(event) => {
+                                                            if (!event.currentTarget.naturalWidth) setPreviewUrl(null)
+                                                        }}
+                                                        onError={() => setPreviewUrl(null)}
+                                                    />
                                                     {!isApproved && (
                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <Button
@@ -405,7 +429,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                 </div>
                                             )}
                                             {!isApproved && !previewUrl && (
-                                                <div className="relative flex items-center justify-center w-full h-32 px-4 transition bg-slate-50 border-2 border-slate-300 border-dashed rounded-2xl appearance-none cursor-pointer hover:border-indigo-400 focus:outline-none">
+                                                <div className="relative flex items-center justify-center w-full h-32 px-4 transition bg-slate-50 border-2 border-slate-300 border-dashed rounded-2xl appearance-none cursor-pointer hover:border-blue-400 focus:outline-none">
                                                     <input
                                                         type="file"
                                                         accept="image/*"
@@ -425,6 +449,11 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         <span className="text-xs font-medium text-slate-600">Select Artwork Image</span>
                                                         <span className="text-[10px] text-slate-400">JPG, JPEG, or PNG supported</span>
                                                     </div>
+                                                </div>
+                                            )}
+                                            {isApproved && !previewUrl && (
+                                                <div className="flex h-32 w-full items-center justify-center rounded-2xl border bg-slate-50 text-slate-400">
+                                                    <Palette className="h-8 w-8" />
                                                 </div>
                                             )}
                                         </div>
@@ -632,8 +661,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            className="flex-1 border-indigo-200 text-indigo-700"
-                                            disabled={mutation.isPending || generateCylindersMutation.isPending}
+                                            className="flex-1 border-blue-200 text-blue-700"
+                                            disabled={!canGenerateCylinders || mutation.isPending || generateCylindersMutation.isPending}
                                             data-testid="artwork-generate-cylinders"
                                             onClick={form.handleSubmit(async (v) => {
                                                 try {

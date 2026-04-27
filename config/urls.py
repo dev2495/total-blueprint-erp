@@ -16,7 +16,9 @@ Including another URLconf
 """
 import os
 
-from django.urls import path, include
+from django.conf import settings
+from django.urls import include, path
+from django.views.static import serve
 from .views import health_check, health_live, health_ready
 
 urlpatterns = [
@@ -55,6 +57,7 @@ urlpatterns = [
     path('api/mrp/', include('apps.mrp.urls')),
     path('api/costing/', include('apps.costing.urls')),
     path('api/ops/', include('apps.platformops.urls')),
+    path('media/artworks/<path:path>', serve, {'document_root': settings.MEDIA_ROOT / 'artworks'}),
 ]
 
 if os.getenv("SKIP_ADMIN_APP_IMPORT") != "1":

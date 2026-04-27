@@ -44,7 +44,11 @@ def _absolute_media_url(request, field_value) -> str | None:
 
 
 class ArtworkSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
+    class AbsoluteMediaFileField(serializers.FileField):
+        def to_representation(self, value):
+            return _absolute_media_url(self.context.get("request"), value)
+
+    image = AbsoluteMediaFileField(required=False, allow_null=True)
     total_side_colors = serializers.IntegerField(read_only=True)
     cylinder_ready = serializers.SerializerMethodField()
 
@@ -52,9 +56,6 @@ class ArtworkSerializer(serializers.ModelSerializer):
         model = Artwork
         fields = "__all__"
         read_only_fields = ("approved_by", "approved_at")
-
-    def get_image(self, obj):
-        return _absolute_media_url(self.context.get("request"), getattr(obj, "image", None))
 
     def get_cylinder_ready(self, obj):
         front_required = int(obj.front_colors_count or 0)
