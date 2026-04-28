@@ -40,6 +40,7 @@ class Cylinder(models.Model):
     side = models.CharField(max_length=10, default='FRONT')
     side_slot_index = models.PositiveIntegerField(default=1)
     is_draft = models.BooleanField(default=False)
+    is_catalog_active = models.BooleanField(default=True)
     lifecycle_status = models.CharField(max_length=20, default='DRAFT')
     
     created_at = models.DateTimeField(auto_now_add=True)

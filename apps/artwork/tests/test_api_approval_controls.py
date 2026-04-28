@@ -145,6 +145,57 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.assertEqual(len(response.data["images"]), 3)
         self.assertEqual(response.data["primary_image"], response.data["images"][0]["image"])
 
+    def test_patch_finalized_artwork_creates_new_current_version(self):
+        vendor = Vendor.objects.create(name="Version Cylinder Vendor", code="VER-CYL-VENDOR")
+        plant = Plant.objects.create(name="Version Plant", code="VER-PLANT")
+        location = InventoryLocation.objects.create(plant=plant, code="VER-TOOL", name="Version Tool Room", type="TOOLING")
+        self.artwork.print_type = "ROTO"
+        self.artwork.substrate_mode = "SHEET"
+        self.artwork.front_colors = ["CYAN"]
+        self.artwork.front_colors_count = 1
+        self.artwork.color_list = ["CYAN"]
+        self.artwork.colors_count = 1
+        self.artwork.save()
+        Cylinder.objects.create(
+            code="CYL-VER-F1",
+            name="Versioned Front Cylinder",
+            artwork=self.artwork,
+            engraving_vendor=vendor,
+            storage_location=location,
+            color_name="CYAN",
+            diameter_mm=100,
+            width_mm=500,
+            circumference=314,
+            cell_depth_microns=28,
+            side="FRONT",
+            side_slot_index=1,
+            is_draft=False,
+            lifecycle_status="ACTIVE",
+            status="ACTIVE",
+        )
+
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {
+                "substrate_mode": "TUBING",
+                "front_colors": ["CYAN", "BLACK"],
+                "back_colors": ["WHITE"],
+                "front_colors_count": 2,
+                "back_colors_count": 1,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.artwork.refresh_from_db()
+        self.assertFalse(self.artwork.is_current_version)
+        self.assertNotEqual(str(response.data["id"]), str(self.artwork.id))
+        self.assertEqual(response.data["version"], self.artwork.version + 1)
+        self.assertEqual(str(response.data["previous_version"]), str(self.artwork.id))
+        self.assertEqual(response.data["substrate_mode"], "TUBING")
+        self.assertEqual(response.data["front_colors"], ["CYAN", "BLACK"])
+        self.assertEqual(response.data["back_colors"], ["WHITE"])
+
     def test_patch_rejects_more_than_three_artwork_images(self):
         uploads = [
             SimpleUploadedFile(f"artwork-preview-{index}.png", f"payload-{index}".encode(), content_type="image/png")
@@ -222,18 +273,19 @@ class ArtworkApiApprovalControlTests(TestCase):
 
         upload_response = self.client.patch(
             f"/api/engineering/artworks/{artwork.id}/",
-            {"image": upload},
+            {"image": upload, "update_in_place": "true"},
             format="multipart",
         )
         self.assertEqual(upload_response.status_code, 200, upload_response.content)
 
+        saved_artwork_id = upload_response.data["id"]
         approve_response = self.client.post(
-            f"/api/engineering/artworks/{artwork.id}/approve/",
+            f"/api/engineering/artworks/{saved_artwork_id}/approve/",
             {},
             format="json",
         )
 
         self.assertEqual(approve_response.status_code, 200, approve_response.content)
-        artwork.refresh_from_db()
-        self.assertEqual(artwork.status, "APPROVED")
-        self.assertTrue(artwork.image.name)
+        saved_artwork = Artwork.objects.get(id=saved_artwork_id)
+        self.assertEqual(saved_artwork.status, "APPROVED")
+        self.assertTrue(saved_artwork.image.name)

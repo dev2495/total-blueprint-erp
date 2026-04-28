@@ -33,6 +33,14 @@ class Artwork(models.Model):
     file_path = models.CharField(max_length=500, blank=True, null=True, help_text="S3 or Local Path to PDF/AI")
     image = models.ImageField(upload_to='artworks/', null=True, blank=True)
     version = models.IntegerField(default=1)
+    previous_version = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="next_versions",
+    )
+    is_current_version = models.BooleanField(default=True)
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
     

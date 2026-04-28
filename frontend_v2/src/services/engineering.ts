@@ -46,6 +46,8 @@ export interface Artwork {
     primary_image?: string | null;
     images?: Array<{ id: string; image: string | null; sort_order: number; created_at?: string }>;
     version: number;
+    previous_version?: string | null;
+    is_current_version?: boolean;
     status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
     created_at: string;
 }
@@ -74,6 +76,7 @@ export interface Cylinder {
     side?: "FRONT" | "BACK";
     side_slot_index?: number;
     is_draft?: boolean;
+    is_catalog_active?: boolean;
     lifecycle_status?: string;
     cost: number;
     life_cycles_count: number;

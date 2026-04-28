@@ -87,6 +87,9 @@ class ArtworkViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Artwork.objects.all().prefetch_related("images", "cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
         params = self.request.query_params
+        include_versions = _to_bool(params.get("include_versions"))
+        if include_versions is not True:
+            qs = qs.filter(is_current_version=True)
 
         status_param = params.get("status")
         if status_param:

@@ -5,10 +5,16 @@ from .serializers import CylinderSerializer, CylinderSlotAssignmentSerializer, T
 from .services import CylinderService
 
 class CylinderViewSet(viewsets.ModelViewSet):
-    queryset = Cylinder.objects.select_related("artwork", "engraving_vendor", "storage_location").prefetch_related("artwork__images").order_by('-created_at')
     serializer_class = CylinderSerializer
     search_fields = ['code', 'name', 'artwork__name', 'engraving_vendor__name']
     filterset_fields = ['status', 'engraving_vendor', 'artwork', 'side', 'is_draft', 'lifecycle_status']
+
+    def get_queryset(self):
+        qs = Cylinder.objects.select_related("artwork", "engraving_vendor", "storage_location").prefetch_related("artwork__images").order_by('-created_at')
+        include_inactive = str(self.request.query_params.get("include_inactive", "")).strip().lower() in {"1", "true", "yes"}
+        if not include_inactive:
+            qs = qs.filter(is_catalog_active=True)
+        return qs
 
     def perform_create(self, serializer):
         cylinder = serializer.save()
@@ -20,17 +26,23 @@ class CylinderViewSet(viewsets.ModelViewSet):
 
 
 class CylinderSlotAssignmentViewSet(viewsets.ModelViewSet):
-    queryset = CylinderSlotAssignment.objects.select_related(
-        "artwork",
-        "cylinder",
-        "cylinder__artwork",
-        "cylinder__engraving_vendor",
-        "cylinder__storage_location",
-    ).order_by(
-        "artwork__design_code", "side", "side_slot_index"
-    )
     serializer_class = CylinderSlotAssignmentSerializer
     filterset_fields = ["artwork", "cylinder", "side"]
+
+    def get_queryset(self):
+        qs = CylinderSlotAssignment.objects.select_related(
+            "artwork",
+            "cylinder",
+            "cylinder__artwork",
+            "cylinder__engraving_vendor",
+            "cylinder__storage_location",
+        ).order_by(
+            "artwork__design_code", "side", "side_slot_index"
+        )
+        include_inactive = str(self.request.query_params.get("include_inactive", "")).strip().lower() in {"1", "true", "yes"}
+        if not include_inactive:
+            qs = qs.filter(artwork__is_current_version=True, cylinder__is_catalog_active=True)
+        return qs
 
     def create(self, request, *args, **kwargs):
         artwork_id = request.data.get("artwork")

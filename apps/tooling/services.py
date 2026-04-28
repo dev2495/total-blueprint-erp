@@ -94,6 +94,8 @@ class CylinderService:
             raise ValueError(f"Requested {side}-{slot} exceeds artwork color slots.")
         if bool(cylinder.is_draft):
             raise ValueError("Only finalized cylinders can be reused for artwork slots.")
+        if not bool(getattr(cylinder, "is_catalog_active", True)):
+            raise ValueError("Inactive legacy cylinders cannot be reused for artwork slots.")
         if float(cylinder.circumference or 0) <= 0:
             raise ValueError("Reusable cylinder must have a circumference.")
         if not cylinder.engraving_vendor_id or not cylinder.storage_location_id:

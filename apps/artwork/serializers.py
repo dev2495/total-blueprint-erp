@@ -69,6 +69,42 @@ class ArtworkSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ("approved_by", "approved_at")
 
+    def _next_version_code(self, instance: Artwork) -> str:
+        raw_code = str(instance.design_code or "ART").strip().upper()
+        base = raw_code.rsplit("-V", 1)[0] if "-V" in raw_code else raw_code
+        next_version = int(instance.version or 1) + 1
+        code = f"{base}-V{next_version}"
+        while Artwork.objects.filter(design_code=code).exclude(id=instance.id).exists():
+            next_version += 1
+            code = f"{base}-V{next_version}"
+        return code
+
+    def _copy_existing_images(self, source: Artwork, target: Artwork):
+        for index, image_row in enumerate(source.images.order_by("sort_order", "created_at")[:3]):
+            if image_row.image:
+                ArtworkImage.objects.create(artwork=target, image=image_row.image.name, sort_order=index)
+        if target.images.exists():
+            first = target.images.order_by("sort_order", "created_at").first()
+            if first:
+                target.image = first.image.name
+                target.save(update_fields=["image"])
+        elif getattr(source, "image", None):
+            target.image = source.image.name
+            target.save(update_fields=["image"])
+
+    def _requires_new_version(self, instance: Artwork) -> bool:
+        if str(instance.status or "").upper() == "APPROVED":
+            return True
+        if instance.cylinders.filter(is_draft=False).exists():
+            return True
+        if instance.cylinder_slot_assignments.filter(cylinder__is_draft=False).exists():
+            return True
+        if getattr(instance, "sales_order_items_assigned", None) is not None and instance.sales_order_items_assigned.exists():
+            return True
+        if getattr(instance, "planned_stock_orders_assigned", None) is not None and instance.planned_stock_orders_assigned.exists():
+            return True
+        return False
+
     def get_cylinder_ready(self, obj):
         front_required = int(obj.front_colors_count or 0)
         back_required = int(obj.back_colors_count or 0)
@@ -135,6 +171,44 @@ class ArtworkSerializer(serializers.ModelSerializer):
         return self._sync_images(artwork)
 
     def update(self, instance, validated_data):
+        request = self.context.get("request")
+        update_in_place = False
+        if request is not None:
+            update_in_place = str(request.data.get("update_in_place", "")).strip().lower() in {"1", "true", "yes"}
+        if not update_in_place and self._requires_new_version(instance):
+            version_data = {
+                "design_code": self._next_version_code(instance),
+                "name": instance.name,
+                "print_type": instance.print_type,
+                "substrate_mode": instance.substrate_mode,
+                "color_list": list(instance.color_list or []),
+                "color_mapping": dict(instance.color_mapping or {}),
+                "colors_count": instance.colors_count,
+                "front_colors_count": instance.front_colors_count,
+                "back_colors_count": instance.back_colors_count,
+                "front_colors": list(instance.front_colors or []),
+                "back_colors": list(instance.back_colors or []),
+                "file_path": instance.file_path,
+                "image": instance.image,
+                "version": int(instance.version or 1) + 1,
+                "previous_version": instance,
+                "is_current_version": True,
+                "status": "DRAFT",
+                "comments": instance.comments,
+            }
+            version_data.update(validated_data)
+            requested_code = str(validated_data.get("design_code") or "").strip()
+            if requested_code and requested_code.upper() != str(instance.design_code or "").strip().upper():
+                version_data["design_code"] = requested_code
+            else:
+                version_data["design_code"] = self._next_version_code(instance)
+            instance.is_current_version = False
+            instance.save(update_fields=["is_current_version"])
+            artwork = Artwork.objects.create(**version_data)
+            if self._incoming_images():
+                return self._sync_images(artwork)
+            self._copy_existing_images(instance, artwork)
+            return artwork
         artwork = super().update(instance, validated_data)
         return self._sync_images(artwork)
 

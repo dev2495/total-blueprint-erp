@@ -54,6 +54,11 @@ const artworkSchema = z.object({
 
 type ArtworkFormValues = z.infer<typeof artworkSchema>
 
+function sameStringArray(left: string[] = [], right: string[] = []) {
+    if (left.length !== right.length) return false
+    return left.every((value, index) => String(value || "") === String(right[index] || ""))
+}
+
 interface ArtworkDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -213,7 +218,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         },
     })
 
-    const isApproved = artwork?.status === "APPROVED"
+    const sourceIsApproved = artwork?.status === "APPROVED"
     const printType = String(form.watch("print_type") || "FLEXO").toUpperCase()
     const substrateMode = String(form.watch("substrate_mode") || "SHEET").toUpperCase()
     const hasBackSide = substrateMode === "TUBING"
@@ -393,7 +398,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         missingBackSlots,
         incompleteFinalizedSlots,
     ])
-    const canApprove = !isApproved && approvalBlockers.length === 0
+    const canApprove = approvalBlockers.length === 0
     const canGenerateCylinders = printType === "ROTO" && colorContractOk
     const slotCoverage = useMemo(() => {
         const map = new Map<string, { state: "draft" | "ready"; label: string }>()
@@ -450,11 +455,19 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         if (!hasBackSide && (form.getValues("back_colors") || []).length > 0) {
             form.setValue("back_colors", [], { shouldDirty: true, shouldValidate: true })
         }
-        form.setValue("front_colors_count", frontColors.length, { shouldValidate: true })
-        form.setValue("back_colors_count", backColors.length, { shouldValidate: true })
-        form.setValue("colors_count", colorList.length, { shouldValidate: true })
-        form.setValue("color_list", colorList, { shouldValidate: false })
-    }, [frontColors, backColors, colorList.join("|"), form, hasBackSide])
+        if (Number(form.getValues("front_colors_count") || 0) !== frontColors.length) {
+            form.setValue("front_colors_count", frontColors.length, { shouldValidate: true })
+        }
+        if (Number(form.getValues("back_colors_count") || 0) !== backColors.length) {
+            form.setValue("back_colors_count", backColors.length, { shouldValidate: true })
+        }
+        if (Number(form.getValues("colors_count") || 0) !== colorList.length) {
+            form.setValue("colors_count", colorList.length, { shouldValidate: true })
+        }
+        if (!sameStringArray(form.getValues("color_list") || [], colorList)) {
+            form.setValue("color_list", colorList, { shouldValidate: false })
+        }
+    }, [frontColors.length, backColors.length, colorList.join("|"), form, hasBackSide])
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -463,10 +476,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                     <div className="flex items-center justify-between pr-4">
                         <div>
                             <DialogTitle className="text-xl font-black uppercase text-slate-800">
-                                {artwork ? `Edit: ${artwork.design_code}` : "New Artwork"}
+                                {artwork ? `New Version: ${artwork.design_code}` : "New Artwork"}
                             </DialogTitle>
                             <DialogDescription className="text-xs font-medium text-slate-500">
-                                Manage visual definition, side colors, and print method.
+                                {artwork ? `Existing usage stays on v${artwork.version || 1}; saving creates the next artwork version.` : "Manage visual definition, side colors, and print method."}
                             </DialogDescription>
                         </div>
                         <div className="flex items-center gap-2">
@@ -477,8 +490,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                             >
                                 <RefreshCw className="h-3 w-3" />
                             </Button>
-                            {isApproved && <Badge className="bg-emerald-500 text-white font-bold">APPROVED</Badge>}
-                            {!isApproved && artwork && <Badge variant="outline" className="text-amber-600 bg-amber-50">DRAFT</Badge>}
+                            {sourceIsApproved && <Badge className="bg-emerald-500 text-white font-bold">SOURCE APPROVED</Badge>}
+                            {artwork && <Badge variant="outline" className="text-amber-600 bg-amber-50">V{Number(artwork.version || 1) + 1} DRAFT</Badge>}
                         </div>
                     </div>
                 </DialogHeader>
@@ -518,37 +531,35 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                     </div>
                                                 </div>
                                             )}
-                                            {!isApproved && (
-                                                <div className="relative flex h-32 w-full cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 transition hover:border-blue-400 focus:outline-none">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        multiple
-                                                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                                        data-testid="artwork-image-input"
-                                                        onChange={(e) => {
-                                                            const files = Array.from(e.target.files || []).slice(0, 3)
-                                                            if (files.length) {
-                                                                setSelectedImages(files)
-                                                                onChange(files)
-                                                                setPreviewUrls(files.map((file) => URL.createObjectURL(file)))
-                                                                if ((e.target.files?.length || 0) > 3) {
-                                                                    toast({ title: "Only 3 images kept", description: "Artwork supports a maximum of 3 images." })
-                                                                }
+                                            <div className="relative flex h-32 w-full cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 transition hover:border-blue-400 focus:outline-none">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    multiple
+                                                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                                    data-testid="artwork-image-input"
+                                                    onChange={(e) => {
+                                                        const files = Array.from(e.target.files || []).slice(0, 3)
+                                                        if (files.length) {
+                                                            setSelectedImages(files)
+                                                            onChange(files)
+                                                            setPreviewUrls(files.map((file) => URL.createObjectURL(file)))
+                                                            if ((e.target.files?.length || 0) > 3) {
+                                                                toast({ title: "Only 3 images kept", description: "Artwork supports a maximum of 3 images." })
                                                             }
-                                                        }}
-                                                        name={field.name}
-                                                        onBlur={field.onBlur}
-                                                        ref={field.ref}
-                                                    />
-                                                    <div className="flex flex-col items-center space-y-2">
-                                                        <Palette className="w-8 h-8 text-slate-400" />
-                                                        <span className="text-xs font-medium text-slate-600">{previewUrls.length ? "Replace artwork images" : "Select artwork images"}</span>
-                                                        <span className="text-[10px] text-slate-400">JPG, JPEG, or PNG supported. Maximum 3.</span>
-                                                    </div>
+                                                        }
+                                                    }}
+                                                    name={field.name}
+                                                    onBlur={field.onBlur}
+                                                    ref={field.ref}
+                                                />
+                                                <div className="flex flex-col items-center space-y-2">
+                                                    <Palette className="w-8 h-8 text-slate-400" />
+                                                    <span className="text-xs font-medium text-slate-600">{previewUrls.length ? "Replace artwork images" : "Select artwork images"}</span>
+                                                    <span className="text-[10px] text-slate-400">JPG, JPEG, or PNG supported. Maximum 3.</span>
                                                 </div>
-                                            )}
-                                            {!isApproved && previewUrls.length > 0 && (
+                                            </div>
+                                            {previewUrls.length > 0 && (
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -558,11 +569,6 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                 >
                                                     Remove selected previews
                                                 </Button>
-                                            )}
-                                            {isApproved && previewUrls.length === 0 && (
-                                                <div className="flex h-32 w-full items-center justify-center rounded-2xl border bg-slate-50 text-slate-400">
-                                                    <Palette className="h-8 w-8" />
-                                                </div>
                                             )}
                                         </div>
                                     </FormControl>
@@ -807,62 +813,53 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                             >
                                 Cancel
                             </Button>
-                            {!isApproved ? (
-                                <>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="flex-1 border-slate-300 text-slate-700"
-                                        disabled={mutation.isPending}
-                                        data-testid="artwork-save-draft"
-                                        onClick={form.handleSubmit(async (v) => {
-                                            try {
-                                                await mutation.mutateAsync(v as ArtworkFormValues)
-                                                toast({ title: "Draft saved" })
-                                                onOpenChange(false)
-                                            } catch {
-                                                // handled in mutation onError
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1 border-slate-300 text-slate-700"
+                                disabled={mutation.isPending}
+                                data-testid="artwork-save-draft"
+                                onClick={form.handleSubmit(async (v) => {
+                                    try {
+                                        await mutation.mutateAsync(v as ArtworkFormValues)
+                                        toast({ title: artwork ? "Version draft saved" : "Draft saved" })
+                                        onOpenChange(false)
+                                    } catch {
+                                        // handled in mutation onError
+                                    }
+                                })}
+                            >
+                                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Draft
+                            </Button>
+                            {(artwork || activeArtworkId) && (
+                                <Button
+                                    type="button"
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                    disabled={!canApprove || approveMutation.isPending || mutation.isPending}
+                                    data-testid="artwork-approve"
+                                    onClick={form.handleSubmit(async (v) => {
+                                        try {
+                                            const saved = await mutation.mutateAsync(v as ArtworkFormValues)
+                                            const targetId = String(saved?.id || activeArtworkId || "")
+                                            if (!targetId) {
+                                                toast({
+                                                    title: "Draft required",
+                                                    description: "Please save artwork details first.",
+                                                    variant: "destructive",
+                                                })
+                                                return
                                             }
-                                        })}
-                                    >
-                                        {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Save Draft
-                                    </Button>
-                                    {(artwork || activeArtworkId) && (
-                                        <Button
-                                            type="button"
-                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                                            disabled={!canApprove || approveMutation.isPending || mutation.isPending}
-                                            data-testid="artwork-approve"
-                                            onClick={form.handleSubmit(async (v) => {
-                                                // Save first, then approve in onSuccess chain
-                                                try {
-                                                    const saved = await mutation.mutateAsync(v as ArtworkFormValues)
-                                                    const targetId = String(saved?.id || activeArtworkId || "")
-                                                    if (!targetId) {
-                                                        toast({
-                                                            title: "Draft required",
-                                                            description: "Please save artwork details first.",
-                                                            variant: "destructive",
-                                                        })
-                                                        return
-                                                    }
-                                                    await approveMutation.mutateAsync(targetId)
-                                                } catch {
-                                                    // handled in mutation onError
-                                                }
-                                            })}
-                                        >
-                                            {(approveMutation.isPending || mutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                            <ShieldCheck className="h-4 w-4 mr-2" />
-                                            Approve
-                                        </Button>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="flex-1 text-center py-2 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-md">
-                                    Asset is Approved & Locked
-                                </div>
+                                            await approveMutation.mutateAsync(targetId)
+                                        } catch {
+                                            // handled in mutation onError
+                                        }
+                                    })}
+                                >
+                                    {(approveMutation.isPending || mutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    <ShieldCheck className="h-4 w-4 mr-2" />
+                                    Approve
+                                </Button>
                             )}
                         </div>
                     </form>
