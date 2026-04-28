@@ -88,6 +88,29 @@ export function salesMaterialFilterLabel(value: unknown) {
   return raw
 }
 
+export function salesSpecMaterialLabels(spec: ProductSpec) {
+  return salesUniqueText(
+    spec.layers.flatMap((layer) => [
+      salesMaterialFilterLabel(layer.variantName),
+      salesMaterialFilterLabel(layer.variantCode),
+      salesMaterialFilterLabel(layer.label),
+    ])
+  )
+}
+
+export function salesSpecMatchesMaterialFilter(spec: ProductSpec, value?: string) {
+  const normalized = salesMaterialFilterLabel(value)
+  if (!normalized) return true
+  const q = normalized.toLowerCase()
+  const labels = salesSpecMaterialLabels(spec)
+  if (labels.some((label) => label.toLowerCase() === q)) return true
+  return labels.some((label) => {
+    const lowered = label.toLowerCase()
+    if (lowered.length <= 3 || q.length <= 3) return lowered === q
+    return lowered.includes(q) || q.includes(lowered)
+  })
+}
+
 export function salesUniqueText(values: Array<string | number | null | undefined>) {
   return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)))
 }
