@@ -145,7 +145,12 @@ def resolve_ink_contract(
 
 
 def get_artwork_contract(artwork, *, require_asset: bool = False) -> dict[str, Any]:
-    if require_asset and not getattr(artwork, "file_path", None) and not getattr(artwork, "image", None):
+    has_image_list = False
+    try:
+        has_image_list = artwork.images.exists()
+    except Exception:
+        has_image_list = False
+    if require_asset and not getattr(artwork, "file_path", None) and not getattr(artwork, "image", None) and not has_image_list:
         raise ValidationError("Cannot approve artwork without an uploaded file/image asset.")
 
     front_count = _as_int(getattr(artwork, "front_colors_count", 0), 0)

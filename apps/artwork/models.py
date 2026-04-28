@@ -48,9 +48,8 @@ class Artwork(models.Model):
 
     def save(self, *args, **kwargs):
         if str(self.substrate_mode or "SHEET").upper() == "SHEET":
-            has_back_colors = bool(self.back_colors) if isinstance(self.back_colors, list) else False
-            if int(self.back_colors_count or 0) > 0 or has_back_colors:
-                self.substrate_mode = "TUBING"
+            self.back_colors = []
+            self.back_colors_count = 0
         super().save(*args, **kwargs)
 
     class Meta:
@@ -59,3 +58,18 @@ class Artwork(models.Model):
     @property
     def total_side_colors(self):
         return int(self.front_colors_count or 0) + int(self.back_colors_count or 0)
+
+
+class ArtworkImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    artwork = models.ForeignKey(Artwork, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="artworks/")
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "artwork_images"
+        ordering = ["sort_order", "created_at"]
+
+    def __str__(self):
+        return f"{self.artwork_id} image {self.sort_order + 1}"

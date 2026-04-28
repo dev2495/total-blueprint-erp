@@ -1,5 +1,31 @@
 import { api } from "@/lib/api";
 
+export function normalizeMediaUrl(url?: string | null) {
+    const raw = String(url || "").trim();
+    if (!raw) return null;
+    try {
+        const parsed = new URL(raw);
+        if (parsed.pathname.startsWith("/media/")) {
+            return `${parsed.pathname}${parsed.search}`;
+        }
+    } catch {
+        // Relative URLs are handled below.
+    }
+    return raw;
+}
+
+export function artworkImageUrls(artwork?: Pick<Artwork, "primary_image" | "image" | "images"> | null) {
+    if (!artwork) return [];
+    const urls = [
+        artwork.primary_image,
+        artwork.image,
+        ...(Array.isArray(artwork.images) ? artwork.images.map((row) => row?.image) : []),
+    ]
+        .map((url) => normalizeMediaUrl(url))
+        .filter((url): url is string => Boolean(url));
+    return Array.from(new Set(urls)).slice(0, 3);
+}
+
 // --- Types ---
 export interface Artwork {
     id: string;
@@ -17,6 +43,8 @@ export interface Artwork {
     colors_count: number;
     file_path: string;
     image?: string | null; // URL to uploaded image
+    primary_image?: string | null;
+    images?: Array<{ id: string; image: string | null; sort_order: number; created_at?: string }>;
     version: number;
     status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
     created_at: string;
@@ -117,17 +145,11 @@ export const engineeringService = {
         return data;
     },
     createArtwork: async (data: any) => {
-        const isFormData = data instanceof FormData;
-        const { data: res } = await api.post<Artwork>("/api/engineering/artworks/", data, {
-            headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {}
-        });
+        const { data: res } = await api.post<Artwork>("/api/engineering/artworks/", data);
         return res;
     },
     updateArtwork: async (id: string, data: any) => {
-        const isFormData = data instanceof FormData;
-        const { data: res } = await api.patch<Artwork>(`/api/engineering/artworks/${id}/`, data, {
-            headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {}
-        });
+        const { data: res } = await api.patch<Artwork>(`/api/engineering/artworks/${id}/`, data);
         return res;
     },
     approveArtwork: async (id: string) => {

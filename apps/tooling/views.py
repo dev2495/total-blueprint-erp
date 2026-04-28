@@ -5,7 +5,7 @@ from .serializers import CylinderSerializer, CylinderSlotAssignmentSerializer, T
 from .services import CylinderService
 
 class CylinderViewSet(viewsets.ModelViewSet):
-    queryset = Cylinder.objects.select_related("artwork", "engraving_vendor", "storage_location").order_by('-created_at')
+    queryset = Cylinder.objects.select_related("artwork", "engraving_vendor", "storage_location").prefetch_related("artwork__images").order_by('-created_at')
     serializer_class = CylinderSerializer
     search_fields = ['code', 'name', 'artwork__name', 'engraving_vendor__name']
     filterset_fields = ['status', 'engraving_vendor', 'artwork', 'side', 'is_draft', 'lifecycle_status']

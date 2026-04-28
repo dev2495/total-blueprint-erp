@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.artwork.models import Artwork
+from apps.artwork.models import Artwork, ArtworkImage
 from apps.inventory.models import Vendor
 from apps.tooling.models import Cylinder
 from apps.users.models import Role
@@ -122,12 +122,67 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.artwork.refresh_from_db()
         self.assertTrue(self.artwork.image.name)
         self.assertIn("/media/artworks/", response.data["image"])
+        self.assertEqual(len(response.data["images"]), 1)
+        self.assertIn("/media/artworks/", response.data["primary_image"])
+
+    def test_patch_persists_up_to_three_artwork_images(self):
+        uploads = [
+            SimpleUploadedFile(f"artwork-preview-{index}.png", f"payload-{index}".encode(), content_type="image/png")
+            for index in range(3)
+        ]
+
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {"images": uploads},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.artwork.refresh_from_db()
+        self.assertEqual(ArtworkImage.objects.filter(artwork=self.artwork).count(), 3)
+        self.assertEqual(len(response.data["images"]), 3)
+        self.assertEqual(response.data["primary_image"], response.data["images"][0]["image"])
+
+    def test_patch_rejects_more_than_three_artwork_images(self):
+        uploads = [
+            SimpleUploadedFile(f"artwork-preview-{index}.png", f"payload-{index}".encode(), content_type="image/png")
+            for index in range(4)
+        ]
+
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {"images": uploads},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(ArtworkImage.objects.filter(artwork=self.artwork).count(), 0)
+
+    def test_sheet_artwork_clears_back_colors_instead_of_turning_into_tubing(self):
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {
+                "substrate_mode": "SHEET",
+                "front_colors": ["CYAN"],
+                "back_colors": ["BLACK"],
+                "front_colors_count": 1,
+                "back_colors_count": 1,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.artwork.refresh_from_db()
+        self.assertEqual(self.artwork.substrate_mode, "SHEET")
+        self.assertEqual(self.artwork.back_colors, [])
+        self.assertEqual(self.artwork.back_colors_count, 0)
 
     def test_uploaded_roto_artwork_can_be_approved_after_cylinders_are_ready(self):
         artwork = Artwork.objects.create(
             design_code="ART-API-ROTO-1",
             name="Roto approval with image",
             print_type="ROTO",
+            substrate_mode="TUBING",
             front_colors=["YELLOW"],
             back_colors=["BLACK"],
             front_colors_count=1,

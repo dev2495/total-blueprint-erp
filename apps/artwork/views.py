@@ -85,7 +85,7 @@ class ArtworkViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        qs = Artwork.objects.all().prefetch_related("cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
+        qs = Artwork.objects.all().prefetch_related("images", "cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
         params = self.request.query_params
 
         status_param = params.get("status")
@@ -127,7 +127,7 @@ class ArtworkViewSet(viewsets.ModelViewSet):
                     and row.cylinder_slot_assignments.filter(cylinder__is_draft=False).count() == 0
                 ]
             row_ids = [row.id for row in rows]
-            qs = Artwork.objects.filter(id__in=row_ids).prefetch_related("cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
+            qs = Artwork.objects.filter(id__in=row_ids).prefetch_related("images", "cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
 
         return qs
 

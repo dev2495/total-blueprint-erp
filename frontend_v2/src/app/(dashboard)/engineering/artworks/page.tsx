@@ -9,14 +9,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
-import { engineeringService, type Artwork } from "@/services/engineering"
+import { artworkImageUrls, engineeringService, type Artwork } from "@/services/engineering"
 import { ArtworkDialog } from "@/components/engineering/artwork-dialog"
 
 function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">(artwork.image ? "loading" : "failed")
+  const imageUrl = artworkImageUrls(artwork)[0] || null
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">(imageUrl ? "loading" : "failed")
 
   useEffect(() => {
-    if (!artwork.image) {
+    if (!imageUrl) {
       setLoadState("failed")
       return
     }
@@ -31,17 +32,17 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
     image.onerror = () => {
       if (!cancelled) setLoadState("failed")
     }
-    image.src = artwork.image
+    image.src = imageUrl
 
     return () => {
       cancelled = true
     }
-  }, [artwork.image])
+  }, [imageUrl])
 
-  if (artwork.image && loadState === "ready") {
+  if (imageUrl && loadState === "ready") {
     return (
       <img
-        src={artwork.image}
+        src={imageUrl}
         alt={artwork.name}
         className="h-full w-full object-cover"
         onLoad={(event) => {

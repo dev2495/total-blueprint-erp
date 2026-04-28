@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { engineeringService, type Artwork, type Cylinder, type CylinderSlotAssignment } from "@/services/engineering"
+import { artworkImageUrls, normalizeMediaUrl, engineeringService, type Artwork, type Cylinder, type CylinderSlotAssignment } from "@/services/engineering"
 import { masterDataService } from "@/services/master-data"
 import { CylinderDialog } from "@/components/engineering/cylinder-dialog"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
@@ -95,7 +95,8 @@ function CylinderArtworkGroupDialog({
   const [commonCellDepth, setCommonCellDepth] = useState("")
   const [commonVendor, setCommonVendor] = useState("")
   const [selectedBySlot, setSelectedBySlot] = useState<Record<string, string>>({})
-  const { data: vendors = [] } = useQuery({ queryKey: ["vendors"], queryFn: () => masterDataService.getVendors() })
+  const { data: vendorsRaw = [] } = useQuery({ queryKey: ["vendors"], queryFn: () => masterDataService.getVendors() })
+  const vendors = Array.isArray(vendorsRaw) ? vendorsRaw : []
 
   useEffect(() => {
     if (!open) return
@@ -295,12 +296,15 @@ export default function CylinderManagementPage() {
   const [editing, setEditing] = useState<Cylinder | null>(null)
   const [groupArtwork, setGroupArtwork] = useState<Artwork | null>(null)
 
-  const { data: cylinders = [], isLoading } = useQuery({ queryKey: ["cylinders"], queryFn: () => engineeringService.getCylinders() })
-  const { data: artworks = [] } = useQuery<Artwork[]>({ queryKey: ["artworks"], queryFn: () => engineeringService.getArtworks() })
-  const { data: assignments = [] } = useQuery<CylinderSlotAssignment[]>({
+  const { data: cylindersRaw = [], isLoading } = useQuery({ queryKey: ["cylinders"], queryFn: () => engineeringService.getCylinders() })
+  const { data: artworksRaw = [] } = useQuery<Artwork[]>({ queryKey: ["artworks"], queryFn: () => engineeringService.getArtworks() })
+  const { data: assignmentsRaw = [] } = useQuery<CylinderSlotAssignment[]>({
     queryKey: ["cylinder-slot-assignments"],
     queryFn: () => engineeringService.getCylinderSlotAssignments(),
   })
+  const cylinders = Array.isArray(cylindersRaw) ? cylindersRaw : []
+  const artworks = Array.isArray(artworksRaw) ? artworksRaw : []
+  const assignments = Array.isArray(assignmentsRaw) ? assignmentsRaw : []
 
   const groups = useMemo(() => {
     const artworkById = new Map(artworks.map((artwork) => [String(artwork.id), artwork]))
@@ -315,6 +319,9 @@ export default function CylinderManagementPage() {
           color_list: [],
           colors_count: 0,
           file_path: "",
+          image: cylinder.artwork_image || null,
+          primary_image: cylinder.artwork_image || null,
+          images: cylinder.artwork_image ? [{ id: "linked", image: cylinder.artwork_image, sort_order: 0 }] : [],
           version: 1,
           status: "DRAFT",
           created_at: "",
@@ -391,11 +398,12 @@ export default function CylinderManagementPage() {
             const draft = group.slots.filter((slot) => slot.cylinder?.is_draft).length
             const ready = group.slots.filter((slot) => slot.cylinder && !slot.cylinder.is_draft).length
             const firstCylinder = group.slots.find((slot) => slot.cylinder)?.cylinder || null
+            const artworkImage = artworkImageUrls(group.artwork)[0] || normalizeMediaUrl(firstCylinder?.artwork_image) || null
             return (
             <Card key={group.artwork.id} className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
               <div className="relative h-40 overflow-hidden bg-slate-100">
-                {firstCylinder?.artwork_image ? (
-                  <img src={firstCylinder.artwork_image} alt={group.artwork.name} className="h-full w-full object-cover" />
+                {artworkImage ? (
+                  <img src={artworkImage} alt={group.artwork.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
                     <Disc className="h-12 w-12" />

@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { engineeringService, Artwork } from "@/services/engineering"
+import { artworkImageUrls, engineeringService, Artwork } from "@/services/engineering"
 import { masterDataService } from "@/services/master-data"
 
 const artworkSchema = z.object({
@@ -63,7 +63,8 @@ interface ArtworkDialogProps {
 export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProps) {
     const { toast } = useToast()
     const queryClient = useQueryClient()
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+    const [previewUrls, setPreviewUrls] = useState<string[]>([])
+    const [selectedImages, setSelectedImages] = useState<File[]>([])
     const [activeArtworkId, setActiveArtworkId] = useState<string | null>(artwork?.id || null)
     const [generatingSlotKey, setGeneratingSlotKey] = useState<string | null>(null)
 
@@ -105,7 +106,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 color_list: artwork.color_list || [],
                 file_path: artwork.file_path || "",
             })
-            setPreviewUrl(artwork.image || null)
+            setPreviewUrls(artworkImageUrls(artwork))
+            setSelectedImages([])
         } else {
             form.reset({
                 design_code: "",
@@ -120,7 +122,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 color_list: [],
                 file_path: "",
             })
-            setPreviewUrl(null)
+            setPreviewUrls([])
+            setSelectedImages([])
         }
     }, [artwork, form])
 
@@ -139,8 +142,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             formData.append("colors_count", values.colors_count.toString())
             formData.append("color_list", JSON.stringify(values.color_list))
 
-            if (values.image instanceof File) {
-                formData.append("image", values.image)
+            for (const file of selectedImages.slice(0, 3)) {
+                formData.append("images", file)
             }
 
             if (artwork?.id) return engineeringService.updateArtwork(artwork.id, formData)
@@ -151,9 +154,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             if (savedId) {
                 setActiveArtworkId(savedId)
             }
-            if (saved?.image) {
-                setPreviewUrl(String(saved.image))
-            }
+            setPreviewUrls(artworkImageUrls(saved))
+            setSelectedImages([])
             queryClient.invalidateQueries({ queryKey: ["artworks"] })
         },
         onError: (err: any) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
@@ -236,7 +238,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const hasPrintColors = colorList.length > 0
     const colorContractOk = hasPrintColors && frontColorCount === frontColors.length && (!hasBackSide || backColorCount === backColors.length)
     const filePathAsset = String(form.watch("file_path") || "").trim()
-    const hasImage = !!previewUrl
+    const hasImage = previewUrls.length > 0
     const hasProductionAsset = hasImage || !!filePathAsset
 
     const finalizedCylinders = useMemo(
@@ -491,57 +493,70 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                             </div>
                             <FormField control={form.control} name="image" render={({ field: { value, onChange, ...field } }) => (
                                 <FormItem>
-                                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Artwork Image (JPG/PNG)</FormLabel>
+                                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Artwork Images (max 3)</FormLabel>
                                     <FormControl>
                                         <div className="space-y-4">
-                                            {previewUrl && (
-                                                <div className="relative w-full max-h-[300px] flex items-center justify-center rounded-2xl overflow-hidden border bg-slate-50/50 shadow-inner group p-2">
-                                                    <img
-                                                        src={previewUrl}
-                                                        alt="Artwork Preview"
-                                                        className="max-w-full max-h-[280px] w-auto h-auto object-contain drop-shadow-sm"
-                                                        onLoad={(event) => {
-                                                            if (!event.currentTarget.naturalWidth) setPreviewUrl(null)
-                                                        }}
-                                                        onError={() => setPreviewUrl(null)}
-                                                    />
-                                                    {!isApproved && (
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <Button
-                                                                variant="secondary" size="sm" type="button"
-                                                                onClick={() => { setPreviewUrl(null); onChange(null) }}
-                                                                className="text-xs font-bold"
-                                                            >
-                                                                Remove
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                            {!isApproved && !previewUrl && (
-                                                <div className="relative flex items-center justify-center w-full h-32 px-4 transition bg-slate-50 border-2 border-slate-300 border-dashed rounded-2xl appearance-none cursor-pointer hover:border-blue-400 focus:outline-none">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                        data-testid="artwork-image-input"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0]
-                                                            if (file) {
-                                                                onChange(file)
-                                                                setPreviewUrl(URL.createObjectURL(file))
-                                                            }
-                                                        }}
-                                                        {...field}
-                                                    />
-                                                    <div className="flex flex-col items-center space-y-2">
-                                                        <Palette className="w-8 h-8 text-slate-400" />
-                                                        <span className="text-xs font-medium text-slate-600">Select Artwork Image</span>
-                                                        <span className="text-[10px] text-slate-400">JPG, JPEG, or PNG supported</span>
+                                            {previewUrls.length > 0 && (
+                                                <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+                                                    <div className="relative flex min-h-[220px] max-h-[320px] items-center justify-center overflow-hidden rounded-2xl border bg-slate-50/50 p-2 shadow-inner">
+                                                        <img
+                                                            src={previewUrls[0]}
+                                                            alt="Artwork preview"
+                                                            className="h-auto max-h-[300px] w-auto max-w-full object-contain drop-shadow-sm"
+                                                            onError={() => setPreviewUrls((current) => current.slice(1))}
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-1">
+                                                        {previewUrls.map((url, index) => (
+                                                            <div key={`${url}-${index}`} className="relative h-20 overflow-hidden rounded-xl border bg-white">
+                                                                <img src={url} alt={`Artwork ${index + 1}`} className="h-full w-full object-cover" onError={() => setPreviewUrls((current) => current.filter((_, rowIndex) => rowIndex !== index))} />
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             )}
-                                            {isApproved && !previewUrl && (
+                                            {!isApproved && (
+                                                <div className="relative flex h-32 w-full cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 transition hover:border-blue-400 focus:outline-none">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        multiple
+                                                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                                        data-testid="artwork-image-input"
+                                                        onChange={(e) => {
+                                                            const files = Array.from(e.target.files || []).slice(0, 3)
+                                                            if (files.length) {
+                                                                setSelectedImages(files)
+                                                                onChange(files)
+                                                                setPreviewUrls(files.map((file) => URL.createObjectURL(file)))
+                                                                if ((e.target.files?.length || 0) > 3) {
+                                                                    toast({ title: "Only 3 images kept", description: "Artwork supports a maximum of 3 images." })
+                                                                }
+                                                            }
+                                                        }}
+                                                        name={field.name}
+                                                        onBlur={field.onBlur}
+                                                        ref={field.ref}
+                                                    />
+                                                    <div className="flex flex-col items-center space-y-2">
+                                                        <Palette className="w-8 h-8 text-slate-400" />
+                                                        <span className="text-xs font-medium text-slate-600">{previewUrls.length ? "Replace artwork images" : "Select artwork images"}</span>
+                                                        <span className="text-[10px] text-slate-400">JPG, JPEG, or PNG supported. Maximum 3.</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {!isApproved && previewUrls.length > 0 && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    type="button"
+                                                    onClick={() => { setPreviewUrls([]); setSelectedImages([]); onChange(null) }}
+                                                    className="text-xs font-bold"
+                                                >
+                                                    Remove selected previews
+                                                </Button>
+                                            )}
+                                            {isApproved && previewUrls.length === 0 && (
                                                 <div className="flex h-32 w-full items-center justify-center rounded-2xl border bg-slate-50 text-slate-400">
                                                     <Palette className="h-8 w-8" />
                                                 </div>

@@ -4,7 +4,7 @@ from typing import Any, List
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import Artwork
+from .models import Artwork, ArtworkImage
 
 
 def _coerce_list(value: Any) -> List[str]:
@@ -43,12 +43,24 @@ def _absolute_media_url(request, field_value) -> str | None:
     return url
 
 
+class AbsoluteMediaFileField(serializers.FileField):
+    def to_representation(self, value):
+        return _absolute_media_url(self.context.get("request"), value)
+
+
+class ArtworkImageSerializer(serializers.ModelSerializer):
+    image = AbsoluteMediaFileField(read_only=True)
+
+    class Meta:
+        model = ArtworkImage
+        fields = ("id", "image", "sort_order", "created_at")
+
+
 class ArtworkSerializer(serializers.ModelSerializer):
-    class AbsoluteMediaFileField(serializers.FileField):
-        def to_representation(self, value):
-            return _absolute_media_url(self.context.get("request"), value)
 
     image = AbsoluteMediaFileField(required=False, allow_null=True)
+    images = ArtworkImageSerializer(many=True, read_only=True)
+    primary_image = serializers.SerializerMethodField()
     total_side_colors = serializers.IntegerField(read_only=True)
     cylinder_ready = serializers.SerializerMethodField()
 
@@ -80,11 +92,59 @@ class ArtworkSerializer(serializers.ModelSerializer):
         )
         return len(front_slots) >= front_required and len(back_slots) >= back_required
 
+    def get_primary_image(self, obj):
+        first_image = None
+        try:
+            first_image = obj.images.all()[0]
+        except Exception:
+            first_image = None
+        if first_image is not None:
+            return _absolute_media_url(self.context.get("request"), first_image.image)
+        return _absolute_media_url(self.context.get("request"), getattr(obj, "image", None))
+
+    def _incoming_images(self):
+        request = self.context.get("request")
+        if request is None or not hasattr(request, "FILES"):
+            return []
+        files = []
+        for key in ("images", "images[]", "artwork_images"):
+            files.extend(request.FILES.getlist(key))
+        if not files and request.FILES.get("image"):
+            files.append(request.FILES.get("image"))
+        return [file for file in files if file]
+
+    def _sync_images(self, artwork):
+        files = self._incoming_images()
+        if not files:
+            if getattr(artwork, "image", None) and not artwork.images.exists():
+                ArtworkImage.objects.create(artwork=artwork, image=artwork.image.name, sort_order=0)
+            return artwork
+        if len(files) > 3:
+            raise serializers.ValidationError({"images": "Upload a maximum of 3 artwork images."})
+        artwork.images.all().delete()
+        for index, file in enumerate(files):
+            ArtworkImage.objects.create(artwork=artwork, image=file, sort_order=index)
+        first = artwork.images.order_by("sort_order", "created_at").first()
+        if first:
+            artwork.image = first.image.name
+            artwork.save(update_fields=["image"])
+        return artwork
+
+    def create(self, validated_data):
+        artwork = super().create(validated_data)
+        return self._sync_images(artwork)
+
+    def update(self, instance, validated_data):
+        artwork = super().update(instance, validated_data)
+        return self._sync_images(artwork)
+
     def validate(self, attrs):
         if "approved_by" in self.initial_data or "approved_at" in self.initial_data:
             raise serializers.ValidationError(
                 "approved_by and approved_at are managed only by the approve action."
             )
+        if len(self._incoming_images()) > 3:
+            raise serializers.ValidationError({"images": "Upload a maximum of 3 artwork images."})
 
         incoming_status = attrs.get("status")
         if str(incoming_status or "").strip().upper() == "APPROVED":

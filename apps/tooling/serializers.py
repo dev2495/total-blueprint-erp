@@ -34,7 +34,16 @@ class CylinderSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_artwork_image(self, obj):
-        return _absolute_media_url(self.context.get("request"), getattr(getattr(obj, "artwork", None), "image", None))
+        artwork = getattr(obj, "artwork", None)
+        first_image = None
+        if artwork is not None:
+            try:
+                first_image = artwork.images.all()[0]
+            except Exception:
+                first_image = None
+        if first_image is not None:
+            return _absolute_media_url(self.context.get("request"), first_image.image)
+        return _absolute_media_url(self.context.get("request"), getattr(artwork, "image", None))
 
     def validate(self, attrs):
         instance = self.instance
