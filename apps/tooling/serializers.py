@@ -72,11 +72,9 @@ class CylinderSerializer(serializers.ModelSerializer):
             code = str(_value("code", "") or "").strip()
             name = str(_value("name", "") or "").strip()
             color_name = str(_value("color_name", "") or "").strip()
-            diameter = _value("diameter_mm", 0)
-            width = _value("width_mm", 0)
             circumference = _value("circumference", 0)
-            cell_depth = _value("cell_depth_microns", 0)
             engraving_vendor = _value("engraving_vendor", None)
+            storage_location = _value("storage_location", None)
 
             if not code:
                 missing.append("code")
@@ -84,16 +82,12 @@ class CylinderSerializer(serializers.ModelSerializer):
                 missing.append("name")
             if not color_name:
                 missing.append("color_name")
-            if float(diameter or 0) <= 0:
-                missing.append("diameter_mm")
-            if float(width or 0) <= 0:
-                missing.append("width_mm")
             if float(circumference or 0) <= 0:
                 missing.append("circumference")
-            if int(cell_depth or 0) <= 0:
-                missing.append("cell_depth_microns")
             if not engraving_vendor:
                 missing.append("engraving_vendor")
+            if not storage_location:
+                missing.append("storage_location")
 
             if missing:
                 raise serializers.ValidationError(
@@ -101,8 +95,11 @@ class CylinderSerializer(serializers.ModelSerializer):
                 )
 
             attrs["is_draft"] = False
-            if lifecycle_status == "DRAFT":
-                attrs["lifecycle_status"] = "READY"
+            status = str(_value("status", "ACTIVE") or "ACTIVE").upper()
+            if status not in {"ACTIVE", "MAINTENANCE", "SCRAP"}:
+                raise serializers.ValidationError({"status": "Cylinder lifecycle must be ACTIVE, MAINTENANCE, or SCRAP."})
+            attrs["status"] = status
+            attrs["lifecycle_status"] = status
 
         artwork = _value("artwork", None)
         side = str(_value("side", "FRONT") or "FRONT").upper()
@@ -171,6 +168,10 @@ class CylinderSlotAssignmentSerializer(serializers.ModelSerializer):
     cylinder_width_mm = serializers.DecimalField(source="cylinder.width_mm", read_only=True, max_digits=10, decimal_places=2)
     cylinder_diameter_mm = serializers.DecimalField(source="cylinder.diameter_mm", read_only=True, max_digits=10, decimal_places=2)
     cylinder_cell_depth_microns = serializers.IntegerField(source="cylinder.cell_depth_microns", read_only=True)
+    cylinder_engraving_vendor = serializers.UUIDField(source="cylinder.engraving_vendor_id", read_only=True)
+    cylinder_vendor_name = serializers.CharField(source="cylinder.engraving_vendor.name", read_only=True)
+    cylinder_storage_location = serializers.UUIDField(source="cylinder.storage_location_id", read_only=True)
+    cylinder_location_name = serializers.CharField(source="cylinder.storage_location.name", read_only=True)
     cylinder_lifecycle_status = serializers.CharField(source="cylinder.lifecycle_status", read_only=True)
     cylinder_is_draft = serializers.BooleanField(source="cylinder.is_draft", read_only=True)
     cylinder_status = serializers.CharField(source="cylinder.status", read_only=True)

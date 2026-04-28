@@ -96,6 +96,8 @@ class CylinderService:
             raise ValueError("Only finalized cylinders can be reused for artwork slots.")
         if float(cylinder.circumference or 0) <= 0:
             raise ValueError("Reusable cylinder must have a circumference.")
+        if not cylinder.engraving_vendor_id or not cylinder.storage_location_id:
+            raise ValueError("Reusable cylinder must have vendor and storage location.")
         color_name = CylinderService._slot_color(artwork, side, slot)
         assignment, _ = CylinderSlotAssignment.objects.update_or_create(
             artwork=artwork,

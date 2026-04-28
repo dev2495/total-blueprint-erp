@@ -20,7 +20,13 @@ class CylinderViewSet(viewsets.ModelViewSet):
 
 
 class CylinderSlotAssignmentViewSet(viewsets.ModelViewSet):
-    queryset = CylinderSlotAssignment.objects.select_related("artwork", "cylinder", "cylinder__artwork").order_by(
+    queryset = CylinderSlotAssignment.objects.select_related(
+        "artwork",
+        "cylinder",
+        "cylinder__artwork",
+        "cylinder__engraving_vendor",
+        "cylinder__storage_location",
+    ).order_by(
         "artwork__design_code", "side", "side_slot_index"
     )
     serializer_class = CylinderSlotAssignmentSerializer

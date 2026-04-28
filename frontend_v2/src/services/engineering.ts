@@ -97,6 +97,10 @@ export interface CylinderSlotAssignment {
     cylinder_width_mm?: number;
     cylinder_diameter_mm?: number;
     cylinder_cell_depth_microns?: number;
+    cylinder_engraving_vendor?: string | null;
+    cylinder_vendor_name?: string | null;
+    cylinder_storage_location?: string | null;
+    cylinder_location_name?: string | null;
     cylinder_lifecycle_status?: string;
     cylinder_is_draft?: boolean;
     cylinder_status?: string;

@@ -185,13 +185,10 @@ def _cylinder_incomplete(row) -> bool:
         not str(getattr(row, "code", "") or "").strip()
         or not str(getattr(row, "name", "") or "").strip()
         or not str(getattr(row, "color_name", "") or "").strip()
-        or getattr(row, "diameter_mm", None) is None
-        or getattr(row, "width_mm", None) is None
         or getattr(row, "circumference", None) is None
-        or float(getattr(row, "diameter_mm", 0) or 0) <= 0
-        or float(getattr(row, "width_mm", 0) or 0) <= 0
         or float(getattr(row, "circumference", 0) or 0) <= 0
-        or _as_int(getattr(row, "cell_depth_microns", 0), 0) <= 0
+        or not getattr(row, "engraving_vendor_id", None)
+        or not getattr(row, "storage_location_id", None)
         or str(getattr(row, "lifecycle_status", "DRAFT") or "DRAFT").upper() == "DRAFT"
     )
 

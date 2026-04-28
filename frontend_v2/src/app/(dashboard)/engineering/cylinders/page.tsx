@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Disc, Pencil, Plus, Wrench } from "lucide-react"
+import { CheckCircle2, Disc, Pencil, Plus, Wrench } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,19 @@ function slotKey(side: string, slot: number) {
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value)
   return Number.isFinite(number) ? number : fallback
+}
+
+function ArtworkCardMedia({ src, name }: { src?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => setFailed(false), [src])
+  if (src && !failed) {
+    return <img src={src} alt={name} className="h-full w-full object-cover" onError={() => setFailed(true)} />
+  }
+  return (
+    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
+      <Disc className="h-12 w-12" />
+    </div>
+  )
 }
 
 function artworkSlots(artwork: Artwork, cylinders: Cylinder[], assignments: CylinderSlotAssignment[]): CylinderSlotView[] {
@@ -94,9 +107,13 @@ function CylinderArtworkGroupDialog({
   const [commonWidth, setCommonWidth] = useState("")
   const [commonCellDepth, setCommonCellDepth] = useState("")
   const [commonVendor, setCommonVendor] = useState("")
+  const [commonLocation, setCommonLocation] = useState("")
+  const [commonStatus, setCommonStatus] = useState<"ACTIVE" | "MAINTENANCE" | "SCRAP">("ACTIVE")
   const [selectedBySlot, setSelectedBySlot] = useState<Record<string, string>>({})
   const { data: vendorsRaw = [] } = useQuery({ queryKey: ["vendors"], queryFn: () => masterDataService.getVendors() })
+  const { data: locationsRaw = [] } = useQuery({ queryKey: ["locations", "TOOLING"], queryFn: () => masterDataService.getLocations("TOOLING") })
   const vendors = Array.isArray(vendorsRaw) ? vendorsRaw : []
+  const locations = Array.isArray(locationsRaw) ? locationsRaw : []
 
   useEffect(() => {
     if (!open) return
@@ -106,6 +123,8 @@ function CylinderArtworkGroupDialog({
     setCommonWidth(first?.width_mm ? String(first.width_mm) : "")
     setCommonCellDepth(first?.cell_depth_microns ? String(first.cell_depth_microns) : "")
     setCommonVendor(first?.engraving_vendor || "")
+    setCommonLocation(first?.storage_location || "")
+    setCommonStatus((["ACTIVE", "MAINTENANCE", "SCRAP"].includes(String(first?.status || "")) ? String(first?.status) : "ACTIVE") as "ACTIVE" | "MAINTENANCE" | "SCRAP")
     setSelectedBySlot({})
   }, [open, artwork?.id])
 
@@ -114,6 +133,7 @@ function CylinderArtworkGroupDialog({
     return cylinders
       .filter((row) => !Boolean(row.is_draft))
       .filter((row) => Number(row.circumference || 0) > 0)
+      .filter((row) => Boolean(row.engraving_vendor && row.storage_location))
       .filter((row) => (required > 0 ? Math.abs(Number(row.circumference || 0) - required) < 0.01 : true))
       .sort((left, right) => String(left.artwork_name || "").localeCompare(String(right.artwork_name || "")) || String(left.code || "").localeCompare(String(right.code || "")))
   }, [cylinders, circumference])
@@ -147,15 +167,18 @@ function CylinderArtworkGroupDialog({
         .filter((row): row is Cylinder => Boolean(row && row.is_draft && String(row.artwork || "") === String(artwork?.id || "")))
       if (!generatedDrafts.length) throw new Error("No generated draft cylinders are waiting for common details.")
       if (!commonVendor) throw new Error("Select engraving vendor before finalizing generated cylinders.")
+      if (!commonLocation) throw new Error("Select storage location before finalizing generated cylinders.")
+      if (asNumber(circumference, 0) <= 0) throw new Error("Enter circumference before finalizing generated cylinders.")
       const payload: Partial<Cylinder> = {
-        diameter_mm: asNumber(commonDiameter, 0),
-        width_mm: asNumber(commonWidth, 0),
+        diameter_mm: asNumber(commonDiameter, 100),
+        width_mm: asNumber(commonWidth, 500),
         circumference: asNumber(circumference, 0),
         cell_depth_microns: asNumber(commonCellDepth, 0),
         engraving_vendor: commonVendor,
+        storage_location: commonLocation,
         is_draft: false,
-        lifecycle_status: "READY",
-        status: "ACTIVE",
+        lifecycle_status: commonStatus,
+        status: commonStatus,
       }
       await Promise.all(generatedDrafts.map((row) => engineeringService.updateCylinder(row.id, payload)))
       return generatedDrafts.length
@@ -206,9 +229,6 @@ function CylinderArtworkGroupDialog({
             </div>
             <div className="space-y-3 border-t border-slate-200 pt-4">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Common Technical Details</div>
-              <Input type="number" step="0.01" value={commonDiameter} onChange={(event) => setCommonDiameter(event.target.value)} placeholder="Diameter mm" className="bg-white" />
-              <Input type="number" step="0.01" value={commonWidth} onChange={(event) => setCommonWidth(event.target.value)} placeholder="Width mm" className="bg-white" />
-              <Input type="number" step="1" value={commonCellDepth} onChange={(event) => setCommonCellDepth(event.target.value)} placeholder="Cell depth microns" className="bg-white" />
               <Select value={commonVendor || "__NONE__"} onValueChange={(value) => setCommonVendor(value === "__NONE__" ? "" : value)}>
                 <SelectTrigger className="bg-white"><SelectValue placeholder="Engraving vendor" /></SelectTrigger>
                 <SelectContent>
@@ -216,8 +236,23 @@ function CylinderArtworkGroupDialog({
                   {vendors.map((vendor: any) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={commonLocation || "__NONE__"} onValueChange={(value) => setCommonLocation(value === "__NONE__" ? "" : value)}>
+                <SelectTrigger className="bg-white"><SelectValue placeholder="Cylinder location" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__NONE__">Select location</SelectItem>
+                  {locations.map((location: any) => <SelectItem key={location.id} value={location.id}>{location.name} ({location.code})</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={commonStatus} onValueChange={(value) => setCommonStatus(value as "ACTIVE" | "MAINTENANCE" | "SCRAP")}>
+                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                  <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
+                  <SelectItem value="SCRAP">SCRAP</SelectItem>
+                </SelectContent>
+              </Select>
               <Button className="w-full" disabled={finalizeGeneratedMutation.isPending} onClick={() => finalizeGeneratedMutation.mutate()}>
-                Finalize Generated Cylinders
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Confirm Generated Cylinders
               </Button>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-3">
@@ -244,8 +279,8 @@ function CylinderArtworkGroupDialog({
                     {slot.cylinder ? (
                       <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
                         <div><span className="font-semibold text-slate-900">{slot.cylinder.code}</span><br />{slot.cylinder.artwork_name || "Current artwork"}</div>
-                        <div>{slot.cylinder.circumference || 0} mm repeat<br />{slot.cylinder.width_mm || 0} mm width</div>
-                        <div>{slot.cylinder.cell_depth_microns || 0}u cell<br />{slot.cylinder.lifecycle_status || slot.cylinder.status}</div>
+                        <div>{slot.cylinder.circumference || 0} mm repeat<br />{slot.cylinder.engraving_vendor_name || "Vendor pending"}</div>
+                        <div>{slot.cylinder.location_name || "Location pending"}<br />{slot.cylinder.lifecycle_status || slot.cylinder.status}</div>
                       </div>
                     ) : (
                       <p className="mt-2 text-sm text-slate-500">No new cylinder is required unless this color has no reusable physical cylinder.</p>
@@ -402,13 +437,7 @@ export default function CylinderManagementPage() {
             return (
             <Card key={group.artwork.id} className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
               <div className="relative h-40 overflow-hidden bg-slate-100">
-                {artworkImage ? (
-                  <img src={artworkImage} alt={group.artwork.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
-                    <Disc className="h-12 w-12" />
-                  </div>
-                )}
+                <ArtworkCardMedia src={artworkImage} name={group.artwork.name} />
               </div>
               <CardContent className="space-y-4 p-5">
                 <div className="flex items-start justify-between gap-3">

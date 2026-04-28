@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { engineeringService, Artwork, Cylinder } from "@/services/engineering"
 import { masterDataService } from "@/services/master-data"
 
-const LIFECYCLE_STATUSES = ["DRAFT", "READY", "ACTIVE", "MAINTENANCE", "RE_CHROME", "SCRAP"] as const
+const LIFECYCLE_STATUSES = ["DRAFT", "ACTIVE", "MAINTENANCE", "SCRAP"] as const
 
 const cylinderSchema = z
   .object({
@@ -34,32 +34,26 @@ const cylinderSchema = z
     cell_depth_microns: z.coerce.number().int().min(0),
     is_draft: z.boolean().default(true),
     lifecycle_status: z.enum(LIFECYCLE_STATUSES).default("DRAFT"),
-    status: z.enum(["ACTIVE", "MAINTENANCE", "RE_CHROME", "SCRAP"]).default("ACTIVE"),
+    status: z.enum(["ACTIVE", "MAINTENANCE", "SCRAP"]).default("ACTIVE"),
   })
   .superRefine((value, ctx) => {
     const requiresFinalization = !value.is_draft || value.lifecycle_status !== "DRAFT"
     if (!requiresFinalization) return
-    if (value.diameter_mm <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["diameter_mm"], message: "Diameter is required for finalization." })
-    }
-    if (value.width_mm <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["width_mm"], message: "Width is required for finalization." })
-    }
     if (value.circumference <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["circumference"], message: "Circumference is required for finalization." })
-    }
-    if (value.cell_depth_microns <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["cell_depth_microns"],
-        message: "Cell depth is required for finalization.",
-      })
     }
     if (!value.engraving_vendor) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["engraving_vendor"],
         message: "Vendor is required for finalization.",
+      })
+    }
+    if (!value.storage_location) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["storage_location"],
+        message: "Location is required for finalization.",
       })
     }
   })
@@ -76,6 +70,21 @@ function toNullIfNone(value?: string | null): string | null {
   const text = String(value || "").trim()
   if (!text || text === "none") return null
   return text
+}
+
+function normalizeCylinderLifecycle(value?: string | null): CylinderFormValues["lifecycle_status"] {
+  const status = String(value || "").toUpperCase()
+  if (status === "MAINTENANCE" || status === "RE_CHROME") return "MAINTENANCE"
+  if (status === "SCRAP") return "SCRAP"
+  if (status === "DRAFT") return "DRAFT"
+  return "ACTIVE"
+}
+
+function normalizeCylinderStatus(value?: string | null): CylinderFormValues["status"] {
+  const status = String(value || "").toUpperCase()
+  if (status === "MAINTENANCE" || status === "RE_CHROME") return "MAINTENANCE"
+  if (status === "SCRAP") return "SCRAP"
+  return "ACTIVE"
 }
 
 export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogProps) {
@@ -134,8 +143,8 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
         circumference: Number(cylinder.circumference || 0),
         cell_depth_microns: Number(cylinder.cell_depth_microns || 0),
         is_draft: Boolean(cylinder.is_draft),
-        lifecycle_status: ((cylinder.lifecycle_status || "DRAFT").toUpperCase() as CylinderFormValues["lifecycle_status"]) || "DRAFT",
-        status: (cylinder.status || "ACTIVE") as CylinderFormValues["status"],
+        lifecycle_status: normalizeCylinderLifecycle(cylinder.lifecycle_status || (cylinder.is_draft ? "DRAFT" : cylinder.status)),
+        status: normalizeCylinderStatus(cylinder.status),
       })
     } else {
       setSubmitChecklist([])
@@ -165,11 +174,9 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
   const lifecycleStatus = form.watch("lifecycle_status")
   const requiresFinalization = !isDraft || lifecycleStatus !== "DRAFT"
   const watchedFinalizeFields = form.watch([
-    "diameter_mm",
-    "width_mm",
     "circumference",
-    "cell_depth_microns",
     "engraving_vendor",
+    "storage_location",
     "code",
     "name",
     "color_name",
@@ -247,11 +254,9 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
     if (!requiresFinalization) return []
     const values = form.getValues()
     const missing: string[] = []
-    if (Number(values.diameter_mm || 0) <= 0) missing.push("Diameter (mm)")
-    if (Number(values.width_mm || 0) <= 0) missing.push("Width (mm)")
     if (Number(values.circumference || 0) <= 0) missing.push("Circumference (mm)")
-    if (Number(values.cell_depth_microns || 0) <= 0) missing.push("Cell Depth (microns)")
     if (!String(values.engraving_vendor || "").trim()) missing.push("Vendor")
+    if (!String(values.storage_location || "").trim()) missing.push("Location")
     if (!String(values.code || "").trim()) missing.push("Cylinder Code")
     if (!String(values.name || "").trim()) missing.push("Cylinder Name")
     if (!String(values.color_name || "").trim()) missing.push("Color")
@@ -460,53 +465,12 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <FormField
                   control={form.control}
-                  name="diameter_mm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Diameter (mm)</FormLabel>
-                      <FormControl>
-                        <Input type="number" min={0} step="0.01" value={field.value} onChange={(event) => field.onChange(Number(event.target.value || 0))} data-testid="cylinder-diameter" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="width_mm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Width (mm)</FormLabel>
-                      <FormControl>
-                        <Input type="number" min={0} step="0.01" value={field.value} onChange={(event) => field.onChange(Number(event.target.value || 0))} data-testid="cylinder-width" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="circumference"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Circumference (mm)</FormLabel>
                       <FormControl>
                         <Input type="number" min={0} step="0.01" value={field.value} onChange={(event) => field.onChange(Number(event.target.value || 0))} data-testid="cylinder-circumference" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="cell_depth_microns"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cell Depth (microns)</FormLabel>
-                      <FormControl>
-                        <Input type="number" min={0} step="1" value={field.value} onChange={(event) => field.onChange(Number(event.target.value || 0))} data-testid="cylinder-cell-depth" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -583,7 +547,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                           if (draftMode) {
                             form.setValue("lifecycle_status", "DRAFT", { shouldDirty: true, shouldValidate: true })
                           } else {
-                            form.setValue("lifecycle_status", "READY", { shouldDirty: true, shouldValidate: true })
+                            form.setValue("lifecycle_status", "ACTIVE", { shouldDirty: true, shouldValidate: true })
                           }
                         }}
                       >
@@ -617,10 +581,8 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                           <SelectItem value="DRAFT">DRAFT</SelectItem>
                           {!isDraft ? (
                             <>
-                              <SelectItem value="READY">READY</SelectItem>
                               <SelectItem value="ACTIVE">ACTIVE</SelectItem>
                               <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                              <SelectItem value="RE_CHROME">RE_CHROME</SelectItem>
                               <SelectItem value="SCRAP">SCRAP</SelectItem>
                             </>
                           ) : null}
@@ -645,7 +607,6 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                         <SelectContent>
                           <SelectItem value="ACTIVE">ACTIVE</SelectItem>
                           <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                          <SelectItem value="RE_CHROME">RE_CHROME</SelectItem>
                           <SelectItem value="SCRAP">SCRAP</SelectItem>
                         </SelectContent>
                       </Select>

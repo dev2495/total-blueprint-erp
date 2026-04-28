@@ -9,6 +9,8 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork, ArtworkImage
+from apps.factory.models import Plant
+from apps.inventory.models import InventoryLocation
 from apps.inventory.models import Vendor
 from apps.tooling.models import Cylinder
 from apps.users.models import Role
@@ -192,12 +194,15 @@ class ArtworkApiApprovalControlTests(TestCase):
             status="DRAFT",
         )
         vendor = Vendor.objects.create(name="Approval Cylinder Vendor", code="APR-CYL-VENDOR")
+        plant = Plant.objects.create(name="Approval Plant", code="APR-PLANT")
+        location = InventoryLocation.objects.create(plant=plant, code="TOOL", name="Tool Room", type="TOOLING")
         for side, color in (("FRONT", "YELLOW"), ("BACK", "BLACK")):
             Cylinder.objects.create(
                 code=f"CYL-APR-{side}",
                 name=f"Approval {side.title()} Cylinder",
                 artwork=artwork,
                 engraving_vendor=vendor,
+                storage_location=location,
                 color_name=color,
                 diameter_mm=100,
                 width_mm=500,

@@ -142,7 +142,12 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             formData.append("colors_count", values.colors_count.toString())
             formData.append("color_list", JSON.stringify(values.color_list))
 
-            for (const file of selectedImages.slice(0, 3)) {
+            const imageFiles = Array.isArray(values.image)
+                ? values.image.filter((file): file is File => file instanceof File)
+                : values.image instanceof File
+                    ? [values.image]
+                    : selectedImages
+            for (const file of imageFiles.slice(0, 3)) {
                 formData.append("images", file)
             }
 
@@ -286,10 +291,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                     !String(row?.code || "").trim() ||
                     !String(row?.name || "").trim() ||
                     !String(row?.color_name || "").trim() ||
-                    Number(row?.diameter_mm || 0) <= 0 ||
-                    Number(row?.width_mm || 0) <= 0 ||
                     Number(row?.circumference || 0) <= 0 ||
-                    Number(row?.cell_depth_microns || 0) <= 0
+                    !String(row?.engraving_vendor || "").trim() ||
+                    !String(row?.storage_location || "").trim()
                 )
             })
             .map((row: any) => `${String(row?.side || "FRONT").toUpperCase()}-${Number(row?.side_slot_index || 0)}`)
@@ -297,10 +301,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 finalizedAssignments
                     .filter((row: any) => {
                         return (
-                            Number(row?.cylinder_diameter_mm || 0) <= 0 ||
-                            Number(row?.cylinder_width_mm || 0) <= 0 ||
                             Number(row?.cylinder_circumference || 0) <= 0 ||
-                            Number(row?.cylinder_cell_depth_microns || 0) <= 0
+                            !String(row?.cylinder_engraving_vendor || "").trim() ||
+                            !String(row?.cylinder_storage_location || "").trim()
                         )
                     })
                     .map((row: any) => `${String(row?.side || "FRONT").toUpperCase()}-${Number(row?.side_slot_index || 0)}`)

@@ -1,14 +1,23 @@
 from django.test import TestCase
 
 from apps.artwork.models import Artwork
-from apps.inventory.models import Vendor
+from apps.factory.models import Plant
+from apps.inventory.models import InventoryLocation, Vendor
 from apps.tooling.models import Cylinder, CylinderSlotAssignment
+from apps.tooling.serializers import CylinderSerializer
 from apps.tooling.services import CylinderService
 
 
 class CylinderSlotAssignmentFlowTests(TestCase):
     def setUp(self):
         self.vendor = Vendor.objects.create(name="Reuse Vendor", code="REUSE-VENDOR")
+        self.plant = Plant.objects.create(name="Main Plant", code="MAIN")
+        self.location = InventoryLocation.objects.create(
+            plant=self.plant,
+            code="TOOL",
+            name="Tool Room",
+            type="TOOLING",
+        )
 
     def test_generate_targets_only_requested_artwork_color_slot(self):
         artwork = Artwork.objects.create(
@@ -61,6 +70,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             name="Reusable Cyan",
             artwork=source,
             engraving_vendor=self.vendor,
+            storage_location=self.location,
             color_name="CYAN",
             diameter_mm=100,
             width_mm=500,
@@ -83,3 +93,36 @@ class CylinderSlotAssignmentFlowTests(TestCase):
         self.assertEqual(assignment.artwork_id, target.id)
         self.assertEqual(assignment.cylinder_id, cylinder.id)
         self.assertEqual(assignment.color_name, "CYAN")
+
+    def test_generated_draft_cylinder_confirms_with_only_vendor_location_and_circumference(self):
+        artwork = Artwork.objects.create(
+            design_code="ART-MIN-CYL",
+            name="Minimal Cylinder Details",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["GREEN"],
+            front_colors_count=1,
+            color_list=["GREEN"],
+            colors_count=1,
+        )
+        result = CylinderService.generate_for_artwork(artwork.id, targets=[{"side": "FRONT", "slot": 1}])
+        cylinder = result["created"][0]
+
+        serializer = CylinderSerializer(
+            cylinder,
+            data={
+                "circumference": 340,
+                "engraving_vendor": str(self.vendor.id),
+                "storage_location": str(self.location.id),
+                "is_draft": False,
+                "lifecycle_status": "ACTIVE",
+                "status": "ACTIVE",
+            },
+            partial=True,
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        saved = serializer.save()
+        self.assertFalse(saved.is_draft)
+        self.assertEqual(saved.lifecycle_status, "ACTIVE")
+        self.assertEqual(saved.status, "ACTIVE")
