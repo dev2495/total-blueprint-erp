@@ -328,8 +328,9 @@ export default function SalesOrderForm() {
     const addonsWatched = form.watch("addons") || []
     const printingEnabled = !!form.watch("printing.enabled")
     const printingType = String(form.watch("printing.type") || "FLEXO").toUpperCase()
+    const printingSubstrateMode = String(form.watch("printing.substrate_mode") || "SHEET").toUpperCase()
     const frontCount = Number(form.watch("printing.front_colors_count") || 0)
-    const backCount = Number(form.watch("printing.back_colors_count") || 0)
+    const backCount = printingSubstrateMode === "TUBING" ? Number(form.watch("printing.back_colors_count") || 0) : 0
     const deferArtworkToPlanner = !!form.watch("printing.defer_artwork_to_planner")
     const adhesiveGsm = Number(form.watch("chemicals.adhesive_gsm") || 0)
     const layerCount = (form.watch("film_layers") || []).length
@@ -347,6 +348,12 @@ export default function SalesOrderForm() {
             }
         }
     }, [fgType, form])
+
+    useEffect(() => {
+        if (printingSubstrateMode !== "SHEET") return
+        if (Number(form.getValues("printing.back_colors_count") || 0) <= 0) return
+        form.setValue("printing.back_colors_count", 0)
+    }, [form, printingSubstrateMode])
 
     // Queries
     const { data: templates } = useQuery({
@@ -378,10 +385,11 @@ export default function SalesOrderForm() {
         queryFn: () => masterDataService.getPODMaterials()
     })
     const { data: artworks } = useQuery({
-        queryKey: ["engineering-artworks", printingType, frontCount, backCount, printingEnabled, deferArtworkToPlanner],
+        queryKey: ["engineering-artworks", printingType, printingSubstrateMode, frontCount, backCount, printingEnabled, deferArtworkToPlanner],
         queryFn: () => engineeringService.getArtworks({
             status: "APPROVED",
             print_type: printingType,
+            substrate_mode: printingSubstrateMode,
             front_colors_count: frontCount,
             back_colors_count: backCount,
             cylinder_ready: printingType === "ROTO" ? "true" : undefined,
@@ -520,7 +528,7 @@ export default function SalesOrderForm() {
                 type: formValues.printing.type,
                 substrate_mode: formValues.printing.substrate_mode,
                 front_colors_count: parseInt(formValues.printing.front_colors_count?.toString() || "0"),
-                back_colors_count: parseInt(formValues.printing.back_colors_count?.toString() || "0"),
+                back_colors_count: formValues.printing.substrate_mode === "TUBING" ? parseInt(formValues.printing.back_colors_count?.toString() || "0") : 0,
                 ink_gsm_total: parseFloat(formValues.printing.ink_gsm_total?.toString() || "0"),
                 artwork_id: formValues.printing.defer_artwork_to_planner ? null : (formValues.printing.artwork_id || null),
                 chemicals: (formValues.film_layers.length > 1 && formValues.chemicals) ? {
@@ -611,6 +619,7 @@ export default function SalesOrderForm() {
             const frontCount = Number(payload.printing?.front_colors_count || 0)
             const backCount = Number(payload.printing?.back_colors_count || 0)
             if ((frontCount + backCount) <= 0) return "Printing needs at least one side color."
+            if (payload.printing?.substrate_mode === "SHEET" && backCount > 0) return "Sheet film supports front colors only."
             if (Number(payload.printing?.ink_gsm_total || 0) <= 0) return "Total ink GSM is required when printing is enabled."
             if (!payload.printing?.artwork_id && !form.getValues("printing.defer_artwork_to_planner")) {
                 return "Select approved artwork or enable 'Defer Artwork To Planner'."
@@ -1569,13 +1578,16 @@ export default function SalesOrderForm() {
                                                                 name="printing.substrate_mode"
                                                                 render={({ field }) => (
                                                                     <FormItem className="md:col-span-2">
-                                                                        <Label className="text-[10px] font-bold uppercase">Substrate Mode</Label>
+                                                                        <Label className="text-[10px] font-bold uppercase">Film Type</Label>
                                                                         <div className="grid grid-cols-2 gap-3">
                                                                             <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 cursor-pointer">
                                                                                 <Checkbox
                                                                                     checked={(field.value || "SHEET") === "SHEET"}
                                                                                     onCheckedChange={(checked) => {
-                                                                                        if (checked) field.onChange("SHEET")
+                                                                                        if (checked) {
+                                                                                            field.onChange("SHEET")
+                                                                                            form.setValue("printing.back_colors_count", 0)
+                                                                                        }
                                                                                     }}
                                                                                 />
                                                                                 <span className="text-xs font-semibold uppercase">Sheet</span>
@@ -1606,6 +1618,7 @@ export default function SalesOrderForm() {
                                                                 </FormItem>
                                                             )}
                                                         />
+                                                        {printingSubstrateMode === "TUBING" ? (
                                                         <FormField
                                                             control={form.control}
                                                             name="printing.back_colors_count"
@@ -1618,6 +1631,7 @@ export default function SalesOrderForm() {
                                                                 </FormItem>
                                                             )}
                                                         />
+                                                        ) : null}
                                                         <FormField
                                                             control={form.control}
                                                             name="printing.ink_gsm_total"

@@ -365,7 +365,7 @@ function variantDraftFromPreset(preset: PlannerSkuVariantPreset): VariantDraft {
     printing_type: (String(printing.type || "FLEXO").toUpperCase() as VariantDraft["printing_type"]),
     substrate_mode: (String(printing.substrate_mode || "SHEET").toUpperCase() as VariantDraft["substrate_mode"]),
     front_colors_count: asNumber(printing.front_colors_count, 0),
-    back_colors_count: asNumber(printing.back_colors_count, 0),
+    back_colors_count: String(printing.substrate_mode || "SHEET").toUpperCase() === "TUBING" ? asNumber(printing.back_colors_count, 0) : 0,
     ink_gsm_total: asNumber(printing.ink_gsm_total, 0),
     artwork_id: String(printing.artwork_id || ""),
     adhesive_gsm: asNumber(chemicals.adhesive_gsm, 0),
@@ -422,7 +422,7 @@ function buildVariantPayload(draft: VariantDraft, familyId: string) {
         type: draft.printing_type,
         substrate_mode: draft.substrate_mode,
         front_colors_count: asNumber(draft.front_colors_count, 0),
-        back_colors_count: asNumber(draft.back_colors_count, 0),
+        back_colors_count: draft.substrate_mode === "TUBING" ? asNumber(draft.back_colors_count, 0) : 0,
         ink_gsm_total: asNumber(draft.ink_gsm_total, 0),
         artwork_id: draft.artwork_id || null,
         chemicals: {
@@ -642,14 +642,19 @@ export default function PlannerSkuCatalogPage() {
     const labels = salesUniqueText([
       ...SALES_MATERIAL_PRIORITY,
       ...filmFamilies.flatMap((family: any) => [family?.code, family?.name]),
-      ...filmVariants.flatMap((variant: any) => [variant?.code, variant?.name, variant?.parent_family_name]),
+      ...filmVariants.flatMap((variant: any) => [variant?.family_code, variant?.family_name, variant?.parent_family_name]),
       ...plannerVariantLens.flatMap((entry) => entry.layerMaterials.map(salesMaterialFilterLabel)),
-    ]).map(salesMaterialFilterLabel).filter(Boolean)
+    ])
+      .map(salesMaterialFilterLabel)
+      .filter((label) => label && !/^LAYER\s+\d+$/i.test(label) && !/^L\d+$/i.test(label))
     return salesSortChipOptions(
       salesUniqueText(labels).map((material) => ({
         value: material,
         label: material,
-        count: plannerVariantLens.filter((entry) => entry.searchText.includes(material.toLowerCase())).length,
+        count: plannerVariantLens.filter((entry) => {
+          const normalized = salesMaterialFilterLabel(material).toLowerCase()
+          return entry.layerMaterials.map((label) => salesMaterialFilterLabel(label).toLowerCase()).includes(normalized)
+        }).length,
         tone: "material" as const,
       })),
       SALES_MATERIAL_PRIORITY
@@ -678,7 +683,7 @@ export default function PlannerSkuCatalogPage() {
   function plannerVariantPassesFilters(variant: PlannerSkuVariantPreset) {
     const lens = plannerVariantLensById.get(String(variant.id))
     if (!lens) return true
-    if (materialFilter && !lens.searchText.includes(materialFilter.toLowerCase())) return false
+    if (materialFilter && !lens.layerMaterials.map((label) => salesMaterialFilterLabel(label).toLowerCase()).includes(salesMaterialFilterLabel(materialFilter).toLowerCase())) return false
     if (gradeFilter && !lens.grades.some((value) => value.toLowerCase().includes(gradeFilter.toLowerCase()))) return false
     if (widthFilter && !lens.widths.some((value) => plannerSkuNumberMatches(value, widthFilter))) return false
     if (heightFilter && !lens.heights.some((value) => plannerSkuNumberMatches(value, heightFilter))) return false
@@ -880,6 +885,7 @@ export default function PlannerSkuCatalogPage() {
 
   const routeLastIndex = routeSteps.length ? routeSteps[routeSteps.length - 1]?.index ?? 0 : 0
   const selectedFamilyTemplate = templates.find((template: any) => String(template.id) === String(selectedSku?.template || ""))
+  const variantTemplate = templates.find((template: any) => String(template.id) === String(variantDraft.template || ""))
   const variantOutputClass = outputClassForLaunchKind(variantDraft.launch_kind)
   const requiredLayerCount = 1
   const validLayerCount = variantDraft.layer_snapshot.filter((layer) => layer.family_id && layer.variant_id).length
@@ -1260,14 +1266,52 @@ export default function PlannerSkuCatalogPage() {
       </Dialog>
 
       <Dialog open={variantDialogOpen} onOpenChange={setVariantDialogOpen}>
-        <DialogContent data-testid="planner-variant-builder" className="max-h-[92vh] w-[min(68rem,calc(100vw-1.5rem))] overflow-y-auto rounded-[1.75rem] border bg-[linear-gradient(180deg,#fbfbfd_0%,#f5f7fb_100%)] p-0">
+        <DialogContent data-testid="planner-variant-builder" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border bg-[linear-gradient(180deg,#fbfbfd_0%,#f5f7fb_100%)] p-0 sm:h-auto sm:max-h-[96vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(46rem,calc(100vw-1rem))] sm:rounded-[2rem]">
           <div className={styles.sheetShell}>
-            <DialogHeader className="space-y-2 px-6 pt-6">
+            <DialogHeader className="sr-only">
               <DialogTitle>{editingVariant ? "Edit Planner Variant" : "Create Planner Variant"}</DialogTitle>
               <DialogDescription>
                 Build a launch-ready planner preset with the same route, geometry, material stack, printing, add-ons, packaging, and POD detail required to manufacture it correctly.
               </DialogDescription>
             </DialogHeader>
+
+            <section className={styles.variantHero}>
+              <div className={styles.variantHeroCopy}>
+                <div className={styles.sectionEyebrow}>{editingVariant ? "Edit planner preset" : "New planner preset"}</div>
+                <h3>{variantDraft.code || "Preset code"} • {variantDraft.name || "Preset name"}</h3>
+                <p>
+                  Route-aware stock recipe with the exact geometry, film layers, printing, chemistry, add-ons, packaging, and POD rules needed before release.
+                </p>
+                <div className={styles.summaryRibbon}>
+                  <span>{outputClassLabel(variantOutputClass)}</span>
+                  <span>{variantDraft.finished_good_type === "ROLL" ? `${variantDraft.roll_form} roll` : "Pouch output"}</span>
+                  <span>{validLayerCount}/{requiredLayerCount} layers ready</span>
+                  <span>{variantDraft.printing_enabled ? `${variantDraft.printing_type} print` : "No print"}</span>
+                </div>
+              </div>
+              <div className={styles.variantHeroPanel}>
+                <div className={styles.heroMetric}>
+                  <span>Family</span>
+                  <strong>{selectedSku ? selectedSku.code : "Select family"}</strong>
+                  <small>{selectedSku?.name || "Pick a planner family first"}</small>
+                </div>
+                <div className={styles.heroMetric}>
+                  <span>Template</span>
+                  <strong>{variantTemplate?.name || selectedFamilyTemplate?.name || "Choose template"}</strong>
+                  <small>{variantTemplate?.status || selectedFamilyTemplate?.status || "Route source pending"}</small>
+                </div>
+                <div className={styles.heroMetric}>
+                  <span>Stock route</span>
+                  <strong>{variantDraft.launch_kind.replaceAll("_", " ")}</strong>
+                  <small>Finished goods are roll or pouch only.</small>
+                </div>
+                <div className={styles.heroMetric}>
+                  <span>Active</span>
+                  <Switch checked={variantDraft.active} onCheckedChange={(checked) => patchVariant({ active: checked })} />
+                  <small>Launchable from stock studio.</small>
+                </div>
+              </div>
+            </section>
 
             <section className={styles.sheetSection}>
               <div className={styles.sheetSectionHeader}>
@@ -1347,13 +1391,6 @@ export default function PlannerSkuCatalogPage() {
                       <SelectItem value="METER">METER</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className={styles.inlineSwitchRow}>
-                  <div>
-                    <div className={styles.metaLabel}>Active preset</div>
-                    <div className={styles.inlineHint}>Keep it launchable from the stock studio.</div>
-                  </div>
-                  <Switch checked={variantDraft.active} onCheckedChange={(checked) => patchVariant({ active: checked })} />
                 </div>
               </div>
             </section>
@@ -1542,8 +1579,8 @@ export default function PlannerSkuCatalogPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Substrate mode</Label>
-                    <Select value={variantDraft.substrate_mode} onValueChange={(value: VariantDraft["substrate_mode"]) => patchVariant({ substrate_mode: value })}>
+                    <Label>Film type</Label>
+                    <Select value={variantDraft.substrate_mode} onValueChange={(value: VariantDraft["substrate_mode"]) => patchVariant({ substrate_mode: value, back_colors_count: value === "TUBING" ? variantDraft.back_colors_count : 0 })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="SHEET">Sheet</SelectItem>
@@ -1555,10 +1592,12 @@ export default function PlannerSkuCatalogPage() {
                     <Label>Front colors</Label>
                     <Input type="number" value={variantDraft.front_colors_count} onChange={(event) => patchVariant({ front_colors_count: Number(event.target.value || 0) })} />
                   </div>
+                  {variantDraft.substrate_mode === "TUBING" ? (
                   <div>
                     <Label>Back colors</Label>
                     <Input type="number" value={variantDraft.back_colors_count} onChange={(event) => patchVariant({ back_colors_count: Number(event.target.value || 0) })} />
                   </div>
+                  ) : null}
                   <div>
                     <Label>Ink GSM total</Label>
                     <Input type="number" value={variantDraft.ink_gsm_total} onChange={(event) => patchVariant({ ink_gsm_total: Number(event.target.value || 0) })} />

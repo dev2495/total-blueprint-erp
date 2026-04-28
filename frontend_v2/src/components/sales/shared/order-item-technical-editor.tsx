@@ -156,6 +156,7 @@ export default function OrderItemTechnicalEditor({
     const previewAddonKg = (item.savedPreview?.bom?.addons || []).reduce((sum: number, row: any) => sum + asNumber(row?.weight_kg, 0), 0)
     const previewPodKg = (item.savedPreview?.bom?.pod || []).reduce((sum: number, row: any) => sum + asNumber(row?.weight_kg, 0), 0)
     const contractIssues = getOrderItemContractIssues(item, addonsMaster, lockedPouchStyle)
+    const printingHasBackSide = item.printing.substrate_mode === "TUBING"
 
     useEffect(() => {
         if (item.finished_good_type !== "POUCH") return
@@ -171,42 +172,28 @@ export default function OrderItemTechnicalEditor({
         }))
     }, [item.finished_good_type, item.geometry.pouch_style, lockedPouchStyle, updateItem])
 
+    useEffect(() => {
+        if (!item.printing.enabled) return
+        if (item.printing.substrate_mode !== "SHEET") return
+        if (asNumber(item.printing.back_colors_count, 0) <= 0) return
+        updateItem((current) => ({
+            ...current,
+            printing: { ...current.printing, back_colors_count: 0 },
+            savedPreview: null,
+        }))
+    }, [item.printing.back_colors_count, item.printing.enabled, item.printing.substrate_mode, updateItem])
+
     return (
         <div className="space-y-4">
-            {contractIssues.length ? (
-                <div className="overflow-hidden rounded-[1.75rem] border border-amber-200 bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)]">
-                    <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
-                        <div>
-                            <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-800">Contract Checks</div>
-                            <div className="mt-1 text-sm font-semibold text-amber-900">
-                                Fix these before saving or relying on preview math.
-                            </div>
-                        </div>
-                        <Badge className="border border-amber-300 bg-white/60 text-amber-900">{contractIssues.length} open</Badge>
-                    </div>
-                    <div className="border-t border-amber-200/70 px-5 py-4 sm:px-6">
-                        <div className="grid gap-2">
-                            {contractIssues.map((issue) => (
-                                <div key={issue} className="rounded-2xl border border-amber-200 bg-white/70 px-4 py-3 text-sm text-amber-900">
-                                    {issue}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Builder Flow</div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">Product structure, print, chemistry, add-ons, packaging, and preview math.</div>
                 </div>
-            ) : (
-                <div className="overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-emerald-50/90 shadow-[0_18px_45px_-40px_rgba(5,150,105,0.22)]">
-                    <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
-                        <div>
-                            <div className="text-sm font-black uppercase tracking-[0.22em] text-emerald-700">Contract Ready</div>
-                            <div className="mt-1 text-sm font-semibold text-emerald-900">
-                                Geometry, add-ons, and layer inputs match the current backend contract.
-                            </div>
-                        </div>
-                        <Badge className="border border-emerald-200 bg-white/70 text-emerald-800">Ready to preview</Badge>
-                    </div>
-                </div>
-            )}
+                <Badge className={contractIssues.length ? "border border-amber-200 bg-amber-50 text-amber-800" : "border border-emerald-200 bg-emerald-50 text-emerald-800"}>
+                    {contractIssues.length ? `${contractIssues.length} contract checks` : "Contract ready"}
+                </Badge>
+            </div>
             <Section
                 title="Product Structure"
                 description="Geometry, lamination stack, roll form, and physical adjustments."
@@ -252,9 +239,11 @@ export default function OrderItemTechnicalEditor({
                                 <div className="space-y-2">
                                     <Label>Pouch Style</Label>
                                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
-                                        {lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "Template style not linked"}
+                                        {lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "Template style pending"}
                                     </div>
-                                    <p className="text-[11px] text-slate-500">Style is locked to the LIVE template. Sales adjusts geometry inside that style.</p>
+                                    <p className="text-[11px] text-slate-500">
+                                        {activeTemplate ? "Template is linked. Add the missing pouch style in the LIVE template contract if this is pending." : "Select a LIVE template to lock style and route context."}
+                                    </p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Width (mm)</Label>
@@ -665,6 +654,29 @@ export default function OrderItemTechnicalEditor({
                 </div>
             </Section>
 
+            {contractIssues.length ? (
+                <div className="overflow-hidden rounded-[1.55rem] border border-amber-200 bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)]">
+                    <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
+                        <div>
+                            <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-800">Contract Checks</div>
+                            <div className="mt-1 text-sm font-semibold text-amber-900">
+                                Fix these before saving or relying on preview math.
+                            </div>
+                        </div>
+                        <Badge className="border border-amber-300 bg-white/70 text-amber-900">{contractIssues.length} open</Badge>
+                    </div>
+                    <div className="border-t border-amber-200/70 px-5 py-4 sm:px-6">
+                        <div className="grid gap-2 md:grid-cols-2">
+                            {contractIssues.map((issue) => (
+                                <div key={issue} className="rounded-2xl border border-amber-200 bg-white/75 px-4 py-3 text-sm text-amber-900">
+                                    {issue}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
             <Section
                 title="Printing"
                 description="Artwork, color counts, print method, and ink load."
@@ -710,13 +722,17 @@ export default function OrderItemTechnicalEditor({
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label>Substrate Mode</Label>
+                                <Label>Film Type</Label>
                                 <Select
                                     value={item.printing.substrate_mode}
                                     onValueChange={(value) =>
                                         updateItem((current) => ({
                                             ...current,
-                                            printing: { ...current.printing, substrate_mode: value as OrderItemDraft["printing"]["substrate_mode"] },
+                                            printing: {
+                                                ...current.printing,
+                                                substrate_mode: value as OrderItemDraft["printing"]["substrate_mode"],
+                                                back_colors_count: value === "TUBING" ? current.printing.back_colors_count : 0,
+                                            },
                                             savedPreview: null,
                                         }))
                                     }
@@ -757,6 +773,7 @@ export default function OrderItemTechnicalEditor({
                                     }
                                 />
                             </div>
+                            {printingHasBackSide ? (
                             <div className="space-y-2">
                                 <Label>Back Colors</Label>
                                 <Input
@@ -771,6 +788,7 @@ export default function OrderItemTechnicalEditor({
                                     }
                                 />
                             </div>
+                            ) : null}
                             <div className="space-y-2">
                                 <Label>Approved Artwork</Label>
                                 <Select

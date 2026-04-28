@@ -6,7 +6,7 @@ from typing import Any
 from django.core.exceptions import ValidationError
 
 from apps.inventory.models import InkMaterial
-from apps.tooling.models import Cylinder
+from apps.tooling.models import Cylinder, CylinderSlotAssignment
 
 
 def _as_int(value: Any, default: int = 0) -> int:
@@ -66,14 +66,20 @@ def _print_type(snapshot: dict[str, Any]) -> str:
 
 def _validate_side_color_contract(
     *,
+    substrate_mode: str = "SHEET",
     front_count: int,
     back_count: int,
     front_colors: list[str],
     back_colors: list[str],
     context_label: str,
 ) -> None:
+    mode = str(substrate_mode or "SHEET").strip().upper()
+    if mode not in {"SHEET", "TUBING"}:
+        raise ValidationError(f"{context_label}: film type must be SHEET or TUBING.")
     if front_count < 0 or back_count < 0:
         raise ValidationError(f"{context_label}: front/back color counts cannot be negative.")
+    if mode == "SHEET" and (back_count > 0 or back_colors):
+        raise ValidationError(f"{context_label}: sheet film supports front colors only.")
     if front_count + back_count <= 0:
         raise ValidationError(f"{context_label}: at least one color is required when printing is enabled.")
     if len(front_colors) != front_count:
@@ -146,8 +152,11 @@ def get_artwork_contract(artwork, *, require_asset: bool = False) -> dict[str, A
     back_count = _as_int(getattr(artwork, "back_colors_count", 0), 0)
     front_colors = _normalize_color_list(getattr(artwork, "front_colors", []))
     back_colors = _normalize_color_list(getattr(artwork, "back_colors", []))
+    raw_substrate_mode = getattr(artwork, "substrate_mode", None)
+    substrate_mode = str(raw_substrate_mode or ("TUBING" if back_count > 0 or back_colors else "SHEET")).upper()
 
     _validate_side_color_contract(
+        substrate_mode=substrate_mode,
         front_count=front_count,
         back_count=back_count,
         front_colors=front_colors,
@@ -157,6 +166,7 @@ def get_artwork_contract(artwork, *, require_asset: bool = False) -> dict[str, A
 
     return {
         "print_type": str(getattr(artwork, "print_type", "FLEXO") or "FLEXO").upper(),
+        "substrate_mode": substrate_mode,
         "front_colors_count": front_count,
         "back_colors_count": back_count,
         "front_colors": front_colors,
@@ -191,19 +201,39 @@ def validate_roto_cylinder_readiness(artwork) -> dict[str, Any]:
     required_front_slots = set(range(1, front_count + 1))
     required_back_slots = set(range(1, back_count + 1))
 
-    finalized_query = Cylinder.objects.filter(artwork_id=artwork.id, is_draft=False)
-    if hasattr(finalized_query, "order_by"):
-        finalized_rows = list(finalized_query.order_by("side", "side_slot_index", "created_at"))
+    try:
+        assignment_query = CylinderSlotAssignment.objects.filter(artwork_id=artwork.id, cylinder__is_draft=False).select_related("cylinder")
+        if hasattr(assignment_query, "order_by"):
+            assignment_rows = list(assignment_query.order_by("side", "side_slot_index", "created_at"))
+        else:
+            assignment_rows = list(assignment_query)
+    except Exception:
+        assignment_rows = []
+    direct_query = Cylinder.objects.filter(artwork_id=artwork.id, is_draft=False)
+    if hasattr(direct_query, "order_by"):
+        direct_rows = list(direct_query.order_by("side", "side_slot_index", "created_at"))
     else:
-        finalized_rows = list(finalized_query)
+        direct_rows = list(direct_query)
+
+    finalized_rows = []
+    direct_seen = set()
+    for assignment in assignment_rows:
+        cylinder = assignment.cylinder
+        setattr(cylinder, "_assignment_side", assignment.side)
+        setattr(cylinder, "_assignment_slot", assignment.side_slot_index)
+        finalized_rows.append(cylinder)
+        direct_seen.add(str(getattr(cylinder, "id", id(cylinder))))
+    for row in direct_rows:
+        if str(getattr(row, "id", id(row))) not in direct_seen:
+            finalized_rows.append(row)
 
     coverage: dict[tuple[str, int], list[Any]] = {}
     invalid_slots: list[str] = []
     unexpected_slots: list[str] = []
     incomplete_slots: list[str] = []
     for row in finalized_rows:
-        side = str(getattr(row, "side", "FRONT") or "FRONT").upper()
-        slot = _as_int(getattr(row, "side_slot_index", 0), 0)
+        side = str(getattr(row, "_assignment_side", getattr(row, "side", "FRONT")) or "FRONT").upper()
+        slot = _as_int(getattr(row, "_assignment_slot", getattr(row, "side_slot_index", 0)), 0)
         if slot <= 0:
             invalid_slots.append(f"{side}-0")
             continue
@@ -276,6 +306,7 @@ def validate_frozen_printing_snapshot(
     front_colors = _normalize_color_list(printing.get("front_colors"))
     back_colors = _normalize_color_list(printing.get("back_colors"))
     _validate_side_color_contract(
+        substrate_mode=substrate_mode,
         front_count=front_count,
         back_count=back_count,
         front_colors=front_colors,
@@ -324,6 +355,7 @@ def validate_frozen_printing_snapshot(
 
     printing["front_colors"] = front_colors
     printing["back_colors"] = back_colors
+    printing["substrate_mode"] = substrate_mode
     printing["color_names"] = color_names
     printing["color_mapping"] = ink_contract["color_mapping"]
     printing["ink_base_family"] = ink_contract["ink_base_family"]

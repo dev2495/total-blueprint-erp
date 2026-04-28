@@ -41,6 +41,7 @@ const artworkSchema = z.object({
     design_code: z.string().min(3, "Design code required"),
     name: z.string().min(3, "Name required"),
     print_type: z.enum(["FLEXO", "ROTO", "DIGITAL"]),
+    substrate_mode: z.enum(["SHEET", "TUBING"]),
     front_colors_count: z.number().min(0),
     back_colors_count: z.number().min(0),
     front_colors: z.array(z.string()),
@@ -64,7 +65,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const queryClient = useQueryClient()
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [activeArtworkId, setActiveArtworkId] = useState<string | null>(artwork?.id || null)
-    const isCreateMode = !artwork?.id
+    const [generatingSlotKey, setGeneratingSlotKey] = useState<string | null>(null)
 
     const { data: inks } = useQuery({
         queryKey: ["inks"],
@@ -77,6 +78,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             design_code: "",
             name: "",
             print_type: "FLEXO" as const,
+            substrate_mode: "SHEET" as const,
             front_colors_count: 0,
             back_colors_count: 0,
             front_colors: [],
@@ -94,6 +96,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 design_code: artwork.design_code,
                 name: artwork.name,
                 print_type: (artwork as any).print_type || "FLEXO",
+                substrate_mode: (artwork as any).substrate_mode || "SHEET",
                 front_colors_count: Number((artwork as any).front_colors_count || 0),
                 back_colors_count: Number((artwork as any).back_colors_count || 0),
                 front_colors: ((artwork as any).front_colors || []).map((v: any) => String(v)),
@@ -108,6 +111,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 design_code: "",
                 name: "",
                 print_type: "FLEXO",
+                substrate_mode: "SHEET",
                 front_colors_count: 0,
                 back_colors_count: 0,
                 front_colors: [],
@@ -126,6 +130,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             formData.append("design_code", values.design_code)
             formData.append("name", values.name)
             formData.append("print_type", values.print_type)
+            formData.append("substrate_mode", values.substrate_mode)
+            formData.append("film_type", values.substrate_mode)
             formData.append("front_colors_count", String(values.front_colors_count || 0))
             formData.append("back_colors_count", String(values.back_colors_count || 0))
             formData.append("front_colors", JSON.stringify(values.front_colors || []))
@@ -149,10 +155,6 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 setPreviewUrl(String(saved.image))
             }
             queryClient.invalidateQueries({ queryKey: ["artworks"] })
-            toast({ title: "Draft Saved" })
-            if (isCreateMode) {
-                onOpenChange(false)
-            }
         },
         onError: (err: any) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
     })
@@ -180,11 +182,15 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         },
     })
     const generateCylindersMutation = useMutation({
-        mutationFn: (artworkId: string) => engineeringService.generateArtworkCylinders(artworkId),
+        mutationFn: ({ artworkId, side, slot }: { artworkId: string; side: "FRONT" | "BACK"; slot: number }) =>
+            engineeringService.generateArtworkCylinders(artworkId, { side, slot }),
         onSuccess: (res: any) => {
             queryClient.invalidateQueries({ queryKey: ["artworks"] })
+            queryClient.invalidateQueries({ queryKey: ["cylinders"] })
+            queryClient.invalidateQueries({ queryKey: ["artwork-cylinders"] })
+            queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] })
             toast({
-                title: "Draft cylinders generated",
+                title: Number(res?.count || 0) > 0 ? "Draft cylinder generated" : "Cylinder slot already covered",
                 description: `Created ${Number(res?.count || 0)}, existing draft ${Number(res?.existing_draft_count || 0)}, existing finalized ${Number(res?.existing_finalized_count || 0)}.`,
             })
         },
@@ -202,13 +208,20 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
 
     const isApproved = artwork?.status === "APPROVED"
     const printType = String(form.watch("print_type") || "FLEXO").toUpperCase()
+    const substrateMode = String(form.watch("substrate_mode") || "SHEET").toUpperCase()
+    const hasBackSide = substrateMode === "TUBING"
     const frontColors = form.watch("front_colors") || []
-    const backColors = form.watch("back_colors") || []
+    const backColors = hasBackSide ? (form.watch("back_colors") || []) : []
     const frontColorCount = Number(form.watch("front_colors_count") || 0)
     const backColorCount = Number(form.watch("back_colors_count") || 0)
     const { data: artworkCylinders = [] } = useQuery({
         queryKey: ["artwork-cylinders", activeArtworkId || "none"],
         queryFn: () => engineeringService.getCylinders({ artwork: activeArtworkId }),
+        enabled: Boolean(activeArtworkId) && printType === "ROTO",
+    })
+    const { data: cylinderAssignments = [] } = useQuery({
+        queryKey: ["cylinder-slot-assignments", activeArtworkId || "none"],
+        queryFn: () => engineeringService.getCylinderSlotAssignments({ artwork: activeArtworkId }),
         enabled: Boolean(activeArtworkId) && printType === "ROTO",
     })
     const inkColorOptions = useMemo(() => {
@@ -221,7 +234,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     }, [inks])
     const colorList = [...frontColors, ...backColors].map(c => String(c).trim().toUpperCase()).filter(Boolean)
     const hasPrintColors = colorList.length > 0
-    const colorContractOk = hasPrintColors && frontColorCount === frontColors.length && backColorCount === backColors.length
+    const colorContractOk = hasPrintColors && frontColorCount === frontColors.length && (!hasBackSide || backColorCount === backColors.length)
     const filePathAsset = String(form.watch("file_path") || "").trim()
     const hasImage = !!previewUrl
     const hasProductionAsset = hasImage || !!filePathAsset
@@ -229,6 +242,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const finalizedCylinders = useMemo(
         () => (artworkCylinders || []).filter((row: any) => !Boolean(row?.is_draft)),
         [artworkCylinders]
+    )
+    const finalizedAssignments = useMemo(
+        () => (cylinderAssignments || []).filter((row: any) => !Boolean(row?.cylinder_is_draft)),
+        [cylinderAssignments]
     )
     const requiredFrontSlots = useMemo(
         () => Array.from({ length: Math.max(0, frontColorCount) }, (_, idx) => idx + 1),
@@ -239,12 +256,18 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         [backColorCount]
     )
     const finalizedFrontSlots = useMemo(
-        () => new Set(finalizedCylinders.filter((row: any) => String(row?.side || "FRONT").toUpperCase() !== "BACK").map((row: any) => Number(row?.side_slot_index || 0))),
-        [finalizedCylinders]
+        () => new Set([
+            ...finalizedCylinders.filter((row: any) => String(row?.side || "FRONT").toUpperCase() !== "BACK").map((row: any) => Number(row?.side_slot_index || 0)),
+            ...finalizedAssignments.filter((row: any) => String(row?.side || "FRONT").toUpperCase() !== "BACK").map((row: any) => Number(row?.side_slot_index || 0)),
+        ]),
+        [finalizedCylinders, finalizedAssignments]
     )
     const finalizedBackSlots = useMemo(
-        () => new Set(finalizedCylinders.filter((row: any) => String(row?.side || "").toUpperCase() === "BACK").map((row: any) => Number(row?.side_slot_index || 0))),
-        [finalizedCylinders]
+        () => new Set([
+            ...finalizedCylinders.filter((row: any) => String(row?.side || "").toUpperCase() === "BACK").map((row: any) => Number(row?.side_slot_index || 0)),
+            ...finalizedAssignments.filter((row: any) => String(row?.side || "").toUpperCase() === "BACK").map((row: any) => Number(row?.side_slot_index || 0)),
+        ]),
+        [finalizedCylinders, finalizedAssignments]
     )
     const missingFrontSlots = useMemo(
         () => requiredFrontSlots.filter((slot) => !finalizedFrontSlots.has(slot)),
@@ -268,7 +291,19 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 )
             })
             .map((row: any) => `${String(row?.side || "FRONT").toUpperCase()}-${Number(row?.side_slot_index || 0)}`)
-    }, [finalizedCylinders])
+            .concat(
+                finalizedAssignments
+                    .filter((row: any) => {
+                        return (
+                            Number(row?.cylinder_diameter_mm || 0) <= 0 ||
+                            Number(row?.cylinder_width_mm || 0) <= 0 ||
+                            Number(row?.cylinder_circumference || 0) <= 0 ||
+                            Number(row?.cylinder_cell_depth_microns || 0) <= 0
+                        )
+                    })
+                    .map((row: any) => `${String(row?.side || "FRONT").toUpperCase()}-${Number(row?.side_slot_index || 0)}`)
+            )
+    }, [finalizedCylinders, finalizedAssignments])
 
     const rotoChecklist = useMemo(
         () => [
@@ -290,7 +325,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             {
                 id: "back-colors",
                 label: "Back color count matches list",
-                ok: backColorCount === backColors.length,
+                ok: !hasBackSide || backColorCount === backColors.length,
             },
             {
                 id: "front-slots",
@@ -301,7 +336,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             {
                 id: "back-slots",
                 label: "Finalized back cylinder slots complete",
-                ok: printType !== "ROTO" || missingBackSlots.length === 0,
+                ok: printType !== "ROTO" || !hasBackSide || missingBackSlots.length === 0,
                 detail: missingBackSlots.length ? `Missing slots: ${missingBackSlots.join(", ")}` : "",
             },
             {
@@ -318,6 +353,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             frontColors.length,
             backColorCount,
             backColors.length,
+            hasBackSide,
             printType,
             missingFrontSlots,
             missingBackSlots,
@@ -328,13 +364,13 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const approvalBlockers = useMemo(() => {
         const blockers: string[] = []
         if (!hasProductionAsset) blockers.push("Upload artwork image or file.")
-        if (!hasPrintColors) blockers.push("Add at least one front or back print color.")
+        if (!hasPrintColors) blockers.push(hasBackSide ? "Add at least one front or back print color." : "Add at least one front print color.")
         if (frontColorCount !== frontColors.length) blockers.push("Front color list/count mismatch.")
-        if (backColorCount !== backColors.length) blockers.push("Back color list/count mismatch.")
+        if (hasBackSide && backColorCount !== backColors.length) blockers.push("Back color list/count mismatch.")
         if (!activeArtworkId) blockers.push("Save draft before approval.")
         if (printType === "ROTO") {
             if (missingFrontSlots.length) blockers.push(`Missing finalized front slots: ${missingFrontSlots.join(", ")}.`)
-            if (missingBackSlots.length) blockers.push(`Missing finalized back slots: ${missingBackSlots.join(", ")}.`)
+            if (hasBackSide && missingBackSlots.length) blockers.push(`Missing finalized back slots: ${missingBackSlots.join(", ")}.`)
             if (incompleteFinalizedSlots.length) blockers.push(`Finalize technical data for: ${incompleteFinalizedSlots.join(", ")}.`)
         }
         return blockers
@@ -345,6 +381,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         frontColors.length,
         backColorCount,
         backColors.length,
+        hasBackSide,
         activeArtworkId,
         printType,
         missingFrontSlots,
@@ -353,13 +390,66 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     ])
     const canApprove = !isApproved && approvalBlockers.length === 0
     const canGenerateCylinders = printType === "ROTO" && colorContractOk
+    const slotCoverage = useMemo(() => {
+        const map = new Map<string, { state: "draft" | "ready"; label: string }>()
+        for (const row of artworkCylinders || []) {
+            const side = String((row as any)?.side || "FRONT").toUpperCase()
+            const slot = Number((row as any)?.side_slot_index || 0)
+            if (!slot) continue
+            map.set(`${side}:${slot}`, {
+                state: Boolean((row as any)?.is_draft) ? "draft" : "ready",
+                label: String((row as any)?.code || (row as any)?.name || "Cylinder"),
+            })
+        }
+        for (const row of cylinderAssignments || []) {
+            const side = String((row as any)?.side || "FRONT").toUpperCase()
+            const slot = Number((row as any)?.side_slot_index || 0)
+            if (!slot) continue
+            map.set(`${side}:${slot}`, {
+                state: Boolean((row as any)?.cylinder_is_draft) ? "draft" : "ready",
+                label: String((row as any)?.cylinder_code || (row as any)?.cylinder_name || "Assigned cylinder"),
+            })
+        }
+        return map
+    }, [artworkCylinders, cylinderAssignments])
+    const rotoColorSlots = useMemo(() => {
+        const front = frontColors.map((color, index) => ({ side: "FRONT" as const, slot: index + 1, color: String(color || "").toUpperCase() }))
+        const back = hasBackSide
+            ? backColors.map((color, index) => ({ side: "BACK" as const, slot: index + 1, color: String(color || "").toUpperCase() }))
+            : []
+        return [...front, ...back]
+    }, [frontColors, backColors, hasBackSide])
+
+    async function generateCylinderForSlot(target: { side: "FRONT" | "BACK"; slot: number }) {
+        setGeneratingSlotKey(`${target.side}:${target.slot}`)
+        try {
+            const saved = await mutation.mutateAsync(form.getValues() as ArtworkFormValues)
+            const targetId = String(saved?.id || activeArtworkId || "")
+            if (!targetId) {
+                toast({
+                    title: "Draft required",
+                    description: "Please save artwork details first.",
+                    variant: "destructive",
+                })
+                return
+            }
+            await generateCylindersMutation.mutateAsync({ artworkId: targetId, side: target.side, slot: target.slot })
+        } catch {
+            // handled in mutation onError / generate onError
+        } finally {
+            setGeneratingSlotKey(null)
+        }
+    }
 
     useEffect(() => {
+        if (!hasBackSide && (form.getValues("back_colors") || []).length > 0) {
+            form.setValue("back_colors", [], { shouldDirty: true, shouldValidate: true })
+        }
         form.setValue("front_colors_count", frontColors.length, { shouldValidate: true })
         form.setValue("back_colors_count", backColors.length, { shouldValidate: true })
         form.setValue("colors_count", colorList.length, { shouldValidate: true })
         form.setValue("color_list", colorList, { shouldValidate: false })
-    }, [frontColors, backColors, colorList.join("|"), form])
+    }, [frontColors, backColors, colorList.join("|"), form, hasBackSide])
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -477,6 +567,23 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         </Select>
                                     </FormItem>
                                 )} />
+                                <FormField control={form.control} name="substrate_mode" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Film Type</FormLabel>
+                                        <Select value={field.value} onValueChange={field.onChange}>
+                                            <FormControl>
+                                                <SelectTrigger className="bg-white" data-testid="artwork-film-type"><SelectValue /></SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="SHEET">SHEET</SelectItem>
+                                                <SelectItem value="TUBING">TUBING</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormDescription className="text-[10px]">
+                                            Sheet uses front colors only. Tubing enables front and back colors.
+                                        </FormDescription>
+                                    </FormItem>
+                                )} />
                             </div>
                             <FormField control={form.control} name="front_colors" render={({ field }) => (
                                 <FormItem>
@@ -536,6 +643,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                     </div>
                                 </FormItem>
                             )} />
+                            {hasBackSide ? (
                             <FormField control={form.control} name="back_colors" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Back Colors</FormLabel>
@@ -597,6 +705,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                     </FormDescription>
                                 </FormItem>
                             )} />
+                            ) : null}
                             <div className="rounded-md border bg-slate-50 p-3">
                                 <p className="text-[10px] font-bold uppercase text-slate-600">Ink Family Mapping Note</p>
                                 <p className="mt-1 text-[10px] text-slate-500">
@@ -604,8 +713,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                 </p>
                             </div>
                             {printType === "ROTO" ? (
-                                <div className="rounded-md border border-slate-200 bg-white p-3" data-testid="artwork-roto-checklist">
-                                    <p className="text-[10px] font-bold uppercase text-slate-600">ROTO Readiness Checklist</p>
+                                <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3" data-testid="artwork-roto-checklist">
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase text-slate-600">ROTO Readiness Checklist</p>
                                     <div className="mt-2 space-y-1.5">
                                         {rotoChecklist.map((item) => (
                                             <div key={item.id} className="text-[11px]">
@@ -616,6 +726,47 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                 {item.detail ? <span className="text-slate-500"> · {item.detail}</span> : null}
                                             </div>
                                         ))}
+                                    </div>
+                                    </div>
+                                    <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3" data-testid="artwork-cylinder-color-actions">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase text-slate-600">Cylinder generation by color</p>
+                                                <p className="mt-1 text-[10px] text-slate-500">Generate only the colors that need a new cylinder. Reuse existing cylinders from the Cylinder Catalog.</p>
+                                            </div>
+                                            <Badge variant="outline">{rotoColorSlots.length} color slots</Badge>
+                                        </div>
+                                        <div className="mt-3 grid gap-2">
+                                            {rotoColorSlots.length ? rotoColorSlots.map((slot) => {
+                                                const key = `${slot.side}:${slot.slot}`
+                                                const coverage = slotCoverage.get(key)
+                                                const isBusy = generatingSlotKey === key && (mutation.isPending || generateCylindersMutation.isPending)
+                                                return (
+                                                    <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                        <div className="min-w-0">
+                                                            <div className="truncate text-xs font-black text-slate-900">{slot.side} {slot.slot} · {slot.color || "Color pending"}</div>
+                                                            <div className="mt-0.5 text-[10px] text-slate-500">
+                                                                {coverage ? `${coverage.state === "ready" ? "Ready" : "Draft"}: ${coverage.label}` : "No cylinder assigned yet"}
+                                                            </div>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant={coverage ? "outline" : "default"}
+                                                            disabled={Boolean(coverage) || !canGenerateCylinders || mutation.isPending || generateCylindersMutation.isPending}
+                                                            onClick={form.handleSubmit(() => generateCylinderForSlot({ side: slot.side, slot: slot.slot }))}
+                                                        >
+                                                            {isBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-2 h-3.5 w-3.5" />}
+                                                            {coverage ? "Covered" : "Generate"}
+                                                        </Button>
+                                                    </div>
+                                                )
+                                            }) : (
+                                                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-400">
+                                                    Add print colors before generating cylinders.
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             ) : null}
@@ -649,6 +800,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         onClick={form.handleSubmit(async (v) => {
                                             try {
                                                 await mutation.mutateAsync(v as ArtworkFormValues)
+                                                toast({ title: "Draft saved" })
+                                                onOpenChange(false)
                                             } catch {
                                                 // handled in mutation onError
                                             }
@@ -657,35 +810,6 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Save Draft
                                     </Button>
-                                    {printType === "ROTO" && (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="flex-1 border-blue-200 text-blue-700"
-                                            disabled={!canGenerateCylinders || mutation.isPending || generateCylindersMutation.isPending}
-                                            data-testid="artwork-generate-cylinders"
-                                            onClick={form.handleSubmit(async (v) => {
-                                                try {
-                                                    const saved = await mutation.mutateAsync(v as ArtworkFormValues)
-                                                    const targetId = String(saved?.id || activeArtworkId || "")
-                                                    if (!targetId) {
-                                                        toast({
-                                                            title: "Draft required",
-                                                            description: "Please save artwork details first.",
-                                                            variant: "destructive",
-                                                        })
-                                                        return
-                                                    }
-                                                    await generateCylindersMutation.mutateAsync(targetId)
-                                                } catch {
-                                                    // handled in mutation onError
-                                                }
-                                            })}
-                                        >
-                                            {(mutation.isPending || generateCylindersMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                            Generate Cylinders
-                                        </Button>
-                                    )}
                                     {(artwork || activeArtworkId) && (
                                         <Button
                                             type="button"

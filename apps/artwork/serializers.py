@@ -62,6 +62,16 @@ class ArtworkSerializer(serializers.ModelSerializer):
         back_required = int(obj.back_colors_count or 0)
         if front_required + back_required <= 0:
             return False
+        assignments = getattr(obj, "cylinder_slot_assignments", None)
+        if assignments is not None:
+            front_assigned = set(
+                assignments.filter(side="FRONT", cylinder__is_draft=False).values_list("side_slot_index", flat=True)
+            )
+            back_assigned = set(
+                assignments.filter(side="BACK", cylinder__is_draft=False).values_list("side_slot_index", flat=True)
+            )
+            if len(front_assigned) >= front_required and len(back_assigned) >= back_required:
+                return True
         front_slots = set(
             obj.cylinders.filter(side="FRONT", is_draft=False).values_list("side_slot_index", flat=True)
         )
@@ -82,6 +92,17 @@ class ArtworkSerializer(serializers.ModelSerializer):
                 {"status": "APPROVED status is managed only by the approve action."}
             )
 
+        substrate_mode = str(
+            attrs.get(
+                "substrate_mode",
+                self.initial_data.get("film_type") if isinstance(self.initial_data, dict) else None,
+            )
+            or getattr(self.instance, "substrate_mode", "SHEET")
+            or "SHEET"
+        ).strip().upper()
+        if substrate_mode not in {"SHEET", "TUBING"}:
+            raise serializers.ValidationError({"substrate_mode": "Film type must be SHEET or TUBING."})
+
         front_colors = _coerce_list(attrs.get("front_colors", self.instance.front_colors if self.instance else []))
         back_colors = _coerce_list(attrs.get("back_colors", self.instance.back_colors if self.instance else []))
         color_list = _coerce_list(attrs.get("color_list", self.instance.color_list if self.instance else []))
@@ -97,6 +118,9 @@ class ArtworkSerializer(serializers.ModelSerializer):
             front_count = len(front_colors)
         if back_colors and back_count == 0:
             back_count = len(back_colors)
+        if substrate_mode == "SHEET":
+            back_colors = []
+            back_count = 0
         if front_count and front_colors and len(front_colors) != front_count:
             raise serializers.ValidationError("front_colors_count must match number of front_colors.")
         if back_count and back_colors and len(back_colors) != back_count:
@@ -109,6 +133,7 @@ class ArtworkSerializer(serializers.ModelSerializer):
             color_list = [str(v).strip().upper() for v in color_list if str(v).strip()]
 
         attrs["print_type"] = str(attrs.get("print_type") or getattr(self.instance, "print_type", "FLEXO")).upper()
+        attrs["substrate_mode"] = substrate_mode
         attrs["front_colors"] = [str(v).strip().upper() for v in front_colors]
         attrs["back_colors"] = [str(v).strip().upper() for v in back_colors]
         attrs["front_colors_count"] = front_count

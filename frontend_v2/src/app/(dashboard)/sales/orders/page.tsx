@@ -32,6 +32,7 @@ import {
     SALES_SUPPORTED_FG_TYPES,
     salesMaterialFilterLabel,
     salesSortChipOptions,
+    salesSpecMatchesMaterialFilter,
     salesUniqueText,
     type SalesOverflowChipOption,
     type SalesSavedViewFilters,
@@ -45,7 +46,7 @@ import { type SalesOrder, salesService } from "@/services/sales"
 
 type OrderTab = "queue" | "history"
 type StatusFilter = "ALL" | "DRAFT" | "CONFIRMED" | "PLANNING_REQUIRED" | "PLANNED" | "RELEASED" | "PACKING_READY" | "DISPATCH_READY" | "COMPLETED" | "CANCELLED"
-type DeliveryWindow = "ALL" | "THIS_WEEK" | "OVERDUE" | "NO_DATE"
+type CreatedWindow = "ALL" | "TODAY" | "LAST_7" | "LAST_30" | "OLDER_30" | "NO_DATE"
 
 type EnrichedOrder = {
     order: SalesOrder
@@ -84,17 +85,22 @@ function canCancelBeforeRelease(order: SalesOrder) {
     return ["DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"].includes(String(order.status || "").toUpperCase())
 }
 
-function deliveryMatches(value: string | null | undefined, window: DeliveryWindow) {
+function orderCreatedDate(order: SalesOrder) {
+    return order.created_at || (order as any).order_created_at || null
+}
+
+function createdMatches(value: string | null | undefined, window: CreatedWindow) {
     if (window === "ALL") return true
     if (!value) return window === "NO_DATE"
     const ts = new Date(value).getTime()
     if (Number.isNaN(ts)) return window === "NO_DATE"
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const end = new Date(today)
-    end.setDate(today.getDate() + 7)
-    if (window === "OVERDUE") return ts < today.getTime()
-    if (window === "THIS_WEEK") return ts >= today.getTime() && ts <= end.getTime()
+    const oneDay = 24 * 60 * 60 * 1000
+    if (window === "TODAY") return ts >= today.getTime() && ts < today.getTime() + oneDay
+    if (window === "LAST_7") return ts >= today.getTime() - oneDay * 7
+    if (window === "LAST_30") return ts >= today.getTime() - oneDay * 30
+    if (window === "OLDER_30") return ts < today.getTime() - oneDay * 30
     return true
 }
 
@@ -196,8 +202,7 @@ function specMatches({
     const fgType = String(spec.size.finishedGoodType || "").toUpperCase()
     if (fgTypeFilter !== "all" && fgType !== fgTypeFilter.toUpperCase()) return false
     if (materialFilter !== "all") {
-        const haystack = spec.layers.map((layer) => `${layer.variantName} ${layer.variantCode} ${layer.label}`).join(" ").toLowerCase()
-        if (!haystack.includes(materialFilter.toLowerCase())) return false
+        if (!salesSpecMatchesMaterialFilter(spec, materialFilter)) return false
     }
     if (gradeFilter !== "all") {
         const haystack = spec.layers.map((layer) => layer.grade).join(" ").toLowerCase()
@@ -226,10 +231,10 @@ function HeroMetric({
     sub?: string
 }) {
     return (
-        <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/65">{label}</div>
-            <div className="mt-2 text-3xl font-black tracking-tight">{value}</div>
-            {sub ? <div className="mt-1 text-xs font-semibold text-white/65">{sub}</div> : null}
+        <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur">
+            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/65">{label}</div>
+            <div className="mt-1.5 text-2xl font-black tracking-tight">{value}</div>
+            {sub ? <div className="mt-0.5 text-[11px] font-semibold text-white/65">{sub}</div> : null}
         </div>
     )
 }
@@ -248,8 +253,8 @@ function FilterPill({
             type="button"
             onClick={onClick}
             className={cn(
-                "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-black transition hover:border-blue-300 hover:bg-blue-50",
-                active ? "border-blue-500 bg-blue-600 text-white shadow-[0_14px_24px_-18px_rgba(37,99,235,0.7)]" : "border-slate-200 bg-white text-slate-700"
+                "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-black transition hover:border-violet-300 hover:bg-violet-50",
+                active ? "border-violet-500 bg-violet-600 text-white shadow-[0_14px_24px_-18px_rgba(124,58,237,0.72)]" : "border-slate-200 bg-white text-slate-700"
             )}
         >
             {children}
@@ -345,7 +350,7 @@ function OrderQueueRow({
                 </div>
             </div>
             <div className="min-w-0 text-xs">
-                <div className="font-black text-slate-900">{formatSalesDate(order.delivery_date)}</div>
+                <div className="font-black text-slate-900">{formatSalesDate(orderCreatedDate(order))}</div>
                 <div className="mt-1 truncate font-semibold text-slate-500">{order.plant_name || order.ship_to_customer_name || "Plant pending"}</div>
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -383,7 +388,7 @@ export default function SalesOrdersPage() {
     const [thicknessFilter, setThicknessFilter] = useState("")
     const [sizeFilter, setSizeFilter] = useState("")
     const [heightFilter, setHeightFilter] = useState("")
-    const [deliveryWindow, setDeliveryWindow] = useState<DeliveryWindow>("ALL")
+    const [createdWindow, setCreatedWindow] = useState<CreatedWindow>("ALL")
     const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE)
     const deferredSearchText = useDeferredValue(searchText.trim())
     const serverStatusFilter = statusFilter !== "ALL"
@@ -452,8 +457,10 @@ export default function SalesOrdersPage() {
     const historyOrders = useMemo(() => enrichedOrders.filter((item) => isCompletedOrder(item.order)), [enrichedOrders])
     const totalValue = useMemo(() => enrichedOrders.reduce((sum, item) => sum + safeNumber(item.order.total_value), 0), [enrichedOrders])
     const awaitingPlanning = activeOrders.filter((item) => item.normalizedStatus === "PLANNING_REQUIRED").length
-    const thisWeek = enrichedOrders.filter((item) => deliveryMatches(item.order.delivery_date, "THIS_WEEK")).length
-    const overdue = activeOrders.filter((item) => deliveryMatches(item.order.delivery_date, "OVERDUE")).length
+    const createdToday = enrichedOrders.filter((item) => createdMatches(orderCreatedDate(item.order), "TODAY")).length
+    const createdLast7 = enrichedOrders.filter((item) => createdMatches(orderCreatedDate(item.order), "LAST_7")).length
+    const createdLast30 = enrichedOrders.filter((item) => createdMatches(orderCreatedDate(item.order), "LAST_30")).length
+    const olderThan30 = activeOrders.filter((item) => createdMatches(orderCreatedDate(item.order), "OLDER_30")).length
 
     const materialOptions = useMemo<SalesOverflowChipOption[]>(() => {
         const labels = salesUniqueText([
@@ -463,17 +470,12 @@ export default function SalesOrdersPage() {
             ...enrichedOrders.flatMap((item) => item.spec.layers.flatMap((layer) => [salesMaterialFilterLabel(layer.variantName), salesMaterialFilterLabel(layer.variantCode)])),
         ]).map(salesMaterialFilterLabel).filter(Boolean)
         return salesSortChipOptions(
-            salesUniqueText(labels).map((material) => {
-                const needle = material.toLowerCase()
-                const count = enrichedOrders.filter((item) =>
-                    item.spec.layers.some((layer) =>
-                        [layer.variantName, layer.variantCode, layer.label, salesMaterialFilterLabel(layer.variantName), salesMaterialFilterLabel(layer.variantCode)]
-                            .filter(Boolean)
-                            .some((value) => String(value).toLowerCase().includes(needle))
-                    )
-                ).length
-                return { value: material, label: material, count, tone: "material" as const }
-            }),
+            salesUniqueText(labels).map((material) => ({
+                value: material,
+                label: material,
+                count: enrichedOrders.filter((item) => salesSpecMatchesMaterialFilter(item.spec, material)).length,
+                tone: "material" as const,
+            })),
             SALES_MATERIAL_PRIORITY
         )
     }, [enrichedOrders, filmFamilies, filmVariants])
@@ -513,7 +515,7 @@ export default function SalesOrdersPage() {
         thicknessFilter,
         sizeFilter,
         heightFilter,
-        deliveryWindow,
+        createdWindow,
     }
 
     const applySavedFilters = (filters: SalesSavedViewFilters) => {
@@ -529,7 +531,11 @@ export default function SalesOrdersPage() {
         if (typeof filters.thicknessFilter === "string") setThicknessFilter(filters.thicknessFilter)
         if (typeof filters.sizeFilter === "string") setSizeFilter(filters.sizeFilter)
         if (typeof filters.heightFilter === "string") setHeightFilter(filters.heightFilter)
-        if (typeof filters.deliveryWindow === "string") setDeliveryWindow(filters.deliveryWindow as DeliveryWindow)
+        if (typeof filters.createdWindow === "string") setCreatedWindow(filters.createdWindow as CreatedWindow)
+        if (typeof filters.deliveryWindow === "string") {
+            const legacyMap: Record<string, CreatedWindow> = { THIS_WEEK: "LAST_7", OVERDUE: "OLDER_30", NO_DATE: "NO_DATE", ALL: "ALL" }
+            setCreatedWindow(legacyMap[String(filters.deliveryWindow)] || "ALL")
+        }
     }
 
     const shownOrders = useMemo(() => {
@@ -539,16 +545,16 @@ export default function SalesOrdersPage() {
             if (q && !item.searchable.includes(q)) return false
             if (!specMatches({ spec: item.spec, fgTypeFilter, materialFilter, gradeFilter, sizeFilter, heightFilter, thicknessFilter })) return false
             if (statusFilter !== "ALL" && item.normalizedStatus !== statusFilter) return false
-            if (!deliveryMatches(item.order.delivery_date, deliveryWindow)) return false
+            if (!createdMatches(orderCreatedDate(item.order), createdWindow)) return false
             return true
         })
-    }, [activeOrders, deliveryWindow, fgTypeFilter, gradeFilter, heightFilter, historyOrders, materialFilter, searchText, sizeFilter, statusFilter, tab, thicknessFilter])
+    }, [activeOrders, createdWindow, fgTypeFilter, gradeFilter, heightFilter, historyOrders, materialFilter, searchText, sizeFilter, statusFilter, tab, thicknessFilter])
 
     const visibleOrders = shownOrders.slice(0, visibleLimit)
 
     useEffect(() => {
         setVisibleLimit(PAGE_SIZE)
-    }, [deliveryWindow, fgTypeFilter, gradeFilter, heightFilter, materialFilter, searchText, sizeFilter, statusFilter, tab, thicknessFilter])
+    }, [createdWindow, fgTypeFilter, gradeFilter, heightFilter, materialFilter, searchText, sizeFilter, statusFilter, tab, thicknessFilter])
 
     function resetFilters() {
         setSearchText("")
@@ -559,7 +565,7 @@ export default function SalesOrdersPage() {
         setThicknessFilter("")
         setSizeFilter("")
         setHeightFilter("")
-        setDeliveryWindow("ALL")
+        setCreatedWindow("ALL")
     }
 
     function handleCancel(order: SalesOrder) {
@@ -569,21 +575,21 @@ export default function SalesOrdersPage() {
     }
 
     return (
-        <div className="min-h-screen space-y-5 bg-[#f8fafc] p-4 lg:p-6" data-testid="sales-orders-list-page">
-            <section className="overflow-hidden rounded-[1.75rem] bg-[radial-gradient(circle_at_85%_0%,rgba(59,130,246,0.4),transparent_45%),linear-gradient(135deg,#0b1f55_0%,#1e3a8a_54%,#3b82f6_100%)] p-5 text-white shadow-[0_28px_70px_-44px_rgba(29,78,216,0.75)]">
-                <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-h-screen space-y-4 bg-[#f8fafc] p-3 lg:p-4" data-testid="sales-orders-list-page">
+            <section className="overflow-hidden rounded-[1.55rem] bg-[radial-gradient(circle_at_85%_0%,rgba(168,85,247,0.46),transparent_45%),linear-gradient(135deg,#2e1b82_0%,#5b21b6_54%,#7c3aed_100%)] p-4 text-white shadow-[0_24px_62px_-42px_rgba(76,29,149,0.72)]">
+                <div className="relative z-10 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-200">Sales · Order operations</div>
-                        <h1 className="mt-2 text-3xl font-black tracking-tight">Sales Orders</h1>
-                        <p className="mt-1 text-sm font-semibold text-blue-100">
-                            One bounded order queue with product size, layers, material, grade, thickness, delivery, and history in the same lens.
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">Sales · Order operations</div>
+                        <h1 className="mt-1.5 text-2xl font-black tracking-tight lg:text-3xl">Sales Orders</h1>
+                        <p className="mt-1 max-w-4xl text-sm font-semibold leading-snug text-violet-100">
+                            One bounded order queue with product size, layers, material, grade, thickness, created-age, and history in the same lens.
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button asChild variant="outline" className="h-10 rounded-full border-white/20 bg-white/10 text-xs font-black text-white hover:bg-white hover:text-blue-900">
+                        <Button asChild variant="outline" className="h-9 rounded-full border-white/20 bg-white/10 text-xs font-black text-white hover:bg-white hover:text-violet-900">
                             <Link href="/sales/sku-catalog">SKU Studio</Link>
                         </Button>
-                        <Button asChild className="h-10 rounded-full bg-white px-5 text-xs font-black uppercase tracking-[0.14em] text-blue-900 hover:bg-blue-50">
+                        <Button asChild className="h-9 rounded-full bg-white px-4 text-xs font-black uppercase tracking-[0.14em] text-violet-900 hover:bg-violet-50">
                             <Link href="/sales/orders/create">
                                 <Plus className="mr-2 h-4 w-4" />
                                 New order
@@ -591,11 +597,11 @@ export default function SalesOrdersPage() {
                         </Button>
                     </div>
                 </div>
-                <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                <div className="relative z-10 mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
                     <HeroMetric label="Active" value={activeOrders.length} sub="open orders" />
                     <HeroMetric label="Awaiting planning" value={awaitingPlanning} sub="needs action" />
-                    <HeroMetric label="This week" value={thisWeek} sub="deliveries due" />
-                    <HeroMetric label="Overdue" value={overdue} sub="action required" />
+                    <HeroMetric label="Created 7d" value={createdLast7} sub={`${createdToday} today`} />
+                    <HeroMetric label="Older 30d" value={olderThan30} sub="open orders" />
                     <HeroMetric label="Total value" value={formatSalesMoney(totalValue)} sub="in flight" />
                     <HeroMetric label="On-time %" value="-" sub="trailing 30d" />
                 </div>
@@ -608,38 +614,38 @@ export default function SalesOrdersPage() {
                 viewCounts={{
                     "My active queue": activeOrders.length,
                     "Awaiting planning": awaitingPlanning,
-                    "This week's deliveries": thisWeek,
-                    Overdue: overdue,
-                    "Pouches this week": activeOrders.filter((item) => String(item.spec.size.finishedGoodType || item.order.item_summary?.finished_good_type || "").toUpperCase() === "POUCH").length,
+                    "Created last 7d": createdLast7,
+                    "Older 30d": olderThan30,
+                    "Pouches this month": activeOrders.filter((item) => String(item.spec.size.finishedGoodType || item.order.item_summary?.finished_good_type || "").toUpperCase() === "POUCH" && createdMatches(orderCreatedDate(item.order), "LAST_30")).length,
                     "LDPE rolls": activeOrders.filter((item) => item.spec.searchText.includes("ldpe") && String(item.spec.size.finishedGoodType || "").toUpperCase() === "ROLL").length,
                 }}
             />
 
-            <section className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-[0_16px_44px_-40px_rgba(15,23,42,0.38)]" data-testid="sales-order-filters">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <section className="rounded-[1.15rem] border border-slate-200 bg-white p-3 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]" data-testid="sales-order-filters">
+                <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
                     <div className="relative min-w-[16rem] flex-1">
                         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input
                             value={searchText}
                             onChange={(event) => setSearchText(event.target.value)}
                             placeholder="Search SO number, customer, SKU code, size, grade, addon..."
-                            className="h-11 rounded-xl border-slate-200 bg-white pl-10 text-sm font-semibold shadow-none"
+                            className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm font-semibold shadow-none"
                         />
                     </div>
-                    <Button type="button" variant="outline" className="h-11 rounded-xl bg-white text-xs font-black">
+                    <Button type="button" variant="outline" className="h-10 rounded-xl bg-white text-xs font-black">
                         <ArrowUpDown className="mr-2 h-4 w-4" />
-                        Sort: delivery date
+                        Sort: created date
                     </Button>
-                    <Button type="button" variant="outline" className="h-11 rounded-xl bg-white text-xs font-black">
+                    <Button type="button" variant="outline" className="h-10 rounded-xl bg-white text-xs font-black">
                         <Grid2X2 className="mr-2 h-4 w-4" />
                         Layout
                     </Button>
-                    <Button type="button" variant="outline" className="h-11 rounded-xl bg-white text-xs font-black">
+                    <Button type="button" variant="outline" className="h-10 rounded-xl bg-white text-xs font-black">
                         <Download className="mr-2 h-4 w-4" />
                         Export
                     </Button>
                 </div>
-                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_auto_auto_auto] xl:items-center">
+                <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1.1fr)_auto_auto_auto] xl:items-center">
                     <SalesOverflowChipGroup
                         label="Finished good"
                         value={fgTypeFilter}
@@ -656,11 +662,11 @@ export default function SalesOrdersPage() {
                     <SalesSmartRangeFilter label="Height" value={heightFilter} placeholder="200-320" suffix="mm" presets={heightPresets} onChange={setHeightFilter} />
                     <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} placeholder="20-80" suffix="μ" presets={thicknessPresets} onChange={setThicknessFilter} />
                 </div>
-                <div className="mt-2 grid gap-2 border-t border-slate-100 pt-3 xl:grid-cols-2">
+                <div className="mt-2 grid gap-2 border-t border-slate-100 pt-2 xl:grid-cols-2">
                     <SalesOverflowChipGroup label="Material" value={materialFilter} onChange={setMaterialFilter} options={materialOptions} maxInline={4} />
                     <SalesOverflowChipGroup label="Grade" value={gradeFilter} onChange={setGradeFilter} options={gradeOptions} maxInline={4} />
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                <div className="mt-2 flex flex-wrap gap-2 border-t border-slate-100 pt-2">
                     <SalesOverflowChipGroup
                         label="Status"
                         value={statusFilter}
@@ -674,14 +680,16 @@ export default function SalesOrdersPage() {
                             tone: status.value === "PLANNING_REQUIRED" ? "fgPouch" : status.value === "PLANNED" ? "size" : status.value === "RELEASED" ? "material" : "pack",
                         }))}
                     />
-                    <span className="inline-flex h-9 shrink-0 items-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Delivery</span>
+                    <span className="inline-flex h-9 shrink-0 items-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Created</span>
                     {([
                         ["ALL", "All dates"],
-                        ["THIS_WEEK", "This week"],
-                        ["OVERDUE", "Overdue"],
+                        ["TODAY", "Today"],
+                        ["LAST_7", "Last 7d"],
+                        ["LAST_30", "Last 30d"],
+                        ["OLDER_30", "Older 30d"],
                         ["NO_DATE", "No date"],
-                    ] as Array<[DeliveryWindow, string]>).map(([value, label]) => (
-                        <FilterPill key={value} active={deliveryWindow === value} onClick={() => setDeliveryWindow(deliveryWindow === value ? "ALL" : value)}>
+                    ] as Array<[CreatedWindow, string]>).map(([value, label]) => (
+                        <FilterPill key={value} active={createdWindow === value} onClick={() => setCreatedWindow(createdWindow === value ? "ALL" : value)}>
                             <CalendarDays className="h-3.5 w-3.5" />
                             {label}
                         </FilterPill>
@@ -705,7 +713,7 @@ export default function SalesOrdersPage() {
                                 onClick={() => setTab(value as OrderTab)}
                                 className={cn(
                                     "inline-flex h-11 shrink-0 items-center gap-2 border-b-2 px-4 text-sm font-black transition",
-                                    tab === value ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-900"
+                                    tab === value ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500 hover:text-slate-900"
                                 )}
                             >
                                 {label}
@@ -738,7 +746,7 @@ export default function SalesOrdersPage() {
                             <div>SKU / Variant ID</div>
                             <div>Variant attributes</div>
                             <div>Progress</div>
-                            <div>Delivery · Plant</div>
+                            <div>Created · Plant</div>
                             <div className="text-right">Status</div>
                         </div>
                         {visibleOrders.map((item) => (

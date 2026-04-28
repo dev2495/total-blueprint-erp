@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 import uuid
 from apps.artwork.models import Artwork
 from apps.inventory.models import Vendor, InventoryLocation
@@ -48,6 +49,34 @@ class Cylinder(models.Model):
 
     class Meta:
         db_table = 'tooling_cylinders'
+
+
+class CylinderSlotAssignment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    artwork = models.ForeignKey(Artwork, on_delete=models.CASCADE, related_name="cylinder_slot_assignments")
+    cylinder = models.ForeignKey(Cylinder, on_delete=models.PROTECT, related_name="slot_assignments")
+    side = models.CharField(max_length=10, default="FRONT")
+    side_slot_index = models.PositiveIntegerField(default=1)
+    color_name = models.CharField(max_length=255, default="", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "tooling_cylinder_slot_assignments"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["artwork", "side", "side_slot_index"],
+                name="unique_cylinder_slot_assignment",
+            ),
+            models.CheckConstraint(
+                condition=Q(side__in=["FRONT", "BACK"]),
+                name="cylinder_slot_assignment_side_valid",
+            ),
+        ]
+        ordering = ["artwork__design_code", "side", "side_slot_index"]
+
+    def __str__(self):
+        return f"{self.artwork_id} {self.side}-{self.side_slot_index} -> {self.cylinder_id}"
 
 
 class ToolAsset(models.Model):

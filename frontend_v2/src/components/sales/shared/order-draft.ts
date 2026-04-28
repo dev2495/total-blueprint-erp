@@ -226,6 +226,11 @@ export function getOrderItemContractIssues(
             issues.push("Each film layer must have roll width greater than zero.")
         }
     }
+    if (item.printing.enabled) {
+        if (item.printing.substrate_mode === "SHEET" && asNumber(item.printing.back_colors_count, 0) > 0) {
+            issues.push("Sheet film supports front print colors only.")
+        }
+    }
 
     return Array.from(new Set(issues))
 }
@@ -519,12 +524,13 @@ export function buildOrderItemPayload(item: OrderItemDraft, families: any[], var
         solvent_gsm: asNumber(item.chemicals.solvent_gsm, 0),
     } : {}
 
+    const substrateMode = item.printing.substrate_mode || "SHEET"
     const printing = item.printing.enabled ? {
         enabled: true,
         type: item.printing.type,
-        substrate_mode: item.printing.substrate_mode,
+        substrate_mode: substrateMode,
         front_colors_count: asNumber(item.printing.front_colors_count, 0),
-        back_colors_count: asNumber(item.printing.back_colors_count, 0),
+        back_colors_count: substrateMode === "TUBING" ? asNumber(item.printing.back_colors_count, 0) : 0,
         ink_gsm_total: asNumber(item.printing.ink_gsm_total, 0),
         artwork_id: item.printing.defer_artwork_to_planner ? null : (item.printing.artwork_id || null),
         defer_artwork_to_planner: Boolean(item.printing.defer_artwork_to_planner),

@@ -14006,6 +14006,116 @@
     ]
   },
   {
+    "routePattern": "/orders/[id]/tracking",
+    "title": {
+      "en": "Orders • Details • Tracking",
+      "hi": "Orders • Details • Tracking गाइड"
+    },
+    "module": "Sales",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Use this legacy order tracking route to review the same execution status shown in the sales order tracker.",
+      "hi": "इस legacy order tracking route का उपयोग sales order tracker जैसी execution status समीक्षा के लिए करें।"
+    },
+    "purpose": {
+      "en": "This guide keeps the legacy order tracking URL covered for users who open older links or bookmarked order status pages.",
+      "hi": "यह guide पुराने links या bookmarked order status pages खोलने वाले users के लिए legacy order tracking URL को cover करती है।"
+    },
+    "prerequisites": [
+      {
+        "en": "Open the order from an approved sales order or a known tracking link.",
+        "hi": "Order को approved sales order या known tracking link से खोलें।"
+      },
+      {
+        "en": "Confirm the order number and customer before acting on the status.",
+        "hi": "Status पर action लेने से पहले order number और customer confirm करें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Review planner, production, packing, and dispatch progress for the order.",
+        "hi": "Order के planner, production, packing, और dispatch progress की समीक्षा करें।"
+      },
+      {
+        "en": "Use the linked sales order page for edits or controlled status actions.",
+        "hi": "Edits या controlled status actions के लिए linked sales order page का उपयोग करें।"
+      },
+      {
+        "en": "Refresh after downstream updates to confirm the latest execution state.",
+        "hi": "Downstream updates के बाद latest execution state confirm करने के लिए refresh करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Order Status",
+          "hi": "Order Status"
+        },
+        "help": {
+          "en": "Shows the current commercial and execution state of the order.",
+          "hi": "Order की current commercial और execution state दिखाता है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Execution Progress",
+          "hi": "Execution Progress"
+        },
+        "help": {
+          "en": "Compares planned, produced, packed, and dispatched quantities where available.",
+          "hi": "जहाँ उपलब्ध हो वहाँ planned, produced, packed, और dispatched quantities compare करता है।"
+        }
+      }
+    ],
+    "decisionFlowId": "sales-order-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Order not found",
+          "hi": "Order not found"
+        },
+        "reason": {
+          "en": "The legacy URL may point to an archived or inaccessible order.",
+          "hi": "Legacy URL archived या inaccessible order की ओर point कर सकता है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Status looks stale",
+          "hi": "Status stale दिख रहा है"
+        },
+        "reason": {
+          "en": "Downstream planner or production updates may still be syncing.",
+          "hi": "Downstream planner या production updates अभी sync हो रहे हो सकते हैं।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reopen the order from Sales Orders if the legacy route fails.",
+        "hi": "Legacy route fail होने पर page refresh करें और Sales Orders से order फिर खोलें।"
+      },
+      {
+        "en": "Use the sales order number to search the order queue or history.",
+        "hi": "Order queue या history में search करने के लिए sales order number का उपयोग करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/sales/orders",
+      "/sales/orders/[id]/tracking"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/sales/orders/[id]/tracking",
     "title": {
       "en": "Sales • Orders • Details • Tracking",

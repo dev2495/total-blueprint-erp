@@ -70,7 +70,7 @@ export default function EngineeringArtworksPage() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return artworks
-    return artworks.filter((item) => [item.name, item.design_code, item.print_type, item.status].map((value) => String(value || "").toLowerCase()).join(" ").includes(q))
+    return artworks.filter((item) => [item.name, item.design_code, item.print_type, item.substrate_mode, item.status].map((value) => String(value || "").toLowerCase()).join(" ").includes(q))
   }, [artworks, searchQuery])
 
   const stats = useMemo(() => {
@@ -164,8 +164,8 @@ export default function EngineeringArtworksPage() {
                       <div className="mt-1 font-black text-slate-900">F{artwork.front_colors_count || 0} / B{artwork.back_colors_count || 0}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Print Type</div>
-                      <div className="mt-1 font-black text-slate-900">{artwork.print_type || "FLEXO"}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Print / Film</div>
+                      <div className="mt-1 font-black text-slate-900">{artwork.print_type || "FLEXO"} · {artwork.substrate_mode || "SHEET"}</div>
                     </div>
                     <div className="col-span-2">
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Color Identity</div>

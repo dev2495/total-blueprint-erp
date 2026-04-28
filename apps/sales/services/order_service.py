@@ -632,6 +632,8 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         raise ValidationError(f"Item {_item_label(item)}: front/back color counts cannot be negative.")
     if front_count + back_count <= 0:
         raise ValidationError(f"Item {_item_label(item)}: at least one color is required when printing is enabled.")
+    if substrate_mode == "SHEET" and back_count > 0:
+        raise ValidationError(f"Item {_item_label(item)}: sheet film supports front colors only.")
     if Decimal(str(printing.get("ink_gsm_total") or 0)) <= 0:
         raise ValidationError(f"Item {_item_label(item)}: total ink GSM must be greater than zero.")
 
@@ -664,6 +666,11 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     if artwork_type and artwork_type != print_type:
         raise ValidationError(
             f"Item {_item_label(item)}: artwork print type {artwork_type} does not match selected print type {print_type}."
+        )
+    artwork_substrate_mode = str(contract.get("substrate_mode") or "").upper().strip()
+    if artwork_substrate_mode and artwork_substrate_mode != substrate_mode:
+        raise ValidationError(
+            f"Item {_item_label(item)}: artwork film type {artwork_substrate_mode} does not match selected film type {substrate_mode}."
         )
     art_front = contract["front_colors"]
     art_back = contract["back_colors"]

@@ -269,7 +269,7 @@ function lineFromVariant(sku: SalesSku, variant: SalesSkuVariant): OrderLineDraf
             type: (String(printing?.type || "FLEXO").toUpperCase() as OrderLineDraft["printing"]["type"]),
             substrate_mode: (String(printing?.substrate_mode || "SHEET").toUpperCase() as OrderLineDraft["printing"]["substrate_mode"]),
             front_colors_count: asNumber(printing?.front_colors_count, 0),
-            back_colors_count: asNumber(printing?.back_colors_count, 0),
+            back_colors_count: String(printing?.substrate_mode || "SHEET").toUpperCase() === "TUBING" ? asNumber(printing?.back_colors_count, 0) : 0,
             ink_gsm_total: asNumber(printing?.ink_gsm_total, 0),
             artwork_id: String(printing?.artwork_id || ""),
             defer_artwork_to_planner: Boolean(printing?.defer_artwork_to_planner),
@@ -339,7 +339,7 @@ function lineFromRepeat(candidate: RepeatLineCandidate): OrderLineDraft {
             type: (String(printing?.type || "FLEXO").toUpperCase() as OrderLineDraft["printing"]["type"]),
             substrate_mode: (String(printing?.substrate_mode || "SHEET").toUpperCase() as OrderLineDraft["printing"]["substrate_mode"]),
             front_colors_count: asNumber(printing?.front_colors_count, 0),
-            back_colors_count: asNumber(printing?.back_colors_count, 0),
+            back_colors_count: String(printing?.substrate_mode || "SHEET").toUpperCase() === "TUBING" ? asNumber(printing?.back_colors_count, 0) : 0,
             ink_gsm_total: asNumber(printing?.ink_gsm_total, 0),
             artwork_id: String(printing?.artwork_id || ""),
             defer_artwork_to_planner: Boolean(printing?.defer_artwork_to_planner),
@@ -498,16 +498,18 @@ export default function SalesOrderWorkspace() {
         queryKey: [
             "engineering-artworks",
             activePrinting.type,
+            activePrinting.substrate_mode,
             activePrinting.front_colors_count,
-            activePrinting.back_colors_count,
+            activePrinting.substrate_mode === "TUBING" ? activePrinting.back_colors_count : 0,
             activePrinting.enabled,
             activePrinting.defer_artwork_to_planner,
         ],
         queryFn: () => engineeringService.getArtworks({
             status: "APPROVED",
             print_type: activePrinting.type,
+            substrate_mode: activePrinting.substrate_mode,
             front_colors_count: activePrinting.front_colors_count,
-            back_colors_count: activePrinting.back_colors_count,
+            back_colors_count: activePrinting.substrate_mode === "TUBING" ? activePrinting.back_colors_count : 0,
             cylinder_ready: activePrinting.type === "ROTO" ? "true" : undefined,
             exclude_cylinder_artwork: activePrinting.type === "FLEXO" ? "true" : undefined,
         }),
@@ -1140,8 +1142,8 @@ export default function SalesOrderWorkspace() {
                                                                     </Select>
                                                                 </div>
                                                                 <div className="space-y-2">
-                                                                    <Label>Substrate Mode</Label>
-                                                                    <Select value={activeLine.printing.substrate_mode} onValueChange={(value) => updateLine(activeLine.localId, (line) => ({ ...line, printing: { ...line.printing, substrate_mode: value as OrderLineDraft["printing"]["substrate_mode"] }, savedPreview: null }))}>
+                                                                    <Label>Film Type</Label>
+                                                                    <Select value={activeLine.printing.substrate_mode} onValueChange={(value) => updateLine(activeLine.localId, (line) => ({ ...line, printing: { ...line.printing, substrate_mode: value as OrderLineDraft["printing"]["substrate_mode"], back_colors_count: value === "TUBING" ? line.printing.back_colors_count : 0 }, savedPreview: null }))}>
                                                                         <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                                                                         <SelectContent>
                                                                             <SelectItem value="SHEET">SHEET</SelectItem>
@@ -1153,10 +1155,12 @@ export default function SalesOrderWorkspace() {
                                                                     <Label>Front Colors</Label>
                                                                     <Input type="number" value={String(activeLine.printing.front_colors_count)} onChange={(event) => updateLine(activeLine.localId, (line) => ({ ...line, printing: { ...line.printing, front_colors_count: asNumber(event.target.value, 0) }, savedPreview: null }))} />
                                                                 </div>
+                                                                {activeLine.printing.substrate_mode === "TUBING" ? (
                                                                 <div className="space-y-2">
                                                                     <Label>Back Colors</Label>
                                                                     <Input type="number" value={String(activeLine.printing.back_colors_count)} onChange={(event) => updateLine(activeLine.localId, (line) => ({ ...line, printing: { ...line.printing, back_colors_count: asNumber(event.target.value, 0) }, savedPreview: null }))} />
                                                                 </div>
+                                                                ) : null}
                                                                 <div className="space-y-2">
                                                                     <Label>Total Ink GSM</Label>
                                                                     <Input type="number" step="0.01" value={String(activeLine.printing.ink_gsm_total)} onChange={(event) => updateLine(activeLine.localId, (line) => ({ ...line, printing: { ...line.printing, ink_gsm_total: asNumber(event.target.value, 0) }, savedPreview: null }))} />
@@ -1719,7 +1723,7 @@ function buildOrderItemPayload(line: OrderLineDraft, families: any[], variants: 
         type: line.printing.type,
         substrate_mode: line.printing.substrate_mode,
         front_colors_count: asNumber(line.printing.front_colors_count, 0),
-        back_colors_count: asNumber(line.printing.back_colors_count, 0),
+        back_colors_count: line.printing.substrate_mode === "TUBING" ? asNumber(line.printing.back_colors_count, 0) : 0,
         ink_gsm_total: asNumber(line.printing.ink_gsm_total, 0),
         artwork_id: line.printing.defer_artwork_to_planner ? null : (line.printing.artwork_id || null),
         defer_artwork_to_planner: Boolean(line.printing.defer_artwork_to_planner),

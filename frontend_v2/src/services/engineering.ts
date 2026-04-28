@@ -6,6 +6,7 @@ export interface Artwork {
     design_code: string;
     name: string;
     print_type?: "FLEXO" | "ROTO" | "DIGITAL";
+    substrate_mode?: "SHEET" | "TUBING";
     color_list: string[]; // List of color names (visual)
     front_colors_count?: number;
     back_colors_count?: number;
@@ -54,6 +55,30 @@ export interface Cylinder {
     created_at: string;
 }
 
+export interface CylinderSlotAssignment {
+    id: string;
+    artwork: string;
+    artwork_name?: string;
+    artwork_design_code?: string;
+    cylinder: string;
+    cylinder_code?: string;
+    cylinder_name?: string;
+    cylinder_artwork_name?: string;
+    cylinder_artwork_design_code?: string;
+    cylinder_circumference?: number;
+    cylinder_width_mm?: number;
+    cylinder_diameter_mm?: number;
+    cylinder_cell_depth_microns?: number;
+    cylinder_lifecycle_status?: string;
+    cylinder_is_draft?: boolean;
+    cylinder_status?: string;
+    side: "FRONT" | "BACK";
+    side_slot_index: number;
+    color_name?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface ToolAsset {
     id: string;
     plant: string;
@@ -81,6 +106,8 @@ export const engineeringService = {
     getArtworks: async (params?: {
         status?: string;
         print_type?: string;
+        substrate_mode?: string;
+        film_type?: string;
         front_colors_count?: number;
         back_colors_count?: number;
         cylinder_ready?: boolean | string;
@@ -107,8 +134,8 @@ export const engineeringService = {
         const { data: res } = await api.post<Artwork>(`/api/engineering/artworks/${id}/approve/`);
         return res;
     },
-    generateArtworkCylinders: async (id: string) => {
-        const { data: res } = await api.post(`/api/engineering/artworks/${id}/generate-cylinders/`);
+    generateArtworkCylinders: async (id: string, payload?: { side?: "FRONT" | "BACK"; slot?: number; targets?: Array<{ side: "FRONT" | "BACK"; slot: number }> }) => {
+        const { data: res } = await api.post(`/api/engineering/artworks/${id}/generate-cylinders/`, payload || {});
         return res;
     },
     deleteArtwork: async (id: string) => {
@@ -130,6 +157,14 @@ export const engineeringService = {
     },
     deleteCylinder: async (id: string) => {
         await api.delete(`/api/tooling/cylinders/${id}/`);
+    },
+    getCylinderSlotAssignments: async (params?: any) => {
+        const { data } = await api.get<CylinderSlotAssignment[]>("/api/tooling/cylinder-slot-assignments/", { params });
+        return data;
+    },
+    assignCylinderSlot: async (data: { artwork: string; cylinder: string; side: "FRONT" | "BACK"; side_slot_index: number }) => {
+        const { data: res } = await api.post<CylinderSlotAssignment>("/api/tooling/cylinder-slot-assignments/", data);
+        return res;
     },
 
     // Tool assets

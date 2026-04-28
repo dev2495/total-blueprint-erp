@@ -333,7 +333,7 @@ function mapQuotationToDraft(quotation: Quotation): QuoteDraft {
                 type: String(item.printing_snapshot?.type || "FLEXO").toUpperCase() as LineDraft["printing"]["type"],
                 substrate_mode: String(item.printing_snapshot?.substrate_mode || "SHEET").toUpperCase() as LineDraft["printing"]["substrate_mode"],
                 front_colors_count: asNumber(item.printing_snapshot?.front_colors_count, 0),
-                back_colors_count: asNumber(item.printing_snapshot?.back_colors_count, 0),
+                back_colors_count: String(item.printing_snapshot?.substrate_mode || "SHEET").toUpperCase() === "TUBING" ? asNumber(item.printing_snapshot?.back_colors_count, 0) : 0,
                 ink_gsm_total: asNumber(item.printing_snapshot?.ink_gsm_total, 0),
             },
             chemicals: {
@@ -437,7 +437,7 @@ function hydrateLineFromSkuVariant(variant: SalesSkuVariant, sku?: SalesSku | nu
             type: String(printing.type || "FLEXO").toUpperCase() as LineDraft["printing"]["type"],
             substrate_mode: String(printing.substrate_mode || "SHEET").toUpperCase() as LineDraft["printing"]["substrate_mode"],
             front_colors_count: asNumber(printing.front_colors_count, 0),
-            back_colors_count: asNumber(printing.back_colors_count, 0),
+            back_colors_count: String(printing.substrate_mode || "SHEET").toUpperCase() === "TUBING" ? asNumber(printing.back_colors_count, 0) : 0,
             ink_gsm_total: asNumber(printing.ink_gsm_total, 0),
         },
         chemicals: {
@@ -1837,6 +1837,14 @@ function CustomQuoteLane({
                                             <SelectItem value="ROTO">ROTO</SelectItem>
                                             <SelectItem value="DIGITAL">DIGITAL</SelectItem>
                                         </FieldSelect>
+                                        <FieldSelect label="Film Type" value={activeLine.printing.substrate_mode} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, printing: { ...current.printing, substrate_mode: value as LineDraft["printing"]["substrate_mode"], back_colors_count: value === "TUBING" ? current.printing.back_colors_count : 0 } }))}>
+                                            <SelectItem value="SHEET">SHEET</SelectItem>
+                                            <SelectItem value="TUBING">TUBING</SelectItem>
+                                        </FieldSelect>
+                                        <FieldNumber label="Front Colors" value={activeLine.printing.front_colors_count} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, printing: { ...current.printing, front_colors_count: value } }))} />
+                                        {activeLine.printing.substrate_mode === "TUBING" ? (
+                                            <FieldNumber label="Back Colors" value={activeLine.printing.back_colors_count} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, printing: { ...current.printing, back_colors_count: value } }))} />
+                                        ) : null}
                                         <FieldNumber label="Ink GSM" value={activeLine.printing.ink_gsm_total} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, printing: { ...current.printing, ink_gsm_total: value } }))} />
                                     </div>
                                 </div>
@@ -2018,7 +2026,7 @@ function buildLinePayload(line: LineDraft, families: any[], variants: any[], add
             type: line.printing.type,
             substrate_mode: line.printing.substrate_mode,
             front_colors_count: asNumber(line.printing.front_colors_count, 0),
-            back_colors_count: asNumber(line.printing.back_colors_count, 0),
+            back_colors_count: line.printing.substrate_mode === "TUBING" ? asNumber(line.printing.back_colors_count, 0) : 0,
             ink_gsm_total: asNumber(line.printing.ink_gsm_total, 0),
         },
         chemicals: {

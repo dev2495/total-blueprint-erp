@@ -1,7 +1,7 @@
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import Cylinder, ToolAsset
+from .models import Cylinder, CylinderSlotAssignment, ToolAsset
 
 
 def _absolute_media_url(request, field_value) -> str | None:
@@ -131,7 +131,75 @@ class CylinderSerializer(serializers.ModelSerializer):
                         )
                     }
                 )
+            assignment_qs = CylinderSlotAssignment.objects.filter(
+                artwork=artwork,
+                side=side,
+                side_slot_index=side_slot_index,
+                cylinder__is_draft=False,
+            )
+            if instance is not None:
+                assignment_qs = assignment_qs.exclude(cylinder=instance)
+            if assignment_qs.exists():
+                raise serializers.ValidationError(
+                    {
+                        "detail": (
+                            f"Finalize cylinder blocked: artwork slot {side}-{side_slot_index} is already assigned."
+                        )
+                    }
+                )
 
+        return attrs
+
+
+class CylinderSlotAssignmentSerializer(serializers.ModelSerializer):
+    artwork_name = serializers.CharField(source="artwork.name", read_only=True)
+    artwork_design_code = serializers.CharField(source="artwork.design_code", read_only=True)
+    cylinder_code = serializers.CharField(source="cylinder.code", read_only=True)
+    cylinder_name = serializers.CharField(source="cylinder.name", read_only=True)
+    cylinder_artwork_name = serializers.CharField(source="cylinder.artwork.name", read_only=True)
+    cylinder_artwork_design_code = serializers.CharField(source="cylinder.artwork.design_code", read_only=True)
+    cylinder_circumference = serializers.DecimalField(source="cylinder.circumference", read_only=True, max_digits=10, decimal_places=2)
+    cylinder_width_mm = serializers.DecimalField(source="cylinder.width_mm", read_only=True, max_digits=10, decimal_places=2)
+    cylinder_diameter_mm = serializers.DecimalField(source="cylinder.diameter_mm", read_only=True, max_digits=10, decimal_places=2)
+    cylinder_cell_depth_microns = serializers.IntegerField(source="cylinder.cell_depth_microns", read_only=True)
+    cylinder_lifecycle_status = serializers.CharField(source="cylinder.lifecycle_status", read_only=True)
+    cylinder_is_draft = serializers.BooleanField(source="cylinder.is_draft", read_only=True)
+    cylinder_status = serializers.CharField(source="cylinder.status", read_only=True)
+
+    class Meta:
+        model = CylinderSlotAssignment
+        fields = "__all__"
+
+    def validate(self, attrs):
+        instance = self.instance
+        artwork = attrs.get("artwork", getattr(instance, "artwork", None))
+        cylinder = attrs.get("cylinder", getattr(instance, "cylinder", None))
+        side = str(attrs.get("side", getattr(instance, "side", "FRONT")) or "FRONT").upper()
+        slot = int(attrs.get("side_slot_index", getattr(instance, "side_slot_index", 0)) or 0)
+        if side not in {"FRONT", "BACK"}:
+            raise serializers.ValidationError({"side": "Slot side must be FRONT or BACK."})
+        if slot <= 0:
+            raise serializers.ValidationError({"side_slot_index": "Slot index must be greater than zero."})
+        if artwork:
+            max_slots = int(
+                getattr(artwork, "front_colors_count", 0) if side == "FRONT" else getattr(artwork, "back_colors_count", 0)
+            )
+            if slot > max_slots:
+                raise serializers.ValidationError(
+                    {"side_slot_index": f"Slot {slot} exceeds artwork {side.lower()} color count ({max_slots})."}
+                )
+        if cylinder:
+            if bool(getattr(cylinder, "is_draft", True)):
+                raise serializers.ValidationError({"cylinder": "Only finalized cylinders can be reused for a slot."})
+            if float(getattr(cylinder, "circumference", 0) or 0) <= 0:
+                raise serializers.ValidationError({"cylinder": "Reusable cylinder must have circumference."})
+        attrs["side"] = side
+        if artwork and not str(attrs.get("color_name") or "").strip():
+            colors = getattr(artwork, "front_colors", []) if side == "FRONT" else getattr(artwork, "back_colors", [])
+            if isinstance(colors, list) and slot <= len(colors):
+                attrs["color_name"] = str(colors[slot - 1] or "").strip().upper()
+        else:
+            attrs["color_name"] = str(attrs.get("color_name") or "").strip().upper()
         return attrs
 
 

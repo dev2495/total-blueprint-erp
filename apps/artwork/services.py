@@ -50,6 +50,7 @@ class ArtworkService:
         artwork.approved_by = user
         artwork.approved_at = timezone.now()
         artwork.print_type = contract["print_type"]
+        artwork.substrate_mode = contract["substrate_mode"]
         artwork.color_list = contract["color_names"]
         artwork.colors_count = len(contract["color_names"])
         artwork.save()

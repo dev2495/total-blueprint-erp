@@ -16,6 +16,23 @@ def _item(printing_snapshot, *, layer_snapshot=None):
 
 
 class PrintingSnapshotContractTests(SimpleTestCase):
+    def test_confirm_rejects_sheet_back_colors(self):
+        item = _item(
+            {
+                "enabled": True,
+                "type": "FLEXO",
+                "substrate_mode": "SHEET",
+                "front_colors_count": 1,
+                "back_colors_count": 1,
+                "ink_gsm_total": 1.2,
+            }
+        )
+
+        with self.assertRaises(ValidationError) as exc:
+            _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=True)
+
+        self.assertIn("sheet film supports front colors only", str(exc.exception).lower())
+
     @patch("apps.sales.services.order_service.Artwork.objects.filter")
     def test_confirm_rejects_stale_artwork_id(self, mock_filter):
         mock_filter.return_value.first.return_value = None
@@ -136,7 +153,7 @@ class PrintingSnapshotContractTests(SimpleTestCase):
             {
                 "enabled": True,
                 "type": "ROTO",
-                "substrate_mode": "SHEET",
+                "substrate_mode": "TUBING",
                 "front_colors_count": 2,
                 "back_colors_count": 1,
                 "ink_gsm_total": 1.2,

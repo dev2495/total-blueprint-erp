@@ -1,0 +1,85 @@
+from django.test import TestCase
+
+from apps.artwork.models import Artwork
+from apps.inventory.models import Vendor
+from apps.tooling.models import Cylinder, CylinderSlotAssignment
+from apps.tooling.services import CylinderService
+
+
+class CylinderSlotAssignmentFlowTests(TestCase):
+    def setUp(self):
+        self.vendor = Vendor.objects.create(name="Reuse Vendor", code="REUSE-VENDOR")
+
+    def test_generate_targets_only_requested_artwork_color_slot(self):
+        artwork = Artwork.objects.create(
+            design_code="ART-GEN-TARGET",
+            name="Targeted Generation",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["YELLOW", "BLACK"],
+            front_colors_count=2,
+            color_list=["YELLOW", "BLACK"],
+            colors_count=2,
+        )
+
+        result = CylinderService.generate_for_artwork(
+            artwork.id,
+            targets=[{"side": "FRONT", "slot": 2}],
+        )
+
+        self.assertEqual(len(result["created"]), 1)
+        cylinder = result["created"][0]
+        self.assertEqual(cylinder.side, "FRONT")
+        self.assertEqual(cylinder.side_slot_index, 2)
+        self.assertEqual(cylinder.color_name, "BLACK")
+        self.assertFalse(Cylinder.objects.filter(artwork=artwork, side_slot_index=1).exists())
+        self.assertTrue(CylinderSlotAssignment.objects.filter(artwork=artwork, side="FRONT", side_slot_index=2).exists())
+
+    def test_existing_ready_cylinder_can_be_reused_for_another_artwork_slot(self):
+        source = Artwork.objects.create(
+            design_code="ART-REUSE-SOURCE",
+            name="Reuse Source",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+        )
+        target = Artwork.objects.create(
+            design_code="ART-REUSE-TARGET",
+            name="Reuse Target",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+        )
+        cylinder = Cylinder.objects.create(
+            code="CYL-REUSE-CYAN",
+            name="Reusable Cyan",
+            artwork=source,
+            engraving_vendor=self.vendor,
+            color_name="CYAN",
+            diameter_mm=100,
+            width_mm=500,
+            circumference=314,
+            cell_depth_microns=28,
+            side="FRONT",
+            side_slot_index=1,
+            is_draft=False,
+            lifecycle_status="READY",
+            status="ACTIVE",
+        )
+
+        assignment = CylinderService.assign_existing_to_slot(
+            artwork_id=target.id,
+            cylinder_id=cylinder.id,
+            side="FRONT",
+            slot=1,
+        )
+
+        self.assertEqual(assignment.artwork_id, target.id)
+        self.assertEqual(assignment.cylinder_id, cylinder.id)
+        self.assertEqual(assignment.color_name, "CYAN")

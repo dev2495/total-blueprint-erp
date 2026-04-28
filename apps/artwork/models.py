@@ -8,11 +8,16 @@ class Artwork(models.Model):
         ('APPROVED', 'Approved'),
         ('REJECTED', 'Rejected'),
     ]
+    SUBSTRATE_MODE_CHOICES = [
+        ('SHEET', 'Sheet'),
+        ('TUBING', 'Tubing'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     design_code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=255)
     print_type = models.CharField(max_length=20, default='FLEXO')
+    substrate_mode = models.CharField(max_length=12, choices=SUBSTRATE_MODE_CHOICES, default='SHEET')
     
     # Decoupled from Customer (Engineering Asset)
     # customer = models.ForeignKey(Customer, ...)  <-- REMOVED
@@ -40,6 +45,13 @@ class Artwork(models.Model):
 
     def __str__(self):
         return f"{self.design_code} - {self.name} (v{self.version})"
+
+    def save(self, *args, **kwargs):
+        if str(self.substrate_mode or "SHEET").upper() == "SHEET":
+            has_back_colors = bool(self.back_colors) if isinstance(self.back_colors, list) else False
+            if int(self.back_colors_count or 0) > 0 or has_back_colors:
+                self.substrate_mode = "TUBING"
+        super().save(*args, **kwargs)
 
     class Meta:
         db_table = 'artwork_master'

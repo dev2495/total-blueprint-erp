@@ -130,7 +130,7 @@ function plannerOutputLabel(output: PlannerOutputClass) {
 }
 
 function plannerOutputShortLabel(output: PlannerOutputClass) {
-  if (output === "FG") return "Final"
+  if (output === "FG") return "Roll / Pouch"
   if (output === "INVARIANT") return "Invariant"
   if (output === "WIP") return "WIP"
   if (output === "POD") return "POD"
@@ -523,7 +523,7 @@ export default function PlannerStockOrderStudioPage() {
             type: printType,
             substrate_mode: substrateMode,
             front_colors_count: asNumber(frontColorsCount, 0),
-            back_colors_count: asNumber(backColorsCount, 0),
+            back_colors_count: substrateMode === "TUBING" ? asNumber(backColorsCount, 0) : 0,
             ink_gsm_total: asNumber(inkGsmTotal, 0),
             artwork_id: artworkId || null,
             chemicals: { adhesive_gsm: asNumber(adhesiveGsm, 0), solvent_gsm: asNumber(solventGsm, 0) },
@@ -670,9 +670,10 @@ export default function PlannerStockOrderStudioPage() {
     )
     setPrintingEnabled(Boolean(printing.enabled))
     setPrintType((String(printing.type || "FLEXO").toUpperCase() as "FLEXO" | "ROTO" | "DIGITAL"))
-    setSubstrateMode((String(printing.substrate_mode || "SHEET").toUpperCase() as "SHEET" | "TUBING"))
+    const nextSubstrateMode = String(printing.substrate_mode || "SHEET").toUpperCase() as "SHEET" | "TUBING"
+    setSubstrateMode(nextSubstrateMode)
     setFrontColorsCount(asNumber(printing.front_colors_count, 0))
-    setBackColorsCount(asNumber(printing.back_colors_count, 0))
+    setBackColorsCount(nextSubstrateMode === "TUBING" ? asNumber(printing.back_colors_count, 0) : 0)
     setInkGsmTotal(asNumber(printing.ink_gsm_total, 0))
     setAdhesiveGsm(asNumber(chemicals.adhesive_gsm, 0))
     setSolventGsm(asNumber(chemicals.solvent_gsm, 0))
@@ -1888,8 +1889,11 @@ export default function PlannerStockOrderStudioPage() {
                             </Select>
                           </div>
                           <div className={styles.fieldBlock}>
-                            <Label>Substrate mode</Label>
-                            <Select value={substrateMode} onValueChange={(value: any) => setSubstrateMode(value)}>
+                            <Label>Film type</Label>
+                            <Select value={substrateMode} onValueChange={(value: any) => {
+                              setSubstrateMode(value)
+                              if (value !== "TUBING") setBackColorsCount(0)
+                            }}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="SHEET">SHEET</SelectItem>
@@ -1901,10 +1905,12 @@ export default function PlannerStockOrderStudioPage() {
                             <Label>Front colors</Label>
                             <Input type="number" value={frontColorsCount} onChange={(event) => setFrontColorsCount(Number(event.target.value || 0))} />
                           </div>
+                          {substrateMode === "TUBING" ? (
                           <div className={styles.fieldBlock}>
                             <Label>Back colors</Label>
                             <Input type="number" value={backColorsCount} onChange={(event) => setBackColorsCount(Number(event.target.value || 0))} />
                           </div>
+                          ) : null}
                           <div className={styles.fieldBlock}>
                             <Label>Ink GSM total</Label>
                             <Input type="number" value={inkGsmTotal} onChange={(event) => setInkGsmTotal(Number(event.target.value || 0))} />
