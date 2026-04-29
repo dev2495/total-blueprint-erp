@@ -1662,13 +1662,13 @@ export default function WCMTerminal() {
                                 const percent = target && target > 0 ? Math.min(100, Math.max(0, (produced / target) * 100)) : 0
                                 const priority = Number(job?.priority ?? 50)
                                 const rail = priority >= 80 ? "from-rose-500 via-rose-400 to-rose-300" : priority >= 50 ? "from-amber-500 via-amber-400 to-amber-300" : "from-emerald-500 via-emerald-400 to-emerald-300"
-                                const queueSkuLabel = firstNonEmpty(spec.variantName, spec.variantCode, (job as any)?.sku_variant_name, (job as any)?.sku_variant_code, spec.productName)
-                                const queueSkuCode = firstNonEmpty(spec.variantCode, (job as any)?.sku_variant_code)
+                                const queueSkuLabel = firstNonEmpty((job as any)?.sku_name, (job as any)?.sku_display_name, spec.variantName, (job as any)?.sku_variant_name, spec.variantCode, (job as any)?.sku_variant_code)
                                 const queueFinalProduct = [
                                     String(job?.output_form || spec.size.finishedGoodType || "OUTPUT").toUpperCase(),
                                     spec.size.label,
                                     spec.layers.length ? `${spec.layers.length} layer${spec.layers.length > 1 ? "s" : ""}` : "",
                                 ].filter(Boolean).join(" · ")
+                                const showQueueSkuLine = queueSkuLabel && queueSkuLabel.toLowerCase() !== String(spec.productName || "").toLowerCase()
                                 return (
                                     <article
                                         key={assignment.id}
@@ -1690,16 +1690,9 @@ export default function WCMTerminal() {
                                                             <span className="text-xl font-semibold tracking-tight text-slate-950">{job.customer_name || spec.customerName || "Customer not captured"}</span>
                                                             <span className="font-semibold text-blue-700">{job.order_number || spec.orderNumber || "SO not captured"}</span>
                                                         </div>
-                                                        <div className="mt-0.5 text-sm text-slate-600">
+                                                        <div className="mt-0.5 text-sm font-semibold text-slate-600">
                                                             <span className="font-medium text-slate-800">{spec.productName}</span>
-                                                            {job.template_name ? <span className="text-slate-400"> · {job.template_name}</span> : null}
-                                                        </div>
-                                                        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold">
-                                                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">SKU · {queueSkuLabel || "not captured"}</span>
-                                                            {queueSkuCode && queueSkuCode !== queueSkuLabel ? (
-                                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-500">Variant · {queueSkuCode}</span>
-                                                            ) : null}
-                                                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">Final · {queueFinalProduct}</span>
+                                                            {showQueueSkuLine ? <span className="text-slate-400"> · <span className="text-slate-700">{queueSkuLabel}</span></span> : null}
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-wrap items-center gap-2">
@@ -1732,9 +1725,10 @@ export default function WCMTerminal() {
                                                         <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
                                                             <span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-500" style={{ width: `${percent}%` }} />
                                                         </div>
-                                                        <div className="mt-2 flex flex-wrap items-baseline gap-5">
+                                                        <div className="mt-2 flex flex-wrap items-start gap-x-5 gap-y-2">
                                                             <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(target || 0, selectedPrimaryUom, selectedPrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{selectedPrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Step target</div></div>
                                                             <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(remaining ?? 0, selectedPrimaryUom, selectedPrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{selectedPrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Remaining</div></div>
+                                                            <div className="min-w-[170px] max-w-[260px]"><div className="text-sm font-semibold leading-snug text-emerald-800">{queueFinalProduct}</div><div className="text-[11px] uppercase tracking-wider text-slate-500">Final output req</div></div>
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-wrap gap-2 md:col-span-4">
