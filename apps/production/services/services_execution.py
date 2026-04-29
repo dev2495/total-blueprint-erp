@@ -499,17 +499,6 @@ class ExecutionService:
 
         spec = step_roll_spec or cls._resolve_step_roll_spec(job, process)
         configured = int(spec.get("input_roll_count") or 0)
-        if behavior == "NONE":
-            # Roll -> Bulk NONE mode is operationally one-input by default.
-            # This prevents stale template counts from falsely blocking pouching-style steps.
-            if output_form == "BULK":
-                return 1
-            # For NONE behavior, honor explicit step-spec count (including 0).
-            # If spec is missing/legacy, keep safe fallback of one roll for roll-input steps.
-            if "input_roll_count" in spec and spec.get("input_roll_count") is not None:
-                return max(0, configured)
-            return 1
-
         inferred_layer_count = 0
         try:
             layer_snapshot = cls._job_layer_snapshot(job)
@@ -517,6 +506,19 @@ class ExecutionService:
                 inferred_layer_count = len([layer for layer in layer_snapshot if isinstance(layer, dict)])
         except Exception:
             inferred_layer_count = 0
+
+        if behavior == "NONE":
+            # Roll -> Bulk NONE mode is operationally one-input by default.
+            # This prevents stale template counts from falsely blocking pouching-style steps.
+            if output_form == "BULK":
+                return 1
+            if inferred_layer_count > 1:
+                return max(configured, inferred_layer_count)
+            # For NONE behavior, honor explicit step-spec count (including 0).
+            # If spec is missing/legacy, keep safe fallback of one roll for roll-input steps.
+            if "input_roll_count" in spec and spec.get("input_roll_count") is not None:
+                return max(0, configured)
+            return 1
 
         if behavior == "MULTI_INPUT_COMBINE":
             if cls._is_lane_group_combine_spec(spec):

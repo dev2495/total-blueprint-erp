@@ -54,6 +54,24 @@ class RequiredRollCountRulesTests(SimpleTestCase):
 
         self.assertEqual(count, 3)
 
+    def test_roll_to_roll_none_requires_each_layer_when_layer_count_is_higher_than_spec(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="NONE")
+        sales_order_item = SimpleNamespace(
+            layer_snapshot=[
+                {"variant_id": "v1"},
+                {"variant_id": "v2"},
+            ]
+        )
+        job = self._job(process, sales_order_item=sales_order_item, template=None)
+
+        count = ExecutionService._required_roll_count(
+            job,
+            process=process,
+            step_roll_spec={"input_roll_count": 1},
+        )
+
+        self.assertEqual(count, 2)
+
     def test_lane_group_lamination_requires_two_lanes_not_three_physical_rolls(self):
         process = SimpleNamespace(input_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
         sales_order_item = SimpleNamespace(

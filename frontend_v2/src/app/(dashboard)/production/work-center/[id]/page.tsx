@@ -1213,6 +1213,8 @@ export default function WCMTerminal() {
     }, [stepOtherRequirements, historyOtherRequirements, referenceOtherRequirements])
     const otherRequirementsLabel = "Inks, Chemicals & Add-ons"
 
+    const activeAssignmentStatus = String(activeAssignment?.status || "WC_READY").toUpperCase()
+    const isReleasedToMachine = activeAssignmentStatus === "EXECUTION_READY"
     const bulkOk = bulkRows.length ? bulkRows.every(r => r.isOk) : true
     const rollOk = rollRow ? rollRow.isOk : true
     const requirementsSatisfied = bulkOk && rollOk
@@ -1232,9 +1234,11 @@ export default function WCMTerminal() {
         materialIssueErrors.forEach((error) => reasons.push(error))
         return reasons
     }, [requirementRows, selectedMachineId, materialIssueErrors])
-    const canPushToOperator = pushBlockingReasons.length === 0
+    const canPushToOperator = !isReleasedToMachine && pushBlockingReasons.length === 0
     const wcmNextAction = !activeAssignment
         ? "Pick a job from the left queue."
+        : isReleasedToMachine
+            ? "Execution is ready on the machine terminal."
         : !requirementsSatisfied
             ? "Clear the blocked requirement before sending this step forward."
             : !selectedMachineId
@@ -1242,7 +1246,9 @@ export default function WCMTerminal() {
                 : canPushToOperator
                     ? "Assigning the machine will release this step."
                     : "Review the last blocker and clear it."
-    const wcmStatusSummary = requirementsSatisfied
+    const wcmStatusSummary = isReleasedToMachine
+        ? "Preparation is locked after release."
+        : requirementsSatisfied
         ? "Material and roll checks are ready."
         : "One or more inputs still need action."
 
@@ -1305,6 +1311,9 @@ export default function WCMTerminal() {
     const handlePushToOperator = () => {
         if (!activeAssignment) return
         mutation.mutate(async () => {
+            if (isReleasedToMachine) {
+                throw new Error("This job is already released to machine execution.")
+            }
             if (!canPushToOperator) {
                 throw new Error(pushBlockingReasons[0] || "Requirements are not fully satisfied.")
             }
@@ -1330,6 +1339,9 @@ export default function WCMTerminal() {
     const handleAssignAndMaybeRelease = () => {
         if (!activeAssignment || !selectedMachineId) return
         mutation.mutate(async () => {
+            if (isReleasedToMachine) {
+                throw new Error("This job is already released to machine execution.")
+            }
             if (String(activeAssignment.assigned_machine || "") !== String(selectedMachineId)) {
                 await wcmService.assignMachine(activeAssignment.id, selectedMachineId)
             }
@@ -1385,18 +1397,10 @@ export default function WCMTerminal() {
             executionReady: baseQueueAssignments.filter((a: any) => String(a?.status || "").toUpperCase() === "EXECUTION_READY").length,
             noMachine: baseQueueAssignments.filter((a: any) => !a?.assigned_machine).length,
         }
-        const producedPrimary = Math.max(0, Number(stepTargetPrimary || 0) - Number(stepRemainingPrimary ?? 0))
-        const progressPercent = stepTargetPrimary && stepTargetPrimary > 0
-            ? Math.min(100, Math.max(0, (producedPrimary / stepTargetPrimary) * 100))
-            : 0
         const selectedMachine = machineOptionsResolved.find((machine: any) => String(machine.id) === String(selectedMachineId))
-        const activeStatus = String(activeAssignment?.status || "WC_READY").toUpperCase()
-        const finalOutputLabel = [
-            selectedOutputForm || "OUTPUT",
-            selectedSpec.size.label,
-            selectedSpec.layers.length ? `${selectedSpec.layers.length} layer${selectedSpec.layers.length > 1 ? "s" : ""}` : "",
-        ].filter(Boolean).join(" · ")
-        const blockerLabel = pushBlockingReasons.length
+        const blockerLabel = isReleasedToMachine
+            ? "Execution ready"
+            : pushBlockingReasons.length
             ? `${pushBlockingReasons.length} blocker${pushBlockingReasons.length > 1 ? "s" : ""}`
             : "Ready"
         const materialReleaseLabel = materialIssueErrors.length
@@ -1404,12 +1408,16 @@ export default function WCMTerminal() {
             : materialIssueRows.length
                 ? "Issue ready"
                 : "No issue"
-        const machineGateLabel = !selectedMachineId
+        const machineGateLabel = isReleasedToMachine
+            ? "Execution ready"
+            : !selectedMachineId
             ? "Pick machine"
             : canPushToOperator
                 ? "Ready to release"
                 : "Release locked"
-        const machineGateHelp = !selectedMachineId
+        const machineGateHelp = isReleasedToMachine
+            ? "This job is already released. Preparation controls are locked and execution continues on the machine terminal."
+            : !selectedMachineId
             ? "Select a production line. Release unlocks after current-step inputs are confirmed."
             : canPushToOperator
                 ? "Machine and current-step input checks are clear. This action releases the job."
@@ -1647,12 +1655,20 @@ export default function WCMTerminal() {
                                 const job = assignment?.job_details || {}
                                 const spec = normalizeProductSpec(job)
                                 const status = String(assignment?.status || "WC_READY").toUpperCase()
+                                const isQueueReleased = status === "EXECUTION_READY"
                                 const target = toNullableNumber(job?.step_target_primary) ?? Number(job?.step_target_kg || job?.quantity || 0)
                                 const remaining = toNullableNumber(job?.step_remaining_primary)
                                 const produced = Math.max(0, Number(target || 0) - Number(remaining ?? target ?? 0))
                                 const percent = target && target > 0 ? Math.min(100, Math.max(0, (produced / target) * 100)) : 0
                                 const priority = Number(job?.priority ?? 50)
                                 const rail = priority >= 80 ? "from-rose-500 via-rose-400 to-rose-300" : priority >= 50 ? "from-amber-500 via-amber-400 to-amber-300" : "from-emerald-500 via-emerald-400 to-emerald-300"
+                                const queueSkuLabel = firstNonEmpty(spec.variantName, spec.variantCode, (job as any)?.sku_variant_name, (job as any)?.sku_variant_code, spec.productName)
+                                const queueSkuCode = firstNonEmpty(spec.variantCode, (job as any)?.sku_variant_code)
+                                const queueFinalProduct = [
+                                    String(job?.output_form || spec.size.finishedGoodType || "OUTPUT").toUpperCase(),
+                                    spec.size.label,
+                                    spec.layers.length ? `${spec.layers.length} layer${spec.layers.length > 1 ? "s" : ""}` : "",
+                                ].filter(Boolean).join(" · ")
                                 return (
                                     <article
                                         key={assignment.id}
@@ -1677,6 +1693,13 @@ export default function WCMTerminal() {
                                                         <div className="mt-0.5 text-sm text-slate-600">
                                                             <span className="font-medium text-slate-800">{spec.productName}</span>
                                                             {job.template_name ? <span className="text-slate-400"> · {job.template_name}</span> : null}
+                                                        </div>
+                                                        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                                                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">SKU · {queueSkuLabel || "not captured"}</span>
+                                                            {queueSkuCode && queueSkuCode !== queueSkuLabel ? (
+                                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-500">Variant · {queueSkuCode}</span>
+                                                            ) : null}
+                                                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">Final · {queueFinalProduct}</span>
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-wrap items-center gap-2">
@@ -1746,13 +1769,20 @@ export default function WCMTerminal() {
                                                         </a>
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
-                                                                <button type="button" onClick={(event) => event.stopPropagation()} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">⋯</button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isQueueReleased}
+                                                                    onClick={(event) => event.stopPropagation()}
+                                                                    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    ⋯
+                                                                </button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end" className="w-56">
-                                                                <DropdownMenuItem onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason("") }}>
+                                                                <DropdownMenuItem disabled={isQueueReleased} onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason("") }}>
                                                                     Short close step
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason("") }}>
+                                                                <DropdownMenuItem disabled={isQueueReleased} className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason("") }}>
                                                                     Cancel job
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
@@ -1868,34 +1898,176 @@ export default function WCMTerminal() {
                                     </div>
                                 </section>
 
-                                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Current step output</div>
-                                            <div className="mt-1 text-lg font-semibold text-slate-950">{finalOutputLabel}</div>
-                                            <div className="mt-1 text-sm text-slate-500">Step {Number(selectedJob?.current_step_index ?? 0) + 1} · {selectedStepName}</div>
+                                {satisfactionStatus?.input_form === "ROLL" ? (
+                                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-[11px] uppercase tracking-wider text-slate-500">Roll allocation</div>
+                                                <div className="mt-1 text-lg font-semibold text-slate-950">{rollBehaviorLabel}</div>
+                                                <p className="mt-1 text-xs font-medium text-slate-500">{rollGuidanceText}</p>
+                                            </div>
+                                            <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", rollOk ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
+                                                {effectiveRollsReserved}/{rollsRequired} allocated
+                                            </span>
                                         </div>
-                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700">{activeStatus}</span>
-                                    </div>
-                                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-blue-600">Step target</div>
-                                            <div className="mt-1 text-sm font-semibold text-blue-950">{formatSmartValue(stepTargetPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Required</div>
+                                                <div className="mt-1 text-lg font-semibold text-slate-950">{rollsRequired}</div>
+                                            </div>
+                                            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-blue-600">Reserved</div>
+                                                <div className="mt-1 text-lg font-semibold text-blue-950">{effectiveRollsReserved}</div>
+                                            </div>
+                                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Lineage</div>
+                                                <div className="mt-1 text-lg font-semibold text-emerald-950">{lineageRollsAvailable}</div>
+                                            </div>
+                                            <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-amber-700">Fallback</div>
+                                                <div className="mt-1 text-lg font-semibold text-amber-950">{fallbackRollsAvailable}</div>
+                                            </div>
                                         </div>
-                                        <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-amber-700">Remaining</div>
-                                            <div className="mt-1 text-sm font-semibold text-amber-950">{formatSmartValue(stepRemainingPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        {showRollGuidance ? (
+                                            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                                Assign {rollsMissing} more roll{rollsMissing === 1 ? "" : "s"} before release.
+                                            </div>
+                                        ) : (
+                                            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                                                Roll requirement is covered for this current step.
+                                            </div>
+                                        )}
+                                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                                            {showRollAllocator ? (
+                                                <RollAssignmentModal
+                                                    activeAssignment={activeAssignment}
+                                                    targetSpec={targetSpec}
+                                                    targetSpecs={targetRollSpecs}
+                                                    rollBehavior={rollBehavior}
+                                                    targetPlantId={selectedTargetPlantId}
+                                                    targetPlantName={selectedTargetPlantName}
+                                                    targetLocationId={
+                                                        (executionContext as any)?.job?.from_location_id ||
+                                                        (selectedJob as any)?.from_location_id ||
+                                                        (selectedJob as any)?.from_location
+                                                    }
+                                                    targetLocationName={
+                                                        (executionContext as any)?.job?.from_location_name ||
+                                                        (selectedJob as any)?.from_location_name ||
+                                                        (selectedJob as any)?.from_location_display
+                                                    }
+                                                    manualEligibleRolls={rollAllocationCandidates}
+                                                    wipPoolMeta={(executionContext as any)?.wip_pool_meta || {}}
+                                                    rollAssignmentValidation={rollAssignmentValidation}
+                                                    strictSpecMatch={!manualOverrideEnabled}
+                                                    disabled={isReleasedToMachine || !canManualAssign}
+                                                    disabledLabel={isReleasedToMachine ? "LOCKED" : "ROLLS ASSIGNED"}
+                                                    required={rollsRequired}
+                                                    manualOverride={manualOverrideEnabled}
+                                                    overrideReason={overrideReason}
+                                                    onAssigned={() => {
+                                                        refetchContext()
+                                                        refetchSatisfaction()
+                                                        queryClient.invalidateQueries({ queryKey: ["wip-pool-grouped", selectedJobId] })
+                                                    }}
+                                                />
+                                            ) : null}
+                                            {showRollTransfer ? (
+                                                <RollTransferModal
+                                                    targetSpec={targetSpec}
+                                                    targetSpecs={targetRollSpecs}
+                                                    rollBehavior={rollBehavior}
+                                                    targetPlantId={selectedTargetPlantId}
+                                                    targetPlantName={selectedTargetPlantName}
+                                                    targetLocationId={
+                                                        (executionContext as any)?.job?.from_location_id ||
+                                                        (selectedJob as any)?.from_location_id ||
+                                                        (selectedJob as any)?.from_location
+                                                    }
+                                                    targetLocationName={
+                                                        (executionContext as any)?.job?.from_location_name ||
+                                                        (selectedJob as any)?.from_location_name ||
+                                                        (selectedJob as any)?.from_location_display
+                                                    }
+                                                    onRequested={() => {
+                                                        refetchContext()
+                                                        refetchSatisfaction()
+                                                    }}
+                                                />
+                                            ) : null}
+                                            {showRollGuidance ? (
+                                                <label className={cn("inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700", isReleasedToMachine && "opacity-60")}>
+                                                    <Checkbox
+                                                        checked={manualOverrideEnabled}
+                                                        disabled={isReleasedToMachine}
+                                                        onCheckedChange={(checked) => {
+                                                            const enabled = Boolean(checked)
+                                                            setManualOverrideEnabled(enabled)
+                                                            if (!enabled) setOverrideReason("")
+                                                        }}
+                                                    />
+                                                    Policy override
+                                                </label>
+                                            ) : null}
                                         </div>
-                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-                                            <div className="text-[10px] uppercase tracking-wider text-emerald-700">Final output to make</div>
-                                            <div className="mt-1 text-sm font-semibold text-emerald-950">{selectedOutputForm || "Output"} · {selectedSpec.size.label}</div>
-                                            <div className="mt-0.5 text-[11px] font-medium text-emerald-800">{selectedSpec.layers.length || 0} layer{selectedSpec.layers.length === 1 ? "" : "s"} · produced {formatSmartValue(producedPrimary, selectedPrimaryUom, selectedPrimaryDecimals)} {selectedPrimaryUom}</div>
+                                        {manualOverrideEnabled && showRollGuidance ? (
+                                            <Input
+                                                value={overrideReason}
+                                                disabled={isReleasedToMachine}
+                                                onChange={(event) => setOverrideReason(event.target.value)}
+                                                placeholder="Reason required for roll policy override"
+                                                className="mt-3 h-9 rounded-xl border-slate-200 bg-slate-50 text-xs font-semibold"
+                                            />
+                                        ) : null}
+                                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Allocated now</div>
+                                                    <span className="text-[11px] font-semibold text-slate-500">{assignedRollsForDisplay.length} rolls</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {assignedRollsForDisplay.length ? assignedRollsForDisplay.map((roll: any) => (
+                                                        <div key={roll.id} className="flex items-center gap-2 rounded-lg border border-white bg-white px-2.5 py-2">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="truncate text-xs font-semibold text-slate-950">{roll.label_id}</div>
+                                                                <div className="truncate text-[11px] font-medium text-slate-500">{roll.material_name} · {roll.width_mm ? `${roll.width_mm}mm` : "—"} · {Number(roll.weight_kg || 0).toFixed(3)} kg</div>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                disabled={isReleasedToMachine || mutation.isPending}
+                                                                className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600"
+                                                                onClick={() => roll.reservation_id ? handleUnassignRoll(roll.reservation_id) : handleUnassignRollByRoll(roll.id)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    )) : (
+                                                        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs font-semibold text-slate-400">No roll allocated for this step yet.</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Available choices</div>
+                                                    <span className="text-[11px] font-semibold text-slate-500">{rollAllocationCandidates.length} candidates</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {rollAllocationCandidates.slice(0, 4).map((roll: any) => (
+                                                        <div key={String(roll.id || roll.label_id)} className="rounded-lg border border-white bg-white px-2.5 py-2">
+                                                            <div className="text-xs font-semibold text-slate-950">{roll.label_id || "Roll"}</div>
+                                                            <div className="text-[11px] font-medium text-slate-500">{roll.material_name || roll.material_code || "Material"} · {roll.thickness_micron ? `${roll.thickness_micron}u` : "—"} · {roll.width_mm ? `${roll.width_mm}mm` : "—"}</div>
+                                                        </div>
+                                                    ))}
+                                                    {!rollAllocationCandidates.length ? (
+                                                        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs font-semibold text-slate-400">No compatible roll in the current pool.</div>
+                                                    ) : null}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                                        <span className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${progressPercent}%` }} />
-                                    </div>
-                                </section>
+                                    </section>
+                                ) : null}
 
                                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex items-center justify-between gap-3">
@@ -1909,7 +2081,7 @@ export default function WCMTerminal() {
                                         {machineGateHelp}
                                     </div>
                                     <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-                                        <Select value={selectedMachineId} onValueChange={setSelectedMachineId}>
+                                        <Select value={selectedMachineId} onValueChange={setSelectedMachineId} disabled={isReleasedToMachine || mutation.isPending}>
                                             <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50">
                                                 <SelectValue placeholder="Select machine..." />
                                             </SelectTrigger>
@@ -1922,10 +2094,10 @@ export default function WCMTerminal() {
                                         <Button
                                             type="button"
                                             className="h-11 rounded-xl bg-slate-900 px-5 font-semibold text-white hover:bg-slate-800"
-                                            disabled={!activeAssignment || !selectedMachineId || mutation.isPending}
+                                            disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || mutation.isPending}
                                             onClick={handleAssignAndMaybeRelease}
                                         >
-                                            {canPushToOperator ? "Assign + release" : selectedMachineId ? "Save machine" : "Assign machine"}
+                                            {isReleasedToMachine ? "Execution ready" : canPushToOperator ? "Assign + release" : selectedMachineId ? "Save machine" : "Assign machine"}
                                         </Button>
                                     </div>
                                 </section>
@@ -1939,7 +2111,7 @@ export default function WCMTerminal() {
                                         </div>
                                         <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", materialIssueErrors.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{materialReleaseLabel}</span>
                                     </div>
-                                    <div className="mt-4 space-y-2.5">
+                                    <div className={cn("mt-4 space-y-2.5", isReleasedToMachine && "pointer-events-none opacity-75")}>
                                         {materialIssueRows.length === 0 ? (
                                             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-600">No current-step material issue is needed for this step.</div>
                                         ) : materialIssueRows.map((row: any, index: number) => {
@@ -2071,6 +2243,110 @@ export default function WCMTerminal() {
                                                     {rowErrors.length ? (
                                                         <div className="mt-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{rowErrors.map((error) => error.replace(`${materialName}: `, "")).join(" · ")}</div>
                                                     ) : null}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </section>
+
+                                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Policy override</div>
+                                            <div className="text-lg font-semibold text-slate-950">Current route issue rules</div>
+                                            <p className="mt-1 text-xs font-medium text-slate-500">Use only when this exact step needs extra material issue beyond template policy.</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="rounded-xl bg-blue-600 font-semibold hover:bg-blue-700"
+                                            disabled={isReleasedToMachine || stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy}
+                                            onClick={() => stepPolicyMutation.mutate()}
+                                        >
+                                            {stepPolicyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                            Save rule
+                                        </Button>
+                                    </div>
+                                    <div className={cn("mt-4 space-y-3", isReleasedToMachine && "pointer-events-none opacity-75")}>
+                                        {!hasEditableCurrentStepPolicy ? (
+                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-600">No policy override is needed for this step.</div>
+                                        ) : currentStepPolicyItems.map((item) => {
+                                            const draft = stepPolicyDrafts[item.policy_key] || {
+                                                issue_policy_mode: "NONE" as const,
+                                                issue_policy_value: 0,
+                                                reason: "",
+                                            }
+                                            return (
+                                                <div key={item.policy_key} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                        <div>
+                                                            <div className="font-semibold text-slate-950">{item.material_name}</div>
+                                                            <div className="mt-0.5 text-[11px] font-medium text-slate-500">
+                                                                {item.category_code || "Material"} · Theory {Number(item.theoretical_qty || 0).toFixed(3)} kg · Planned {Number(item.planned_issue_qty || 0).toFixed(3)} kg
+                                                            </div>
+                                                        </div>
+                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
+                                                            {String(item.policy_source || "TEMPLATE").replaceAll("_", " ")}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_110px_1fr]">
+                                                        <Select
+                                                            value={draft.issue_policy_mode}
+                                                            disabled={isReleasedToMachine}
+                                                            onValueChange={(value) =>
+                                                                setStepPolicyDrafts((prev) => ({
+                                                                    ...prev,
+                                                                    [item.policy_key]: {
+                                                                        ...draft,
+                                                                        issue_policy_mode: value as StepPolicyDraft["issue_policy_mode"],
+                                                                    },
+                                                                }))
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-xs font-semibold">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="NONE">Template default</SelectItem>
+                                                                <SelectItem value="PERCENT_OVER_THEORY">% over theory</SelectItem>
+                                                                <SelectItem value="FIXED_EXTRA_KG">Fixed extra kg</SelectItem>
+                                                                <SelectItem value="MINIMUM_ISSUE_KG">Minimum issue kg</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Input
+                                                            type="number"
+                                                            disabled={isReleasedToMachine}
+                                                            className="h-9 rounded-lg border-slate-200 bg-white text-right text-xs font-semibold"
+                                                            value={String(draft.issue_policy_value ?? 0)}
+                                                            onChange={(event) =>
+                                                                setStepPolicyDrafts((prev) => ({
+                                                                    ...prev,
+                                                                    [item.policy_key]: {
+                                                                        ...draft,
+                                                                        issue_policy_value: Number(event.target.value || 0),
+                                                                    },
+                                                                }))
+                                                            }
+                                                        />
+                                                        <Input
+                                                            disabled={isReleasedToMachine}
+                                                            className="h-9 rounded-lg border-slate-200 bg-white text-xs font-semibold"
+                                                            placeholder="Reason for this step"
+                                                            value={draft.reason}
+                                                            onChange={(event) =>
+                                                                setStepPolicyDrafts((prev) => ({
+                                                                    ...prev,
+                                                                    [item.policy_key]: {
+                                                                        ...draft,
+                                                                        reason: event.target.value,
+                                                                    },
+                                                                }))
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="mt-2 text-[11px] font-medium text-slate-500">
+                                                        Effective: {policyModeLabel(item.effective_issue_policy_mode, item.effective_issue_policy_value)} · Template: {policyModeLabel(item.template_issue_policy_mode, item.template_issue_policy_value)}
+                                                    </div>
                                                 </div>
                                             )
                                         })}
@@ -3394,6 +3670,7 @@ function RollAssignmentModal({
     rollAssignmentValidation = {},
     onAssigned,
     disabled,
+    disabledLabel = "ROLLS ASSIGNED",
     required,
     strictSpecMatch = true,
     manualOverride = false,
@@ -3766,7 +4043,7 @@ function RollAssignmentModal({
                 onClick={() => setOpen(true)}
                 className="h-7 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold px-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {disabled ? "ROLLS ASSIGNED" : "ALLOCATE ROLLS"}
+                {disabled ? disabledLabel : "ALLOCATE ROLLS"}
             </Button>
                 <DialogContent data-testid="wcm-allocation-dialog" className="flex h-[min(85vh,900px)] max-h-[85vh] max-w-5xl flex-col overflow-hidden p-0">
                 <DialogHeader className="p-6 bg-slate-50 border-b shrink-0">

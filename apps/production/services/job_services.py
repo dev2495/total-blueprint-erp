@@ -1349,6 +1349,15 @@ class WCManagerService:
             assignment.status = 'ASSIGNED' if ready_core else 'WC_READY'
 
     @classmethod
+    def _ensure_pre_release_editable(cls, assignment):
+        status = str(getattr(assignment, "status", "") or "").upper()
+        job = getattr(assignment, "production_job", None)
+        job_state = str(getattr(job, "job_state", "") or "").upper()
+        job_status = str(getattr(job, "status", "") or "").upper()
+        if status == "EXECUTION_READY" or job_state in {"RELEASED", "EXECUTING", "PAUSED"} or job_status in {"RUNNING"}:
+            raise ValueError("This job is already released to machine execution. Preparation changes are locked.")
+
+    @classmethod
     def assign_machine(cls, assignment_id, machine_id, roll_ids=None, user=None, manual_override=False, override_reason=None):
         from apps.production.models import WorkCenterAssignment
         from apps.factory.models import Machine
@@ -1357,6 +1366,7 @@ class WCManagerService:
         
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
+            cls._ensure_pre_release_editable(assignment)
             machine = Machine.objects.get(id=machine_id)
             
             assignment.assigned_machine = machine
@@ -1434,6 +1444,7 @@ class WCManagerService:
         
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
+            cls._ensure_pre_release_editable(assignment)
             job = assignment.production_job
             process = job.current_process or job.process
 
@@ -1492,6 +1503,7 @@ class WCManagerService:
 
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
+            cls._ensure_pre_release_editable(assignment)
             job = assignment.production_job
 
             # Clear legacy links before unassigning to prevent any reconciliation
@@ -1525,6 +1537,7 @@ class WCManagerService:
 
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
+            cls._ensure_pre_release_editable(assignment)
             job = assignment.production_job
 
             # Frontend may pass either roll_id or reservation_id in some legacy paths.

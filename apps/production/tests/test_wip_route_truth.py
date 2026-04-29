@@ -142,3 +142,54 @@ class WipRouteTruthTests(SimpleTestCase):
             current_step_material_confirmations=material_confirmations,
             updated_at="ready-ts",
         )
+
+    def test_wc_manager_blocks_machine_changes_after_release_to_operator(self):
+        job = SimpleNamespace(id="job-1", machine=None, save=MagicMock())
+        assignment = SimpleNamespace(
+            id="assignment-1",
+            status="EXECUTION_READY",
+            assigned_machine=None,
+            production_job=job,
+            save=MagicMock(),
+        )
+        machine = SimpleNamespace(id="machine-1")
+
+        with patch("apps.production.services.job_services.transaction.atomic", return_value=nullcontext()), \
+             patch("apps.production.services.job_services.WorkCenterAssignment.objects.get", return_value=assignment), \
+             patch("apps.factory.models.Machine.objects.get", return_value=machine), \
+             patch.object(WCManagerService, "_sync_assignment_status"):
+            with self.assertRaisesRegex(ValueError, "already released"):
+                WCManagerService.assign_machine("assignment-1", "machine-1", user="admin")
+
+        assignment.save.assert_not_called()
+        job.save.assert_not_called()
+
+    def test_wc_manager_blocks_roll_changes_after_release_to_operator(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
+        job = SimpleNamespace(id="job-1", current_process=process, process=process)
+        allocated_rolls = MagicMock()
+        assignment = SimpleNamespace(
+            id="assignment-1",
+            status="EXECUTION_READY",
+            production_job=job,
+            allocated_rolls=allocated_rolls,
+            assigned_by=None,
+            assigned_at=None,
+            save=MagicMock(),
+        )
+        reservations = MagicMock()
+        reservations.values_list.return_value = []
+        reserved_rolls = object()
+
+        with patch("apps.production.services.job_services.transaction.atomic", return_value=nullcontext()), \
+             patch("apps.production.services.job_services.WorkCenterAssignment.objects.get", return_value=assignment), \
+             patch("apps.production.services.job_services.InventoryReservation.objects.filter", return_value=reservations), \
+             patch("apps.production.services.job_services.InventoryRoll.objects.filter", return_value=reserved_rolls), \
+             patch("apps.production.services.services_execution.ExecutionService._required_roll_count", return_value=1), \
+             patch.object(WCManagerService, "_validate_roll_assignment_set"), \
+             patch.object(WCManagerService, "_sync_assignment_status"):
+            with self.assertRaisesRegex(ValueError, "already released"):
+                WCManagerService.assign_rolls("assignment-1", [], user="admin")
+
+        allocated_rolls.set.assert_not_called()
+        assignment.save.assert_not_called()
