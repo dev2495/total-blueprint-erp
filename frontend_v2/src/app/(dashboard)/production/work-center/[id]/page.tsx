@@ -1656,6 +1656,14 @@ export default function WCMTerminal() {
                                 const spec = normalizeProductSpec(job)
                                 const status = String(assignment?.status || "WC_READY").toUpperCase()
                                 const isQueueReleased = status === "EXECUTION_READY"
+                                const queueOutputFormRaw = String(job?.output_form || spec.size.finishedGoodType || "OUTPUT").toUpperCase()
+                                const queueInputFormRaw = String(job?.input_form || "").toUpperCase()
+                                const queueOrderUom = String(job?.uom || "").toUpperCase()
+                                const queuePrimaryUom = String(
+                                    job?.primary_uom ||
+                                    ((queueOrderUom === "PCS" && queueOutputFormRaw === "BULK" && queueInputFormRaw === "ROLL") ? "PCS" : "KG")
+                                ).toUpperCase() as "KG" | "PCS"
+                                const queuePrimaryDecimals = queuePrimaryUom === "PCS" ? 0 : 3
                                 const target = toNullableNumber(job?.step_target_primary) ?? Number(job?.step_target_kg || job?.quantity || 0)
                                 const remaining = toNullableNumber(job?.step_remaining_primary)
                                 const produced = Math.max(0, Number(target || 0) - Number(remaining ?? target ?? 0))
@@ -1664,10 +1672,11 @@ export default function WCMTerminal() {
                                 const rail = priority >= 80 ? "from-rose-500 via-rose-400 to-rose-300" : priority >= 50 ? "from-amber-500 via-amber-400 to-amber-300" : "from-emerald-500 via-emerald-400 to-emerald-300"
                                 const queueSkuLabel = firstNonEmpty((job as any)?.sku_name, (job as any)?.sku_display_name, spec.variantName, (job as any)?.sku_variant_name, spec.variantCode, (job as any)?.sku_variant_code)
                                 const queueFinalProduct = [
-                                    String(job?.output_form || spec.size.finishedGoodType || "OUTPUT").toUpperCase(),
+                                    queueOutputFormRaw,
                                     spec.size.label,
                                     spec.layers.length ? `${spec.layers.length} layer${spec.layers.length > 1 ? "s" : ""}` : "",
                                 ].filter(Boolean).join(" · ")
+                                const queueFinalQtyReq = `${formatSmartValue(target || 0, queuePrimaryUom, queuePrimaryDecimals)} ${queuePrimaryUom}`
                                 const showQueueSkuLine = queueSkuLabel && queueSkuLabel.toLowerCase() !== String(spec.productName || "").toLowerCase()
                                 return (
                                     <article
@@ -1726,9 +1735,9 @@ export default function WCMTerminal() {
                                                             <span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-500" style={{ width: `${percent}%` }} />
                                                         </div>
                                                         <div className="mt-2 flex flex-wrap items-start gap-x-5 gap-y-2">
-                                                            <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(target || 0, selectedPrimaryUom, selectedPrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{selectedPrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Step target</div></div>
-                                                            <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(remaining ?? 0, selectedPrimaryUom, selectedPrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{selectedPrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Remaining</div></div>
-                                                            <div className="min-w-[170px] max-w-[260px]"><div className="text-sm font-semibold leading-snug text-emerald-800">{queueFinalProduct}</div><div className="text-[11px] uppercase tracking-wider text-slate-500">Final output req</div></div>
+                                                            <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(target || 0, queuePrimaryUom, queuePrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{queuePrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Step target</div></div>
+                                                            <div><div className="text-lg font-semibold tabular-nums">{formatSmartValue(remaining ?? 0, queuePrimaryUom, queuePrimaryDecimals)} <span className="text-sm font-medium text-slate-400">{queuePrimaryUom}</span></div><div className="text-[11px] uppercase tracking-wider text-slate-500">Remaining</div></div>
+                                                            <div className="min-w-[180px] max-w-[280px]"><div className="text-lg font-semibold tabular-nums text-emerald-800">{queueFinalQtyReq}</div><div className="text-xs font-semibold leading-snug text-emerald-700">{queueFinalProduct}</div><div className="text-[11px] uppercase tracking-wider text-slate-500">Final output req</div></div>
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-wrap gap-2 md:col-span-4">
