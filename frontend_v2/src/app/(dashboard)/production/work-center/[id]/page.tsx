@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect, useRef, type MouseEvent } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useParams } from "next/navigation"
 import { wcmService, WorkCenterAssignment } from "@/services/wcm"
@@ -1336,22 +1336,42 @@ export default function WCMTerminal() {
         })
     }
 
-    const handleAssignAndMaybeRelease = () => {
-        if (!activeAssignment || !selectedMachineId) return
+    const handleAssignAndMaybeRelease = (event?: MouseEvent<HTMLButtonElement>) => {
+        event?.preventDefault()
+        event?.stopPropagation()
+        if (!activeAssignment) {
+            toast({ variant: "destructive", title: "No job selected", description: "Pick a queue job before assigning a machine." })
+            return
+        }
+        if (!selectedMachineId) {
+            toast({ variant: "destructive", title: "Machine required", description: "Select a machine before release." })
+            return
+        }
         mutation.mutate(async () => {
             if (isReleasedToMachine) {
                 throw new Error("This job is already released to machine execution.")
             }
             if (String(activeAssignment.assigned_machine || "") !== String(selectedMachineId)) {
-                await wcmService.assignMachine(activeAssignment.id, selectedMachineId)
+                const updated = await wcmService.assignMachine(activeAssignment.id, selectedMachineId)
+                if (updated?.assigned_machine) {
+                    setSelectedMachineId(String(updated.assigned_machine))
+                }
             }
-            if (canPushToOperator) {
-                await wcmService.markReady(activeAssignment.id, materialIssuePayload as any[])
-                setActiveAssignmentId(null)
+            if (!canPushToOperator) {
+                return
             }
+            if (satisfactionStatus?.input_form === "ROLL" && rollsMissingPool > 0) {
+                await wcmService.autoSatisfy(activeAssignment.production_job)
+            }
+            const released = await wcmService.markReady(activeAssignment.id, materialIssuePayload as any[])
+            if (released?.assigned_machine) {
+                setSelectedMachineId(String(released.assigned_machine))
+            }
+            setActiveAssignmentId(String(released?.id || activeAssignment.id))
             await refetchContext()
             await refetchSatisfaction()
             queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] })
+            queryClient.invalidateQueries({ queryKey: ["wcm-stats", wcId] })
         })
     }
 
@@ -1681,6 +1701,7 @@ export default function WCMTerminal() {
                                 return (
                                     <article
                                         key={assignment.id}
+                                        data-testid={`wcm-assignment-row-${assignment.id}`}
                                         onClick={() => setActiveAssignmentId(assignment.id)}
                                         className={cn(
                                             "overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md",
@@ -2085,7 +2106,7 @@ export default function WCMTerminal() {
                                     </div>
                                     <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
                                         <Select value={selectedMachineId} onValueChange={setSelectedMachineId} disabled={isReleasedToMachine || mutation.isPending}>
-                                            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50">
+                                            <SelectTrigger data-testid="wcm-machine-select" className="h-11 rounded-xl border-slate-200 bg-slate-50">
                                                 <SelectValue placeholder="Select machine..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -2096,6 +2117,7 @@ export default function WCMTerminal() {
                                         </Select>
                                         <Button
                                             type="button"
+                                            data-testid="wcm-assign-release"
                                             className="h-11 rounded-xl bg-slate-900 px-5 font-semibold text-white hover:bg-slate-800"
                                             disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || mutation.isPending}
                                             onClick={handleAssignAndMaybeRelease}

@@ -22,18 +22,25 @@ test("wcm can assign a machine and push a queued job into execution-ready state"
   await page.getByTestId(`wcm-assignment-row-${seed.wcm.assignment_id}`).click()
   await page.getByTestId("wcm-machine-select").click()
   await page.getByRole("option").first().click()
-  await page.getByTestId("wcm-save-machine").click()
-  await expect(page.getByTestId("wcm-push-to-operator")).toBeEnabled({ timeout: 20_000 })
-  await page.getByTestId("wcm-push-to-operator").click()
+  const releaseButton = page.getByTestId("wcm-assign-release")
+  await expect(releaseButton).toBeEnabled({ timeout: 20_000 })
+  await expect(releaseButton).toContainText(/Assign \+ release/i, { timeout: 20_000 })
+  await releaseButton.click()
 
-  await page.waitForTimeout(1500)
-  const queueResponse = await fetchJson<any>(page, `/api/production/wc/${seed.wcm.work_center_id}/queue/`)
-  expect(queueResponse.status).toBe(200)
-  const historyResponse = await fetchJson<any>(page, `/api/production/wc/${seed.wcm.work_center_id}/history/`)
-  expect(historyResponse.status).toBe(200)
-  const assignments = [...unwrapApiList<any>(queueResponse.data), ...unwrapApiList<any>(historyResponse.data)]
-  const assignment = assignments.find((row) => String(row.id) === seed.wcm.assignment_id)
-  expect(assignment).toBeTruthy()
-  expect(String(assignment?.status || "").toUpperCase()).toBe("EXECUTION_READY")
-  expect(String(assignment?.assigned_machine || "")).toBe(seed.wcm.machine_id)
+  await expect(page.getByTestId(`wcm-assignment-row-${seed.wcm.assignment_id}`)).toContainText(/Execution Ready/i, { timeout: 30_000 })
+  await expect(page).toHaveURL(new RegExp(`/production/work-center/${seed.wcm.work_center_id}`))
+  await expect
+    .poll(async () => {
+      const queueResponse = await fetchJson<any>(page, `/api/production/wc/${seed.wcm.work_center_id}/queue/`)
+      expect(queueResponse.status).toBe(200)
+      const historyResponse = await fetchJson<any>(page, `/api/production/wc/${seed.wcm.work_center_id}/history/`)
+      expect(historyResponse.status).toBe(200)
+      const assignments = [...unwrapApiList<any>(queueResponse.data), ...unwrapApiList<any>(historyResponse.data)]
+      const assignment = assignments.find((row) => String(row.id) === seed.wcm.assignment_id)
+      return {
+        status: String(assignment?.status || "").toUpperCase(),
+        machine: String(assignment?.assigned_machine || ""),
+      }
+    }, { timeout: 30_000 })
+    .toEqual({ status: "EXECUTION_READY", machine: seed.wcm.machine_id })
 })

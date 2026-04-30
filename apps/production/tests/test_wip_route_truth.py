@@ -164,6 +164,34 @@ class WipRouteTruthTests(SimpleTestCase):
         assignment.save.assert_not_called()
         job.save.assert_not_called()
 
+    def test_wc_manager_allows_machine_assignment_after_planner_release_to_wcm(self):
+        job = SimpleNamespace(
+            id="job-1",
+            machine=None,
+            save=MagicMock(),
+            status="QUEUED",
+            job_state="RELEASED",
+        )
+        assignment = SimpleNamespace(
+            id="assignment-1",
+            status="WC_READY",
+            assigned_machine=None,
+            production_job=job,
+            save=MagicMock(),
+        )
+        machine = SimpleNamespace(id="machine-1")
+
+        with patch("apps.production.services.job_services.transaction.atomic", return_value=nullcontext()), \
+             patch("apps.production.services.job_services.WorkCenterAssignment.objects.get", return_value=assignment), \
+             patch("apps.factory.models.Machine.objects.get", return_value=machine), \
+             patch.object(WCManagerService, "_sync_assignment_status"):
+            result = WCManagerService.assign_machine("assignment-1", "machine-1", user="admin")
+
+        self.assertIs(result, assignment)
+        self.assertIs(assignment.assigned_machine, machine)
+        assignment.save.assert_called_once()
+        job.save.assert_called_once()
+
     def test_wc_manager_blocks_roll_changes_after_release_to_operator(self):
         process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
         job = SimpleNamespace(id="job-1", current_process=process, process=process)

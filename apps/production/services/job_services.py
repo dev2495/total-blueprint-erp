@@ -1354,7 +1354,7 @@ class WCManagerService:
         job = getattr(assignment, "production_job", None)
         job_state = str(getattr(job, "job_state", "") or "").upper()
         job_status = str(getattr(job, "status", "") or "").upper()
-        if status == "EXECUTION_READY" or job_state in {"RELEASED", "EXECUTING", "PAUSED"} or job_status in {"RUNNING"}:
+        if status == "EXECUTION_READY" or job_state in {"EXECUTING", "PAUSED"} or job_status in {"RUNNING"}:
             raise ValueError("This job is already released to machine execution. Preparation changes are locked.")
 
     @classmethod
