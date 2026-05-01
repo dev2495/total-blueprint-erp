@@ -282,6 +282,7 @@ export default function WCMTerminal() {
     const [manualOverrideEnabled, setManualOverrideEnabled] = useState(false)
     const [overrideReason, setOverrideReason] = useState("")
     const [stepPolicyDrafts, setStepPolicyDrafts] = useState<Record<string, StepPolicyDraft>>({})
+    const [activeStepPolicyOverrides, setActiveStepPolicyOverrides] = useState<Record<string, boolean>>({})
     const [materialIssueDrafts, setMaterialIssueDrafts] = useState<Record<string, WcmMaterialIssueDraft>>({})
     const [queueSearch, setQueueSearch] = useState("")
     const [queueStatusFilter, setQueueStatusFilter] = useState<"ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE">("ALL")
@@ -500,6 +501,7 @@ export default function WCMTerminal() {
 
     useEffect(() => {
         const nextDrafts: Record<string, StepPolicyDraft> = {}
+        const nextActive: Record<string, boolean> = {}
         ;(currentStepPolicy?.items || []).forEach((item) => {
             const isOverride = String(item.policy_source || "").toUpperCase().includes("OVERRIDE")
             nextDrafts[item.policy_key] = {
@@ -507,8 +509,10 @@ export default function WCMTerminal() {
                 issue_policy_value: isOverride ? Number(item.effective_issue_policy_value || 0) : 0,
                 reason: isOverride ? String(item.override_reason || "") : "",
             }
+            nextActive[item.policy_key] = isOverride
         })
         setStepPolicyDrafts(nextDrafts)
+        setActiveStepPolicyOverrides(nextActive)
     }, [currentStepPolicy])
 
     // Phase 68: WIP Pool Grouped
@@ -638,12 +642,14 @@ export default function WCMTerminal() {
     const stepPolicyMutation = useMutation({
         mutationFn: async () => {
             if (!selectedJobId) throw new Error("Select a job first.")
-            const overrides = Object.entries(stepPolicyDrafts).map(([policy_key, row]) => ({
-                policy_key,
-                issue_policy_mode: row.issue_policy_mode,
-                issue_policy_value: Number(row.issue_policy_value || 0),
-                reason: String(row.reason || "").trim(),
-            }))
+            const overrides = Object.entries(stepPolicyDrafts)
+                .filter(([policy_key, row]) => Boolean(activeStepPolicyOverrides[policy_key]) && row.issue_policy_mode !== "NONE")
+                .map(([policy_key, row]) => ({
+                    policy_key,
+                    issue_policy_mode: row.issue_policy_mode,
+                    issue_policy_value: Number(row.issue_policy_value || 0),
+                    reason: String(row.reason || "").trim(),
+                }))
             return wcmService.updateCurrentStepMaterialPolicy(selectedJobId, overrides)
         },
         onSuccess: async () => {
@@ -1462,6 +1468,8 @@ export default function WCMTerminal() {
     const targetSpec = (executionContext as any)?.target_roll_invariants || {}
     const currentStepPolicyItems = currentStepPolicy?.items || []
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
+    const hasActiveStepPolicyOverride = currentStepPolicyItems.some((item) => Boolean(activeStepPolicyOverrides[item.policy_key]))
+    const hasStepPolicyChangeIntent = hasActiveStepPolicyOverride || currentStepPolicyItems.some((item) => String(item.policy_source || "").toUpperCase().includes("OVERRIDE") && !activeStepPolicyOverrides[item.policy_key])
     const selectedProductName = productNameFromJob(selectedJob, executionContext)
     const selectedGeometry = geometryFromJob(selectedJob, executionContext)
     const selectedPodLabel = podLabelFromJob(selectedJob, executionContext)
@@ -2309,11 +2317,11 @@ export default function WCMTerminal() {
                                                     type="button"
                                                     size="sm"
                                                     className="h-9 rounded-xl bg-blue-600 px-3 text-xs font-semibold hover:bg-blue-700"
-                                                    disabled={isReleasedToMachine || stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy}
+                                                    disabled={isReleasedToMachine || stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy || !hasStepPolicyChangeIntent}
                                                     onClick={() => stepPolicyMutation.mutate()}
                                                 >
                                                     {stepPolicyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                                    Save policy
+                                                    Save override
                                                 </Button>
                                             </div>
                                             <div className={cn("mt-3 space-y-2.5", isReleasedToMachine && "pointer-events-none opacity-75")}>
@@ -2324,6 +2332,7 @@ export default function WCMTerminal() {
                                                         reason: "",
                                                     }
                                                     const source = String(item.policy_source || "TEMPLATE_DEFAULT").replaceAll("_", " ")
+                                                    const overrideActive = Boolean(activeStepPolicyOverrides[item.policy_key])
                                                     return (
                                                         <div key={`issue-policy-${item.policy_key}`} className="rounded-xl border border-blue-100 bg-white p-3">
                                                             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2339,6 +2348,34 @@ export default function WCMTerminal() {
                                                                 )}>
                                                                     {source}
                                                                 </span>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant={overrideActive ? "outline" : "default"}
+                                                                    disabled={isReleasedToMachine || stepPolicyMutation.isPending}
+                                                                    className={cn("h-8 rounded-lg px-3 text-xs font-semibold", overrideActive ? "border-slate-200 bg-white text-slate-700" : "bg-slate-900 text-white hover:bg-slate-800")}
+                                                                    onClick={() => {
+                                                                        if (overrideActive) {
+                                                                            setActiveStepPolicyOverrides((prev) => ({ ...prev, [item.policy_key]: false }))
+                                                                            setStepPolicyDrafts((prev) => ({
+                                                                                ...prev,
+                                                                                [item.policy_key]: { issue_policy_mode: "NONE", issue_policy_value: 0, reason: "" },
+                                                                            }))
+                                                                            return
+                                                                        }
+                                                                        setActiveStepPolicyOverrides((prev) => ({ ...prev, [item.policy_key]: true }))
+                                                                        setStepPolicyDrafts((prev) => ({
+                                                                            ...prev,
+                                                                            [item.policy_key]: {
+                                                                                issue_policy_mode: String(item.effective_issue_policy_mode || item.template_issue_policy_mode || "NONE").toUpperCase() as StepPolicyDraft["issue_policy_mode"],
+                                                                                issue_policy_value: Number(item.effective_issue_policy_value ?? item.template_issue_policy_value ?? 0),
+                                                                                reason: String(item.override_reason || ""),
+                                                                            },
+                                                                        }))
+                                                                    }}
+                                                                >
+                                                                    {overrideActive ? "Use template" : "Override"}
+                                                                </Button>
                                                             </div>
                                                             <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_132px_1fr]">
                                                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
@@ -2347,7 +2384,7 @@ export default function WCMTerminal() {
                                                                 </div>
                                                                 <Select
                                                                     value={draft.issue_policy_mode}
-                                                                    disabled={isReleasedToMachine}
+                                                                    disabled={isReleasedToMachine || !overrideActive}
                                                                     onValueChange={(value) =>
                                                                         setStepPolicyDrafts((prev) => ({
                                                                             ...prev,
@@ -2370,7 +2407,7 @@ export default function WCMTerminal() {
                                                                 </Select>
                                                                 <Input
                                                                     type="number"
-                                                                    disabled={isReleasedToMachine || draft.issue_policy_mode === "NONE"}
+                                                                    disabled={isReleasedToMachine || !overrideActive || draft.issue_policy_mode === "NONE"}
                                                                     className="h-10 rounded-lg border-slate-200 bg-white text-right text-xs font-semibold"
                                                                     value={String(draft.issue_policy_value ?? 0)}
                                                                     onChange={(event) =>
@@ -2384,7 +2421,7 @@ export default function WCMTerminal() {
                                                                     }
                                                                 />
                                                                 <Input
-                                                                    disabled={isReleasedToMachine || draft.issue_policy_mode === "NONE"}
+                                                                    disabled={isReleasedToMachine || !overrideActive || draft.issue_policy_mode === "NONE"}
                                                                     className="h-10 rounded-lg border-slate-200 bg-white text-xs font-semibold"
                                                                     placeholder="Reason for override"
                                                                     value={draft.reason}
@@ -2926,7 +2963,7 @@ export default function WCMTerminal() {
                                                             size="sm"
                                                             className="bg-blue-600 hover:bg-blue-700"
                                                             onClick={() => stepPolicyMutation.mutate()}
-                                                            disabled={stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy}
+                                                            disabled={stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy || !hasStepPolicyChangeIntent}
                                                             data-testid="wcm-save-current-step-policy"
                                                         >
                                                             {stepPolicyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -2945,6 +2982,7 @@ export default function WCMTerminal() {
                                                                     issue_policy_value: 0,
                                                                     reason: "",
                                                                 }
+                                                                const overrideActive = Boolean(activeStepPolicyOverrides[item.policy_key])
                                                                 return (
                                                                     <div key={item.policy_key} className="rounded-xl border border-blue-100 bg-white p-3 space-y-3">
                                                                         <div className="flex items-start justify-between gap-3">
@@ -2954,7 +2992,37 @@ export default function WCMTerminal() {
                                                                                     {item.category_code} · Theory {Number(item.theoretical_qty || 0).toFixed(3)} kg · Planned {Number(item.planned_issue_qty || 0).toFixed(3)} kg
                                                                                 </div>
                                                                             </div>
-                                                                            <SemanticBadge kind="approval" value={String(item.policy_source || "TEMPLATE_DEFAULT").includes("OVERRIDE") ? "PENDING" : "APPROVED"} label={String(item.policy_source || "TEMPLATE_DEFAULT").replaceAll("_", " ")} className="text-[10px]" />
+                                                                            <div className="flex flex-wrap justify-end gap-2">
+                                                                                <SemanticBadge kind="approval" value={String(item.policy_source || "TEMPLATE_DEFAULT").includes("OVERRIDE") ? "PENDING" : "APPROVED"} label={String(item.policy_source || "TEMPLATE_DEFAULT").replaceAll("_", " ")} className="text-[10px]" />
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    size="sm"
+                                                                                    variant={overrideActive ? "outline" : "default"}
+                                                                                    disabled={isReleasedToMachine || stepPolicyMutation.isPending}
+                                                                                    className={cn("h-8 rounded-lg px-3 text-xs font-semibold", overrideActive ? "border-slate-200 bg-white text-slate-700" : "bg-slate-900 text-white hover:bg-slate-800")}
+                                                                                    onClick={() => {
+                                                                                        if (overrideActive) {
+                                                                                            setActiveStepPolicyOverrides((prev) => ({ ...prev, [item.policy_key]: false }))
+                                                                                            setStepPolicyDrafts((prev) => ({
+                                                                                                ...prev,
+                                                                                                [item.policy_key]: { issue_policy_mode: "NONE", issue_policy_value: 0, reason: "" },
+                                                                                            }))
+                                                                                            return
+                                                                                        }
+                                                                                        setActiveStepPolicyOverrides((prev) => ({ ...prev, [item.policy_key]: true }))
+                                                                                        setStepPolicyDrafts((prev) => ({
+                                                                                            ...prev,
+                                                                                            [item.policy_key]: {
+                                                                                                issue_policy_mode: String(item.effective_issue_policy_mode || item.template_issue_policy_mode || "NONE").toUpperCase() as StepPolicyDraft["issue_policy_mode"],
+                                                                                                issue_policy_value: Number(item.effective_issue_policy_value ?? item.template_issue_policy_value ?? 0),
+                                                                                                reason: String(item.override_reason || ""),
+                                                                                            },
+                                                                                        }))
+                                                                                    }}
+                                                                                >
+                                                                                    {overrideActive ? "Use template" : "Override"}
+                                                                                </Button>
+                                                                            </div>
                                                                         </div>
                                                                         <div className="grid gap-3 md:grid-cols-4">
                                                                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px]">
@@ -2973,6 +3041,7 @@ export default function WCMTerminal() {
                                                                                 <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Override mode</div>
                                                                                 <Select
                                                                                     value={draft.issue_policy_mode}
+                                                                                    disabled={isReleasedToMachine || !overrideActive}
                                                                                     onValueChange={(value) =>
                                                                                         setStepPolicyDrafts((prev) => ({
                                                                                             ...prev,
@@ -2999,6 +3068,7 @@ export default function WCMTerminal() {
                                                                                 <Input
                                                                                     type="number"
                                                                                     className="h-9 bg-white text-xs"
+                                                                                    disabled={isReleasedToMachine || !overrideActive || draft.issue_policy_mode === "NONE"}
                                                                                     value={String(draft.issue_policy_value ?? 0)}
                                                                                     onChange={(event) =>
                                                                                         setStepPolicyDrafts((prev) => ({
@@ -3015,6 +3085,7 @@ export default function WCMTerminal() {
                                                                                 <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Reason</div>
                                                                                 <Input
                                                                                     className="h-9 bg-white text-xs"
+                                                                                    disabled={isReleasedToMachine || !overrideActive || draft.issue_policy_mode === "NONE"}
                                                                                     placeholder="Why this execution exception is needed"
                                                                                     value={draft.reason}
                                                                                     onChange={(event) =>

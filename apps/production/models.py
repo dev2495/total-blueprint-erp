@@ -660,6 +660,7 @@ class ProductionWcmAuditEvent(models.Model):
         ("UNASSIGN_ROLL", "Unassign Roll"),
         ("RELEASE_TO_MACHINE", "Release To Machine"),
         ("MATERIAL_ISSUE", "Material Issue"),
+        ("MATERIAL_POLICY_OVERRIDE", "Material Policy Override"),
         ("SHORT_CLOSE", "Short Close"),
         ("CANCEL", "Cancel"),
     ]

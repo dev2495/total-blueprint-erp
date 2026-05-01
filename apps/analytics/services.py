@@ -16,6 +16,7 @@ from apps.production.models import (
     ScrapLog, 
     DowntimeLog,
     MaterialConsumptionLog,
+    ProductionWcmAuditEvent,
     InkBlendTransaction,
     FinishedGoodsBatch,
     PackingUnit,
@@ -101,7 +102,8 @@ def _audit_log_description(action: str, details: dict | None = None) -> str:
     if action == "DENIED":
         return "Permission denied"
     if action == "ROLE_OVERRIDE":
-        return "Role override"
+        allowed = bool(details.get("allowed"))
+        return "Role preview applied" if allowed else "Role preview blocked"
     if action == "ROLE_CHANGED":
         return "Role or user access updated"
     if action == "SIGNOFF_UPDATED":
@@ -129,11 +131,13 @@ def _audit_log_value(audit: PermissionAuditLog) -> str:
         return required_permission or str(details.get("reason") or "access blocked")
     if action == "ROLE_OVERRIDE":
         allowed = details.get("allowed")
-        override_role = details.get("override_role")
-        verdict = "allowed" if allowed else "blocked"
-        if override_role:
-            return f"{override_role} · {verdict}"
-        return verdict
+        override_role = details.get("override_role") or getattr(audit, "effective_role", "")
+        path = str(getattr(audit, "path", "") or "").strip()
+        verdict = "applied" if allowed else "blocked"
+        pieces = [str(override_role or "role").upper(), verdict]
+        if path:
+            pieces.append(path)
+        return " · ".join(pieces)
     if action == "ROLE_CHANGED":
         return (
             str(details.get("updated_user") or "").strip()
@@ -165,7 +169,42 @@ def _audit_log_reference(audit: PermissionAuditLog) -> str | None:
         value = str(details.get(key) or "").strip()
         if value:
             return value
+    if str(getattr(audit, "action", "") or "").upper() == "ROLE_OVERRIDE":
+        role = str(getattr(audit, "effective_role", "") or "").strip()
+        if role:
+            return role
     return str(getattr(audit, "action", "") or "").strip() or None
+
+
+def _wcm_audit_description(event: ProductionWcmAuditEvent) -> str:
+    payload = getattr(event, "payload", {}) or {}
+    summary = str(payload.get("summary") or "").strip()
+    if summary:
+        return summary
+    action = str(getattr(event, "action", "") or "").upper()
+    if action == "MATERIAL_POLICY_OVERRIDE":
+        return "Current-step material issue policy changed"
+    if action == "MATERIAL_ISSUE":
+        return "Current-step material issued"
+    if action == "RELEASE_TO_MACHINE":
+        return "Job released to machine terminal"
+    if action == "ASSIGN_MACHINE":
+        return "Machine assigned for work center job"
+    return action.replace("_", " ").title()
+
+
+def _wcm_audit_value(event: ProductionWcmAuditEvent) -> str:
+    payload = getattr(event, "payload", {}) or {}
+    changed_rows = payload.get("changed_rows") if isinstance(payload, dict) else []
+    if isinstance(changed_rows, list) and changed_rows:
+        names = [str(row.get("material_name") or "").strip() for row in changed_rows if isinstance(row, dict)]
+        names = [name for name in names if name]
+        if names:
+            return ", ".join(names[:3])
+    machine = getattr(event, "machine", None)
+    if machine:
+        return machine.name
+    return str(getattr(event, "after_status", "") or getattr(event, "action", "") or "")
 
 
 def _audit_log_effective_role(audit: PermissionAuditLog) -> str:
@@ -3601,6 +3640,44 @@ class ReportingService:
                     "reference": getattr(p.production_job, "job_number", None),
                     "href": f"/production/jobs/{p.production_job_id}" if getattr(p, "production_job_id", None) else None,
                 })
+
+            wcm_filters = {}
+            if start_date:
+                wcm_filters['occurred_at__date__gte'] = start_date
+            if end_date:
+                wcm_filters['occurred_at__date__lte'] = end_date
+            wcm_events = (
+                ProductionWcmAuditEvent.objects
+                .select_related('production_job', 'work_center', 'assignment', 'machine', 'actor')
+                .filter(**wcm_filters)
+                .order_by('-occurred_at')[:limit]
+            )
+            for event in wcm_events:
+                job = getattr(event, "production_job", None)
+                wc = getattr(event, "work_center", None)
+                logs.append({
+                    "date": event.occurred_at.strftime("%Y-%m-%d %H:%M"),
+                    "type": "WCM_AUDIT",
+                    "action": event.action,
+                    "event_type": event.action,
+                    "desc": _wcm_audit_description(event),
+                    "label": _wcm_audit_description(event),
+                    "val": _wcm_audit_value(event),
+                    "value": _wcm_audit_value(event),
+                    "user": getattr(getattr(event, "actor", None), "username", None) or "system",
+                    "reference": getattr(job, "job_number", None) or str(event.production_job_id),
+                    "href": f"/production/work-center/{wc.id}" if wc else "/production/work-center",
+                    "timestamp": event.occurred_at.isoformat(),
+                    "entity_type": "WCM_AUDIT_EVENT",
+                    "entity_id": str(event.id),
+                    "meta": {
+                        "details": event.payload or {},
+                        "work_center": getattr(wc, "name", ""),
+                        "machine": getattr(getattr(event, "machine", None), "name", ""),
+                        "before_status": event.before_status,
+                        "after_status": event.after_status,
+                    },
+                })
             
         # 2. Scrap Logs
         if filter_type in ['all', 'scrap']:
@@ -3647,6 +3724,7 @@ class ReportingService:
             audit_rows = (
                 PermissionAuditLog.objects.select_related('user')
                 .filter(**audit_filters)
+                .exclude(action="ROLE_OVERRIDE")
                 .order_by('-created_at')[:limit]
             )
             for audit in audit_rows:
@@ -4176,8 +4254,9 @@ class ReportingService:
             action__in=["USER_LOGIN", "USER_LOGOUT"]
         ).order_by("-created_at")
         permission_qs = PermissionAuditLog.objects.select_related("user").exclude(
-            action__in=["USER_LOGIN", "USER_LOGOUT"]
+            action__in=["USER_LOGIN", "USER_LOGOUT", "ROLE_OVERRIDE"]
         ).order_by("-created_at")
+        role_override_qs = PermissionAuditLog.objects.filter(action="ROLE_OVERRIDE")
         operational_logs = ReportingService.get_operational_logs("all", 60)
         report_runs = ReportDispatchRun.objects.order_by("-created_at")[:20]
 
@@ -4249,6 +4328,7 @@ class ReportingService:
                 "operational_logs": len(operational_logs),
                 "login_entries": login_qs.count(),
                 "permission_audit": permission_qs.count(),
+                "role_override_audit": role_override_qs.count(),
                 "report_runs": ReportDispatchRun.objects.count(),
                 "inventory_audit": inventory_move_qs.count(),
                 "production_audit": len(production_logs),

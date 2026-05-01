@@ -84,6 +84,34 @@ class AnalyticsOperationalLogsTests(TestCase):
         self.assertEqual(role_row["type"], "SYSTEM")
         self.assertEqual(role_row["reference"], "sales1")
 
+    def test_role_override_probe_logs_do_not_dominate_audit_console(self):
+        PermissionAuditLog.objects.create(
+            user=self.admin,
+            action="ROLE_OVERRIDE",
+            method="GET",
+            path="/api/users/me",
+            effective_role="ADMIN",
+            details={"allowed": False, "override_role": "ADMIN"},
+        )
+        PermissionAuditLog.objects.create(
+            user=self.sales_user,
+            action="DENIED",
+            method="GET",
+            path="/api/analytics/trace/",
+            required_permission="analytics.admin",
+            effective_role="SALES",
+            details={"reason": "rbac_permission_missing"},
+        )
+
+        rows = ReportingService.get_operational_logs(filter_type="all", limit=20)
+        self.assertFalse(any(row.get("event_type") == "ROLE_OVERRIDE" for row in rows))
+
+        payload = ReportingService.get_audit_console()
+        permission_events = payload["modes"]["permissions"]["items"]
+        self.assertFalse(any(row.get("action") == "ROLE_OVERRIDE" for row in permission_events))
+        self.assertTrue(any(row.get("action") == "DENIED" for row in permission_events))
+        self.assertGreaterEqual(payload["counts"]["role_override_audit"], 1)
+
     def test_admin_can_read_operational_logs_with_normalized_audit_shape(self):
         PermissionAuditLog.objects.create(
             user=self.sales_user,

@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import FileResponse
 from django.db import connection
-from .models import ProductionJob, WorkCenterAssignment
+from .models import ProductionJob, ProductionWcmAuditEvent, WorkCenterAssignment
 from .serializers import (
     ProductionJobSerializer, JobAssignmentSerializer, JobCompletionSerializer,
     WorkCenterAssignmentSerializer, PlannedStockOrderSerializer, PlannedBulkStockOrderSerializer,
@@ -1251,6 +1251,14 @@ class ExecutionViewSet(viewsets.ViewSet):
         current_step_sequence = int(getattr(job, "current_step_index", 0) or 0) + 1
         bom_snapshot = ExecutionService._job_bom_snapshot(job) or {}
         planning_lines = bom_snapshot.get("planning_lines") if isinstance(bom_snapshot, dict) else []
+        items = ExecutionService.current_step_requirement_policy_items(job)
+        if items:
+            return {
+                "job_id": str(job.id),
+                "current_step_sequence": current_step_sequence,
+                "current_process_name": getattr(getattr(job, "current_process", None), "name", None),
+                "items": items,
+            }
         items = []
         for row in planning_lines if isinstance(planning_lines, list) else []:
             if not isinstance(row, dict):
@@ -1275,8 +1283,6 @@ class ExecutionViewSet(viewsets.ViewSet):
                     "override_reason": str(row.get("override_reason") or ""),
                 }
             )
-        if not items:
-            items = ExecutionService.current_step_requirement_policy_items(job)
         return {
             "job_id": str(job.id),
             "current_step_sequence": current_step_sequence,
@@ -1300,16 +1306,109 @@ class ExecutionViewSet(viewsets.ViewSet):
             try:
                 value = float(row.get("issue_policy_value") or 0)
             except Exception:
-                value = 0.0
+                raise ValidationError("Issue policy value must be a valid number.")
+            if value < 0:
+                raise ValidationError("Issue policy value must be zero or positive.")
+            reason = str(row.get("reason") or "").strip()
+            if not reason:
+                raise ValidationError("Reason is required before saving a WCM material policy override.")
             normalized.append(
                 {
                     "policy_key": policy_key,
                     "issue_policy_mode": mode,
                     "issue_policy_value": value,
-                    "reason": str(row.get("reason") or "").strip(),
+                    "reason": reason,
                 }
             )
         return normalized
+
+    def _policy_audit_brief(self, item):
+        return {
+            "mode": str(item.get("effective_issue_policy_mode") or "NONE"),
+            "value": float(item.get("effective_issue_policy_value") or 0),
+            "planned_issue_qty": float(item.get("planned_issue_qty") or 0),
+            "source": str(item.get("policy_source") or "TEMPLATE_DEFAULT"),
+            "reason": str(item.get("override_reason") or ""),
+        }
+
+    def _policy_audit_snapshot(self, policy_payload):
+        rows = []
+        for item in policy_payload.get("items") or []:
+            rows.append({
+                "policy_key": str(item.get("policy_key") or ""),
+                "material_name": str(item.get("material_name") or "Material"),
+                "category_code": str(item.get("category_code") or ""),
+                "theoretical_qty": float(item.get("theoretical_qty") or 0),
+                "template": {
+                    "mode": str(item.get("template_issue_policy_mode") or "NONE"),
+                    "value": float(item.get("template_issue_policy_value") or 0),
+                },
+                "effective": self._policy_audit_brief(item),
+            })
+        return rows
+
+    def _policy_changed_rows(self, before_items, after_items):
+        before_by_key = {str(item.get("policy_key") or ""): item for item in before_items if item.get("policy_key")}
+        changed = []
+        for after_item in after_items:
+            policy_key = str(after_item.get("policy_key") or "")
+            if not policy_key:
+                continue
+            before_item = before_by_key.get(policy_key, {})
+            before_brief = self._policy_audit_brief(before_item)
+            after_brief = self._policy_audit_brief(after_item)
+            if before_brief == after_brief:
+                continue
+            changed.append({
+                "policy_key": policy_key,
+                "material_name": str(after_item.get("material_name") or before_item.get("material_name") or "Material"),
+                "category_code": str(after_item.get("category_code") or before_item.get("category_code") or ""),
+                "before": before_brief,
+                "after": after_brief,
+            })
+        return changed
+
+    def _write_current_step_policy_audit(self, job, before_policy, after_policy, changed_rows, user):
+        assignment = (
+            WorkCenterAssignment.objects
+            .filter(production_job=job)
+            .select_related("work_center", "assigned_machine")
+            .order_by("-updated_at")
+            .first()
+        )
+        work_center = getattr(assignment, "work_center", None) or getattr(job, "work_center", None)
+        if not work_center:
+            return None
+        materials = ", ".join(row["material_name"] for row in changed_rows[:3]) or "current step materials"
+        reasons = [str(row.get("after", {}).get("reason") or "").strip() for row in changed_rows]
+        reasons = [reason for reason in dict.fromkeys(reasons) if reason]
+        reason_text = "; ".join(reasons)
+        summary = f"Material issue policy updated for {materials}"
+        if reason_text:
+            summary = f"{summary}. Reason: {reason_text}"
+        return ProductionWcmAuditEvent.objects.create(
+            production_job=job,
+            work_center=work_center,
+            assignment=assignment,
+            machine=getattr(assignment, "assigned_machine", None) or getattr(job, "machine", None),
+            action="MATERIAL_POLICY_OVERRIDE",
+            actor=user if getattr(user, "is_authenticated", False) else None,
+            reason=summary,
+            before_status=getattr(assignment, "status", "") if assignment else str(getattr(job, "status", "") or ""),
+            after_status=getattr(assignment, "status", "") if assignment else str(getattr(job, "status", "") or ""),
+            payload={
+                "summary": summary,
+                "job_id": str(job.id),
+                "job_number": str(getattr(job, "job_number", "") or ""),
+                "work_center_id": str(getattr(work_center, "id", "") or ""),
+                "work_center_name": str(getattr(work_center, "name", "") or ""),
+                "step_sequence": int(after_policy.get("current_step_sequence") or before_policy.get("current_step_sequence") or 0),
+                "process_name": str(after_policy.get("current_process_name") or before_policy.get("current_process_name") or ""),
+                "changed_rows": changed_rows,
+                "before": self._policy_audit_snapshot(before_policy),
+                "after": self._policy_audit_snapshot(after_policy),
+            },
+        )
     
     @action(detail=True, methods=['get'], url_path='wip-pool')
     def wip_pool(self, request, pk=None):
@@ -1372,12 +1471,23 @@ class ExecutionViewSet(viewsets.ViewSet):
         if request.method.lower() == "get":
             return Response(self._serialize_current_step_policy(job))
 
-        job.current_step_issue_policy_overrides = self._normalize_current_step_overrides(
-            request.data.get("overrides") or []
-        )
+        try:
+            overrides = self._normalize_current_step_overrides(request.data.get("overrides") or [])
+        except ValidationError as exc:
+            message = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        before_policy = self._serialize_current_step_policy(job)
+        before_items = before_policy.get("items") or []
+        job.current_step_issue_policy_overrides = overrides
         job.save(update_fields=["current_step_issue_policy_overrides", "updated_at"])
         ExecutionService.sync_current_step_issue_policy_plan(job)
-        return Response(self._serialize_current_step_policy(job))
+        job.refresh_from_db()
+        after_policy = self._serialize_current_step_policy(job)
+        changed_rows = self._policy_changed_rows(before_items, after_policy.get("items") or [])
+        if changed_rows:
+            self._write_current_step_policy_audit(job, before_policy, after_policy, changed_rows, request.user)
+        return Response(after_policy)
 
     @action(detail=True, methods=['post'], url_path='unassign')
     def unassign(self, request, pk=None):

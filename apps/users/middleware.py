@@ -1,5 +1,6 @@
 import logging
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -68,13 +69,27 @@ class RoleOverrideMiddleware:
             from apps.users.models import PermissionAuditLog
 
             user = getattr(request, "user", None)
+            method = str(getattr(request, "method", ""))
+            path = str(getattr(request, "path", ""))
+            user_id = getattr(user, "id", "anonymous")
+            role_code = str(override_role or "").upper()
+            cache_key = f"role_override_audit:{user_id}:{method}:{path}:{role_code}:{int(bool(allowed))}"
+            if method.upper() in {"GET", "HEAD", "OPTIONS"} and cache.get(cache_key):
+                return
+            if method.upper() in {"GET", "HEAD", "OPTIONS"}:
+                cache.set(cache_key, True, 10 * 60)
             PermissionAuditLog.objects.create(
                 user=user if getattr(user, "is_authenticated", False) else None,
                 action='ROLE_OVERRIDE',
-                method=str(getattr(request, "method", "")),
-                path=str(getattr(request, "path", "")),
-                effective_role=override_role,
-                details={"allowed": bool(allowed)},
+                method=method,
+                path=path,
+                effective_role=role_code,
+                details={
+                    "allowed": bool(allowed),
+                    "override_role": role_code,
+                    "decision": "APPLIED" if allowed else "BLOCKED",
+                    "summary": f"Role preview {'applied' if allowed else 'blocked'} for {role_code} on {method} {path}",
+                },
             )
         except Exception:
             logger.warning("Failed to persist role override audit", exc_info=True)

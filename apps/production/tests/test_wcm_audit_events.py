@@ -18,6 +18,7 @@ from apps.production.services.services_execution import ExecutionService
 from apps.production.views import ExecutionViewSet
 from apps.production.views_wc import JobAllocationViewSet, _validate_wcm_material_confirmations
 from apps.production.services.job_services import WCManagerService
+from apps.analytics.services import ReportingService
 from apps.routing.models import RoutingRule
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep, TemplateProcessStepMaterial
 from apps.users.models import Role, User
@@ -252,6 +253,60 @@ class WcmAuditEventTests(TestCase):
         self.assertEqual(self.requirement.planned_issue_qty, Decimal("15.0000"))
         preview = ExecutionService.get_bulk_consumption_preview(self.job)
         self.assertEqual(preview[0]["planned_issue_qty_kg"], 15.0)
+        event = ProductionWcmAuditEvent.objects.get(action="MATERIAL_POLICY_OVERRIDE")
+        self.assertEqual(event.actor, self.user)
+        self.assertEqual(event.work_center, self.work_center)
+        self.assertIn("WCM Granule", event.reason)
+        self.assertIn("extruder purge loss", event.reason)
+        self.assertEqual(event.payload["job_number"], "WCM-AUDIT-JOB")
+        self.assertEqual(event.payload["step_sequence"], 1)
+        self.assertEqual(event.payload["changed_rows"][0]["material_name"], "WCM Granule")
+        self.assertEqual(event.payload["changed_rows"][0]["before"]["mode"], "PERCENT_OVER_THEORY")
+        self.assertEqual(event.payload["changed_rows"][0]["after"]["mode"], "FIXED_EXTRA_KG")
+        self.assertEqual(event.payload["changed_rows"][0]["after"]["planned_issue_qty"], 15.0)
+
+        rows = ReportingService.get_operational_logs(filter_type="production", limit=20)
+        audit_row = next((row for row in rows if row.get("event_type") == "MATERIAL_POLICY_OVERRIDE"), None)
+        self.assertIsNotNone(audit_row)
+        self.assertEqual(audit_row["reference"], "WCM-AUDIT-JOB")
+        self.assertIn("WCM Granule", audit_row["desc"])
+
+    def test_current_step_policy_override_requires_reason(self):
+        TemplateProcessStepMaterial.objects.create(
+            template_step=self.step,
+            category_code="GRANULE",
+            consumption_basis="FIXED_KG",
+            value=Decimal("10.0000"),
+            issue_policy_mode="PERCENT_OVER_THEORY",
+            issue_policy_value=Decimal("10.0000"),
+        )
+        view = ExecutionViewSet.as_view({"get": "current_step_material_policy", "post": "current_step_material_policy"})
+
+        request = self.factory.get(f"/api/production/flow-engine/{self.job.id}/current-step-material-policy/")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.job.id))
+        item = response.data["items"][0]
+
+        request = self.factory.post(
+            f"/api/production/flow-engine/{self.job.id}/current-step-material-policy/",
+            {
+                "overrides": [
+                    {
+                        "policy_key": item["policy_key"],
+                        "issue_policy_mode": "MINIMUM_ISSUE_KG",
+                        "issue_policy_value": 20,
+                        "reason": "",
+                    }
+                ]
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.job.id))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Reason is required", response.data["error"])
+        self.assertFalse(ProductionWcmAuditEvent.objects.filter(action="MATERIAL_POLICY_OVERRIDE").exists())
 
     def test_cancel_is_blocked_after_machine_execution_starts(self):
         view = JobAllocationViewSet.as_view({"post": "close_job"})
