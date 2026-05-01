@@ -41,19 +41,21 @@ function Section({
     description,
     defaultOpen = true,
     dataTestId,
+    className = "",
     children,
 }: {
     title: string
     description: string
     defaultOpen?: boolean
     dataTestId?: string
+    className?: string
     children: React.ReactNode
 }) {
     return (
         <Collapsible
             data-testid={dataTestId}
             defaultOpen={defaultOpen}
-            className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,250,252,0.95))] shadow-[0_22px_55px_-50px_rgba(15,23,42,0.45)] backdrop-blur"
+            className={`overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,250,252,0.95))] shadow-[0_22px_55px_-50px_rgba(15,23,42,0.45)] backdrop-blur ${className}`}
         >
             <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50/60 sm:px-6 sm:py-5">
                 <div>
@@ -120,6 +122,7 @@ export default function OrderItemTechnicalEditor({
     artworks,
     previewLoading,
     previewError,
+    hidePreviewSection = false,
     onPreviewRetry,
     updateItem,
 }: {
@@ -133,6 +136,7 @@ export default function OrderItemTechnicalEditor({
     artworks: any[]
     previewLoading: boolean
     previewError: string
+    hidePreviewSection?: boolean
     onPreviewRetry: () => void
     updateItem: (updater: (current: OrderItemDraft) => OrderItemDraft) => void
 }) {
@@ -184,8 +188,8 @@ export default function OrderItemTechnicalEditor({
     }, [item.printing.back_colors_count, item.printing.enabled, item.printing.substrate_mode, updateItem])
 
     return (
-        <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5">
+        <div className="grid gap-4 2xl:grid-cols-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5 2xl:col-span-2">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Builder Flow</div>
                     <div className="mt-1 text-sm font-bold text-slate-900">Product structure, print, chemistry, add-ons, packaging, and preview math.</div>
@@ -198,6 +202,7 @@ export default function OrderItemTechnicalEditor({
                 title="Product Structure"
                 description="Geometry, lamination stack, roll form, and physical adjustments."
                 dataTestId="sku-variant-section-product-structure"
+                className="2xl:col-span-2"
             >
                 <div className="space-y-5">
                     <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
@@ -655,7 +660,7 @@ export default function OrderItemTechnicalEditor({
             </Section>
 
             {contractIssues.length ? (
-                <div className="overflow-hidden rounded-[1.55rem] border border-amber-200 bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)]">
+                <div className="overflow-hidden rounded-[1.55rem] border border-amber-200 bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)] 2xl:col-span-2">
                     <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
                         <div>
                             <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-800">Contract Checks</div>
@@ -895,6 +900,7 @@ export default function OrderItemTechnicalEditor({
                 title="Packaging & POD"
                 description="Dispatch packaging, add-ons, and POD reinforcement."
                 dataTestId="sku-variant-section-packaging-pod"
+                className="2xl:col-span-2"
             >
                 <div className="space-y-5">
                     {item.finished_good_type === "POUCH" ? (
@@ -1299,12 +1305,14 @@ export default function OrderItemTechnicalEditor({
                 </div>
             </Section>
 
-            <Section
-                title="Preview & Commercial"
-                description="Live weight, BOM, and validation output from the existing preview engine."
-                dataTestId="sku-variant-section-preview-commercial"
-                defaultOpen
-            >
+            {!hidePreviewSection ? (
+                <Section
+                    title="Preview & Commercial"
+                    description="Live weight, BOM, and validation output from the existing preview engine."
+                    dataTestId="sku-variant-section-preview-commercial"
+                    defaultOpen
+                    className="2xl:col-span-2"
+                >
                 <div className="space-y-4">
                     <div className="grid gap-3 rounded-[1.45rem] border border-slate-200 bg-slate-50/80 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_160px_140px]">
                         <div className="space-y-2">
@@ -1462,7 +1470,8 @@ export default function OrderItemTechnicalEditor({
                         </div>
                     )}
                 </div>
-            </Section>
+                </Section>
+            ) : null}
         </div>
     )
 }
