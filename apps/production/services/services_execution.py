@@ -113,7 +113,16 @@ class ExecutionService:
     @classmethod
     def _current_step_issue_policy_override_map(cls, job):
         override_map = {}
-        for row in (getattr(job, "current_step_issue_policy_overrides", None) or []):
+        raw_overrides = getattr(job, "current_step_issue_policy_overrides", None) or []
+        if getattr(job, "pk", None):
+            raw_overrides = (
+                ProductionJob.objects
+                .filter(pk=job.pk)
+                .values_list("current_step_issue_policy_overrides", flat=True)
+                .first()
+                or raw_overrides
+            )
+        for row in raw_overrides:
             if not isinstance(row, dict):
                 continue
             policy_key = str(row.get("policy_key") or "").strip()
@@ -122,12 +131,109 @@ class ExecutionService:
             mode = str(row.get("issue_policy_mode") or "NONE").upper()
             if mode not in {"NONE", "PERCENT_OVER_THEORY", "FIXED_EXTRA_KG", "MINIMUM_ISSUE_KG"}:
                 mode = "NONE"
+            if mode == "NONE":
+                continue
             override_map[policy_key] = {
                 "issue_policy_mode": mode,
                 "issue_policy_value": Decimal(str(row.get("issue_policy_value") or 0)),
                 "reason": str(row.get("reason") or "").strip(),
             }
         return override_map
+
+    @classmethod
+    def _requirement_policy_key(cls, requirement):
+        return f"requirement:{requirement.id}"
+
+    @classmethod
+    def _requirement_category_aliases(cls, material):
+        category = str(getattr(material, "category", "") or "").strip().upper()
+        aliases = [category] if category else []
+        if category in {"ADHESIVE", "SOLVENT"}:
+            aliases.append("CHEMICAL")
+        if category in {"GRANULE", "RAW_MATERIAL"}:
+            aliases.extend(["GRANULE", "RAW_MATERIAL"])
+        return list(dict.fromkeys([alias for alias in aliases if alias]))
+
+    @classmethod
+    def _resolve_requirement_template_material(cls, requirement):
+        step = getattr(requirement, "process_step", None)
+        material = getattr(requirement, "material", None)
+        if not step or not material:
+            return None
+        rows = list(step.materials.select_related("material").all())
+        exact_rows = [row for row in rows if row.material_id and str(row.material_id) == str(material.id)]
+        if exact_rows:
+            return exact_rows[0]
+        category_aliases = set(cls._requirement_category_aliases(material))
+        for row in rows:
+            if str(row.category_code or "").strip().upper() in category_aliases:
+                return row
+        return None
+
+    @classmethod
+    def current_step_requirement_policy_items(cls, job, sync_requirements=False):
+        current_step_sequence = int(getattr(job, "current_step_index", 0) or 0) + 1
+        override_map = cls._current_step_issue_policy_override_map(job)
+        requirements = (
+            job.material_requirements
+            .select_related("material", "process_step")
+            .filter(process_step__sequence_number=current_step_sequence)
+            .order_by("process_step__sequence_number", "material__name", "id")
+        )
+        items = []
+        sync_updates = []
+        for requirement in requirements:
+            material = requirement.material
+            template_row = cls._resolve_requirement_template_material(requirement)
+            template_mode = str(getattr(template_row, "issue_policy_mode", "") or "NONE").upper()
+            if template_mode not in {"NONE", "PERCENT_OVER_THEORY", "FIXED_EXTRA_KG", "MINIMUM_ISSUE_KG"}:
+                template_mode = "NONE"
+            template_value = Decimal(str(getattr(template_row, "issue_policy_value", 0) or 0))
+            theoretical_qty = Decimal(str(requirement.theoretical_qty or requirement.required_qty or requirement.planned_issue_qty or 0))
+            policy_key = cls._requirement_policy_key(requirement)
+            override = override_map.get(policy_key)
+            effective_mode = template_mode
+            effective_value = template_value
+            policy_source = "TEMPLATE_DEFAULT"
+            override_reason = ""
+            if override:
+                effective_mode = str(override.get("issue_policy_mode") or template_mode or "NONE").upper()
+                effective_value = Decimal(str(override.get("issue_policy_value") or 0))
+                policy_source = "WCM_OVERRIDE"
+                override_reason = str(override.get("reason") or "")
+            planned_issue_qty = cls._planned_issue_qty(theoretical_qty, effective_mode, effective_value)
+            item = {
+                "policy_key": policy_key,
+                "requirement_id": str(requirement.id),
+                "material_id": str(requirement.material_id),
+                "material_name": str(getattr(material, "name", "") or getattr(material, "code", "") or "Material"),
+                "material_code": str(getattr(material, "code", "") or ""),
+                "category_code": str(getattr(material, "category", "") or getattr(template_row, "category_code", "") or ""),
+                "step_sequence": current_step_sequence,
+                "step_name": str(getattr(getattr(requirement, "process_step", None), "process", None).name if getattr(getattr(requirement, "process_step", None), "process", None) else ""),
+                "theoretical_qty": float(theoretical_qty),
+                "stored_planned_issue_qty": float(Decimal(str(requirement.planned_issue_qty or 0)).quantize(Decimal("0.0001"))),
+                "planned_issue_qty": float(planned_issue_qty),
+                "required_qty": float(Decimal(str(requirement.required_qty or 0)).quantize(Decimal("0.0001"))),
+                "template_issue_policy_mode": template_mode,
+                "template_issue_policy_value": float(template_value),
+                "effective_issue_policy_mode": effective_mode,
+                "effective_issue_policy_value": float(effective_value),
+                "policy_source": policy_source,
+                "override_reason": override_reason,
+                "capture_mode": str(getattr(template_row, "capture_mode", "") or ""),
+            }
+            items.append(item)
+            if sync_requirements and Decimal(str(requirement.planned_issue_qty or 0)).quantize(Decimal("0.0001")) != planned_issue_qty:
+                requirement.planned_issue_qty = planned_issue_qty
+                sync_updates.append(requirement)
+        if sync_updates:
+            JobMaterialRequirement.objects.bulk_update(sync_updates, ["planned_issue_qty", "updated_at"])
+        return items
+
+    @classmethod
+    def sync_current_step_issue_policy_plan(cls, job):
+        return cls.current_step_requirement_policy_items(job, sync_requirements=True)
 
     @classmethod
     def _apply_current_step_issue_policy_overrides(cls, job, snapshot):
@@ -6513,6 +6619,11 @@ class ExecutionService:
         if (process.input_form or "").upper() == "ROLL" and v_id:
             excluded_m_ids.add(str(v_id))
 
+        policy_by_requirement_id = {
+            str(row.get("requirement_id")): row
+            for row in cls.current_step_requirement_policy_items(job)
+            if row.get("requirement_id")
+        }
         preview = []
         for req in reqs:
             if str(req.material_id) in excluded_m_ids:
@@ -6520,6 +6631,9 @@ class ExecutionService:
             capture_mode = cls._resolve_requirement_capture_mode(req)
             theoretical_qty = Decimal(str(req.theoretical_qty or 0)).quantize(Decimal("0.0001"))
             planned_issue_qty = Decimal(str(req.planned_issue_qty or req.required_qty or 0)).quantize(Decimal("0.0001"))
+            policy_item = policy_by_requirement_id.get(str(req.id)) or {}
+            if policy_item:
+                planned_issue_qty = Decimal(str(policy_item.get("planned_issue_qty") or planned_issue_qty)).quantize(Decimal("0.0001"))
             actual_issued_qty = Decimal(str(req.actual_issued_qty or 0)).quantize(Decimal("0.0001"))
             actual_returned_qty = Decimal(str(req.actual_returned_qty or 0)).quantize(Decimal("0.0001"))
             actual_scrap_qty = Decimal(str(req.actual_scrap_qty or 0)).quantize(Decimal("0.0001"))
@@ -6599,6 +6713,13 @@ class ExecutionService:
                 'requirement_id': str(req.id),
                 'theoretical_qty_kg': float(theoretical_qty),
                 'planned_issue_qty_kg': float(planned_issue_qty),
+                'policy_key': policy_item.get("policy_key") or cls._requirement_policy_key(req),
+                'template_issue_policy_mode': policy_item.get("template_issue_policy_mode") or "NONE",
+                'template_issue_policy_value': float(policy_item.get("template_issue_policy_value") or 0),
+                'effective_issue_policy_mode': policy_item.get("effective_issue_policy_mode") or policy_item.get("template_issue_policy_mode") or "NONE",
+                'effective_issue_policy_value': float(policy_item.get("effective_issue_policy_value") or policy_item.get("template_issue_policy_value") or 0),
+                'policy_source': policy_item.get("policy_source") or "TEMPLATE_DEFAULT",
+                'override_reason': policy_item.get("override_reason") or "",
                 'actual_issued_qty_kg': float(actual_issued_qty),
                 'actual_returned_qty_kg': float(actual_returned_qty),
                 'actual_scrap_qty_kg': float(actual_scrap_qty),

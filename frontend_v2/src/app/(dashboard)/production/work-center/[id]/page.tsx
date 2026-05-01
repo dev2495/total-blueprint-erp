@@ -501,10 +501,11 @@ export default function WCMTerminal() {
     useEffect(() => {
         const nextDrafts: Record<string, StepPolicyDraft> = {}
         ;(currentStepPolicy?.items || []).forEach((item) => {
+            const isOverride = String(item.policy_source || "").toUpperCase().includes("OVERRIDE")
             nextDrafts[item.policy_key] = {
-                issue_policy_mode: String(item.effective_issue_policy_mode || item.template_issue_policy_mode || "NONE").toUpperCase() as StepPolicyDraft["issue_policy_mode"],
-                issue_policy_value: Number(item.effective_issue_policy_value || item.template_issue_policy_value || 0),
-                reason: String(item.override_reason || ""),
+                issue_policy_mode: (isOverride ? String(item.effective_issue_policy_mode || "NONE") : "NONE").toUpperCase() as StepPolicyDraft["issue_policy_mode"],
+                issue_policy_value: isOverride ? Number(item.effective_issue_policy_value || 0) : 0,
+                reason: isOverride ? String(item.override_reason || "") : "",
             }
         })
         setStepPolicyDrafts(nextDrafts)
@@ -2298,14 +2299,109 @@ export default function WCMTerminal() {
                                         <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", materialIssueErrors.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{materialReleaseLabel}</span>
                                     </div>
                                     {currentStepPolicyItems.length ? (
-                                        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
-                                            <div className="text-[10px] font-black uppercase tracking-wider text-blue-700">Step-aware issue policy</div>
-                                            <div className="mt-1 flex flex-wrap gap-1.5">
-                                                {currentStepPolicyItems.map((item) => (
-                                                    <span key={`issue-policy-${item.policy_key}`} className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800">
-                                                        {item.material_name}: template {policyModeLabel(item.template_issue_policy_mode, item.template_issue_policy_value)} / effective {policyModeLabel(item.effective_issue_policy_mode, item.effective_issue_policy_value)}
-                                                    </span>
-                                                ))}
+                                        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/80 p-3">
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="text-[10px] font-black uppercase tracking-wider text-blue-700">Template policy and WCM override</div>
+                                                    <p className="mt-1 text-xs font-semibold text-blue-900">Template issue rules are shown first. Change only the row that needs a real shop-floor issue exception.</p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    className="h-9 rounded-xl bg-blue-600 px-3 text-xs font-semibold hover:bg-blue-700"
+                                                    disabled={isReleasedToMachine || stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy}
+                                                    onClick={() => stepPolicyMutation.mutate()}
+                                                >
+                                                    {stepPolicyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                    Save policy
+                                                </Button>
+                                            </div>
+                                            <div className={cn("mt-3 space-y-2.5", isReleasedToMachine && "pointer-events-none opacity-75")}>
+                                                {currentStepPolicyItems.map((item) => {
+                                                    const draft = stepPolicyDrafts[item.policy_key] || {
+                                                        issue_policy_mode: "NONE" as const,
+                                                        issue_policy_value: 0,
+                                                        reason: "",
+                                                    }
+                                                    const source = String(item.policy_source || "TEMPLATE_DEFAULT").replaceAll("_", " ")
+                                                    return (
+                                                        <div key={`issue-policy-${item.policy_key}`} className="rounded-xl border border-blue-100 bg-white p-3">
+                                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                                <div>
+                                                                    <div className="text-sm font-black text-slate-950">{item.material_name}</div>
+                                                                    <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                                                                        {item.category_code || "Material"} · Theory {Number(item.theoretical_qty || 0).toFixed(3)} kg · Issue plan {Number(item.planned_issue_qty || 0).toFixed(3)} kg
+                                                                    </div>
+                                                                </div>
+                                                                <span className={cn(
+                                                                    "rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+                                                                    source.includes("OVERRIDE") ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                                )}>
+                                                                    {source}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_132px_1fr]">
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                                                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">Template rule</div>
+                                                                    <div className="mt-1 text-xs font-bold text-slate-900">{policyModeLabel(item.template_issue_policy_mode, item.template_issue_policy_value)}</div>
+                                                                </div>
+                                                                <Select
+                                                                    value={draft.issue_policy_mode}
+                                                                    disabled={isReleasedToMachine}
+                                                                    onValueChange={(value) =>
+                                                                        setStepPolicyDrafts((prev) => ({
+                                                                            ...prev,
+                                                                            [item.policy_key]: {
+                                                                                ...draft,
+                                                                                issue_policy_mode: value as StepPolicyDraft["issue_policy_mode"],
+                                                                            },
+                                                                        }))
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="h-10 rounded-lg border-slate-200 bg-white text-xs font-semibold">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="NONE">Use template policy</SelectItem>
+                                                                        <SelectItem value="PERCENT_OVER_THEORY">% over theory</SelectItem>
+                                                                        <SelectItem value="FIXED_EXTRA_KG">Fixed extra kg</SelectItem>
+                                                                        <SelectItem value="MINIMUM_ISSUE_KG">Minimum issue kg</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <Input
+                                                                    type="number"
+                                                                    disabled={isReleasedToMachine || draft.issue_policy_mode === "NONE"}
+                                                                    className="h-10 rounded-lg border-slate-200 bg-white text-right text-xs font-semibold"
+                                                                    value={String(draft.issue_policy_value ?? 0)}
+                                                                    onChange={(event) =>
+                                                                        setStepPolicyDrafts((prev) => ({
+                                                                            ...prev,
+                                                                            [item.policy_key]: {
+                                                                                ...draft,
+                                                                                issue_policy_value: Number(event.target.value || 0),
+                                                                            },
+                                                                        }))
+                                                                    }
+                                                                />
+                                                                <Input
+                                                                    disabled={isReleasedToMachine || draft.issue_policy_mode === "NONE"}
+                                                                    className="h-10 rounded-lg border-slate-200 bg-white text-xs font-semibold"
+                                                                    placeholder="Reason for override"
+                                                                    value={draft.reason}
+                                                                    onChange={(event) =>
+                                                                        setStepPolicyDrafts((prev) => ({
+                                                                            ...prev,
+                                                                            [item.policy_key]: {
+                                                                                ...draft,
+                                                                                reason: event.target.value,
+                                                                            },
+                                                                        }))
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     ) : null}
@@ -2447,109 +2543,6 @@ export default function WCMTerminal() {
                                     </div>
                                 </section>
 
-                                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Policy override</div>
-                                            <div className="text-lg font-semibold text-slate-950">Current route issue rules</div>
-                                            <p className="mt-1 text-xs font-medium text-slate-500">Use only when this exact step needs extra material issue beyond template policy.</p>
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            className="rounded-xl bg-blue-600 font-semibold hover:bg-blue-700"
-                                            disabled={isReleasedToMachine || stepPolicyMutation.isPending || !selectedJobId || !hasEditableCurrentStepPolicy}
-                                            onClick={() => stepPolicyMutation.mutate()}
-                                        >
-                                            {stepPolicyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                            Save rule
-                                        </Button>
-                                    </div>
-                                    <div className={cn("mt-4 space-y-3", isReleasedToMachine && "pointer-events-none opacity-75")}>
-                                        {!hasEditableCurrentStepPolicy ? (
-                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-600">No policy override is needed for this step.</div>
-                                        ) : currentStepPolicyItems.map((item) => {
-                                            const draft = stepPolicyDrafts[item.policy_key] || {
-                                                issue_policy_mode: "NONE" as const,
-                                                issue_policy_value: 0,
-                                                reason: "",
-                                            }
-                                            return (
-                                                <div key={item.policy_key} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                                        <div>
-                                                            <div className="font-semibold text-slate-950">{item.material_name}</div>
-                                                            <div className="mt-0.5 text-[11px] font-medium text-slate-500">
-                                                                {item.category_code || "Material"} · Theory {Number(item.theoretical_qty || 0).toFixed(3)} kg · Planned {Number(item.planned_issue_qty || 0).toFixed(3)} kg
-                                                            </div>
-                                                        </div>
-                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
-                                                            {String(item.policy_source || "TEMPLATE").replaceAll("_", " ")}
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_110px_1fr]">
-                                                        <Select
-                                                            value={draft.issue_policy_mode}
-                                                            disabled={isReleasedToMachine}
-                                                            onValueChange={(value) =>
-                                                                setStepPolicyDrafts((prev) => ({
-                                                                    ...prev,
-                                                                    [item.policy_key]: {
-                                                                        ...draft,
-                                                                        issue_policy_mode: value as StepPolicyDraft["issue_policy_mode"],
-                                                                    },
-                                                                }))
-                                                            }
-                                                        >
-                                                            <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-xs font-semibold">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="NONE">Template default</SelectItem>
-                                                                <SelectItem value="PERCENT_OVER_THEORY">% over theory</SelectItem>
-                                                                <SelectItem value="FIXED_EXTRA_KG">Fixed extra kg</SelectItem>
-                                                                <SelectItem value="MINIMUM_ISSUE_KG">Minimum issue kg</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <Input
-                                                            type="number"
-                                                            disabled={isReleasedToMachine}
-                                                            className="h-9 rounded-lg border-slate-200 bg-white text-right text-xs font-semibold"
-                                                            value={String(draft.issue_policy_value ?? 0)}
-                                                            onChange={(event) =>
-                                                                setStepPolicyDrafts((prev) => ({
-                                                                    ...prev,
-                                                                    [item.policy_key]: {
-                                                                        ...draft,
-                                                                        issue_policy_value: Number(event.target.value || 0),
-                                                                    },
-                                                                }))
-                                                            }
-                                                        />
-                                                        <Input
-                                                            disabled={isReleasedToMachine}
-                                                            className="h-9 rounded-lg border-slate-200 bg-white text-xs font-semibold"
-                                                            placeholder="Reason for this step"
-                                                            value={draft.reason}
-                                                            onChange={(event) =>
-                                                                setStepPolicyDrafts((prev) => ({
-                                                                    ...prev,
-                                                                    [item.policy_key]: {
-                                                                        ...draft,
-                                                                        reason: event.target.value,
-                                                                    },
-                                                                }))
-                                                            }
-                                                        />
-                                                    </div>
-                                                    <div className="mt-2 text-[11px] font-medium text-slate-500">
-                                                        Effective: {policyModeLabel(item.effective_issue_policy_mode, item.effective_issue_policy_value)} · Template: {policyModeLabel(item.template_issue_policy_mode, item.template_issue_policy_value)}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </section>
                                 </>
                                 )}
                             </div>

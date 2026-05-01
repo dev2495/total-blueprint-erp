@@ -14,10 +14,12 @@ from apps.production.models import (
     ProductionWcmAuditEvent,
     WorkCenterAssignment,
 )
+from apps.production.services.services_execution import ExecutionService
+from apps.production.views import ExecutionViewSet
 from apps.production.views_wc import JobAllocationViewSet, _validate_wcm_material_confirmations
 from apps.production.services.job_services import WCManagerService
 from apps.routing.models import RoutingRule
-from apps.templates.models import TemplateBlueprint, TemplateProcessStep
+from apps.templates.models import TemplateBlueprint, TemplateProcessStep, TemplateProcessStepMaterial
 from apps.users.models import Role, User
 
 
@@ -201,6 +203,55 @@ class WcmAuditEventTests(TestCase):
         self.assertEqual(self.assignment.status, "WC_READY")
         self.assertEqual(self.job.job_state, "PLANNED")
         self.assertEqual(self.job.status, "QUEUED")
+
+    def test_current_step_policy_uses_template_requirement_fallback_and_updates_issue_plan(self):
+        TemplateProcessStepMaterial.objects.create(
+            template_step=self.step,
+            category_code="GRANULE",
+            consumption_basis="FIXED_KG",
+            value=Decimal("10.0000"),
+            issue_policy_mode="PERCENT_OVER_THEORY",
+            issue_policy_value=Decimal("10.0000"),
+        )
+        view = ExecutionViewSet.as_view({"get": "current_step_material_policy", "post": "current_step_material_policy"})
+
+        request = self.factory.get(f"/api/production/flow-engine/{self.job.id}/current-step-material-policy/")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.job.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["items"]), 1)
+        item = response.data["items"][0]
+        self.assertEqual(item["material_name"], "WCM Granule")
+        self.assertEqual(item["template_issue_policy_mode"], "PERCENT_OVER_THEORY")
+        self.assertEqual(item["planned_issue_qty"], 11.0)
+
+        request = self.factory.post(
+            f"/api/production/flow-engine/{self.job.id}/current-step-material-policy/",
+            {
+                "overrides": [
+                    {
+                        "policy_key": item["policy_key"],
+                        "issue_policy_mode": "FIXED_EXTRA_KG",
+                        "issue_policy_value": 5,
+                        "reason": "extruder purge loss",
+                    }
+                ]
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.job.id))
+
+        self.assertEqual(response.status_code, 200)
+        updated = response.data["items"][0]
+        self.assertEqual(updated["policy_source"], "WCM_OVERRIDE")
+        self.assertEqual(updated["effective_issue_policy_mode"], "FIXED_EXTRA_KG")
+        self.assertEqual(updated["planned_issue_qty"], 15.0)
+        self.requirement.refresh_from_db()
+        self.assertEqual(self.requirement.planned_issue_qty, Decimal("15.0000"))
+        preview = ExecutionService.get_bulk_consumption_preview(self.job)
+        self.assertEqual(preview[0]["planned_issue_qty_kg"], 15.0)
 
     def test_cancel_is_blocked_after_machine_execution_starts(self):
         view = JobAllocationViewSet.as_view({"post": "close_job"})

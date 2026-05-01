@@ -48,6 +48,8 @@ export interface RollOverridePayload {
 
 export interface CurrentStepMaterialPolicyItem {
     policy_key: string;
+    requirement_id?: string;
+    material_id?: string;
     material_name: string;
     material_code?: string;
     category_code?: string;

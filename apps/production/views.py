@@ -1275,6 +1275,8 @@ class ExecutionViewSet(viewsets.ViewSet):
                     "override_reason": str(row.get("override_reason") or ""),
                 }
             )
+        if not items:
+            items = ExecutionService.current_step_requirement_policy_items(job)
         return {
             "job_id": str(job.id),
             "current_step_sequence": current_step_sequence,
@@ -1293,6 +1295,8 @@ class ExecutionViewSet(viewsets.ViewSet):
             mode = str(row.get("issue_policy_mode") or "NONE").strip().upper()
             if mode not in {"NONE", "PERCENT_OVER_THEORY", "FIXED_EXTRA_KG", "MINIMUM_ISSUE_KG"}:
                 mode = "NONE"
+            if mode == "NONE":
+                continue
             try:
                 value = float(row.get("issue_policy_value") or 0)
             except Exception:
@@ -1372,6 +1376,7 @@ class ExecutionViewSet(viewsets.ViewSet):
             request.data.get("overrides") or []
         )
         job.save(update_fields=["current_step_issue_policy_overrides", "updated_at"])
+        ExecutionService.sync_current_step_issue_policy_plan(job)
         return Response(self._serialize_current_step_policy(job))
 
     @action(detail=True, methods=['post'], url_path='unassign')
