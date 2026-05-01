@@ -78,7 +78,7 @@ class TemplateGovernanceService:
             defaults["operator_entry_mode"] = "GRID_SPLIT"
         elif behavior == "NONE" and input_form == "ROLL" and output_form == "BULK":
             defaults["input_roll_count"] = 1
-            defaults["operator_entry_mode"] = "DISCRETE_ONLY"
+            defaults["operator_entry_mode"] = "KG_AND_PCS"
         return defaults
 
     @staticmethod

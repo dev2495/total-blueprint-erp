@@ -80,7 +80,7 @@ function defaultSpecForStep(step: TemplateProcessStep): Partial<TemplateProcessS
         return { input_roll_count: 1, thickness_rule: "INHERIT_INPUT", width_rule: "OPERATOR_GRID", operator_entry_mode: "GRID_SPLIT" }
     }
     if (behavior === "NONE" && inputForm === "ROLL" && outputForm === "BULK") {
-        return { input_roll_count: 1, thickness_rule: "TEMPLATE_DEFAULT", width_rule: "TEMPLATE_DEFAULT", operator_entry_mode: "DISCRETE_ONLY" }
+        return { input_roll_count: 1, thickness_rule: "TEMPLATE_DEFAULT", width_rule: "TEMPLATE_DEFAULT", operator_entry_mode: "KG_AND_PCS" }
     }
     return { input_roll_count: 0, thickness_rule: "TEMPLATE_DEFAULT", width_rule: "TEMPLATE_DEFAULT", operator_entry_mode: "PROCESS_DEFAULT" }
 }
@@ -550,6 +550,8 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                                 <SelectItem value="ROLL_MULTI">Multi roll</SelectItem>
                                                                                 <SelectItem value="GRID_SPLIT">Split grid</SelectItem>
                                                                                 <SelectItem value="DISCRETE_ONLY">Discrete only</SelectItem>
+                                                                                <SelectItem value="KG_AND_PCS">Bulk KG + PCS</SelectItem>
+                                                                                <SelectItem value="KG_ONLY">Bulk KG only</SelectItem>
                                                                             </SelectContent>
                                                                         </Select>
                                                                     </div>

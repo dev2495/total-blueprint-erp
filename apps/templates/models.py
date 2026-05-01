@@ -188,6 +188,8 @@ class TemplateProcessStepRollSpec(models.Model):
         ('ROLL_MULTI', 'Multiple Roll Outputs'),
         ('GRID_SPLIT', 'Grid Split'),
         ('DISCRETE_ONLY', 'Discrete Only'),
+        ('KG_ONLY', 'KG Only Bulk Output'),
+        ('KG_AND_PCS', 'KG + PCS Bulk Output'),
     ]
 
     COMBINE_MODE_CHOICES = [

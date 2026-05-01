@@ -2122,6 +2122,43 @@ class ExecutionService:
         return cls._resolve_finished_good_type(job) == "POUCH"
 
     @classmethod
+    def _roll_to_bulk_output_policy(cls, job, process=None, step_roll_spec=None):
+        process = process or job.current_process or job.process
+        input_form = str(getattr(process, "input_form", "") or "").upper()
+        output_form = str(getattr(process, "output_form", "") or "").upper()
+        template_mode = str(
+            (step_roll_spec or {}).get("operator_entry_mode")
+            or "PROCESS_DEFAULT"
+        ).upper()
+        is_roll_to_bulk = input_form == "ROLL" and output_form == "BULK"
+        terminal_pouch_fg_bulk = cls._is_terminal_pouch_fg_bulk_step(job, process=process)
+
+        if template_mode == "KG_ONLY":
+            effective_mode = "KG_ONLY"
+        elif template_mode == "KG_AND_PCS":
+            effective_mode = "KG_AND_PCS"
+        elif is_roll_to_bulk and terminal_pouch_fg_bulk:
+            effective_mode = "KG_AND_PCS"
+        else:
+            effective_mode = template_mode or "PROCESS_DEFAULT"
+
+        requires_output_pcs = bool(
+            is_roll_to_bulk
+            and terminal_pouch_fg_bulk
+            and effective_mode in {"KG_AND_PCS", "DISCRETE_ONLY", "PROCESS_DEFAULT"}
+        )
+        allows_kg_only = bool(is_roll_to_bulk and terminal_pouch_fg_bulk and effective_mode == "KG_ONLY")
+        return {
+            "template_mode": template_mode,
+            "effective_mode": effective_mode,
+            "is_roll_to_bulk": is_roll_to_bulk,
+            "is_terminal_pouch_fg_bulk": terminal_pouch_fg_bulk,
+            "requires_output_pcs": requires_output_pcs,
+            "allows_kg_only": allows_kg_only,
+            "requires_output_kg": bool(is_roll_to_bulk),
+        }
+
+    @classmethod
     def _route_last_step_index(cls, job):
         """
         Resolve route terminal index for execution.
@@ -5285,6 +5322,11 @@ class ExecutionService:
         wip_recent_lineage = wip_details.get("recent_lineage") or []
         process_input_form = str((current_process.input_form if current_process else job.input_form) or "").upper()
         process_output_form = str((current_process.output_form if current_process else job.output_form) or "").upper()
+        roll_to_bulk_output_policy = cls._roll_to_bulk_output_policy(
+            job,
+            process=current_process,
+            step_roll_spec=current_step_roll_spec,
+        )
         lineage_roll_id_set = {str(getattr(row, "id", "")) for row in wip_rolls if getattr(row, "id", None)}
         fallback_roll_id_set = {str(getattr(row, "id", "")) for row in fallback_rolls if getattr(row, "id", None)}
         for row in eligible_rolls:
@@ -5472,6 +5514,7 @@ class ExecutionService:
             "width_rule": current_step_roll_spec.get("width_rule"),
             "operator_entry_mode": current_step_roll_spec.get("operator_entry_mode"),
             "behavior": step_roll_behavior,
+            "output_capture_policy": roll_to_bulk_output_policy,
         }
         job_geometry = cls._job_geometry_snapshot(job) or {}
         base_geo = job_geometry.get("base") if isinstance(job_geometry, dict) else {}
@@ -5682,6 +5725,7 @@ class ExecutionService:
                 'process_name': current_process.name if current_process else "Unknown",
                 'process_code': current_process.code if current_process else "N/A",
                 'input_form': current_process.input_form if current_process else "ROLL",
+                'output_form': current_process.output_form if current_process else job.output_form,
             },
             'target_roll_invariants': target_roll_spec,
             'target_roll_invariant_list': target_roll_specs,
@@ -5740,10 +5784,15 @@ class ExecutionService:
                 'allocation_mode': "EXACT_ONE_RESERVED_ROLL" if allocation_required_step0 else "STANDARD",
                 'allocation_scope': "STAGE0_PURCHASABLE_ONLY" if allocation_required_step0 else "PROCESS_STANDARD",
                 'roll_to_bulk_validation_mode': (
-                    "KG_AND_PCS_REQUIRED_WITH_GEOMETRY_CHECK"
+                    (
+                        "KG_ONLY_WITH_GEOMETRY_CHECK"
+                        if roll_to_bulk_output_policy.get("effective_mode") == "KG_ONLY"
+                        else "KG_AND_PCS_REQUIRED_WITH_GEOMETRY_CHECK"
+                    )
                     if (is_v2 and process_input_form == "ROLL" and process_output_form == "BULK")
                     else "NOT_APPLICABLE"
                 ),
+                'output_capture_policy': roll_to_bulk_output_policy,
                 'step_target_source': step_profile.get("target_source"),
                 'order_target_source': "V2_ORDER_REFERENCE",
                 'tolerance_kg': step_profile.get("tolerance_kg"),
@@ -7951,6 +8000,11 @@ class ExecutionService:
 
             elif process.output_form == 'BULK':
                 terminal_pouch_fg_bulk = cls._is_terminal_pouch_fg_bulk_step(job, process=process)
+                roll_to_bulk_output_policy = cls._roll_to_bulk_output_policy(
+                    job,
+                    process=process,
+                    step_roll_spec=step_roll_spec,
+                )
                 if str(process.input_form or "").upper() == "ROLL":
                     g_snap = cls._job_geometry_snapshot(job) or {}
                     base = g_snap.get("base") if isinstance(g_snap, dict) else {}
@@ -8039,19 +8093,30 @@ class ExecutionService:
                 if (
                     str(process.input_form or "").upper() == "ROLL"
                     and terminal_pouch_fg_bulk
+                    and roll_to_bulk_output_policy.get("requires_output_pcs")
                     and output_pcs is None
                 ):
                     raise ValueError("output_pcs is required for roll-to-bulk output logging.")
 
                 # Legacy fallback for non roll-input bulk steps.
                 # Never coerce KG directly into PCS (that causes 1kg => 1pcs errors).
-                if output_pcs is None and theoretical_pcs is not None and terminal_pouch_fg_bulk:
+                if (
+                    output_pcs is None
+                    and theoretical_pcs is not None
+                    and terminal_pouch_fg_bulk
+                    and not roll_to_bulk_output_policy.get("allows_kg_only")
+                ):
                     output_pcs = int(theoretical_pcs.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
                 if output_pcs is None and str(job.uom or 'KG').upper() == 'PCS' and terminal_pouch_fg_bulk:
-                    raise ValueError("output_pcs is required for PCS-tracked bulk output when unit-weight conversion is unavailable.")
+                    raise ValueError("output_pcs is required for PCS-tracked bulk output.")
 
                 fg_batch = None
                 primary_pack_runtime_meta = None
+                if terminal_pouch_fg_bulk:
+                    packaging_snapshot = cls._job_packaging_snapshot(job) or {}
+                    primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
+                    if bool(primary_pack.get("enabled")) and output_pcs is None:
+                        raise ValueError("output_pcs is required when primary inner-pack packaging is enabled.")
                 if terminal_pouch_fg_bulk and int(output_pcs or 0) > 0:
                     packaging_snapshot = cls._job_packaging_snapshot(job) or {}
                     primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
@@ -8077,6 +8142,12 @@ class ExecutionService:
 
                 if terminal_pouch_fg_bulk:
                     fg_batch_meta = dict(internal_stock_meta or {})
+                    fg_batch_meta["output_capture_policy"] = {
+                        "effective_mode": roll_to_bulk_output_policy.get("effective_mode"),
+                        "requires_output_pcs": bool(roll_to_bulk_output_policy.get("requires_output_pcs")),
+                        "allows_kg_only": bool(roll_to_bulk_output_policy.get("allows_kg_only")),
+                    }
+                    fg_batch_meta["primary_uom"] = "KG" if roll_to_bulk_output_policy.get("allows_kg_only") and output_pcs is None else "PCS"
                     if primary_pack_runtime_meta:
                         fg_batch_meta["primary_inner_pack"] = primary_pack_runtime_meta
                     fg_batch = FinishedGoodsBatch.objects.create(

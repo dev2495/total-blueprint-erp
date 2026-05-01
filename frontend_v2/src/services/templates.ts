@@ -97,7 +97,7 @@ export interface TemplateProcessStepRollHandlingRule {
     lane_schema?: Array<Record<string, any>>;
     thickness_rule: "INHERIT_INPUT" | "SUM_INPUTS" | "FIXED" | "TEMPLATE_DEFAULT";
     width_rule: "LOCK_INPUT" | "MIN_INPUT" | "FIXED" | "OPERATOR" | "OPERATOR_GRID" | "TEMPLATE_DEFAULT";
-    operator_entry_mode?: "PROCESS_DEFAULT" | "ROLL_SINGLE" | "ROLL_MULTI" | "GRID_SPLIT" | "DISCRETE_ONLY";
+    operator_entry_mode?: "PROCESS_DEFAULT" | "ROLL_SINGLE" | "ROLL_MULTI" | "GRID_SPLIT" | "DISCRETE_ONLY" | "KG_ONLY" | "KG_AND_PCS";
     notes?: string;
 }
 

@@ -182,6 +182,7 @@ export interface JobContext {
         width_rule?: string | null;
         operator_entry_mode?: string | null;
         behavior?: string | null;
+        output_capture_policy?: Record<string, any>;
     };
     current_step_roll_handling?: Record<string, any>;
     target_roll_invariants?: Record<string, any>;
@@ -438,6 +439,7 @@ export interface JobContext {
         allocation_mode?: string;
         allocation_scope?: string;
         roll_to_bulk_validation_mode?: string;
+        output_capture_policy?: Record<string, any>;
         step_target_source?: string;
         order_target_source?: string;
         tolerance_kg?: number;

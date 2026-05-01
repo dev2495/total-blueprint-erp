@@ -58,6 +58,14 @@ function policyModeLabel(mode?: string | null, value?: number | null) {
     return "Template default"
 }
 
+function outputCaptureModeLabel(mode?: string | null) {
+    const normalized = String(mode || "PROCESS_DEFAULT").toUpperCase()
+    if (normalized === "KG_ONLY") return "Bulk KG only"
+    if (normalized === "KG_AND_PCS") return "Bulk KG + PCS"
+    if (normalized === "DISCRETE_ONLY") return "Discrete required"
+    return "Template default"
+}
+
 function toNullableNumber(value: unknown): number | null {
     const num = Number(value)
     return Number.isFinite(num) ? num : null
@@ -611,6 +619,15 @@ export default function WCMTerminal() {
         (executionContext as any)?.job?.output_form ??
         (selectedJob as any)?.output_form ??
         ""
+    ).toUpperCase()
+    const selectedOutputCapturePolicy =
+        (executionContext as any)?.step_policy?.output_capture_policy ||
+        (executionContext as any)?.roll_handling?.output_capture_policy ||
+        {}
+    const selectedOutputCaptureMode = String(
+        selectedOutputCapturePolicy?.effective_mode ||
+        (executionContext as any)?.roll_handling?.operator_entry_mode ||
+        "PROCESS_DEFAULT"
     ).toUpperCase()
     const selectedInputForm = String(
         (executionContext as any)?.job?.input_form ??
@@ -1983,7 +2000,11 @@ export default function WCMTerminal() {
                                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                             <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Output form</div>
                                             <div className="mt-1 text-lg font-semibold leading-tight text-slate-950">{selectedOutputForm || selectedSpec.size.finishedGoodType || "Output"}</div>
-                                            <div className="mt-2 text-[11px] font-semibold text-slate-500">{selectedSpec.layers.length || 0} layer{selectedSpec.layers.length === 1 ? "" : "s"} in this sales specification</div>
+                                            <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                                                {selectedInputForm === "ROLL" && selectedOutputForm === "BULK"
+                                                    ? outputCaptureModeLabel(selectedOutputCaptureMode)
+                                                    : `${selectedSpec.layers.length || 0} layer${selectedSpec.layers.length === 1 ? "" : "s"} in this sales specification`}
+                                            </div>
                                         </div>
                                         <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
                                             <div className="text-[10px] font-black uppercase tracking-wider text-sky-700">POD</div>

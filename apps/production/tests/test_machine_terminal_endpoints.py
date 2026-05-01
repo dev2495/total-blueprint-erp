@@ -487,6 +487,129 @@ class MachineTerminalEndpointTests(TestCase):
         self.assertEqual(consumption.scrap_kg, Decimal("0.250"))
         self.assertEqual(consumption.output_kg, Decimal("2.000"))
 
+    def test_roll_to_bulk_template_kg_only_posts_fg_batch_without_pcs(self):
+        film = self._make_film("MT-FILM-POUCH-KG")
+        process = Process.objects.create(
+            code="MT_POUCH_KG",
+            name="Pouching KG",
+            input_form="ROLL",
+            output_form="BULK",
+            roll_behavior="NONE",
+        )
+        geometry = {
+            "fg_type": "POUCH",
+            "base": {"width_mm": 100, "height_mm": 150},
+            "effective": {"width_mm": 100, "height_mm": 150},
+        }
+        job = self._make_job(
+            "POUCH-KG-ONLY",
+            process=process,
+            material=film,
+            quantity="4.0000",
+            fg_type="POUCH",
+            geometry=geometry,
+            unit_weight_g="20",
+        )
+        step = job.template.process_steps.get(sequence_number=1)
+        TemplateProcessStepRollSpec.objects.create(
+            template_step=step,
+            input_roll_count=1,
+            operator_entry_mode="KG_ONLY",
+        )
+        parent = self._make_roll("POUCH-KG-ONLY", material=film, weight="4.000", width="500", thickness="25", job=job)
+
+        response = self._post_for_job(machine_log_output, job, {"actual_qty": "2.000"})
+
+        self.assertEqual(response.status_code, 200, response.data)
+        parent.refresh_from_db()
+        self.assertEqual(parent.status, "CONSUMED")
+        batch = FinishedGoodsBatch.objects.get(production_job=job)
+        self.assertEqual(batch.qty_kg, Decimal("2.0000"))
+        self.assertEqual(batch.qty_pcs, 0)
+        self.assertEqual(batch.meta_json["primary_uom"], "KG")
+        self.assertEqual(batch.meta_json["output_capture_policy"]["effective_mode"], "KG_ONLY")
+        self.assertEqual(RollConsumption.objects.get(job=job).consumed_kg, Decimal("2.000"))
+        job.refresh_from_db()
+        self.assertEqual(job.produced_qty, Decimal("2.0000"))
+        self.assertEqual(job.remaining_qty, Decimal("2.0000"))
+
+    def test_roll_to_bulk_kg_only_still_rejects_piece_tracked_job_without_pcs(self):
+        film = self._make_film("MT-FILM-POUCH-KG-PCS")
+        process = Process.objects.create(
+            code="MT_POUCH_KG_PCS",
+            name="Pouching KG Piece Job",
+            input_form="ROLL",
+            output_form="BULK",
+            roll_behavior="NONE",
+        )
+        geometry = {
+            "fg_type": "POUCH",
+            "base": {"width_mm": 100, "height_mm": 150},
+            "effective": {"width_mm": 100, "height_mm": 150},
+        }
+        job = self._make_job(
+            "POUCH-KG-PCS-JOB",
+            process=process,
+            material=film,
+            quantity="100.0000",
+            fg_type="POUCH",
+            geometry=geometry,
+            unit_weight_g="20",
+        )
+        job.uom = "PCS"
+        job.save(update_fields=["uom", "updated_at"])
+        step = job.template.process_steps.get(sequence_number=1)
+        TemplateProcessStepRollSpec.objects.create(
+            template_step=step,
+            input_roll_count=1,
+            operator_entry_mode="KG_ONLY",
+        )
+        parent = self._make_roll("POUCH-KG-PCS-JOB", material=film, weight="4.000", width="500", thickness="25", job=job)
+
+        response = self._post_for_job(machine_log_output, job, {"actual_qty": "2.000"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("PCS-tracked", response.data["error"]["message"])
+        parent.refresh_from_db()
+        self.assertEqual(parent.status, "RESERVED")
+        self.assertEqual(FinishedGoodsBatch.objects.filter(production_job=job).count(), 0)
+
+    def test_roll_to_bulk_kg_and_pcs_policy_requires_pcs(self):
+        film = self._make_film("MT-FILM-POUCH-BOTH")
+        process = Process.objects.create(
+            code="MT_POUCH_BOTH",
+            name="Pouching Both",
+            input_form="ROLL",
+            output_form="BULK",
+            roll_behavior="NONE",
+        )
+        geometry = {
+            "fg_type": "POUCH",
+            "base": {"width_mm": 100, "height_mm": 150},
+            "effective": {"width_mm": 100, "height_mm": 150},
+        }
+        job = self._make_job(
+            "POUCH-BOTH",
+            process=process,
+            material=film,
+            quantity="4.0000",
+            fg_type="POUCH",
+            geometry=geometry,
+            unit_weight_g="20",
+        )
+        step = job.template.process_steps.get(sequence_number=1)
+        TemplateProcessStepRollSpec.objects.create(
+            template_step=step,
+            input_roll_count=1,
+            operator_entry_mode="KG_AND_PCS",
+        )
+        self._make_roll("POUCH-BOTH", material=film, weight="4.000", width="500", thickness="25", job=job)
+
+        response = self._post_for_job(machine_log_output, job, {"actual_qty": "2.000"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("output_pcs is required", response.data["error"]["message"])
+
     def test_machine_complete_uses_fifteen_percent_close_tolerance(self):
         film = self._make_film("MT-FILM-TOL")
         process = Process.objects.create(

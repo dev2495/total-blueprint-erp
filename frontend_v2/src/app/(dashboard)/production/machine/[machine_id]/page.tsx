@@ -153,6 +153,14 @@ function variantTitle(variant: string, stepName: string, behavior: string) {
     return `${stepName} · ${behavior || 'STANDARD'}`;
 }
 
+function outputCaptureModeLabel(mode?: string | null) {
+    const value = String(mode || 'PROCESS_DEFAULT').toUpperCase();
+    if (value === 'KG_ONLY') return 'Bulk KG only';
+    if (value === 'KG_AND_PCS') return 'Bulk KG + PCS';
+    if (value === 'DISCRETE_ONLY') return 'Discrete required';
+    return 'Process default';
+}
+
 function qualityPreset(variant: string): QualityDraft[] {
     if (variant === 'printing') {
         return [
@@ -400,10 +408,13 @@ export default function MachineExecutionPage() {
         'NONE'
     ).toUpperCase();
     const currentInputForm = String(context?.current_step?.input_form || context?.job?.input_form || selectedJob?.input_form || 'BULK').toUpperCase();
-    const currentOutputForm = String(context?.job?.output_form || selectedJob?.output_form || 'ROLL').toUpperCase();
+    const currentOutputForm = String(context?.current_step?.output_form || context?.job?.output_form || selectedJob?.output_form || 'ROLL').toUpperCase();
     const variant = behaviorVariant(behavior, currentInputForm, currentOutputForm);
     const supportsDiscreteOutputRolls = behavior === 'CREATE_NEW' || behavior === 'MULTI_INPUT_COMBINE';
-    const showPcsEntry = currentInputForm === 'ROLL' && currentOutputForm === 'BULK';
+    const outputCapturePolicy = context?.step_policy?.output_capture_policy || context?.roll_handling?.output_capture_policy || {};
+    const outputCaptureMode = String(outputCapturePolicy?.effective_mode || context?.roll_handling?.operator_entry_mode || 'PROCESS_DEFAULT').toUpperCase();
+    const isRollToBulkOutput = currentInputForm === 'ROLL' && currentOutputForm === 'BULK';
+    const showPcsEntry = isRollToBulkOutput && outputCaptureMode !== 'KG_ONLY';
     const stepName = firstNonEmpty(context?.display?.step_name, context?.current_step?.process_name, selectedJob?.process_code, 'Current step');
     const stepTransform = `${currentInputForm.toLowerCase()} → ${currentOutputForm.toLowerCase()}`;
     const spec = normalizeProductSpec(selectedJob, context);
@@ -1160,7 +1171,7 @@ export default function MachineExecutionPage() {
 
                                     <div className="p-5">
                                         <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                                            <MetricTile label="Output handling" value={behaviorLabel(behavior)} tone="blue" />
+                                            <MetricTile label="Output handling" value={variant === 'pouching' ? outputCaptureModeLabel(outputCaptureMode) : behaviorLabel(behavior)} tone="blue" />
                                             <MetricTile label="Max this log" value={kg(maxOutputWithScrapKg)} tone="slate" />
                                             <MetricTile label="Close tolerance" value={qtyLabel(stepTolerancePrimary, primaryUom)} tone="amber" />
                                         </div>
@@ -1169,6 +1180,7 @@ export default function MachineExecutionPage() {
                                             variant={variant}
                                             behavior={behavior}
                                             showPcsEntry={showPcsEntry}
+                                            outputCaptureMode={outputCaptureMode}
                                             outputEntryMode={outputEntryMode}
                                             setOutputEntryMode={setOutputEntryMode}
                                             outputWeightKg={outputWeightKg}
@@ -1532,6 +1544,7 @@ function ProcessLogForm(props: any) {
     const {
         variant,
         showPcsEntry,
+        outputCaptureMode,
         outputEntryMode,
         setOutputEntryMode,
         outputWeightKg,
@@ -1571,20 +1584,30 @@ function ProcessLogForm(props: any) {
 
     return (
         <div className="space-y-4">
-            {showPcsEntry ? (
+            {variant === 'pouching' ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <div className={labelClass}>Entry mode</div>
-                            <div className="text-xs font-semibold text-slate-600">{unitWeightG > 0 ? `PCS and KG are linked at ${unitWeightG} g/pc.` : 'Unit weight is missing; enter both PCS and KG carefully.'}</div>
+                            <div className={labelClass}>Template output policy</div>
+                            <div className="text-xs font-semibold text-slate-600">
+                                {showPcsEntry
+                                    ? (unitWeightG > 0 ? `PCS and KG are linked at ${unitWeightG} g/pc.` : 'PCS is required by the template; enter KG carefully.')
+                                    : 'This template captures final pouch output in KG without mandatory PCS.'}
+                            </div>
                         </div>
-                        <div className="flex gap-1">
-                            {(['PCS', 'KG'] as EntryMode[]).map((mode) => (
-                                <Button key={mode} type="button" size="sm" variant="outline" className={cn('h-8 rounded-lg text-xs font-bold', outputEntryMode === mode ? 'border-transparent bg-slate-950 text-white' : 'bg-white')} onClick={() => setOutputEntryMode(mode)}>
-                                    {mode}
-                                </Button>
-                            ))}
-                        </div>
+                        {showPcsEntry ? (
+                            <div className="flex gap-1">
+                                {(['PCS', 'KG'] as EntryMode[]).map((mode) => (
+                                    <Button key={mode} type="button" size="sm" variant="outline" className={cn('h-8 rounded-lg text-xs font-bold', outputEntryMode === mode ? 'border-transparent bg-slate-950 text-white' : 'bg-white')} onClick={() => setOutputEntryMode(mode)}>
+                                        {mode}
+                                    </Button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-700">
+                                {outputCaptureModeLabel(outputCaptureMode)}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : null}
@@ -1608,7 +1631,7 @@ function ProcessLogForm(props: any) {
                         <div className="mt-0.5 text-[11px] font-semibold text-emerald-700">Checked before save by output cap.</div>
                     </div>
                 </div>
-            ) : variant === 'pouching' ? (
+            ) : variant === 'pouching' && showPcsEntry ? (
                 <div className="grid gap-3 md:grid-cols-3">
                     <div>
                         <Label className={labelClass}>Input roll</Label>
@@ -1631,6 +1654,25 @@ function ProcessLogForm(props: any) {
                         <Label className={labelClass}>Output kg</Label>
                         <div className="mt-1 flex items-center gap-1">
                             <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" step="0.001" />
+                            <span className="text-xs font-semibold text-slate-500">kg</span>
+                        </div>
+                    </div>
+                </div>
+            ) : variant === 'pouching' ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <Label className={labelClass}>Input roll</Label>
+                        <Select value={reservedRolls[0]?.id || SELECT_NONE}>
+                            <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label className={labelClass}>Good output KG</Label>
+                        <div className="mt-1 flex items-center gap-1">
+                            <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono text-base font-bold')} type="number" step="0.001" />
                             <span className="text-xs font-semibold text-slate-500">kg</span>
                         </div>
                     </div>
