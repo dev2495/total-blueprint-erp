@@ -9161,119 +9161,159 @@
       "PLANT_MANAGER"
     ],
     "summary": {
-      "en": "Stock Lifecycle keeps opening stock, physical count, stock card, year close, and closed-FY correction in one auditable operating flow.",
-      "hi": "Stock Lifecycle स्क्रीन उपयोगकर्ताओं को सही डेटा, स्थिति और अगला कार्य स्पष्ट रूप से दिखाती है।"
+      "en": "One simple place for Opening Stock, Stock Count, Stock Card, Year Close, and closed-FY Correction.",
+      "hi": "Opening Stock, Stock Count, Stock Card, Year Close और closed-FY Correction के लिए एक सरल जगह।"
     },
     "purpose": {
-      "en": "Use Stock Lifecycle to choose the FY period, enter the right quantity field, preview the number impact, and move through approval without guessing the next step.",
-      "hi": "Stock Lifecycle का उपयोग करके अगला status, filter या approval step बिना भ्रम के पूरा करें।"
+      "en": "Use this guide to know which tab to open, what data to enter, what to check before approval, and how the posting appears on Stock Card.",
+      "hi": "यह guide बताती है कि कौन सा tab खोलना है, कौन सा data भरना है, approval से पहले क्या check करना है, और posting Stock Card पर कैसे दिखती है।"
     },
     "prerequisites": [
       {
-        "en": "Confirm your role, plant, and operating context before changing records.",
-        "hi": "रिकॉर्ड बदलने से पहले अपनी भूमिका, प्लांट और संचालन संदर्भ की पुष्टि करें।"
+        "en": "Select the correct FY period first. Example: 2026-2027 means April 2026 to March 2027.",
+        "hi": "सबसे पहले सही FY period चुनें। Example: 2026-2027 का मतलब April 2026 से March 2027 है।"
       },
       {
-        "en": "Open the upstream order, master, job, or ledger source before approving downstream impact.",
-        "hi": "डाउनस्ट्रीम प्रभाव अनुमोदित करने से पहले अपस्ट्रीम order, master, job या ledger स्रोत खोलें।"
+        "en": "Check plant, material, location, stock class, and UOM before entering quantity.",
+        "hi": "Quantity भरने से पहले plant, material, location, stock class और UOM check करें।"
       },
       {
-        "en": "For financial-year work, verify whether the year is open, closing, or closed before creating a sheet.",
-        "hi": "वित्तीय-वर्ष कार्य में sheet बनाने से पहले year open, closing या closed है यह जांचें।"
+        "en": "Use maker-checker: one user submits, another user approves when approval is required.",
+        "hi": "Maker-checker use करें: एक user submit करे, दूसरा user approval दे जहां approval required है।"
+      },
+      {
+        "en": "Keep source proof ready: opening upload, count sheet, GRN, approval note, or correction document.",
+        "hi": "Source proof ready रखें: opening upload, count sheet, GRN, approval note या correction document।"
       }
     ],
     "keyActions": [
       {
-        "en": "Use Opening Stock for FY starting balance, Stock Count for open-FY floor differences, and FY Correction only after the FY is closed.",
-        "hi": "कार्रवाई से पहले page summary, filters और pending cards देखें।"
+        "en": "Opening Stock: use at FY start or migration. Enter opening balance qty and rate, validate, preview, submit, approve, and post.",
+        "hi": "Opening Stock: FY start या migration में use करें। Opening balance qty और rate भरें, validate, preview, submit, approve और post करें।"
       },
       {
-        "en": "Check FY period, plant, material, location, quantity, and rate before previewing impact.",
-        "hi": "लक्ष्य record खोलकर mandatory fields, status, owner और references जांचें।"
+        "en": "Stock Count: use while the FY is open. Load live stock, enter physical count qty, preview shortage or excess, approve, and post variance.",
+        "hi": "Stock Count: FY open हो तब use करें। Live stock load करें, physical count qty भरें, shortage/excess preview करें, approve और variance post करें।"
       },
       {
-        "en": "Submit only after previewing the operational impact, then confirm toast, audit, and refreshed totals.",
-        "hi": "Operational impact preview करने के बाद ही submit करें, फिर toast, audit और refreshed totals जांचें।"
+        "en": "Stock Card: filter by FY, plant, material, and location. Check source, signed movement, running balance, WAC rate, and value.",
+        "hi": "Stock Card: FY, plant, material और location से filter करें। Source, signed movement, running balance, WAC rate और value check करें।"
       },
       {
-        "en": "Use Stock Lifecycle tabs for opening, count, card, year-close, and correction instead of separate old pages.",
-        "hi": "Opening, count, card, year-close और correction के लिए अलग पुराने pages के बजाय Stock Lifecycle tabs उपयोग करें।"
+        "en": "Year Close: preview closing stock, clear blockers, close the FY, then verify next FY opening rows.",
+        "hi": "Year Close: closing stock preview करें, blockers clear करें, FY close करें, फिर next FY opening rows verify करें।"
+      },
+      {
+        "en": "FY Correction: use only after close. Enter corrected closing qty and reason; the system updates closed FY and next FY opening together.",
+        "hi": "FY Correction: close के बाद ही use करें। Corrected closing qty और reason भरें; system closed FY और next FY opening साथ में update करता है।"
       }
     ],
     "fieldHelp": [
       {
         "field": {
           "en": "FY period (Apr-Mar)",
-          "hi": "Context गाइड"
+          "hi": "FY period (Apr-Mar)"
         },
         "help": {
-          "en": "Use a year like 2026-2027. Open years allow opening/count sheets; closed years allow only approved FY Correction.",
-          "hi": "Plant, role और date/FY filters तय करते हैं कि कौन से records और actions वैध हैं।"
+          "en": "Use a year like 2026-2027. Open FY allows opening/count work. Closed FY allows only approved correction.",
+          "hi": "2026-2027 जैसा year use करें। Open FY में opening/count work allowed है। Closed FY में केवल approved correction allowed है।"
         }
       },
       {
         "field": {
           "en": "Quantity field",
-          "hi": "Status गाइड"
+          "hi": "Quantity field"
         },
         "help": {
-          "en": "Opening uses opening balance qty, Stock Count uses physical count qty, and FY Correction uses corrected closing qty.",
-          "hi": "Status को gate मानें। अगला action छिपा हो तो role access और required upstream approval जांचें।"
+          "en": "Opening uses opening balance qty. Count uses physical count qty. Correction uses corrected closing qty.",
+          "hi": "Opening में opening balance qty use होती है। Count में physical count qty use होती है। Correction में corrected closing qty use होती है।"
         }
       },
       {
         "field": {
           "en": "Correction reason and approval",
-          "hi": "Audit Notes गाइड"
+          "hi": "Correction reason and approval"
         },
         "help": {
-          "en": "Closed-FY corrections require what changed, why it changed, who approved it, and the source document.",
-          "hi": "Stock, approval या user visibility बदलने वाली action में reason, reference और approver लिखें।"
+          "en": "Write what changed, why it changed, source proof, and approver. Do not use correction for an open FY count difference.",
+          "hi": "क्या बदला, क्यों बदला, source proof और approver लिखें। Open FY count difference के लिए correction use न करें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Preview impact",
+          "hi": "Preview impact"
+        },
+        "help": {
+          "en": "Preview shows qty delta, WAC/rate, value, rows, validation errors, and the dual-FY effect for closed-FY correction.",
+          "hi": "Preview qty delta, WAC/rate, value, rows, validation errors और closed-FY correction का dual-FY effect दिखाता है।"
         }
       }
     ],
-    "decisionFlowId": "inventory-action-flow",
+    "decisionFlowId": "stock-lifecycle-flow",
     "commonErrors": [
       {
         "error": {
-          "en": "Action hidden or permission denied",
-          "hi": "Action hidden or permission denied गाइड"
+          "en": "Using the wrong tab",
+          "hi": "गलत tab use करना"
         },
         "reason": {
-          "en": "Role, module permission, or governance visibility does not allow this step.",
-          "hi": "Role, module permission या governance visibility इस step की अनुमति नहीं देता।"
+          "en": "Opening is for starting balance, Count is for open-FY physical difference, and Correction is only for closed FY.",
+          "hi": "Opening starting balance के लिए है, Count open-FY physical difference के लिए है, और Correction केवल closed FY के लिए है।"
         }
       },
       {
         "error": {
-          "en": "Validation failed",
-          "hi": "Validation failed गाइड"
+          "en": "Preview does not match expected balance",
+          "hi": "Preview expected balance से match नहीं करता"
         },
         "reason": {
-          "en": "Required context, source record, quantity, date, or approval status is missing or inconsistent.",
-          "hi": "Required context, source record, quantity, date या approval status missing/inconsistent है।"
+          "en": "FY, stock class, location, UOM, count qty, or rate source is wrong or missing.",
+          "hi": "FY, stock class, location, UOM, count qty या rate source गलत या missing है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Approve button is blocked",
+          "hi": "Approve button blocked है"
+        },
+        "reason": {
+          "en": "Validation errors remain, required source proof is missing, or the same user is trying to approve their own sheet.",
+          "hi": "Validation errors बचे हैं, source proof missing है, या वही user अपनी sheet approve करने की कोशिश कर रहा है।"
         }
       }
     ],
     "recoverySteps": [
       {
-        "en": "Refresh the page, reselect filters, and reopen the record from the list.",
-        "hi": "Page refresh करें, filters फिर चुनें और list से record दोबारा खोलें।"
+        "en": "Open Help & Flow inside Stock Lifecycle and confirm which tab matches your work.",
+        "hi": "Stock Lifecycle के अंदर Help & Flow खोलें और confirm करें कि कौन सा tab आपके काम से match करता है।"
       },
       {
-        "en": "Check the upstream source and fix missing master/order/job/approval data before retrying.",
-        "hi": "Retry से पहले upstream source में missing master/order/job/approval data ठीक करें।"
+        "en": "Fix red validation errors first. For amber warnings, add a clear note before submit.",
+        "hi": "पहले red validation errors fix करें। Amber warnings के लिए submit से पहले clear note add करें।"
       },
       {
-        "en": "If the issue remains, capture route, payload, screenshot, and timestamp for the admin audit log.",
-        "hi": "Issue रहे तो admin audit log के लिए route, payload, screenshot और timestamp capture करें।"
+        "en": "After posting, re-open Stock Card with the same FY/material/location and verify source, balance, WAC, and value.",
+        "hi": "Posting के बाद same FY/material/location के साथ Stock Card खोलें और source, balance, WAC और value verify करें।"
+      },
+      {
+        "en": "If a closed-FY correction is wrong, stop and create a new approved correction. Do not edit posted history.",
+        "hi": "Closed-FY correction wrong हो तो stop करें और नया approved correction बनाएं। Posted history edit न करें।"
       }
     ],
     "relatedRoutes": [
+      "/inventory/stock-lifecycle",
+      "/inventory/opening-stock",
+      "/inventory/stock-count",
       "/inventory/stock-card",
+      "/inventory/year-close",
+      "/inventory/fy-correction",
       "/system/audit"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "inventory-stock-lifecycle-overview",
+      "inventory-stock-lifecycle-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"

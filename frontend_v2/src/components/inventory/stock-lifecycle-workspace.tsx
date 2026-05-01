@@ -4,6 +4,10 @@ import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
   CheckCircle2,
   BookOpenCheck,
   ClipboardList,
@@ -21,6 +25,7 @@ import {
   ShieldCheck,
   Table2,
   Upload,
+  Users,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -34,7 +39,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
 import { factoryService } from "@/services/factory"
-import { inventoryService, type InventoryAuditLine, type StockCardPayload } from "@/services/inventory"
+import { inventoryService, type InventoryAuditBatch, type InventoryAuditLine, type StockCardPayload } from "@/services/inventory"
 import { masterDataService } from "@/services/master-data"
 import { recipeService } from "@/services/recipes"
 
@@ -106,6 +111,11 @@ function money(value: any) {
 function qty(value: any, suffix = "") {
   const number = Number(value || 0)
   return `${number.toLocaleString("en-IN", { maximumFractionDigits: 2 })}${suffix ? ` ${suffix}` : ""}`
+}
+
+function pct(value: any) {
+  const number = Number(value || 0)
+  return `${number.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%`
 }
 
 function parseCsv(text: string) {
@@ -202,6 +212,47 @@ export function StockLifecycleWorkspace() {
             </div>
             Daily steps: Sheet - Enter - Validate - Preview - Approve - Post. Use Opening for start balance, Stock Count for open FY differences, and FY Correction only after close.
           </div>
+
+          <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                <Activity className="h-3.5 w-3.5 text-blue-700" />
+                Activity
+              </div>
+              {[
+                ["Draft", "Enter/import rows", "bg-slate-100 text-slate-700"],
+                ["Preview", "What-if stock impact", "bg-blue-50 text-blue-700"],
+                ["Post", "Ledger + audit write", "bg-emerald-50 text-emerald-700"],
+              ].map(([title, sub, tone]) => (
+                <div key={title} className="flex items-center justify-between gap-2 rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div>
+                    <div className="text-xs font-black text-slate-900">{title}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{sub}</div>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-black ${tone}`}>Live</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[18px] border-slate-200 bg-white shadow-sm">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                <LockKeyhole className="h-3.5 w-3.5 text-amber-700" />
+                FY State
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="rounded-[12px] border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="text-lg font-black text-emerald-800">Open</div>
+                  <div className="text-[11px] font-semibold text-emerald-700">Count allowed</div>
+                </div>
+                <div className="rounded-[12px] border border-slate-300 bg-slate-950 p-3">
+                  <div className="text-lg font-black text-amber-200">Closed</div>
+                  <div className="text-[11px] font-semibold text-slate-300">Correction only</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </aside>
 
         <main className="min-w-0">
@@ -559,6 +610,7 @@ function SheetLifecyclePanel({ mode }: { mode: AuditMode }) {
       />
 
       <Stepper status={currentBatch?.status} hasPreview={Boolean(preview)} />
+      <WorkflowInsights mode={mode} currentBatch={currentBatch} preview={preview} />
 
       <div className="grid min-w-0 gap-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
@@ -762,6 +814,212 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${tone}`}>{status}</span>
 }
 
+function MiniBar({ label, value, total, tone = "bg-blue-600" }: { label: string; value: number; total: number; tone?: string }) {
+  const width = total > 0 ? Math.max(6, Math.min(100, Math.round((value / total) * 100))) : 6
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2 text-xs font-black text-slate-700">
+        <span>{label}</span>
+        <span className="tabular-nums">{qty(value)}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function ImpactTile({
+  label,
+  value,
+  sub,
+  direction = "flat",
+}: {
+  label: string
+  value: string
+  sub: string
+  direction?: "up" | "down" | "flat"
+}) {
+  const Icon = direction === "down" ? ArrowDown : direction === "up" ? ArrowUp : BarChart3
+  const tone =
+    direction === "down"
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : direction === "up"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : "border-blue-200 bg-blue-50 text-blue-700"
+  return (
+    <div className="min-w-0 rounded-[14px] border border-slate-200 bg-white p-3">
+      <div className={`mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border ${tone}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="mt-1 truncate text-xl font-black text-slate-950">{value}</div>
+      <div className="mt-1 text-xs font-semibold text-slate-500">{sub}</div>
+    </div>
+  )
+}
+
+function SignoffRow({ label, value, done }: { label: string; value?: string | null; done?: boolean }) {
+  return (
+    <div className={`flex items-center gap-3 rounded-[14px] border p-3 ${done ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black ${done ? "bg-emerald-700 text-white" : "bg-slate-200 text-slate-500"}`}>
+        {done ? "✓" : "·"}
+      </span>
+      <div className="min-w-0">
+        <div className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</div>
+        <div className="truncate text-sm font-black text-slate-950">{value || "Pending"}</div>
+      </div>
+    </div>
+  )
+}
+
+function DualFySide({ title, before, after, delta }: { title: string; before: number; after: number; delta: number }) {
+  const down = delta < 0
+  return (
+    <div className="rounded-[14px] border border-slate-200 bg-white p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</div>
+      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="rounded-[12px] bg-slate-50 p-3 text-right">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Before</div>
+          <div className="text-lg font-black text-slate-600">{qty(before)}</div>
+        </div>
+        <div className={`rounded-full p-2 ${down ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+          {down ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+        </div>
+        <div className="rounded-[12px] bg-slate-950 p-3 text-right">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">After</div>
+          <div className="text-lg font-black text-white">{qty(after)}</div>
+        </div>
+      </div>
+      <div className={`mt-3 text-sm font-black ${down ? "text-rose-700" : "text-emerald-700"}`}>{down ? "" : "+"}{qty(delta)} adjustment</div>
+    </div>
+  )
+}
+
+function WorkflowInsights({ mode, currentBatch, preview }: { mode: AuditMode; currentBatch?: InventoryAuditBatch; preview?: any }) {
+  const summary = currentBatch?.summary_json || {}
+  const lineRows = currentBatch?.lines || []
+  const lines = Number(summary.lines || currentBatch?.line_count || lineRows.length || 0)
+  const rowErrorCount = lineRows.filter((row) => row.row_errors?.some((error) => String(error).startsWith("E-"))).length
+  const rowWarningCount = lineRows.filter((row) => row.row_errors?.some((error) => String(error).startsWith("W-"))).length
+  const blocked = Number(summary.errors || rowErrorCount || 0)
+  const warned = rowWarningCount
+  const valid = Math.max(0, lines - blocked - warned)
+  const impact = preview?.impact || summary
+  const txCount = Number(preview?.transaction_count || 0)
+  const workflow = (summary.workflow || {}) as Record<string, any>
+  const dual = preview?.dual_fy_impact
+  const net = Number(impact.bulk_kg || 0) + Number(impact.roll_kg || 0) + Number(impact.packaging_qty || 0)
+
+  return (
+    <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px]">
+      <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-black">
+            <Activity className="h-5 w-5 text-blue-700" />
+            Validation graph
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-[12px] bg-emerald-50 p-3">
+              <div className="text-xl font-black text-emerald-800">{qty(valid)}</div>
+              <div className="text-[11px] font-semibold text-emerald-700">Valid</div>
+            </div>
+            <div className="rounded-[12px] bg-amber-50 p-3">
+              <div className="text-xl font-black text-amber-800">{qty(warned)}</div>
+              <div className="text-[11px] font-semibold text-amber-700">Warning</div>
+            </div>
+            <div className="rounded-[12px] bg-rose-50 p-3">
+              <div className="text-xl font-black text-rose-800">{qty(blocked)}</div>
+              <div className="text-[11px] font-semibold text-rose-700">Blocked</div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <MiniBar label="Valid lines" value={valid} total={Math.max(lines, 1)} tone="bg-emerald-600" />
+            <MiniBar label="Warnings" value={warned} total={Math.max(lines, 1)} tone="bg-amber-500" />
+            <MiniBar label="Blockers" value={blocked} total={Math.max(lines, 1)} tone="bg-rose-600" />
+          </div>
+          <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+            Data points captured: material, plant, location, FY, quantity, rate source, maker, checker, validation code, and posted ledger reference.
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-black">
+            <BarChart3 className="h-5 w-5 text-emerald-700" />
+            Impact chart
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <ImpactTile label="Bulk" value={qty(impact.bulk_kg || 0)} sub="kg impact" direction={Number(impact.bulk_kg || 0) < 0 ? "down" : "up"} />
+            <ImpactTile label="Rolls" value={qty(impact.roll_kg || 0)} sub="kg impact" direction={Number(impact.roll_kg || 0) < 0 ? "down" : "up"} />
+            <ImpactTile label="Packaging" value={qty(impact.packaging_qty || 0)} sub="base UOM" direction={Number(impact.packaging_qty || 0) < 0 ? "down" : "up"} />
+            <ImpactTile label="Value" value={money(impact.value || 0)} sub={`${txCount} tx rows`} direction={net < 0 ? "down" : net > 0 ? "up" : "flat"} />
+          </div>
+          <div className="rounded-[12px] border border-blue-200 bg-blue-50 p-3 text-xs font-semibold leading-5 text-blue-900">
+            Preview is a dry run. Nothing touches stock until approve and post succeeds in one backend transaction.
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-black">
+            <Users className="h-5 w-5 text-indigo-700" />
+            Two-person signoff
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <SignoffRow label="Maker" value={workflow.submitted_by_name || currentBatch?.created_by_name} done={Boolean(workflow.submitted_at || currentBatch)} />
+          <SignoffRow label={mode === "FY_CORRECTION" ? "Owner checker" : "Checker"} value={workflow.approved_by_name} done={Boolean(workflow.approved_at)} />
+          <SignoffRow label="Posted" value={currentBatch?.posted_by_name || (currentBatch?.posted_at ? "Posted" : "")} done={currentBatch?.status === "POSTED"} />
+          <div className="rounded-[12px] border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900">
+            Maker and checker must be different users. FY Close and FY Correction are owner-level actions because they change official period balances.
+          </div>
+        </CardContent>
+      </Card>
+
+      {mode === "FY_CORRECTION" ? (
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm xl:col-span-3">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base font-black">
+              <RotateCcw className="h-5 w-5 text-rose-700" />
+              Dual-FY preview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
+            <DualFySide
+              title={`${dual?.closed_financial_year || previousFy()} closing side`}
+              before={Number(dual?.totals?.closed_before || 0)}
+              after={Number(dual?.totals?.closed_after || 0)}
+              delta={Number(dual?.totals?.delta_qty || 0)}
+            />
+            <DualFySide
+              title={`${dual?.next_financial_year || currentFy()} opening side`}
+              before={Number(dual?.totals?.next_before || 0)}
+              after={Number(dual?.totals?.next_after || 0)}
+              delta={Number(dual?.totals?.delta_qty || 0)}
+            />
+            <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Atomic rule</div>
+              <div className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+                Posting writes the closed-FY correction and the next-FY opening adjustment together. If either side fails, neither side is saved.
+              </div>
+              <div className="mt-3 rounded-[12px] bg-white p-3 text-xs font-black text-slate-600">
+                Next opening batch: {dual?.next_opening_batch_no || "created or matched at post"}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </section>
+  )
+}
+
 function PreviewPanel({ preview }: { preview: any }) {
   return (
     <div className={`rounded-[16px] border p-4 ${preview.ok ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"}`}>
@@ -791,9 +1049,9 @@ function PreviewPanel({ preview }: { preview: any }) {
 
 function LineTable({ lines, empty, mode }: { lines: InventoryAuditLine[]; empty: string; mode: AuditMode }) {
   return (
-    <div className="max-w-full overflow-x-auto rounded-[16px] border border-slate-200">
+    <div className="max-h-[640px] max-w-full overflow-auto rounded-[16px] border border-slate-200">
       <table className="w-full min-w-[900px] text-left text-sm">
-        <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
           <tr>
             <th className="px-4 py-3">Class</th>
             <th className="px-4 py-3">Material</th>
@@ -936,11 +1194,52 @@ function YearClosePanel() {
       </Card>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <BarChart3 className="h-5 w-5 text-blue-700" />
+              Closing breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-4">
+            <ImpactTile label="Bulk closing" value={qty(preview?.totals?.bulk_kg || 0)} sub="kg carried" direction="flat" />
+            <ImpactTile label="Roll closing" value={qty(preview?.totals?.roll_kg || 0)} sub="serialized kg" direction="flat" />
+            <ImpactTile label="Packaging" value={qty(preview?.totals?.packaging_qty || 0)} sub="base UOM" direction="flat" />
+            <ImpactTile label="Closing value" value={money(preview?.totals?.value || 0)} sub={`${qty(preview?.totals?.rows || 0)} rows`} direction="flat" />
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-slate-950 text-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <ArrowUp className="h-5 w-5 text-emerald-300" />
+              Roll-forward preview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm font-semibold leading-6 text-slate-300">
+            <div className="rounded-[14px] border border-white/10 bg-white/[0.06] p-4">
+              Closing balance of FY {financialYear} becomes opening balance of the next FY with the same material, location, stock class, WAC rate, and audit source.
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="rounded-[12px] bg-white/[0.08] p-3">
+                <div className="text-2xl font-black text-white">{qty(preview?.totals?.rows || 0)}</div>
+                <div className="text-xs text-slate-400">opening rows</div>
+              </div>
+              <div className="rounded-[12px] bg-white/[0.08] p-3">
+                <div className="text-2xl font-black text-amber-200">{qty(preview?.blockers?.length || 0)}</div>
+                <div className="text-xs text-slate-400">blockers</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-lg font-black">Approved Closing Snapshot</CardTitle></CardHeader>
-          <CardContent className="max-w-full overflow-x-auto">
+          <CardContent className="max-h-[620px] max-w-full overflow-auto">
             <table className="w-full min-w-[780px] text-sm">
-              <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Class</th><th>Material</th><th>Location</th><th className="text-right">Qty</th><th>UOM</th></tr></thead>
+              <thead className="sticky top-0 z-10 bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Class</th><th>Material</th><th>Location</th><th className="text-right">Qty</th><th>UOM</th></tr></thead>
               <tbody>
                 {(preview?.rows || []).slice(0, 180).map((row: any, index: number) => (
                   <tr key={`${row.stock_class}-${row.material}-${index}`} className="border-t border-slate-100"><td className="px-4 py-3 font-black">{row.stock_class}</td><td>{row.material_code} - {row.material_name}</td><td>{row.location_name}</td><td className="text-right font-black">{qty(row.qty)}</td><td>{row.uom}</td></tr>
@@ -1018,6 +1317,26 @@ function LifecycleHelpPanel() {
         ]}
       />
 
+      <Card className="min-w-0 overflow-hidden rounded-[18px] border-blue-100 bg-blue-50/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-black text-slate-950">Which tab should I use?</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-5">
+          {[
+            ["Opening", "Starting balance at FY start or migration."],
+            ["Count", "Physical count difference while FY is open."],
+            ["Stock Card", "Read every movement, WAC rate, balance, and value."],
+            ["Year Close", "Lock FY closing and create next FY opening."],
+            ["Correction", "Approved fix after FY is already closed."],
+          ].map(([title, text]) => (
+            <div key={title} className="rounded-[14px] border border-blue-100 bg-white p-4 shadow-sm">
+              <div className="text-sm font-black text-blue-800">{title}</div>
+              <div className="mt-2 text-xs font-semibold leading-5 text-slate-600">{text}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
         <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
           <CardHeader>
@@ -1048,7 +1367,7 @@ function LifecycleHelpPanel() {
               Math rules used by the backend
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="max-h-[640px] space-y-3 overflow-auto pr-2">
             {formulas.map((formula) => (
               <div key={formula.label} className="rounded-[14px] border border-slate-200 bg-slate-50 p-4">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{formula.label}</div>
@@ -1068,6 +1387,44 @@ function LifecycleHelpPanel() {
               <div key={rule} className="flex gap-3 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 {rule}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader><CardTitle className="text-lg font-black">Worked example</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              ["1. Opening", "Post 1,820 kg LLDPE at Rs 182. Stock Card opening becomes 1,820 kg and WAC is Rs 182."],
+              ["2. GRN", "Receive 500 kg at Rs 188. WAC becomes Rs 183.2931 and balance becomes 2,320 kg."],
+              ["3. Stock count", "Physical count is 2,318 kg. System posts COUNT_SHORT of 2 kg and keeps the same WAC."],
+              ["4. Year close", "Closing is 2,138 kg at Rs 183.8258. Next FY opening is created from that exact closing."],
+              ["5. FY correction", "If closed FY should be +2 kg, the system updates last FY closing and next FY opening together."],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-[14px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-sm font-black text-slate-950">{title}</div>
+                <div className="mt-1 text-sm font-semibold leading-5 text-slate-600">{text}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader><CardTitle className="text-lg font-black">Operator checklist</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              "Pick the correct FY, plant, and stock class before adding rows.",
+              "Use Load live stock for count and correction, then change only the counted quantity.",
+              "Fix every red validation error before submit; amber warnings need a clear note.",
+              "Preview before approval and compare stock delta, value, and transaction count.",
+              "Approve with a different user, then post only when the Stock Card impact is expected.",
+            ].map((item, index) => (
+              <div key={item} className="flex gap-3 rounded-[14px] border border-slate-200 bg-white p-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-black text-white">{index + 1}</span>
+                <span className="text-sm font-semibold leading-5 text-slate-700">{item}</span>
               </div>
             ))}
           </CardContent>
@@ -1120,6 +1477,9 @@ function StockCardPanel() {
   }
 
   const rows = stockCard?.rows || []
+  const visibleLedgerRows = rows.slice(-250)
+  const ledgerRows = rows.slice(-18)
+  const ledgerPeak = Math.max(1, ...ledgerRows.map((row) => Math.abs(Number(row.balance_qty ?? row.qty ?? 0))))
   return (
     <div className="space-y-5">
       <Hero
@@ -1179,13 +1539,63 @@ function StockCardPanel() {
         </CardContent>
       </Card>
 
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <BarChart3 className="h-5 w-5 text-blue-700" />
+              Ledger graph
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {ledgerRows.length ? (
+              <div className="flex h-48 items-end gap-2 rounded-[16px] border border-slate-200 bg-slate-50 p-4">
+                {ledgerRows.map((row, index) => {
+                  const balance = Math.abs(Number(row.balance_qty ?? row.qty ?? 0))
+                  const height = Math.max(10, Math.round((balance / ledgerPeak) * 100))
+                  const out = Number(row.out_qty || 0) > 0 || Number(row.qty || 0) < 0
+                  return (
+                    <div key={`${row.reference}-${index}`} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                      <div className={`w-full rounded-t-md ${out ? "bg-rose-500" : "bg-emerald-500"}`} style={{ height: `${height}%` }} title={`${row.reference}: ${qty(row.balance_qty ?? row.qty)}`} />
+                      <div className="hidden max-w-full truncate text-[10px] font-black text-slate-500 sm:block">{index + 1}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="rounded-[16px] border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-semibold text-slate-500">
+                Select a material or date range to draw the ledger graph.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 rounded-[18px] border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-black">Rate and value</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ImpactTile label="Closing rate" value={qty(stockCard?.closing_rate || rows.at(-1)?.balance_rate || 0)} sub="Weighted average cost" direction="flat" />
+            <ImpactTile label="Closing value" value={money(stockCard?.closing_value || rows.at(-1)?.value || 0)} sub="Balance x WAC" direction="flat" />
+            <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-600">
+              Movement mix: {pct(rows.length ? (rows.filter((row) => Number(row.out_qty || 0) > 0).length / rows.length) * 100 : 0)} outward rows, all valued at the running WAC shown in the ledger.
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       <Card className="min-w-0 overflow-hidden rounded-[18px] border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-black"><Layers3 className="h-5 w-5 text-blue-700" />Running Balance {isFetching ? "refreshing..." : ""}</CardTitle></CardHeader>
-        <CardContent className="max-w-full overflow-x-auto">
+        <CardContent className="max-h-[640px] max-w-full overflow-auto">
+          {rows.length > visibleLedgerRows.length ? (
+            <div className="mb-3 rounded-[14px] border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+              Showing latest {visibleLedgerRows.length} ledger rows on screen. Use filters or export to review all {rows.length} rows.
+            </div>
+          ) : null}
           <table className="w-full min-w-[980px] text-sm">
-            <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Date</th><th>Source</th><th>Reference</th><th>Material</th><th>Location</th><th className="text-right">In</th><th className="text-right">Out</th><th className="text-right">Balance</th><th className="text-right">WAC</th><th className="text-right">Value</th></tr></thead>
+            <thead className="sticky top-0 z-10 bg-slate-50 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Date</th><th>Source</th><th>Reference</th><th>Material</th><th>Location</th><th className="text-right">In</th><th className="text-right">Out</th><th className="text-right">Balance</th><th className="text-right">WAC</th><th className="text-right">Value</th></tr></thead>
             <tbody>
-              {rows.map((row, index) => (
+              {visibleLedgerRows.map((row, index) => (
                 <tr key={`${row.reference}-${index}`} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs font-semibold text-slate-600">{new Date(row.at).toLocaleString()}</td>
                   <td className="font-black text-slate-900">{row.source}</td>
@@ -1199,7 +1609,7 @@ function StockCardPanel() {
                   <td className="text-right font-black">{row.value == null ? "-" : money(row.value)}</td>
                 </tr>
               ))}
-              {!rows.length ? <tr><td colSpan={10} className="px-4 py-12 text-center text-sm font-semibold text-slate-500">No ledger rows match the selected filters.</td></tr> : null}
+              {!visibleLedgerRows.length ? <tr><td colSpan={10} className="px-4 py-12 text-center text-sm font-semibold text-slate-500">No ledger rows match the selected filters.</td></tr> : null}
             </tbody>
           </table>
         </CardContent>

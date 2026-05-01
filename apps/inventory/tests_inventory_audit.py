@@ -305,6 +305,69 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code).qty_kg, Decimal("115.0000"))
         self.assertEqual(adjustment_line.posted_reference_json["delta_qty"], 15.0)
 
+    def test_fy_correction_preview_shows_closed_and_next_year_impact(self):
+        InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("88"))
+        closed_period = InventoryFinancialPeriod.objects.create(
+            financial_year="2026-2027",
+            start_date=timezone.datetime(2026, 4, 1).date(),
+            end_date=timezone.datetime(2027, 3, 31).date(),
+            status="CLOSED",
+        )
+        next_opening = InventoryAuditBatch.objects.create(
+            type="OPENING_STOCK",
+            plant=self.plant,
+            financial_year="2027-2028",
+            cutoff_at=timezone.datetime(2027, 4, 1, tzinfo=timezone.get_current_timezone()),
+            status="POSTED",
+        )
+        InventoryAuditLine.objects.create(
+            batch=next_opening,
+            stock_class="BULK",
+            material=self.granule,
+            granule_code=self.granule_code,
+            plant=self.plant,
+            location=self.location,
+            opening_qty=Decimal("88"),
+            system_qty=Decimal("88"),
+            counted_qty=Decimal("88"),
+        )
+        closed_period.opening_batch_next_year = next_opening
+        closed_period.save(update_fields=["opening_batch_next_year", "updated_at"])
+
+        correction = InventoryAuditService.create_batch(
+            payload={
+                "type": "FY_CORRECTION",
+                "plant": str(self.plant.id),
+                "financial_year": "2026-2027",
+                "notes": "Owner approved: missed bag found during audit.",
+            },
+            user=self.user,
+        )
+        InventoryAuditService.import_lines(
+            batch=correction,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "counted_qty": "90",
+                    "rate": "10",
+                }
+            ],
+        )
+
+        preview = InventoryAuditService.preview_batch(batch=correction)
+
+        self.assertTrue(preview["ok"])
+        self.assertEqual(preview["dual_fy_impact"]["closed_financial_year"], "2026-2027")
+        self.assertEqual(preview["dual_fy_impact"]["next_financial_year"], "2027-2028")
+        self.assertEqual(preview["dual_fy_impact"]["totals"]["closed_before"], 88.0)
+        self.assertEqual(preview["dual_fy_impact"]["totals"]["closed_after"], 90.0)
+        self.assertEqual(preview["dual_fy_impact"]["totals"]["next_before"], 88.0)
+        self.assertEqual(preview["dual_fy_impact"]["totals"]["next_after"], 90.0)
+        self.assertEqual(preview["dual_fy_impact"]["rows"][0]["delta_qty"], 2.0)
+
     def test_preview_submit_approve_and_post_workflow_records_state(self):
         checker = User.objects.create_user(username="checker", password="pass1234", role=self.role)
         batch = self._batch()

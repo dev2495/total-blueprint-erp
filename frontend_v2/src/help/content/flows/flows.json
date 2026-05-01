@@ -380,6 +380,142 @@
     ]
   },
   {
+    "id": "stock-lifecycle-flow",
+    "title": {
+      "en": "Stock Lifecycle Flow",
+      "hi": "Stock Lifecycle Flow"
+    },
+    "nodes": [
+      {
+        "id": "choose-work",
+        "title": {
+          "en": "Choose the correct tab",
+          "hi": "सही tab चुनें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Starting balance or migration",
+              "hi": "Starting balance या migration"
+            },
+            "resolution": {
+              "en": "Use Opening Stock.",
+              "hi": "Opening Stock use करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Physical count difference in open FY",
+              "hi": "Open FY में physical count difference"
+            },
+            "resolution": {
+              "en": "Use Stock Count.",
+              "hi": "Stock Count use करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Closed FY approved correction",
+              "hi": "Closed FY approved correction"
+            },
+            "resolution": {
+              "en": "Use FY Correction.",
+              "hi": "FY Correction use करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Need to inspect movement history",
+              "hi": "Movement history inspect करनी है"
+            },
+            "nextId": "inspect-card"
+          }
+        ]
+      },
+      {
+        "id": "enter-preview",
+        "title": {
+          "en": "Enter rows and preview impact",
+          "hi": "Rows enter करें और impact preview करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Preview matches physical proof",
+              "hi": "Preview physical proof से match करता है"
+            },
+            "nextId": "approve-post"
+          },
+          {
+            "label": {
+              "en": "Preview is wrong",
+              "hi": "Preview गलत है"
+            },
+            "resolution": {
+              "en": "Fix FY, plant, material, location, UOM, quantity, or rate before submit.",
+              "hi": "Submit से पहले FY, plant, material, location, UOM, quantity या rate fix करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "approve-post",
+        "title": {
+          "en": "Submit, approve, and post",
+          "hi": "Submit, approve और post करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Approved by checker",
+              "hi": "Checker ने approve किया"
+            },
+            "resolution": {
+              "en": "Post and verify Stock Card balance, WAC, value, and audit trail.",
+              "hi": "Post करें और Stock Card balance, WAC, value और audit trail verify करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Approval blocked",
+              "hi": "Approval blocked है"
+            },
+            "resolution": {
+              "en": "Resolve validation errors, add source proof, or ask a different approver.",
+              "hi": "Validation errors resolve करें, source proof add करें, या अलग approver से approve कराएं।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "inspect-card",
+        "title": {
+          "en": "Read the Stock Card",
+          "hi": "Stock Card पढ़ें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Balance is correct",
+              "hi": "Balance correct है"
+            },
+            "resolution": {
+              "en": "Export if needed and continue operations.",
+              "hi": "जरूरत हो तो export करें और operations continue करें।"
+            }
+          },
+          {
+            "label": {
+              "en": "Balance is not correct",
+              "hi": "Balance correct नहीं है"
+            },
+            "nextId": "enter-preview"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "id": "inventory-action-flow",
     "title": {
       "en": "Inventory Action Flow",

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-label="Stock Lifecycle workflow">
+  <rect width="1440" height="900" fill="#f8fafc"/>
+  <rect x="78" y="76" width="1284" height="748" rx="24" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="126" y="142" fill="#0f172a" font-size="38" font-family="Arial, sans-serif" font-weight="700">Stock Lifecycle workflow</text>
+  <text x="126" y="184" fill="#475569" font-size="22" font-family="Arial, sans-serif">Draft to Stock Card to Year Close, with audit proof at every step.</text>
+  <g font-family="Arial, sans-serif">
+    <rect x="126" y="250" width="172" height="104" rx="18" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="154" y="292" fill="#1d4ed8" font-size="22" font-weight="700">1 Draft</text>
+    <text x="154" y="326" fill="#475569" font-size="17">FY, plant, notes</text>
+    <path d="M308 302 H390" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M390 302 l-16 -10 v20 z" fill="#94a3b8"/>
+    <rect x="402" y="250" width="172" height="104" rx="18" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <text x="430" y="292" fill="#047857" font-size="22" font-weight="700">2 Rows</text>
+    <text x="430" y="326" fill="#475569" font-size="17">Qty, rate, source</text>
+    <path d="M584 302 H666" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M666 302 l-16 -10 v20 z" fill="#94a3b8"/>
+    <rect x="678" y="250" width="172" height="104" rx="18" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="706" y="292" fill="#c2410c" font-size="22" font-weight="700">3 Validate</text>
+    <text x="706" y="326" fill="#475569" font-size="17">Errors before post</text>
+    <path d="M860 302 H942" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M942 302 l-16 -10 v20 z" fill="#94a3b8"/>
+    <rect x="954" y="250" width="172" height="104" rx="18" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="982" y="292" fill="#334155" font-size="22" font-weight="700">4 Preview</text>
+    <text x="982" y="326" fill="#475569" font-size="17">Qty, WAC, value</text>
+    <path d="M1136 302 H1218" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M1218 302 l-16 -10 v20 z" fill="#94a3b8"/>
+    <rect x="1230" y="250" width="108" height="104" rx="18" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="1256" y="292" fill="#4338ca" font-size="22" font-weight="700">5 OK</text>
+    <text x="1256" y="326" fill="#475569" font-size="17">Approve</text>
+  </g>
+  <rect x="126" y="434" width="568" height="246" rx="20" fill="#0f172a"/>
+  <text x="166" y="484" fill="#ffffff" font-size="26" font-family="Arial, sans-serif" font-weight="700">Posting results</text>
+  <g font-family="Arial, sans-serif" font-size="19">
+    <text x="166" y="536" fill="#bfdbfe">Opening creates OPENING rows.</text>
+    <text x="166" y="578" fill="#bfdbfe">Count creates COUNT_EXCESS or COUNT_SHORT.</text>
+    <text x="166" y="620" fill="#bfdbfe">FY Correction creates a closed-FY delta and next-FY opening adjust.</text>
+  </g>
+  <rect x="746" y="434" width="592" height="246" rx="20" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="786" y="484" fill="#0f172a" font-size="26" font-family="Arial, sans-serif" font-weight="700">Stock Card proof</text>
+  <g font-family="Arial, sans-serif">
+    <rect x="786" y="526" width="496" height="36" rx="8" fill="#e2e8f0"/>
+    <rect x="786" y="580" width="120" height="26" rx="6" fill="#2563eb"/>
+    <rect x="926" y="580" width="170" height="26" rx="6" fill="#10b981"/>
+    <rect x="1116" y="580" width="166" height="26" rx="6" fill="#f97316"/>
+    <rect x="786" y="628" width="496" height="36" rx="8" fill="#e2e8f0"/>
+    <text x="786" y="704" fill="#475569" font-size="19">Verify source, signed qty, balance, WAC rate, value, and audit reference.</text>
+  </g>
+  <rect x="126" y="734" width="1212" height="44" rx="12" fill="#dbeafe"/>
+  <text x="154" y="762" fill="#1e3a8a" font-size="20" font-family="Arial, sans-serif" font-weight="700">Do not edit posted history. Use Stock Count for open FY difference and FY Correction for approved closed-FY fixes.</text>
+</svg>

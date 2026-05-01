@@ -92,7 +92,7 @@ export default function HelpCenterPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="space-y-4">
+        <div className="space-y-4 xl:sticky xl:top-24 xl:self-start">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">{locale === "hi" ? "रोल गाइड" : "Role Guides"}</CardTitle>
@@ -138,9 +138,14 @@ export default function HelpCenterPage() {
               <CardTitle>{guide ? localize(guide.title, locale) : localize(roleGuide?.title || { en: "Role Guide", hi: "रोल गाइड" }, locale)}</CardTitle>
               <CardDescription>{guide ? guide.routePattern : roleGuide?.landingPage}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="max-h-[calc(100vh-220px)] space-y-5 overflow-auto pr-2">
               {guide ? (
                 <>
+                  <section className="rounded-lg border border-sky-100 bg-sky-50 p-3">
+                    <h3 className="text-sm font-bold text-slate-900">{locale === "hi" ? "त्वरित सारांश" : "Quick Summary"}</h3>
+                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-700">{localize(guide.summary, locale)}</p>
+                  </section>
+
                   <section className="space-y-2">
                     <h3 className="text-sm font-bold text-slate-900">{locale === "hi" ? "उद्देश्य" : "Purpose"}</h3>
                     <p className="text-sm text-slate-700">{localize(guide.purpose, locale)}</p>
@@ -157,7 +162,22 @@ export default function HelpCenterPage() {
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-bold text-slate-900">{locale === "hi" ? "निर्णय प्रवाह" : "Decision Flow"}</h3>
+                    <h3 className="text-sm font-bold text-slate-900">{locale === "hi" ? "फील्ड सहायता" : "Field Help"}</h3>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {guide.fieldHelp.map((entry, idx) => (
+                        <div key={`${guide.routePattern}-field-${idx}`} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-wide text-slate-500">{localize(entry.field, locale)}</p>
+                          <p className="mt-1 text-sm font-semibold leading-5 text-slate-700">{localize(entry.help, locale)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      {locale === "hi" ? "निर्णय प्रवाह" : "Decision Flow"}
+                      {context.decisionFlow ? ` - ${localize(context.decisionFlow.title, locale)}` : ""}
+                    </h3>
                     {(context.decisionFlow?.nodes || []).map((node) => (
                       <div key={node.id} className="rounded-lg border border-slate-200 p-3 bg-slate-50/60">
                         <p className="text-sm font-semibold text-slate-900">{localize(node.title, locale)}</p>

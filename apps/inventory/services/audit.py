@@ -548,6 +548,82 @@ class InventoryAuditService:
                 "packaging_qty": summary.get("packaging_qty", 0),
                 "value": summary.get("value", 0),
             },
+            "dual_fy_impact": cls._preview_dual_fy_impact(batch=batch) if batch.type == "FY_CORRECTION" else None,
+        }
+
+    @classmethod
+    def _next_financial_year(cls, financial_year: str) -> str:
+        start, _ = financial_year_dates(financial_year)
+        return f"{start.year + 1}-{start.year + 2}"
+
+    @classmethod
+    def _preview_dual_fy_impact(cls, *, batch: InventoryAuditBatch) -> Dict[str, Any]:
+        next_fy = cls._next_financial_year(batch.financial_year)
+        period = InventoryFinancialPeriod.objects.filter(financial_year=batch.financial_year).first()
+        next_opening = getattr(period, "opening_batch_next_year", None) if period else None
+        rows = []
+        total_before = Decimal("0")
+        total_after = Decimal("0")
+        total_next_before = Decimal("0")
+        total_next_after = Decimal("0")
+        total_delta = Decimal("0")
+
+        for line in batch.lines.select_related("material", "location", "granule_code", "grade").order_by("created_at"):
+            if cls._blocking_errors(line.row_errors):
+                continue
+            before_qty = q4(_dec(line.system_qty))
+            corrected_qty = q4(_dec(line.counted_qty))
+            delta_qty = q4(corrected_qty - before_qty)
+            next_opening_qty = Decimal("0")
+            if next_opening:
+                qs = next_opening.lines.filter(
+                    stock_class=line.stock_class,
+                    material=line.material,
+                    plant=line.plant,
+                    location=line.location,
+                )
+                if line.stock_class == "BULK":
+                    qs = qs.filter(granule_code=line.granule_code)
+                elif line.stock_class == "ROLL" and line.label_id:
+                    qs = qs.filter(label_id=line.label_id)
+                elif line.stock_class == "ROLL" and line.grade_id:
+                    qs = qs.filter(grade=line.grade)
+                next_opening_qty = q4(sum((_dec(row.opening_qty) for row in qs), Decimal("0")))
+            next_after = q4(next_opening_qty + delta_qty)
+            total_before += before_qty
+            total_after += corrected_qty
+            total_next_before += next_opening_qty
+            total_next_after += next_after
+            total_delta += delta_qty
+            rows.append(
+                {
+                    "line_id": str(line.id),
+                    "stock_class": line.stock_class,
+                    "material_code": getattr(line.material, "code", ""),
+                    "material_name": getattr(line.material, "name", ""),
+                    "location_name": getattr(line.location, "name", ""),
+                    "closed_fy_before": float(before_qty),
+                    "closed_fy_after": float(corrected_qty),
+                    "next_fy_before": float(next_opening_qty),
+                    "next_fy_after": float(next_after),
+                    "delta_qty": float(delta_qty),
+                    "rate": float(line.rate or 0),
+                    "value": float(line.value or 0),
+                }
+            )
+
+        return {
+            "closed_financial_year": batch.financial_year,
+            "next_financial_year": next_fy,
+            "next_opening_batch_no": getattr(next_opening, "batch_no", "") if next_opening else "",
+            "totals": {
+                "closed_before": float(q4(total_before)),
+                "closed_after": float(q4(total_after)),
+                "next_before": float(q4(total_next_before)),
+                "next_after": float(q4(total_next_after)),
+                "delta_qty": float(q4(total_delta)),
+            },
+            "rows": rows[:200],
         }
 
     @classmethod

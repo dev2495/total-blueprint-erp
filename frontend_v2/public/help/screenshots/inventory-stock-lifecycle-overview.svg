@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-label="Stock Lifecycle overview">
+  <defs>
+    <linearGradient id="stockLifecycleOverviewBg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+  </defs>
+  <rect width="1440" height="900" fill="url(#stockLifecycleOverviewBg)"/>
+  <rect x="80" y="72" width="1280" height="756" rx="24" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="80" y="72" width="1280" height="92" rx="24" fill="#1d4ed8"/>
+  <text x="122" y="128" fill="#ffffff" font-size="36" font-family="Arial, sans-serif" font-weight="700">Stock Lifecycle</text>
+  <text x="122" y="188" fill="#1e293b" font-size="24" font-family="Arial, sans-serif" font-weight="700">Which tab should I use?</text>
+  <g font-family="Arial, sans-serif">
+    <rect x="122" y="224" width="220" height="116" rx="18" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="150" y="266" fill="#1d4ed8" font-size="22" font-weight="700">Opening Stock</text>
+    <text x="150" y="304" fill="#475569" font-size="18">Start balance</text>
+    <text x="150" y="328" fill="#64748b" font-size="16">Use once per FY start</text>
+    <rect x="366" y="224" width="220" height="116" rx="18" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <text x="394" y="266" fill="#047857" font-size="22" font-weight="700">Stock Count</text>
+    <text x="394" y="304" fill="#475569" font-size="18">Physical variance</text>
+    <text x="394" y="328" fill="#64748b" font-size="16">Open FY only</text>
+    <rect x="610" y="224" width="220" height="116" rx="18" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="638" y="266" fill="#334155" font-size="22" font-weight="700">Stock Card</text>
+    <text x="638" y="304" fill="#475569" font-size="18">Running ledger</text>
+    <text x="638" y="328" fill="#64748b" font-size="16">Qty, WAC, value</text>
+    <rect x="854" y="224" width="220" height="116" rx="18" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="882" y="266" fill="#c2410c" font-size="22" font-weight="700">Year Close</text>
+    <text x="882" y="304" fill="#475569" font-size="18">Close FY</text>
+    <text x="882" y="328" fill="#64748b" font-size="16">Create next opening</text>
+    <rect x="1098" y="224" width="220" height="116" rx="18" fill="#fff1f2" stroke="#fecdd3"/>
+    <text x="1126" y="266" fill="#be123c" font-size="22" font-weight="700">FY Correction</text>
+    <text x="1126" y="304" fill="#475569" font-size="18">Closed FY fix</text>
+    <text x="1126" y="328" fill="#64748b" font-size="16">Updates both years</text>
+  </g>
+  <rect x="122" y="388" width="736" height="322" rx="20" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="158" y="434" fill="#0f172a" font-size="24" font-family="Arial, sans-serif" font-weight="700">Preview before posting</text>
+  <g fill="#2563eb">
+    <rect x="158" y="492" width="48" height="136" rx="10"/>
+    <rect x="226" y="462" width="48" height="166" rx="10"/>
+    <rect x="294" y="530" width="48" height="98" rx="10"/>
+    <rect x="362" y="482" width="48" height="146" rx="10"/>
+    <rect x="430" y="512" width="48" height="116" rx="10"/>
+  </g>
+  <g fill="#10b981">
+    <rect x="532" y="476" width="48" height="152" rx="10"/>
+    <rect x="600" y="502" width="48" height="126" rx="10"/>
+    <rect x="668" y="448" width="48" height="180" rx="10"/>
+    <rect x="736" y="486" width="48" height="142" rx="10"/>
+  </g>
+  <text x="158" y="670" fill="#475569" font-size="18" font-family="Arial, sans-serif">Charts show qty delta, value impact, row count, and warnings before stock moves.</text>
+  <rect x="890" y="388" width="428" height="322" rx="20" fill="#0f172a"/>
+  <text x="926" y="434" fill="#ffffff" font-size="24" font-family="Arial, sans-serif" font-weight="700">Approval guardrails</text>
+  <g font-family="Arial, sans-serif" font-size="18">
+    <rect x="926" y="470" width="342" height="46" rx="12" fill="#1e293b"/>
+    <text x="948" y="500" fill="#bfdbfe">Maker submits sheet</text>
+    <rect x="926" y="536" width="342" height="46" rx="12" fill="#1e293b"/>
+    <text x="948" y="566" fill="#bfdbfe">Checker reviews preview</text>
+    <rect x="926" y="602" width="342" height="46" rx="12" fill="#1e293b"/>
+    <text x="948" y="632" fill="#bfdbfe">Post writes Stock Card and audit</text>
+  </g>
+  <text x="122" y="766" fill="#334155" font-size="20" font-family="Arial, sans-serif" font-weight="700">Simple rule: choose tab, validate rows, preview impact, approve, post, then verify Stock Card.</text>
+</svg>
