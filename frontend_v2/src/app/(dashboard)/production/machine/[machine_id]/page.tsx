@@ -103,6 +103,12 @@ function kg(value: unknown, digits = 3) {
     return `${toNumber(value, 0).toFixed(digits)} kg`;
 }
 
+function qtyLabel(value: unknown, uom = 'KG', digits = 3) {
+    const unit = String(uom || 'KG').toUpperCase();
+    if (unit === 'KG') return kg(value, digits);
+    return `${toNumber(value, 0).toFixed(unit === 'PCS' ? 0 : digits)} ${unit.toLowerCase()}`;
+}
+
 function formatShortDateTime(value?: string | null) {
     if (!value) return '—';
     const date = new Date(value);
@@ -414,6 +420,9 @@ export default function MachineExecutionPage() {
     const progressPct = targetKg > 0 ? Math.min(100, Math.max(0, (producedKg / targetKg) * 100)) : 0;
     const unitWeightG = toNumber(context?.execution_profile?.unit_weight_g ?? context?.job?.unit_weight_g ?? selectedJob?.unit_weight_g, 0);
     const stepToleranceKg = Math.max(0, toNumber(stepExecution?.tolerance_kg, 0.25));
+    const primaryUom = String(stepExecution?.primary_uom || context?.execution_profile?.primary_unit || 'KG').toUpperCase();
+    const remainingPrimary = Math.max(0, toNumber(stepExecution?.remaining_primary ?? context?.execution_profile?.step_remaining_primary ?? remainingKg, remainingKg));
+    const stepTolerancePrimary = Math.max(0, toNumber(stepExecution?.tolerance_primary ?? context?.execution_profile?.tolerance_primary ?? stepToleranceKg, stepToleranceKg));
 
     const reservedRolls = useMemo(
         () =>
@@ -469,13 +478,21 @@ export default function MachineExecutionPage() {
     const maxOutputWithoutScrapKg = currentInputForm === 'ROLL'
         ? Math.max(0, Math.min(contextMaxOutputKg ?? remainingKg, reservedInputTotalKg || (contextMaxOutputKg ?? remainingKg)))
         : Math.max(0, contextMaxOutputKg ?? remainingKg);
-    const wasteKgValue = useMemo(() => {
-        const raw = toNumber(scrapInput, 0) + toNumber(trimInput, 0);
+    const trimKgValue = useMemo(() => {
+        const raw = toNumber(trimInput, 0);
         if (scrapEntryMode === 'PCS') {
             return unitWeightG > 0 ? (Math.max(0, raw) * unitWeightG) / 1000 : 0;
         }
         return Math.max(0, raw);
-    }, [scrapInput, scrapEntryMode, trimInput, unitWeightG]);
+    }, [scrapEntryMode, trimInput, unitWeightG]);
+    const processScrapKgValue = useMemo(() => {
+        const raw = toNumber(scrapInput, 0);
+        if (scrapEntryMode === 'PCS') {
+            return unitWeightG > 0 ? (Math.max(0, raw) * unitWeightG) / 1000 : 0;
+        }
+        return Math.max(0, raw);
+    }, [scrapInput, scrapEntryMode, unitWeightG]);
+    const wasteKgValue = trimKgValue + processScrapKgValue;
     const maxOutputWithScrapKg = currentInputForm === 'ROLL'
         ? Math.max(0, Math.min(maxOutputWithoutScrapKg, Math.max(0, reservedInputTotalKg - wasteKgValue)))
         : maxOutputWithoutScrapKg;
@@ -529,7 +546,7 @@ export default function MachineExecutionPage() {
     const canStart = Boolean(selectedJob && !isExecuting && !['COMPLETED', 'CANCELLED'].includes(jobState) && allocationReady);
     const canStop = Boolean(selectedJob && isExecuting);
     const canLogOutput = Boolean(selectedJob && isExecuting && allocationReady && !exceedsOutputCap);
-    const needsForceComplete = remainingKg > stepToleranceKg;
+    const needsForceComplete = remainingPrimary > stepTolerancePrimary;
     const forceReasonValid = !needsForceComplete || forceReason.trim().length >= 5;
     const canComplete = Boolean(selectedJob && ['EXECUTING', 'PAUSED'].includes(jobState) && forceReasonValid);
     const operatorNextStep = !selectedJob
@@ -714,10 +731,17 @@ export default function MachineExecutionPage() {
                 output_length_m?: number;
                 output_pcs?: number;
                 scrap_qty?: number;
+                trim_qty?: number;
+                process_scrap_qty?: number;
                 roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
                 split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
                 remainder_location_id?: string;
-            } = { actual_qty: 0, scrap_qty: wasteKgValue };
+            } = {
+                actual_qty: 0,
+                scrap_qty: wasteKgValue,
+                trim_qty: trimKgValue,
+                process_scrap_qty: processScrapKgValue,
+            };
 
             if (remainderLocationId && remainderLocationId !== DEFAULT_REMAINDER) payload.remainder_location_id = remainderLocationId;
 
@@ -1138,7 +1162,7 @@ export default function MachineExecutionPage() {
                                         <div className="mb-4 grid gap-3 sm:grid-cols-3">
                                             <MetricTile label="Output handling" value={behaviorLabel(behavior)} tone="blue" />
                                             <MetricTile label="Max this log" value={kg(maxOutputWithScrapKg)} tone="slate" />
-                                            <MetricTile label="Close tolerance" value={kg(stepToleranceKg)} tone="amber" />
+                                            <MetricTile label="Close tolerance" value={qtyLabel(stepTolerancePrimary, primaryUom)} tone="amber" />
                                         </div>
 
                                         <ProcessLogForm

@@ -17,7 +17,10 @@ from apps.production.models import (
     ScrapLog,
 )
 from apps.production.views_machine import (
+    machine_complete_job,
     machine_job_events,
+    machine_queue,
+    machine_start_job,
     machine_log_consumption,
     machine_log_downtime,
     machine_log_output,
@@ -77,6 +80,11 @@ class MachineTerminalEndpointTests(TestCase):
         request = self.factory.get(f"/{query}")
         force_authenticate(request, user=self.user)
         return view(request, self.machine.id, self.job.id)
+
+    def _get_machine(self, view, query=""):
+        request = self.factory.get(f"/{query}")
+        force_authenticate(request, user=self.user)
+        return view(request, self.machine.id)
 
     def _post_for_job(self, view, job, payload):
         request = self.factory.post("/", payload, format="json")
@@ -478,3 +486,109 @@ class MachineTerminalEndpointTests(TestCase):
         self.assertEqual(consumption.consumed_kg, Decimal("2.250"))
         self.assertEqual(consumption.scrap_kg, Decimal("0.250"))
         self.assertEqual(consumption.output_kg, Decimal("2.000"))
+
+    def test_machine_complete_uses_fifteen_percent_close_tolerance(self):
+        film = self._make_film("MT-FILM-TOL")
+        process = Process.objects.create(
+            code="MT_TOL_CREATE",
+            name="Tolerance Create",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        job = self._make_job("TOLERANCE", process=process, material=film, quantity="100.0000")
+
+        response = self._post_for_job(
+            machine_log_output,
+            job,
+            {"actual_qty": "86.000", "output_width_mm": "500"},
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        response = self._post_for_job(machine_complete_job, job, {})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["completion_mode"], "NORMAL")
+        job.refresh_from_db()
+        self.assertEqual(job.job_state, "COMPLETED")
+        self.assertFalse(job.closed_with_variance)
+
+    def test_machine_output_cap_allows_only_fifteen_percent_over_target(self):
+        film = self._make_film("MT-FILM-OVER")
+        process = Process.objects.create(
+            code="MT_OVER_CREATE",
+            name="Overage Create",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        job = self._make_job("OVERAGE", process=process, material=film, quantity="10.0000")
+
+        response = self._post_for_job(
+            machine_log_output,
+            job,
+            {"actual_qty": "11.500", "output_width_mm": "500"},
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(JobExecutionLog.objects.get(production_job=job).quantity, Decimal("11.5000"))
+
+        blocked = self._make_job("OVERAGE-BLOCK", process=process, material=film, quantity="10.0000")
+        response = self._post_for_job(
+            machine_log_output,
+            blocked,
+            {"actual_qty": "11.600", "output_width_mm": "500"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("exceeds max allowed", response.data["error"]["message"])
+
+    def test_machine_output_keeps_trim_and_scrap_as_separate_scrap_logs(self):
+        film = self._make_film("MT-FILM-WASTE")
+        process = Process.objects.create(
+            code="MT_WASTE_CREATE",
+            name="Waste Create",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        job = self._make_job("WASTE", process=process, material=film, quantity="10.0000")
+
+        response = self._post_for_job(
+            machine_log_output,
+            job,
+            {
+                "actual_qty": "5.000",
+                "output_width_mm": "500",
+                "trim_qty": "0.300",
+                "process_scrap_qty": "0.200",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        scraps = list(ScrapLog.objects.filter(production_job=job).order_by("reason"))
+        self.assertEqual(len(scraps), 2)
+        self.assertEqual([(row.reason, row.quantity) for row in scraps], [("DEFECT", Decimal("0.2000")), ("TRIM", Decimal("0.3000"))])
+
+    def test_machine_can_start_multiple_jobs_on_same_high_capacity_machine(self):
+        film = self._make_film("MT-FILM-PARALLEL")
+        process = Process.objects.create(
+            code="MT_PAR_CREATE",
+            name="Parallel Create",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        first = self._make_job("PAR-1", process=process, material=film, quantity="5.0000")
+        second = self._make_job("PAR-2", process=process, material=film, quantity="7.0000")
+        for job in (first, second):
+            job.job_state = "RELEASED"
+            job.status = "ASSIGNED"
+            job.save(update_fields=["job_state", "status", "updated_at"])
+
+        first_response = self._post_for_job(machine_start_job, first, {})
+        self.assertEqual(first_response.status_code, 200, first_response.data)
+        second_response = self._post_for_job(machine_start_job, second, {})
+        self.assertEqual(second_response.status_code, 200, second_response.data)
+
+        response = self._get_machine(machine_queue)
+        self.assertEqual(response.status_code, 200, response.data)
+        executing_ids = {str(row["id"]) for row in response.data if row["job_state"] == "EXECUTING"}
+        self.assertIn(str(first.id), executing_ids)
+        self.assertIn(str(second.id), executing_ids)

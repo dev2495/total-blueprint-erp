@@ -30,6 +30,8 @@ class ExecutionService:
     Phase 64B: core Manufacturing Execution System (MES) logic.
     Handles BOM explosion, Rigorous Inventory Reservation, and Context Loading.
     """
+    MACHINE_CLOSE_TOLERANCE_RATIO = Decimal("0.15")
+    MACHINE_CLOSE_TOLERANCE_MIN_KG = Decimal("0.25")
 
     @classmethod
     def _execution_model_version(cls, job):
@@ -655,19 +657,22 @@ class ExecutionService:
         """
         Resolve physically allowed output cap for current log event.
         Rules:
-        - Never exceed current step remaining (when available > 0).
+        - Never exceed current step target plus the machine close tolerance.
         - For roll-input steps, never exceed reserved input roll weight minus scrap.
         """
         input_form = str(getattr(process, "input_form", "") or "").upper()
         step_profile = step_profile or {}
         step_remaining_kg = cls._safe_decimal(step_profile.get("step_remaining_kg"))
         step_target_kg = cls._safe_decimal(step_profile.get("step_target_total_kg"))
+        step_produced_kg = cls._safe_decimal(step_profile.get("step_produced_kg"))
+        tolerance_kg = cls._safe_decimal(step_profile.get("tolerance_kg"))
         if step_remaining_kg < 0:
             step_remaining_kg = Decimal("0")
-        # If step target is known, keep hard cap active even at exactly 0 remaining.
-        # Without this, cap source can degrade to INPUT_ONLY and allow over-output.
         if step_target_kg > 0:
-            step_cap_kg = step_remaining_kg
+            allowed_total_kg = step_target_kg + max(tolerance_kg, Decimal("0"))
+            step_cap_kg = allowed_total_kg - max(step_produced_kg, Decimal("0"))
+            if step_cap_kg < 0:
+                step_cap_kg = Decimal("0")
         else:
             step_cap_kg = step_remaining_kg if step_remaining_kg > 0 else None
 
@@ -708,6 +713,13 @@ class ExecutionService:
             "input_cap_kg": input_cap_kg,
             "cap_source": "UNBOUNDED",
         }
+
+    @classmethod
+    def _machine_close_tolerance_kg(cls, step_target_total_kg):
+        target = cls._safe_decimal(step_target_total_kg)
+        if target <= 0:
+            return cls.MACHINE_CLOSE_TOLERANCE_MIN_KG
+        return max(cls.MACHINE_CLOSE_TOLERANCE_MIN_KG, target * cls.MACHINE_CLOSE_TOLERANCE_RATIO)
 
     @classmethod
     def _resolve_roll_density(cls, roll):
@@ -1390,7 +1402,7 @@ class ExecutionService:
         remaining_kg = step_target_total_kg - produced_kg
         if remaining_kg < 0:
             remaining_kg = Decimal("0")
-        tolerance_kg = max(Decimal("0.25"), (step_target_total_kg * Decimal("0.01")))
+        tolerance_kg = cls._machine_close_tolerance_kg(step_target_total_kg)
 
         supports_secondary_pcs = (
             not is_roll_mass_job
@@ -1648,7 +1660,7 @@ class ExecutionService:
         if remaining_kg < 0:
             remaining_kg = Decimal("0")
 
-        tolerance_kg = max(Decimal("0.25"), (step_target_total_kg * Decimal("0.01")))
+        tolerance_kg = cls._machine_close_tolerance_kg(step_target_total_kg)
 
         supports_secondary_pcs = (
             str(getattr(process, "output_form", "") or "").upper() == "BULK"
@@ -6846,10 +6858,18 @@ class ExecutionService:
         # Operator inputs (behavior-specific)
         output_width_mm = kwargs.get("output_width_mm")
         output_thickness_micron_input = kwargs.get("output_thickness_micron")
-        scrap_qty = Decimal(str(kwargs.get("scrap_qty") or 0))
+        raw_trim_qty = kwargs.get("trim_qty")
+        raw_process_scrap_qty = kwargs.get("process_scrap_qty")
+        split_waste_supplied = raw_trim_qty not in (None, "") or raw_process_scrap_qty not in (None, "")
+        trim_qty = Decimal(str(raw_trim_qty or 0))
+        process_scrap_qty = Decimal(str(raw_process_scrap_qty or 0))
+        legacy_scrap_qty = Decimal(str(kwargs.get("scrap_qty") or 0))
+        scrap_qty = (trim_qty + process_scrap_qty) if split_waste_supplied else legacy_scrap_qty
         split_outputs = kwargs.get("split_outputs") or []
         remainder_location_id = kwargs.get("remainder_location_id")
-        if scrap_qty < 0:
+        if trim_qty < 0:
+            raise ValueError("Trim cannot be negative.")
+        if process_scrap_qty < 0 or legacy_scrap_qty < 0 or scrap_qty < 0:
             raise ValueError("Scrap cannot be negative.")
 
         # Machine payload quantity is KG-primary by default.
@@ -8100,8 +8120,31 @@ class ExecutionService:
                         },
                     )
 
-            # 4. Scrap log (operator input)
-            if scrap_qty and scrap_qty > 0:
+            # 4. Waste log (operator input). New machine terminal clients send
+            # trim and process scrap separately; legacy clients still send only
+            # scrap_qty and retain the old aggregate log shape.
+            if split_waste_supplied:
+                if trim_qty and trim_qty > 0:
+                    from apps.production.models import ScrapLog
+                    ScrapLog.objects.create(
+                        production_job=job,
+                        quantity=trim_qty,
+                        uom='KG',
+                        reason='TRIM',
+                        notes='Operator trim entry',
+                        logged_by=user
+                    )
+                if process_scrap_qty and process_scrap_qty > 0:
+                    from apps.production.models import ScrapLog
+                    ScrapLog.objects.create(
+                        production_job=job,
+                        quantity=process_scrap_qty,
+                        uom='KG',
+                        reason='DEFECT',
+                        notes='Operator scrap entry',
+                        logged_by=user
+                    )
+            elif scrap_qty and scrap_qty > 0:
                 from apps.production.models import ScrapLog
                 ScrapLog.objects.create(
                     production_job=job,

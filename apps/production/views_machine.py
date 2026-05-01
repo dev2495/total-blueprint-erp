@@ -331,6 +331,8 @@ def machine_log_output(request, machine_id, job_id):
     try:
         payload = {
             "scrap_qty": request.data.get('scrap_qty'),
+            "trim_qty": request.data.get('trim_qty'),
+            "process_scrap_qty": request.data.get('process_scrap_qty'),
             "output_width_mm": request.data.get('output_width_mm'),
             "output_length_m": request.data.get('output_length_m'),
             "output_pcs": request.data.get('output_pcs'),
