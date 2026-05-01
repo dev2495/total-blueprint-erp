@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -1099,6 +1101,31 @@ class PlannerSkuVariantViewSet(viewsets.ModelViewSet):
     serializer_class = PlannerSkuVariantSerializer
     search_fields = ["code", "name", "sku__code", "sku__name"]
     filterset_fields = ["active", "sku", "launch_kind", "template", "default_plant"]
+    versioned_edit_fields = {
+        "sku",
+        "code",
+        "name",
+        "launch_kind",
+        "template",
+        "default_plant",
+        "default_qty",
+        "quantity_uom",
+        "stock_purpose",
+        "stock_strategy",
+        "planner_stock_class",
+        "start_step_index",
+        "stop_step_index",
+        "geometry_snapshot",
+        "layer_snapshot",
+        "printing_snapshot",
+        "addons_snapshot",
+        "packaging_snapshot",
+        "packaging_material",
+        "pod_sku_variant",
+        "planner_origin_meta",
+        "spec_signature",
+        "invariant_signature",
+    }
 
     def get_queryset(self):
         queryset = PlannerSkuVariant.objects.select_related(
@@ -1121,6 +1148,97 @@ class PlannerSkuVariantViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @staticmethod
+    def _version_root(code: str) -> str:
+        root = re.sub(r"[-_\s]*V\d+$", "", str(code or "").strip(), flags=re.IGNORECASE).strip("-_ ")
+        return root or str(code or "PRESET").strip() or "PRESET"
+
+    def _next_version_code(self, instance: PlannerSkuVariant, requested_code: str | None = None) -> str:
+        requested = str(requested_code or "").strip().upper()
+        if requested and requested != str(instance.code or "").upper():
+            conflict = PlannerSkuVariant.objects.filter(code=requested).exclude(pk=instance.pk).exists()
+            if not conflict:
+                return requested[:64]
+
+        root = self._version_root(instance.code).upper()
+        for version in range(2, 1000):
+            suffix = f"-V{version}"
+            candidate = f"{root[:64 - len(suffix)]}{suffix}"
+            if not PlannerSkuVariant.objects.filter(code=candidate).exists():
+                return candidate
+        raise ValueError("Unable to allocate the next planner variant version code.")
+
+    @staticmethod
+    def _payload_bool(value, default=True):
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+    def _versioned_update(self, request, partial=False):
+        instance = self.get_object()
+        changed_keys = set(request.data.keys())
+        if changed_keys and changed_keys <= {"active"}:
+            return super().update(request, partial=partial)
+
+        incoming = request.data.copy()
+        with transaction.atomic():
+            instance.active = False
+            instance.save(update_fields=["active", "updated_at"])
+
+            payload = {
+                "sku": str(instance.sku_id),
+                "code": self._next_version_code(instance, incoming.get("code")),
+                "name": instance.name,
+                "active": True,
+                "launch_kind": instance.launch_kind,
+                "template": str(instance.template_id) if instance.template_id else None,
+                "default_plant": str(instance.default_plant_id) if instance.default_plant_id else None,
+                "default_qty": instance.default_qty,
+                "quantity_uom": instance.quantity_uom,
+                "stock_purpose": instance.stock_purpose,
+                "stock_strategy": instance.stock_strategy,
+                "planner_stock_class": instance.planner_stock_class,
+                "start_step_index": instance.start_step_index,
+                "stop_step_index": instance.stop_step_index,
+                "geometry_snapshot": instance.geometry_snapshot,
+                "layer_snapshot": instance.layer_snapshot,
+                "printing_snapshot": instance.printing_snapshot,
+                "addons_snapshot": instance.addons_snapshot,
+                "packaging_snapshot": instance.packaging_snapshot,
+                "packaging_material": str(instance.packaging_material_id) if instance.packaging_material_id else None,
+                "pod_sku_variant": str(instance.pod_sku_variant_id) if instance.pod_sku_variant_id else None,
+                "planner_origin_meta": {
+                    **(instance.planner_origin_meta or {}),
+                    "supersedes_variant_id": str(instance.id),
+                    "supersedes_variant_code": str(instance.code or ""),
+                },
+                "spec_signature": instance.spec_signature,
+                "invariant_signature": instance.invariant_signature,
+            }
+            for field in self.versioned_edit_fields:
+                if field in incoming and field != "code":
+                    payload[field] = incoming.get(field)
+            payload["active"] = self._payload_bool(incoming.get("active"), True)
+            payload["planner_origin_meta"] = {
+                **(payload.get("planner_origin_meta") or {}),
+                "supersedes_variant_id": str(instance.id),
+                "supersedes_variant_code": str(instance.code or ""),
+            }
+
+            serializer = self.get_serializer(data=payload)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        return self._versioned_update(request, partial=kwargs.pop("partial", False))
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._versioned_update(request, partial=True)
 
 
 class ExecutionViewSet(viewsets.ViewSet):

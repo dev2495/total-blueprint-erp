@@ -32,6 +32,7 @@ import {
     SALES_SUPPORTED_FG_TYPES,
     salesMaterialFilterLabel,
     salesSortChipOptions,
+    salesSpecMatchesMaterialFilter,
     salesUniqueText,
     salesVariantSpecSource,
     specMatchesFilters,
@@ -43,6 +44,7 @@ import {
     buildPreviewPayload,
     createEmptyOrderItemDraft,
     formatMoney,
+    getOrderItemContractIssues,
     orderItemFromVariant,
     type OrderItemDraft,
 } from "@/components/sales/shared/order-draft"
@@ -284,7 +286,7 @@ export default function SalesSkuCatalogPage() {
             salesUniqueText(labels).map((material) => ({
                 value: material,
                 label: material,
-                count: skuVariantSpecs.filter(({ spec }) => spec.searchText.toLowerCase().includes(material.toLowerCase())).length,
+                count: skuVariantSpecs.filter(({ spec }) => salesSpecMatchesMaterialFilter(spec, material)).length,
                 tone: "material" as const,
             })),
             SALES_MATERIAL_PRIORITY
@@ -346,18 +348,65 @@ export default function SalesSkuCatalogPage() {
         const source = selectedSku?.variants || []
         return source.filter((variant) => {
             const spec = normalizeProductSpec(salesVariantSpecSource(selectedSku, variant))
+            const query = deferredSearch.trim().toLowerCase()
+            if (query) {
+                const haystack = [selectedSku?.code, selectedSku?.name, variant.code, variant.name, spec.searchText]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase()
+                if (!haystack.includes(query)) return false
+            }
             return specMatchesFilters(spec, { fgTypeFilter, sizeFilter, heightFilter, variantFilter, gradeFilter, thicknessFilter })
         })
-    }, [fgTypeFilter, gradeFilter, heightFilter, selectedSku, sizeFilter, thicknessFilter, variantFilter])
+    }, [deferredSearch, fgTypeFilter, gradeFilter, heightFilter, selectedSku, sizeFilter, thicknessFilter, variantFilter])
 
     const selectedVariant = useMemo(
         () => selectedSkuVariants.find((variant) => variant.id === selectedVariantId) || null,
         [selectedSkuVariants, selectedVariantId]
     )
-    const dialogPlannerMatch = useMemo(() => {
-        if (!variantDialog.variantId) return null
-        return selectedSku?.variants?.find((variant) => variant.id === variantDialog.variantId) || null
-    }, [selectedSku, variantDialog.variantId])
+    const dialogSku = useMemo(
+        () => salesSkus.find((sku) => sku.id === variantDialog.skuId) || selectedSku || null,
+        [salesSkus, selectedSku, variantDialog.skuId]
+    )
+    const dialogTemplate = useMemo(
+        () => templates.find((template: any) => String(template.id) === String(variantDialog.item.template_id)) || null,
+        [templates, variantDialog.item.template_id]
+    )
+    const dialogTemplateMeta = dialogTemplate as (Record<string, unknown> | null)
+    const dialogTemplateStyle = String(
+        dialogTemplate?.pouch_style ||
+        dialogTemplateMeta?.product_style ||
+        dialogTemplateMeta?.style ||
+        dialogTemplate?.fg_type ||
+        variantDialog.item.geometry.pouch_style ||
+        variantDialog.item.finished_good_type ||
+        ""
+    ).replaceAll("_", " ")
+    const dialogLayerSummary = variantDialog.item.film_layers
+        .map((layer, index) => {
+            const family = families.find((row: any) => String(row.id) === String(layer.family_id))
+            const variant = variants.find((row: any) => String(row.id) === String(layer.variant_id))
+            return {
+                label: `L${index + 1}`,
+                name: variant?.name || family?.name || "Choose film",
+                thick: layer.thickness_micron ? `${layer.thickness_micron}u` : "Thick pending",
+                width: layer.roll_width_mm ? `${layer.roll_width_mm} mm` : "Width pending",
+            }
+        })
+    const dialogPreview = variantDialog.item.savedPreview
+    const dialogPreviewGeometry =
+        dialogPreview?.physics?.geometry_snapshot ||
+        dialogPreview?.geometry_snapshot ||
+        null
+    const dialogBomComponents = dialogPreview?.bom_preview?.components || []
+    const dialogPreviewAddonKg = (dialogPreview?.bom?.addons || []).reduce(
+        (total: number, row: { weight_kg?: number | string | null }) => total + asNumber(row.weight_kg, 0),
+        0
+    )
+    const dialogPreviewPodKg = (dialogPreview?.bom?.pod || []).reduce(
+        (total: number, row: { weight_kg?: number | string | null }) => total + asNumber(row.weight_kg, 0),
+        0
+    )
 
     const selectedVariantSpec = useMemo(
         () => selectedVariant ? normalizeProductSpec(salesVariantSpecSource(selectedSku, selectedVariant)) : null,
@@ -407,6 +456,21 @@ export default function SalesSkuCatalogPage() {
     useEffect(() => {
         if (!variantDialog.open || !variantDialog.item.template_id) {
             setVariantPreviewError("")
+            setVariantPreviewLoading(false)
+            return
+        }
+        const activeTemplate = templates.find((template: any) => String(template.id) === String(variantDialog.item.template_id))
+        const contractIssues = getOrderItemContractIssues(variantDialog.item, addonsMaster, activeTemplate?.pouch_style || "")
+        if (contractIssues.length) {
+            setVariantPreviewError("")
+            setVariantPreviewLoading(false)
+            setVariantDialog((current) => {
+                if (!current.item.savedPreview) return current
+                return {
+                    ...current,
+                    item: { ...current.item, savedPreview: null },
+                }
+            })
             return
         }
         const handle = window.setTimeout(async () => {
@@ -425,7 +489,7 @@ export default function SalesSkuCatalogPage() {
             }
         }, 350)
         return () => window.clearTimeout(handle)
-    }, [addonsMaster, families, variantDialog.item.template_id, variantDialog.open, variantPreviewNonce, variantPreviewSignature, variants])
+    }, [addonsMaster, families, templates, variantDialog.item.template_id, variantDialog.open, variantPreviewNonce, variantPreviewSignature, variants])
 
     const skuMutation = useMutation({
         mutationFn: async () => {
@@ -502,8 +566,10 @@ export default function SalesSkuCatalogPage() {
             queryClient.invalidateQueries({ queryKey: ["sales-skus"] })
             queryClient.invalidateQueries({ queryKey: ["sales-sku-variants"] })
             toast({
-                title: variantDialog.mode === "edit" ? "Variant updated" : "Variant saved",
-                description: "The fast-entry orderable option is ready for sales use.",
+                title: variantDialog.mode === "edit" ? "New variant version saved" : "Variant saved",
+                description: variantDialog.mode === "edit"
+                    ? "The previous version was disabled and kept for historical orders."
+                    : "The fast-entry orderable option is ready for sales use.",
             })
             setVariantDialog((current) => ({ ...current, open: false }))
         },
@@ -1092,117 +1158,186 @@ export default function SalesSkuCatalogPage() {
             </Dialog>
 
             <Dialog open={variantDialog.open} onOpenChange={(open) => setVariantDialog((current) => ({ ...current, open }))}>
-                <DialogContent data-testid="sku-variant-builder" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-y-auto rounded-none p-0 sm:h-auto sm:max-h-[96vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(90rem,calc(100vw-1rem))] sm:rounded-[2rem]">
-                    <DialogHeader>
-                        <DialogTitle className="px-6 pt-6">
+                <DialogContent data-testid="sku-variant-builder" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_58%,#eef6ff_100%)] p-0 sm:h-auto sm:max-h-[92vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(88rem,calc(100vw-1rem))] sm:rounded-[1.25rem]">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>
                             {variantDialog.mode === "create" ? "Create Variant" : variantDialog.mode === "clone" ? "Clone Variant" : "Edit Variant"}
                         </DialogTitle>
                         <DialogDescription>
                             Sales variants store the exact technical snapshot used by fast-entry orders. Route logic stays on the template; sales variants own product truth only.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-5 px-4 pb-4 sm:px-6 sm:pb-6">
-                        <div className="rounded-[1.75rem] border border-slate-200/80 bg-white/92 p-4 shadow-[0_20px_50px_-44px_rgba(15,23,42,0.42)] sm:p-5">
-                            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                                <div className="space-y-2">
-                                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                    <div className="max-h-[calc(100dvh-6.75rem)] space-y-2.5 overflow-y-auto px-2.5 pb-3 pt-2.5 [scrollbar-gutter:stable] sm:max-h-[calc(92vh-6.75rem)] sm:px-3 sm:pt-3">
+                        <div className="overflow-hidden rounded-[1.125rem] border border-blue-100/90 bg-white shadow-[0_18px_48px_-42px_rgba(15,23,42,0.42)]">
+                            <div className="grid gap-0 xl:grid-cols-[minmax(0,1.28fr)_minmax(20rem,0.72fr)]">
+                                <div className="space-y-2.5 p-3">
+                                    <div className="inline-flex rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700">
                                         {variantDialog.mode === "create" ? "New variant" : variantDialog.mode === "clone" ? "Clone variant" : "Edit variant"}
                                     </div>
                                     <div>
-                                        <div className="text-2xl font-black tracking-tight text-slate-900">
+                                        <div className="text-xl font-black tracking-tight text-slate-950">
                                             {variantDialog.code || "Variant code"} • {variantDialog.name || "Variant name"}
                                         </div>
-                                        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                                            Build a clean sales preset. Flow is geometry, film layers, optional printing, independent lamination chemistry, add-ons, then packaging and POD.
+                                        <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                                            Build one clean commercial SKU preset: final size, film layers, optional print, independent lamination chemistry, add-ons, packaging, and POD.
                                         </p>
                                     </div>
-                                </div>
-                                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 xl:min-w-[18rem]">
-                                    <div>
-                                        <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Active</div>
-                                        <div className="mt-1 text-xs text-slate-400">Inactive variants stay in history only.</div>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                        <div className="space-y-1.5">
+                                            <Label>Variant Code</Label>
+                                            <Input value={variantDialog.code} onChange={(event) => setVariantDialog((current) => ({ ...current, code: event.target.value }))} />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label>Variant Name</Label>
+                                            <Input value={variantDialog.name} onChange={(event) => setVariantDialog((current) => ({ ...current, name: event.target.value }))} />
+                                        </div>
                                     </div>
-                                    <Switch checked={variantDialog.active} onCheckedChange={(checked) => setVariantDialog((current) => ({ ...current, active: checked }))} />
+                                    <div className="grid gap-2 md:grid-cols-4">
+                                        <div className="min-w-0 rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500">Shared SKU</div>
+                                            <div className="mt-1 truncate text-sm font-black text-slate-950">{dialogSku?.code || "No SKU selected"}</div>
+                                            <div className="mt-1 truncate text-xs text-slate-500">{dialogSku?.name || "Select SKU first"}</div>
+                                        </div>
+                                        <div className="min-w-0 rounded-lg border border-indigo-100 bg-indigo-50/50 px-2.5 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Template</div>
+                                            <div className="mt-1 truncate text-sm font-black text-slate-950" title={dialogTemplate?.name || "Choose template"}>{dialogTemplate?.name || "Choose template"}</div>
+                                            <div className="mt-1 truncate text-xs font-semibold text-slate-500">{dialogTemplate ? "Selected template" : "Select template in product structure"}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-2.5 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Finished Good</div>
+                                            <div className="mt-1 text-base font-black text-slate-950">{variantDialog.item.finished_good_type || "Pending"}</div>
+                                            <div className="mt-1 text-xs font-semibold text-slate-500">
+                                                {variantDialog.item.finished_good_type === "ROLL"
+                                                    ? `${variantDialog.item.roll_form || "FLAT"} roll`
+                                                    : `${variantDialog.item.geometry.base.width_mm} x ${variantDialog.item.geometry.base.height_mm} mm`}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active</div>
+                                                <div className="mt-1 text-xs font-semibold text-slate-500">Shows in fast order entry.</div>
+                                            </div>
+                                            <Switch checked={variantDialog.active} onCheckedChange={(checked) => setVariantDialog((current) => ({ ...current, active: checked }))} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="border-t border-blue-100/80 bg-[linear-gradient(180deg,#f8fbff,#eef6ff)] p-3 xl:border-l xl:border-t-0">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Spec Snapshot</div>
+                                            <div className="mt-1 text-lg font-black text-slate-950">{variantDialog.item.film_layers.length} layer product</div>
+                                        </div>
+                                        <Badge className={cn("border bg-white", dialogTemplate ? "border-emerald-200 text-emerald-700" : "border-amber-200 text-amber-700")}>
+                                            {dialogTemplate ? "Template selected" : "Template pending"}
+                                        </Badge>
+                                    </div>
+                                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                        <Badge variant="outline">{variantDialog.item.finished_good_type || "FG pending"}</Badge>
+                                        <Badge variant="outline">
+                                            {variantDialog.item.finished_good_type === "ROLL"
+                                                ? variantDialog.item.roll_form || "FLAT"
+                                                : `${variantDialog.item.geometry.base.width_mm} x ${variantDialog.item.geometry.base.height_mm} mm`}
+                                        </Badge>
+                                        <Badge variant="outline">
+                                            {variantDialog.item.printing.enabled
+                                                ? `${variantDialog.item.printing.type} F${variantDialog.item.printing.front_colors_count}/B${variantDialog.item.printing.back_colors_count}`
+                                                : "No print"}
+                                        </Badge>
+                                        <Badge variant="outline">{variantDialog.item.addons.length} add-on(s)</Badge>
+                                        {variantDialog.item.packaging_snapshot.primary_inner_pack.enabled ? <Badge variant="outline">Primary pack</Badge> : null}
+                                        {variantDialog.item.packaging_snapshot.pod.enabled ? <Badge variant="outline">POD enabled</Badge> : null}
+                                    </div>
+                                    <div className="mt-2.5 max-h-28 space-y-1.5 overflow-y-auto rounded-xl border border-blue-100 bg-white/75 p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] [scrollbar-gutter:stable]">
+                                        {dialogLayerSummary.map((layer, index) => (
+                                            <div key={`dialog-layer-${variantDialog.variantId || variantDialog.code || "draft"}-${index}-${layer.label}-${layer.name}`} className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg border border-indigo-100 bg-white px-2.5 py-1.5 text-sm">
+                                                <span className="rounded-full bg-blue-600 px-2 py-1 text-center text-[10px] font-black text-white">{layer.label}</span>
+                                                <span className="truncate font-black text-slate-900">{layer.name}</span>
+                                                <span className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">{layer.thick}</span>
+                                                <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700">{layer.width}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-2.5 grid gap-2 xl:grid-cols-[0.95fr_1.05fr]">
+                                        <div className="rounded-xl border border-emerald-100 bg-white/85 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Live preview</div>
+                                                {variantPreviewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" /> : null}
+                                            </div>
+                                            {variantPreviewError ? (
+                                                <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-700">{variantPreviewError}</div>
+                                            ) : dialogPreview ? (
+                                                <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                                                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-600">Unit</div>
+                                                        <div className="mt-0.5 font-black text-slate-950">
+                                                            {variantDialog.item.finished_good_type === "ROLL"
+                                                                ? `${asNumber(dialogPreview.roll_preview?.weight_kg, dialogPreview.total_weight_kg).toFixed(2)} KG`
+                                                                : `${asNumber(dialogPreview.unit_weight_g, 0).toFixed(3)} g`}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-600">Total</div>
+                                                        <div className="mt-0.5 font-black text-slate-950">{asNumber(dialogPreview.total_weight_kg, 0).toFixed(3)} KG</div>
+                                                    </div>
+                                                    {variantDialog.item.finished_good_type === "POUCH" ? (
+                                                        <div className="col-span-2 rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+                                                            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Effective geometry</div>
+                                                            <div className="mt-0.5 font-black text-slate-950">
+                                                                {asNumber(dialogPreviewGeometry?.effective_width_mm, variantDialog.item.geometry.base.width_mm).toFixed(1)} W x {asNumber(dialogPreviewGeometry?.effective_height_mm, variantDialog.item.geometry.base.height_mm).toFixed(1)} H
+                                                            </div>
+                                                            <div className="mt-0.5 text-[11px] font-semibold text-slate-500">Area {asNumber(dialogPreviewGeometry?.area_m2, 0).toFixed(4)} m2</div>
+                                                        </div>
+                                                    ) : null}
+                                                    <div className="rounded-lg border border-orange-100 bg-orange-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-600">Add-ons</div>
+                                                        <div className="mt-0.5 font-black text-slate-950">{dialogPreviewAddonKg.toFixed(4)} KG</div>
+                                                    </div>
+                                                    <div className="rounded-lg border border-fuchsia-100 bg-fuchsia-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-600">POD</div>
+                                                        <div className="mt-0.5 font-black text-slate-950">{dialogPreviewPodKg.toFixed(4)} KG</div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-2 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-4 text-center text-xs font-semibold text-emerald-700">
+                                                    Preview appears once contract checks pass.
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="rounded-xl border border-blue-100 bg-white/85 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Material breakdown</div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        if (!variantDialog.item.template_id) return
+                                                        setVariantPreviewError("")
+                                                        setVariantPreviewNonce((current) => current + 1)
+                                                    }}
+                                                    className="h-7 rounded-full px-2 text-[11px]"
+                                                >
+                                                    Refresh
+                                                </Button>
+                                            </div>
+                                            <div className="mt-2 max-h-20 space-y-1.5 overflow-y-auto pr-1 [scrollbar-gutter:stable]">
+                                                {dialogBomComponents.length ? (
+                                                    dialogBomComponents.map((component, index) => (
+                                                        <div key={`${component.material_name || "material"}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2.5 py-1.5 text-xs">
+                                                            <span className="min-w-0 truncate font-bold text-slate-700">{component.material_name || "Material"}</span>
+                                                            <span className="shrink-0 font-black text-slate-950">{asNumber(component.qty, 0).toLocaleString("en-IN", { maximumFractionDigits: 4 })} {component.uom}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs font-semibold text-slate-500">
+                                                        BOM resolves after preview.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="mt-5">
-                                <div className={styles.metricStrip}>
-                                    <div className={styles.metricCard}>
-                                        <div className={styles.metricLabel}>Shared SKU</div>
-                                        <div className={styles.metricValueSm}>{salesSkus.find((sku) => sku.id === variantDialog.skuId)?.code || "No SKU"}</div>
-                                    </div>
-                                    <div className={styles.metricCard}>
-                                        <div className={styles.metricLabel}>Template</div>
-                                        <div className={styles.metricValueSm}>{templates.find((template: any) => String(template.id) === String(variantDialog.item.template_id))?.name || "Choose template"}</div>
-                                    </div>
-                                    <div className={styles.metricCard}>
-                                        <div className={styles.metricLabel}>Finished good</div>
-                                        <div className={styles.metricValue}>{variantDialog.item.finished_good_type === "ROLL" ? "ROLL" : variantDialog.item.finished_good_type ? "POUCH" : "Pending"}</div>
-                                    </div>
-                                    <div className={styles.metricCard}>
-                                        <div className={styles.metricLabel}>Layers</div>
-                                        <div className={styles.metricValue}>{variantDialog.item.film_layers.length}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                <div className="space-y-2">
-                                    <Label>Variant Code</Label>
-                                    <Input value={variantDialog.code} onChange={(event) => setVariantDialog((current) => ({ ...current, code: event.target.value }))} />
-                                </div>
-                                <div className="space-y-2 xl:col-span-2">
-                                    <Label>Variant Name</Label>
-                                    <Input value={variantDialog.name} onChange={(event) => setVariantDialog((current) => ({ ...current, name: event.target.value }))} />
-                                </div>
-                            </div>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                <Badge variant="outline">{variantDialog.item.finished_good_type || "FG pending"}</Badge>
-                                <Badge variant="outline">
-                                    {variantDialog.item.finished_good_type === "ROLL"
-                                        ? variantDialog.item.roll_form || "FLAT"
-                                        : `${variantDialog.item.geometry.base.width_mm} x ${variantDialog.item.geometry.base.height_mm}`}
-                                </Badge>
-                                <Badge variant="outline">{variantDialog.item.film_layers.length} layer(s)</Badge>
-                                <Badge variant="outline">
-                                    {variantDialog.item.printing.enabled
-                                        ? `${variantDialog.item.printing.type} F${variantDialog.item.printing.front_colors_count}/B${variantDialog.item.printing.back_colors_count}`
-                                        : "No print"}
-                                </Badge>
-                                <Badge variant="outline">{variantDialog.item.addons.length} add-on(s)</Badge>
-                                {variantDialog.item.packaging_snapshot.primary_inner_pack.enabled ? <Badge variant="outline">Primary pack</Badge> : null}
-                                {variantDialog.item.packaging_snapshot.pod.enabled ? <Badge variant="outline">POD enabled</Badge> : null}
-                            </div>
-                        </div>
-
-                        <div className={cn(
-                            "rounded-[1.35rem] border p-4",
-                            dialogPlannerMatch?.derived_from_planner_variant
-                                ? "border-emerald-200 bg-emerald-50/90"
-                                : "border-amber-200 bg-amber-50/90"
-                        )}>
-                            <div className={cn(
-                                "text-[10px] font-black uppercase tracking-[0.22em]",
-                                dialogPlannerMatch?.derived_from_planner_variant ? "text-emerald-700" : "text-amber-800"
-                            )}>
-                                Derived from planner variant
-                            </div>
-                            {dialogPlannerMatch?.derived_from_planner_variant ? (
-                                <>
-                                    <div className="mt-1 text-sm font-bold text-emerald-950">
-                                        Matches PlannerSkuVariant {dialogPlannerMatch.derived_from_planner_variant_code || dialogPlannerMatch.derived_from_planner_variant}
-                                    </div>
-                                    <div className="mt-1 text-xs text-emerald-800/80">
-                                        Production knows the recipe. Match is stored on the sales variant.
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="mt-1 text-sm font-bold text-amber-950">No planner recipe linked yet.</div>
-                                    <div className="mt-1 text-xs text-amber-900/80">
-                                        Save the variant, then match by invariant signature before production relies on it.
-                                    </div>
-                                </>
-                            )}
                         </div>
 
                         <OrderItemTechnicalEditor
@@ -1216,6 +1351,7 @@ export default function SalesSkuCatalogPage() {
                             artworks={artworks}
                             previewLoading={variantPreviewLoading}
                             previewError={variantPreviewError}
+                            hidePreviewSection
                             onPreviewRetry={() => {
                                 if (!variantDialog.item.template_id) return
                                 setVariantPreviewError("")
@@ -1229,13 +1365,13 @@ export default function SalesSkuCatalogPage() {
                             }
                         />
                     </div>
-                    <DialogFooter className="mobile-safe-bottom sticky bottom-0 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur">
+                    <DialogFooter className="mobile-safe-bottom border-t border-slate-100 bg-white/95 px-3 py-2.5 shadow-[0_-18px_42px_-34px_rgba(15,23,42,0.32)] backdrop-blur">
                         <Button variant="outline" onClick={() => setVariantDialog((current) => ({ ...current, open: false }))}>
                             Cancel
                         </Button>
                         <Button data-testid="sku-variant-save" onClick={() => variantMutation.mutate()} disabled={variantMutation.isPending}>
                             {variantMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            Save Variant
+                            {variantDialog.mode === "edit" ? "Save New Version" : "Save Variant"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

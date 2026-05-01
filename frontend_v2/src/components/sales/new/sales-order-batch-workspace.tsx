@@ -51,6 +51,7 @@ import {
     SALES_SUPPORTED_FG_TYPES,
     salesMaterialFilterLabel,
     salesSortChipOptions,
+    salesSpecMatchesMaterialFilter,
     salesUniqueText,
     salesVariantSpecSource,
     specMatchesFilters,
@@ -672,6 +673,14 @@ export default function SalesOrderBatchWorkspace() {
             spec: normalizeProductSpec(salesVariantSpecSource(selectedSku, variant)),
         }))
     }, [selectedSku, selectedSkuVariants])
+    const fgTypeOptions = useMemo<SalesOverflowChipOption[]>(() => (
+        SALES_SUPPORTED_FG_TYPES.map((type) => ({
+            value: type,
+            label: type === "ROLL" ? "Roll" : "Pouch",
+            count: selectedVariantSpecs.filter(({ spec }) => String(spec.size.finishedGoodType || "").toUpperCase() === type).length,
+            tone: type === "ROLL" ? "fgRoll" : "fgPouch",
+        }))
+    ), [selectedVariantSpecs])
     const materialOptions = useMemo<SalesOverflowChipOption[]>(() => {
         const labels = salesUniqueText([
             ...SALES_MATERIAL_PRIORITY,
@@ -683,7 +692,7 @@ export default function SalesOrderBatchWorkspace() {
             salesUniqueText(labels).map((material) => ({
                 value: material,
                 label: material,
-                count: selectedVariantSpecs.filter(({ spec }) => spec.searchText.toLowerCase().includes(material.toLowerCase())).length,
+                count: selectedVariantSpecs.filter(({ spec }) => salesSpecMatchesMaterialFilter(spec, material)).length,
                 tone: "material" as const,
             })),
             SALES_MATERIAL_PRIORITY
@@ -1195,7 +1204,7 @@ export default function SalesOrderBatchWorkspace() {
                                 </Button>
                             </div>
 
-                            <div className="mt-4">
+                            <div className={styles.savedViewsDock}>
                                 <SalesSavedViewsBar
                                     scope="order_create"
                                     currentFilters={currentSavedViewFilters}
@@ -1203,20 +1212,16 @@ export default function SalesOrderBatchWorkspace() {
                                 />
                             </div>
 
-                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(9rem,0.85fr)_minmax(0,1fr)]">
-                                <div className={styles.fieldBlock}>
-                                    <Label className={styles.compactLabel}>Finished good</Label>
-                                    <Select value={fgTypeFilter} onValueChange={setFgTypeFilter} disabled={!customerId}>
-                                        <SelectTrigger className={styles.compactSelect}><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All products</SelectItem>
-                                            {SALES_SUPPORTED_FG_TYPES.map((type) => (
-                                                <SelectItem key={type} value={type}>{type === "ROLL" ? "Roll" : "Pouch"}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-[1.15rem] border border-slate-200 bg-white p-2">
+                            <div className={styles.filterToolbar}>
+                                <div className={styles.filterChipDeck}>
+                                    <SalesOverflowChipGroup
+                                        label="Finished good"
+                                        value={fgTypeFilter}
+                                        onChange={setFgTypeFilter}
+                                        options={fgTypeOptions}
+                                        maxInline={2}
+                                        disabled={!customerId}
+                                    />
                                     <SalesSmartRangeFilter label="Width" value={sizeFilter} onChange={setSizeFilter} placeholder="200 / 1070" suffix="mm" presets={widthPresets} />
                                     <SalesSmartRangeFilter label="Height" value={heightFilter} onChange={setHeightFilter} placeholder="200-320" suffix="mm" presets={heightPresets} />
                                     <SalesSmartRangeFilter label="Thickness" value={thicknessFilter} onChange={setThicknessFilter} placeholder="12 / 47 / 50" suffix="μ" presets={thicknessPresets} />
@@ -1226,7 +1231,7 @@ export default function SalesOrderBatchWorkspace() {
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    className="h-10 rounded-full bg-white text-xs font-black uppercase tracking-[0.12em] xl:col-span-2"
+                                    className={styles.filterResetBtn}
                                     onClick={() => {
                                         setVariantSearch("")
                                         setFgTypeFilter("all")
@@ -1244,15 +1249,15 @@ export default function SalesOrderBatchWorkspace() {
 
                             <div className="mt-4">
                                 {!customerId ? (
-                                    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                    <div className={styles.emptyVariantNotice}>
                                         Select a bill-to customer to load SKU variants.
                                     </div>
                                 ) : !selectedSku ? (
-                                    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                    <div className={styles.emptyVariantNotice}>
                                         Pick an SKU from the dropdown. The matching variants will appear here as cards.
                                     </div>
                                 ) : filteredSelectedVariants.length ? (
-                                    <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                                    <div className={styles.variantCardScroller}>
                                         {filteredSelectedVariants.map((variant) => (
                                             <SalesVariantCard
                                                 key={variant.id}
@@ -1266,7 +1271,7 @@ export default function SalesOrderBatchWorkspace() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                    <div className={styles.emptyVariantNotice}>
                                         No variants match this saved view or filter setup.
                                     </div>
                                 )}
@@ -1283,8 +1288,8 @@ export default function SalesOrderBatchWorkspace() {
                                                 ? selectedSharedVariant.roll_form || "FLAT"
                                                 : `${selectedSharedVariant.geometry_snapshot?.base?.width_mm || selectedSharedVariant.geometry_snapshot?.width_mm || 0} x ${selectedSharedVariant.geometry_snapshot?.base?.height_mm || selectedSharedVariant.geometry_snapshot?.height_mm || 0}`}
                                         </InfoChip>
-                                        {itemLayerLabels(orderItemFromVariant(selectedSku!, selectedSharedVariant), families, variants).map((label) => (
-                                            <InfoChip key={`selected-layer-${label}`} tone="layer">{label}</InfoChip>
+                                        {itemLayerLabels(orderItemFromVariant(selectedSku!, selectedSharedVariant), families, variants).map((label, index) => (
+                                            <InfoChip key={`selected-layer-${selectedSharedVariant.id}-${index}-${label}`} tone="layer">{label}</InfoChip>
                                         ))}
                                         {selectedSharedVariant.printing_snapshot?.enabled ? (
                                             <InfoChip tone="printing">{selectedSharedVariant.printing_snapshot?.type || "PRINT"}</InfoChip>
@@ -1509,8 +1514,8 @@ export default function SalesOrderBatchWorkspace() {
                                         <InfoChip tone="qty">{activeEstimatedPcs !== null ? `${activeEstimatedPcs} pcs` : "— pcs"}</InfoChip>
                                         <InfoChip tone="type">{activeOrder.item.finished_good_type}</InfoChip>
                                         <InfoChip tone="geometry">{itemSpecLabel(activeOrder.item)}</InfoChip>
-                                        {activeLayerLabels.map((label) => (
-                                            <InfoChip key={`active-layer-${label}`} tone="layer">{label}</InfoChip>
+                                        {activeLayerLabels.map((label, index) => (
+                                            <InfoChip key={`active-layer-${activeOrder.localId}-${index}-${label}`} tone="layer">{label}</InfoChip>
                                         ))}
                                         <InfoChip tone="printing">{itemPrintingLabel(activeOrder.item)}</InfoChip>
                                         {activePackagingLabels.map((label) => (
@@ -1604,8 +1609,8 @@ export default function SalesOrderBatchWorkspace() {
                                         <InfoChip tone="sku">{activeOrder.sourceMeta}</InfoChip>
                                         <InfoChip tone="type">{activeOrder.item.finished_good_type}</InfoChip>
                                         <InfoChip tone="geometry">{itemSpecLabel(activeOrder.item)}</InfoChip>
-                                        {activeLayerLabels.map((label) => (
-                                            <InfoChip key={`truth-layer-${label}`} tone="layer">{label}</InfoChip>
+                                        {activeLayerLabels.map((label, index) => (
+                                            <InfoChip key={`truth-layer-${activeOrder.localId}-${index}-${label}`} tone="layer">{label}</InfoChip>
                                         ))}
                                         <InfoChip tone="printing">{itemPrintingLabel(activeOrder.item)}</InfoChip>
                                         {activePackagingLabels.map((label) => (
@@ -1710,6 +1715,133 @@ export default function SalesOrderBatchWorkspace() {
                     </div>
 
                     <aside className={styles.cartRail}>
+                        {activeOrder ? (
+                            <div className={styles.railComposer} data-testid="sales-batch-rail-composer">
+                                <div className={styles.panelTopline}>
+                                    <div>
+                                        <div className={styles.panelLabel}>Editing Line</div>
+                                        <h3 className={styles.railComposerTitle}>{activeOrder.item.line_name || activeOrder.orderName || "Queued line"}</h3>
+                                    </div>
+                                    <span className={cn(styles.stateBadge, activeOrder.submitStatus === "failed" ? styles.errorBadge : activeOrder.submitStatus === "created" ? styles.successBadge : styles.neutralBadge)}>
+                                        {activeOrder.submitStatus}
+                                    </span>
+                                </div>
+
+                                <div className={styles.previewStrip}>
+                                    <InfoChip tone="type">{activeOrder.item.finished_good_type}</InfoChip>
+                                    <InfoChip tone="geometry">{itemSpecLabel(activeOrder.item)}</InfoChip>
+                                    {activeLayerLabels.slice(0, 3).map((label, index) => (
+                                        <InfoChip key={`rail-layer-${activeOrder.localId}-${index}-${label}`} tone="layer">{label}</InfoChip>
+                                    ))}
+                                    <InfoChip tone="printing">{itemPrintingLabel(activeOrder.item)}</InfoChip>
+                                    {activePackagingLabels.slice(0, 2).map((label) => (
+                                        <InfoChip key={`rail-pack-${label}`} tone={label.startsWith("POD ") ? "pod" : "packaging"}>{label}</InfoChip>
+                                    ))}
+                                </div>
+
+                                <div className={styles.railComposerGrid}>
+                                    <div className={styles.fieldBlock}>
+                                        <Label className={styles.compactLabel}>Line label</Label>
+                                        <Input
+                                            className={styles.compactInput}
+                                            value={activeOrder.item.line_name}
+                                            onChange={(event) =>
+                                                updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                    ...order,
+                                                    item: { ...order.item, line_name: event.target.value, savedPreview: null },
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                    <div className={styles.fieldBlock}>
+                                        <Label className={styles.compactLabel}>Delivery</Label>
+                                        <Input
+                                            className={styles.compactInput}
+                                            type="date"
+                                            value={activeOrder.deliveryDate}
+                                            onChange={(event) =>
+                                                updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                    ...order,
+                                                    deliveryDate: event.target.value,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                    <div className={styles.fieldBlock}>
+                                        <Label className={styles.compactLabel}>Qty</Label>
+                                        <Input
+                                            className={styles.compactInput}
+                                            type="number"
+                                            value={String(activeOrder.item.qty_value)}
+                                            onChange={(event) =>
+                                                updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                    ...order,
+                                                    item: { ...order.item, qty_value: asNumber(event.target.value, 0), savedPreview: null },
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                    <div className={styles.fieldBlock}>
+                                        <Label className={styles.compactLabel}>UOM</Label>
+                                        <Select
+                                            value={activeOrder.item.qty_uom}
+                                            onValueChange={(value) =>
+                                                updateQueuedOrder(activeOrder.localId, (order) => {
+                                                    const converted = convertQtyValueForUom(order.item, value as "PCS" | "KG")
+                                                    return {
+                                                        ...order,
+                                                        item: {
+                                                            ...order.item,
+                                                            qty_uom: converted.qty_uom,
+                                                            qty_value: converted.qty_value,
+                                                            savedPreview: null,
+                                                        },
+                                                    }
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger className={styles.compactSelect}><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="KG">KG</SelectItem>
+                                                {activeOrder.item.finished_good_type !== "ROLL" ? <SelectItem value="PCS">PCS</SelectItem> : null}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className={styles.fieldBlock}>
+                                        <Label className={styles.compactLabel}>Unit price</Label>
+                                        <Input
+                                            className={styles.compactInput}
+                                            type="number"
+                                            step="0.01"
+                                            value={String(activeOrder.item.unit_price)}
+                                            onChange={(event) =>
+                                                updateQueuedOrder(activeOrder.localId, (order) => ({
+                                                    ...order,
+                                                    item: { ...order.item, unit_price: asNumber(event.target.value, 0) },
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className={styles.railComposerMath}>
+                                    <span>{activeEstimatedKg.toFixed(2)} kg</span>
+                                    <span>{activeEstimatedPcs !== null ? `${activeEstimatedPcs} pcs` : "roll basis"}</span>
+                                    <strong>{formatMoney(activeEstimatedValue)}</strong>
+                                </div>
+
+                                <div className={styles.railComposerActions}>
+                                    <Button variant="outline" size="sm" onClick={() => duplicateQueuedOrder(activeOrder.localId)}>
+                                        <Copy className="mr-2 h-4 w-4" />
+                                        Duplicate
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => removeQueuedOrder(activeOrder.localId)} className={styles.removeBtn}>
+                                        Remove
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div className={styles.cartHeader}>
                             <div>
                                 <div className={styles.panelLabel}>Release Cart</div>

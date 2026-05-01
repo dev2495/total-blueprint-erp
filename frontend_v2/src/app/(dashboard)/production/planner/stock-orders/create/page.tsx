@@ -290,6 +290,9 @@ export default function PlannerStockOrderStudioPage() {
   const selectedLaneIsPlanner = launchLane === "PLANNER"
   const selectedLaneIsCustom = launchLane === "CUSTOM"
   const selectedOutputClass = selectedLaneIsPlanner ? plannerOutputFilter : launchOutputClass
+  const visibleOutputClasses: PlannerOutputClass[] = selectedLaneIsSales
+    ? ["FG"]
+    : ["FG", "INVARIANT", "WIP", "POD", "PACKAGING"]
 
   const templatesQuery = useQuery({
     queryKey: ["planner-launch-templates"],
@@ -414,20 +417,13 @@ export default function PlannerStockOrderStudioPage() {
   const outputDisabledReasons = useMemo(() => {
     const reasons: Partial<Record<PlannerOutputClass, string>> = {}
     if (selectedLaneIsSales) {
-      if (!selectedSalesVariant) {
-        reasons.POD = "Select a sales variant with POD linkage to launch POD stock."
-        reasons.PACKAGING = "Select a sales variant with packaging linkage to launch packaging stock."
-      } else {
-        if (!salesVariantMatchesOutput(selectedSalesVariant, "POD")) {
-          reasons.POD = "This sales variant has no POD linkage."
-        }
-        if (!salesVariantMatchesOutput(selectedSalesVariant, "PACKAGING")) {
-          reasons.PACKAGING = "This sales variant has no packaging stock linkage."
-        }
-      }
+      reasons.INVARIANT = "Invariant launch is planner-preset only."
+      reasons.WIP = "WIP launch is planner-preset only."
+      reasons.POD = "POD stock is launched from planner presets."
+      reasons.PACKAGING = "Packaging stock is launched from planner presets."
     }
     return reasons
-  }, [selectedLaneIsSales, selectedSalesVariant])
+  }, [selectedLaneIsSales])
 
   const finalProductType = stockPurpose === "PACKAGING" ? null : normalizePlannerFgType(selectedTemplate?.fg_type || fgType)
   const routeLastIndex = routeSteps.length ? Number(routeSteps[routeSteps.length - 1]?.index ?? routeSteps.length - 1) : 0
@@ -827,10 +823,10 @@ export default function PlannerStockOrderStudioPage() {
       packaging: selectedSalesVariant.packaging_snapshot,
       quantityUom: normalizePlannerFgType(selectedSalesVariant.finished_good_type) === "ROLL" ? "KG" : "PCS",
       stockPurpose: "PRODUCT",
-      stockStrategy: launcherMode === "FINAL_ROLL" ? "FINAL_STOCK" : "INTERMEDIATE_POOL",
+      stockStrategy: "FINAL_STOCK",
       lineLabel: selectedSalesVariant.name || selectedSalesSku?.name || selectedSalesSku?.code,
     })
-  }, [launcherMode, selectedLaneIsSales, selectedSalesSku, selectedSalesVariant])
+  }, [selectedLaneIsSales, selectedSalesSku, selectedSalesVariant])
 
   useEffect(() => {
     if (!selectedLaneIsSales || !routeSteps.length) return
@@ -985,7 +981,7 @@ export default function PlannerStockOrderStudioPage() {
   const showSeededSpecOverrides = selectedLaneIsCustom || showTechnicalSnapshot
   const routeStepsAreEditable = selectedLaneIsCustom || selectedLaneIsSales
   const laneSummaryCopy = selectedLaneIsSales
-    ? "Sales SKU gives the approved commercial spec. Route start and stop decide whether this launches final roll/pouch stock, invariant rolls, or held WIP."
+    ? "Sales SKU gives the approved commercial spec and only launches final roll or pouch stock. Planner presets own invariant, WIP, POD, and packaging stock launches."
     : selectedLaneIsPlanner
       ? "Planner preset already owns route span, stock intent, geometry, and material truth. Confirm quantity, adjust only when needed, and queue the line."
       : "Custom is the full manual path. Use it only when neither a planner preset nor a sales SKU can express the job correctly."
@@ -1368,7 +1364,7 @@ export default function PlannerStockOrderStudioPage() {
         </div>
 
         <div className={styles.pillToggle}>
-          {(["FG", "INVARIANT", "WIP", "POD", "PACKAGING"] as const).map((output) => (
+          {visibleOutputClasses.map((output) => (
             <button
               key={output}
               type="button"

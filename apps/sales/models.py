@@ -305,6 +305,13 @@ class SalesSkuVariant(models.Model):
     chemicals_snapshot = models.JSONField(default=dict, blank=True)
     addons_snapshot = models.JSONField(default=list, blank=True)
     packaging_snapshot = models.JSONField(default=dict, blank=True)
+    derived_from_planner_variant = models.ForeignKey(
+        'production.PlannerSkuVariant',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_variants',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

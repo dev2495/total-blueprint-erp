@@ -38,6 +38,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { engineeringService } from "@/services/engineering"
 import { masterDataService } from "@/services/master-data"
 import { plannerService, type PlannerSkuPreset, type PlannerSkuVariantPreset } from "@/services/planner"
 import { recipeService } from "@/services/recipes"
@@ -55,6 +56,7 @@ type PlannerOutputClass = "FG" | "INVARIANT" | "WIP" | "POD" | "PACKAGING"
 type LayerDraft = {
   family_id: string
   variant_id: string
+  grade_id?: string | null
   thickness_micron: number
   roll_width_mm: number
 }
@@ -92,6 +94,8 @@ type VariantDraft = {
   width_mm: number
   height_mm: number
   faces: number
+  trim_loss_mm: number
+  flap_tape_mm: number
   layer_snapshot: LayerDraft[]
   printing_enabled: boolean
   printing_type: "FLEXO" | "ROTO" | "DIGITAL"
@@ -242,8 +246,39 @@ function uniquePlannerSkuText(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)))
 }
 
+function plannerOptionLabel(row: any, fallback = "Select") {
+  const code = String(row?.code || row?.artwork_code || row?.sku_code || row?.slug || "").trim()
+  const name = String(row?.name || row?.title || row?.artwork_name || row?.sku_name || row?.label || "").trim()
+  const label = [code, name].filter(Boolean).join(" · ")
+  return label || code || name || fallback
+}
+
+function plannerLayerMetric(row: any, keys: string[]) {
+  for (const key of keys) {
+    const value = Number(row?.[key])
+    if (Number.isFinite(value) && value > 0) return value
+  }
+  return 0
+}
+
+function plannerGradeName(row: any, gradeById?: Map<string, any>) {
+  const gradeId = String(row?.grade_id || row?.grade || "").trim()
+  const grade = gradeById?.get(gradeId)
+  return String(row?.grade_name || row?.grade_display_name || grade?.name || grade?.code || row?.grade_code || row?.grade || "").trim()
+}
+
+function geometryAdjustmentValue(geometry: any, labels: string[]) {
+  const adjustments = Array.isArray(geometry?.adjustments) ? geometry.adjustments : []
+  const wanted = labels.map((label) => label.toLowerCase())
+  const match = adjustments.find((row: any) => {
+    const text = [row?.type, row?.kind, row?.code, row?.label, row?.name].filter(Boolean).join(" ").toLowerCase()
+    return wanted.some((label) => text.includes(label.toLowerCase()))
+  })
+  return asNumber(match?.value_mm ?? match?.qty_mm ?? match?.value, 0)
+}
+
 function makeLayer(): LayerDraft {
-  return { family_id: "", variant_id: "", thickness_micron: 0, roll_width_mm: 0 }
+  return { family_id: "", variant_id: "", grade_id: null, thickness_micron: 0, roll_width_mm: 0 }
 }
 
 function ensureLayerSlots(current: LayerDraft[], count: number, widthMm = 0) {
@@ -306,6 +341,8 @@ function emptyVariantDraft(family?: PlannerSkuPreset | null): VariantDraft {
     width_mm: 120,
     height_mm: 180,
     faces: 1,
+    trim_loss_mm: 0,
+    flap_tape_mm: 0,
     layer_snapshot: [makeLayer()],
     printing_enabled: false,
     printing_type: "FLEXO",
@@ -353,10 +390,13 @@ function variantDraftFromPreset(preset: PlannerSkuVariantPreset): VariantDraft {
     width_mm: asNumber(base.width_mm || geometry.width_mm, 0),
     height_mm: asNumber(base.height_mm || geometry.height_mm, 0),
     faces: asNumber(geometry?.multipliers?.faces, 1),
+    trim_loss_mm: geometryAdjustmentValue(geometry, ["TRIM_LOSS", "TRIM"]),
+    flap_tape_mm: geometryAdjustmentValue(geometry, ["FLAP_TAPE", "FLAP", "TAPE"]),
     layer_snapshot: Array.isArray(preset.layer_snapshot) && preset.layer_snapshot.length
       ? preset.layer_snapshot.map((layer: any) => ({
           family_id: String(layer.family_id || ""),
           variant_id: String(layer.variant_id || ""),
+          grade_id: layer.grade_id ? String(layer.grade_id) : null,
           thickness_micron: asNumber(layer.thickness_micron, 0),
           roll_width_mm: asNumber(layer.roll_width_mm || layer.width_mm, 0),
         }))
@@ -396,6 +436,11 @@ function variantDraftFromPreset(preset: PlannerSkuVariantPreset): VariantDraft {
 
 function buildVariantPayload(draft: VariantDraft, familyId: string) {
   const finishedGoodType = draft.finished_good_type
+  const geometryAdjustments: Array<Record<string, unknown>> = []
+  const trimLossMm = asNumber(draft.trim_loss_mm, 0)
+  const flapTapeMm = asNumber(draft.flap_tape_mm, 0)
+  if (trimLossMm > 0) geometryAdjustments.push({ type: "TRIM_LOSS", axis: "WIDTH", value_mm: trimLossMm })
+  if (flapTapeMm > 0) geometryAdjustments.push({ type: "FLAP_TAPE", axis: "HEIGHT", value_mm: flapTapeMm })
   const geometry = {
     base: {
       width_mm: finishedGoodType === "ROLL"
@@ -403,7 +448,7 @@ function buildVariantPayload(draft: VariantDraft, familyId: string) {
         : asNumber(draft.width_mm, 0),
       height_mm: finishedGoodType === "POUCH" ? asNumber(draft.height_mm, 0) : 0,
     },
-    adjustments: [],
+    adjustments: geometryAdjustments,
     multipliers: { faces: Math.max(1, asNumber(draft.faces, 1)) },
     finished_good_type: finishedGoodType,
     roll_form: finishedGoodType === "ROLL" ? draft.roll_form : undefined,
@@ -413,6 +458,7 @@ function buildVariantPayload(draft: VariantDraft, familyId: string) {
     .map((layer) => ({
       family_id: layer.family_id,
       variant_id: layer.variant_id,
+      grade_id: layer.grade_id || null,
       thickness_micron: asNumber(layer.thickness_micron, 0),
       roll_width_mm: asNumber(layer.roll_width_mm, 0),
     }))
@@ -534,6 +580,11 @@ export default function PlannerSkuCatalogPage() {
   const addonsQuery = useQuery({ queryKey: ["planner-sku-catalog-addons"], queryFn: masterDataService.getAddons, staleTime: 60_000 })
   const packagingQuery = useQuery({ queryKey: ["planner-sku-catalog-packaging"], queryFn: masterDataService.getPackaging, staleTime: 60_000 })
   const gradesQuery = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades(), staleTime: 60_000 })
+  const artworksQuery = useQuery({
+    queryKey: ["planner-sku-catalog-artworks"],
+    queryFn: () => engineeringService.getArtworks(),
+    staleTime: 60_000,
+  })
   const podQuery = useQuery({
     queryKey: ["planner-sku-catalog-pod"],
     queryFn: () => masterDataService.getPodSkuVariants({ active: true }),
@@ -551,6 +602,7 @@ export default function PlannerSkuCatalogPage() {
   const filmFamilies = Array.isArray(familiesQuery.data) ? familiesQuery.data : []
   const filmVariants = Array.isArray(variantsQuery.data) ? variantsQuery.data : []
   const masterGrades = Array.isArray(gradesQuery.data) ? gradesQuery.data : []
+  const artworks = Array.isArray(artworksQuery.data) ? artworksQuery.data : []
   const addonsMaster = Array.isArray(addonsQuery.data) ? addonsQuery.data : []
   const packagingMaterials = Array.isArray(packagingQuery.data) ? packagingQuery.data : []
   const podSkuVariants = Array.isArray(podQuery.data) ? podQuery.data : []
@@ -581,6 +633,14 @@ export default function PlannerSkuCatalogPage() {
     () => new Map(filmVariants.map((variant: any) => [String(variant.id), variant])),
     [filmVariants]
   )
+  const gradeById = useMemo(
+    () => new Map(masterGrades.map((grade: any) => [String(grade.id), grade])),
+    [masterGrades]
+  )
+  const artworkById = useMemo(
+    () => new Map(artworks.map((artwork: any) => [String(artwork.id), artwork])),
+    [artworks]
+  )
   const plannerVariantLens = useMemo(() => (
     plannerSkus.flatMap((sku) =>
       (sku.variants || []).map((variant) => {
@@ -600,9 +660,13 @@ export default function PlannerSkuCatalogPage() {
         })
         const grades = layers.flatMap((layer: any) => {
           const filmVariant = filmVariantById.get(String(layer.variant_id || ""))
+          const grade = gradeById.get(String(layer.grade_id || ""))
           return [
             layer.grade,
+            layer.grade_id,
             layer.grade_name,
+            (grade as any)?.name,
+            (grade as any)?.code,
             (filmVariant as any)?.grade,
             (filmVariant as any)?.grade_name,
             (filmVariant as any)?.grade_display_name,
@@ -633,7 +697,7 @@ export default function PlannerSkuCatalogPage() {
         return { sku, variant, layerMaterials: uniquePlannerSkuText(layerMaterials as any), grades: uniquePlannerSkuText(grades as any), widths, heights, thicknesses, searchText }
       })
     )
-  ), [filmFamilyById, filmVariantById, plannerSkus])
+  ), [filmFamilyById, filmVariantById, gradeById, plannerSkus])
   const plannerVariantLensById = useMemo(
     () => new Map(plannerVariantLens.map((entry) => [String(entry.variant.id), entry])),
     [plannerVariantLens]
@@ -745,8 +809,13 @@ export default function PlannerSkuCatalogPage() {
     return variants.filter((variant) => {
       if (launchFilter !== "ALL" && String(variant.launch_kind || "") !== launchFilter) return false
       return plannerVariantPassesFilters(variant)
+        && (!deferredSearch.trim() || [selectedSku?.code, selectedSku?.name, variant.code, variant.name, variant.template_name, variant.planner_stock_class]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(deferredSearch.trim().toLowerCase()))
     })
-  }, [gradeFilter, heightFilter, launchFilter, materialFilter, plannerVariantLensById, selectedSku, thicknessFilter, widthFilter])
+  }, [deferredSearch, gradeFilter, heightFilter, launchFilter, materialFilter, plannerVariantLensById, selectedSku, thicknessFilter, widthFilter])
 
   useEffect(() => {
     if (!variantDraft.template || !routeSteps.length) return
@@ -803,8 +872,10 @@ export default function PlannerSkuCatalogPage() {
       setVariantDialogOpen(false)
       setEditingVariant(null)
       toast({
-        title: variantDraft.id ? "Planner variant updated" : "Planner variant created",
-        description: `${variant.code} is ready to launch from the planner stock studio.`,
+        title: variantDraft.id ? "New planner version saved" : "Planner variant created",
+        description: variantDraft.id
+          ? `${variant.code} is active. The previous preset was disabled and retained for launch history.`
+          : `${variant.code} is ready to launch from the planner stock studio.`,
       })
     },
     onError: (error: any) => {
@@ -889,6 +960,27 @@ export default function PlannerSkuCatalogPage() {
   const variantOutputClass = outputClassForLaunchKind(variantDraft.launch_kind)
   const requiredLayerCount = 1
   const validLayerCount = variantDraft.layer_snapshot.filter((layer) => layer.family_id && layer.variant_id).length
+  const selectedArtwork = variantDraft.artwork_id ? artworkById.get(String(variantDraft.artwork_id)) : null
+  const previewSizeLabel = variantDraft.finished_good_type === "ROLL"
+    ? `${asNumber(variantDraft.layer_snapshot[0]?.roll_width_mm || variantDraft.width_mm, 0)} mm ${variantDraft.roll_form.toLowerCase()} roll`
+    : `${asNumber(variantDraft.width_mm, 0)} x ${asNumber(variantDraft.height_mm, 0)} mm pouch`
+  const previewLayerRows = variantDraft.layer_snapshot.map((layer, index) => {
+    const family = filmFamilyById.get(String(layer.family_id || ""))
+    const filmVariant = filmVariantById.get(String(layer.variant_id || ""))
+    const grade = layer.grade_id ? gradeById.get(String(layer.grade_id)) : null
+    return {
+      key: `preview-layer-${index}-${layer.variant_id || index}`,
+      label: `L${index + 1}`,
+      name: plannerOptionLabel(filmVariant || family, "Choose film"),
+      grade: plannerGradeName({ ...filmVariant, grade_id: layer.grade_id, grade_name: (grade as any)?.name }, gradeById) || "Grade pending",
+      thickness: asNumber(layer.thickness_micron, 0) > 0 ? `${asNumber(layer.thickness_micron, 0)}u` : "Thickness pending",
+      width: asNumber(layer.roll_width_mm, 0) > 0 ? `${asNumber(layer.roll_width_mm, 0)} mm` : "Width pending",
+    }
+  })
+  const previewAddonCount = variantDraft.addons_snapshot.filter((addon) => addon.addon_id).length
+  const previewRouteLabel = routeSteps.length
+    ? `Step ${variantDraft.start_step_index} to ${variantDraft.stop_step_index ?? routeLastIndex}`
+    : "Route pending"
 
   if (skuQuery.isLoading) {
     return (
@@ -1124,7 +1216,7 @@ export default function PlannerSkuCatalogPage() {
                 </div>
                 <div className={styles.variantGrid}>
                   {selectedVariants.map((variant) => (
-                    <div key={variant.id} className={styles.variantCard}>
+                    <div key={variant.id} className={cn(styles.variantCard, !variant.active && styles.variantCardInactive)}>
                       <div className={styles.variantTopRow}>
                         <div>
                           <div className={cn(styles.kindPill, kindTone(variant.launch_kind))}>
@@ -1133,9 +1225,14 @@ export default function PlannerSkuCatalogPage() {
                           <div className={styles.variantCode}>{variant.code}</div>
                           <div className={styles.variantName}>{variant.name}</div>
                         </div>
-                        <Badge variant="outline" className="bg-white">
-                          {variant.default_qty} {variant.quantity_uom}
-                        </Badge>
+                        <div className={styles.variantBadgeStack}>
+                          <Badge variant="outline" className="bg-white">
+                            {variant.default_qty} {variant.quantity_uom}
+                          </Badge>
+                          <Badge variant="outline" className={variant.active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}>
+                            {variant.active ? "Active" : "Disabled"}
+                          </Badge>
+                        </div>
                       </div>
                       <div className={styles.variantStats}>
                         <div className={styles.variantStat}>
@@ -1171,12 +1268,18 @@ export default function PlannerSkuCatalogPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </Button>
-                        <Button asChild className="rounded-full bg-blue-600 text-white hover:bg-blue-500">
-                          <Link href={`/production/planner/stock-orders/create?preset=${variant.id}`}>
-                            Launch
-                            <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
+                        {variant.active ? (
+                          <Button asChild className="rounded-full bg-blue-600 text-white hover:bg-blue-500">
+                            <Link href={`/production/planner/stock-orders/create?preset=${variant.id}`}>
+                              Launch
+                              <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button className="rounded-full" disabled>
+                            Disabled
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1266,7 +1369,7 @@ export default function PlannerSkuCatalogPage() {
       </Dialog>
 
       <Dialog open={variantDialogOpen} onOpenChange={setVariantDialogOpen}>
-        <DialogContent data-testid="planner-variant-builder" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border bg-[linear-gradient(180deg,#fbfbfd_0%,#f5f7fb_100%)] p-0 sm:h-auto sm:max-h-[96vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(46rem,calc(100vw-1rem))] sm:rounded-[2rem]">
+        <DialogContent data-testid="planner-variant-builder" className="h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border bg-[linear-gradient(180deg,#fbfbfd_0%,#f5f7fb_100%)] p-0 sm:h-auto sm:max-h-[94vh] sm:w-[calc(100vw-1rem)] sm:max-w-[min(94rem,calc(100vw-1rem))] sm:rounded-[1.5rem]">
           <div className={styles.sheetShell}>
             <DialogHeader className="sr-only">
               <DialogTitle>{editingVariant ? "Edit Planner Variant" : "Create Planner Variant"}</DialogTitle>
@@ -1298,7 +1401,7 @@ export default function PlannerSkuCatalogPage() {
                 <div className={styles.heroMetric}>
                   <span>Template</span>
                   <strong>{variantTemplate?.name || selectedFamilyTemplate?.name || "Choose template"}</strong>
-                  <small>{variantTemplate?.status || selectedFamilyTemplate?.status || "Route source pending"}</small>
+                  <small>{variantTemplate || selectedFamilyTemplate ? "Selected template" : "Template pending"}</small>
                 </div>
                 <div className={styles.heroMetric}>
                   <span>Stock route</span>
@@ -1309,6 +1412,55 @@ export default function PlannerSkuCatalogPage() {
                   <span>Active</span>
                   <Switch checked={variantDraft.active} onCheckedChange={(checked) => patchVariant({ active: checked })} />
                   <small>Launchable from stock studio.</small>
+                </div>
+              </div>
+            </section>
+
+            <section className={styles.variantPreviewStrip} aria-label="Planner variant live preview">
+              <div className={styles.previewSummaryGrid}>
+                <div className={styles.previewTile}>
+                  <span>Output</span>
+                  <strong>{previewSizeLabel}</strong>
+                  <small>{outputClassLabel(variantOutputClass)} · {variantDraft.quantity_uom}</small>
+                </div>
+                <div className={styles.previewTile}>
+                  <span>Template</span>
+                  <strong>{variantTemplate?.name || selectedFamilyTemplate?.name || "Choose template"}</strong>
+                  <small>{selectedSku?.name || "Family pending"}</small>
+                </div>
+                <div className={styles.previewTile}>
+                  <span>Route</span>
+                  <strong>{previewRouteLabel}</strong>
+                  <small>{variantDraft.launch_kind.replaceAll("_", " ")}</small>
+                </div>
+                <div className={styles.previewTile}>
+                  <span>Print and extras</span>
+                  <strong>{variantDraft.printing_enabled ? `${variantDraft.printing_type} · ${selectedArtwork ? plannerOptionLabel(selectedArtwork) : "Artwork pending"}` : "No print"}</strong>
+                  <small>{previewAddonCount ? `${previewAddonCount} add-on${previewAddonCount === 1 ? "" : "s"}` : "No add-ons"}</small>
+                </div>
+              </div>
+              <div className={styles.previewMaterialPanel}>
+                <div className={styles.previewPanelHeader}>
+                  <div>
+                    <span>Material breakdown</span>
+                    <strong>{validLayerCount}/{requiredLayerCount} layers ready</strong>
+                  </div>
+                  <small>{previewLayerRows.length ? `${previewLayerRows.length} layer${previewLayerRows.length === 1 ? "" : "s"}` : "Add layers"}</small>
+                </div>
+                <div className={styles.previewLayerList}>
+                  {previewLayerRows.length ? (
+                    previewLayerRows.map((layer, index) => (
+                      <span key={`preview-layer-${index}-${layer.key}-${layer.label}`} className={styles.previewLayerChip}>
+                        <strong>{layer.label}</strong>
+                        <span>{layer.name}</span>
+                        <small>{layer.grade}</small>
+                        <small>{layer.thickness}</small>
+                        <small>{layer.width}</small>
+                      </span>
+                    ))
+                  ) : (
+                    <div className={styles.previewEmpty}>Add at least one film layer to build the production material stack.</div>
+                  )}
                 </div>
               </div>
             </section>
@@ -1482,10 +1634,18 @@ export default function PlannerSkuCatalogPage() {
                   <Label>Faces</Label>
                   <Input type="number" value={variantDraft.faces} onChange={(event) => patchVariant({ faces: Number(event.target.value || 1) })} />
                 </div>
+                <div>
+                  <Label>Trim loss (mm)</Label>
+                  <Input type="number" value={variantDraft.trim_loss_mm} onChange={(event) => patchVariant({ trim_loss_mm: Number(event.target.value || 0) })} />
+                </div>
+                <div>
+                  <Label>Flap / tape (mm)</Label>
+                  <Input type="number" value={variantDraft.flap_tape_mm} onChange={(event) => patchVariant({ flap_tape_mm: Number(event.target.value || 0) })} />
+                </div>
               </div>
             </section>
 
-            <section className={styles.sheetSection}>
+            <section className={cn(styles.sheetSection, styles.sheetSectionWide)}>
               <div className={styles.sheetSectionHeader}>
                 <div>
                   <div className={styles.sectionEyebrow}>Layer stack</div>
@@ -1504,55 +1664,109 @@ export default function PlannerSkuCatalogPage() {
                 </Button>
               </div>
               <div className={styles.stackRows}>
-                {variantDraft.layer_snapshot.map((layer, index) => (
-                  <div key={`layer-${index}`} className={styles.stackRow}>
-                    <Select value={layer.family_id || "NONE"} onValueChange={(value) => {
-                      const next = [...variantDraft.layer_snapshot]
-                      next[index] = { ...next[index], family_id: value === "NONE" ? "" : value, variant_id: "" }
-                      patchVariant({ layer_snapshot: next })
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Family" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE">Select family</SelectItem>
-                        {filmFamilies.map((family: any) => (
-                          <SelectItem key={family.id} value={String(family.id)}>
-                            {family.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={layer.variant_id || "NONE"} onValueChange={(value) => {
-                      const next = [...variantDraft.layer_snapshot]
-                      next[index] = { ...next[index], variant_id: value === "NONE" ? "" : value }
-                      patchVariant({ layer_snapshot: next })
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Variant" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE">Select variant</SelectItem>
-                        {filmVariants
-                          .filter((variant: any) => String(variant?.parent_family?.id || variant?.parent_family || "") === String(layer.family_id || ""))
-                          .map((variant: any) => (
-                            <SelectItem key={variant.id} value={String(variant.id)}>
-                              {variant.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    <Input type="number" value={layer.thickness_micron} onChange={(event) => {
-                      const next = [...variantDraft.layer_snapshot]
-                      next[index] = { ...next[index], thickness_micron: Number(event.target.value || 0) }
-                      patchVariant({ layer_snapshot: next })
-                    }} placeholder="Thickness" />
-                    <Input type="number" value={layer.roll_width_mm} onChange={(event) => {
-                      const next = [...variantDraft.layer_snapshot]
-                      next[index] = { ...next[index], roll_width_mm: Number(event.target.value || 0) }
-                      patchVariant({ layer_snapshot: next })
-                    }} placeholder="Roll width" />
-                    <Button variant="ghost" size="sm" onClick={() => patchVariant({ layer_snapshot: variantDraft.layer_snapshot.filter((_, rowIndex) => rowIndex !== index) || [makeLayer()] })}>
-                      Remove
-                    </Button>
-                  </div>
-                ))}
+                {variantDraft.layer_snapshot.map((layer, index) => {
+                  const selectedLayerVariant = filmVariantById.get(String(layer.variant_id || ""))
+                  const selectedLayerGrade = layer.grade_id ? gradeById.get(String(layer.grade_id)) : null
+                  const layerIsExtrudable = Boolean((selectedLayerVariant as any)?.is_extrudable)
+                  return (
+                    <div key={`layer-${index}-${layer.variant_id || "new"}`} className={styles.layerBuilderRow}>
+                      <div className={styles.stackLayerBadge}>L{index + 1}</div>
+                      <div className={styles.fieldCell}>
+                        <Label>Film family</Label>
+                        <Select value={layer.family_id || "NONE"} onValueChange={(value) => {
+                          const next = [...variantDraft.layer_snapshot]
+                          next[index] = { ...next[index], family_id: value === "NONE" ? "" : value, variant_id: "", grade_id: null }
+                          patchVariant({ layer_snapshot: next })
+                        }}>
+                          <SelectTrigger><SelectValue placeholder="Family" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">Select family</SelectItem>
+                            {filmFamilies.map((family: any) => (
+                              <SelectItem key={family.id} value={String(family.id)}>
+                                {plannerOptionLabel(family)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className={styles.fieldCell}>
+                        <Label>Film variant</Label>
+                        <Select value={layer.variant_id || "NONE"} onValueChange={(value) => {
+                          const selectedVariant = value === "NONE" ? null : filmVariantById.get(String(value))
+                          const next = [...variantDraft.layer_snapshot]
+                          next[index] = {
+                            ...next[index],
+                            variant_id: value === "NONE" ? "" : value,
+                            grade_id: (selectedVariant as any)?.is_extrudable ? next[index]?.grade_id || null : null,
+                            thickness_micron: plannerLayerMetric(selectedVariant, ["default_thickness_micron", "thickness_micron", "thickness"]) || next[index]?.thickness_micron || 0,
+                            roll_width_mm: plannerLayerMetric(selectedVariant, ["default_width_mm", "roll_width_mm", "width_mm", "width"]) || next[index]?.roll_width_mm || variantDraft.width_mm || 0,
+                          }
+                          patchVariant({ layer_snapshot: next })
+                        }}>
+                          <SelectTrigger><SelectValue placeholder="Variant" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE">Select variant</SelectItem>
+                            {filmVariants
+                              .filter((variant: any) => String(variant?.parent_family?.id || variant?.parent_family || "") === String(layer.family_id || ""))
+                              .map((variant: any) => (
+                                <SelectItem key={variant.id} value={String(variant.id)}>
+                                  {plannerOptionLabel(variant)}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className={styles.fieldCell}>
+                        <Label>{layerIsExtrudable ? "Grade" : "Grade source"}</Label>
+                        {layerIsExtrudable ? (
+                          <Select value={layer.grade_id || "NONE"} onValueChange={(value) => {
+                            const next = [...variantDraft.layer_snapshot]
+                            next[index] = { ...next[index], grade_id: value === "NONE" ? null : value }
+                            patchVariant({ layer_snapshot: next })
+                          }}>
+                            <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="NONE">Select grade</SelectItem>
+                              {masterGrades.map((grade: any) => (
+                                <SelectItem key={grade.id} value={String(grade.id)}>
+                                  {plannerOptionLabel(grade, "Grade")}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className={styles.readonlyField}>{plannerGradeName(selectedLayerVariant, gradeById) || "Not required"}</div>
+                        )}
+                      </div>
+                      <div className={styles.fieldCell}>
+                        <Label>Thickness (u)</Label>
+                        <Input type="number" value={layer.thickness_micron} onChange={(event) => {
+                          const next = [...variantDraft.layer_snapshot]
+                          next[index] = { ...next[index], thickness_micron: Number(event.target.value || 0) }
+                          patchVariant({ layer_snapshot: next })
+                        }} placeholder="u" />
+                      </div>
+                      <div className={styles.fieldCell}>
+                        <Label>Roll width (mm)</Label>
+                        <Input type="number" value={layer.roll_width_mm} onChange={(event) => {
+                          const next = [...variantDraft.layer_snapshot]
+                          next[index] = { ...next[index], roll_width_mm: Number(event.target.value || 0) }
+                          patchVariant({ layer_snapshot: next })
+                        }} placeholder="mm" />
+                      </div>
+                      <div className={styles.layerFacts}>
+                        <span>{plannerOptionLabel(selectedLayerVariant || {}, "Variant pending")}</span>
+                        <strong>{plannerGradeName({ ...selectedLayerVariant, grade_id: layer.grade_id, grade_name: (selectedLayerGrade as any)?.name }, gradeById) || "Grade pending"}</strong>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        const next = variantDraft.layer_snapshot.filter((_, rowIndex) => rowIndex !== index)
+                        patchVariant({ layer_snapshot: next.length ? next : [makeLayer()] })
+                      }}>
+                        Remove
+                      </Button>
+                    </div>
+                  )
+                })}
               </div>
             </section>
 
@@ -1603,8 +1817,18 @@ export default function PlannerSkuCatalogPage() {
                     <Input type="number" value={variantDraft.ink_gsm_total} onChange={(event) => patchVariant({ ink_gsm_total: Number(event.target.value || 0) })} />
                   </div>
                   <div>
-                    <Label>Artwork ID</Label>
-                    <Input value={variantDraft.artwork_id} onChange={(event) => patchVariant({ artwork_id: event.target.value })} placeholder="Optional artwork reference" />
+                    <Label>Approved artwork</Label>
+                    <Select value={variantDraft.artwork_id || "NONE"} onValueChange={(value) => patchVariant({ artwork_id: value === "NONE" ? "" : value })}>
+                      <SelectTrigger><SelectValue placeholder="Select artwork" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE">No artwork linked</SelectItem>
+                        {artworks.map((artwork: any) => (
+                          <SelectItem key={artwork.id} value={String(artwork.id)}>
+                            {plannerOptionLabel(artwork, "Artwork")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               ) : (
@@ -1649,39 +1873,48 @@ export default function PlannerSkuCatalogPage() {
               </div>
               <div className={styles.stackRows}>
                 {variantDraft.addons_snapshot.length ? variantDraft.addons_snapshot.map((addon, index) => (
-                  <div key={`addon-${index}`} className={styles.stackRow}>
-                    <Select value={addon.addon_id || "NONE"} onValueChange={(value) => {
-                      const next = [...variantDraft.addons_snapshot]
-                      next[index] = { ...next[index], addon_id: value === "NONE" ? "" : value }
-                      patchVariant({ addons_snapshot: next })
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Add-on" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE">Select add-on</SelectItem>
-                        {addonsMaster.map((addonOption: any) => (
-                          <SelectItem key={addonOption.id} value={String(addonOption.id)}>
-                            {addonOption.code} · {addonOption.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input type="number" value={addon.qty} onChange={(event) => {
-                      const next = [...variantDraft.addons_snapshot]
-                      next[index] = { ...next[index], qty: Number(event.target.value || 0) }
-                      patchVariant({ addons_snapshot: next })
-                    }} placeholder="Qty" />
-                    <Select value={addon.applies_to} onValueChange={(value: AddonDraft["applies_to"]) => {
-                      const next = [...variantDraft.addons_snapshot]
-                      next[index] = { ...next[index], applies_to: value }
-                      patchVariant({ addons_snapshot: next })
-                    }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE">None</SelectItem>
-                        <SelectItem value="WIDTH">Width</SelectItem>
-                        <SelectItem value="HEIGHT">Height</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div key={`addon-${index}`} className={styles.addonBuilderRow}>
+                    <div className={styles.fieldCell}>
+                      <Label>Add-on</Label>
+                      <Select value={addon.addon_id || "NONE"} onValueChange={(value) => {
+                        const next = [...variantDraft.addons_snapshot]
+                        next[index] = { ...next[index], addon_id: value === "NONE" ? "" : value }
+                        patchVariant({ addons_snapshot: next })
+                      }}>
+                        <SelectTrigger><SelectValue placeholder="Add-on" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NONE">Select add-on</SelectItem>
+                          {addonsMaster.map((addonOption: any) => (
+                            <SelectItem key={addonOption.id} value={String(addonOption.id)}>
+                              {plannerOptionLabel(addonOption, "Add-on")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className={styles.fieldCell}>
+                      <Label>Quantity</Label>
+                      <Input type="number" value={addon.qty} onChange={(event) => {
+                        const next = [...variantDraft.addons_snapshot]
+                        next[index] = { ...next[index], qty: Number(event.target.value || 0) }
+                        patchVariant({ addons_snapshot: next })
+                      }} placeholder="Qty" />
+                    </div>
+                    <div className={styles.fieldCell}>
+                      <Label>Applies to</Label>
+                      <Select value={addon.applies_to} onValueChange={(value: AddonDraft["applies_to"]) => {
+                        const next = [...variantDraft.addons_snapshot]
+                        next[index] = { ...next[index], applies_to: value }
+                        patchVariant({ addons_snapshot: next })
+                      }}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NONE">None</SelectItem>
+                          <SelectItem value="WIDTH">Width</SelectItem>
+                          <SelectItem value="HEIGHT">Height</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Button variant="ghost" size="sm" onClick={() => patchVariant({ addons_snapshot: variantDraft.addons_snapshot.filter((_, rowIndex) => rowIndex !== index) })}>
                       Remove
                     </Button>
@@ -1835,7 +2068,7 @@ export default function PlannerSkuCatalogPage() {
                     variantMutation.isPending
                   }
                 >
-                  {variantMutation.isPending ? "Saving..." : editingVariant ? "Save Variant" : "Create Variant"}
+                  {variantMutation.isPending ? "Saving..." : editingVariant ? "Save New Version" : "Create Variant"}
                 </Button>
               </div>
             </div>
