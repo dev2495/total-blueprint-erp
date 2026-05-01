@@ -15,6 +15,7 @@ from apps.production.models import (
     WorkCenterAssignment,
 )
 from apps.production.views_wc import JobAllocationViewSet, _validate_wcm_material_confirmations
+from apps.production.services.job_services import WCManagerService
 from apps.routing.models import RoutingRule
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from apps.users.models import Role, User
@@ -148,6 +149,58 @@ class WcmAuditEventTests(TestCase):
         actions = list(ProductionWcmAuditEvent.objects.order_by("occurred_at").values_list("action", flat=True))
         self.assertEqual(actions, ["MATERIAL_ISSUE", "RELEASE_TO_MACHINE"])
         self.assertEqual(ProductionWcmAuditEvent.objects.get(action="MATERIAL_ISSUE").payload["material_confirmations"], confirmations)
+
+    def test_release_to_machine_rejects_roll_step_without_allocated_roll(self):
+        self.process.input_form = "ROLL"
+        self.process.output_form = "BULK"
+        self.process.roll_behavior = "NONE"
+        self.process.save(update_fields=["input_form", "output_form", "roll_behavior"])
+        self.job.input_form = "ROLL"
+        self.job.output_form = "BULK"
+        self.job.save(update_fields=["input_form", "output_form"])
+        self.assignment.assigned_machine = self.machine
+        self.assignment.status = "WC_READY"
+        self.assignment.save(update_fields=["assigned_machine", "status"])
+        view = JobAllocationViewSet.as_view({"post": "mark_ready"})
+
+        request = self.factory.post(
+            "/api/production/wc-allocation/ready/",
+            {"assignment_id": str(self.assignment.id), "material_confirmations": self._confirmation()},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("requirements not satisfied", str(response.data))
+        self.assignment.refresh_from_db()
+        self.job.refresh_from_db()
+        self.assertEqual(self.assignment.status, "WC_READY")
+        self.assertNotEqual(self.job.job_state, "RELEASED")
+
+    def test_sync_assignment_demotes_unstarted_stale_released_job_without_rolls(self):
+        self.process.input_form = "ROLL"
+        self.process.output_form = "BULK"
+        self.process.roll_behavior = "NONE"
+        self.process.save(update_fields=["input_form", "output_form", "roll_behavior"])
+        self.job.input_form = "ROLL"
+        self.job.output_form = "BULK"
+        self.job.machine = self.machine
+        self.job.status = "ASSIGNED"
+        self.job.job_state = "RELEASED"
+        self.job.save(update_fields=["input_form", "output_form", "machine", "status", "job_state"])
+        self.assignment.assigned_machine = self.machine
+        self.assignment.status = "EXECUTION_READY"
+        self.assignment.save(update_fields=["assigned_machine", "status"])
+
+        WCManagerService._sync_assignment_status(self.assignment)
+        self.assignment.save(update_fields=["status"])
+
+        self.assignment.refresh_from_db()
+        self.job.refresh_from_db()
+        self.assertEqual(self.assignment.status, "WC_READY")
+        self.assertEqual(self.job.job_state, "PLANNED")
+        self.assertEqual(self.job.status, "QUEUED")
 
     def test_cancel_is_blocked_after_machine_execution_starts(self):
         view = JobAllocationViewSet.as_view({"post": "close_job"})

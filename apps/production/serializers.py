@@ -17,6 +17,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     roll_behavior = serializers.SerializerMethodField()
     layer_count = serializers.SerializerMethodField()
     product_spec = serializers.SerializerMethodField()
+    order_placed_at = serializers.SerializerMethodField()
 
     def get_process_code(self, obj):
         proc = obj.current_process or obj.process
@@ -37,6 +38,13 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         if getattr(obj, "mts_order", None) and getattr(obj.mts_order, "layer_snapshot", None):
             return len(obj.mts_order.layer_snapshot)
         return 1
+
+    def get_order_placed_at(self, obj):
+        if getattr(obj, "sales_order_item", None) and getattr(obj.sales_order_item, "sales_order", None):
+            return obj.sales_order_item.sales_order.created_at
+        if getattr(obj, "mts_order", None) and getattr(obj.mts_order, "created_at", None):
+            return obj.mts_order.created_at
+        return obj.created_at
     
     # V2 snapshots for WCM/Shop Floor visibility.
     geometry = serializers.SerializerMethodField()
@@ -178,6 +186,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'job_number', 'status', 'job_state', 'origin', 
             'priority', 'planned_date', 'template', 'template_name',
+            'order_placed_at',
             'current_process', 'process_code', 'process_category', 'roll_behavior', 'layer_count',
             'work_center', 'work_center_name', 'machine', 'machine_name',
             'operator', 'operator_name', 'quantity', 'produced_qty', 'remaining_qty', 'uom',

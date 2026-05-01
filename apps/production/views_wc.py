@@ -171,9 +171,9 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 work_center_id=wc_id,
                 status__in=['WC_READY', 'ASSIGNED', 'EXECUTION_READY']
             ).exclude(
-                production_job__job_state__in=['COMPLETED', 'CANCELLED', 'EXECUTING']
+                production_job__job_state__in=['COMPLETED', 'CANCELLED']
             ).exclude(
-                production_job__status__in=['COMPLETED', 'CANCELLED', 'RUNNING']
+                production_job__status__in=['COMPLETED', 'CANCELLED']
             ).order_by('created_at')
         )
 
@@ -186,6 +186,8 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             'production_job',
             'production_job__current_process',
             'production_job__process',
+            'production_job__sales_order_item__sales_order',
+            'production_job__mts_order',
             'assigned_machine',
         ).prefetch_related('allocated_rolls')
 
@@ -193,9 +195,15 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
         # "ASSIGNED" when the underlying machine/roll conditions are no longer true.
         for assignment in queryset:
             previous = assignment.status
+            previous_machine_id = assignment.assigned_machine_id
             WCManagerService._sync_assignment_status(assignment)
+            changed_fields = []
             if assignment.status != previous:
-                assignment.save(update_fields=['status'])
+                changed_fields.append('status')
+            if assignment.assigned_machine_id != previous_machine_id:
+                changed_fields.append('assigned_machine')
+            if changed_fields:
+                assignment.save(update_fields=changed_fields + ['updated_at'])
 
         serializer = self.get_serializer(queryset, many=True)
         payload = []
@@ -409,7 +417,24 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Get quick stats for the work center terminal.
         """
-        base_qs = WorkCenterAssignment.objects.filter(work_center_id=wc_id)
+        base_qs = WorkCenterAssignment.objects.filter(work_center_id=wc_id).select_related(
+            "production_job",
+            "production_job__current_process",
+            "production_job__process",
+            "assigned_machine",
+        )
+
+        for assignment in base_qs.filter(status__in=['WC_READY', 'ASSIGNED', 'EXECUTION_READY']):
+            previous = assignment.status
+            previous_machine_id = assignment.assigned_machine_id
+            WCManagerService._sync_assignment_status(assignment)
+            changed_fields = []
+            if assignment.status != previous:
+                changed_fields.append('status')
+            if assignment.assigned_machine_id != previous_machine_id:
+                changed_fields.append('assigned_machine')
+            if changed_fields:
+                assignment.save(update_fields=changed_fields + ['updated_at'])
         
         waiting_count = base_qs.filter(
             status__in=['WC_READY', 'ASSIGNED']

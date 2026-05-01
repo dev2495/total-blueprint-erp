@@ -72,12 +72,34 @@ function formatSmartValue(value: number | null, uom: "KG" | "PCS", digits?: numb
     })
 }
 
+function formatDateLabel(value?: string | null) {
+    if (!value) return "—"
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return String(value)
+    return parsed.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
+}
+
 function firstNonEmpty(...values: unknown[]) {
     for (const value of values) {
         const text = String(value ?? "").trim()
         if (text && text !== "—" && text.toLowerCase() !== "null" && text.toLowerCase() !== "undefined") return text
     }
     return ""
+}
+
+function assignmentHasMachineStart(assignment: any) {
+    const job = assignment?.job_details || {}
+    const assignmentStatus = String(assignment?.status || "").toUpperCase()
+    const state = String(job?.job_state || "").toUpperCase()
+    const status = String(job?.status || "").toUpperCase()
+    return assignmentStatus === "EXECUTION_READY" && Boolean(assignment?.assigned_machine) && (state === "EXECUTING" || state === "PAUSED" || status === "RUNNING")
+}
+
+function assignmentIsMachineReady(assignment: any) {
+    const assignmentStatus = String(assignment?.status || "").toUpperCase()
+    const hasMachine = Boolean(assignment?.assigned_machine)
+    if (assignmentHasMachineStart(assignment)) return true
+    return assignmentStatus === "EXECUTION_READY" && hasMachine
 }
 
 function productNameFromJob(job: any, context?: any) {
@@ -339,21 +361,14 @@ export default function WCMTerminal() {
         [assignmentsList]
     )
     const runningAssignments = useMemo(
-        () => activeAssignments.filter((a: any) => {
-            const status = String(a?.status || "").toUpperCase()
-            const state = String(a?.job_details?.job_state || "").toUpperCase()
-            const jobStatus = String(a?.job_details?.status || "").toUpperCase()
-            return status === "EXECUTION_READY" || ["RELEASED", "EXECUTING", "PAUSED"].includes(state) || jobStatus === "RUNNING"
-        }),
+        () => activeAssignments.filter((a: any) => assignmentIsMachineReady(a)),
         [activeAssignments]
     )
     const baseQueueAssignments = useMemo(
         () => activeAssignments.filter((a: any) => {
             const status = String(a?.status || "").toUpperCase()
-            const state = String(a?.job_details?.job_state || "").toUpperCase()
-            const jobStatus = String(a?.job_details?.status || "").toUpperCase()
-            if (status === "EXECUTION_READY" || ["RELEASED", "EXECUTING", "PAUSED"].includes(state) || jobStatus === "RUNNING") return false
-            return status === "WC_READY" || status === "ASSIGNED"
+            if (assignmentIsMachineReady(a)) return false
+            return status === "WC_READY" || status === "ASSIGNED" || status === "EXECUTION_READY"
         }),
         [activeAssignments]
     )
@@ -1260,8 +1275,7 @@ export default function WCMTerminal() {
     }, [stepOtherRequirements, historyOtherRequirements, referenceOtherRequirements])
     const otherRequirementsLabel = "Inks, Chemicals & Add-ons"
 
-    const activeAssignmentStatus = String(activeAssignment?.status || "WC_READY").toUpperCase()
-    const isReleasedToMachine = activeAssignmentStatus === "EXECUTION_READY"
+    const isReleasedToMachine = assignmentIsMachineReady(activeAssignment)
     const bulkOk = bulkRows.length ? bulkRows.every(r => r.isOk) : true
     const rollOk = rollRow ? rollRow.isOk : true
     const requirementsSatisfied = bulkOk && rollOk
@@ -1549,7 +1563,9 @@ export default function WCMTerminal() {
                             </div>
                             <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-slate-950">
                                 {workCenter?.name || (activeAssignment as any)?.work_center_name || "Work Center"}
-                                <span className="text-xl font-normal text-slate-400"> · Queue</span>
+                                <span className="text-xl font-normal text-slate-400">
+                                    {" · "}{activeMainTab === "running" ? "Running / ready" : activeMainTab === "history" ? "History" : "Queue"}
+                                </span>
                             </h1>
                         </div>
                         <div className="grid w-full grid-cols-2 gap-3 md:w-auto md:grid-cols-4">
@@ -1592,10 +1608,13 @@ export default function WCMTerminal() {
                                     <button
                                         key={value}
                                         type="button"
-                                        onClick={() => setQueueStatusFilter(value)}
+                                        onClick={() => {
+                                            setActiveMainTab("terminal")
+                                            setQueueStatusFilter(value)
+                                        }}
                                         className={cn(
                                             "h-9 rounded-lg border px-3 text-sm font-medium transition",
-                                            queueStatusFilter === value
+                                            activeMainTab !== "running" && activeMainTab !== "history" && queueStatusFilter === value
                                                 ? "border-slate-900 bg-slate-900 text-white"
                                                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                                         )}
@@ -1866,7 +1885,7 @@ export default function WCMTerminal() {
                                                                 </TooltipContent>
                                                             </Tooltip>
                                                         </TooltipProvider>
-                                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Due · {job.planned_date || "—"}</span>
+                                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Order placed · {formatDateLabel(job.order_placed_at || job.created_at)}</span>
                                                     </div>
                                                     <div className="flex justify-end gap-2 md:col-span-3">
                                                         {activeMainTab === "running" ? (
@@ -2017,6 +2036,53 @@ export default function WCMTerminal() {
                                     </div>
                                 </section>
 
+                                {activeMainTab === "running" ? (
+                                    <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
+                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                            <div>
+                                                <div className="text-[11px] uppercase tracking-wider text-emerald-700">Sent to machine</div>
+                                                <div className="mt-1 text-lg font-semibold text-slate-950">{assignedMachineName || selectedMachine?.name || "Machine assigned"}</div>
+                                                <p className="mt-1 text-xs font-semibold text-emerald-800">Preparation is locked. Execution changes now happen only inside the machine terminal.</p>
+                                            </div>
+                                            <a
+                                                href={assignedMachineId ? `/production/machine/${assignedMachineId}` : "#"}
+                                                onClick={(event) => { if (!assignedMachineId) event.preventDefault() }}
+                                                className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold", assignedMachineId ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400")}
+                                            >
+                                                Open terminal
+                                            </a>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                            <div className="rounded-xl border border-white bg-white/80 p-3">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Machine</div>
+                                                <div className="mt-1 text-sm font-semibold text-slate-950">{assignedMachineName || selectedMachine?.name || "—"}</div>
+                                            </div>
+                                            <div className="rounded-xl border border-white bg-white/80 p-3">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Rolls locked</div>
+                                                <div className="mt-1 text-sm font-semibold text-slate-950">{effectiveRollsReserved}/{rollsRequired} allocated</div>
+                                            </div>
+                                            <div className="rounded-xl border border-white bg-white/80 p-3">
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Material policy</div>
+                                                <div className="mt-1 text-sm font-semibold text-slate-950">
+                                                    {currentStepPolicyItems.length ? `${currentStepPolicyItems.length} step rule${currentStepPolicyItems.length === 1 ? "" : "s"}` : "No step issue rule"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {currentStepPolicyItems.length ? (
+                                            <div className="mt-4 space-y-2">
+                                                {currentStepPolicyItems.map((item) => (
+                                                    <div key={`running-policy-${item.policy_key}`} className="rounded-xl border border-white bg-white/80 px-3 py-2 text-xs">
+                                                        <div className="font-semibold text-slate-950">{item.material_name}</div>
+                                                        <div className="mt-0.5 text-slate-500">
+                                                            Template {policyModeLabel(item.template_issue_policy_mode, item.template_issue_policy_value)} · Effective {policyModeLabel(item.effective_issue_policy_mode, item.effective_issue_policy_value)}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : null}
+                                    </section>
+                                ) : (
+                                <>
                                 {satisfactionStatus?.input_form === "ROLL" ? (
                                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2231,6 +2297,18 @@ export default function WCMTerminal() {
                                         </div>
                                         <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", materialIssueErrors.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{materialReleaseLabel}</span>
                                     </div>
+                                    {currentStepPolicyItems.length ? (
+                                        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-blue-700">Step-aware issue policy</div>
+                                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                                {currentStepPolicyItems.map((item) => (
+                                                    <span key={`issue-policy-${item.policy_key}`} className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800">
+                                                        {item.material_name}: template {policyModeLabel(item.template_issue_policy_mode, item.template_issue_policy_value)} / effective {policyModeLabel(item.effective_issue_policy_mode, item.effective_issue_policy_value)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : null}
                                     <div className={cn("mt-4 space-y-2.5", isReleasedToMachine && "pointer-events-none opacity-75")}>
                                         {materialIssueRows.length === 0 ? (
                                             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-600">No current-step material issue is needed for this step.</div>
@@ -2472,6 +2550,8 @@ export default function WCMTerminal() {
                                         })}
                                     </div>
                                 </section>
+                                </>
+                                )}
                             </div>
                         </aside> : null}
                     </section>

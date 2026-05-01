@@ -1313,40 +1313,78 @@ class WCManagerService:
         - `ASSIGNED`: machine + required roll reservations are present
         """
         from apps.inventory.models import InventoryReservation, InventoryRoll
+        from apps.production.models import JobExecutionLog, ScrapLog, DowntimeLog, MaterialConsumptionLog
 
         job = assignment.production_job
         process = job.current_process or job.process
+        if not assignment.assigned_machine_id and getattr(job, "machine_id", None):
+            assignment.assigned_machine_id = job.machine_id
         machine_ok = bool(assignment.assigned_machine_id)
+        previous_status = str(getattr(assignment, "status", "") or "").upper()
+        has_activity_logs = (
+            JobExecutionLog.objects.filter(production_job=job).exists() or
+            ScrapLog.objects.filter(production_job=job).exists() or
+            DowntimeLog.objects.filter(production_job=job).exists() or
+            MaterialConsumptionLog.objects.filter(production_job=job).exists()
+        )
+        runtime_state = (
+            str(getattr(job, "job_state", "") or "").upper() in {"EXECUTING", "PAUSED"} or
+            str(getattr(job, "status", "") or "").upper() == "RUNNING"
+        )
+        job_started = has_activity_logs or (previous_status == "EXECUTION_READY" and machine_ok and runtime_state)
 
         required_rolls = 0
         if process:
             from apps.production.services.services_execution import ExecutionService
             required_rolls = ExecutionService._required_roll_count(job, process)
 
-        # Count only physically valid active reservations.
-        # This prevents stale "ASSIGNED" state when reservation rows exist
-        # but rolls are no longer truly reserved/usable.
-        active_reservations = InventoryReservation.objects.filter(
-            job=job,
-            status='ACTIVE',
-            roll__isnull=False,
-            roll__status='RESERVED',
-        )
-        reserved_rolls = active_reservations.count()
-        # Keep legacy M2M mirror aligned with reservation source-of-truth.
-        assignment.allocated_rolls.set(
-            InventoryRoll.objects.filter(id__in=active_reservations.values_list('roll_id', flat=True))
-        )
+        if job_started:
+            reserved_rolls = assignment.allocated_rolls.count()
+        else:
+            # Count only physically valid active reservations.
+            # This prevents stale "ASSIGNED" state when reservation rows exist
+            # but rolls are no longer truly reserved/usable.
+            active_reservations = InventoryReservation.objects.filter(
+                job=job,
+                status='ACTIVE',
+                roll__isnull=False,
+                roll__status='RESERVED',
+            )
+            reserved_rolls = active_reservations.count()
+            # Keep legacy M2M mirror aligned with reservation source-of-truth.
+            assignment.allocated_rolls.set(
+                InventoryRoll.objects.filter(id__in=active_reservations.values_list('roll_id', flat=True))
+            )
 
         roll_ok = (required_rolls == 0) or (reserved_rolls >= required_rolls)
         ready_core = machine_ok and roll_ok
 
-        # Preserve EXECUTION_READY once pushed, unless the assignment becomes invalid
-        # (e.g. machine cleared or required rolls unassigned).
-        if assignment.status == 'EXECUTION_READY':
+        # Preserve machine execution once work has actually started. Active
+        # reservations may already be consumed by then, so roll readiness is no
+        # longer a preparation gate.
+        if job_started:
+            assignment.status = 'EXECUTION_READY'
+        elif assignment.status == 'EXECUTION_READY':
             assignment.status = 'EXECUTION_READY' if ready_core else 'WC_READY'
         else:
             assignment.status = 'ASSIGNED' if ready_core else 'WC_READY'
+
+        # If an unstarted job was previously pushed and then lost a preparation
+        # requirement, pull the job state back from machine execution. This is
+        # the source-of-truth repair that prevents WCM from showing unallocated
+        # work as running/ready.
+        if not job_started and assignment.status != 'EXECUTION_READY':
+            next_job_status = 'ASSIGNED' if assignment.status == 'ASSIGNED' else 'QUEUED'
+            updates = []
+            if str(getattr(job, "job_state", "") or "").upper() == 'RELEASED':
+                job.job_state = 'PLANNED'
+                updates.append('job_state')
+            if str(getattr(job, "status", "") or "").upper() in {'ASSIGNED', 'RUNNING'} and job.status != next_job_status:
+                job.status = next_job_status
+                updates.append('status')
+            if updates:
+                updates.append('updated_at')
+                job.save(update_fields=updates)
 
     @classmethod
     def _ensure_pre_release_editable(cls, assignment):
