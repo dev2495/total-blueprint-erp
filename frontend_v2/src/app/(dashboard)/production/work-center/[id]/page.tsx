@@ -255,7 +255,7 @@ export default function WCMTerminal() {
     const isManager = ["WORK_CENTER_MANAGER", "ADMIN", "OWNER", "SUPER_ADMIN"].includes(userRole || "")
 
     const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null)
-    const [activeMainTab, setActiveMainTab] = useState<"terminal" | "history">("terminal")
+    const [activeMainTab, setActiveMainTab] = useState<"terminal" | "running" | "history">("terminal")
     const [selectedMachineId, setSelectedMachineId] = useState<string>("")
     const [manualOverrideEnabled, setManualOverrideEnabled] = useState(false)
     const [overrideReason, setOverrideReason] = useState("")
@@ -266,6 +266,9 @@ export default function WCMTerminal() {
     const [historySearch, setHistorySearch] = useState("")
     const [historyStatusFilter, setHistoryStatusFilter] = useState("ALL")
     const [historyDaysFilter, setHistoryDaysFilter] = useState("30")
+    const [queuePage, setQueuePage] = useState(1)
+    const [runningPage, setRunningPage] = useState(1)
+    const [historyPage, setHistoryPage] = useState(1)
     const [closeJobAction, setCloseJobAction] = useState<{ assignment: any; mode: "SHORT_CLOSE" | "CANCEL" } | null>(null)
     const [closeJobReason, setCloseJobReason] = useState("")
     const autoAssignRef = useRef<Set<string>>(new Set())
@@ -291,7 +294,7 @@ export default function WCMTerminal() {
             q: historySearch.trim() || undefined,
             status: historyStatusFilter,
             days: historyDaysFilter === "ALL" ? null : Number(historyDaysFilter || 30),
-            limit: 120,
+            limit: 300,
         }),
         refetchInterval: 30000, // History can update less frequently
         enabled: activeMainTab === "history"
@@ -335,10 +338,22 @@ export default function WCMTerminal() {
         }),
         [assignmentsList]
     )
+    const runningAssignments = useMemo(
+        () => activeAssignments.filter((a: any) => {
+            const status = String(a?.status || "").toUpperCase()
+            const state = String(a?.job_details?.job_state || "").toUpperCase()
+            const jobStatus = String(a?.job_details?.status || "").toUpperCase()
+            return status === "EXECUTION_READY" || ["RELEASED", "EXECUTING", "PAUSED"].includes(state) || jobStatus === "RUNNING"
+        }),
+        [activeAssignments]
+    )
     const baseQueueAssignments = useMemo(
         () => activeAssignments.filter((a: any) => {
             const status = String(a?.status || "").toUpperCase()
-            return status === "WC_READY" || status === "ASSIGNED" || status === "EXECUTION_READY"
+            const state = String(a?.job_details?.job_state || "").toUpperCase()
+            const jobStatus = String(a?.job_details?.status || "").toUpperCase()
+            if (status === "EXECUTION_READY" || ["RELEASED", "EXECUTING", "PAUSED"].includes(state) || jobStatus === "RUNNING") return false
+            return status === "WC_READY" || status === "ASSIGNED"
         }),
         [activeAssignments]
     )
@@ -347,7 +362,7 @@ export default function WCMTerminal() {
             const job = assignment?.job_details || {}
             const status = String(assignment?.status || "").toUpperCase()
             const hasMachine = Boolean(assignment?.assigned_machine)
-            if (queueStatusFilter === "READY" && !(status === "WC_READY" || status === "EXECUTION_READY")) return false
+            if (queueStatusFilter === "READY" && status !== "WC_READY") return false
             if (queueStatusFilter === "ASSIGNED" && status !== "ASSIGNED") return false
             if (queueStatusFilter === "NEEDS_MACHINE" && hasMachine) return false
 
@@ -361,8 +376,30 @@ export default function WCMTerminal() {
         }),
         [baseQueueAssignments, queueSearch, queueStatusFilter]
     )
+    const visibleRunningAssignments = useMemo(
+        () => runningAssignments.filter((assignment: any) => {
+            const job = assignment?.job_details || {}
+            const search = queueSearch.trim().toLowerCase()
+            if (!search) return true
+            const spec = normalizeProductSpec(job)
+            return [spec.searchText, job?.job_number, job?.process_code, assignment?.assigned_machine_name]
+                .join(" ")
+                .toLowerCase()
+                .includes(search)
+        }),
+        [runningAssignments, queueSearch]
+    )
+    const queuePageSize = 20
+    const historyPageSize = 30
+    const queuePageCount = Math.max(1, Math.ceil(visibleQueueAssignments.length / queuePageSize))
+    const runningPageCount = Math.max(1, Math.ceil(visibleRunningAssignments.length / queuePageSize))
+    const historyPageCount = Math.max(1, Math.ceil(((historyJobs || []) as any[]).length / historyPageSize))
+    const pagedQueueAssignments = visibleQueueAssignments.slice((queuePage - 1) * queuePageSize, queuePage * queuePageSize)
+    const pagedRunningAssignments = visibleRunningAssignments.slice((runningPage - 1) * queuePageSize, runningPage * queuePageSize)
+    const pagedHistoryJobs = ((historyJobs || []) as any[]).slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
+    const activeAssignmentPool = activeMainTab === "running" ? visibleRunningAssignments : visibleQueueAssignments
     const activeAssignment = activeAssignmentId
-        ? (visibleQueueAssignments.find((a) => a.id === activeAssignmentId) || null)
+        ? (activeAssignmentPool.find((a) => a.id === activeAssignmentId) || null)
         : null
     const selectedJobId = activeAssignment?.production_job ? String(activeAssignment.production_job) : ""
     const assignedMachineId = activeAssignment?.assigned_machine ? String(activeAssignment.assigned_machine) : ""
@@ -382,18 +419,28 @@ export default function WCMTerminal() {
 
     useEffect(() => {
         // Keep selection stable across polling and recover if selected job disappears.
-        if (!visibleQueueAssignments.length) {
+        if (activeMainTab === "history") return
+        if (!activeAssignmentPool.length) {
             setActiveAssignmentId(null)
             return
         }
         if (!activeAssignmentId) {
-            setActiveAssignmentId(visibleQueueAssignments[0].id)
+            setActiveAssignmentId(activeAssignmentPool[0].id)
             return
         }
-        if (!visibleQueueAssignments.some((a) => a.id === activeAssignmentId)) {
-            setActiveAssignmentId(visibleQueueAssignments[0].id)
+        if (!activeAssignmentPool.some((a) => a.id === activeAssignmentId)) {
+            setActiveAssignmentId(activeAssignmentPool[0].id)
         }
-    }, [visibleQueueAssignments, activeAssignmentId])
+    }, [activeAssignmentPool, activeAssignmentId, activeMainTab])
+
+    useEffect(() => {
+        setQueuePage(1)
+        setRunningPage(1)
+    }, [queueSearch, queueStatusFilter])
+
+    useEffect(() => {
+        setHistoryPage(1)
+    }, [historySearch, historyStatusFilter, historyDaysFilter])
 
     useEffect(() => {
         // Sync machine selector from latest assignment payload whenever selected job changes.
@@ -1410,6 +1457,11 @@ export default function WCMTerminal() {
 
     if ((activeMainTab as string) !== "legacy") {
         const selectedSpec = normalizeProductSpec(selectedJob, executionContext)
+        const currentWorkList = activeMainTab === "running" ? pagedRunningAssignments : pagedQueueAssignments
+        const currentWorkTotal = activeMainTab === "running" ? visibleRunningAssignments.length : visibleQueueAssignments.length
+        const currentWorkPage = activeMainTab === "running" ? runningPage : queuePage
+        const currentWorkPageCount = activeMainTab === "running" ? runningPageCount : queuePageCount
+        const setCurrentWorkPage = activeMainTab === "running" ? setRunningPage : setQueuePage
         const queueCounts = {
             all: baseQueueAssignments.length,
             ready: baseQueueAssignments.filter((a: any) => String(a?.status || "").toUpperCase() === "WC_READY").length,
@@ -1460,6 +1512,13 @@ export default function WCMTerminal() {
                             >
                                 Queue
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveMainTab("running")}
+                                className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "running" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100")}
+                            >
+                                Running / ready
+                            </button>
                             <a className="rounded-md px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100" href={selectedMachineId ? `/production/machine/${selectedMachineId}` : "/production/machine-selector"}>
                                 Machine Terminal
                             </a>
@@ -1495,9 +1554,9 @@ export default function WCMTerminal() {
                         </div>
                         <div className="grid w-full grid-cols-2 gap-3 md:w-auto md:grid-cols-4">
                             {[
-                                ["Running", stats.running, "text-emerald-600"],
+                                ["Running / ready", visibleRunningAssignments.length, "text-emerald-600"],
                                 ["Waiting", stats.waiting, "text-slate-950"],
-                                ["Ready to run", queueCounts.executionReady, "text-blue-700"],
+                                ["Queue", visibleQueueAssignments.length, "text-blue-700"],
                                 ["No machine", queueCounts.noMachine, "text-amber-700"],
                             ].map(([label, value, tone]) => (
                                 <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -1525,7 +1584,7 @@ export default function WCMTerminal() {
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 {([
-                                    ["ALL", `All · ${queueCounts.all}`],
+                                    ["ALL", `Queue · ${queueCounts.all}`],
                                     ["READY", `WC Ready · ${queueCounts.ready}`],
                                     ["ASSIGNED", `Assigned · ${queueCounts.assigned}`],
                                     ["NEEDS_MACHINE", `No Machine · ${queueCounts.noMachine}`],
@@ -1547,6 +1606,18 @@ export default function WCMTerminal() {
                                 <button type="button" className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
                                     Sort: Priority
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveMainTab("running")}
+                                    className={cn(
+                                        "h-9 rounded-lg border px-3 text-sm font-medium transition",
+                                        activeMainTab === "running"
+                                            ? "border-emerald-700 bg-emerald-700 text-white"
+                                            : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                    )}
+                                >
+                                    Running / ready · {visibleRunningAssignments.length}
+                                </button>
                             </div>
                         </div>
                         {(queueSearch || queueStatusFilter !== "ALL") && (
@@ -1562,7 +1633,7 @@ export default function WCMTerminal() {
                     </section>
 
                     <section className={cn("mt-5 grid gap-5", activeMainTab === "history" ? "xl:grid-cols-1" : "xl:grid-cols-12")}>
-                        <div className={cn("space-y-3", activeMainTab === "history" ? "xl:col-span-1" : "xl:col-span-7")}>
+                        <div className={cn("space-y-3", activeMainTab === "history" ? "xl:col-span-1" : "max-h-[calc(100vh-270px)] overflow-y-auto pr-2 xl:col-span-7")}>
                             {activeMainTab === "history" ? (
                                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                                     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1611,7 +1682,7 @@ export default function WCMTerminal() {
                                         </Select>
                                     </div>
                                     <div className="mt-5 space-y-3">
-                                        {(historyJobs || []).map((assignment: any) => {
+                                        {pagedHistoryJobs.map((assignment: any) => {
                                             const job = assignment?.job_details || {}
                                             const spec = normalizeProductSpec(job)
                                             const summary = assignment?.history_summary || {}
@@ -1663,19 +1734,33 @@ export default function WCMTerminal() {
                                         {!isLoadingHistory && !(historyJobs || []).length && (
                                             <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm font-medium text-slate-500">No history rows yet.</div>
                                         )}
+                                        {((historyJobs || []) as any[]).length > historyPageSize ? (
+                                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600">
+                                                <span>History page {historyPage} of {historyPageCount} · {((historyJobs || []) as any[]).length} jobs</span>
+                                                <div className="flex gap-2">
+                                                    <Button type="button" variant="outline" className="h-9 rounded-xl" disabled={historyPage <= 1} onClick={() => setHistoryPage(Math.max(1, historyPage - 1))}>Previous</Button>
+                                                    <Button type="button" variant="outline" className="h-9 rounded-xl" disabled={historyPage >= historyPageCount} onClick={() => setHistoryPage(Math.min(historyPageCount, historyPage + 1))}>Next</Button>
+                                                </div>
+                                            </div>
+                                        ) : null}
                                     </div>
                                 </div>
-                            ) : visibleQueueAssignments.length === 0 ? (
+                            ) : currentWorkList.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-                                    <div className="text-lg font-semibold text-slate-900">No jobs in this queue right now.</div>
+                                    <div className="text-lg font-semibold text-slate-900">{activeMainTab === "running" ? "No released or running jobs right now." : "No jobs in this queue right now."}</div>
                                     <p className="mt-1 text-sm text-slate-500">Try clearing filters or widening the date range.</p>
                                     <Button type="button" variant="outline" className="mt-4 rounded-xl" onClick={() => { setQueueSearch(""); setQueueStatusFilter("ALL") }}>Clear filters</Button>
                                 </div>
-                            ) : visibleQueueAssignments.map((assignment: any) => {
+                            ) : currentWorkList.map((assignment: any) => {
                                 const job = assignment?.job_details || {}
                                 const spec = normalizeProductSpec(job)
                                 const status = String(assignment?.status || "WC_READY").toUpperCase()
                                 const isQueueReleased = status === "EXECUTION_READY"
+                                const jobState = String(job?.job_state || "").toUpperCase()
+                                const jobStatus = String(job?.status || "").toUpperCase()
+                                const hasStartedExecution = jobState === "EXECUTING" || jobState === "PAUSED" || jobStatus === "RUNNING" || Number(job?.produced_qty || job?.step_produced_primary || 0) > 0
+                                const canCancelFromWcm = activeMainTab !== "running" || !hasStartedExecution
+                                const canShortCloseFromWcm = activeMainTab === "running" && hasStartedExecution
                                 const queueOutputFormRaw = String(job?.output_form || spec.size.finishedGoodType || "OUTPUT").toUpperCase()
                                 const queueInputFormRaw = String(job?.input_form || "").toUpperCase()
                                 const queueOrderUom = String(job?.uom || "").toUpperCase()
@@ -1784,29 +1869,30 @@ export default function WCMTerminal() {
                                                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Due · {job.planned_date || "—"}</span>
                                                     </div>
                                                     <div className="flex justify-end gap-2 md:col-span-3">
-                                                        <a
-                                                            href={assignment.assigned_machine ? `/production/machine/${assignment.assigned_machine}` : "#"}
-                                                            onClick={(event) => { if (!assignment.assigned_machine) event.preventDefault() }}
-                                                            className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold", assignment.assigned_machine ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400")}
-                                                        >
-                                                            Open terminal
-                                                        </a>
+                                                        {activeMainTab === "running" ? (
+                                                            <a
+                                                                href={assignment.assigned_machine ? `/production/machine/${assignment.assigned_machine}` : "#"}
+                                                                onClick={(event) => { if (!assignment.assigned_machine) event.preventDefault() }}
+                                                                className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold", assignment.assigned_machine ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400")}
+                                                            >
+                                                                Open terminal
+                                                            </a>
+                                                        ) : null}
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <button
                                                                     type="button"
-                                                                    disabled={isQueueReleased}
                                                                     onClick={(event) => event.stopPropagation()}
-                                                                    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                                                                 >
                                                                     ⋯
                                                                 </button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end" className="w-56">
-                                                                <DropdownMenuItem disabled={isQueueReleased} onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason("") }}>
+                                                                <DropdownMenuItem disabled={!canShortCloseFromWcm} onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason("") }}>
                                                                     Short close step
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem disabled={isQueueReleased} className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason("") }}>
+                                                                <DropdownMenuItem disabled={!canCancelFromWcm} className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason("") }}>
                                                                     Cancel job
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
@@ -1818,10 +1904,19 @@ export default function WCMTerminal() {
                                     </article>
                                 )
                             })}
+                            {currentWorkTotal > queuePageSize ? (
+                                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 shadow-sm">
+                                    <span>{activeMainTab === "running" ? "Running / ready" : "Queue"} page {currentWorkPage} of {currentWorkPageCount} · {currentWorkTotal} jobs</span>
+                                    <div className="flex gap-2">
+                                        <Button type="button" variant="outline" className="h-9 rounded-xl" disabled={currentWorkPage <= 1} onClick={() => setCurrentWorkPage(Math.max(1, currentWorkPage - 1))}>Previous</Button>
+                                        <Button type="button" variant="outline" className="h-9 rounded-xl" disabled={currentWorkPage >= currentWorkPageCount} onClick={() => setCurrentWorkPage(Math.min(currentWorkPageCount, currentWorkPage + 1))}>Next</Button>
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
 
-                        {activeMainTab !== "history" ? <aside className="space-y-4 xl:col-span-5">
-                            <div className="sticky top-[76px] space-y-4">
+                        {activeMainTab !== "history" ? <aside className="max-h-[calc(100vh-270px)] overflow-y-auto pr-1 xl:col-span-5">
+                            <div className="space-y-4">
                                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">

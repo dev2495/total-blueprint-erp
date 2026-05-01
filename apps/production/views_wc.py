@@ -679,18 +679,63 @@ class JobAllocationViewSet(viewsets.ViewSet):
             assignment = WorkCenterAssignment.objects.select_related('production_job').get(id=assignment_id)
             job = assignment.production_job
             before_status = assignment.status
+            started = (
+                str(job.job_state or '').upper() in {'EXECUTING', 'PAUSED'} or
+                str(job.status or '').upper() == 'RUNNING' or
+                JobExecutionLog.objects.filter(production_job=job).exists() or
+                ScrapLog.objects.filter(production_job=job).exists() or
+                DowntimeLog.objects.filter(production_job=job).exists() or
+                MaterialConsumptionLog.objects.filter(production_job=job).exists()
+            )
+
+            if mode == 'CANCEL' and started:
+                return Response(
+                    {"error": "Cancel is only allowed before machine start. Use short close once execution or consumption has started."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if mode == 'SHORT_CLOSE' and not started:
+                return Response(
+                    {"error": "Short close is only allowed after machine start. Use cancel before execution starts."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             now = timezone.now()
-            action_label = 'Short closed by WCM' if mode == 'SHORT_CLOSE' else 'Cancelled by WCM'
+            if mode == 'SHORT_CLOSE':
+                from apps.production.services import JobService
+
+                _write_wcm_audit(
+                    assignment,
+                    mode,
+                    user=request.user,
+                    before_status=before_status,
+                    reason=reason,
+                    payload={"job_state": job.job_state, "job_status": job.status, "started": started},
+                )
+                closed_job = JobService.complete_step(
+                    job,
+                    user=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
+                    force_reason=reason,
+                    material_confirmations=getattr(job, "current_step_material_confirmations", None) or [],
+                    require_material_confirmations=False,
+                )
+                return Response({
+                    "id": str(assignment_id),
+                    "production_job": str(closed_job.id),
+                    "status": "COMPLETED",
+                    "job_details": ProductionJobSerializer(closed_job).data,
+                })
+
+            from apps.production.services import JobService
+
+            action_label = 'Cancelled by WCM'
+            JobService._release_active_roll_reservations(job)
+            assignment.allocated_rolls.clear()
             job.closed_at = now
             job.closed_by = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
-            job.closed_with_variance = True
+            job.closed_with_variance = False
             job.completion_force_reason = f"{action_label}: {reason}"
-            if mode == 'SHORT_CLOSE':
-                job.status = 'COMPLETED'
-                job.job_state = 'COMPLETED'
-            else:
-                job.status = 'CANCELLED'
-                job.job_state = 'CANCELLED'
+            job.status = 'CANCELLED'
+            job.job_state = 'CANCELLED'
             job.save(update_fields=[
                 'status',
                 'job_state',

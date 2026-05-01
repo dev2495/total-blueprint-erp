@@ -8,6 +8,7 @@ from apps.factory.models import Machine, Plant, Process, WorkCenter
 from apps.inventory.models import InventoryBulk, InventoryLocation
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.production.models import (
+    JobExecutionLog,
     JobMaterialRequirement,
     ProductionJob,
     ProductionWcmAuditEvent,
@@ -147,3 +148,50 @@ class WcmAuditEventTests(TestCase):
         actions = list(ProductionWcmAuditEvent.objects.order_by("occurred_at").values_list("action", flat=True))
         self.assertEqual(actions, ["MATERIAL_ISSUE", "RELEASE_TO_MACHINE"])
         self.assertEqual(ProductionWcmAuditEvent.objects.get(action="MATERIAL_ISSUE").payload["material_confirmations"], confirmations)
+
+    def test_cancel_is_blocked_after_machine_execution_starts(self):
+        view = JobAllocationViewSet.as_view({"post": "close_job"})
+        self.assignment.assigned_machine = self.machine
+        self.assignment.status = "EXECUTION_READY"
+        self.assignment.save(update_fields=["assigned_machine", "status"])
+        self.job.machine = self.machine
+        self.job.status = "RUNNING"
+        self.job.job_state = "EXECUTING"
+        self.job.save(update_fields=["machine", "status", "job_state"])
+        JobExecutionLog.objects.create(production_job=self.job, quantity=Decimal("5.0000"), uom="KG", logged_by=self.user)
+
+        request = self.factory.post(
+            "/api/production/wc-allocation/close-job/",
+            {"assignment_id": str(self.assignment.id), "mode": "CANCEL", "reason": "wrong setup"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Cancel is only allowed before machine start", str(response.data))
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.job_state, "EXECUTING")
+
+    def test_short_close_requires_started_machine_job(self):
+        view = JobAllocationViewSet.as_view({"post": "close_job"})
+        self.assignment.assigned_machine = self.machine
+        self.assignment.status = "EXECUTION_READY"
+        self.assignment.save(update_fields=["assigned_machine", "status"])
+        self.job.machine = self.machine
+        self.job.status = "ASSIGNED"
+        self.job.job_state = "RELEASED"
+        self.job.save(update_fields=["machine", "status", "job_state"])
+
+        request = self.factory.post(
+            "/api/production/wc-allocation/close-job/",
+            {"assignment_id": str(self.assignment.id), "mode": "SHORT_CLOSE", "reason": "partial output"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Short close is only allowed after machine start", str(response.data))
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.job_state, "RELEASED")

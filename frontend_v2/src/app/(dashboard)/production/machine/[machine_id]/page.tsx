@@ -262,6 +262,7 @@ export default function MachineExecutionPage() {
     const [outputWeightDirty, setOutputWeightDirty] = useState(false);
     const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
     const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '' }]);
+    const [trimInput, setTrimInput] = useState('0');
     const [scrapInput, setScrapInput] = useState('0');
     const [scrapEntryMode, setScrapEntryMode] = useState<EntryMode>('KG');
     const [scrapReason, setScrapReason] = useState('TRIM');
@@ -468,15 +469,15 @@ export default function MachineExecutionPage() {
     const maxOutputWithoutScrapKg = currentInputForm === 'ROLL'
         ? Math.max(0, Math.min(contextMaxOutputKg ?? remainingKg, reservedInputTotalKg || (contextMaxOutputKg ?? remainingKg)))
         : Math.max(0, contextMaxOutputKg ?? remainingKg);
-    const scrapKgValue = useMemo(() => {
-        const raw = toNumber(scrapInput, 0);
+    const wasteKgValue = useMemo(() => {
+        const raw = toNumber(scrapInput, 0) + toNumber(trimInput, 0);
         if (scrapEntryMode === 'PCS') {
             return unitWeightG > 0 ? (Math.max(0, raw) * unitWeightG) / 1000 : 0;
         }
         return Math.max(0, raw);
-    }, [scrapInput, scrapEntryMode, unitWeightG]);
+    }, [scrapInput, scrapEntryMode, trimInput, unitWeightG]);
     const maxOutputWithScrapKg = currentInputForm === 'ROLL'
-        ? Math.max(0, Math.min(maxOutputWithoutScrapKg, Math.max(0, reservedInputTotalKg - scrapKgValue)))
+        ? Math.max(0, Math.min(maxOutputWithoutScrapKg, Math.max(0, reservedInputTotalKg - wasteKgValue)))
         : maxOutputWithoutScrapKg;
 
     const splitRowsParsed = useMemo(
@@ -598,6 +599,7 @@ export default function MachineExecutionPage() {
         createCounterRef.current = 1;
         setSplitRows([{ id: 1, width_mm: '', weight_kg: '' }]);
         splitCounterRef.current = 2;
+        setTrimInput('0');
         setScrapInput('0');
         setScrapEntryMode('KG');
         setScrapReason(behavior === 'CREATE_NEW' ? 'SETUP' : behavior === 'SPLIT' ? 'TRIM' : 'DEFECT');
@@ -715,7 +717,7 @@ export default function MachineExecutionPage() {
                 roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
                 split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
                 remainder_location_id?: string;
-            } = { actual_qty: 0, scrap_qty: scrapKgValue };
+            } = { actual_qty: 0, scrap_qty: wasteKgValue };
 
             if (remainderLocationId && remainderLocationId !== DEFAULT_REMAINDER) payload.remainder_location_id = remainderLocationId;
 
@@ -913,13 +915,19 @@ export default function MachineExecutionPage() {
             [requirementId]: { ...prev[requirementId], ...patch },
         }));
     };
-    const autoSplitEqual = (parts: number) => {
-        const total = toNumber(outputWeightKg, 0);
+    const autoSplitEqual = (parts?: number) => {
+        const rowCount = Math.max(1, parts || createRollRows.length + 1);
+        const total = Math.max(previewOutputKg, toNumber(outputWeightKg, 0));
         const width = outputWidthMm || String(resolveCreateNewDefaultWidth(context) || '');
-        if (parts <= 1 || total <= 0) return;
-        const each = (total / parts).toFixed(3);
-        setCreateRollRows(Array.from({ length: parts - 1 }, (_, index) => ({ id: createCounterRef.current + index, width_mm: width, weight_kg: each, length_m: outputLengthM })));
-        createCounterRef.current += parts - 1;
+        if (rowCount <= 1 || total <= 0) return;
+        const each = (total / rowCount).toFixed(3);
+        setCreateRollRows((prev) => {
+            const next = [...prev];
+            while (next.length < rowCount - 1) {
+                next.push({ id: createCounterRef.current++, width_mm: width, weight_kg: '', length_m: outputLengthM });
+            }
+            return next.slice(0, rowCount - 1).map((row) => ({ ...row, width_mm: row.width_mm || width, weight_kg: each, length_m: row.length_m || outputLengthM }));
+        });
         setOutputWeightKg(each);
     };
 
@@ -990,14 +998,16 @@ export default function MachineExecutionPage() {
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button type="button" variant={activeTab === 'run' ? 'default' : 'outline'} className={cn('h-10 rounded-[10px] text-sm font-semibold', activeTab === 'run' && 'bg-slate-950 text-white hover:bg-slate-900')} onClick={() => setActiveTab('run')}>
-                                <Activity className="mr-2 h-4 w-4" />
-                                RUN
-                            </Button>
                             <Button type="button" variant={activeTab === 'history' ? 'default' : 'outline'} className={cn('h-10 rounded-[10px] text-sm font-semibold', activeTab === 'history' && 'bg-slate-950 text-white hover:bg-slate-900')} onClick={() => setActiveTab('history')}>
                                 <History className="mr-2 h-4 w-4" />
                                 History
                             </Button>
+                            {activeTab === 'history' ? (
+                                <Button type="button" variant="outline" className="h-10 rounded-[10px] text-sm font-semibold" onClick={() => setActiveTab('run')}>
+                                    <Activity className="mr-2 h-4 w-4" />
+                                    Back to live
+                                </Button>
+                            ) : null}
                             <Button type="button" variant="outline" className="h-10 rounded-[10px] border-slate-200 bg-white text-sm font-semibold" onClick={() => refreshAll()}>
                                 <RefreshCw className="mr-2 h-4 w-4" />
                                 Refresh
@@ -1161,12 +1171,12 @@ export default function MachineExecutionPage() {
                                             reservedRolls={reservedRolls}
                                             previewOutputKg={previewOutputKg}
                                             previewOutputPcs={previewOutputPcs}
+                                            trimInput={trimInput}
+                                            setTrimInput={setTrimInput}
                                             scrapInput={scrapInput}
                                             setScrapInput={setScrapInput}
                                             scrapEntryMode={scrapEntryMode}
                                             setScrapEntryMode={setScrapEntryMode}
-                                            scrapReason={scrapReason}
-                                            setScrapReason={setScrapReason}
                                             remainderLocations={remainderLocations}
                                             remainderLocationId={remainderLocationId}
                                             setRemainderLocationId={setRemainderLocationId}
@@ -1521,12 +1531,12 @@ function ProcessLogForm(props: any) {
         reservedRolls,
         previewOutputKg,
         previewOutputPcs,
+        trimInput,
+        setTrimInput,
         scrapInput,
         setScrapInput,
         scrapEntryMode,
         setScrapEntryMode,
-        scrapReason,
-        setScrapReason,
         remainderLocations,
         remainderLocationId,
         setRemainderLocationId,
@@ -1632,10 +1642,10 @@ function ProcessLogForm(props: any) {
                     <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <div className={labelClass}>Roll outputs · auto labels</div>
-                            <div className="mt-0.5 text-xs text-slate-600">{createRollRows.length + 1} roll rows · total {kg(createRollRows.reduce((sum: number, row: CreateRollRow) => sum + toNumber(row.weight_kg, 0), toNumber(outputWeightKg, 0)))}</div>
+                            <div className="mt-0.5 text-xs text-slate-600">{createRollRows.length + 1} roll rows · total produced {kg(previewOutputKg)}</div>
                         </div>
                         <div className="flex gap-2">
-                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => autoSplitEqual(3)}>Auto-split equal</Button>
+                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" disabled={createRollRows.length < 1} onClick={() => autoSplitEqual(createRollRows.length + 1)}>Balance current rows</Button>
                             <Button type="button" className="h-9 rounded-[10px] bg-gradient-to-br from-sky-500 to-blue-600 text-xs font-semibold text-white" data-testid="machine-add-create-row" onClick={addCreateRollRow}>
                                 <Plus className="mr-1 h-3 w-3" />
                                 Add roll
@@ -1668,6 +1678,9 @@ function ProcessLogForm(props: any) {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                    <div className="border-t border-slate-100 bg-emerald-50/60 px-4 py-2 text-right text-xs font-black uppercase tracking-wider text-emerald-800">
+                        Total produced from rows: <span className="font-mono text-sm">{kg(previewOutputKg)}</span>
                     </div>
                 </div>
             ) : null}
@@ -1735,19 +1748,25 @@ function ProcessLogForm(props: any) {
             <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <div className={cn(labelClass, 'text-rose-800')}>{variant === 'extrusion' ? 'Setup waste' : variant === 'slitting' ? 'Edge trim' : 'Scrap'} · optional</div>
-                        <div className="mt-0.5 text-[11px] text-rose-900/80">This posts with the output log and appears in live events.</div>
+                        <div className={cn(labelClass, 'text-rose-800')}>Trim and scrap · optional</div>
+                        <div className="mt-0.5 text-[11px] text-rose-900/80">Enter either, both, or none. The output log sends the combined waste weight to inventory.</div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Input data-testid="machine-scrap-input" value={scrapInput} onChange={(event) => setScrapInput(event.target.value)} className="h-10 w-24 rounded-lg border-rose-200 bg-white font-mono" type="number" step="0.001" />
+                        <div>
+                            <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Trim</div>
+                            <Input data-testid="machine-trim-input" value={trimInput} onChange={(event) => setTrimInput(event.target.value)} className="h-10 w-24 rounded-lg border-rose-200 bg-white font-mono" type="number" step="0.001" />
+                        </div>
+                        <div>
+                            <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Scrap</div>
+                            <Input data-testid="machine-scrap-input" value={scrapInput} onChange={(event) => setScrapInput(event.target.value)} className="h-10 w-24 rounded-lg border-rose-200 bg-white font-mono" type="number" step="0.001" />
+                        </div>
                         <Select value={scrapEntryMode} onValueChange={(value) => setScrapEntryMode(value as EntryMode)}>
                             <SelectTrigger className="h-10 w-24 rounded-lg border-rose-200 bg-white"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="KG">KG</SelectItem><SelectItem value="PCS">PCS</SelectItem></SelectContent>
                         </Select>
-                        <Select value={scrapReason} onValueChange={setScrapReason}>
-                            <SelectTrigger className="h-10 w-32 rounded-lg border-rose-200 bg-white"><SelectValue /></SelectTrigger>
-                            <SelectContent>{['SETUP', 'TRIM', 'DEFECT', 'MACHINE', 'MATERIAL', 'OTHER'].map((reason) => <SelectItem key={reason} value={reason}>{reason}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <div className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-800">
+                            Total {kg((toNumber(trimInput, 0) + toNumber(scrapInput, 0)) * (scrapEntryMode === 'PCS' && unitWeightG > 0 ? unitWeightG / 1000 : 1))}
+                        </div>
                     </div>
                 </div>
             </div>
