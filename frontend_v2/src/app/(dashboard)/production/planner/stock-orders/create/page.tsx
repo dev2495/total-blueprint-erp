@@ -1188,6 +1188,7 @@ export default function PlannerStockOrderStudioPage() {
       setSubmittingCart(true)
       let createdCount = 0
       let failedCount = 0
+      const failedLineIds = new Set<string>()
 
       releasableLines.forEach((line) => {
         updateCartLine(line.localId, (current) => ({
@@ -1251,6 +1252,7 @@ export default function PlannerStockOrderStudioPage() {
           }))
         } catch (error: any) {
           failedCount += 1
+          failedLineIds.add(line.localId)
           updateCartLine(line.localId, (current) => ({
             ...current,
             submitStatus: "failed",
@@ -1261,9 +1263,15 @@ export default function PlannerStockOrderStudioPage() {
 
       toast({
         title: "Batch release completed",
-        description: `${createdCount} order${createdCount === 1 ? "" : "s"} released, ${failedCount} failed.`,
+        description: failedCount
+          ? `${createdCount} order${createdCount === 1 ? "" : "s"} released, ${failedCount} failed. Failed lines stayed in the cart.`
+          : `${createdCount} order${createdCount === 1 ? "" : "s"} released. The cart is cleared for the next entry.`,
         variant: failedCount ? "destructive" : "default",
       })
+      if (createdCount > 0) {
+        const submittedLineIds = new Set(releasableLines.map((line) => line.localId))
+        setCartLines((current) => current.filter((line) => !submittedLineIds.has(line.localId) || failedLineIds.has(line.localId)))
+      }
     } finally {
       setSubmittingCart(false)
     }

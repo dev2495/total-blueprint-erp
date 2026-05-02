@@ -19,6 +19,7 @@ const n = (value: unknown, digits = 1) => Number(value || 0).toLocaleString("en-
 const kg = (value: unknown) => `${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`
 const err = (error: any) => error?.response?.data?.error || error?.response?.data?.detail || error?.message || "Request failed."
 const QUEUE_PAGE_SIZE = 8
+const WORK_PAGE_SIZE = 4
 
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
     return (
@@ -80,6 +81,12 @@ function getGonnyExpected(gonny: Gonny) {
     return Number(gonny.expected_gross_weight_kg ?? gonny.tare_breakdown_json?.expected_gross_weight_kg ?? gonny.tare_breakdown_json?.gross_weight_kg ?? 0)
 }
 
+function getGonnyWorkRank(gonny: Gonny) {
+    if (gonny.released_to_dispatch) return 3
+    if (gonny.gross_weight_kg) return 2
+    return 1
+}
+
 type RouteKind = "POUCH_PACK" | "ROLL_PACK" | "RELEASE_UNPACKED"
 type RollPackLineDraft = { material_id: string; qty: string; uom?: string; basis?: string }
 type PackingRouteFilter = "ALL" | "POUCH" | "ROLL" | "RELEASE"
@@ -111,6 +118,9 @@ export default function PackingYardPage() {
     const [releaseMode, setReleaseMode] = useState<"PACKED" | "UNPACKED">("PACKED")
     const [rollPackLines, setRollPackLines] = useState<RollPackLineDraft[]>([{ material_id: "", qty: "", uom: "PCS", basis: "PER_ROLL" }])
     const [queuePage, setQueuePage] = useState(1)
+    const [batchPage, setBatchPage] = useState(1)
+    const [gonnyPage, setGonnyPage] = useState(1)
+    const [rollPage, setRollPage] = useState(1)
 
     const board = useQuery({ queryKey: ["packing-board"], queryFn: logisticsService.getPackingBoard, refetchInterval: 30000 })
     const summary = useQuery({
@@ -145,6 +155,7 @@ export default function PackingYardPage() {
             setCreateBatchId("")
             setCreateQty("")
             setPrimaryPackCount("")
+            setGonnyPage(1)
             invalidate()
         },
         onError: (error) => toast({ title: "Create failed", description: err(error), variant: "destructive" }),
@@ -252,6 +263,9 @@ export default function PackingYardPage() {
     }, [queuePageCount])
 
     const selected = summary.data as SOPackingSummary | undefined
+    const selectedBatches = selected?.batches || []
+    const selectedGonnies = [...(selected?.gonnies || [])].sort((left, right) => getGonnyWorkRank(left) - getGonnyWorkRank(right))
+    const selectedRollRows = selected?.rolls || []
     const selectedBatch = selected?.batches.find((batch) => batch.id === createBatchId)
     const expected = sealGonny ? getGonnyExpected(sealGonny) : 0
     const variance = actualGross ? Number(actualGross) - expected : 0
@@ -271,6 +285,24 @@ export default function PackingYardPage() {
     const selectedReadyUnits = Number(selected?.ready_for_dispatch.gonnies_count || 0) + Number(selected?.ready_for_dispatch.rolls_count || 0)
     const selectedProgress = selectedPendingUnits + selectedReadyUnits > 0 ? Math.round((selectedReadyUnits / (selectedPendingUnits + selectedReadyUnits)) * 100) : selectedReadyUnits ? 100 : 0
     const selectedRollsForBulk = (selected?.rolls || []).filter((roll: any) => selectedRollIds.includes(roll.id) && !roll.released_to_dispatch)
+    const batchPageCount = Math.max(1, Math.ceil(selectedBatches.length / WORK_PAGE_SIZE))
+    const safeBatchPage = Math.min(batchPage, batchPageCount)
+    const batchStartIndex = (safeBatchPage - 1) * WORK_PAGE_SIZE
+    const pagedBatches = selectedBatches.slice(batchStartIndex, batchStartIndex + WORK_PAGE_SIZE)
+    const batchShownStart = selectedBatches.length ? batchStartIndex + 1 : 0
+    const batchShownEnd = Math.min(selectedBatches.length, batchStartIndex + pagedBatches.length)
+    const gonnyPageCount = Math.max(1, Math.ceil(selectedGonnies.length / WORK_PAGE_SIZE))
+    const safeGonnyPage = Math.min(gonnyPage, gonnyPageCount)
+    const gonnyStartIndex = (safeGonnyPage - 1) * WORK_PAGE_SIZE
+    const pagedGonnies = selectedGonnies.slice(gonnyStartIndex, gonnyStartIndex + WORK_PAGE_SIZE)
+    const gonnyShownStart = selectedGonnies.length ? gonnyStartIndex + 1 : 0
+    const gonnyShownEnd = Math.min(selectedGonnies.length, gonnyStartIndex + pagedGonnies.length)
+    const rollPageCount = Math.max(1, Math.ceil(selectedRollRows.length / WORK_PAGE_SIZE))
+    const safeRollPage = Math.min(rollPage, rollPageCount)
+    const rollStartIndex = (safeRollPage - 1) * WORK_PAGE_SIZE
+    const pagedRolls = selectedRollRows.slice(rollStartIndex, rollStartIndex + WORK_PAGE_SIZE)
+    const rollShownStart = selectedRollRows.length ? rollStartIndex + 1 : 0
+    const rollShownEnd = Math.min(selectedRollRows.length, rollStartIndex + pagedRolls.length)
     const activeRollCount = releaseRolls.length
     const activeRollNet = releaseRolls.reduce((sum, roll) => sum + Number(roll.net_weight_kg || roll.weight_kg || 0), 0)
     const activeRollTare = releaseRolls.reduce((sum, roll) => sum + Number(roll.tare_weight_kg || 0), 0)
@@ -295,7 +327,22 @@ export default function PackingYardPage() {
     useEffect(() => {
         setRouteChoice("")
         setSelectedRollIds([])
+        setBatchPage(1)
+        setGonnyPage(1)
+        setRollPage(1)
     }, [selectedOrderId])
+
+    useEffect(() => {
+        setBatchPage((current) => Math.min(current, batchPageCount))
+    }, [batchPageCount])
+
+    useEffect(() => {
+        setGonnyPage((current) => Math.min(current, gonnyPageCount))
+    }, [gonnyPageCount])
+
+    useEffect(() => {
+        setRollPage((current) => Math.min(current, rollPageCount))
+    }, [rollPageCount])
 
     const openCreateGonny = (batch: SOPackingSummary["batches"][number]) => {
         setCreateBatchId(batch.id)
@@ -583,7 +630,7 @@ export default function PackingYardPage() {
                                                         <tr><th className="px-4 py-3 text-left">Batch</th><th className="text-left">Product</th><th className="text-right">Available</th><th className="px-4 text-right">Action</th></tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100">
-                                                        {selected.batches.map((batch) => (
+                                                        {pagedBatches.map((batch) => (
                                                             <tr key={batch.id}>
                                                                 <td className="px-4 py-4 font-mono font-black">{batch.batch_number}</td>
                                                                 <td>{batch.template_name || "Pouch batch"}<div className="text-xs font-semibold text-slate-500">{batch.location?.name}</div></td>
@@ -594,6 +641,10 @@ export default function PackingYardPage() {
                                                     </tbody>
                                                 </table>
                                                 {!selected.batches.length && <div className="p-8 text-center text-sm font-semibold text-slate-500">No pouch batches are waiting for this order.</div>}
+                                            </div>
+                                            <div className="mt-3 flex flex-col gap-2 rounded-[14px] border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div data-testid="packing-batch-work-total" className="text-xs font-bold text-slate-500">Showing {batchShownStart}-{batchShownEnd} of {selectedBatches.length} batches</div>
+                                                <Pager page={safeBatchPage} pageCount={batchPageCount} onPageChange={setBatchPage} testId="packing-batch-work-page" />
                                             </div>
                                         </div>
                                         <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -630,8 +681,9 @@ export default function PackingYardPage() {
 
                                     <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
                                         <h3 className="mb-4 text-base font-black text-slate-950">Gonnies in yard</h3>
-                                        <div className="grid gap-3 md:grid-cols-2">
-                                            {selected.gonnies.map((gonny) => (
+                                        <div className="max-h-[520px] overflow-y-auto overscroll-contain pr-1">
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                            {pagedGonnies.map((gonny) => (
                                                 <div key={gonny.id} className="rounded-[14px] border border-slate-200 p-4">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div><div className="font-mono font-black">{gonny.label_id}</div><div className="text-xs font-semibold text-slate-500">{gonny.qty_pcs} pcs · expected {n(getGonnyExpected(gonny))} kg · {gonny.status}</div><div className="mt-1 text-xs font-semibold text-slate-500">Dispatch unit: {gonny.dispatch_unit_no || gonny.label_id} · source batch {gonny.batch_no || gonny.fg_batch__batch_number || "linked"}</div></div>
@@ -644,6 +696,11 @@ export default function PackingYardPage() {
                                                 </div>
                                             ))}
                                             {!selected.gonnies.length && <div className="rounded-[14px] border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No gonnies created yet.</div>}
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 flex flex-col gap-2 rounded-[14px] border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div data-testid="packing-gonny-work-total" className="text-xs font-bold text-slate-500">Showing {gonnyShownStart}-{gonnyShownEnd} of {selectedGonnies.length} gonnies</div>
+                                            <Pager page={safeGonnyPage} pageCount={gonnyPageCount} onPageChange={setGonnyPage} testId="packing-gonny-work-page" />
                                         </div>
                                     </div>
                                 </>
@@ -657,7 +714,7 @@ export default function PackingYardPage() {
                                             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Select one or many rolls. Material qty entered in bulk is the total issue for selected rolls.</div>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
-                                            <Button size="sm" variant="outline" disabled={!selected.rolls.some((roll: any) => !roll.released_to_dispatch)} onClick={() => {
+                                            <Button size="sm" variant="outline" data-testid="packing-roll-select-all" disabled={!selected.rolls.some((roll: any) => !roll.released_to_dispatch)} onClick={() => {
                                                 const openIds = selected.rolls.filter((roll: any) => !roll.released_to_dispatch).map((roll: any) => roll.id)
                                                 setSelectedRollIds(selectedRollIds.length === openIds.length ? [] : openIds)
                                             }}>
@@ -669,10 +726,11 @@ export default function PackingYardPage() {
                                             <Chip tone="roll">{selected.rolls.length || selected.ready_for_dispatch.rolls_count} rolls</Chip>
                                         </div>
                                     </div>
-                                    <div className="grid gap-3">
-                                        {selected.rolls.map((roll) => (
+                                    <div className="max-h-[min(58dvh,620px)] overflow-y-auto overscroll-contain pr-1">
+                                        <div className="grid gap-3">
+                                        {pagedRolls.map((roll) => (
                                             <div key={roll.id} className={`rounded-[14px] border p-4 ${roll.released_to_dispatch ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
-                                                <div className="flex min-w-0 flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                                                <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-center">
                                                     <div className="flex min-w-0 gap-3">
                                                         {!roll.released_to_dispatch && (
                                                             <button
@@ -697,7 +755,7 @@ export default function PackingYardPage() {
                                                         </div>
                                                     </div>
                                                     {!roll.released_to_dispatch ? (
-                                                        <Button className="w-full shrink-0 sm:w-auto" data-testid={`packing-roll-release-${roll.id}`} onClick={() => openReleaseRoll(roll)}>
+                                                        <Button className="h-11 w-full shrink-0" data-testid={`packing-roll-release-${roll.id}`} onClick={() => openReleaseRoll(roll)}>
                                                             <PackageCheck className="mr-2 h-4 w-4" /> {activeRoute === "ROLL_PACK" ? "Pack roll & release" : "Release unpacked"}
                                                         </Button>
                                                     ) : (
@@ -707,6 +765,11 @@ export default function PackingYardPage() {
                                             </div>
                                         ))}
                                         {!selected.rolls.length && <div className="rounded-[14px] border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No unreleased rolls for this order. Released rolls are already visible in Dispatch Bay.</div>}
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex flex-col gap-2 rounded-[14px] border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div data-testid="packing-roll-work-total" className="text-xs font-bold text-slate-500">Showing {rollShownStart}-{rollShownEnd} of {selectedRollRows.length} rolls</div>
+                                        <Pager page={safeRollPage} pageCount={rollPageCount} onPageChange={setRollPage} testId="packing-roll-work-page" />
                                     </div>
                                 </div>
                             )}

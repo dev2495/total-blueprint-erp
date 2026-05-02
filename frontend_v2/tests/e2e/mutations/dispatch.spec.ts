@@ -115,9 +115,13 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
 
   await selectByTestId(page, "packing-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
   if (rollIds.length > 1) {
-    for (const rollId of rollIds) {
-      await page.getByTestId(`packing-roll-select-${rollId}`).click()
+    await expect(page.getByTestId("packing-roll-work-total")).toContainText(`of ${rollIds.length} rolls`)
+    if (rollIds.length > 4) {
+      await expect(page.getByTestId("packing-roll-work-total")).toContainText("Showing 1-4")
+      await page.getByTestId("packing-roll-work-page-next").click()
+      await expect(page.getByTestId("packing-roll-work-total")).toContainText("Showing 5-8")
     }
+    await page.getByTestId("packing-roll-select-all").click()
     await page.getByTestId("packing-roll-bulk-release").click()
   } else {
     await page.getByTestId(`packing-roll-release-${seed.dispatch.roll_id}`).click()
@@ -137,10 +141,8 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
 
   await selectByTestId(page, "dispatch-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
   await expect(page.getByTestId(`dispatch-roll-checkbox-${rollIds[0]}`)).toBeVisible({ timeout: 15_000 })
-
-  for (const rollId of rollIds) {
-    await page.getByTestId(`dispatch-roll-checkbox-${rollId}`).click()
-  }
+  await expect(page.getByTestId("dispatch-manifest-total")).toContainText(`of ${rollIds.length} units`)
+  await page.getByTestId("dispatch-select-all-units").click()
   await page.getByTestId("dispatch-create-trigger").click()
   const vehicleInput = page.getByPlaceholder("MH-XX-AB-XXXX")
   if (await vehicleInput.isVisible().catch(() => false)) {

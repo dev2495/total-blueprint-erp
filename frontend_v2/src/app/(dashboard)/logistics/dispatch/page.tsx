@@ -18,6 +18,7 @@ const n = (value: unknown, digits = 1) => Number(value || 0).toLocaleString("en-
 const err = (error: any) => error?.response?.data?.error || error?.response?.data?.detail || error?.message || "Request failed."
 const QUEUE_PAGE_SIZE = 8
 const HISTORY_PAGE_SIZE = 6
+const MANIFEST_PAGE_SIZE = 10
 type DispatchUnitFilter = "ALL" | "CTN" | "ROLL"
 type DispatchStatusFilter = "ALL" | "READY" | "WAITING"
 type DispatchSortMode = "READY_DESC" | "SO_ASC" | "CUSTOMER_ASC" | "GROSS_DESC"
@@ -113,6 +114,7 @@ export default function DispatchBayPage() {
     const [notes, setNotes] = useState("")
     const [queuePage, setQueuePage] = useState(1)
     const [historyPage, setHistoryPage] = useState(1)
+    const [manifestPage, setManifestPage] = useState(1)
 
     const board = useQuery({ queryKey: ["dispatch-board"], queryFn: logisticsService.getDispatchBoard, refetchInterval: 30000 })
     const summary = useQuery({
@@ -253,6 +255,12 @@ export default function DispatchBayPage() {
         ...(selected?.gonnies || []).map((gonny) => ({ id: gonny.id, unit: gonny.dispatch_unit_no || gonny.label_id, kind: "CTN" as const, customer: selected?.sales_order.customer_name || "", so: selected?.sales_order.order_number || "", kg: Number(gonny.gross_weight_kg || gonny.weight_kg || 0), selected: selectedGonnies.includes(gonny.id), line: `${gonny.qty_pcs} pcs · variance ${n(gonny.gross_variance_kg, 3)} kg` })),
         ...(selected?.rolls || []).map((roll) => ({ id: roll.id, unit: roll.dispatch_unit_no || roll.label_id, kind: "ROLL" as const, customer: selected?.sales_order.customer_name || "", so: selected?.sales_order.order_number || "", kg: Number(roll.gross_weight_kg || roll.weight_kg || 0), selected: selectedRolls.includes(roll.id), line: `${roll.batch_no || "roll"} · net ${n(roll.net_weight_kg || roll.weight_kg)} · tare ${n(roll.tare_weight_kg || 0)}` })),
     ]
+    const manifestPageCount = Math.max(1, Math.ceil(allSelectedUnits.length / MANIFEST_PAGE_SIZE))
+    const safeManifestPage = Math.min(manifestPage, manifestPageCount)
+    const manifestStartIndex = (safeManifestPage - 1) * MANIFEST_PAGE_SIZE
+    const pagedManifestUnits = allSelectedUnits.slice(manifestStartIndex, manifestStartIndex + MANIFEST_PAGE_SIZE)
+    const manifestShownStart = allSelectedUnits.length ? manifestStartIndex + 1 : 0
+    const manifestShownEnd = Math.min(allSelectedUnits.length, manifestStartIndex + pagedManifestUnits.length)
     const selectedCapacity = Math.min(100, Math.round((selectedGross / 12000) * 100))
     const routeCounts = (board.data?.orders || []).reduce((acc, row) => {
         acc.roll += Number(row.available_for_dispatch.rolls_count || 0)
@@ -276,7 +284,12 @@ export default function DispatchBayPage() {
         setSelectedOrderId(id)
         setSelectedRolls([])
         setSelectedGonnies([])
+        setManifestPage(1)
     }
+
+    useEffect(() => {
+        setManifestPage((current) => Math.min(current, manifestPageCount))
+    }, [manifestPageCount])
 
     return (
         <div className="mx-auto max-w-[1600px] space-y-4 p-4 lg:p-6" data-testid="dispatch-page">
@@ -450,30 +463,46 @@ export default function DispatchBayPage() {
                             <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-white shadow-sm">
                                 <div className="flex flex-col gap-3 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
                                     <div><h3 className="text-base font-black text-slate-950">Manifest · {selectedUnits || selected.rolls.length + selected.gonnies.length} units</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">select rows to build challan · rolls and gonnies are equal dispatch units</div></div>
-                                    <div className="flex gap-2"><Chip tone="green">Released only</Chip><Chip tone="blue">SO locked</Chip></div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            data-testid="dispatch-select-all-units"
+                                            disabled={!allSelectedUnits.length}
+                                            onClick={() => {
+                                                const rollIds = (selected?.rolls || []).map((roll) => roll.id)
+                                                const gonnyIds = (selected?.gonnies || []).map((gonny) => gonny.id)
+                                                const allAlreadySelected = selectedRolls.length === rollIds.length && selectedGonnies.length === gonnyIds.length
+                                                setSelectedRolls(allAlreadySelected ? [] : rollIds)
+                                                setSelectedGonnies(allAlreadySelected ? [] : gonnyIds)
+                                            }}
+                                        >
+                                            {selectedUnits ? "Clear selection" : "Select all units"}
+                                        </Button>
+                                        <Chip tone="green">Released only</Chip><Chip tone="blue">SO locked</Chip>
+                                    </div>
                                 </div>
                                 <div className="max-h-[560px] overflow-auto">
                                     <table className="w-full min-w-[760px] text-sm">
                                         <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-[0.22em] text-slate-400"><tr><th className="px-4 py-3 text-left">#</th><th className="text-left">Unit</th><th className="text-left">SO · customer</th><th className="text-left">Specs</th><th className="text-right">Kg</th><th className="px-4 text-right">State</th></tr></thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {selected.gonnies.map((gonny, index) => (
-                                                <tr key={gonny.id} className={selectedGonnies.includes(gonny.id) ? "bg-emerald-50" : ""}>
-                                                    <td className="px-4 py-4 font-mono">{index + 1}</td>
-                                                    <td><button data-testid={`dispatch-gonny-checkbox-${gonny.id}`} onClick={() => toggle(gonny.id, selectedGonnies, setSelectedGonnies)} className="flex items-center gap-2 text-left"><Chip tone="ctn">CTN</Chip><span className="font-mono font-black">{gonny.dispatch_unit_no || gonny.label_id}</span></button></td>
-                                                    <td><span className="font-mono">{selected.sales_order.order_number}</span> · {selected.sales_order.customer_name}<div className="text-xs font-semibold text-slate-500">{gonny.qty_pcs} pcs · source {gonny.batch_no || gonny.fg_batch__batch_number || gonny.label_id}</div></td>
-                                                    <td><Chip tone="ctn">POUCH</Chip></td>
-                                                    <td className="text-right font-black">{n(gonny.gross_weight_kg || gonny.weight_kg)} kg</td>
-                                                    <td className="px-4 text-right text-emerald-700">{selectedGonnies.includes(gonny.id) ? "selected" : "ready"}</td>
-                                                </tr>
-                                            ))}
-                                            {selected.rolls.map((roll, index) => (
-                                                <tr key={roll.id} className={selectedRolls.includes(roll.id) ? "bg-sky-50" : ""}>
-                                                    <td className="px-4 py-4 font-mono">{selected.gonnies.length + index + 1}</td>
-                                                    <td><button data-testid={`dispatch-roll-checkbox-${roll.id}`} onClick={() => toggle(roll.id, selectedRolls, setSelectedRolls)} className="flex items-center gap-2 text-left"><Chip tone="roll">ROLL</Chip><span className="font-mono font-black">{roll.dispatch_unit_no || roll.label_id}</span></button></td>
-                                                    <td><span className="font-mono">{selected.sales_order.order_number}</span> · {selected.sales_order.customer_name}<div className="text-xs font-semibold text-slate-500">{roll.batch_no || roll.label_id}</div></td>
-                                                    <td><Chip tone="roll">ROLL</Chip> <Chip tone="blue">{roll.width_mm || "-"} mm</Chip></td>
-                                                    <td className="text-right font-black">{n(roll.gross_weight_kg || roll.weight_kg)} kg</td>
-                                                    <td className="px-4 text-right text-emerald-700">{selectedRolls.includes(roll.id) ? "selected" : "ready"}</td>
+                                            {pagedManifestUnits.map((unit, index) => (
+                                                <tr key={unit.id} className={unit.selected ? (unit.kind === "ROLL" ? "bg-sky-50" : "bg-emerald-50") : ""}>
+                                                    <td className="px-4 py-4 font-mono">{manifestStartIndex + index + 1}</td>
+                                                    <td>
+                                                        <button
+                                                            data-testid={unit.kind === "ROLL" ? `dispatch-roll-checkbox-${unit.id}` : `dispatch-gonny-checkbox-${unit.id}`}
+                                                            onClick={() => unit.kind === "ROLL" ? toggle(unit.id, selectedRolls, setSelectedRolls) : toggle(unit.id, selectedGonnies, setSelectedGonnies)}
+                                                            className="flex items-center gap-2 text-left"
+                                                        >
+                                                            <Chip tone={unit.kind === "ROLL" ? "roll" : "ctn"}>{unit.kind}</Chip><span className="break-all font-mono font-black">{unit.unit}</span>
+                                                        </button>
+                                                    </td>
+                                                    <td><span className="font-mono">{unit.so}</span> · {unit.customer}<div className="text-xs font-semibold text-slate-500">{unit.line}</div></td>
+                                                    <td><Chip tone={unit.kind === "ROLL" ? "roll" : "ctn"}>{unit.kind === "ROLL" ? "ROLL" : "POUCH"}</Chip></td>
+                                                    <td className="text-right font-black">{n(unit.kg)} kg</td>
+                                                    <td className="px-4 text-right text-emerald-700">{unit.selected ? "selected" : "ready"}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -481,8 +510,14 @@ export default function DispatchBayPage() {
                                     {!allSelectedUnits.length && <div className="p-10 text-center text-sm font-semibold text-slate-500">No released units are waiting for this order.</div>}
                                 </div>
                                 <div className="border-t border-slate-100 bg-slate-50 p-5">
-                                    <div className="mb-3 flex items-center justify-between text-sm"><span><b>Totals:</b> {n(selectedGross)} kg · {n(selectedPcs, 0)} pcs · {selectedUnits} selected</span><span className="text-xs font-semibold text-slate-500">Capacity {selectedCapacity}%</span></div>
+                                    <div className="mb-3 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                                        <span><b>Totals:</b> {n(selectedGross)} kg · {n(selectedPcs, 0)} pcs · {selectedUnits} selected</span>
+                                        <span data-testid="dispatch-manifest-total" className="text-xs font-semibold text-slate-500">Showing {manifestShownStart}-{manifestShownEnd} of {allSelectedUnits.length} units · Capacity {selectedCapacity}%</span>
+                                    </div>
                                     <div className="h-2 overflow-hidden rounded-full bg-white"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${selectedCapacity}%` }} /></div>
+                                    <div className="mt-3 flex justify-end">
+                                        <Pager page={safeManifestPage} pageCount={manifestPageCount} onPageChange={setManifestPage} testId="dispatch-manifest-page" />
+                                    </div>
                                 </div>
                             </div>
 

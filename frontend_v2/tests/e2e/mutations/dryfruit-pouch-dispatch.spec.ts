@@ -80,7 +80,13 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
   expect(gonny, "new open gonny should exist after packing creation").toBeTruthy()
   expect(Number(createdSummary?.packing_pending?.open_gonnies_count || 0)).toBeGreaterThanOrEqual(beforeOpenCount + 1)
 
-  await page.getByTestId(`packing-seal-gonny-${gonny.id}`).click()
+  const sealButton = page.getByTestId(`packing-seal-gonny-${gonny.id}`)
+  for (let pageTurn = 0; pageTurn < 12 && !(await sealButton.isVisible().catch(() => false)); pageTurn += 1) {
+    const next = page.getByTestId("packing-gonny-work-page-next")
+    if (!(await next.isVisible().catch(() => false)) || !(await next.isEnabled().catch(() => false))) break
+    await next.click()
+  }
+  await sealButton.click()
   await page.getByTestId("packing-seal-gonny-dialog").waitFor({ state: "visible", timeout: 15_000 })
   await page.getByTestId("packing-gonny-seal-weight").fill("1.500")
   const varianceReason = page.getByTestId("packing-gonny-variance-reason")
