@@ -41,6 +41,8 @@ type SplitRow = {
     id: number;
     width_mm: string;
     weight_kg: string;
+    tare_weight_kg: string;
+    gross_weight_kg: string;
 };
 
 type CreateRollRow = {
@@ -48,6 +50,8 @@ type CreateRollRow = {
     width_mm: string;
     weight_kg: string;
     length_m: string;
+    tare_weight_kg: string;
+    gross_weight_kg: string;
 };
 
 type MaterialConfirmationDraft = {
@@ -272,10 +276,12 @@ export default function MachineExecutionPage() {
     const [outputEntryMode, setOutputEntryMode] = useState<EntryMode>('KG');
     const [outputWidthMm, setOutputWidthMm] = useState('');
     const [outputLengthM, setOutputLengthM] = useState('');
+    const [outputTareKg, setOutputTareKg] = useState('');
+    const [outputGrossKg, setOutputGrossKg] = useState('');
     const [outputWidthDirty, setOutputWidthDirty] = useState(false);
     const [outputWeightDirty, setOutputWeightDirty] = useState(false);
     const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
-    const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '' }]);
+    const [splitRows, setSplitRows] = useState<SplitRow[]>([{ id: 1, width_mm: '', weight_kg: '', tare_weight_kg: '', gross_weight_kg: '' }]);
     const [trimInput, setTrimInput] = useState('0');
     const [scrapInput, setScrapInput] = useState('0');
     const [scrapEntryMode, setScrapEntryMode] = useState<EntryMode>('KG');
@@ -511,28 +517,49 @@ export default function MachineExecutionPage() {
     const splitRowsParsed = useMemo(
         () =>
             splitRows
-                .map((row) => ({ id: row.id, width_mm: toNumber(row.width_mm, 0), weight_kg: toNumber(row.weight_kg, 0) }))
+                .map((row) => ({
+                    id: row.id,
+                    width_mm: toNumber(row.width_mm, 0),
+                    weight_kg: toNumber(row.weight_kg, 0),
+                    tare_weight_kg: toNullableNumber(row.tare_weight_kg),
+                    gross_weight_kg: toNullableNumber(row.gross_weight_kg),
+                }))
                 .filter((row) => row.width_mm > 0 && row.weight_kg > 0),
         [splitRows]
     );
     const splitTotalKg = splitRowsParsed.reduce((sum, row) => sum + row.weight_kg, 0);
     const createRollRowsParsed = useMemo(() => {
-        const rows: Array<{ id: number; width_mm: number; weight_kg: number; length_m?: number | null }> = [];
+        const rows: Array<{ id: number; width_mm: number; weight_kg: number; length_m?: number | null; tare_weight_kg?: number | null; gross_weight_kg?: number | null }> = [];
         const baseWidth = toNumber(outputWidthMm, 0);
         const baseWeight = toNumber(outputWeightKg, 0);
         if (baseWidth > 0 && baseWeight > 0) {
-            rows.push({ id: 0, width_mm: baseWidth, weight_kg: baseWeight, length_m: toNullableNumber(outputLengthM) });
+            rows.push({
+                id: 0,
+                width_mm: baseWidth,
+                weight_kg: baseWeight,
+                length_m: toNullableNumber(outputLengthM),
+                tare_weight_kg: toNullableNumber(outputTareKg),
+                gross_weight_kg: toNullableNumber(outputGrossKg),
+            });
         }
         for (const row of createRollRows) {
             const width = toNumber(row.width_mm, 0);
             const weight = toNumber(row.weight_kg, 0);
             if (width > 0 && weight > 0) {
-                rows.push({ id: row.id, width_mm: width, weight_kg: weight, length_m: toNullableNumber(row.length_m) });
+                rows.push({
+                    id: row.id,
+                    width_mm: width,
+                    weight_kg: weight,
+                    length_m: toNullableNumber(row.length_m),
+                    tare_weight_kg: toNullableNumber(row.tare_weight_kg),
+                    gross_weight_kg: toNullableNumber(row.gross_weight_kg),
+                });
             }
         }
         return rows;
-    }, [createRollRows, outputLengthM, outputWeightKg, outputWidthMm]);
+    }, [createRollRows, outputGrossKg, outputLengthM, outputTareKg, outputWeightKg, outputWidthMm]);
     const createRollTotalKg = createRollRowsParsed.reduce((sum, row) => sum + row.weight_kg, 0);
+    const createRollHasWeightBreakdown = createRollRowsParsed.some((row) => toNumber(row.tare_weight_kg, 0) > 0 || toNumber(row.gross_weight_kg, 0) > 0);
     const previewOutputKg = useMemo(() => {
         if (behavior === 'SPLIT') return splitTotalKg;
         if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1) return createRollTotalKg;
@@ -621,11 +648,13 @@ export default function MachineExecutionPage() {
         setOutputEntryMode(showPcsEntry ? 'PCS' : 'KG');
         setOutputWidthMm('');
         setOutputLengthM('');
+        setOutputTareKg('');
+        setOutputGrossKg('');
         setOutputWidthDirty(false);
         setOutputWeightDirty(false);
         setCreateRollRows([]);
         createCounterRef.current = 1;
-        setSplitRows([{ id: 1, width_mm: '', weight_kg: '' }]);
+        setSplitRows([{ id: 1, width_mm: '', weight_kg: '', tare_weight_kg: '', gross_weight_kg: '' }]);
         splitCounterRef.current = 2;
         setTrimInput('0');
         setScrapInput('0');
@@ -744,8 +773,8 @@ export default function MachineExecutionPage() {
                 scrap_qty?: number;
                 trim_qty?: number;
                 process_scrap_qty?: number;
-                roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
-                split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
+                roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
+                split_outputs?: Array<{ width_mm: number; weight_kg: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
                 remainder_location_id?: string;
             } = {
                 actual_qty: 0,
@@ -759,14 +788,21 @@ export default function MachineExecutionPage() {
             if (behavior === 'SPLIT') {
                 if (!splitRowsParsed.length) throw new Error('Add at least one split output row.');
                 if (splitTotalKg > maxOutputWithScrapKg + 0.001) throw new Error(`Split output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`);
-                payload.split_outputs = splitRowsParsed.map((row) => ({ width_mm: row.width_mm, weight_kg: row.weight_kg }));
+                payload.split_outputs = splitRowsParsed.map((row) => ({
+                    width_mm: row.width_mm,
+                    weight_kg: row.weight_kg,
+                    ...(toNumber(row.tare_weight_kg, 0) > 0 ? { tare_weight_kg: toNumber(row.tare_weight_kg, 0) } : {}),
+                    ...(toNumber(row.gross_weight_kg, 0) > 0 ? { gross_weight_kg: toNumber(row.gross_weight_kg, 0) } : {}),
+                }));
                 payload.actual_qty = splitTotalKg;
-            } else if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1) {
+            } else if (supportsDiscreteOutputRolls && (createRollRowsParsed.length > 1 || createRollHasWeightBreakdown)) {
                 if (createRollTotalKg > maxOutputWithScrapKg + 0.001) throw new Error(`Roll output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`);
                 payload.roll_outputs = createRollRowsParsed.map((row) => ({
                     width_mm: row.width_mm,
                     weight_kg: row.weight_kg,
                     ...(row.length_m && row.length_m > 0 ? { length_m: row.length_m } : {}),
+                    ...(toNumber(row.tare_weight_kg, 0) > 0 ? { tare_weight_kg: toNumber(row.tare_weight_kg, 0) } : {}),
+                    ...(toNumber(row.gross_weight_kg, 0) > 0 ? { gross_weight_kg: toNumber(row.gross_weight_kg, 0) } : {}),
                 }));
                 payload.actual_qty = createRollTotalKg;
             } else {
@@ -940,8 +976,8 @@ export default function MachineExecutionPage() {
         setOutputWeightKg(Number.isFinite(pcs) && pcs > 0 ? ((Math.round(pcs) * unitWeightG) / 1000).toFixed(3) : '');
     };
 
-    const addCreateRollRow = () => setCreateRollRows((prev) => [...prev, { id: createCounterRef.current++, width_mm: outputWidthMm, weight_kg: '', length_m: '' }]);
-    const addSplitRow = () => setSplitRows((prev) => [...prev, { id: splitCounterRef.current++, width_mm: '', weight_kg: '' }]);
+    const addCreateRollRow = () => setCreateRollRows((prev) => [...prev, { id: createCounterRef.current++, width_mm: outputWidthMm, weight_kg: '', length_m: '', tare_weight_kg: '', gross_weight_kg: '' }]);
+    const addSplitRow = () => setSplitRows((prev) => [...prev, { id: splitCounterRef.current++, width_mm: '', weight_kg: '', tare_weight_kg: '', gross_weight_kg: '' }]);
     const updateCreateRow = (id: number, key: keyof CreateRollRow, value: string) => setCreateRollRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
     const updateSplitRow = (id: number, key: keyof SplitRow, value: string) => setSplitRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
     const updateMaterialConfirmation = (requirementId: string, patch: Partial<MaterialConfirmationDraft>) => {
@@ -959,7 +995,7 @@ export default function MachineExecutionPage() {
         setCreateRollRows((prev) => {
             const next = [...prev];
             while (next.length < rowCount - 1) {
-                next.push({ id: createCounterRef.current++, width_mm: width, weight_kg: '', length_m: outputLengthM });
+                next.push({ id: createCounterRef.current++, width_mm: width, weight_kg: '', length_m: outputLengthM, tare_weight_kg: '', gross_weight_kg: '' });
             }
             return next.slice(0, rowCount - 1).map((row) => ({ ...row, width_mm: row.width_mm || width, weight_kg: each, length_m: row.length_m || outputLengthM }));
         });
@@ -1195,6 +1231,10 @@ export default function MachineExecutionPage() {
                                             }}
                                             outputLengthM={outputLengthM}
                                             setOutputLengthM={setOutputLengthM}
+                                            outputTareKg={outputTareKg}
+                                            setOutputTareKg={setOutputTareKg}
+                                            outputGrossKg={outputGrossKg}
+                                            setOutputGrossKg={setOutputGrossKg}
                                             createRollRows={createRollRows}
                                             addCreateRollRow={addCreateRollRow}
                                             updateCreateRow={updateCreateRow}
@@ -1556,6 +1596,10 @@ function ProcessLogForm(props: any) {
         setOutputWidthMm,
         outputLengthM,
         setOutputLengthM,
+        outputTareKg,
+        setOutputTareKg,
+        outputGrossKg,
+        setOutputGrossKg,
         createRollRows,
         addCreateRollRow,
         updateCreateRow,
@@ -1721,13 +1765,15 @@ function ProcessLogForm(props: any) {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500">
-                                <tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Weight</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Length</th><th className="p-2" /></tr>
+                                <tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Net</th><th className="p-2 text-right">Core tare</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Length</th><th className="p-2" /></tr>
                             </thead>
                             <tbody>
                                 <tr className="border-t border-slate-100">
                                     <td className="p-2 pl-4 font-mono text-xs text-slate-500">1</td>
                                     <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
                                     <td className="p-2 text-right"><Input data-testid="machine-create-row-weight-0" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-tare-0" value={outputTareKg} onChange={(event) => setOutputTareKg(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-gross-0" value={outputGrossKg} onChange={(event) => setOutputGrossKg(event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
                                     <td className="p-2 text-right"><Input data-testid="machine-create-row-width-0" value={outputWidthMm} onChange={(event) => setOutputWidthMm(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                     <td className="p-2 text-right"><Input data-testid="machine-create-row-length-0" value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                     <td />
@@ -1737,6 +1783,8 @@ function ProcessLogForm(props: any) {
                                         <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 2}</td>
                                         <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-create-row-weight-${index + 1}`} value={row.weight_kg} onChange={(event) => updateCreateRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-tare-${index + 1}`} value={row.tare_weight_kg} onChange={(event) => updateCreateRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-gross-${index + 1}`} value={row.gross_weight_kg} onChange={(event) => updateCreateRow(row.id, 'gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-create-row-width-${index + 1}`} value={row.width_mm} onChange={(event) => updateCreateRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-create-row-length-${index + 1}`} value={row.length_m} onChange={(event) => updateCreateRow(row.id, 'length_m', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeCreateRow(row.id)}><Trash2 className="h-4 w-4" /></Button></td>
@@ -1765,7 +1813,7 @@ function ProcessLogForm(props: any) {
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Weight</th><th className="p-2" /></tr></thead>
+                            <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Net</th><th className="p-2 text-right">Core tare</th><th className="p-2 text-right">Gross</th><th className="p-2" /></tr></thead>
                             <tbody>
                                 {splitRows.map((row: SplitRow, index: number) => (
                                     <tr key={row.id} className="border-t border-slate-100">
@@ -1773,6 +1821,8 @@ function ProcessLogForm(props: any) {
                                         <td className="p-2 font-mono text-xs font-semibold">Auto child label</td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-split-row-width-${index}`} value={row.width_mm} onChange={(event) => updateSplitRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-split-row-weight-${index}`} value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-tare-${index}`} value={row.tare_weight_kg} onChange={(event) => updateSplitRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-gross-${index}`} value={row.gross_weight_kg} onChange={(event) => updateSplitRow(row.id, 'gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeSplitRow(row.id)} disabled={splitRows.length <= 1}><Trash2 className="h-4 w-4" /></Button></td>
                                     </tr>
                                 ))}

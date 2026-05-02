@@ -47,6 +47,7 @@ export interface Gonny {
     tare_breakdown_json?: Record<string, any> | null;
     status: string;
     released_to_dispatch?: boolean;
+    dispatch_unit_no?: string;
     fg_batch__batch_number?: string;
     batch_no?: string;
     location: {
@@ -63,6 +64,9 @@ export interface DispatchableRoll {
     label_id: string;
     batch_no?: string;
     weight_kg: number;
+    net_weight_kg?: number;
+    tare_weight_kg?: number;
+    gross_weight_kg?: number;
     width_mm: number;
     packed_for_dispatch?: boolean;
     dispatch_lineage?: 'MTO' | 'STOCK_CLAIM' | string;
@@ -74,6 +78,7 @@ export interface DispatchableRoll {
     default_pack_lines?: Array<{ material_id: string; qty: number; uom?: string; basis?: string }>;
     released_to_dispatch?: boolean;
     release_mode?: 'PACKED' | 'UNPACKED' | string;
+    dispatch_unit_no?: string;
     material__name: string;
     location: {
         id: string;
@@ -140,6 +145,9 @@ export interface SODispatchSummary {
     available_for_dispatch: {
         rolls_count: number;
         rolls_kg: number;
+        rolls_net_kg?: number;
+        rolls_tare_kg?: number;
+        rolls_gross_kg?: number;
         gonnies_count: number;
         gonnies_pcs: number;
         gonnies_net_kg?: number;
@@ -195,6 +203,9 @@ export interface SOPackingSummary {
     ready_for_dispatch: {
         rolls_count: number;
         rolls_kg: number;
+        rolls_net_kg?: number;
+        rolls_tare_kg?: number;
+        rolls_gross_kg?: number;
         gonnies_count: number;
         gonnies_pcs: number;
         gonnies_net_kg: number;
@@ -208,6 +219,7 @@ export interface SOPackingSummary {
         qty_kg: number;
         status: string;
         template_name?: string | null;
+        default_content_mode?: 'LOOSE_POUCHES' | 'PRIMARY_PACKS' | string;
         location: {
             id: string | null;
             name: string | null;
@@ -313,6 +325,32 @@ export const logisticsService = {
             tx_ids: string[]
             released_to_dispatch: boolean
             release_mode: 'PACKED' | 'UNPACKED'
+            message: string
+        }
+    },
+
+    async releaseRolls(
+        rollIds: string[],
+        releaseMode: 'PACKED' | 'UNPACKED',
+        lines: Array<{ material_id: string; qty: number; uom?: string; basis?: string }> = [],
+    ) {
+        const response = await api.post('/api/production/packing/bulk-release-rolls/', {
+            roll_ids: rollIds,
+            release_mode: releaseMode,
+            lines,
+        });
+        return response.data as {
+            count: number
+            records: Array<{
+                id: string
+                roll_id: string
+                sales_order_item_id: string
+                lines: Array<{ material_id: string; qty: number; uom: string; basis: string; tx_id?: string; bulk_total_qty?: number; shared_tx?: boolean }>
+                tx_ids: string[]
+                released_to_dispatch: boolean
+                release_mode: 'PACKED' | 'UNPACKED'
+                dispatch_unit_no?: string
+            }>
             message: string
         }
     },

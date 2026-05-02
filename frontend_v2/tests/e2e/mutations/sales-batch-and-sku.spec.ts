@@ -3,7 +3,6 @@ import {
   annotate,
   assertHealthyPage,
   fetchJson,
-  loginViaUi,
   readRuntimeJson,
   selectByTestId,
   switchRole,
@@ -37,7 +36,6 @@ test("sales can create a SKU header and submit queued singles as separate sales 
   const sharedOrderName = `UAT-GREEN Shared SKU ${runTag}`
   const repeatOrderName = `UAT-GREEN Repeat ${runTag}`
 
-  await loginViaUi(page)
   await switchRole(page, "Sales", "/sales/orders", { allowCookieFallback: true })
 
   await page.goto("/sales/sku-catalog")
@@ -77,7 +75,9 @@ test("sales can create a SKU header and submit queued singles as separate sales 
   await expect(page.getByTestId("sales-batch-queue-count")).toHaveText("2")
   await page.getByTestId("sales-batch-submit").click()
 
-  await expect(page.locator("body")).toContainText(/Created\s+SO\d+/i, { timeout: 30_000 })
+  await expect(page.getByTestId("sales-submit-success")).toContainText(/entry screen is ready/i, { timeout: 30_000 })
+  await expect(page.getByTestId("sales-batch-queue-count")).toHaveText("0")
+  await expect(page.getByTestId("sales-batch-empty-state")).toBeVisible({ timeout: 30_000 })
 
   const afterOrders = unwrapApiList<any>((await fetchJson(page, "/api/sales/orders/")).data)
   expect(afterOrders.length).toBe(beforeOrders.length + 2)

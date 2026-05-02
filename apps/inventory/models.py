@@ -186,6 +186,9 @@ class InventoryRoll(models.Model):
     # Phase 54: Weight tracking (immutable original + mutable current)
     original_weight_kg = models.DecimalField(max_digits=10, decimal_places=3, default=0, help_text="Initial weight at creation (immutable)")
     weight_kg = models.DecimalField(max_digits=10, decimal_places=3, default=0, help_text="Current weight in KG")
+    net_weight_kg = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, help_text="Product-only roll weight excluding core and packing tare. Falls back to weight_kg when not separately captured.")
+    tare_weight_kg = models.DecimalField(max_digits=10, decimal_places=3, default=0, help_text="Core / sleeve / roll packing tare weight.")
+    gross_weight_kg = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, help_text="Scale gross roll weight including core and packing tare.")
     
     location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT)
     

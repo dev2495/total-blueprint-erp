@@ -560,8 +560,8 @@ export const machineService = {
             output_length_m?: number;
             output_pcs?: number;
             scrap_qty?: number;
-            roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number }>;
-            split_outputs?: Array<{ width_mm: number; weight_kg: number }>;
+            roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
+            split_outputs?: Array<{ width_mm: number; weight_kg: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
             remainder_location_id?: string;
         }
     ): Promise<ProductionJob> => {

@@ -483,6 +483,7 @@ export default function SalesOrderBatchWorkspace() {
     const [saveSkuTarget, setSaveSkuTarget] = useState<OrderItemDraft | null>(null)
     const [previewNonce, setPreviewNonce] = useState(0)
     const [technicalEditorOpen, setTechnicalEditorOpen] = useState(false)
+    const [lastSubmitMessage, setLastSubmitMessage] = useState("")
     const [saveSkuForm, setSaveSkuForm] = useState<SaveSkuForm>({
         skuId: "__NEW__",
         newSkuCode: "",
@@ -558,6 +559,36 @@ export default function SalesOrderBatchWorkspace() {
             }),
         enabled: Boolean(selectedSkuId && customerId),
     })
+
+    const resetForNextOrderEntry = () => {
+        setQueue([])
+        setActiveOrderId("")
+        setSelectedSkuId("")
+        setSelectedSharedVariantId("")
+        setSkuSearch("")
+        setVariantSearch("")
+        setFgTypeFilter("all")
+        setSizeFilter("")
+        setHeightFilter("")
+        setMaterialFilter("")
+        setGradeFilter("")
+        setThicknessFilter("")
+        setRepeatSearch("")
+        setPreviewLoading(false)
+        setPreviewError("")
+        setRepeatDialogOpen(false)
+        setSaveSkuOpen(false)
+        setSaveSkuTarget(null)
+        setTechnicalEditorOpen(false)
+        setPreviewNonce((value) => value + 1)
+        setSaveSkuForm({
+            skuId: "__NEW__",
+            newSkuCode: "",
+            newSkuName: "",
+            variantCode: "",
+            variantName: "",
+        })
+    }
 
     useEffect(() => {
         if (!queue.length) {
@@ -860,31 +891,52 @@ export default function SalesOrderBatchWorkspace() {
                 )
             )
         },
-        onSuccess: (response) => {
+        onSuccess: (response, targetIds) => {
             const resultMap = new Map<string, BatchCreateOrderResult>()
             for (const result of response.results) {
                 if (result.client_reference) resultMap.set(result.client_reference, result)
             }
-            setQueue((current) =>
-                current.map((order) => {
+            const fullBatchSubmit = !targetIds?.length
+            const allSubmittedCreated = fullBatchSubmit && response.created_count > 0 && response.failed_count === 0
+            setQueue((current) => {
+                const updated = current.map((order) => {
                     const result = resultMap.get(order.localId)
                     if (!result) return order
+                    const submitStatus: QueueStatus = result.status === "created" ? "created" : "failed"
                     return {
                         ...order,
-                        submitStatus: result.status === "created" ? "created" : "failed",
+                        submitStatus,
                         submitError: result.error || "",
                         createdOrderId: result.sales_order_id || "",
                         createdOrderNumber: result.sales_order_number || "",
                     }
                 })
-            )
+                if (allSubmittedCreated) return []
+                return updated.filter((order) => order.submitStatus !== "created")
+            })
+            if (allSubmittedCreated) {
+                resetForNextOrderEntry()
+                setLastSubmitMessage(`${response.created_count} order${response.created_count === 1 ? "" : "s"} created. The entry screen is ready for the next order.`)
+            } else if (activeOrderId && resultMap.get(activeOrderId)?.status === "created") {
+                const nextActive = queue.find((order) => resultMap.get(order.localId)?.status !== "created")
+                setActiveOrderId(nextActive?.localId || "")
+            }
+            if (!allSubmittedCreated) {
+                setLastSubmitMessage(response.failed_count
+                    ? `${response.created_count} created. ${response.failed_count} stayed in the queue with an error.`
+                    : `${response.created_count} order${response.created_count === 1 ? "" : "s"} created. The entry screen is ready for the next order.`)
+            }
             queryClient.invalidateQueries({ queryKey: ["sales-orders"] })
             toast({
-                title: "Batch processed",
-                description: `${response.created_count} orders created, ${response.failed_count} failed.`,
+                title: response.failed_count ? "Some orders need review" : "Orders created",
+                description: response.failed_count
+                    ? `${response.created_count} created. ${response.failed_count} stayed in the queue with an error.`
+                    : `${response.created_count} order${response.created_count === 1 ? "" : "s"} created. The entry screen is ready for the next order.`,
+                variant: response.failed_count ? "destructive" : undefined,
             })
         },
         onError: (error: any) => {
+            setLastSubmitMessage("")
             setQueue((current) =>
                 current.map((order) =>
                     order.submitStatus === "submitting"
@@ -923,6 +975,7 @@ export default function SalesOrderBatchWorkspace() {
             setActiveOrderId("")
         }
         setCustomerId(value)
+        setLastSubmitMessage("")
         setCustomerName(customer?.name || "")
         setShipToCustomerId("")
         setSelectedSkuId("")
@@ -947,6 +1000,7 @@ export default function SalesOrderBatchWorkspace() {
     }
 
     const addQueuedOrder = (queuedOrder: BatchQueuedOrder) => {
+        setLastSubmitMessage("")
         setQueue((current) => [queuedOrder, ...current])
         setActiveOrderId(queuedOrder.localId)
     }
@@ -1121,6 +1175,12 @@ export default function SalesOrderBatchWorkspace() {
                         </Button>
                     </div>
                 </header>
+
+                {lastSubmitMessage && (
+                    <div data-testid="sales-submit-success" className="mx-4 mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 shadow-sm">
+                        {lastSubmitMessage}
+                    </div>
+                )}
 
                 <div className={styles.mainLayout}>
                     <div className={styles.workColumn}>

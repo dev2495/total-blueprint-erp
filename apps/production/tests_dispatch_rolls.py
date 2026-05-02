@@ -34,7 +34,12 @@ class FGDispatchRollListTests(TestCase):
             status="DRAFT",
         )
 
-    def _create_sales_order_with_fg_rolls(self, roll_count=5, roll_weight=Decimal("100.000")):
+    def _create_sales_order_with_fg_rolls(
+        self,
+        roll_count=5,
+        roll_weight=Decimal("100.000"),
+        roll_tare=Decimal("0.000"),
+    ):
         sales_order = SalesOrder.objects.create(
             customer_name="Dispatch Test Customer",
             status="CONFIRMED",
@@ -67,6 +72,9 @@ class FGDispatchRollListTests(TestCase):
                 length_m=Decimal("1000"),
                 original_weight_kg=roll_weight,
                 weight_kg=roll_weight,
+                net_weight_kg=roll_weight,
+                tare_weight_kg=roll_tare,
+                gross_weight_kg=roll_weight + roll_tare,
                 location=self.fg_location,
                 plant=self.plant,
                 status="AVAILABLE",
@@ -78,7 +86,11 @@ class FGDispatchRollListTests(TestCase):
         return sales_order, item, rolls
 
     def test_dispatchable_summary_lists_each_fg_roll_for_sales_order(self):
-        so, _, rolls = self._create_sales_order_with_fg_rolls(roll_count=5, roll_weight=Decimal("100.000"))
+        so, _, rolls = self._create_sales_order_with_fg_rolls(
+            roll_count=5,
+            roll_weight=Decimal("100.000"),
+            roll_tare=Decimal("2.000"),
+        )
         for roll in rolls:
             FGDispatchService.release_roll_to_dispatch(str(roll.id), user=None, lines=[], release_mode="UNPACKED")
 
@@ -87,13 +99,21 @@ class FGDispatchRollListTests(TestCase):
         self.assertEqual(len(summary["rolls"]), 5)
         self.assertEqual(summary["available_for_dispatch"]["rolls_count"], 5)
         self.assertEqual(Decimal(str(summary["available_for_dispatch"]["rolls_kg"])), Decimal("500"))
+        self.assertEqual(Decimal(str(summary["available_for_dispatch"]["rolls_net_kg"])), Decimal("500.0"))
+        self.assertEqual(Decimal(str(summary["available_for_dispatch"]["rolls_tare_kg"])), Decimal("10.0"))
+        self.assertEqual(Decimal(str(summary["available_for_dispatch"]["rolls_gross_kg"])), Decimal("510.0"))
 
         ids_from_summary = {row["id"] for row in summary["rolls"]}
         self.assertEqual(ids_from_summary, {str(r.id) for r in rolls})
         self.assertTrue(all(row.get("batch_no") for row in summary["rolls"]))
+        self.assertTrue(all(row.get("dispatch_unit_no") for row in summary["rolls"]))
 
     def test_create_and_dispatch_challan_creates_one_line_per_roll(self):
-        so, _, rolls = self._create_sales_order_with_fg_rolls(roll_count=5, roll_weight=Decimal("100.000"))
+        so, _, rolls = self._create_sales_order_with_fg_rolls(
+            roll_count=5,
+            roll_weight=Decimal("100.000"),
+            roll_tare=Decimal("3.000"),
+        )
         for roll in rolls:
             FGDispatchService.release_roll_to_dispatch(str(roll.id), user=None, lines=[], release_mode="UNPACKED")
 
@@ -111,6 +131,7 @@ class FGDispatchRollListTests(TestCase):
             {str(row.roll_id) for row in item_rows},
             {str(r.id) for r in rolls},
         )
+        self.assertEqual(sum((row.weight_kg for row in item_rows), Decimal("0")), Decimal("515.000"))
         self.assertEqual(DeliveryChallanItem.objects.filter(challan=challan).count(), 5)
 
         FGDispatchService.dispatch_challan(str(challan.id), user=None)

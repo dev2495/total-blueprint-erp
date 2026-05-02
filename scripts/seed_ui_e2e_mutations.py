@@ -897,6 +897,24 @@ def main():
         stage_index=5,
         meta_json={"ui_e2e_seed": True, "seed_type": "dispatch_roll", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
     )
+    dispatch_roll_2 = _create_roll(
+        label_prefix=f"{PREFIX}-DSP-ROLL",
+        material=film_variant,
+        location=dspx_fg or plant_a.fg,
+        plant=(dspx_fg.plant if dspx_fg else plant_a.plant),
+        grade=None,
+        weight_kg=Decimal("3.800"),
+        width_mm=Decimal("620"),
+        thickness_micron=Decimal("12"),
+        batch_no=f"{PREFIX}-DSP-B-{run_suffix}",
+        is_fg=True,
+        sales_order_item=dispatch_item,
+        template=dispatch_item.template,
+        current_step_index=5,
+        completed_step_index=5,
+        stage_index=5,
+        meta_json={"ui_e2e_seed": True, "seed_type": "dispatch_roll_bulk", "run_tag": RUN_TAG, "label_prefix": label("Mutations")},
+    )
     PackagingService.add_packaging_stock(
         material_id=packaging_material.id,
         qty=Decimal("50"),
@@ -1001,6 +1019,7 @@ def main():
             "sales_order_id": str(dispatch_order.id),
             "sales_order_number": dispatch_order.order_number,
             "roll_id": str(dispatch_roll.id),
+            "roll_ids": [str(dispatch_roll.id), str(dispatch_roll_2.id)],
             "roll_label": dispatch_roll.label_id,
             "packaging_material_id": str(packaging_material.id),
             "packaging_material_code": packaging_material.code,

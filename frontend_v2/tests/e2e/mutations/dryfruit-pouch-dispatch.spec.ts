@@ -83,6 +83,10 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
   await page.getByTestId(`packing-seal-gonny-${gonny.id}`).click()
   await page.getByTestId("packing-seal-gonny-dialog").waitFor({ state: "visible", timeout: 15_000 })
   await page.getByTestId("packing-gonny-seal-weight").fill("1.500")
+  const varianceReason = page.getByTestId("packing-gonny-variance-reason")
+  if (await varianceReason.isVisible().catch(() => false)) {
+    await varianceReason.fill("Scale weight accepted for dryfruit dispatch proof.")
+  }
   const sealResponse = page.waitForResponse((response) => response.url().includes(`/api/production/packing/${gonny.id}/seal/`) && response.request().method() === "POST")
   await page.getByTestId("packing-gonny-seal-submit").click()
   expect((await sealResponse).status()).toBe(200)

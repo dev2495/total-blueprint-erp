@@ -312,7 +312,7 @@ class InventoryRollSerializer(serializers.ModelSerializer):
             'batch_no', 'thickness_micron', 'width_mm', 'density_gcm3', 'length_m',
             'grade', 'grade_name',  # Phase 56: Grade
             'plant', 'plant_name',  # Phase 56: Plant
-            'original_weight_kg', 'weight_kg', 'location', 'location_name', 
+            'original_weight_kg', 'weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'location', 'location_name',
             'status', 'stage_index', 'stage_name', 'roll_role', 'is_quarantined', 'is_fg', 'current_step_index', 
             'created_by_job', 'created_process', 'created_at'
         ]

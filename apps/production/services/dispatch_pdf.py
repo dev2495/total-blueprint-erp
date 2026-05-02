@@ -60,6 +60,9 @@ class DispatchListPDFService:
                     i.qty_pcs,
                     r.label_id AS roll_label,
                     r.batch_no AS roll_batch_no,
+                    r.net_weight_kg AS roll_net_weight_kg,
+                    r.tare_weight_kg AS roll_tare_weight_kg,
+                    r.gross_weight_kg AS roll_gross_weight_kg,
                     m.name AS material_name,
                     rl.name AS roll_location,
                     pu.label_id AS gonny_label,
@@ -185,6 +188,9 @@ class DispatchListPDFService:
                     (
                         f"{item.get('roll_batch_no') or '-'} | "
                         f"{item.get('material_name') or '-'}"
+                        f" | NET {Decimal(str(item.get('roll_net_weight_kg') or item.get('weight_kg') or 0)):.3f}"
+                        f" | TARE {Decimal(str(item.get('roll_tare_weight_kg') or 0)):.3f}"
+                        f" | GROSS {Decimal(str(item.get('roll_gross_weight_kg') or item.get('weight_kg') or 0)):.3f}"
                         f"{' | PACKED' if item.get('roll_packed_for_dispatch') else ''}"
                     )
                     if is_roll

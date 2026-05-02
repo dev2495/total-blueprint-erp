@@ -7574,6 +7574,53 @@ class ExecutionService:
                         and getattr(material_obj, "is_extrudable", False)
                     )
 
+                def _roll_weight_breakdown(row, net_weight_kg: Decimal, path: str) -> dict:
+                    payload = row if isinstance(row, dict) else {}
+                    net = Decimal(str(net_weight_kg or 0))
+                    tare_raw = payload.get("tare_weight_kg")
+                    if tare_raw in (None, ""):
+                        tare_raw = payload.get("core_tare_weight_kg")
+                    tare = _parse_decimal(tare_raw, f"{path}.tare_weight_kg") if tare_raw not in (None, "") else Decimal("0")
+                    gross_raw = payload.get("gross_weight_kg")
+                    gross = _parse_decimal(gross_raw, f"{path}.gross_weight_kg") if gross_raw not in (None, "") else (net + tare)
+                    if tare < 0:
+                        raise ValueError(f"{path}.tare_weight_kg cannot be negative.")
+                    if gross < net:
+                        raise ValueError(f"{path}.gross_weight_kg cannot be less than net weight_kg.")
+                    return {
+                        "net_weight_kg": net,
+                        "tare_weight_kg": tare,
+                        "gross_weight_kg": gross,
+                    }
+
+                def _with_roll_weight_meta(meta: dict | None, breakdown: dict) -> dict:
+                    payload = dict(meta or {})
+                    payload["weight_breakdown"] = {
+                        "net_weight_kg": float(breakdown["net_weight_kg"]),
+                        "tare_weight_kg": float(breakdown["tare_weight_kg"]),
+                        "gross_weight_kg": float(breakdown["gross_weight_kg"]),
+                    }
+                    return payload
+
+                def _apply_roll_weight_breakdown(out_roll, breakdown: dict):
+                    current_net = Decimal(str(getattr(out_roll, "net_weight_kg", None) or 0))
+                    if current_net <= 0:
+                        current_net = Decimal(str(getattr(out_roll, "weight_kg", 0) or 0)) - breakdown["net_weight_kg"]
+                        if current_net < 0:
+                            current_net = Decimal("0")
+                    current_tare = Decimal(str(getattr(out_roll, "tare_weight_kg", 0) or 0))
+                    current_gross = Decimal(str(getattr(out_roll, "gross_weight_kg", None) or 0))
+                    if current_gross <= 0:
+                        current_gross = current_net + current_tare
+                    out_roll.net_weight_kg = current_net + breakdown["net_weight_kg"]
+                    out_roll.tare_weight_kg = current_tare + breakdown["tare_weight_kg"]
+                    out_roll.gross_weight_kg = current_gross + breakdown["gross_weight_kg"]
+                    out_roll.meta_json = _with_roll_weight_meta(out_roll.meta_json, {
+                        "net_weight_kg": out_roll.net_weight_kg,
+                        "tare_weight_kg": out_roll.tare_weight_kg,
+                        "gross_weight_kg": out_roll.gross_weight_kg,
+                    })
+
                 if roll_behavior == 'MODIFY_EXISTING':
                     if output_weight_kg <= 0:
                         raise ValueError("Produced weight must be > 0.")
@@ -7606,15 +7653,15 @@ class ExecutionService:
                         raise ValueError("Output width is required for MODIFY_EXISTING.")
 
                     out_roll = _find_active_output_roll(parent_roll=roll)
+                    weight_breakdown = _roll_weight_breakdown({}, output_weight_kg, "output_roll")
                     if out_roll:
                         out_roll.weight_kg += output_weight_kg
+                        _apply_roll_weight_breakdown(out_roll, weight_breakdown)
                         if internal_stock_meta:
                             meta = dict(out_roll.meta_json or {})
                             meta.update(internal_stock_meta)
                             out_roll.meta_json = meta
-                            out_roll.save(update_fields=['weight_kg', 'meta_json'])
-                        else:
-                            out_roll.save(update_fields=['weight_kg'])
+                        out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
                     else:
                         out_meta = dict(roll.meta_json or {})
                         if roll_spec:
@@ -7641,6 +7688,9 @@ class ExecutionService:
                             grade_id=out_grade_id,
                             weight_kg=output_weight_kg,
                             original_weight_kg=output_weight_kg,
+                            net_weight_kg=weight_breakdown["net_weight_kg"],
+                            tare_weight_kg=weight_breakdown["tare_weight_kg"],
+                            gross_weight_kg=weight_breakdown["gross_weight_kg"],
                             status='AVAILABLE',
                             location_id=output_location_id,
                             stage_index=job.current_step_index + 1,
@@ -7648,10 +7698,10 @@ class ExecutionService:
                             completed_step_index=job.current_step_index,
                             template=job.template,
                             sales_order_item=job.sales_order_item,
-                            meta_json=out_meta,
+                            meta_json=_with_roll_weight_meta(out_meta, weight_breakdown),
                             is_fg=output_is_fg
                         )
-                    
+
                     link, created = RollLink.objects.get_or_create(
                         parent_roll=roll,
                         child_roll=out_roll,
@@ -7713,9 +7763,11 @@ class ExecutionService:
                                 continue
                             row_width = _parse_decimal(row.get("width_mm"), f"roll_outputs[{idx}].width_mm")
                             row_weight = _parse_decimal(row.get("weight_kg"), f"roll_outputs[{idx}].weight_kg")
+                            weight_breakdown = _roll_weight_breakdown(row, row_weight, f"roll_outputs[{idx}]")
                             parsed_roll_outputs.append({
                                 "width_mm": row_width,
                                 "weight_kg": row_weight,
+                                "weight_breakdown": weight_breakdown,
                             })
                     if parsed_roll_outputs:
                         total_output_weight = sum((row["weight_kg"] for row in parsed_roll_outputs), Decimal("0"))
@@ -7725,6 +7777,7 @@ class ExecutionService:
                     output_rows = parsed_roll_outputs or [{
                         "width_mm": width_mm,
                         "weight_kg": output_weight_kg,
+                        "weight_breakdown": _roll_weight_breakdown({}, output_weight_kg, "output_roll"),
                     }]
                     reuse_active_output = not parsed_roll_outputs
                     created_rolls = []
@@ -7732,16 +7785,16 @@ class ExecutionService:
                     for row in output_rows:
                         row_width_mm = row["width_mm"]
                         row_weight_kg = row["weight_kg"]
+                        weight_breakdown = row["weight_breakdown"]
                         out_roll = _find_active_output_roll() if reuse_active_output else None
                         if out_roll:
                             out_roll.weight_kg += row_weight_kg
+                            _apply_roll_weight_breakdown(out_roll, weight_breakdown)
                             if internal_stock_meta:
                                 meta = dict(out_roll.meta_json or {})
                                 meta.update(internal_stock_meta)
                                 out_roll.meta_json = meta
-                                out_roll.save(update_fields=['weight_kg', 'meta_json'])
-                            else:
-                                out_roll.save(update_fields=['weight_kg'])
+                            out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
                         else:
                             out_roll = InventoryRoll.objects.create(
                                 label_id=_next_job_roll_label(),
@@ -7757,6 +7810,9 @@ class ExecutionService:
                                 grade_id=grade_id,
                                 weight_kg=row_weight_kg,
                                 original_weight_kg=row_weight_kg,
+                                net_weight_kg=weight_breakdown["net_weight_kg"],
+                                tare_weight_kg=weight_breakdown["tare_weight_kg"],
+                                gross_weight_kg=weight_breakdown["gross_weight_kg"],
                                 status='AVAILABLE',
                                 location_id=output_location_id,
                                 stage_index=job.current_step_index + 1,
@@ -7764,14 +7820,14 @@ class ExecutionService:
                                 completed_step_index=job.current_step_index,
                                 template=job.template,
                                 sales_order_item=job.sales_order_item,
-                                meta_json={
+                                meta_json=_with_roll_weight_meta({
                                     **(roll_spec or {}),
                                     "is_remainder": False,
                                     "roll_role": "OUTPUT",
                                     "source_behavior": "MULTI_INPUT_COMBINE",
                                     "lamination_pass_index": step_roll_spec.get("lamination_pass_index"),
                                     **internal_stock_meta,
-                                },
+                                }, weight_breakdown),
                                 is_fg=output_is_fg
                             )
                         created_rolls.append((out_roll, row_weight_kg))
@@ -7803,7 +7859,8 @@ class ExecutionService:
                     for idx, out in enumerate(split_outputs, start=1):
                         width = _parse_decimal(out.get('width_mm'), f"split_outputs[{idx}].width_mm")
                         weight = _parse_decimal(out.get('weight_kg'), f"split_outputs[{idx}].weight_kg")
-                        parsed_outputs.append({'weight_kg': weight, 'width_mm': width})
+                        weight_breakdown = _roll_weight_breakdown(out, weight, f"split_outputs[{idx}]")
+                        parsed_outputs.append({'weight_kg': weight, 'width_mm': width, 'weight_breakdown': weight_breakdown})
                         total_output += weight
 
                     expected = total_output + scrap_qty
@@ -7817,6 +7874,7 @@ class ExecutionService:
 
                     remainder = input_weight - expected
                     for out in parsed_outputs:
+                        weight_breakdown = out["weight_breakdown"]
                         child = InventoryRoll.objects.create(
                             label_id=_next_job_roll_label(),
                             material=parent.material,
@@ -7831,6 +7889,9 @@ class ExecutionService:
                             grade_id=parent.grade_id,
                             weight_kg=out['weight_kg'],
                             original_weight_kg=out['weight_kg'],
+                            net_weight_kg=weight_breakdown["net_weight_kg"],
+                            tare_weight_kg=weight_breakdown["tare_weight_kg"],
+                            gross_weight_kg=weight_breakdown["gross_weight_kg"],
                             status='AVAILABLE',
                             location_id=output_location_id,
                             stage_index=job.current_step_index + 1,
@@ -7838,13 +7899,13 @@ class ExecutionService:
                             completed_step_index=job.current_step_index,
                             template=job.template,
                             sales_order_item=job.sales_order_item,
-                            meta_json={
+                            meta_json=_with_roll_weight_meta({
                                 **(roll_spec or {}),
                                 "is_remainder": False,
                                 "roll_role": "SPLIT_OUTPUT",
                                 "source_behavior": "SPLIT",
                                 **internal_stock_meta,
-                            },
+                            }, weight_breakdown),
                             is_fg=output_is_fg
                         )
                         RollLink.objects.get_or_create(
@@ -7880,9 +7941,11 @@ class ExecutionService:
                                 continue
                             width = _parse_decimal(row.get("width_mm"), f"roll_outputs[{idx}].width_mm")
                             weight = _parse_decimal(row.get("weight_kg"), f"roll_outputs[{idx}].weight_kg")
+                            weight_breakdown = _roll_weight_breakdown(row, weight, f"roll_outputs[{idx}]")
                             parsed_roll_outputs.append({
                                 "width_mm": width,
                                 "weight_kg": weight,
+                                "weight_breakdown": weight_breakdown,
                             })
 
                     width_mm = _parse_decimal(output_width_mm, "Output width_mm")
@@ -7930,6 +7993,7 @@ class ExecutionService:
                     output_rows = parsed_roll_outputs or [{
                         "width_mm": width_mm,
                         "weight_kg": output_weight_kg,
+                        "weight_breakdown": _roll_weight_breakdown({}, output_weight_kg, "output_roll"),
                     }]
                     created_rolls = []
                     reuse_active_output = not parsed_roll_outputs
@@ -7937,16 +8001,16 @@ class ExecutionService:
                     for row in output_rows:
                         row_width_mm = row["width_mm"]
                         row_weight_kg = row["weight_kg"]
+                        weight_breakdown = row["weight_breakdown"]
                         out_roll = _find_active_output_roll(parent_roll=parent_roll) if reuse_active_output else None
                         if out_roll:
                             out_roll.weight_kg += row_weight_kg
+                            _apply_roll_weight_breakdown(out_roll, weight_breakdown)
                             if internal_stock_meta:
                                 meta = dict(out_roll.meta_json or {})
                                 meta.update(internal_stock_meta)
                                 out_roll.meta_json = meta
-                                out_roll.save(update_fields=['weight_kg', 'meta_json'])
-                            else:
-                                out_roll.save(update_fields=['weight_kg'])
+                            out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
                         else:
                             out_roll = InventoryRoll.objects.create(
                                 label_id=_next_job_roll_label(),
@@ -7962,6 +8026,9 @@ class ExecutionService:
                                 grade_id=grade_out,
                                 weight_kg=row_weight_kg,
                                 original_weight_kg=row_weight_kg,
+                                net_weight_kg=weight_breakdown["net_weight_kg"],
+                                tare_weight_kg=weight_breakdown["tare_weight_kg"],
+                                gross_weight_kg=weight_breakdown["gross_weight_kg"],
                                 status='AVAILABLE',
                                 location_id=output_location_id,
                                 stage_index=job.current_step_index + 1,
@@ -7969,13 +8036,13 @@ class ExecutionService:
                                 completed_step_index=job.current_step_index,
                                 template=job.template,
                                 sales_order_item=job.sales_order_item,
-                                meta_json={
+                                meta_json=_with_roll_weight_meta({
                                     **out_meta,
                                     "is_remainder": False,
                                     "roll_role": "OUTPUT",
                                     "source_behavior": "CREATE_NEW",
                                     **internal_stock_meta,
-                                },
+                                }, weight_breakdown),
                                 is_fg=output_is_fg
                             )
                         created_rolls.append((out_roll, row_weight_kg))

@@ -38,6 +38,7 @@ class FGDispatchService:
                 "released_to_dispatch": bool(meta.get("released_to_dispatch")),
                 "released_to_dispatch_at": meta.get("released_to_dispatch_at"),
                 "release_mode": str(meta.get("release_mode") or ("PACKED" if lines else "UNPACKED")).upper(),
+                "dispatch_unit_no": meta.get("dispatch_unit_no") or "",
                 "lines": lines,
             }
         return result
@@ -64,6 +65,19 @@ class FGDispatchService:
         if release_mode:
             payload["release_mode"] = str(release_mode).upper()
         return payload
+
+    @staticmethod
+    def _roll_weight_row(roll: InventoryRoll) -> dict:
+        net = Decimal(str(getattr(roll, "net_weight_kg", None) or getattr(roll, "weight_kg", 0) or 0))
+        tare = Decimal(str(getattr(roll, "tare_weight_kg", 0) or 0))
+        gross = Decimal(str(getattr(roll, "gross_weight_kg", None) or (net + tare)))
+        if gross < net:
+            gross = net + tare
+        return {
+            "net_weight_kg": float(net),
+            "tare_weight_kg": float(tare),
+            "gross_weight_kg": float(gross),
+        }
 
     @staticmethod
     def _roll_pack_config(snapshot: dict | None) -> tuple[dict, list[dict], set[str]]:
@@ -145,7 +159,7 @@ class FGDispatchService:
             roll_qs = roll_qs.filter(location__plant_id=plant_id)
         
         roll_units = list(roll_qs.values(
-            'id', 'label_id', 'batch_no', 'weight_kg', 'width_mm',
+            'id', 'label_id', 'batch_no', 'weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'width_mm',
             'material__name', 'location__name', 'production_job__job_number'
         ))
         
@@ -352,6 +366,7 @@ class FGDispatchService:
         roll_rows = []
         for roll in rolls:
             dispatch_meta = roll_dispatch_map.get(str(roll.id), {})
+            roll_weights = FGDispatchService._roll_weight_row(roll)
             roll_rows.append(
                 {
                     "id": str(roll.id),
@@ -359,6 +374,9 @@ class FGDispatchService:
                     "label_id": roll.label_id,
                     "batch_no": roll.batch_no or "",
                     "weight_kg": float(roll.weight_kg or 0),
+                    "net_weight_kg": roll_weights["net_weight_kg"],
+                    "tare_weight_kg": roll_weights["tare_weight_kg"],
+                    "gross_weight_kg": roll_weights["gross_weight_kg"],
                     "width_mm": float(roll.width_mm or 0),
                     "material__name": getattr(getattr(roll, "material", None), "name", ""),
                     "location": {
@@ -370,6 +388,13 @@ class FGDispatchService:
                     "packed_for_dispatch": bool(dispatch_meta.get("packed_for_dispatch")),
                     "released_to_dispatch": bool(dispatch_meta.get("released_to_dispatch")),
                     "release_mode": dispatch_meta.get("release_mode") or "UNPACKED",
+                    "dispatch_unit_no": dispatch_meta.get("dispatch_unit_no") or f"RDU-{roll.batch_no or roll.label_id}",
+                    "roll_pack_enabled": bool(
+                        (
+                            (getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}).get("roll_dispatch_pack")
+                            or {}
+                        ).get("enabled", False)
+                    ),
                     "default_pack_lines": (
                         (
                             (
@@ -459,6 +484,7 @@ class FGDispatchService:
                 "status": gonny.status,
                 "released_to_dispatch": FGDispatchService._gonny_released_for_dispatch(gonny),
                 "batch_no": gonny.fg_batch.batch_number if gonny.fg_batch else None,
+                "dispatch_unit_no": (dict(getattr(gonny, "meta_json", {}) or {}).get("dispatch_unit_no") or gonny.label_id),
                 "location": {
                     "id": str(gonny.location.id) if gonny.location_id else None,
                     "name": gonny.location.name if gonny.location_id else None,
@@ -485,6 +511,9 @@ class FGDispatchService:
             "ready_for_dispatch": {
                 "rolls_count": len(ready_rolls),
                 "rolls_kg": float(sum(float(row["weight_kg"] or 0) for row in ready_rolls)),
+                "rolls_net_kg": float(sum(float(row["net_weight_kg"] or 0) for row in ready_rolls)),
+                "rolls_tare_kg": float(sum(float(row["tare_weight_kg"] or 0) for row in ready_rolls)),
+                "rolls_gross_kg": float(sum(float(row["gross_weight_kg"] or 0) for row in ready_rolls)),
                 "gonnies_count": len(ready_gonnies),
                 "gonnies_pcs": sum(int(row["qty_pcs"] or 0) for row in ready_gonnies),
                 "gonnies_gross_kg": float(sum(float(row["gross_weight_kg"] or 0) for row in ready_gonnies)),
@@ -645,6 +674,7 @@ class FGDispatchService:
             'label_id': r.label_id,
             'batch_no': r.batch_no or "",
             'weight_kg': float(r.weight_kg),
+            **FGDispatchService._roll_weight_row(r),
             'location': {
                 'id': str(r.location.id),
                 'name': r.location.name,
@@ -654,6 +684,7 @@ class FGDispatchService:
             'packed_for_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("packed_for_dispatch")),
             'released_to_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("released_to_dispatch")),
             'release_mode': str(roll_dispatch_map.get(str(r.id), {}).get("release_mode") or "UNPACKED").upper(),
+            'dispatch_unit_no': roll_dispatch_map.get(str(r.id), {}).get("dispatch_unit_no") or f"RDU-{r.batch_no or r.label_id}",
             'roll_pack_enabled': FGDispatchService._roll_pack_config(
                 getattr(r.sales_order_item, "packaging_snapshot", {}) or {}
             )[0].get("enabled", False),
@@ -700,6 +731,7 @@ class FGDispatchService:
             'batch_no': g.fg_batch.batch_number,
             'fg_batch__batch_number': g.fg_batch.batch_number,
             'released_to_dispatch': FGDispatchService._gonny_released_for_dispatch(g),
+            'dispatch_unit_no': (dict(getattr(g, "meta_json", {}) or {}).get("dispatch_unit_no") or g.label_id),
         } for g in all_gonnies.filter(status='SEALED') if FGDispatchService._gonny_released_for_dispatch(g)]
 
         batch_units = [{
@@ -736,6 +768,9 @@ class FGDispatchService:
             'available_for_dispatch': {
                 'rolls_count': len(roll_units),
                 'rolls_kg': float(sum(float(row['weight_kg'] or 0) for row in roll_units)),
+                'rolls_net_kg': float(sum(float(row.get('net_weight_kg') or 0) for row in roll_units)),
+                'rolls_tare_kg': float(sum(float(row.get('tare_weight_kg') or 0) for row in roll_units)),
+                'rolls_gross_kg': float(sum(float(row.get('gross_weight_kg') or 0) for row in roll_units)),
                 'gonnies_count': len(gonny_units),
                 'gonnies_pcs': sum(int(row['qty_pcs'] or 0) for row in gonny_units),
                 'gonnies_net_kg': float(sum(float(row['net_product_weight_kg'] or 0) for row in gonny_units)),
@@ -777,11 +812,12 @@ class FGDispatchService:
 
         snapshot = dict(getattr(roll.sales_order_item, "packaging_snapshot", {}) or {})
         roll_pack_cfg, default_lines, allowed_material_ids = FGDispatchService._roll_pack_config(snapshot)
-        if not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids:
+        explicit_lines = isinstance(lines, list) and len(lines) > 0
+        if not explicit_lines and (not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids):
             raise ValueError(
-                f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging or release unpacked."
+                f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging, submit explicit pack lines, or release unpacked."
             )
-        pack_lines = lines if isinstance(lines, list) and len(lines) > 0 else default_lines
+        pack_lines = lines if explicit_lines else default_lines
         if not pack_lines:
             raise ValueError(
                 f"Roll {roll.label_id} has no packaging lines. Configure roll dispatch packaging or submit explicit pack lines."
@@ -789,6 +825,7 @@ class FGDispatchService:
 
         tx_ids = []
         consumed_lines = []
+        override_material_ids: list[str] = []
         from apps.inventory.services.packaging_service import PackagingService
         so_no = (
             roll.sales_order_item.sales_order.order_number
@@ -805,10 +842,10 @@ class FGDispatchService:
                 continue
             if not material_id:
                 raise ValueError(f"Pack line {idx + 1}: material_id is required.")
-            if str(material_id).strip() not in allowed_material_ids:
-                raise ValueError(
-                    f"Pack line {idx + 1}: material {material_id} is not allowed for roll {roll.label_id}. Use only materials from the sales/SKU packing snapshot."
-                )
+            material_id_str = str(material_id).strip()
+            snapshot_override = bool(explicit_lines and material_id_str not in allowed_material_ids)
+            if snapshot_override:
+                override_material_ids.append(material_id_str)
             input_uom = str(line.get("uom") or "").upper() or None
             basis = str(line.get("basis") or "PER_ROLL").upper()
             tx = PackagingService.consume_packaging_stock(
@@ -820,16 +857,22 @@ class FGDispatchService:
                 reference=reference,
                 basis=basis,
                 roll_id=roll.id,
-                meta_json={"roll_id": str(roll.id), "sales_order_item_id": str(roll.sales_order_item_id)},
+                meta_json={
+                    "roll_id": str(roll.id),
+                    "sales_order_item_id": str(roll.sales_order_item_id),
+                    "snapshot_override": snapshot_override,
+                    "snapshot_enabled": bool(roll_pack_cfg.get("enabled", False)),
+                },
             )
             tx_ids.append(str(tx.id))
             consumed_lines.append(
                 {
-                    "material_id": str(material_id),
+                    "material_id": material_id_str,
                     "qty": float(qty),
                     "uom": input_uom or "",
                     "basis": basis,
                     "tx_id": str(tx.id),
+                    "snapshot_override": snapshot_override,
                 }
             )
 
@@ -845,8 +888,10 @@ class FGDispatchService:
             lines=consumed_lines,
             tx_ids=tx_ids,
             meta_json={
-                "defaulted_from_snapshot": not (isinstance(lines, list) and len(lines) > 0),
+                "defaulted_from_snapshot": not explicit_lines,
                 "snapshot_enabled": bool(roll_pack_cfg.get("enabled", False)),
+                "snapshot_override": bool(override_material_ids),
+                "override_material_ids": override_material_ids,
             },
         )
 
@@ -893,12 +938,218 @@ class FGDispatchService:
             user=user,
             release_mode=normalized_mode if normalized_mode else ("PACKED" if record.lines else "UNPACKED"),
         )
+        record.meta_json["dispatch_unit_no"] = record.meta_json.get("dispatch_unit_no") or f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
         record.save(update_fields=["meta_json"])
         FGDispatchService._set_sales_order_status(
             getattr(getattr(roll, "sales_order_item", None), "sales_order", None),
             "DISPATCH_READY",
         )
         return record
+
+    @staticmethod
+    @transaction.atomic
+    def release_rolls_to_dispatch(roll_ids: list[str], user=None, lines: list | None = None, release_mode: str = "PACKED") -> list[RollDispatchPackRecord]:
+        normalized_ids = [str(value).strip() for value in (roll_ids or []) if str(value or "").strip()]
+        normalized_ids = list(dict.fromkeys(normalized_ids))
+        if not normalized_ids:
+            raise ValueError("At least one roll_id is required.")
+        if len(normalized_ids) == 1:
+            return [
+                FGDispatchService.release_roll_to_dispatch(
+                    roll_id=normalized_ids[0],
+                    user=user,
+                    lines=lines,
+                    release_mode=release_mode,
+                )
+            ]
+
+        rolls = list(
+            InventoryRoll.objects.select_related("sales_order_item", "sales_order_item__sales_order", "location")
+            .filter(id__in=normalized_ids)
+        )
+        found_ids = {str(roll.id) for roll in rolls}
+        missing_ids = [roll_id for roll_id in normalized_ids if roll_id not in found_ids]
+        if missing_ids:
+            raise ValueError(f"Rolls not found: {', '.join(missing_ids)}")
+
+        sales_order_item_ids = {str(roll.sales_order_item_id) for roll in rolls if roll.sales_order_item_id}
+        if len(sales_order_item_ids) != 1 or any(not roll.sales_order_item_id for roll in rolls):
+            raise ValueError("Bulk roll packing requires selected rolls from the same sales-order line.")
+        location_ids = {str(roll.location_id) for roll in rolls if roll.location_id}
+        if len(location_ids) != 1:
+            raise ValueError("Bulk roll packing requires rolls in the same FG store. Split the action by location.")
+
+        for roll in rolls:
+            if str(roll.status or "").upper() != "AVAILABLE":
+                raise ValueError(f"Roll {roll.label_id} is not AVAILABLE.")
+
+        existing = RollDispatchPackRecord.objects.filter(
+            roll_id__in=[roll.id for roll in rolls],
+            sales_order_item_id=rolls[0].sales_order_item_id,
+        ).values_list("roll_id", flat=True)
+        existing_ids = {str(value) for value in existing}
+        if existing_ids:
+            labels = [roll.label_id for roll in rolls if str(roll.id) in existing_ids]
+            raise ValueError(f"Rolls already packed or released: {', '.join(labels)}")
+
+        normalized_mode = str(release_mode or "PACKED").upper()
+        if normalized_mode not in {"PACKED", "UNPACKED"}:
+            raise ValueError("release_mode must be PACKED or UNPACKED.")
+
+        bulk_release_id = f"BRU-{timezone.now().strftime('%Y%m%d%H%M%S')}-{len(rolls)}"
+        records: list[RollDispatchPackRecord] = []
+
+        if normalized_mode == "UNPACKED":
+            for roll in rolls:
+                meta_json = FGDispatchService._mark_release_meta(
+                    {"defaulted_from_snapshot": False, "release_mode": "UNPACKED", "bulk_release_id": bulk_release_id},
+                    user=user,
+                    release_mode="UNPACKED",
+                )
+                meta_json["dispatch_unit_no"] = f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+                records.append(
+                    RollDispatchPackRecord.objects.create(
+                        roll=roll,
+                        sales_order_item_id=roll.sales_order_item_id,
+                        packed_by=user,
+                        lines=[],
+                        tx_ids=[],
+                        meta_json=meta_json,
+                    )
+                )
+        else:
+            explicit_lines = isinstance(lines, list) and len(lines) > 0
+            source_lines = lines if explicit_lines else []
+            allowed_material_ids: set[str] = set()
+
+            if not explicit_lines:
+                aggregate: dict[tuple[str, str, str], Decimal] = {}
+                for roll in rolls:
+                    roll_pack_cfg, default_lines, roll_allowed_ids = FGDispatchService._roll_pack_config(
+                        getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}
+                    )
+                    if not bool(roll_pack_cfg.get("enabled", False)) or not roll_allowed_ids:
+                        raise ValueError(
+                            f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Submit total pack lines or release unpacked."
+                        )
+                    allowed_material_ids.update(roll_allowed_ids)
+                    for line in default_lines:
+                        if not isinstance(line, dict):
+                            continue
+                        material_id = str(line.get("material_id") or "").strip()
+                        qty = Decimal(str(line.get("qty") or 0))
+                        if not material_id or qty <= 0:
+                            continue
+                        key = (material_id, str(line.get("uom") or "").upper() or "PCS", str(line.get("basis") or "PER_ROLL").upper())
+                        aggregate[key] = aggregate.get(key, Decimal("0")) + qty
+                source_lines = [
+                    {"material_id": material_id, "qty": float(qty), "uom": uom, "basis": basis}
+                    for (material_id, uom, basis), qty in aggregate.items()
+                ]
+            else:
+                for roll in rolls:
+                    _, _, roll_allowed_ids = FGDispatchService._roll_pack_config(
+                        getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}
+                    )
+                    allowed_material_ids.update(roll_allowed_ids)
+
+            if not source_lines:
+                raise ValueError("Bulk roll packing needs at least one material line with qty > 0.")
+
+            from apps.inventory.services.packaging_service import PackagingService
+
+            tx_ids: list[str] = []
+            consumed_lines: list[dict] = []
+            override_material_ids: list[str] = []
+            so_no = (
+                rolls[0].sales_order_item.sales_order.order_number
+                if getattr(rolls[0].sales_order_item, "sales_order", None)
+                else "N/A"
+            )
+            roll_labels = [roll.label_id for roll in rolls]
+            for idx, line in enumerate(source_lines):
+                if not isinstance(line, dict):
+                    continue
+                material_id = str(line.get("material_id") or "").strip()
+                qty = Decimal(str(line.get("qty") or 0))
+                if qty <= 0:
+                    continue
+                if not material_id:
+                    raise ValueError(f"Pack line {idx + 1}: material_id is required.")
+                input_uom = str(line.get("uom") or "").upper() or None
+                basis = str(line.get("basis") or "TOTAL_ROLLS").upper()
+                snapshot_override = bool(explicit_lines and material_id not in allowed_material_ids)
+                if snapshot_override:
+                    override_material_ids.append(material_id)
+                tx = PackagingService.consume_packaging_stock(
+                    material_id=material_id,
+                    qty=qty,
+                    input_uom=input_uom,
+                    location_id=rolls[0].location_id,
+                    sales_order_item_id=rolls[0].sales_order_item_id,
+                    reference=f"BULK_ROLL_PACK:SO:{so_no} ROLLS:{len(rolls)}",
+                    basis=basis,
+                    meta_json={
+                        "bulk_release_id": bulk_release_id,
+                        "roll_ids": [str(roll.id) for roll in rolls],
+                        "roll_labels": roll_labels,
+                        "roll_count": len(rolls),
+                        "snapshot_override": snapshot_override,
+                        "total_consumption": True,
+                    },
+                )
+                tx_ids.append(str(tx.id))
+                consumed_lines.append(
+                    {
+                        "material_id": material_id,
+                        "qty": float(qty),
+                        "uom": input_uom or "",
+                        "basis": basis,
+                        "tx_id": str(tx.id),
+                        "snapshot_override": snapshot_override,
+                    }
+                )
+
+            if not consumed_lines:
+                raise ValueError("Bulk roll packing needs at least one valid material line with qty > 0.")
+
+            per_roll_lines = []
+            roll_count = Decimal(str(len(rolls)))
+            for line in consumed_lines:
+                total_qty = Decimal(str(line["qty"]))
+                per_roll_lines.append({**line, "qty": float(total_qty / roll_count), "bulk_total_qty": float(total_qty), "shared_tx": True})
+
+            for roll in rolls:
+                meta_json = FGDispatchService._mark_release_meta(
+                    {
+                        "defaulted_from_snapshot": not explicit_lines,
+                        "snapshot_enabled": bool(allowed_material_ids),
+                        "snapshot_override": bool(override_material_ids),
+                        "override_material_ids": override_material_ids,
+                        "bulk_release_id": bulk_release_id,
+                        "bulk_roll_count": len(rolls),
+                        "bulk_total_lines": consumed_lines,
+                    },
+                    user=user,
+                    release_mode="PACKED",
+                )
+                meta_json["dispatch_unit_no"] = f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+                records.append(
+                    RollDispatchPackRecord.objects.create(
+                        roll=roll,
+                        sales_order_item_id=roll.sales_order_item_id,
+                        packed_by=user,
+                        lines=per_roll_lines,
+                        tx_ids=tx_ids,
+                        meta_json=meta_json,
+                    )
+                )
+
+        FGDispatchService._set_sales_order_status(
+            getattr(getattr(rolls[0], "sales_order_item", None), "sales_order", None),
+            "DISPATCH_READY",
+        )
+        return records
 
     @staticmethod
     @transaction.atomic
@@ -914,6 +1165,7 @@ class FGDispatchService:
             raise ValueError(f"Gonny {gonny.label_id} has no actual sealed gross weight.")
 
         gonny.meta_json = FGDispatchService._mark_release_meta(gonny.meta_json, user=user, release_mode="GONNY")
+        gonny.meta_json["dispatch_unit_no"] = gonny.meta_json.get("dispatch_unit_no") or gonny.label_id
         gonny.save(update_fields=["meta_json"])
         FGDispatchService._set_sales_order_status(
             getattr(getattr(gonny, "sales_order_item", None), "sales_order", None),
@@ -1009,11 +1261,12 @@ class FGDispatchService:
         )
 
         for roll in validated_rolls:
+            roll_weights = FGDispatchService._roll_weight_row(roll)
             DeliveryChallanItem.objects.create(
                 challan=challan,
                 sales_order_item=roll.sales_order_item,
                 roll=roll,
-                weight_kg=roll.weight_kg,
+                weight_kg=Decimal(str(roll_weights["gross_weight_kg"])),
                 qty_pcs=None
             )
 
@@ -1022,7 +1275,7 @@ class FGDispatchService:
                 challan=challan,
                 sales_order_item=gonny.sales_order_item,
                 packing_unit=gonny,
-                weight_kg=gonny.weight_kg,
+                weight_kg=Decimal(str(gonny.gross_weight_kg or gonny.weight_kg or 0)),
                 qty_pcs=gonny.qty_pcs
             )
         

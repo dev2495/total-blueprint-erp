@@ -394,6 +394,8 @@ class PackingViewSet(viewsets.ViewSet):
                 "sealed_waiting_release": 0,
                 "ready_rolls": 0,
                 "ready_rolls_kg": 0.0,
+                "ready_rolls_gross_kg": 0.0,
+                "ready_rolls_tare_kg": 0.0,
                 "ready_gonnies": 0,
                 "ready_gonnies_pcs": 0,
                 "ready_gonnies_gross_kg": 0.0,
@@ -418,6 +420,8 @@ class PackingViewSet(viewsets.ViewSet):
                 totals["sealed_waiting_release"] += int(pending.get("sealed_gonnies_count") or 0)
                 totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
                 totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
+                totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
+                totals["ready_rolls_tare_kg"] += float(ready.get("rolls_tare_kg") or 0)
                 totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
                 totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
                 totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
@@ -638,6 +642,44 @@ class PackingViewSet(viewsets.ViewSet):
             }, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='bulk-release-rolls')
+    def bulk_release_rolls(self, request):
+        """Pack/release multiple finished rolls with one total roll-packing material issue."""
+        from .services.dispatch_service import FGDispatchService
+
+        roll_ids = request.data.get('roll_ids', [])
+        release_mode = request.data.get('release_mode', 'PACKED')
+        lines = request.data.get('lines', [])
+        if not isinstance(roll_ids, list) or not roll_ids:
+            return Response({"error": "roll_ids is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            records = FGDispatchService.release_rolls_to_dispatch(
+                roll_ids=[str(value) for value in roll_ids],
+                user=request.user if request.user.is_authenticated else None,
+                lines=lines if isinstance(lines, list) else [],
+                release_mode=str(release_mode or 'PACKED'),
+            )
+            return Response({
+                "count": len(records),
+                "records": [
+                    {
+                        "id": str(record.id),
+                        "roll_id": str(record.roll_id),
+                        "sales_order_item_id": str(record.sales_order_item_id),
+                        "lines": record.lines,
+                        "tx_ids": record.tx_ids,
+                        "released_to_dispatch": True,
+                        "release_mode": str((record.meta_json or {}).get("release_mode") or ("PACKED" if record.lines else "UNPACKED")).upper(),
+                        "dispatch_unit_no": (record.meta_json or {}).get("dispatch_unit_no") or "",
+                    }
+                    for record in records
+                ],
+                "message": f"{len(records)} rolls sent to Dispatch Bay",
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
     def gonnies(self, request):
@@ -728,6 +770,8 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 "orders": 0,
                 "ready_rolls": 0,
                 "ready_rolls_kg": 0.0,
+                "ready_rolls_gross_kg": 0.0,
+                "ready_rolls_tare_kg": 0.0,
                 "ready_gonnies": 0,
                 "ready_gonnies_pcs": 0,
                 "ready_gonnies_gross_kg": 0.0,
@@ -751,6 +795,8 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 totals["orders"] += 1
                 totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
                 totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
+                totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
+                totals["ready_rolls_tare_kg"] += float(ready.get("rolls_tare_kg") or 0)
                 totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
                 totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
                 totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
@@ -961,21 +1007,26 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         items = []
         for item in challan.items.select_related('roll', 'packing_unit', 'fg_batch'):
             packing_unit = item.packing_unit
+            roll = item.roll
+            roll_net = float(getattr(roll, "net_weight_kg", None) or getattr(roll, "weight_kg", 0) or 0) if roll else None
+            roll_tare = float(getattr(roll, "tare_weight_kg", 0) or 0) if roll else None
+            roll_gross = float(getattr(roll, "gross_weight_kg", None) or ((roll_net or 0) + (roll_tare or 0))) if roll else None
             items.append({
                 "id": str(item.id),
-                "type": "roll" if item.roll else ("gonny" if item.packing_unit else "batch"),
-                "label": item.roll.label_id if item.roll else (item.packing_unit.label_id if item.packing_unit else (item.fg_batch.batch_number if item.fg_batch else "N/A")),
-                "batch_no": item.roll.batch_no if item.roll else (item.fg_batch.batch_number if item.fg_batch else None),
+                "type": "roll" if roll else ("gonny" if item.packing_unit else "batch"),
+                "label": roll.label_id if roll else (item.packing_unit.label_id if item.packing_unit else (item.fg_batch.batch_number if item.fg_batch else "N/A")),
+                "batch_no": roll.batch_no if roll else (item.fg_batch.batch_number if item.fg_batch else None),
                 "weight_kg": float(item.weight_kg),
                 "qty_pcs": item.qty_pcs,
                 "content_mode": packing_unit.content_mode if packing_unit else None,
                 "primary_pack_count": packing_unit.primary_pack_count if packing_unit else None,
-                "net_product_weight_kg": float(getattr(packing_unit, "net_product_weight_kg", 0) or 0) if packing_unit else None,
+                "net_product_weight_kg": roll_net if roll else (float(getattr(packing_unit, "net_product_weight_kg", 0) or 0) if packing_unit else None),
+                "tare_weight_kg": roll_tare,
                 "inner_pack_tare_kg": float(getattr(packing_unit, "inner_pack_tare_kg", 0) or 0) if packing_unit else None,
                 "secondary_pack_tare_kg": float(getattr(packing_unit, "secondary_pack_tare_kg", 0) or 0) if packing_unit else None,
                 "extras_tare_kg": float(getattr(packing_unit, "extras_tare_kg", 0) or 0) if packing_unit else None,
                 "expected_gross_weight_kg": float(getattr(packing_unit, "expected_gross_weight_kg", 0) or 0) if packing_unit else None,
-                "gross_weight_kg": float(getattr(packing_unit, "gross_weight_kg", 0) or 0) if packing_unit else None,
+                "gross_weight_kg": roll_gross if roll else (float(getattr(packing_unit, "gross_weight_kg", 0) or 0) if packing_unit else None),
                 "gross_variance_kg": float(getattr(packing_unit, "gross_variance_kg", 0) or 0) if packing_unit else None,
                 "gross_variance_pct": float(getattr(packing_unit, "gross_variance_pct", 0) or 0) if packing_unit else None,
                 "gross_variance_reason": getattr(packing_unit, "gross_variance_reason", "") if packing_unit else "",
@@ -1000,7 +1051,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             "sales_order": _safe_sales_order_number(challan.sales_order_id),
             "items": items,
             "total_weight_kg": sum(i['weight_kg'] for i in items),
-            "total_net_weight_kg": sum(float(i.get('net_product_weight_kg') or 0) for i in items if i.get("type") == "gonny") + sum(float(i['weight_kg']) for i in items if i.get("type") == "roll"),
+            "total_net_weight_kg": sum(float(i.get('net_product_weight_kg') or i['weight_kg'] or 0) for i in items),
             "total_gross_weight_kg": sum(float(i.get('gross_weight_kg') or i['weight_kg'] or 0) for i in items),
             "total_pcs": sum(i['qty_pcs'] or 0 for i in items)
         })

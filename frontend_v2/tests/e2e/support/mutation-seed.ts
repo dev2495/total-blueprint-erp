@@ -70,6 +70,7 @@ export interface MutationSeedMetadata {
     sales_order_id: string
     sales_order_number: string
     roll_id: string
+    roll_ids?: string[]
     roll_label: string
     packaging_material_id: string
     packaging_material_code: string

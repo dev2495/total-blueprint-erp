@@ -276,6 +276,7 @@ def machine_log_output(request, machine_id, job_id):
     
     Payload varies by roll_behavior:
     - CREATE_NEW: { actual_qty, output_width_mm, output_length_m?, roll_outputs?, scrap_qty? }
+      roll_outputs rows may include tare_weight_kg/core_tare_weight_kg and gross_weight_kg.
     - MODIFY_EXISTING: { actual_qty, scrap_qty? }
     - MULTI_INPUT_COMBINE: { actual_qty, scrap_qty? }
     - SPLIT: { split_outputs: [{width_mm, weight_kg}], scrap_qty? }

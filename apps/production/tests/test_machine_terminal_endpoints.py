@@ -295,8 +295,8 @@ class MachineTerminalEndpointTests(TestCase):
             job,
             {
                 "roll_outputs": [
-                    {"width_mm": "450", "weight_kg": "1.250"},
-                    {"width_mm": "600", "weight_kg": "2.750"},
+                    {"width_mm": "450", "weight_kg": "1.250", "tare_weight_kg": "0.200", "gross_weight_kg": "1.450"},
+                    {"width_mm": "600", "weight_kg": "2.750", "tare_weight_kg": "0.300", "gross_weight_kg": "3.050"},
                 ]
             },
         )
@@ -307,7 +307,11 @@ class MachineTerminalEndpointTests(TestCase):
         outputs = list(InventoryRoll.objects.filter(created_by_job=job).order_by("created_at"))
         self.assertEqual(len(outputs), 2)
         self.assertEqual(sum((roll.weight_kg for roll in outputs), Decimal("0")), Decimal("4.000"))
+        self.assertEqual(sum((roll.tare_weight_kg for roll in outputs), Decimal("0")), Decimal("0.500"))
+        self.assertEqual(sum((roll.gross_weight_kg for roll in outputs), Decimal("0")), Decimal("4.500"))
+        self.assertEqual(sum((roll.net_weight_kg for roll in outputs), Decimal("0")), Decimal("4.000"))
         self.assertEqual({roll.meta_json.get("source_behavior") for roll in outputs}, {"CREATE_NEW"})
+        self.assertTrue(all("weight_breakdown" in roll.meta_json for roll in outputs))
         job.refresh_from_db()
         self.assertEqual(job.produced_qty, Decimal("4.0000"))
         self.assertEqual(job.remaining_qty, Decimal("6.0000"))
