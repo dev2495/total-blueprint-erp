@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-label="Inks &amp; Adhesives Workspace workflow">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eef6ff"/>
+      <stop offset="52%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#ecfdf5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="760" fill="url(#bg)"/>
+  <rect x="48" y="48" width="1184" height="96" rx="24" fill="#0f172a"/>
+  <text x="84" y="96" font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="#ffffff">Inks &amp; Adhesives Workspace</text>
+  <text x="84" y="126" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#bfdbfe">Inventory Action Flow</text>
+
+    <line x1="416" y1="293" x2="450" y2="293" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 438 285 L 450 293 L 438 301" fill="none" stroke="#334155" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+
+    <rect x="78" y="188" width="330" height="210" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <rect x="98" y="210" width="34" height="34" rx="10" fill="#2563eb"/>
+    <text x="115" y="233" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#ffffff">1</text>
+    <text x="140" y="230" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#0f172a">Scan stock state</text>
+    <line x1="102" y1="282" x2="384" y2="282" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="104" y="314" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#475569">- Healthy</text><text x="104" y="340" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#475569">- Mismatch</text>
+
+    <rect x="464" y="188" width="330" height="210" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <rect x="484" y="210" width="34" height="34" rx="10" fill="#2563eb"/>
+    <text x="501" y="233" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#ffffff">2</text>
+    <text x="526" y="230" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#0f172a">Reconcile movement</text>
+    <line x1="488" y1="282" x2="770" y2="282" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="490" y="314" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#475569">- Reconciled</text><text x="490" y="340" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#475569">- Not reconciled</text>
+
+</svg>

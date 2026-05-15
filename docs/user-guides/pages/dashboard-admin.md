@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on System Admin Console without pr
 
 
 ## Screenshot References
-- ![dashboard-admin-overview](../../../frontend_v2/public/help/screenshots/dashboard-admin-overview.svg)
+- ![dashboard-admin-overview](../../../frontend_v2/public/help/screenshots/dashboard-admin-overview.png)
 - ![dashboard-admin-workflow](../../../frontend_v2/public/help/screenshots/dashboard-admin-workflow.svg)
 
 ## FAQ References

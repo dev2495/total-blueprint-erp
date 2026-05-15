@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -11,6 +12,7 @@ from .serializers_orders import (
     SalesOrderSerializer,
 )
 from .services import SalesOrderService
+from .services.bom_preview import BOMPreviewService
 from .services.order_block_resolver import resolve_block_reasons
 
 
@@ -26,6 +28,9 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 "items__fg_batches",
                 "items__packing_units",
                 "items__sku_variant",
+                "items__product_master",
+                "items__product_variant",
+                "items__customer_product_overlay",
                 "items__template",
             )
             .order_by("-created_at")
@@ -39,6 +44,8 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
             )
         try:
             order = SalesOrderService.create_sales_order(request.data)
+            if not request.data.get("save_as_draft"):
+                order = SalesOrderService.confirm_sales_order(order.id)
             serializer = self.get_serializer(order)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Exception as exc:
@@ -48,6 +55,16 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     def preview_item(self, request):
         try:
             preview = SalesOrderService.preview_sales_item(request.data)
+            return Response(preview, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["post"], url_path="preview-line")
+    def preview_line(self, request):
+        if not bool(getattr(settings, "ERP_V3_DEFAULT", True)):
+            return Response({"detail": "Product Master sales flow is disabled by ERP_V3_DEFAULT."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            preview = BOMPreviewService.for_line(request.data)
             return Response(preview, status=status.HTTP_200_OK)
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)

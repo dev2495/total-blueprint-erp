@@ -7,6 +7,7 @@ from apps.physics.geometry_override import (
     sanitize_geometry_override,
     validate_pouch_geometry_contract,
 )
+from apps.physics.services_physics import PhysicsEngine
 
 
 class GeometryOverrideTests(SimpleTestCase):
@@ -54,6 +55,49 @@ class GeometryOverrideTests(SimpleTestCase):
         sig_b = geometry_signature(template_geometry, {"width_mm": 101, "height_mm": 200, "adjustments": []})
 
         self.assertNotEqual(sig_a, sig_b)
+
+    def test_standup_gusset_defaults_to_height(self):
+        dims = PhysicsEngine._effective_pouch_dimensions(
+            {
+                "base": {"width_mm": 100, "height_mm": 150},
+                "pouch_style": "STAND_UP",
+                "gusset_mm": 30,
+                "trim_loss_mm": 10,
+                "multipliers": {"faces": 2},
+            }
+        )
+
+        self.assertEqual(dims["effective_width_mm"], 110)
+        self.assertEqual(dims["effective_height_mm"], 180)
+
+    def test_custom_gusset_rule_can_force_width(self):
+        dims = PhysicsEngine._effective_pouch_dimensions(
+            {
+                "base": {"width_mm": 100, "height_mm": 150},
+                "pouch_style": "STAND_UP",
+                "gusset_mm": 30,
+                "gusset_apply_to": "WIDTH",
+                "trim_loss_mm": 10,
+                "multipliers": {"faces": 2},
+            }
+        )
+
+        self.assertEqual(dims["effective_width_mm"], 140)
+        self.assertEqual(dims["effective_height_mm"], 150)
+
+    def test_trim_and_adjustments_can_target_height_or_both(self):
+        dims = PhysicsEngine._effective_pouch_dimensions(
+            {
+                "base": {"width_mm": 100, "height_mm": 150},
+                "trim_loss_mm": 5,
+                "trim_apply_to": "BOTH",
+                "flap_tape_mm": 7,
+                "adjustments": [{"name": "extra seal", "value": 3, "impact": "HEIGHT"}],
+            }
+        )
+
+        self.assertEqual(dims["effective_width_mm"], 105)
+        self.assertEqual(dims["effective_height_mm"], 165)
 
     def test_spout_style_requires_spout_addon(self):
         with self.assertRaises(ValidationError):

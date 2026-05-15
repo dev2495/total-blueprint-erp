@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.artwork.print_contract import get_artwork_contract
@@ -113,7 +114,10 @@ class CylinderService:
     @transaction.atomic
     def generate_for_artwork(artwork_id, force: bool = False, targets=None):
         artwork = Artwork.objects.get(id=artwork_id)
-        contract = get_artwork_contract(artwork, require_asset=False)
+        try:
+            contract = get_artwork_contract(artwork, require_asset=False)
+        except ValidationError as exc:
+            raise ValueError("; ".join(str(message) for message in exc.messages)) from exc
         front_count = int(contract["front_colors_count"] or 0)
         back_count = int(contract["back_colors_count"] or 0)
         front_colors = list(contract["front_colors"])

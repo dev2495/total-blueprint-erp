@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Production • Work Center with
 
 
 ## Screenshot References
-- ![production-work-center-overview](../../../frontend_v2/public/help/screenshots/production-work-center-overview.svg)
+- ![production-work-center-overview](../../../frontend_v2/public/help/screenshots/production-work-center-overview.png)
 - ![production-work-center-workflow](../../../frontend_v2/public/help/screenshots/production-work-center-workflow.svg)
 
 ## FAQ References

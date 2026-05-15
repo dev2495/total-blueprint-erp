@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Orders • Create without proce
 
 
 ## Screenshot References
-- ![orders-create-overview](../../../frontend_v2/public/help/screenshots/orders-create-overview.svg)
+- ![orders-create-overview](../../../frontend_v2/public/help/screenshots/orders-create-overview.png)
 - ![orders-create-workflow](../../../frontend_v2/public/help/screenshots/orders-create-workflow.svg)
 
 ## FAQ References

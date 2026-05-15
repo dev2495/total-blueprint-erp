@@ -5,14 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 START_SCRIPT="${ROOT_DIR}/start_all.sh"
 BACKEND_PID_FILE="${ROOT_DIR}/.backend_pid"
 FRONTEND_PID_FILE="${ROOT_DIR}/.frontend_pid"
+FRONTEND_PORT="${FRONTEND_PORT:-3001}"
 
 echo "[runtime] root: ${ROOT_DIR}"
 echo "[runtime] stopping managed services"
 "${START_SCRIPT}" stop || true
 
-echo "[runtime] killing orphan listeners on 8000/3000"
+echo "[runtime] killing orphan listeners on 8000/${FRONTEND_PORT}"
 lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+lsof -ti:"${FRONTEND_PORT}" | xargs kill -9 2>/dev/null || true
 
 echo "[runtime] removing stale pid files"
 rm -f "${BACKEND_PID_FILE}" "${FRONTEND_PID_FILE}"
@@ -31,9 +32,9 @@ for route in \
   "/inventory/job-work" \
   "/master/vendors" \
   "/sales/orders/create" \
-  "/inventory/roll-explorer"
+  "/inventory/rolls-v36"
 do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${route}" || true)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${FRONTEND_PORT}${route}" || true)"
   echo "  ${route} -> ${code}"
 done
 

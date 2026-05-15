@@ -88,7 +88,7 @@ This guide helps users complete all key tasks on System • Users without proces
 
 
 ## Screenshot References
-- ![system-users-overview](../../../frontend_v2/public/help/screenshots/system-users-overview.svg)
+- ![system-users-overview](../../../frontend_v2/public/help/screenshots/system-users-overview.png)
 - ![system-users-workflow](../../../frontend_v2/public/help/screenshots/system-users-workflow.svg)
 
 ## FAQ References

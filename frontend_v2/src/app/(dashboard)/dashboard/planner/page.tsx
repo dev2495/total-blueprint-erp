@@ -542,7 +542,7 @@ export default function PlannerDashboardPage() {
             <div className={styles.scrollPanel}>
               {alerts.length ? (
                 alerts.map((alert: any) => (
-                  <Link key={`${alert.type}-${alert.title}`} href={alert.href || "/production/planner"} className={styles.alertCard}>
+                  <Link key={`${alert.type}-${alert.title}`} href={alert.href || "/dashboard/planner/control-tower/command"} className={styles.alertCard}>
                     <div className={styles.alertCount}>{fmt(alert.count)}</div>
                     <div>
                       <div className={styles.alertTitle}>{alert.title}</div>
@@ -596,17 +596,17 @@ export default function PlannerDashboardPage() {
               <Package className={styles.panelIcon} />
             </div>
             <div className={styles.actionList}>
-              <Link href="/production/planner" className={styles.actionCard}>
+              <Link href="/dashboard/planner/control-tower/command" className={styles.actionCard}>
                 <span>Planner control tower</span>
                 <span>Open</span>
               </Link>
-              <Link href="/production/planner/stock-orders/create" className={styles.actionCard}>
-                <span>Create stock order</span>
+              <Link href="/production/planner/stock-launcher" className={styles.actionCard}>
+                <span>Stock launcher</span>
                 <span>Launch</span>
               </Link>
-              <Link href="/production/planner/sku-catalog" className={styles.actionCard}>
-                <span>Planner SKU studio</span>
-                <span>Preset</span>
+              <Link href="/master/products" className={styles.actionCard}>
+                <span>Product Master</span>
+                <span>Configure</span>
               </Link>
             </div>
           </div>

@@ -1,0 +1,1174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Product Master V3.5 — Mockup · PM-DRY-PET-LD</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: {
+        display: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
+    }}
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: Inter, ui-sans-serif, system-ui; background: #f8fafc; color: #0f172a; }
+  .display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  /* Hide scrollbars only inside our scroll containers (visual cleanliness, scroll still works). */
+  .nice-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  .nice-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .nice-scroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  /* Active scroll-spy item */
+  .nav-item.active { background: linear-gradient(90deg, #eff6ff 0%, #fff 100%); color:#1d4ed8; box-shadow: inset 3px 0 0 #2563eb; }
+  /* Glassy footer */
+  .glassy { backdrop-filter: blur(12px) saturate(140%); -webkit-backdrop-filter: blur(12px) saturate(140%); }
+  /* Heatmap colors */
+  .hm-0 { background: #f1f5f9; }
+  .hm-1 { background: #c7d2fe; }
+  .hm-2 { background: #818cf8; }
+  .hm-3 { background: #4f46e5; }
+  .hm-anomaly { background: #f43f5e; }
+  /* Donut */
+  .donut { transform: rotate(-90deg); }
+  /* Soft animation for hover lift */
+  .lift { transition: transform 180ms ease, box-shadow 180ms ease; }
+  .lift:hover { transform: translateY(-1px); box-shadow: 0 10px 25px -10px rgba(2,6,23,.12); }
+  /* Edit mode glow */
+  .edit-mode .editable {
+    background: linear-gradient(180deg, rgba(59,130,246,.04), transparent);
+    outline: 1px dashed rgba(37,99,235,.3); outline-offset: 4px; border-radius: 12px;
+  }
+  /* Layer stack visualization */
+  .layer-bar { background: linear-gradient(90deg, var(--c1), var(--c2)); }
+  /* Tiny stock-health dots */
+  .dot-ok { color: #10b981; }
+  .dot-warn { color: #f59e0b; }
+  .dot-empty { color: #cbd5e1; }
+  .dot-error { color: #f43f5e; }
+  /* Pool fill bar */
+  .fill-bar { height: 4px; border-radius: 9999px; background: #e2e8f0; overflow: hidden; }
+  .fill-bar > i { display: block; height: 100%; background: linear-gradient(90deg, #10b981, #34d399); }
+</style>
+</head>
+<body class="min-h-screen">
+<!-- ─── STICKY HEADER ─────────────────────────────────────────────────── -->
+<header class="sticky top-0 z-30 border-b border-slate-200/60 bg-white/85 glassy">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3">
+    <div class="flex items-center gap-3">
+      <!-- Brand chip -->
+      <a class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-md shadow-blue-500/25 ring-1 ring-blue-500/40">
+        <span class="display text-base font-black">M</span>
+      </a>
+      <div class="min-w-0">
+        <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+          <span>Master</span><span class="opacity-60">·</span>
+          <span>Product</span><span class="opacity-60">·</span>
+          <span class="mono text-blue-700">PM-DRY-PET-LD</span>
+        </div>
+        <h1 class="display text-xl font-bold leading-tight text-slate-900">Dry Fruit Standup Pouch · PET/LD food-grade</h1>
+      </div>
+      <!-- KPI chips (sticky strip) -->
+      <div class="ml-auto flex flex-wrap items-center gap-1.5">
+        <span class="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200">POUCH</span>
+        <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">4 STEPS</span>
+        <span class="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-700 ring-1 ring-violet-200">9 AXES</span>
+        <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700 ring-1 ring-amber-200">8 OVERLAYS</span>
+        <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-700 ring-1 ring-slate-300">3 SIZES</span>
+        <span class="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-200">● ACTIVE</span>
+      </div>
+    </div>
+    <!-- Action row -->
+    <div class="mt-2.5 flex flex-wrap items-center gap-2">
+      <a href="#sim" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 shadow-sm hover:bg-blue-100">⚡ Sales sim</a>
+      <a href="#stock" class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700 shadow-sm hover:bg-violet-100">🏭 Planner sim</a>
+      <a href="#" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">↗ Open in Stock Launcher</a>
+      <div class="ml-auto flex items-center gap-2">
+        <button id="editToggle" onclick="toggleEdit()" class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-blue-500/25 ring-1 ring-blue-500/40 hover:shadow-lg">✎ Edit master</button>
+        <span id="dirtyChip" class="hidden inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">3 dirty fields</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ─── 3-COLUMN GRID ──────────────────────────────────────────────────── -->
+<div class="mx-auto grid max-w-screen-2xl grid-cols-[220px_minmax(0,1fr)_360px] gap-5 px-6 py-5">
+
+  <!-- ─── SIDE RAIL (sticky scroll-spy) ──────────────────────────────── -->
+  <aside class="sticky top-[120px] h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-slate-200/60 bg-white p-2 shadow-sm nice-scroll">
+    <div class="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Sections</div>
+    <nav id="sideNav" class="flex flex-col gap-0.5 text-sm font-bold text-slate-600">
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#header" data-target="header">
+        <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>Header
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#route" data-target="route">
+        <span class="h-1.5 w-1.5 rounded-full bg-violet-500"></span>Route map
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#sizes" data-target="sizes">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Sizes
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#layers" data-target="layers">
+        <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>Layer stack
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#axes" data-target="axes">
+        <span class="h-1.5 w-1.5 rounded-full bg-violet-500"></span>Axes
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#variants" data-target="variants">
+        <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>Variants
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#overlays" data-target="overlays">
+        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Customer overlays
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#stock" data-target="stock">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Stock health
+      </a>
+      <a class="nav-item flex items-center gap-2 rounded-lg px-3 py-2 transition" href="#activity" data-target="activity">
+        <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>Activity
+      </a>
+    </nav>
+
+    <div class="mt-4 border-t border-slate-100 px-3 pb-2 pt-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Quick jump</div>
+    <div class="flex flex-col gap-1 text-[11px] font-semibold text-slate-600">
+      <a href="#sim" class="rounded-lg px-3 py-1.5 hover:bg-slate-50">⚡ Configurator</a>
+      <a href="#linked" class="rounded-lg px-3 py-1.5 hover:bg-slate-50">↗ Linked-in</a>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN CANVAS ───────────────────────────────────────────────── -->
+  <main class="space-y-5">
+
+    <!-- ─── PANEL: Header ────────────────────────────────────────── -->
+    <section id="header" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-blue-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold shadow-sm ring-1 ring-blue-700">1</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Identity</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Header &amp; engineering contract</h2>
+            <p class="mt-0.5 text-xs text-slate-500">The stable identity read by sales &amp; planner.</p>
+          </div>
+        </div>
+      </header>
+      <div class="grid grid-cols-1 gap-3 px-5 py-5 sm:grid-cols-2">
+        <!-- Identity card -->
+        <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/50 to-white p-4 shadow-sm">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Identity</div>
+          <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+            <dt class="text-slate-500">Code</dt><dd class="mono font-bold text-slate-900 editable">PM-DRY-PET-LD</dd>
+            <dt class="text-slate-500">Kind</dt><dd class="font-bold text-slate-900">POUCH</dd>
+            <dt class="text-slate-500">Reporting</dt><dd class="font-bold text-slate-900 editable">FG</dd>
+            <dt class="text-slate-500">Style</dt><dd class="font-bold text-slate-900 editable">STAND_UP</dd>
+            <dt class="text-slate-500">Active</dt><dd><span class="inline-flex items-center gap-1 text-emerald-700 font-bold">●&nbsp;Yes</span></dd>
+          </dl>
+        </div>
+        <!-- Engineering card -->
+        <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/40 to-white p-4 shadow-sm">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Engineering contract</div>
+          <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+            <dt class="text-slate-500">Template</dt><dd class="mono text-blue-700 font-bold">ROLL_TO_BULK_v3</dd>
+            <dt class="text-slate-500">Steps</dt><dd class="font-bold text-slate-900">4 (Extrude → Pouch)</dd>
+            <dt class="text-slate-500">Policy</dt><dd class="font-bold text-slate-900 editable">CONFIGURABLE</dd>
+            <dt class="text-slate-500">Invariant</dt><dd class="mono text-slate-700 truncate" title="INV-PM-DRY-PET-LD">INV-PM-DRY-PET-LD</dd>
+            <dt class="text-slate-500">Print capable</dt><dd class="font-bold text-fuchsia-700">✓ ROTO · SHEET</dd>
+          </dl>
+        </div>
+        <div class="sm:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Description</div>
+          <p class="mt-1.5 text-[13px] leading-relaxed text-slate-700 editable">
+            Transparent or milky PET/LD laminate for almonds, cashews, raisins and trail mix.
+            Same master covers 100g/250g/500g.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Route Map (centerpiece) ───────────────────────── -->
+    <section id="route" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-violet-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-violet-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-violet-600 text-white text-xs font-bold shadow-sm ring-1 ring-violet-700">2</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Route &amp; stock pools</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Route map</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Where stock can be pooled, where artwork is bound, where each variant ends.</p>
+          </div>
+        </div>
+        <button class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50">Edit route</button>
+      </header>
+      <div class="px-5 py-6 overflow-x-auto nice-scroll">
+        <div class="flex items-stretch gap-2 min-w-[1180px]">
+          <!-- Entry -->
+          <div class="flex-none w-[130px] rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-center">
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Entry</div>
+            <div class="mt-1 text-xs font-semibold text-slate-700">Raw films</div>
+            <div class="mt-2 text-[10px] text-slate-400">PET · BOPP · LD</div>
+          </div>
+          <div class="flex flex-none items-center text-slate-300 px-1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>
+          <!-- Step 1 -->
+          <div class="flex-none w-[180px] rounded-2xl border border-blue-200 bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift" onclick="toast('Pool A · 500 KG · pre-fill Stock Launcher')">
+            <div class="flex items-center justify-between">
+              <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1 bg-blue-600 text-white ring-blue-700">1</span>
+            </div>
+            <div class="mt-2 text-sm font-bold text-slate-900">Extrusion</div>
+            <div class="text-[10px] mono text-slate-500">BULK → ROLL</div>
+            <div class="mt-3 rounded-lg bg-blue-50/50 p-2 border border-blue-100">
+              <div class="text-[9px] font-black uppercase tracking-wider text-blue-700">Stock at this stop</div>
+              <div class="mt-0.5 text-[11px] font-bold text-slate-800">Pool A · 500 KG</div>
+              <div class="mt-0.5 text-[10px] text-slate-500">Bare extruded layer rolls</div>
+              <div class="mt-1.5 fill-bar"><i style="width:60%"></i></div>
+            </div>
+          </div>
+          <div class="flex flex-none items-center text-slate-300 px-1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>
+          <!-- Step 2 -->
+          <div class="flex-none w-[180px] rounded-2xl border border-fuchsia-200 bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift" onclick="toast('Pool B · 1,200 KG · DF-ALMOND printed')">
+            <div class="flex items-center justify-between">
+              <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1 bg-fuchsia-600 text-white ring-fuchsia-700">2</span>
+              <span class="rounded-full bg-fuchsia-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200 ring-inset">◇ artwork</span>
+            </div>
+            <div class="mt-2 text-sm font-bold text-slate-900">Printing</div>
+            <div class="text-[10px] mono text-slate-500">ROLL → ROLL</div>
+            <div class="mt-3 rounded-lg bg-fuchsia-50/50 p-2 border border-fuchsia-100">
+              <div class="text-[9px] font-black uppercase tracking-wider text-fuchsia-700">Stock at this stop</div>
+              <div class="mt-0.5 text-[11px] font-bold text-slate-800">Pool B · 1,200 KG</div>
+              <div class="mt-0.5 text-[10px] text-slate-500">Printed top web (DF-A baked)</div>
+              <div class="mt-1.5 fill-bar"><i style="width:80%"></i></div>
+            </div>
+          </div>
+          <div class="flex flex-none items-center text-slate-300 px-1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>
+          <!-- Step 3 -->
+          <div class="flex-none w-[180px] rounded-2xl border border-emerald-200 bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift" onclick="toast('Pool C/D · 800 KG · DEFER or DF-ALMOND')">
+            <div class="flex items-center justify-between">
+              <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1 bg-emerald-600 text-white ring-emerald-700">3</span>
+            </div>
+            <div class="mt-2 text-sm font-bold text-slate-900">Lamination</div>
+            <div class="text-[10px] mono text-slate-500">ROLL → ROLL</div>
+            <div class="mt-3 rounded-lg bg-emerald-50/50 p-2 border border-emerald-100">
+              <div class="text-[9px] font-black uppercase tracking-wider text-emerald-700">Stock at this stop</div>
+              <div class="mt-0.5 text-[11px] font-bold text-slate-800">Pool C/D · 800 KG</div>
+              <div class="mt-0.5 text-[10px] text-slate-500">Laminated roll (defer or DF-A)</div>
+              <div class="mt-1.5 fill-bar"><i style="width:50%"></i></div>
+            </div>
+          </div>
+          <div class="flex flex-none items-center text-slate-300 px-1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>
+          <!-- Step 4 -->
+          <div class="flex-none w-[180px] rounded-2xl border border-amber-200 bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift" onclick="toast('Pool E · 1,000 KG · finished SNK-250 pouches')">
+            <div class="flex items-center justify-between">
+              <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1 bg-amber-500 text-white ring-amber-600">4</span>
+              <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-700 ring-1 ring-amber-200 ring-inset">★ final</span>
+            </div>
+            <div class="mt-2 text-sm font-bold text-slate-900">Pouching</div>
+            <div class="text-[10px] mono text-slate-500">ROLL → BULK</div>
+            <div class="mt-3 rounded-lg bg-amber-50/50 p-2 border border-amber-100">
+              <div class="text-[9px] font-black uppercase tracking-wider text-amber-700">Stock at this stop</div>
+              <div class="mt-0.5 text-[11px] font-bold text-slate-800">Pool E · 1,000 KG</div>
+              <div class="mt-0.5 text-[10px] text-slate-500">Finished pouch — sized + sealed</div>
+              <div class="mt-1.5 fill-bar"><i style="width:90%"></i></div>
+            </div>
+          </div>
+          <div class="flex flex-none items-center text-slate-300 px-1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>
+          <!-- End -->
+          <div class="flex-none w-[130px] rounded-xl border border-dashed border-emerald-300 bg-emerald-50 px-3 py-3 text-center">
+            <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">End</div>
+            <div class="mt-1 text-xs font-semibold text-emerald-800">Sales pickable</div>
+            <div class="mt-2 text-[10px] text-emerald-600">Ship from here</div>
+          </div>
+        </div>
+        <p class="mt-4 text-[11px] text-slate-500">Click any pool tile to inspect its variants, or to pre-fill the Stock Launcher with that stop step.</p>
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Sizes ─────────────────────────────────────────── -->
+    <section id="sizes" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-emerald-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-sm ring-1 ring-emerald-700">3</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Geometry · 3 sizes</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Sizes</h2>
+          </div>
+        </div>
+        <button class="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 shadow-sm hover:bg-emerald-100">+ Add size</button>
+      </header>
+      <div class="space-y-2 px-5 py-4">
+        <SizeRow label="S1" code="SNK-100" dims="100×150×30 mm" rollW="1050" gusset="30" trim="5" usage="4 active variants · 85 KG/mo avg" active />
+        <SizeRow label="S2" code="SNK-250" dims="140×210×35 mm" rollW="1050" gusset="35" trim="5" usage="7 active variants · 220 KG/mo avg" active />
+        <SizeRow label="S3" code="SNK-500" dims="180×280×45 mm" rollW="1050" gusset="45" trim="5" usage="2 active variants · 60 KG/mo avg" />
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Layer stack ───────────────────────────────────── -->
+    <section id="layers" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-blue-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold shadow-sm ring-1 ring-blue-700">4</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Stack · 3 layers · 77μ total</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Layer stack</h2>
+          </div>
+        </div>
+        <button class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50">Edit layers</button>
+      </header>
+      <div class="px-5 py-5">
+        <div class="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner space-y-2">
+          <!-- Layer rows; visualised as bars sized to thickness -->
+          <LayerRow label="L1" role="PRINT-WEB" film="PET-12" thickness="12μ" bar="12" tone="sky" gradeOptions="" />
+          <LayerRow label="L2" role="BARRIER" film="MET-BOPP-20" thickness="20μ" bar="20" tone="slate" gradeOptions="metallized" />
+          <LayerRow label="L3" role="SEALANT" film="LD-PE-50" thickness="50μ" bar="50" tone="emerald" gradeOptions="FOOD-A · GP" />
+        </div>
+        <div class="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 px-2.5 py-1.5"><span class="font-bold text-slate-700">Per-layer thickness:</span> <span class="text-emerald-700">overrideable</span></div>
+          <div class="rounded-lg bg-slate-50/60 px-2.5 py-1.5"><span class="font-bold text-slate-700">Per-layer grade:</span> <span class="text-emerald-700">overrideable</span></div>
+          <div class="rounded-lg bg-slate-50/60 px-2.5 py-1.5"><span class="font-bold text-slate-700">Per-layer width:</span> <span class="text-emerald-700">overrideable</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Axes ─────────────────────────────────────────── -->
+    <section id="axes" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-violet-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-violet-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-violet-600 text-white text-xs font-bold shadow-sm ring-1 ring-violet-700">5</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Variant dimensions · 9</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Axes</h2>
+            <p class="mt-0.5 text-xs text-slate-500">What can vary per order. Catalog-backed axes pull values live from master-data.</p>
+          </div>
+        </div>
+        <button class="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 shadow-sm hover:bg-violet-100">+ Add axis</button>
+      </header>
+      <div class="grid grid-cols-1 gap-3 px-5 py-5 md:grid-cols-2">
+
+        <!-- size -->
+        <AxisCard name="size" label="Size" type="geometry" required tone="emerald">
+          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+            <span class="rounded-full bg-emerald-50 px-2 py-0.5 font-mono font-bold text-emerald-800 ring-1 ring-emerald-200">SNK-100</span>
+            <span class="rounded-full bg-emerald-50 px-2 py-0.5 font-mono font-bold text-emerald-800 ring-1 ring-emerald-200">SNK-250</span>
+            <span class="rounded-full bg-emerald-50 px-2 py-0.5 font-mono font-bold text-emerald-800 ring-1 ring-emerald-200">SNK-500</span>
+          </div>
+          <div class="mt-2.5 flex items-end gap-1">
+            <Histogram label="100" pct="35" tone="emerald" />
+            <Histogram label="250" pct="55" tone="emerald" />
+            <Histogram label="500" pct="10" tone="emerald" />
+            <span class="ml-1 text-[10px] text-slate-500">usage by orders</span>
+          </div>
+        </AxisCard>
+
+        <!-- layer_thicknesses -->
+        <AxisCard name="layer_thicknesses" label="Per-layer thicknesses" type="per-layer number" tone="blue">
+          <div class="mt-2 flex items-end gap-1">
+            <Histogram label="12" pct="55" tone="blue" />
+            <Histogram label="20" pct="45" tone="blue" />
+            <Histogram label="40" pct="22" tone="blue" />
+            <Histogram label="50" pct="78" tone="blue" />
+            <Histogram label="65" pct="40" tone="blue" />
+            <span class="ml-1 text-[10px] text-slate-500">μ usage (last 90d)</span>
+          </div>
+        </AxisCard>
+
+        <!-- layer_grades -->
+        <AxisCard name="layer_grades" label="Per-layer grades" type="per-layer enum" tone="violet">
+          <div class="mt-2 flex items-center gap-2 text-[11px]">
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 font-bold text-violet-800 ring-1 ring-violet-200">FOOD-A</span><span class="text-slate-500">78%</span>
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 font-bold text-violet-800 ring-1 ring-violet-200">GP</span><span class="text-slate-500">22%</span>
+          </div>
+        </AxisCard>
+
+        <!-- pod_variant — catalog-backed (V3.3) -->
+        <AxisCard name="pod_variant" label="POD film" type="catalog · pod_sku_variant" tone="violet" autoDemand>
+          <div class="mt-1 text-[10px] text-slate-500">qty: <span class="mono font-bold text-slate-700">1 × pcs</span></div>
+          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+            <CatalogChip code="POD-220" stock="500 KG" status="ok" />
+            <CatalogChip code="POD-260" stock="0" status="empty" />
+            <CatalogChip code="POD-300" stock="200 KG" status="warn" />
+            <CatalogChip code="POD-340" stock="120 KG" status="ok" />
+            <CatalogChip code="POD-380" stock="80 KG" status="warn" />
+            <span class="text-[10px] text-slate-400">+ 1 more</span>
+          </div>
+        </AxisCard>
+
+        <!-- packaging_inner — catalog-backed (V3.3) -->
+        <AxisCard name="packaging_inner" label="Inner pack pouch" type="catalog · packaging_material/INNER_POUCH" tone="amber" autoDemand>
+          <div class="mt-1 text-[10px] text-slate-500">qty: <span class="mono font-bold text-slate-700">ceil(p / pcs_per_inner)</span></div>
+          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+            <CatalogChip code="INNER-POUCH-24" stock="1,200 pcs" status="ok" preset />
+            <CatalogChip code="INNER-POUCH-12" stock="800 pcs" status="ok" />
+            <CatalogChip code="INNER-POUCH-48" stock="40 pcs" status="warn" />
+            <CatalogChip code="INNER-POUCH-CUSTOM" stock="0" status="empty" />
+          </div>
+        </AxisCard>
+
+        <!-- packaging_outer -->
+        <AxisCard name="packaging_outer" label="Outer pack" type="catalog · packaging_material/GONNY" tone="orange">
+          <div class="mt-1 text-[10px] text-slate-500">qty: <span class="mono font-bold text-slate-700">— counted on packing yard</span></div>
+          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+            <CatalogChip code="GUNNY-25KG" stock="180 pcs" status="ok" preset />
+            <CatalogChip code="GUNNY-50KG" stock="60 pcs" status="ok" />
+          </div>
+        </AxisCard>
+
+        <!-- addons -->
+        <AxisCard name="addons" label="Add-ons" type="multi-enum" tone="amber">
+          <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+            <span class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">ZIPPER</span>
+            <span class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">TEAR_NOTCH</span>
+            <span class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">VALVE</span>
+            <span class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">HANG_HOLE</span>
+          </div>
+          <div class="mt-2 flex items-center gap-2 text-[11px]">
+            <span class="text-slate-700 font-bold">60%</span><span class="text-slate-500">of orders include ZIPPER</span>
+          </div>
+        </AxisCard>
+
+        <!-- artwork_mode -->
+        <AxisCard name="artwork_mode" label="Artwork mode" type="enum · DEFER · ASSIGNED" tone="fuchsia">
+          <div class="mt-2 flex items-center gap-2 text-[11px]">
+            <span class="rounded-full bg-fuchsia-50 px-2 py-0.5 font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">DEFER</span><span class="text-slate-500">30%</span>
+            <span class="rounded-full bg-fuchsia-50 px-2 py-0.5 font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">ASSIGNED</span><span class="text-slate-500">70%</span>
+          </div>
+        </AxisCard>
+
+        <!-- layer_widths (compact) -->
+        <AxisCard name="layer_widths" label="Per-layer widths" type="per-layer number (mm)" tone="sky">
+          <div class="mt-2 text-[11px] text-slate-600"><span class="font-bold">1050 mm</span> · <span class="text-slate-500">all layers, no override yet</span></div>
+        </AxisCard>
+
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Variants matrix ─────────────────────────────── -->
+    <section id="variants" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-blue-500 scroll-mt-[120px]">
+      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold shadow-sm ring-1 ring-blue-700">6</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Variants · 57 in last 90d</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Variant matrix</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Pivot any two axes. Cell heat shows order density. Click to drill in.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <span class="text-slate-500">View:</span>
+          <button class="rounded-lg bg-blue-600 px-2.5 py-1 font-bold text-white">Matrix</button>
+          <button class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-bold text-slate-700">List</button>
+          <button class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-bold text-slate-700">Tree</button>
+        </div>
+      </header>
+      <div class="px-5 py-5">
+        <div class="flex flex-wrap items-center gap-3 text-[11px]">
+          <label class="flex items-center gap-1.5">
+            <span class="font-bold text-slate-600">Rows</span>
+            <select class="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono"><option>size</option></select>
+          </label>
+          <label class="flex items-center gap-1.5">
+            <span class="font-bold text-slate-600">Cols</span>
+            <select class="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono"><option>layer_grades</option></select>
+          </label>
+          <label class="flex items-center gap-1.5">
+            <span class="font-bold text-slate-600">Cell</span>
+            <select class="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono"><option>orders</option><option>kg consumed</option><option>last used</option></select>
+          </label>
+          <span class="text-slate-400">·</span>
+          <span class="font-bold text-slate-600">Last 90d</span>
+        </div>
+        <!-- Matrix -->
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full border-collapse text-xs">
+            <thead>
+              <tr class="text-slate-500">
+                <th class="w-28 px-2 py-1 text-left font-bold uppercase tracking-wider"></th>
+                <th class="px-2 py-1 text-center font-mono font-bold">FOOD-A</th>
+                <th class="px-2 py-1 text-center font-mono font-bold">GP</th>
+                <th class="px-2 py-1 text-center font-mono font-bold">PHARMA</th>
+                <th class="px-2 py-1 text-center font-bold uppercase">(any)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-t border-slate-100">
+                <td class="px-2 py-1.5 font-mono font-bold text-slate-700">SNK-100</td>
+                <Cell n="12" hm="3" />
+                <Cell n="8" hm="2" />
+                <Cell n="0" hm="0" />
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-blue-50 px-2 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">20</span></td>
+              </tr>
+              <tr class="border-t border-slate-100 bg-slate-50/40">
+                <td class="px-2 py-1.5 font-mono font-bold text-slate-700">SNK-250</td>
+                <Cell n="24" hm="3" />
+                <Cell n="6" hm="1" />
+                <Cell n="3" hm="1" />
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-blue-50 px-2 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">33</span></td>
+              </tr>
+              <tr class="border-t border-slate-100">
+                <td class="px-2 py-1.5 font-mono font-bold text-slate-700">SNK-500</td>
+                <Cell n="4" hm="1" />
+                <Cell n="0" hm="0" />
+                <Cell n="0" hm="0" />
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-blue-50 px-2 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">4</span></td>
+              </tr>
+              <tr class="border-t-2 border-slate-300">
+                <td class="px-2 py-1.5 font-bold uppercase tracking-wider text-slate-600">(any)</td>
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-900 ring-1 ring-blue-300">40</span></td>
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-900 ring-1 ring-blue-300">14</span></td>
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-900 ring-1 ring-blue-300">3</span></td>
+                <td class="px-2 py-1 text-center"><span class="rounded-md bg-emerald-100 px-2 py-0.5 font-bold text-emerald-900 ring-1 ring-emerald-300">57</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-3 text-[11px] text-slate-500">Click a cell to drill into the variants in that bucket. Empty cells are valid combinations no one has ordered yet.</p>
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Customer overlays matrix ────────────────────── -->
+    <section id="overlays" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-amber-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-amber-50/60 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-amber-500 text-white text-xs font-bold shadow-sm ring-1 ring-amber-600">7</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Customer overlays · 8</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Customer × axis matrix</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Empty cells = master defaults apply. Click any cell to override.</p>
+          </div>
+        </div>
+        <button class="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 shadow-sm hover:bg-amber-100">+ Add overlay</button>
+      </header>
+      <div class="overflow-x-auto px-5 py-5">
+        <table class="min-w-full border-collapse text-[11px]">
+          <thead>
+            <tr class="text-slate-500">
+              <th class="px-2 py-2 text-left font-bold uppercase tracking-wider">Customer</th>
+              <th class="px-2 py-2 text-left font-mono">size</th>
+              <th class="px-2 py-2 text-left font-mono">grade</th>
+              <th class="px-2 py-2 text-left font-mono">pod_variant</th>
+              <th class="px-2 py-2 text-left font-mono">packaging_inner</th>
+              <th class="px-2 py-2 text-left font-mono">packaging_outer</th>
+              <th class="px-2 py-2 text-left font-mono">artwork</th>
+              <th class="px-2 py-2 text-left font-mono">pcs/inner</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <OverlayRow name="Acme Foods" cells='SNK-250|FOOD-A|POD-220-30U|INNER-POUCH-24|GUNNY-25KG|DF-ALMOND|24' />
+            <OverlayRow name="Bigbasket" cells='—|FOOD-A|POD-260-30U|INNER-POUCH-12|GUNNY-25KG|—|12' />
+            <OverlayRow name="Reliance Retail" cells='SNK-100|—|POD-220-30U|—|—|DF-CASHEW|—' />
+            <OverlayRow name="DMart" cells='SNK-500|FOOD-A|POD-300-30U|INNER-POUCH-24|GUNNY-50KG|DF-RAISIN|24' />
+            <OverlayRow name="Nature&#39;s Basket" cells='—|—|—|INNER-POUCH-48|—|—|48' />
+            <OverlayRow name="Spencer&#39;s" cells='SNK-250|GP|—|INNER-POUCH-12|GUNNY-25KG|—|12' />
+            <OverlayRow name="Star Bazaar" cells='—|FOOD-A|POD-220-30U|—|—|DF-ALMOND|—' />
+            <OverlayRow name="Modern Bazaar" cells='SNK-100|FOOD-A|—|INNER-POUCH-24|—|DF-MIXED|24' />
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Stock health ─────────────────────────────────── -->
+    <section id="stock" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-emerald-500 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-sm ring-1 ring-emerald-700">8</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Live operations · last 30d</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Stock health</h2>
+          </div>
+        </div>
+        <button class="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-md hover:shadow-lg">Launch new stock</button>
+      </header>
+      <div class="grid grid-cols-1 gap-4 px-5 py-5 lg:grid-cols-[260px_1fr]">
+        <!-- Donut -->
+        <div class="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/40 to-white p-4 shadow-sm">
+          <svg class="donut" width="180" height="180" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" stroke-width="3.6"></circle>
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="url(#g1)" stroke-width="3.6" stroke-dasharray="72 100" stroke-linecap="round"></circle>
+            <defs>
+              <linearGradient id="g1"><stop offset="0%" stop-color="#10b981" /><stop offset="100%" stop-color="#34d399" /></linearGradient>
+            </defs>
+          </svg>
+          <div class="mt-2 text-center">
+            <div class="display text-2xl font-black text-emerald-800">72%</div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">demand met from stock</div>
+            <div class="mt-1 text-[10px] text-slate-500">28% needs production</div>
+          </div>
+        </div>
+
+        <!-- Pool list -->
+        <div class="space-y-2">
+          <PoolRow code="Pool A · Extruded" qty="500 KG" stars="●●●●○" tone="blue" />
+          <PoolRow code="Pool B · Printed (DF-ALMOND)" qty="1,200 KG" stars="●●●●●" tone="fuchsia" />
+          <PoolRow code="Pool C · Laminate (DEFER)" qty="800 KG" stars="●●○○○" tone="emerald" warn />
+          <PoolRow code="Pool D · Laminate (DF-ALMOND)" qty="800 KG" stars="●●●●○" tone="emerald" />
+          <PoolRow code="Pool E · Finished SNK-250" qty="1,000 KG" stars="●●●●●" tone="amber" />
+        </div>
+      </div>
+      <!-- Auto-demand log -->
+      <div class="border-t border-slate-100 bg-slate-50/40 px-5 py-3">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 mb-2">Auto-demand fired today (V3.3)</div>
+        <ul class="space-y-1 text-[12px]">
+          <li class="flex items-center gap-2">
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200 mono text-[10px]">pod_variant</span>
+            <span class="mono font-bold text-slate-900">POD-220-30U-GP</span>
+            <span class="text-slate-500">needed</span><span class="font-bold text-slate-700">200 pcs</span>
+            <span class="text-slate-500">stock</span><span class="font-bold text-rose-700">0</span>
+            <span class="ml-auto rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">→ SO-1241 stock launcher fired</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-700 ring-1 ring-amber-200 mono text-[10px]">packaging_inner</span>
+            <span class="mono font-bold text-slate-900">INNER-POUCH-24</span>
+            <span class="text-slate-500">needed</span><span class="font-bold text-slate-700">42 pcs</span>
+            <span class="text-slate-500">stock</span><span class="font-bold text-amber-700">12</span>
+            <span class="ml-auto rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">no auto-demand (purchased)</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ─── PANEL: Activity ─────────────────────────────────────── -->
+    <section id="activity" class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] border-l-slate-400 scroll-mt-[120px]">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-slate-600 text-white text-xs font-bold shadow-sm ring-1 ring-slate-700">9</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Last 90 days</div>
+            <h2 class="text-[15px] font-bold text-slate-900">Activity</h2>
+          </div>
+        </div>
+        <select class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-sm">
+          <option>All</option><option>Sales</option><option>Planner</option><option>Master</option>
+        </select>
+      </header>
+      <div class="grid grid-cols-1 gap-4 px-5 py-5 lg:grid-cols-[auto_1fr]">
+        <!-- Calendar heatmap (12 weeks × 7 rows) -->
+        <div>
+          <div class="mb-1 grid grid-cols-12 gap-0.5 text-[8px] text-slate-400 mono">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="text-right">w</span>
+          </div>
+          <div id="heatmap" class="grid grid-rows-7 grid-flow-col gap-1"></div>
+          <div class="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
+            <span>Less</span>
+            <div class="h-3 w-3 rounded hm-0"></div>
+            <div class="h-3 w-3 rounded hm-1"></div>
+            <div class="h-3 w-3 rounded hm-2"></div>
+            <div class="h-3 w-3 rounded hm-3"></div>
+            <span>More</span>
+            <span class="ml-3 inline-flex items-center gap-1"><span class="h-3 w-3 rounded hm-anomaly"></span>anomaly</span>
+          </div>
+        </div>
+        <!-- Stream -->
+        <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+          <ActivityRow when="2h ago" kind="Sales" tone="blue" body="A.K.Poly · SO-1245 · 1000 KG SNK-250 DF-ALMOND ZIPPER · auto-demand fired for POD-220" />
+          <ActivityRow when="4h ago" kind="Planner" tone="violet" body="Launched Pool D · 800 KG laminate · stop=lamination · artwork=DF-ALMOND" />
+          <ActivityRow when="1d ago" kind="Master" tone="emerald" body="Axis layer_grades — added PHARMA grade option" />
+          <ActivityRow when="2d ago" kind="Overlay" tone="amber" body="Bigbasket · pcs_per_inner changed 12 → 24" />
+          <ActivityRow when="3d ago" kind="Stock" tone="slate" body="POD-220 production order completed · +500 KG to Pool D" />
+          <ActivityRow when="4d ago" kind="Sales" tone="blue" body="Reliance Retail · SO-1238 · 500 KG SNK-100 DF-CASHEW · pulled from Pool E" />
+        </ul>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── INSIGHT RAIL (sticky) ──────────────────────────────────── -->
+  <aside class="space-y-4 sticky top-[120px] h-[calc(100vh-140px)] overflow-y-auto nice-scroll">
+    <!-- Health donut (mini) -->
+    <div id="health" class="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/40 to-white p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Health · 30d</span>
+        <span class="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">live</span>
+      </div>
+      <div class="mt-2 flex items-center gap-3">
+        <svg class="donut" width="72" height="72" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" stroke-width="3"></circle>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="72 100" stroke-linecap="round"></circle>
+        </svg>
+        <div class="min-w-0">
+          <div class="display text-xl font-bold text-emerald-800">72%</div>
+          <div class="text-[10px] text-slate-500">demand met from stock</div>
+          <div class="mt-1 text-[10px] text-slate-500">28% triggers production</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configurator simulator -->
+    <div id="sim" class="overflow-hidden rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50/40 to-white p-4 shadow-md">
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">⚡ Configurator</span>
+        <span class="rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">simulator</span>
+      </div>
+      <p class="mt-1 text-[11px] text-slate-500">Pretend you're sales. Pick axes, see what happens.</p>
+
+      <div class="mt-3 space-y-2 text-xs">
+        <SimRow label="Customer" id="customer">
+          <select id="simCustomer" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" onchange="updateSim()">
+            <option value="ACME" selected>Acme Foods (overlay default)</option>
+            <option value="BBASKET">Bigbasket</option>
+            <option value="DMART">DMart</option>
+            <option value="">— No customer —</option>
+          </select>
+        </SimRow>
+        <SimRow label="Size">
+          <select id="simSize" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" onchange="updateSim()">
+            <option>SNK-100</option><option selected>SNK-250</option><option>SNK-500</option>
+          </select>
+        </SimRow>
+        <SimRow label="Grade">
+          <select id="simGrade" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" onchange="updateSim()">
+            <option selected>FOOD-A</option><option>GP</option><option>PHARMA</option>
+          </select>
+        </SimRow>
+        <SimRow label="POD">
+          <select id="simPod" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" onchange="updateSim()">
+            <option selected>POD-220-30U-GP</option><option>POD-260-30U-GP</option><option>POD-300-30U-GP</option>
+          </select>
+        </SimRow>
+        <SimRow label="Inner">
+          <select id="simInner" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" onchange="updateSim()">
+            <option selected>INNER-POUCH-24</option><option>INNER-POUCH-12</option><option>INNER-POUCH-48</option>
+          </select>
+        </SimRow>
+        <SimRow label="Artwork">
+          <select id="simArt" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" onchange="updateSim()">
+            <option selected>DF-ALMOND</option><option>DF-CASHEW</option><option>DEFER</option>
+          </select>
+        </SimRow>
+        <SimRow label="Qty (KG)">
+          <input id="simQty" type="number" value="1000" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono shadow-sm" oninput="updateSim()" />
+        </SimRow>
+      </div>
+
+      <!-- Result -->
+      <div class="mt-3 rounded-xl border border-blue-200 bg-white p-3 shadow-sm">
+        <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">
+          <span>Result</span>
+          <span id="simStatus" class="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-800">VALID</span>
+        </div>
+        <div class="mt-1.5 mono text-[11px] font-bold text-slate-900 break-all" id="simVariant">PM-DRY-PET-LD-SNK250-FOODA-DFALMOND</div>
+        <div class="mt-1 text-[10px] text-slate-500" id="simReuse">Existing variant — used 24× in last 90d</div>
+
+        <div class="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">BOM lines</div>
+        <ul class="mt-1.5 space-y-1 text-[11px]">
+          <li class="flex items-center gap-1.5">
+            <span class="rounded-full bg-violet-50 px-1.5 py-0.5 mono text-[9px] font-bold text-violet-700 ring-1 ring-violet-200">pod</span>
+            <span class="mono font-bold text-slate-800" id="bomPod">POD-220-30U-GP</span>
+            <span class="ml-auto mono text-[10px] text-emerald-700" id="bomPodQty">1000 pcs</span>
+          </li>
+          <li class="flex items-center gap-1.5">
+            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 mono text-[9px] font-bold text-amber-700 ring-1 ring-amber-200">inner</span>
+            <span class="mono font-bold text-slate-800" id="bomInner">INNER-POUCH-24</span>
+            <span class="ml-auto mono text-[10px] text-emerald-700" id="bomInnerQty">42 pcs</span>
+          </li>
+          <li class="flex items-center gap-1.5">
+            <span class="rounded-full bg-orange-50 px-1.5 py-0.5 mono text-[9px] font-bold text-orange-700 ring-1 ring-orange-200">outer</span>
+            <span class="mono font-bold text-slate-800">GUNNY-25KG</span>
+            <span class="ml-auto text-[10px] text-slate-500">counted on yard</span>
+          </li>
+        </ul>
+
+        <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Stock fulfillment</div>
+          <div class="mt-1 text-[11px] text-emerald-900">Pool D · 800 KG covers 80%</div>
+          <div class="text-[11px] text-emerald-900">Pool C · 200 KG via lamination + step 2 reprint</div>
+          <div class="mt-1 fill-bar"><i style="width:80%"></i></div>
+        </div>
+      </div>
+
+      <div class="mt-3 flex flex-col gap-1.5">
+        <button class="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg">↗ Open in Sales Create</button>
+        <button class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 shadow-sm hover:bg-violet-100">★ Save as preset</button>
+      </div>
+    </div>
+
+    <!-- Linked-in -->
+    <div id="linked" class="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">↗ Linked in</span>
+        <span class="text-[10px] text-slate-400">how live this master is</span>
+      </div>
+      <ul class="mt-2 space-y-1 text-xs">
+        <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50/60 px-2.5 py-1.5">
+          <span class="text-slate-600">Customer overlays</span>
+          <span class="rounded-md bg-amber-100 px-2 py-0.5 font-bold text-amber-800">8</span>
+        </li>
+        <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50/60 px-2.5 py-1.5">
+          <span class="text-slate-600">Saved presets</span>
+          <span class="rounded-md bg-violet-100 px-2 py-0.5 font-bold text-violet-800">3</span>
+        </li>
+        <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50/60 px-2.5 py-1.5">
+          <span class="text-slate-600">Active sales orders</span>
+          <span class="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-800">5</span>
+        </li>
+        <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50/60 px-2.5 py-1.5">
+          <span class="text-slate-600">Stock pools</span>
+          <span class="rounded-md bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">5</span>
+        </li>
+        <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50/60 px-2.5 py-1.5">
+          <span class="text-slate-600">Batch import templates</span>
+          <span class="rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-700">1</span>
+        </li>
+      </ul>
+      <button class="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">Audit references</button>
+    </div>
+  </aside>
+</div>
+
+<!-- ─── STICKY EDIT FOOTER (visible only in edit mode) ───────────────── -->
+<div id="editFooter" class="fixed inset-x-0 bottom-0 z-40 hidden border-t border-amber-200 bg-amber-50/95 glassy">
+  <div class="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-3">
+    <div class="flex items-center gap-2 text-xs">
+      <span class="rounded-full bg-amber-600 px-2.5 py-0.5 font-black uppercase tracking-wider text-white">EDIT MODE</span>
+      <span class="text-amber-900">3 dirty fields across 2 panels</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="toggleEdit()" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">Cancel</button>
+      <button onclick="toggleEdit()" class="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg">✓ Save changes (3)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── COMPONENTS (custom-element style helpers) ──────────────────── -->
+<template id="tpl-route-step">
+  <div class="flex-none w-[180px] rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift">
+    <div class="flex items-center justify-between">
+      <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1"></span>
+      <span class="rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase ring-1 ring-inset"></span>
+    </div>
+  </div>
+</template>
+
+<script>
+/* ─── Helpers + interactivity ──────────────────────────────────── */
+
+// Render route step boxes (pseudo-component)
+function makeRouteStep({ idx, title, sub, tone, badge, pool, stock, desc }) {
+  const TONE = {
+    blue: { num: 'bg-blue-600 text-white ring-blue-700', tag: 'bg-blue-50 text-blue-700 ring-blue-200', barFrom: 'from-blue-200', barTo: 'to-blue-500' },
+    fuchsia: { num: 'bg-fuchsia-600 text-white ring-fuchsia-700', tag: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200', barFrom: 'from-fuchsia-200', barTo: 'to-fuchsia-500' },
+    emerald: { num: 'bg-emerald-600 text-white ring-emerald-700', tag: 'bg-emerald-50 text-emerald-700 ring-emerald-200', barFrom: 'from-emerald-200', barTo: 'to-emerald-500' },
+    amber: { num: 'bg-amber-500 text-white ring-amber-600', tag: 'bg-amber-50 text-amber-700 ring-amber-200', barFrom: 'from-amber-200', barTo: 'to-amber-500' },
+  }
+  const t = TONE[tone] || TONE.blue
+  return `
+    <div class="flex-none w-[180px] rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift" onclick="toast('Open Stock Launcher pre-filled with ${pool}')">
+      <div class="flex items-center justify-between">
+        <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1 ${t.num}">${idx}</span>
+        ${badge ? `<span class="rounded-full bg-fuchsia-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200 ring-inset">${badge}</span>` : ''}
+      </div>
+      <div class="mt-2 text-sm font-bold text-slate-900">${title}</div>
+      <div class="text-[10px] font-mono text-slate-500">${sub}</div>
+      <!-- Stock pool tile -->
+      <div class="mt-3 rounded-lg bg-slate-50/60 p-2">
+        <div class="text-[9px] font-black uppercase tracking-wider text-slate-500">Stock at this stop</div>
+        <div class="mt-0.5 text-[11px] font-bold text-slate-800">${pool}</div>
+        <div class="mt-0.5 text-[10px] text-slate-500">${desc}</div>
+        <div class="mt-1.5 fill-bar"><i style="width:${stock}%"></i></div>
+      </div>
+    </div>
+  `
+}
+
+// Route steps + arrows are now inlined directly in the markup (no JS needed).
+
+// Histogram bars
+document.querySelectorAll('Histogram').forEach(el => {
+  const label = el.getAttribute('label')
+  const pct = parseInt(el.getAttribute('pct') || '0', 10)
+  const tone = el.getAttribute('tone') || 'blue'
+  const colorMap = { blue:'#60a5fa', emerald:'#34d399', violet:'#a78bfa', amber:'#fbbf24', sky:'#38bdf8' }
+  const c = colorMap[tone] || colorMap.blue
+  const h = Math.max(6, pct/2)
+  el.outerHTML = `
+    <div class="flex flex-col items-center gap-0.5">
+      <div class="w-3 rounded-t" style="height:${h}px; background:${c}"></div>
+      <span class="text-[9px] mono text-slate-500">${label}</span>
+    </div>`
+})
+
+// SizeRow
+document.querySelectorAll('SizeRow').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  el.outerHTML = `
+  <div class="rounded-xl border ${active ? 'border-slate-200 bg-white' : 'border-rose-200 bg-rose-50/30'} px-4 py-3 shadow-sm hover:shadow-md lift">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-3">
+        <span class="flex h-9 w-9 items-center justify-center rounded-xl text-[11px] font-black ring-1 ${active ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">${a('label')}</span>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-bold text-slate-900 mono">${a('code')}</span>
+            <span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ring-1 ring-inset ${active ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">${active ? 'Active' : 'Inactive'}</span>
+          </div>
+          <div class="text-[11px] text-slate-500">${a('usage')}</div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">${a('dims')}</span>
+        <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 ring-1 ring-blue-200">Roll W ${a('rollW')}</span>
+        <span class="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-800 ring-1 ring-violet-200">Gusset ${a('gusset')}</span>
+        <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">Trim ${a('trim')}</span>
+      </div>
+    </div>
+  </div>`
+})
+
+// LayerRow with bar visualisation
+document.querySelectorAll('LayerRow').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const tone = a('tone') || 'sky'
+  const TONE = {
+    sky:    { fill: 'from-sky-100 to-sky-300', accent: 'bg-sky-500', text: 'text-sky-800' },
+    slate:  { fill: 'from-slate-200 to-slate-400', accent: 'bg-slate-500', text: 'text-slate-800' },
+    emerald:{ fill: 'from-emerald-100 to-emerald-300', accent: 'bg-emerald-500', text: 'text-emerald-800' },
+  }
+  const t = TONE[tone] || TONE.sky
+  const bar = parseInt(a('bar') || '20', 10)
+  const widthPct = Math.min(100, 20 + bar*1.2)
+  el.outerHTML = `
+  <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+    <span class="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-black bg-blue-100 text-blue-700 ring-1 ring-blue-200">${a('label')}</span>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-bold uppercase tracking-wider ${t.text}">${a('role')}</span>
+        <span class="mono font-bold text-slate-900 text-xs">${a('film')}</span>
+        <span class="text-[10px] text-slate-500">${a('thickness')}</span>
+        ${a('gradeOptions') ? `<span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-700">grade: ${a('gradeOptions')}</span>` : ''}
+      </div>
+      <div class="mt-1 h-3 rounded-full bg-slate-100 overflow-hidden">
+        <div class="h-full bg-gradient-to-r ${t.fill}" style="width:${widthPct}%"></div>
+      </div>
+    </div>
+  </div>`
+})
+
+// AxisCard
+document.querySelectorAll('AxisCard').forEach(el => {
+  const tone = el.getAttribute('tone') || 'blue'
+  const required = el.hasAttribute('required')
+  const autoDemand = el.hasAttribute('autoDemand')
+  const TONE = {
+    blue:'border-blue-200 bg-blue-50/30',
+    emerald:'border-emerald-200 bg-emerald-50/30',
+    violet:'border-violet-200 bg-violet-50/30',
+    amber:'border-amber-200 bg-amber-50/30',
+    sky:'border-sky-200 bg-sky-50/30',
+    fuchsia:'border-fuchsia-200 bg-fuchsia-50/30',
+    orange:'border-orange-200 bg-orange-50/30',
+  }
+  const t = TONE[tone] || TONE.blue
+  const inner = el.innerHTML
+  el.outerHTML = `
+  <div class="rounded-xl border ${t} bg-white p-3.5 shadow-sm hover:shadow-md lift">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="mono font-bold text-slate-900 text-xs">${el.getAttribute('name')}</span>
+      <span class="text-[10px] text-slate-500">${el.getAttribute('label') || ''}</span>
+      ${required ? '<span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-700 ring-1 ring-rose-200">Required</span>' : '<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-600">Optional</span>'}
+      ${autoDemand ? '<span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-800 ring-1 ring-emerald-200">Auto-demand</span>' : ''}
+      <span class="ml-auto text-[10px] mono text-slate-500">${el.getAttribute('type') || ''}</span>
+    </div>
+    ${inner}
+  </div>`
+})
+
+// CatalogChip
+document.querySelectorAll('CatalogChip').forEach(el => {
+  const code = el.getAttribute('code')
+  const stock = el.getAttribute('stock')
+  const status = el.getAttribute('status')
+  const preset = el.hasAttribute('preset')
+  const ICON = { ok:'●', warn:'◐', empty:'○', error:'⚠' }
+  const COLOR = { ok:'text-emerald-600', warn:'text-amber-600', empty:'text-slate-400', error:'text-rose-600' }
+  el.outerHTML = `
+  <span class="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 ring-1 ring-slate-200 ${preset ? 'ring-2 ring-emerald-300' : ''}" title="${stock}">
+    <span class="${COLOR[status]||'text-slate-400'} text-xs leading-none">${ICON[status]||'○'}</span>
+    <span class="mono font-bold text-slate-900 text-[11px]">${code}</span>
+    <span class="text-slate-500 text-[10px]">${stock}</span>
+    ${preset ? '<span class="rounded-sm bg-emerald-100 px-1 text-[8px] font-bold text-emerald-800 ml-1">DEFAULT</span>' : ''}
+  </span>`
+})
+
+// Cell
+document.querySelectorAll('Cell').forEach(el => {
+  const n = el.getAttribute('n')
+  const hm = parseInt(el.getAttribute('hm') || '0', 10)
+  const HM = ['hm-0','hm-1','hm-2','hm-3']
+  const cls = HM[hm] || 'hm-0'
+  const text = hm === 0 ? 'text-slate-400' : (hm >= 2 ? 'text-white' : 'text-slate-700')
+  el.outerHTML = `<td class="px-2 py-1 text-center"><span class="inline-flex h-6 w-12 items-center justify-center rounded-md font-bold ${text} ${cls}">${n}</span></td>`
+})
+
+// OverlayRow
+document.querySelectorAll('OverlayRow').forEach(el => {
+  const name = el.getAttribute('name')
+  const cells = (el.getAttribute('cells')||'').split('|')
+  el.outerHTML = `
+  <tr class="hover:bg-amber-50/30">
+    <td class="px-2 py-2 font-bold text-slate-900">${name}</td>
+    ${cells.map(c => {
+      if (c === '—') return '<td class="px-2 py-2 text-slate-300">—</td>'
+      return `<td class="px-2 py-2"><span class="rounded-md bg-amber-50/80 px-2 py-0.5 mono font-bold text-amber-800 ring-1 ring-amber-200">${c}</span></td>`
+    }).join('')}
+  </tr>`
+})
+
+// PoolRow
+document.querySelectorAll('PoolRow').forEach(el => {
+  const code = el.getAttribute('code')
+  const qty = el.getAttribute('qty')
+  const stars = el.getAttribute('stars')
+  const tone = el.getAttribute('tone') || 'blue'
+  const warn = el.hasAttribute('warn')
+  const TONE = { blue:'bg-blue-50 text-blue-800 ring-blue-200', fuchsia:'bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200', emerald:'bg-emerald-50 text-emerald-800 ring-emerald-200', amber:'bg-amber-50 text-amber-800 ring-amber-200' }
+  el.outerHTML = `
+  <div class="flex items-center justify-between rounded-xl border ${warn ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200 bg-white'} px-3 py-2 shadow-sm">
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="rounded-md ${TONE[tone]} px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset">${code}</span>
+    </div>
+    <div class="flex items-center gap-2 mono">
+      <span class="text-amber-500 text-sm tracking-tight">${stars}</span>
+      <span class="text-xs font-bold text-slate-800">${qty}</span>
+    </div>
+  </div>`
+})
+
+// SimRow helper
+document.querySelectorAll('SimRow').forEach(el => {
+  const label = el.getAttribute('label')
+  const inner = el.innerHTML
+  el.outerHTML = `<div class="flex items-center gap-2"><label class="w-16 flex-none text-[10px] font-black uppercase tracking-wider text-slate-500">${label}</label>${inner}</div>`
+})
+
+// ActivityRow
+document.querySelectorAll('ActivityRow').forEach(el => {
+  const when = el.getAttribute('when')
+  const kind = el.getAttribute('kind')
+  const tone = el.getAttribute('tone') || 'slate'
+  const body = el.getAttribute('body')
+  const TONE = { blue:'bg-blue-50 text-blue-800 ring-blue-200', violet:'bg-violet-50 text-violet-800 ring-violet-200', emerald:'bg-emerald-50 text-emerald-800 ring-emerald-200', amber:'bg-amber-50 text-amber-800 ring-amber-200', slate:'bg-slate-50 text-slate-800 ring-slate-200' }
+  el.outerHTML = `
+  <li class="flex items-start gap-2 px-3 py-2 hover:bg-slate-50/60">
+    <span class="rounded-full ${TONE[tone]} px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset">${kind}</span>
+    <div class="min-w-0 flex-1 text-[12px] text-slate-700">${body}</div>
+    <span class="flex-none text-[10px] text-slate-400 mono">${when}</span>
+  </li>`
+})
+
+// Calendar heatmap
+function buildHeatmap(){
+  const root = document.getElementById('heatmap')
+  if (!root) return
+  // 7 rows × 12 cols (84 days)
+  const random = (seed) => { let x = Math.sin(seed)*10000; return x - Math.floor(x) }
+  const cells = []
+  for (let col=0; col<12; col++) {
+    for (let row=0; row<7; row++) {
+      const r = random(col*7+row+3)
+      const isAnomaly = (col === 8 && row === 3)
+      const v = isAnomaly ? 'anomaly' : (r < 0.3 ? 0 : r < 0.7 ? 1 : r < 0.9 ? 2 : 3)
+      cells.push(`<div class="h-4 w-4 rounded-sm hm-${v}" title="${isAnomaly ? 'anomaly: order spike' : 'orders'}"></div>`)
+    }
+  }
+  // Render column-major
+  // We're using grid-flow-col with grid-rows-7, so just dump cells in order
+  root.innerHTML = cells.join('')
+}
+buildHeatmap()
+
+// Scroll-spy
+const navItems = document.querySelectorAll('.nav-item')
+const panels = ['header','route','sizes','layers','axes','variants','overlays','stock','activity']
+const panelEls = panels.map(id => document.getElementById(id))
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id
+      navItems.forEach(n => n.classList.toggle('active', n.dataset.target === id))
+    }
+  })
+}, { rootMargin: '-30% 0px -55% 0px', threshold: 0 })
+panelEls.forEach(p => p && obs.observe(p))
+// init: header active
+navItems[0]?.classList.add('active')
+
+// Edit mode toggle
+function toggleEdit() {
+  const body = document.body
+  body.classList.toggle('edit-mode')
+  const isEdit = body.classList.contains('edit-mode')
+  const btn = document.getElementById('editToggle')
+  const dirty = document.getElementById('dirtyChip')
+  const footer = document.getElementById('editFooter')
+  if (isEdit) {
+    btn.textContent = '✕ Exit edit mode'
+    btn.className = 'inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-bold text-white shadow-md ring-1 ring-amber-700 hover:shadow-lg'
+    dirty.classList.remove('hidden')
+    footer.classList.remove('hidden')
+  } else {
+    btn.textContent = '✎ Edit master'
+    btn.className = 'inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-blue-500/25 ring-1 ring-blue-500/40 hover:shadow-lg'
+    dirty.classList.add('hidden')
+    footer.classList.add('hidden')
+  }
+}
+
+// Toast helper
+function toast(msg) {
+  const t = document.createElement('div')
+  t.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-slate-900 text-white px-4 py-2 text-xs font-bold shadow-2xl'
+  t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(()=>t.remove(), 2400)
+}
+
+// Configurator simulator — live computation
+function updateSim() {
+  const customer = document.getElementById('simCustomer').value
+  const size = document.getElementById('simSize').value
+  const grade = document.getElementById('simGrade').value
+  const pod = document.getElementById('simPod').value
+  const inner = document.getElementById('simInner').value
+  const art = document.getElementById('simArt').value
+  const qty = parseInt(document.getElementById('simQty').value || '0', 10)
+
+  const variantParts = [
+    'PM-DRY-PET-LD',
+    size.replace('SNK-',''),
+    grade.replace('-','').replace('-',''),
+    art !== 'DEFER' ? art.replace('-','') : 'DEFER',
+  ]
+  const variant = variantParts.join('-').toUpperCase()
+  document.getElementById('simVariant').textContent = variant
+
+  // Inner pack qty
+  const m = inner.match(/-(\d+)$/)
+  const pcsPerInner = m ? parseInt(m[1],10) : 24
+  // Approx total pouches: qty kg / 0.02 kg per pouch
+  const totalPouches = Math.max(1, Math.floor(qty / 0.02))
+  const innerCount = Math.ceil(totalPouches / pcsPerInner)
+
+  document.getElementById('bomPod').textContent = pod
+  document.getElementById('bomPodQty').textContent = totalPouches.toLocaleString() + ' pcs'
+  document.getElementById('bomInner').textContent = inner
+  document.getElementById('bomInnerQty').textContent = innerCount.toLocaleString() + ' pcs'
+
+  // Reuse hint
+  const reuse = document.getElementById('simReuse')
+  if (size === 'SNK-250' && grade === 'FOOD-A' && art === 'DF-ALMOND') {
+    reuse.innerHTML = '<span class="text-emerald-700 font-bold">✓ Existing variant</span> — used 24× in last 90d'
+  } else {
+    reuse.innerHTML = '<span class="text-violet-700 font-bold">⚡ New variant</span> — will materialize on submit'
+  }
+
+  // Status pill
+  const status = document.getElementById('simStatus')
+  if (qty <= 0) { status.textContent = 'INVALID'; status.className = 'rounded-full bg-rose-100 px-2 py-0.5 text-[9px] text-rose-800' }
+  else { status.textContent = 'VALID'; status.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-800' }
+}
+updateSim()
+</script>
+</body>
+</html>

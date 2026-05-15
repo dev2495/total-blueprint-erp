@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import Dict, List, Any
-from apps.artwork.print_contract import resolve_ink_contract
+import uuid
+from apps.artwork.print_contract import resolve_ink_contract, resolve_ink_gsm_by_color
 from apps.materials.models import InventoryMaterial
 from apps.recipes.models import ExtrusionRecipe, RecipeGrade
 from django.core.exceptions import ObjectDoesNotExist
@@ -186,9 +187,16 @@ class BOMResolverService:
             if colors_count <= 0 and color_names:
                 colors_count = len(color_names)
 
-            if colors_count > 0 and ink_gsm_total > 0:
-                gsm_per_color = ink_gsm_total / Decimal(str(colors_count))
-                per_color_weight = (area_m2_unit * gsm_per_color) / Decimal('1000')
+            ink_gsm_by_color = resolve_ink_gsm_by_color(
+                color_names=color_names,
+                total_gsm=ink_gsm_total,
+                split_mode=printing.get("ink_gsm_split_mode") or "EQUAL",
+                color_percentages=printing.get("ink_gsm_color_percentages") or {},
+                color_gsm=printing.get("ink_gsm_by_color") or {},
+            )
+            effective_ink_gsm_total = sum(ink_gsm_by_color.values(), Decimal("0"))
+
+            if colors_count > 0 and effective_ink_gsm_total > 0:
                 ink_contract = resolve_ink_contract(
                     color_names=color_names,
                     layer_snapshot=layers_input,
@@ -200,6 +208,10 @@ class BOMResolverService:
                 base_tag = ink_contract["ink_base_family"]
 
                 for color in color_names:
+                    gsm_per_color = ink_gsm_by_color.get(str(color).upper(), Decimal("0"))
+                    if gsm_per_color <= 0:
+                        continue
+                    per_color_weight = (area_m2_unit * gsm_per_color) / Decimal('1000')
                     mapped_id = normalized_mapping.get(str(color).upper())
                     material_id = None
                     code = f"INK-{base_tag}-{str(color).upper()}"
@@ -235,30 +247,34 @@ class BOMResolverService:
             sol_gsm = Decimal(str(chemicals.get('solvent_gsm', 0)))
 
             if adh_gsm > 0:
-                try:
-                    adh_mat = InventoryMaterial.objects.get(code='AD-ADHESIVE', category='ADHESIVE')
+                adh_mat = _chemical_material(chemicals, "adhesive", "ADHESIVE", fallback_code="AD-ADHESIVE")
+                if adh_mat is not None:
                     chemicals_bom.append({
                         "material_id": str(adh_mat.id),
                         "code": adh_mat.code,
                         "name": adh_mat.name,
                         "type": "ADHESIVE",
+                        "gsm": float(round(adh_gsm, 6)),
                         "weight_kg": float(round((area_m2_unit * adh_gsm) / Decimal('1000'), 6)),
                         "_gsm": float(round(adh_gsm, 6)),
                     })
-                except ObjectDoesNotExist: pass
+                else:
+                    errors.append("Adhesive GSM is set but no active adhesive master was selected.")
 
             if sol_gsm > 0:
-                try:
-                    sol_mat = InventoryMaterial.objects.get(code='AD-SOLVENT', category='SOLVENT')
+                sol_mat = _chemical_material(chemicals, "solvent", "SOLVENT", fallback_code="AD-SOLVENT")
+                if sol_mat is not None:
                     chemicals_bom.append({
                         "material_id": str(sol_mat.id),
                         "code": sol_mat.code,
                         "name": sol_mat.name,
                         "type": "SOLVENT",
+                        "gsm": float(round(sol_gsm, 6)),
                         "weight_kg": float(round((area_m2_unit * sol_gsm) / Decimal('1000'), 6)),
                         "_gsm": float(round(sol_gsm, 6)),
                     })
-                except ObjectDoesNotExist: pass
+                else:
+                    errors.append("Solvent GSM is set but no active solvent master was selected.")
 
         # 5. Add-on Resolution
         addons_input = template_snapshot.get('addons', [])
@@ -399,4 +415,26 @@ class BOMResolverService:
 
 def uuid_to_str(val):
     if not val: return None
-    return str(val)
+    try:
+        return str(uuid.UUID(str(val)))
+    except Exception:
+        return None
+
+
+def _chemical_material(chemicals: Dict[str, Any], family: str, category: str, *, fallback_code: str) -> InventoryMaterial | None:
+    material_id = uuid_to_str(chemicals.get(f"{family}_material_id") or chemicals.get(f"{family}_id"))
+    material_code = str(
+        chemicals.get(f"{family}_material_code")
+        or chemicals.get(f"{family}_code")
+        or ""
+    ).strip()
+    qs = InventoryMaterial.objects.filter(category=category, status="ACTIVE")
+    if material_id:
+        found = qs.filter(id=material_id).first()
+        if found is not None:
+            return found
+    if material_code:
+        found = qs.filter(code__iexact=material_code).first()
+        if found is not None:
+            return found
+    return qs.filter(code__iexact=fallback_code).first()

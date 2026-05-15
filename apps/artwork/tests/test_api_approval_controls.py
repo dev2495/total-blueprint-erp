@@ -230,6 +230,72 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.assertEqual(self.artwork.back_colors, [])
         self.assertEqual(self.artwork.back_colors_count, 0)
 
+    def test_patch_persists_equal_ink_gsm_split_by_color(self):
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {
+                "substrate_mode": "SHEET",
+                "front_colors": ["CYAN", "BLACK"],
+                "front_colors_count": 2,
+                "back_colors": [],
+                "back_colors_count": 0,
+                "ink_gsm_total": "1.20",
+                "ink_gsm_split_mode": "EQUAL",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.artwork.refresh_from_db()
+        self.assertEqual(float(self.artwork.ink_gsm_total), 1.2)
+        self.assertEqual(self.artwork.ink_gsm_split_mode, "EQUAL")
+        self.assertEqual(self.artwork.ink_gsm_by_color, {"CYAN": 0.6, "BLACK": 0.6})
+        self.assertEqual(response.data["ink_gsm_by_color"], {"CYAN": 0.6, "BLACK": 0.6})
+
+    def test_patch_rejects_percent_ink_gsm_split_that_does_not_total_100(self):
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {
+                "substrate_mode": "SHEET",
+                "front_colors": ["CYAN", "BLACK"],
+                "front_colors_count": 2,
+                "back_colors": [],
+                "back_colors_count": 0,
+                "ink_gsm_total": "1.20",
+                "ink_gsm_split_mode": "PERCENT",
+                "ink_gsm_color_percentages": {"CYAN": 60, "BLACK": 30},
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("100", str(response.data))
+
+    def test_approval_requires_positive_ink_gsm(self):
+        artwork = Artwork.objects.create(
+            design_code="ART-NO-GSM",
+            name="No GSM Artwork",
+            print_type="FLEXO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            back_colors=[],
+            back_colors_count=0,
+            color_list=["CYAN"],
+            colors_count=1,
+            file_path="s3://artwork/no-gsm.pdf",
+            status="DRAFT",
+        )
+
+        response = self.client.post(
+            f"/api/engineering/artworks/{artwork.id}/approve/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("ink GSM", str(response.data))
+
     def test_uploaded_roto_artwork_can_be_approved_after_cylinders_are_ready(self):
         artwork = Artwork.objects.create(
             design_code="ART-API-ROTO-1",
@@ -242,6 +308,8 @@ class ArtworkApiApprovalControlTests(TestCase):
             back_colors_count=1,
             color_list=["YELLOW", "BLACK"],
             colors_count=2,
+            ink_gsm_total="1.20",
+            ink_gsm_split_mode="EQUAL",
             status="DRAFT",
         )
         vendor = Vendor.objects.create(name="Approval Cylinder Vendor", code="APR-CYL-VENDOR")

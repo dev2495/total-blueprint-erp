@@ -6,7 +6,7 @@ from apps.materials.models import InventoryMaterial
 from apps.physics.geometry_override import validate_pouch_geometry_contract
 from apps.templates.models import TemplateBlueprint
 
-from .models import SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
+from .models import CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
 from .services.order_block_resolver import resolve_block_reasons
 from .services.order_service import _normalize_packaging_snapshot
 
@@ -72,6 +72,8 @@ class SalesSkuVariantSerializer(serializers.ModelSerializer):
 class SalesSkuSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source="template.name")
     commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
+    product_master_name = serializers.ReadOnlyField(source="product_master.name")
+    product_master_code = serializers.ReadOnlyField(source="product_master.code")
     variants = SalesSkuVariantSerializer(many=True, read_only=True)
     customer_usage_count = serializers.IntegerField(read_only=True, default=0)
     customer_last_used_at = serializers.DateTimeField(read_only=True, allow_null=True)
@@ -86,6 +88,10 @@ class SalesSkuSerializer(serializers.ModelSerializer):
             "template_name",
             "commercial_family",
             "commercial_family_name",
+            "product_master",
+            "product_master_name",
+            "product_master_code",
+            "axis_values_template",
             "default_line_name",
             "active",
             "variants",
@@ -98,6 +104,8 @@ class SalesSkuSerializer(serializers.ModelSerializer):
             "id",
             "template_name",
             "commercial_family_name",
+            "product_master_name",
+            "product_master_code",
             "customer_usage_count",
             "customer_last_used_at",
             "created_at",
@@ -122,6 +130,11 @@ class RepeatLineCandidateSerializer(serializers.ModelSerializer):
     sku_variant_id = serializers.ReadOnlyField()
     sku_variant_name = serializers.ReadOnlyField(source="sku_variant.name")
     sku_variant_code = serializers.ReadOnlyField(source="sku_variant.code")
+    product_master = serializers.ReadOnlyField(source="product_master_id")
+    product_master_code = serializers.ReadOnlyField(source="product_master.code")
+    product_master_name = serializers.ReadOnlyField(source="product_master.name")
+    product_variant = serializers.ReadOnlyField(source="product_variant_id")
+    customer_product_overlay = serializers.ReadOnlyField(source="customer_product_overlay_id")
     chemicals_snapshot = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
 
@@ -140,11 +153,17 @@ class RepeatLineCandidateSerializer(serializers.ModelSerializer):
             "sku_variant_id",
             "sku_variant_name",
             "sku_variant_code",
+            "product_master",
+            "product_master_code",
+            "product_master_name",
+            "product_variant",
+            "customer_product_overlay",
             "line_name",
             "qty_value",
             "qty_uom",
             "price_basis",
             "unit_price",
+            "axis_values",
             "geometry_snapshot",
             "layer_snapshot",
             "printing_snapshot",
@@ -196,6 +215,12 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     claimed_stock_order_nos = serializers.SerializerMethodField()
     sku_variant_name = serializers.ReadOnlyField(source="sku_variant.name")
     sku_variant_code = serializers.ReadOnlyField(source="sku_variant.code")
+    product_variant = serializers.ReadOnlyField(source="product_variant_id")
+    product_variant_code = serializers.ReadOnlyField(source="product_variant.code")
+    product_master_name = serializers.ReadOnlyField(source="product_master.name")
+    product_master_code = serializers.ReadOnlyField(source="product_master.code")
+    customer_product_overlay_name = serializers.ReadOnlyField(source="customer_product_overlay.customer_display_name")
+    customer_item_code = serializers.ReadOnlyField(source="customer_product_overlay.customer_item_code")
     repeat_source_order_number = serializers.ReadOnlyField(source="repeat_source_item.sales_order.order_number")
 
     class Meta:
@@ -212,6 +237,15 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "line_name",
             "price_basis",
             "unit_price",
+            "product_master",
+            "product_master_name",
+            "product_master_code",
+            "product_variant",
+            "product_variant_code",
+            "axis_values",
+            "customer_product_overlay",
+            "customer_product_overlay_name",
+            "customer_item_code",
             "sku_variant",
             "sku_variant_name",
             "sku_variant_code",

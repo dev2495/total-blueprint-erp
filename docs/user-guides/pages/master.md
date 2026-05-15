@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Master without process ambiguit
 
 
 ## Screenshot References
-- ![master-overview](../../../frontend_v2/public/help/screenshots/master-overview.svg)
+- ![master-overview](../../../frontend_v2/public/help/screenshots/master-overview.png)
 - ![master-workflow](../../../frontend_v2/public/help/screenshots/master-workflow.svg)
 
 ## FAQ References

@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Sales • Customers without pro
 
 
 ## Screenshot References
-- ![sales-customers-overview](../../../frontend_v2/public/help/screenshots/sales-customers-overview.svg)
+- ![sales-customers-overview](../../../frontend_v2/public/help/screenshots/sales-customers-overview.png)
 - ![sales-customers-workflow](../../../frontend_v2/public/help/screenshots/sales-customers-workflow.svg)
 
 ## FAQ References

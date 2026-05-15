@@ -151,7 +151,14 @@ class RollAssignmentFallbackTests(SimpleTestCase):
             job,
             process,
             [
-                self._roll("lam-1", "laminate-v12", thickness=27, stage_index=1, current_step_index=1),
+                self._roll(
+                    "lam-1",
+                    "laminate-v12",
+                    thickness=27,
+                    stage_index=1,
+                    current_step_index=1,
+                    meta={"roll_role": "OUTPUT", "source_behavior": "MULTI_INPUT_COMBINE"},
+                ),
                 self._roll("c1", "v3", thickness=20, stage_index=0, current_step_index=0),
             ],
             allow_input_stock_fallback=True,

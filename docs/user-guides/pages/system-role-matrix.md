@@ -88,7 +88,7 @@ This guide helps users complete all key tasks on System • Role Matrix without 
 
 
 ## Screenshot References
-- ![system-role-matrix-overview](../../../frontend_v2/public/help/screenshots/system-role-matrix-overview.svg)
+- ![system-role-matrix-overview](../../../frontend_v2/public/help/screenshots/system-role-matrix-overview.png)
 - ![system-role-matrix-workflow](../../../frontend_v2/public/help/screenshots/system-role-matrix-workflow.svg)
 
 ## FAQ References

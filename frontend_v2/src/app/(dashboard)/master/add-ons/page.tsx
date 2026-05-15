@@ -10,6 +10,7 @@ import { Plus, Loader2 } from "lucide-react"
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -38,6 +39,9 @@ const formSchema = z.object({
     name: z.string().min(1, "Name is required"),
     weight_mode: z.enum(["PER_MM", "PER_PIECE", "FIXED"]),
     weight_value: z.coerce.number().min(0, "Value must be positive"),
+    is_purchasable: z.boolean().default(false),
+    addon_is_purchased: z.boolean().default(false),
+    addon_purchase_uom: z.enum(["KG", "PCS"]).default("KG"),
 })
 
 
@@ -49,12 +53,17 @@ function AddonForm({ initialData, onSubmit, isLoading }: { initialData?: Addon, 
             name: initialData?.name || "",
             weight_mode: (initialData?.weight_mode as "PER_MM" | "PER_PIECE" | "FIXED") || "PER_PIECE",
             weight_value: initialData?.weight_value || 0,
+            is_purchasable: Boolean(initialData?.is_purchasable ?? initialData?.addon_is_purchased),
+            addon_is_purchased: Boolean(initialData?.is_purchasable ?? initialData?.addon_is_purchased),
+            addon_purchase_uom: (initialData?.addon_purchase_uom as "KG" | "PCS") || "KG",
         },
     })
 
+    const purchased = form.watch("is_purchasable")
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit((values) => onSubmit({ ...values, addon_is_purchased: values.is_purchasable }))} className="space-y-4">
                 <FormField
                     control={form.control}
                     name="code"
@@ -113,6 +122,51 @@ function AddonForm({ initialData, onSubmit, isLoading }: { initialData?: Addon, 
                                 <FormControl>
                                     <Input type="number" step="0.0001" {...field} value={field.value as number} />
                                 </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="is_purchasable"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Purchasable?</FormLabel>
+                                <Select onValueChange={(value) => field.onChange(value === "YES")} value={field.value ? "YES" : "NO"}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="NO">No</SelectItem>
+                                        <SelectItem value="YES">Yes</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="addon_purchase_uom"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Purchase UOM</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={!purchased}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select UOM" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="KG">KG</SelectItem>
+                                        <SelectItem value="PCS">PCS</SelectItem>
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -186,6 +240,9 @@ export default function AddonsPage() {
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>Create Addon</DialogTitle>
+                                <DialogDescription>
+                                    Define how this add-on is consumed in orders and whether store can inward it as purchased stock.
+                                </DialogDescription>
                             </DialogHeader>
                             <AddonForm
                                 onSubmit={(data) => createMutation.mutate(data)}
@@ -210,6 +267,9 @@ export default function AddonsPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit Addon</DialogTitle>
+                        <DialogDescription>
+                            Update add-on consumption rules and purchased-stock handling.
+                        </DialogDescription>
                     </DialogHeader>
                     {editingItem && (
                         <AddonForm

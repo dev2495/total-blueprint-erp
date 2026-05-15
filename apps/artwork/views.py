@@ -80,12 +80,12 @@ def _collect_error_details(exc):
 
 class ArtworkViewSet(viewsets.ModelViewSet):
     serializer_class = ArtworkSerializer
-    filterset_fields = ["status", "print_type", "substrate_mode"]
-    search_fields = ["design_code", "name"]
+    filterset_fields = ["status", "print_type", "substrate_mode", "product_master", "design_family_code", "colorway_name"]
+    search_fields = ["design_code", "name", "design_family_code", "colorway_name", "product_master__name", "product_master__code"]
     pagination_class = None
 
     def get_queryset(self):
-        qs = Artwork.objects.all().prefetch_related("images", "cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
+        qs = Artwork.objects.select_related("product_master").prefetch_related("images", "cylinders", "cylinder_slot_assignments__cylinder").order_by("-created_at")
         params = self.request.query_params
         include_versions = _to_bool(params.get("include_versions"))
         if include_versions is not True:
@@ -101,6 +101,12 @@ class ArtworkViewSet(viewsets.ModelViewSet):
         substrate_mode = params.get("substrate_mode") or params.get("film_type")
         if substrate_mode:
             qs = qs.filter(substrate_mode=str(substrate_mode).upper())
+        product_master = params.get("product_master") or params.get("product_master_id")
+        if product_master:
+            qs = qs.filter(product_master_id=product_master)
+        design_family_code = params.get("design_family_code")
+        if design_family_code:
+            qs = qs.filter(design_family_code__iexact=str(design_family_code).strip())
 
         front_count = params.get("front_colors_count")
         back_count = params.get("back_colors_count")

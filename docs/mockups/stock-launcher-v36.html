@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V3.6 · Stock Launcher</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: Inter, system-ui; background: #f8fafc; }
+  .display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .lift { transition: transform 180ms, box-shadow 180ms; }
+  .lift:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -12px rgba(2,6,23,.15); }
+  .glassy { backdrop-filter: blur(12px) saturate(140%); }
+  .fill-bar { height: 4px; border-radius: 9999px; background: #e2e8f0; overflow: hidden; }
+  .fill-bar > i { display: block; height: 100%; background: linear-gradient(90deg, #10b981, #34d399); }
+  .donut { transform: rotate(-90deg); }
+  .nice-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+</style>
+</head>
+<body class="min-h-screen pb-32">
+
+<!-- Sticky Header -->
+<header class="sticky top-0 z-30 border-b border-slate-200/60 bg-white/85 glassy">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/pm-v36-index.html" class="text-xs font-bold text-slate-500 hover:text-violet-700">← All mockups</a>
+      <span class="text-slate-300">/</span>
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Production · Planner</div>
+      <h1 class="display text-xl font-bold text-slate-900">Stock Launcher</h1>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="/pm-v36-detail.html" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">← Open master</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Hero with launch mode picker -->
+<section class="mx-auto max-w-screen-2xl px-6 pt-6">
+  <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 p-6 text-white shadow-2xl shadow-violet-500/20">
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">Stock launcher · v3.6</div>
+    <h2 class="display mt-1 text-3xl font-bold leading-tight">Make WIP at any stop step.</h2>
+    <p class="mt-1 max-w-2xl text-sm text-white/80">Pick a master, choose where to stop, fill axes, hit launch. The matcher will pull this pool when sales orders match the invariant signature.</p>
+  </div>
+</section>
+
+<!-- Main grid -->
+<div class="mx-auto grid max-w-screen-2xl grid-cols-[minmax(0,1fr)_400px] gap-5 px-6 py-6">
+  <main class="space-y-5">
+
+    <!-- 1. Launch mode -->
+    <Section idx="1" eyebrow="Launch mode" title="What kind of stock?" tone="violet">
+      <div class="grid grid-cols-2 gap-2.5 lg:grid-cols-3">
+        <ModeTile id="GENERIC" icon="🌊" label="Generic / WIP" desc="Stop the route mid-way. Defer artwork to maximize reuse across customers." active />
+        <ModeTile id="CUSTOMER" icon="👤" label="Customer-locked" desc="Pre-built stock dedicated to one customer's repeat orders." />
+        <ModeTile id="ARTWORK" icon="🎨" label="Artwork-locked" desc="Printed with a specific artwork; skip past the print step." />
+        <ModeTile id="CUSTOMER_ARTWORK" icon="⭐" label="Customer + Artwork" desc="Maximum lock — customer + artwork both committed." />
+        <ModeTile id="PACKAGING" icon="📦" label="Packaging" desc="Build inner-pack pouches, gunny, sleeves for downstream BOM." />
+        <ModeTile id="POD" icon="🎯" label="POD" desc="Print-on-demand film recipe. Variants resolve from axes." />
+      </div>
+    </Section>
+
+    <!-- 2. Master picker (quick + search) -->
+    <Section idx="2" eyebrow="Product Master" title="What recipe to follow?" tone="blue">
+      <!-- Recent quick-picks -->
+      <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Recent (your last 4)</div>
+      <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <MasterQuick code="PM-DRY-PET-LD" name="Dry Fruit Standup Pouch · PET/LD" stock="3,500 KG · 5 pools" tone="blue" active />
+        <MasterQuick code="PM-MLD-LDNAT-ROLL" name="MLD LD Natural Roll · generic" stock="800 KG · 3 pools" tone="emerald" />
+        <MasterQuick code="PM-LAMINATE-PET-BOPP" name="PET/BOPP Laminate · confectionery" stock="600 KG · 2 pools" tone="blue" />
+        <MasterQuick code="PM-POD-LDNAT" name="POD · LD natural sleeve" stock="120 KG · 2 pools" tone="violet" />
+      </div>
+      <!-- Search -->
+      <div class="mt-3 relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm shadow-sm" placeholder="Search 126 masters by code or name…" />
+      </div>
+      <!-- Selected master detail strip -->
+      <div class="mt-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/50 to-white p-4 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-blue-600 text-white text-lg shadow-md shadow-blue-500/25">🧴</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200">POUCH</span>
+              <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">3 SIZES</span>
+              <span class="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-700 ring-1 ring-violet-200">9 AXES</span>
+            </div>
+            <div class="mt-1 mono text-xs font-bold text-blue-700">PM-DRY-PET-LD</div>
+            <div class="text-sm font-bold text-slate-900">Dry Fruit Standup Pouch · PET/LD food-grade</div>
+          </div>
+          <a href="/pm-v36-detail.html" class="flex-none rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50">↗ Open master</a>
+        </div>
+      </div>
+    </Section>
+
+    <!-- 3. Stop step picker (visual route map) -->
+    <Section idx="3" eyebrow="Stop step" title="Where on the route do we stop?" tone="emerald">
+      <p class="text-[11px] text-slate-500 mb-3">Click a step. Earlier stops = more generic / more reusable. Later stops = more committed / closer to ship.</p>
+      <div class="overflow-x-auto nice-scroll">
+        <div class="flex items-stretch gap-2 min-w-[1180px]">
+          <RouteStep idx="ENTRY" title="Raw films" sub="PET·BOPP·LD" tone="slate" />
+          <Arrow />
+          <RouteStep idx="1" title="Extrusion" sub="BULK→ROLL" tone="blue" pool="500 KG" health="60" desc="Bare layer rolls" />
+          <Arrow />
+          <RouteStep idx="2" title="Printing" sub="ROLL→ROLL" badge="◇" tone="fuchsia" pool="1,200 KG" health="80" desc="Printed top web" />
+          <Arrow />
+          <RouteStep idx="3" title="Lamination" sub="ROLL→ROLL" tone="emerald" pool="800 KG" health="50" desc="Laminated roll" active />
+          <Arrow />
+          <RouteStep idx="4" title="Pouching" sub="ROLL→BULK" badge="★" tone="amber" pool="1,000 KG" health="90" desc="Finished pouch" />
+          <Arrow />
+          <RouteStep idx="END" title="Sales pickable" sub="Ship" tone="emerald-line" />
+        </div>
+      </div>
+      <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2.5 text-xs">
+        <span class="font-black uppercase tracking-wider text-emerald-800 mr-2 text-[10px]">selected</span>
+        <span class="font-bold text-emerald-900">Stop at step 3 · Lamination</span>
+        <span class="text-emerald-700">→ Output: laminated roll. Reusable for any DF-* artwork printed in step 2 next time.</span>
+      </div>
+    </Section>
+
+    <!-- 4. Commitment scope -->
+    <Section idx="4" eyebrow="Commitment" title="Lock scope (or stay generic)" tone="amber">
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Commit id="GENERIC" label="Generic" desc="No customer / artwork lock" active />
+        <Commit id="CUSTOMER" label="Customer" desc="Locked to one customer" />
+        <Commit id="ARTWORK" label="Artwork" desc="Locked to one artwork" />
+        <Commit id="BOTH" label="Customer + Artwork" desc="Both locked" />
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <Field label="Customer (if locked)">
+          <select disabled class="h-10 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm text-slate-400 shadow-sm">
+            <option>— Disabled for GENERIC scope —</option>
+          </select>
+        </Field>
+        <Field label="Artwork (if locked)">
+          <select disabled class="h-10 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm text-slate-400 shadow-sm">
+            <option>— Disabled for GENERIC scope —</option>
+          </select>
+        </Field>
+      </div>
+      <div class="mt-3 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+        <svg class="mt-0.5 h-4 w-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+        Generic stock can match any sales line with the same invariant signature, before artwork.
+      </div>
+    </Section>
+
+    <!-- 5. Axes builder -->
+    <Section idx="5" eyebrow="Axes" title="Configure the recipe" tone="blue">
+      <!-- Size strip (none for generic laminate; show as reference) -->
+      <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Size (skipped at lamination stop — sizes commit at pouching)</div>
+      <div class="mt-1.5 rounded-lg bg-slate-50/40 px-3 py-2 text-[11px] text-slate-500 italic">No size axis at this stop step. Stock built here works for any pouch size with matching layer recipe.</div>
+
+      <!-- Per-layer axes -->
+      <div class="mt-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Per-layer axes</div>
+      <div class="mt-2 overflow-hidden rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-100 text-xs">
+          <thead class="bg-slate-50/60 text-slate-500">
+            <tr>
+              <th class="w-12 px-3 py-2 text-left font-bold uppercase tracking-wider"></th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Role</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Film</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Thickness (μ)</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Grade</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Width (mm)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-blue-50/30">
+              <td class="px-3 py-2"><span class="rounded-md bg-blue-100 px-1.5 py-0.5 mono text-[10px] font-black text-blue-700">L1</span></td>
+              <td class="px-3 py-2"><span class="text-[10px] font-bold uppercase text-sky-800">PRINT-WEB</span></td>
+              <td class="px-3 py-2 mono font-bold text-slate-900">PET-12</td>
+              <td class="px-3 py-2"><input value="12" class="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"/></td>
+              <td class="px-3 py-2 text-slate-400">—</td>
+              <td class="px-3 py-2"><input value="1050" class="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"/></td>
+            </tr>
+            <tr class="hover:bg-blue-50/30">
+              <td class="px-3 py-2"><span class="rounded-md bg-blue-100 px-1.5 py-0.5 mono text-[10px] font-black text-blue-700">L2</span></td>
+              <td class="px-3 py-2"><span class="text-[10px] font-bold uppercase text-slate-800">BARRIER</span></td>
+              <td class="px-3 py-2 mono font-bold text-slate-900">MET-BOPP-20</td>
+              <td class="px-3 py-2"><input value="20" class="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"/></td>
+              <td class="px-3 py-2 text-slate-400">—</td>
+              <td class="px-3 py-2"><input value="1050" class="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"/></td>
+            </tr>
+            <tr class="hover:bg-blue-50/30">
+              <td class="px-3 py-2"><span class="rounded-md bg-blue-100 px-1.5 py-0.5 mono text-[10px] font-black text-blue-700">L3</span></td>
+              <td class="px-3 py-2"><span class="text-[10px] font-bold uppercase text-emerald-800">SEALANT</span></td>
+              <td class="px-3 py-2 mono font-bold text-slate-900">LD-PE-50</td>
+              <td class="px-3 py-2"><input value="50" class="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"/></td>
+              <td class="px-3 py-2"><select class="rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"><option>FOOD-A</option><option>GP</option></select></td>
+              <td class="px-3 py-2"><input value="1050" class="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 mono text-xs"/></td>
+            </tr>
+          </tbody>
+          <tfoot class="bg-slate-50/40">
+            <tr>
+              <td colspan="3" class="px-3 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Total thickness</td>
+              <td class="px-3 py-2 mono font-bold text-blue-700">82 μ</td>
+              <td colspan="2" class="px-3 py-2 text-[10px] text-slate-400 italic">computed</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Artwork (DEFER for generic) -->
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Artwork at this stop">
+          <div class="flex gap-2">
+            <Toggle active>DEFER</Toggle>
+            <Toggle>Pick artwork</Toggle>
+          </div>
+        </Field>
+        <Field label="Cylinder required">
+          <div class="flex h-10 items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
+            <span>N/A · stop is BEFORE printing on next pull</span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">no</span>
+          </div>
+        </Field>
+      </div>
+    </Section>
+
+    <!-- 6. Quantity & options -->
+    <Section idx="6" eyebrow="Quantity" title="How much, what kind of pool" tone="emerald">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Field label="Target qty"><input value="500" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 mono text-sm shadow-sm"/></Field>
+        <Field label="UOM">
+          <select class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 mono text-sm shadow-sm"><option>KG</option><option>METER</option><option>PCS</option></select>
+        </Field>
+        <Field label="Stock class">
+          <select class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 mono text-sm shadow-sm"><option>GENERIC_ROLL</option><option>CUSTOMER_ROLL</option><option>ARTWORK_PRINTED</option></select>
+        </Field>
+        <Field label="Stock owner">
+          <select class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 mono text-sm shadow-sm"><option>Internal</option><option>Jobwork partner</option></select>
+        </Field>
+      </div>
+    </Section>
+  </main>
+
+  <!-- RIGHT RAIL: Live preview + Material breakdown + Demand match -->
+  <aside class="space-y-4 sticky top-[80px] h-[calc(100vh-100px)] overflow-y-auto nice-scroll">
+
+    <!-- Stock pool preview -->
+    <div class="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/40 to-white shadow-md ring-1 ring-emerald-100">
+      <div class="bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 px-4 py-3 text-white">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">Stock pool · being launched</div>
+            <div class="display text-base font-bold">PM-DRY-PET-LD-LAM-1050-82U-FOODA-DEFER</div>
+          </div>
+          <span class="rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-black text-white ring-1 ring-white/30">PREVIEW</span>
+        </div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="grid grid-cols-2 gap-2 text-[11px]">
+          <div class="rounded-lg bg-emerald-50/50 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase text-emerald-700">Stop step</div><div class="font-bold text-slate-900">3 · Lamination</div></div>
+          <div class="rounded-lg bg-emerald-50/50 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase text-emerald-700">Output type</div><div class="font-bold text-slate-900">ROLL</div></div>
+          <div class="rounded-lg bg-emerald-50/50 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase text-emerald-700">Width</div><div class="font-bold text-slate-900 mono">1050 mm</div></div>
+          <div class="rounded-lg bg-emerald-50/50 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase text-emerald-700">Thickness</div><div class="font-bold text-slate-900 mono">82 μ</div></div>
+          <div class="rounded-lg bg-emerald-50/50 px-2.5 py-1.5 col-span-2"><div class="text-[9px] font-black uppercase text-emerald-700">Target qty</div><div class="font-bold text-slate-900 mono">500 KG · ≈ 35,500 m running length</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Material breakdown (THE highlight) -->
+    <div class="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-md ring-1 ring-blue-100">
+      <div class="bg-gradient-to-br from-blue-600 to-indigo-600 px-4 py-3 text-white">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">🧪 Material breakdown</div>
+        <div class="text-sm font-bold">Per-layer + adhesive math</div>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <Mat label="L1 · PET-12" v="1,010 KG" sub="12μ × 1050mm × 1.4 g/cm³ × 1.06 waste" tone="sky" />
+        <Mat label="L2 · MET-BOPP-20" v="1,690 KG" sub="20μ × 1050mm × 1.39 g/cm³ × 1.07 waste" tone="slate" />
+        <Mat label="L3 · LD-PE-50 · FOOD-A" v="2,780 KG" sub="50μ × 1050mm × 0.92 g/cm³ × 1.05 waste" tone="emerald" />
+        <Mat label="Adhesive · 2-component" v="42 KG" sub="3 g/m² × 35,500 m × 1.2 waste" tone="amber" />
+        <Mat label="Solvent" v="58 L" sub="for adhesive 70% solid" tone="violet" />
+      </div>
+      <div class="border-t border-slate-100 bg-slate-50/40 px-4 py-2 text-[11px]">
+        <div class="flex items-center justify-between">
+          <span class="font-black uppercase tracking-wider text-slate-500 text-[10px]">Net output</span>
+          <span class="mono font-bold text-emerald-700">≈ 500 KG laminate · 35,500 m</span>
+        </div>
+        <div class="mt-1 flex items-center justify-between">
+          <span class="font-black uppercase tracking-wider text-slate-500 text-[10px]">Yield</span>
+          <span class="mono font-bold text-amber-700">94% (6% waste at lamination)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Eligible demand match -->
+    <div class="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/40 to-white p-4 shadow-md">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Match preview</div>
+          <div class="text-sm font-bold text-slate-900">Eligible open demand</div>
+        </div>
+        <span class="rounded-full bg-violet-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">live</span>
+      </div>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+        <div class="rounded-lg bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-200"><div class="text-[9px] font-black uppercase text-emerald-700">Eligible orders</div><div class="display text-lg font-bold text-emerald-900">12</div><div class="text-[10px] text-slate-500">Match this signature</div></div>
+        <div class="rounded-lg bg-blue-50 px-2 py-1.5 ring-1 ring-blue-200"><div class="text-[9px] font-black uppercase text-blue-700">Exact width</div><div class="display text-lg font-bold text-blue-900">8</div><div class="text-[10px] text-slate-500">1050 mm</div></div>
+        <div class="rounded-lg bg-amber-50 px-2 py-1.5 ring-1 ring-amber-200"><div class="text-[9px] font-black uppercase text-amber-700">±10% width</div><div class="display text-lg font-bold text-amber-900">3</div><div class="text-[10px] text-slate-500">slit allowed</div></div>
+        <div class="rounded-lg bg-rose-50 px-2 py-1.5 ring-1 ring-rose-200"><div class="text-[9px] font-black uppercase text-rose-700">Wrong artwork</div><div class="display text-lg font-bold text-rose-900">0</div><div class="text-[10px] text-slate-500">N/A — DEFER</div></div>
+      </div>
+      <ul class="mt-3 space-y-1 text-[11px]">
+        <li class="flex items-center justify-between rounded-lg bg-white px-2 py-1.5 ring-1 ring-slate-200"><span class="mono font-bold">SO-1245</span><span>A.K.Poly · 1000 KG</span><span class="text-emerald-700 font-bold">match</span></li>
+        <li class="flex items-center justify-between rounded-lg bg-white px-2 py-1.5 ring-1 ring-slate-200"><span class="mono font-bold">SO-1247</span><span>Bigbasket · 500 KG</span><span class="text-emerald-700 font-bold">match</span></li>
+        <li class="flex items-center justify-between rounded-lg bg-white px-2 py-1.5 ring-1 ring-slate-200"><span class="mono font-bold">SO-1251</span><span>Reliance · 800 KG</span><span class="text-emerald-700 font-bold">match</span></li>
+        <li class="text-[10px] text-slate-400 text-center mt-1">+ 9 more</li>
+      </ul>
+    </div>
+
+    <!-- Validation / readiness -->
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+      <div class="flex items-start gap-2">
+        <div class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</div>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Ready to launch</div>
+          <ul class="mt-1 space-y-0.5 text-[11px] text-emerald-900">
+            <li>✓ Master · template bound</li>
+            <li>✓ Stop step · valid (lamination)</li>
+            <li>✓ Commitment · GENERIC, before artwork</li>
+            <li>✓ Axes complete · 3 layers fully spec'd</li>
+            <li>✓ Material plan · BOM lines computed</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Sticky footer -->
+<div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 glassy">
+  <div class="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-3">
+    <div class="flex items-center gap-2 text-xs">
+      <span class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Stock order draft</span>
+      <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">500 KG</span>
+      <span class="rounded-full bg-violet-100 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">GENERIC · stop=3</span>
+      <span class="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">12 eligible orders</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">👁 Preview</button>
+      <button class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 shadow-sm">✓ Validate</button>
+      <button class="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-violet-500/25 hover:shadow-lg">🚀 Launch stock</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Section
+document.querySelectorAll('Section').forEach(elx => {
+  const idx = elx.getAttribute('idx')
+  const eyebrow = elx.getAttribute('eyebrow')
+  const title = elx.getAttribute('title')
+  const tone = elx.getAttribute('tone') || 'blue'
+  const TONE = { blue:{bar:'border-l-blue-500',head:'from-blue-50/80',num:'bg-blue-600 ring-blue-700'}, violet:{bar:'border-l-violet-500',head:'from-violet-50/80',num:'bg-violet-600 ring-violet-700'}, emerald:{bar:'border-l-emerald-500',head:'from-emerald-50/80',num:'bg-emerald-600 ring-emerald-700'}, amber:{bar:'border-l-amber-500',head:'from-amber-50/60',num:'bg-amber-500 ring-amber-600'} }
+  const t = TONE[tone] || TONE.blue
+  const inner = elx.innerHTML
+  elx.outerHTML = `
+  <section class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] ${t.bar}">
+    <header class="flex items-start gap-3 border-b border-slate-100 bg-gradient-to-r ${t.head} via-white to-white px-5 py-3.5">
+      <span class="flex h-7 w-7 flex-none items-center justify-center rounded-lg ${t.num} text-white text-xs font-bold shadow-sm ring-1">${idx}</span>
+      <div><div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">${eyebrow}</div><h2 class="text-[15px] font-bold text-slate-900">${title}</h2></div>
+    </header>
+    <div class="px-5 py-4">${inner}</div>
+  </section>`
+})
+
+document.querySelectorAll('ModeTile').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  el.outerHTML = `<button class="lift flex items-start gap-2.5 rounded-2xl border ${active ? 'border-violet-400 bg-gradient-to-br from-violet-50 to-white ring-2 ring-violet-200 shadow-md shadow-violet-500/10' : 'border-slate-200 bg-white'} px-3 py-3 text-left shadow-sm">
+    <span class="flex h-9 w-9 items-center justify-center rounded-xl text-lg ${active ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25' : 'bg-slate-100 text-slate-600'} ring-1 ring-current/20">${a('icon')}</span>
+    <div class="min-w-0"><div class="text-sm font-bold text-slate-900">${a('label')}</div><div class="mt-0.5 text-[11px] leading-snug text-slate-500">${a('desc')}</div></div>
+  </button>`
+})
+
+document.querySelectorAll('MasterQuick').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  const tone = a('tone')
+  const TONE = { blue:'border-blue-400 bg-blue-50/40', emerald:'border-emerald-400 bg-emerald-50/40', violet:'border-violet-400 bg-violet-50/40' }
+  el.outerHTML = `
+  <button class="lift rounded-xl border ${active ? TONE[tone] + ' ring-2 ring-blue-200' : 'border-slate-200 bg-white'} px-3 py-2 text-left shadow-sm">
+    <div class="mono text-[11px] font-bold text-blue-700">${a('code')}</div>
+    <div class="text-xs font-semibold text-slate-800 line-clamp-2">${a('name')}</div>
+    <div class="mt-1 text-[10px] text-slate-500">${a('stock')}</div>
+  </button>`
+})
+
+document.querySelectorAll('RouteStep').forEach(el => {
+  const idx = el.getAttribute('idx')
+  const title = el.getAttribute('title')
+  const sub = el.getAttribute('sub')
+  const tone = el.getAttribute('tone') || 'blue'
+  const badge = el.getAttribute('badge')
+  const pool = el.getAttribute('pool')
+  const health = el.getAttribute('health')
+  const desc = el.getAttribute('desc')
+  const active = el.hasAttribute('active')
+  const TONE = { blue:{n:'bg-blue-600 ring-blue-700', bg:'bg-blue-50/50 border-blue-100', t:'text-blue-700'}, fuchsia:{n:'bg-fuchsia-600 ring-fuchsia-700', bg:'bg-fuchsia-50/50 border-fuchsia-100', t:'text-fuchsia-700'}, emerald:{n:'bg-emerald-600 ring-emerald-700', bg:'bg-emerald-50/50 border-emerald-100', t:'text-emerald-700'}, amber:{n:'bg-amber-500 ring-amber-600', bg:'bg-amber-50/50 border-amber-100', t:'text-amber-700'} }
+  if (tone === 'slate') { el.outerHTML = `<div class="flex-none w-[130px] rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-center"><div class="text-[10px] font-black uppercase tracking-wider text-slate-500">${idx}</div><div class="mt-1 text-xs font-semibold text-slate-700">${title}</div><div class="mt-2 text-[10px] text-slate-400">${sub}</div></div>`; return }
+  if (tone === 'emerald-line') { el.outerHTML = `<div class="flex-none w-[130px] rounded-xl border border-dashed border-emerald-300 bg-emerald-50 px-3 py-3 text-center"><div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">${idx}</div><div class="mt-1 text-xs font-semibold text-emerald-800">${title}</div><div class="mt-2 text-[10px] text-emerald-600">${sub}</div></div>`; return }
+  const t = TONE[tone] || TONE.blue
+  el.outerHTML = `
+  <div class="flex-none w-[180px] rounded-2xl border ${active ? 'border-emerald-400 ring-2 ring-emerald-200 shadow-md shadow-emerald-500/10' : 'border-slate-200'} bg-white px-3 py-3 shadow-sm hover:shadow-md cursor-pointer lift">
+    <div class="flex items-center justify-between">
+      <span class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black ring-1 ${t.n} text-white">${idx}</span>
+      ${active ? '<span class="rounded-full bg-emerald-600 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">SELECTED</span>' : (badge ? `<span class="rounded-full bg-fuchsia-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200 ring-inset">${badge}</span>` : '')}
+    </div>
+    <div class="mt-2 text-sm font-bold text-slate-900">${title}</div>
+    <div class="text-[10px] mono text-slate-500">${sub}</div>
+    ${pool ? `<div class="mt-3 rounded-lg ${t.bg} p-2 border"><div class="text-[9px] font-black uppercase tracking-wider ${t.t}">Pool</div><div class="mt-0.5 text-[11px] font-bold text-slate-800">${pool}</div><div class="mt-0.5 text-[10px] text-slate-500">${desc||''}</div><div class="mt-1.5 fill-bar"><i style="width:${health||0}%"></i></div></div>` : ''}
+  </div>`
+})
+
+document.querySelectorAll('Arrow').forEach(el => { el.outerHTML = `<div class="flex flex-none items-center text-slate-300 px-1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg></div>` })
+
+document.querySelectorAll('Commit').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  el.outerHTML = `<button class="rounded-xl border ${active ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200 shadow-md' : 'border-slate-200 bg-white'} px-3 py-2 text-left shadow-sm">
+    <div class="text-sm font-bold text-slate-900">${a('label')}</div>
+    <div class="text-[10px] text-slate-500">${a('desc')}</div>
+  </button>`
+})
+
+document.querySelectorAll('Field').forEach(el => {
+  el.outerHTML = `<div><label class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">${el.getAttribute('label')}</label><div class="mt-1">${el.innerHTML}</div></div>`
+})
+
+document.querySelectorAll('Toggle').forEach(el => {
+  const active = el.hasAttribute('active')
+  el.outerHTML = `<button class="rounded-lg ${active ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200'} px-3 py-1.5 text-xs font-bold">${el.innerHTML}</button>`
+})
+
+document.querySelectorAll('Mat').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const tone = a('tone')
+  const TONE = { sky:'bg-sky-500', slate:'bg-slate-500', emerald:'bg-emerald-500', amber:'bg-amber-500', violet:'bg-violet-500' }
+  el.outerHTML = `
+  <div class="flex items-start gap-2 px-4 py-2.5">
+    <span class="mt-1 h-2 w-2 flex-none rounded-full ${TONE[tone]||'bg-slate-400'}"></span>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center justify-between gap-2">
+        <span class="mono text-xs font-bold text-slate-900">${a('label')}</span>
+        <span class="mono text-xs font-bold text-blue-700">${a('v')}</span>
+      </div>
+      <div class="text-[10px] text-slate-500">${a('sub')}</div>
+    </div>
+  </div>`
+})
+</script>
+</body>
+</html>

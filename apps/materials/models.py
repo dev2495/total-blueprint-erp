@@ -1,7 +1,11 @@
+import hashlib
+import json
 from django.db import models
 from django.core.exceptions import ValidationError
 import uuid
 from decimal import Decimal
+
+from .naming import normalize_code
 
 
 class CommercialFamily(models.Model):
@@ -17,6 +21,7 @@ class CommercialFamily(models.Model):
         ("SEMI_FG", "Semi-Finished"),
         ("FG", "Finished Goods"),
         ("PACKAGING", "Packaging"),
+        ("POD", "POD"),
         ("OTHER", "Other"),
     ]
 
@@ -35,6 +40,200 @@ class CommercialFamily(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=50)
+        super().save(*args, **kwargs)
+
+
+class ProductMaster(models.Model):
+    PRODUCT_KIND_CHOICES = [
+        ("POUCH", "Pouch"),
+        ("ROLL", "Roll"),
+        ("PACKAGING", "Packaging"),
+        ("POD", "POD"),
+        ("OTHER", "Other"),
+    ]
+    REUSABLE_POLICY_CHOICES = [
+        ("CONFIGURABLE", "Configurable Order Lines"),
+        ("PRESET_ONLY", "Saved Presets Only"),
+        ("CUSTOMER_SPECIFIC", "Customer Specific"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=80, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    product_kind = models.CharField(max_length=20, choices=PRODUCT_KIND_CHOICES, default="POUCH")
+    default_template = models.ForeignKey(
+        "templates.TemplateBlueprint",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_masters",
+    )
+    # v3: template is the canonical route (replaces default_template for new flow)
+    template = models.ForeignKey(
+        "templates.TemplateBlueprint",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="masters",
+    )
+    extrusion_recipe = models.ForeignKey(
+        "recipes.ExtrusionRecipe",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="masters",
+    )
+    commercial_family = models.ForeignKey(
+        CommercialFamily,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_masters",
+    )
+    default_reporting_group = models.CharField(max_length=20, choices=CommercialFamily.REPORTING_GROUP_CHOICES, default="FG")
+    reusable_policy = models.CharField(max_length=24, choices=REUSABLE_POLICY_CHOICES, default="CONFIGURABLE")
+    canonical_layer_stack = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Reusable product-level layer identity, excluding size/artwork/customer. Execution still freezes order snapshots.",
+    )
+    # v3 canonical recipe shape
+    layer_template = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="[{role, material_code/film_variant_code, thickness_micron, grade_options, default_grade}]",
+    )
+    # v3 which axes vary on this master
+    variant_axes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="[{axis, type, required, options?, scope?}]",
+    )
+    # v3 what does NOT vary
+    fixed_attributes = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="{layer_count, fg_type, print_capable, ...}",
+    )
+    invariant_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Product-level invariant signature used for grouping/reporting and planner reuse hints.",
+    )
+    description = models.TextField(blank=True, default="")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "product_masters"
+        ordering = ["name", "code"]
+
+    def clean(self):
+        if self.default_template_id:
+            template_kind = str(getattr(self.default_template, "fg_type", "") or "").upper()
+            if self.product_kind in {"POUCH", "ROLL"} and template_kind and template_kind != self.product_kind:
+                raise ValidationError({"default_template": "Default template fg_type must match Product Master kind."})
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80)
+        seed = {
+            "template": str(self.template_id or self.default_template_id or ""),
+            "layer_template": self.layer_template or self.canonical_layer_stack or [],
+            "variant_axes": self.variant_axes or [],
+            "fixed_attributes": self.fixed_attributes or {},
+        }
+        self.invariant_signature = hashlib.sha256(
+            json.dumps(seed, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()[:64]
+        super().save(*args, **kwargs)
+
+
+class ProductVariant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    master = models.ForeignKey(
+        ProductMaster,
+        on_delete=models.PROTECT,
+        related_name="variants",
+    )
+    code = models.CharField(max_length=80)
+    axis_values = models.JSONField(default=dict, blank=True)
+    geometry_snapshot = models.JSONField(default=dict, blank=True)
+    layer_snapshot = models.JSONField(default=list, blank=True)
+    bom_signature = models.CharField(max_length=128, db_index=True, blank=True, default="")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "product_variants"
+        ordering = ["master__name", "code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["master", "bom_signature"],
+                name="product_variant_unique_per_master_axis_combo",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.master.code} / {self.code}"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80)
+        super().save(*args, **kwargs)
+
+
+class ProductMasterSize(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product_master = models.ForeignKey(ProductMaster, on_delete=models.CASCADE, related_name="sizes")
+    code = models.CharField(max_length=80)
+    label = models.CharField(max_length=120)
+    width_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    height_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    gusset_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    roll_width_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    thickness_micron = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    standard_qty = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    qty_uom = models.CharField(max_length=10, choices=[("KG", "Kilograms"), ("PCS", "Pieces"), ("METER", "Meters")], default="KG")
+    geometry_config = models.JSONField(default=dict, blank=True)
+    default_packing = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True, default="")
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "product_master_sizes"
+        ordering = ["product_master__name", "sort_order", "label", "code"]
+        constraints = [
+            models.UniqueConstraint(fields=["product_master", "code"], name="product_master_size_unique_code"),
+        ]
+
+    def clean(self):
+        if self.product_master_id and str(getattr(self.product_master, "product_kind", "") or "").upper() == "POUCH":
+            missing = {}
+            if self.width_mm is None:
+                missing["width_mm"] = "Pouch size requires width_mm."
+            if self.height_mm is None:
+                missing["height_mm"] = "Pouch size requires height_mm."
+            if missing:
+                raise ValidationError(missing)
+
+    def __str__(self):
+        return f"{self.product_master.code} / {self.code}"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80)
+        super().save(*args, **kwargs)
+
 
 class InventoryMaterial(models.Model):
     """
@@ -68,6 +267,7 @@ class InventoryMaterial(models.Model):
 
     PACKAGING_KIND_CHOICES = [
         ('INNER_POUCH', 'Inner Pouch'),
+        ('OUTER_BAG', 'Outer Bag / Packing Pouch'),
         ('GONNY', 'Gonny'),
         ('TAPE', 'Tape'),
         ('SHEET', 'Sheet'),
@@ -127,6 +327,16 @@ class InventoryMaterial(models.Model):
     # Addon Specific
     weight_mode = models.CharField(max_length=20, choices=WEIGHT_MODE_CHOICES, null=True, blank=True)
     weight_value = models.FloatField(null=True, blank=True, help_text="Formula input value (g) based on weight_mode")
+    addon_is_purchased = models.BooleanField(
+        default=False,
+        help_text="TRUE when this add-on is bought and stocked through bulk GRN before order-level consumption.",
+    )
+    addon_purchase_uom = models.CharField(
+        max_length=10,
+        choices=[('KG', 'Kilograms (KG)'), ('PCS', 'Pieces (PCS)')],
+        default='KG',
+        help_text="Inventory UOM used when purchased add-ons are inwarded through bulk GRN.",
+    )
 
     # Packaging Specific
     packaging_kind = models.CharField(
@@ -182,6 +392,14 @@ class InventoryMaterial(models.Model):
     def __str__(self):
         return f"[{self.code}] {self.name}"
 
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=100)
+        if self.category == 'ADDON':
+            self.is_purchasable = bool(self.addon_is_purchased)
+            self.addon_purchase_uom = str(self.addon_purchase_uom or 'KG').upper()
+            self.base_uom = self.addon_purchase_uom if self.addon_is_purchased else 'KG'
+        super().save(*args, **kwargs)
+
     def clean(self):
         # 1. FILM_FAMILY Density Validation
         if self.category == 'FILM_FAMILY' and self.density_gcm3 is None:
@@ -197,6 +415,11 @@ class InventoryMaterial(models.Model):
                 raise ValidationError({'weight_mode': "Addon must have a weight mode (PER_MM, PER_PIECE, FIXED)."})
             if self.weight_value is None:
                 raise ValidationError({'weight_value': "Addon must have a weight value (float)."})
+            self.addon_purchase_uom = str(self.addon_purchase_uom or 'KG').upper()
+            if self.addon_is_purchased and self.addon_purchase_uom not in {'KG', 'PCS'}:
+                raise ValidationError({'addon_purchase_uom': "Purchased add-on UOM must be KG or PCS."})
+            self.is_purchasable = bool(self.addon_is_purchased)
+            self.base_uom = self.addon_purchase_uom if self.addon_is_purchased else 'KG'
 
         # 4. Packaging Validation
         if self.category == 'PACKAGING':
@@ -204,7 +427,7 @@ class InventoryMaterial(models.Model):
                 raise ValidationError({'packaging_kind': "Packaging material must have a packaging kind."})
             if not self.packaging_supply_mode:
                 raise ValidationError({'packaging_supply_mode': "Packaging material must have a packaging supply mode."})
-            in_house_kinds = {"INNER_POUCH", "SHEET"}
+            in_house_kinds = {"INNER_POUCH", "OUTER_BAG", "SHEET"}
             if self.packaging_supply_mode in {"IN_HOUSE", "BOTH"}:
                 if self.packaging_kind not in in_house_kinds:
                     raise ValidationError(
@@ -321,6 +544,10 @@ class PodSku(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80)
+        super().save(*args, **kwargs)
+
 
 class PodSkuVariant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -357,6 +584,10 @@ class PodSkuVariant(models.Model):
 
     def __str__(self):
         return f"{self.pod_sku.code} - {self.code}"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80)
+        super().save(*args, **kwargs)
 
 class ConsumableMaterial(models.Model):
     """

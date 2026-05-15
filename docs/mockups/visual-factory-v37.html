@@ -1,0 +1,1376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Visual Factory · V3.7 mockup · final</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: {
+    display: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui'],
+    sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+    mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+  } } } }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%); color: #0f172a; }
+  .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .scroll-card { content-visibility: auto; contain-intrinsic-size: 1px 360px; }
+  @keyframes pulse-soft { 0%,100%{opacity:.85} 50%{opacity:.55} }
+  .live-dot { animation: pulse-soft 1.4s ease-in-out infinite; }
+  .tab-divider { background: repeating-linear-gradient(90deg, #c7d2fe 0 8px, transparent 8px 16px); height: 2px; border-radius: 9999px; }
+  .info-pop { position: absolute; opacity: 0; visibility: hidden; transition: opacity .15s; }
+  .group:hover .info-pop { opacity: 1; visibility: visible; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============== TOP BAR ============== -->
+<header class="sticky top-0 z-30 backdrop-blur-md bg-white/85 border-b border-slate-200">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold shadow-sm">⚙</span>
+      <div>
+        <div class="text-[10px] font-bold tracking-[0.22em] text-slate-500 uppercase">Total Poly Print · Operations</div>
+        <div class="font-display font-bold text-sm text-slate-900">Visual Factory · live floor</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="inline-flex rounded-xl bg-slate-100 p-0.5 shadow-inner text-[11px] font-bold">
+        <button class="h-8 rounded-lg px-3 bg-white text-slate-900 ring-1 ring-slate-200 shadow-sm">Live</button>
+        <button class="h-8 rounded-lg px-3 text-slate-600">Today</button>
+        <button class="h-8 rounded-lg px-3 text-slate-600">This week</button>
+      </div>
+      <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+        <span class="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span> refreshed 2 s ago
+      </span>
+    </div>
+  </div>
+  <div class="mx-auto max-w-screen-2xl px-6 pb-3">
+    <nav class="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto">
+      <button class="rounded-full bg-slate-900 px-3 py-1 text-white shadow-sm">Overview</button>
+      <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Plants <span class="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-600">3</span></button>
+      <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Customer commitments <span class="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-600">11</span></button>
+      <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Alerts <span class="ml-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] text-rose-700">5</span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="mx-auto max-w-screen-2xl px-6 py-5 space-y-5">
+
+  <!-- ╔═══════════════════ TAB · OVERVIEW ═══════════════════╗ -->
+  <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Tab · Overview</div>
+
+  <!-- HERO + KPI STRIP -->
+  <section class="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_540px]">
+    <!-- Hero -->
+    <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-50/60 via-white to-emerald-50/30 px-6 py-5 shadow-sm">
+      <div class="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500"></div>
+      <div class="relative pl-3">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Sanand Plant · Shift A · 09:42 IST</div>
+        <h1 class="font-display text-3xl font-black tracking-tight text-slate-900 mt-1">Visual Factory</h1>
+        <p class="mt-1.5 max-w-2xl text-xs text-slate-600">
+          Every machine, every WIP pool, every customer — live. Click a machine for completion log. Click a pool for aging breakdown.
+        </p>
+        <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+          <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200">⚡ 18 of 22 machines running</span>
+          <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-amber-700 ring-1 ring-amber-200">⚠ 2 in changeover</span>
+          <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-rose-700 ring-1 ring-rose-200">▾ 1 down · LAM-2</span>
+          <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">⏸ 1 idle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI tiles -->
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Today output</div>
+        <div class="mt-0.5 flex items-baseline gap-1.5">
+          <div class="font-display text-xl font-black text-emerald-700 tabular-nums">2,840</div>
+          <div class="text-[11px] font-bold text-slate-500">KG</div>
+        </div>
+        <div class="text-[10px] font-bold text-slate-500">52 completion events today</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Backlog</div>
+        <div class="flex items-baseline gap-1.5">
+          <div class="font-display text-xl font-black text-amber-700 tabular-nums">14,200</div>
+          <div class="text-[11px] font-bold text-slate-500">KG</div>
+        </div>
+        <div class="text-[10px] text-slate-500">52 open lines · 11 customers</div>
+      </div>
+      <div class="rounded-2xl border border-rose-200 bg-rose-50/40 px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-rose-700">Aged 6+ days</div>
+        <div class="flex items-baseline gap-1.5">
+          <div class="font-display text-xl font-black text-rose-700 tabular-nums">7</div>
+          <div class="text-[11px] font-bold text-slate-500">orders</div>
+        </div>
+        <div class="text-[10px] text-rose-700">2,140 KG · needs attention</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Scrap %</div>
+        <div class="font-display text-xl font-black text-rose-700 tabular-nums">4.2<span class="text-sm">%</span></div>
+        <div class="text-[10px] text-slate-500">Q · today vs 5d 3.8%</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Downtime · today</div>
+        <div class="flex items-baseline gap-1.5">
+          <div class="font-display text-xl font-black text-amber-700 tabular-nums">42</div>
+          <div class="text-[11px] font-bold text-slate-500">min</div>
+        </div>
+        <div class="text-[10px] text-slate-500">A · 1 incident · LAM-2</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Open alerts</div>
+        <div class="flex items-baseline gap-1.5">
+          <div class="font-display text-xl font-black text-rose-700 tabular-nums">5</div>
+          <span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200">2 critical</span>
+        </div>
+        <div class="text-[10px] text-slate-500">Stock · machine · age</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY NO OEE COMPOSITE - explainer -->
+  <section class="rounded-2xl border border-indigo-200 bg-indigo-50/30 px-5 py-3.5 shadow-sm">
+    <div class="flex items-start gap-3">
+      <span class="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 font-bold">ⓘ</span>
+      <div class="flex-1">
+        <div class="text-[11px] font-black uppercase tracking-[0.22em] text-indigo-700">Why OEE is shown as two numbers, not one composite</div>
+        <p class="text-[12px] text-slate-700 mt-1">
+          Standard OEE = <span class="font-bold">Availability × Performance × Quality</span>. We show A and Q honestly; P is the gap.
+        </p>
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div class="rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">A · Availability</div>
+            <div class="font-mono text-lg font-black text-emerald-900">88<span class="text-sm">%</span></div>
+            <div class="text-[10px] text-slate-600">Running minutes ÷ planned minutes. <strong>We track this</strong> — downtime is logged per machine.</div>
+          </div>
+          <div class="rounded-xl bg-white ring-1 ring-slate-300 px-3 py-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-700">P · Performance</div>
+            <div class="font-mono text-lg font-black text-slate-400">—</div>
+            <div class="text-[10px] text-slate-600">Actual run rate ÷ machine nameplate rate. <strong>We don't track this</strong> — no per-machine nameplate rates, no hourly cycle data. Add P later when machine rates are reliable.</div>
+          </div>
+          <div class="rounded-xl bg-white ring-1 ring-violet-200 px-3 py-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-violet-700">Q · Quality</div>
+            <div class="font-mono text-lg font-black text-violet-900">95.8<span class="text-sm">%</span></div>
+            <div class="text-[10px] text-slate-600">Good output ÷ total output. <strong>We track this</strong> via scrap %; Q = 100% − scrap%.</div>
+          </div>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-2 italic">
+          A composite that hides one of the three with a guessed P is worse than showing two real numbers. Until per-machine nameplate rates are entered as masters, OEE composite isn't trustworthy.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROUTE-FLOW SWIMLANE -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <header class="border-b border-slate-100 bg-gradient-to-r from-indigo-50/40 via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Route flow · today</div>
+        <h2 class="font-display text-lg font-bold text-slate-900">Where every machine is right now</h2>
+      </div>
+      <div class="flex items-center gap-2 text-[10px] font-bold">
+        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> running</span>
+        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 ring-1 ring-amber-200"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> changeover</span>
+        <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-rose-700 ring-1 ring-rose-200"><span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> down</span>
+        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 ring-1 ring-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> idle</span>
+      </div>
+    </header>
+    <div class="overflow-x-auto px-3 py-3">
+      <div class="flex items-stretch gap-3 min-w-[1100px]">
+        <!-- Step 1: Extrusion -->
+        <div class="flex-1 min-w-[190px] rounded-xl bg-blue-50/60 ring-1 ring-blue-200 p-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-blue-800">① Extrusion · 3 mc</div>
+            <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-blue-700 ring-1 ring-blue-200">2/3 running</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-blue-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">EXT-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">LDPE-NAT · 1200mm</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Vishal R. · SO-1481</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 220 KG · 4 events</span>
+                <span class="text-slate-400">last 09:31</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-blue-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">EXT-2</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">LD-NAT FOOD-A · 1100mm</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Karan D. · STK-228</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 180 KG · 3 events</span>
+                <span class="text-slate-400">last 09:18</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-amber-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">EXT-3</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">changeover</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">→ MET-PET setup</div>
+              <div class="text-[9px] text-slate-500">Op: Aniket S. · since 09:22</div>
+            </div>
+          </div>
+          <div class="mt-2 rounded-lg bg-blue-100/70 px-2 py-1.5 text-[9px] font-bold text-blue-800">
+            ⊂ queue · 4 jobs · 2,140 KG pending
+          </div>
+        </div>
+
+        <span class="flex items-center text-slate-300 text-lg">›</span>
+
+        <!-- Step 2: Printing -->
+        <div class="flex-1 min-w-[190px] rounded-xl bg-rose-50/60 ring-1 ring-rose-200 p-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-rose-800">② Printing · 4 mc</div>
+            <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200">3/4 running</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-rose-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">ROTO-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">ART-DRY-FRUIT-V3 · 8c</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Bhargav M. · cyl A-2284</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 320 KG · 6 events</span>
+                <span class="text-slate-400">last 09:36</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-rose-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">ROTO-2</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">ART-SPICE-RED-V2 · 6c</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Mohan T.</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 140 KG · 3 events</span>
+                <span class="text-slate-400">last 09:11</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-slate-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">FLEXO-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">idle</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-700 truncate">No artwork ready</div>
+              <div class="text-[9px] text-slate-500 truncate">Idle 22 min · Op: standby</div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-rose-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">ROTO-3</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">ART-TEA-CSL-V4</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Ronit P. · cyl A-2107</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 95 KG · 2 events</span>
+                <span class="text-slate-400">last 08:48</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 rounded-lg bg-rose-100/70 px-2 py-1.5 text-[9px] font-bold text-rose-800">
+            ⊂ queue · 6 jobs · 3,540 KG pending
+          </div>
+        </div>
+
+        <span class="flex items-center text-slate-300 text-lg">›</span>
+
+        <!-- Step 3: Lamination -->
+        <div class="flex-1 min-w-[190px] rounded-xl bg-amber-50/60 ring-1 ring-amber-200 p-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-amber-800">③ Lamination · 3 mc</div>
+            <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200">2/3 · 1 down</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-amber-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">LAM-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">PET12+MET12+LD65</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Sanjay K. · SO-1481</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 240 KG · 4 events</span>
+                <span class="text-slate-400">last 09:28</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-300 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">LAM-2</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-rose-200 px-1.5 py-0.5 text-[9px] font-black text-rose-900">⚠ down</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-rose-900 truncate">Solvent dispenser</div>
+              <div class="text-[9px] text-slate-500 truncate">Down since 09:14 · maint ETA 10:30</div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-amber-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">LAM-3</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">BOPP20+LD80</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Hemil V. · SO-1488</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 90 KG · 2 events</span>
+                <span class="text-slate-400">last 09:05</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 rounded-lg bg-amber-100/70 px-2 py-1.5 text-[9px] font-bold text-amber-800">
+            ⊂ queue · 3 jobs · 1,820 KG pending
+          </div>
+        </div>
+
+        <span class="flex items-center text-slate-300 text-lg">›</span>
+
+        <!-- Step 4: Slitting -->
+        <div class="flex-1 min-w-[190px] rounded-xl bg-cyan-50/60 ring-1 ring-cyan-200 p-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-cyan-800">④ Slitting · 2 mc</div>
+            <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-cyan-700 ring-1 ring-cyan-200">2/2 running</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-cyan-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">SLIT-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">1200 → 4 × 280 mm</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Dipak L. · SO-1481</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 420 KG · 7 events</span>
+                <span class="text-slate-400">last 09:38</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-cyan-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">SLIT-2</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">1100 → 5 × 210 mm</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Niraj A. · STK-228</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 280 KG · 5 events</span>
+                <span class="text-slate-400">last 09:21</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 rounded-lg bg-cyan-100/70 px-2 py-1.5 text-[9px] font-bold text-cyan-800">
+            ⊂ queue · 2 jobs · 1,310 KG pending
+          </div>
+        </div>
+
+        <span class="flex items-center text-slate-300 text-lg">›</span>
+
+        <!-- Step 5: Pouching -->
+        <div class="flex-1 min-w-[190px] rounded-xl bg-emerald-50/60 ring-1 ring-emerald-200 p-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-emerald-800">⑤ Pouching · 6 mc</div>
+            <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">6/6 running</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-emerald-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">POU-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">200×300 stand-up · zip</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Pratik S. · SO-1474</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 18 K pcs · 5 events</span>
+                <span class="text-slate-400">last 09:33</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-emerald-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">POU-2</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">180×260 quad seal</div>
+              <div class="text-[9px] text-slate-500 truncate">Op: Manish J. · SO-1471</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 12 K pcs · 4 events</span>
+                <span class="text-slate-400">last 09:25</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-emerald-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">POU-3..6</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">4 running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">click to expand</div>
+              <div class="text-[9px] text-slate-500 truncate">avg 6 events/mc today</div>
+            </div>
+          </div>
+          <div class="mt-2 rounded-lg bg-emerald-100/70 px-2 py-1.5 text-[9px] font-bold text-emerald-800">
+            ⊂ queue · 9 jobs · 184 K pcs pending
+          </div>
+        </div>
+
+        <span class="flex items-center text-slate-300 text-lg">›</span>
+
+        <!-- Step 6: Packing -->
+        <div class="flex-1 min-w-[190px] rounded-xl bg-violet-50/60 ring-1 ring-violet-200 p-2.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black uppercase tracking-wider text-violet-800">⑥ Packing · 4 mc</div>
+            <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-violet-700 ring-1 ring-violet-200">4/4 running</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-violet-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">PACK-1</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">Inner pouch · INNER-24</div>
+              <div class="text-[9px] text-slate-500 truncate">SO-1474 · 1,500 inners</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 940 inners · 8 events</span>
+                <span class="text-slate-400">last 09:40</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-violet-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">PACK-2</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">Gunny · 50 KG</div>
+              <div class="text-[9px] text-slate-500 truncate">SO-1471 · 28 gunnies</div>
+              <div class="mt-1 flex justify-between text-[9px] font-mono">
+                <span class="font-bold text-emerald-700">today: 14 gunnies · 7 events</span>
+                <span class="text-slate-400">last 09:29</span>
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-violet-200 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-mono font-black text-[11px] text-slate-900">PACK-3,4</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">2 running</span>
+              </div>
+              <div class="mt-1 text-[10px] font-bold text-slate-800 truncate">click to expand</div>
+            </div>
+          </div>
+          <div class="mt-2 rounded-lg bg-violet-100/70 px-2 py-1.5 text-[9px] font-bold text-violet-800">
+            ⊂ queue · 7 lots pending
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WIP POOLS WITH AGING + LIVE ALERTS -->
+  <section class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <!-- WIP pools with aging segmentation -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+      <header class="border-b border-slate-100 bg-gradient-to-r from-emerald-50/40 via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">WIP pools · aged</div>
+          <h2 class="font-display text-base font-bold text-slate-900">Stock in flight · with aging</h2>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] font-bold">
+          <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">4,820 KG total</span>
+          <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-800 ring-1 ring-amber-200">⚠ 480 KG stale</span>
+          <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-rose-800 ring-1 ring-rose-200">▾ 60 KG dead</span>
+        </div>
+      </header>
+      <!-- Aging legend -->
+      <div class="bg-slate-50/40 border-b border-slate-100 px-5 py-2 flex flex-wrap items-center gap-3 text-[10px] font-bold">
+        <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">aging buckets</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-2 w-3 rounded-sm bg-emerald-500"></span> fresh ≤2d</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-2 w-3 rounded-sm bg-amber-400"></span> aging 3-5d</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-2 w-3 rounded-sm bg-orange-500"></span> stale 6-10d</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-2 w-3 rounded-sm bg-rose-600"></span> dead &gt;10d</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <!-- pool row template -->
+        <div class="px-5 py-3 grid grid-cols-12 gap-3 items-center">
+          <div class="col-span-3">
+            <div class="font-mono text-[11px] font-black text-blue-700">RAW-FILM</div>
+            <div class="text-[11px] font-bold text-slate-800">Granule / raw resin</div>
+            <div class="text-[10px] text-slate-500">Before extrusion</div>
+          </div>
+          <div class="col-span-2 font-mono font-black text-slate-900">1,240 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="col-span-4">
+            <div class="flex h-2 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+              <div class="bg-emerald-500" style="width:82%"></div>
+              <div class="bg-amber-400" style="width:14%"></div>
+              <div class="bg-orange-500" style="width:4%"></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[9px] font-bold text-slate-500">
+              <span>fresh 1,020 KG</span>
+              <span>aging 170</span>
+              <span>stale 50</span>
+              <span>dead —</span>
+            </div>
+          </div>
+          <div class="col-span-3 flex flex-wrap gap-1 justify-end">
+            <span class="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-800 ring-1 ring-blue-200">LDPE 720</span>
+            <span class="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-800 ring-1 ring-blue-200">HDPE 320</span>
+            <span class="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-800 ring-1 ring-blue-200">PET 200</span>
+          </div>
+        </div>
+        <div class="px-5 py-3 grid grid-cols-12 gap-3 items-center">
+          <div class="col-span-3">
+            <div class="font-mono text-[11px] font-black text-blue-700">EXT-ROLL</div>
+            <div class="text-[11px] font-bold text-slate-800">Extruded film roll</div>
+            <div class="text-[10px] text-slate-500">Before printing / lamination</div>
+          </div>
+          <div class="col-span-2 font-mono font-black text-slate-900">1,560 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="col-span-4">
+            <div class="flex h-2 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+              <div class="bg-emerald-500" style="width:88%"></div>
+              <div class="bg-amber-400" style="width:10%"></div>
+              <div class="bg-orange-500" style="width:2%"></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[9px] font-bold text-slate-500">
+              <span>fresh 1,370</span>
+              <span>aging 155</span>
+              <span>stale 35</span>
+              <span>dead —</span>
+            </div>
+          </div>
+          <div class="col-span-3 flex flex-wrap gap-1 justify-end">
+            <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 ring-1 ring-slate-200">8 invariants</span>
+            <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">14 reusable</span>
+          </div>
+        </div>
+        <div class="px-5 py-3 grid grid-cols-12 gap-3 items-center">
+          <div class="col-span-3">
+            <div class="font-mono text-[11px] font-black text-rose-700">PRINTED</div>
+            <div class="text-[11px] font-bold text-slate-800">Printed roll</div>
+            <div class="text-[10px] text-slate-500">Artwork-locked · before lam</div>
+          </div>
+          <div class="col-span-2 font-mono font-black text-slate-900">740 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="col-span-4">
+            <div class="flex h-2 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+              <div class="bg-emerald-500" style="width:54%"></div>
+              <div class="bg-amber-400" style="width:24%"></div>
+              <div class="bg-orange-500" style="width:16%"></div>
+              <div class="bg-rose-600" style="width:6%"></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[9px] font-bold text-slate-500">
+              <span>fresh 400</span>
+              <span>aging 180</span>
+              <span class="text-orange-700">stale 115</span>
+              <span class="text-rose-700">dead 45</span>
+            </div>
+          </div>
+          <div class="col-span-3 flex flex-wrap gap-1 justify-end">
+            <span class="rounded-full bg-fuchsia-50 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-700 ring-1 ring-fuchsia-200">5 artworks</span>
+            <span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200">3 customer-locked</span>
+          </div>
+        </div>
+        <div class="px-5 py-3 grid grid-cols-12 gap-3 items-center">
+          <div class="col-span-3">
+            <div class="font-mono text-[11px] font-black text-amber-700">LAMINATED</div>
+            <div class="text-[11px] font-bold text-slate-800">Laminated jumbo</div>
+            <div class="text-[10px] text-slate-500">Before slit / pouching</div>
+          </div>
+          <div class="col-span-2 font-mono font-black text-slate-900">680 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="col-span-4">
+            <div class="flex h-2 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+              <div class="bg-emerald-500" style="width:92%"></div>
+              <div class="bg-amber-400" style="width:8%"></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[9px] font-bold text-slate-500">
+              <span>fresh 625</span>
+              <span>aging 55</span>
+              <span>stale —</span>
+              <span>dead —</span>
+            </div>
+          </div>
+          <div class="col-span-3 flex flex-wrap gap-1 justify-end">
+            <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 ring-1 ring-slate-200">3 invariants</span>
+            <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">all matched</span>
+          </div>
+        </div>
+        <div class="px-5 py-3 grid grid-cols-12 gap-3 items-center">
+          <div class="col-span-3">
+            <div class="font-mono text-[11px] font-black text-cyan-700">SLIT</div>
+            <div class="text-[11px] font-bold text-slate-800">Slit reel</div>
+            <div class="text-[10px] text-slate-500">Pouching-ready</div>
+          </div>
+          <div class="col-span-2 font-mono font-black text-slate-900">320 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="col-span-4">
+            <div class="flex h-2 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+              <div class="bg-emerald-500" style="width:96%"></div>
+              <div class="bg-amber-400" style="width:4%"></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[9px] font-bold text-slate-500">
+              <span>fresh 307</span>
+              <span>aging 13</span>
+              <span>stale —</span>
+              <span>dead —</span>
+            </div>
+          </div>
+          <div class="col-span-3 flex flex-wrap gap-1 justify-end">
+            <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 ring-1 ring-slate-200">12 reels</span>
+          </div>
+        </div>
+        <div class="px-5 py-3 grid grid-cols-12 gap-3 items-center">
+          <div class="col-span-3">
+            <div class="font-mono text-[11px] font-black text-emerald-700">FG-POUCH</div>
+            <div class="text-[11px] font-bold text-slate-800">Finished pouches</div>
+            <div class="text-[10px] text-slate-500">Awaiting packing</div>
+          </div>
+          <div class="col-span-2 font-mono font-black text-slate-900">280 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="col-span-4">
+            <div class="flex h-2 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+              <div class="bg-emerald-500" style="width:100%"></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[9px] font-bold text-slate-500">
+              <span>fresh 280</span>
+              <span>aging —</span>
+              <span>stale —</span>
+              <span>dead —</span>
+            </div>
+          </div>
+          <div class="col-span-3 flex flex-wrap gap-1 justify-end">
+            <span class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 ring-1 ring-violet-200">94 K pcs</span>
+            <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">QA passed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE ALERTS / EVENT FEED -->
+    <aside class="rounded-2xl border border-slate-200 bg-gradient-to-b from-white via-white to-rose-50/30 shadow-sm overflow-hidden">
+      <header class="border-b border-slate-100 bg-white px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-rose-700">⚠</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">Live alerts</div>
+            <div class="font-display text-sm font-bold text-slate-900">5 open · 2 critical</div>
+          </div>
+        </div>
+        <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200"><span class="live-dot h-1.5 w-1.5 rounded-full bg-rose-500"></span> live</span>
+      </header>
+      <div class="p-3 space-y-2 text-[11px]">
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="rounded-full bg-rose-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">critical</span>
+            <span class="text-[10px] text-rose-700 font-bold">09:14 · 28m ago</span>
+          </div>
+          <div class="mt-1 font-bold text-rose-900">LAM-2 down · solvent dispenser</div>
+          <div class="text-[10px] text-rose-800/80 mt-0.5">Maint ETA 10:30 · ticket #1827</div>
+        </div>
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="rounded-full bg-rose-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">critical</span>
+            <span class="text-[10px] text-rose-700 font-bold">09:31 · 11m ago</span>
+          </div>
+          <div class="mt-1 font-bold text-rose-900">LD-NAT FOOD-A short 428 KG</div>
+          <div class="text-[10px] text-rose-800/80 mt-0.5">Auto-demand fired · STK-LAUNCH-228</div>
+        </div>
+        <div class="rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="rounded-full bg-rose-500 px-2 py-0.5 text-[9px] font-black uppercase text-white">aged</span>
+            <span class="text-[10px] text-rose-700 font-bold">SO-1463 · 7 days old</span>
+          </div>
+          <div class="mt-1 font-bold text-rose-900">SO-1463 sitting 7 days</div>
+          <div class="text-[10px] text-rose-800/80 mt-0.5">ABC Foods · 2,000 KG PM-DRY-PET-LD</div>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase text-white">warn</span>
+            <span class="text-[10px] text-amber-700 font-bold">09:38 · 4m ago</span>
+          </div>
+          <div class="mt-1 font-bold text-amber-900">FLEXO-1 idle &gt; 20 min</div>
+          <div class="text-[10px] text-amber-800/80 mt-0.5">Waiting on ART-TEA-V5 approval</div>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase text-white">warn</span>
+            <span class="text-[10px] text-amber-700 font-bold">PRINTED pool · 45 KG dead</span>
+          </div>
+          <div class="mt-1 font-bold text-amber-900">PRINTED stock dead &gt; 10 days</div>
+          <div class="text-[10px] text-amber-800/80 mt-0.5">3 reels · ART-OLD-V2 · no demand</div>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- TODAY'S COMPLETION LOG (full machine event stream) -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <header class="border-b border-slate-100 bg-gradient-to-r from-blue-50/40 via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Today's completion events · 52 logged</div>
+        <h2 class="font-display text-base font-bold text-slate-900">What machines finished, in time order</h2>
+      </div>
+      <div class="flex items-center gap-1.5 text-[10px] font-bold">
+        <button class="rounded-full bg-slate-900 px-2.5 py-0.5 text-white">All</button>
+        <button class="rounded-full bg-white px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">EXT</button>
+        <button class="rounded-full bg-white px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">PRINT</button>
+        <button class="rounded-full bg-white px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">LAM</button>
+        <button class="rounded-full bg-white px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">SLIT</button>
+        <button class="rounded-full bg-white px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">POU</button>
+        <button class="rounded-full bg-white px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">PACK</button>
+      </div>
+    </header>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 px-5 py-3 text-[11px]">
+      <ol class="space-y-1.5">
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:40</span>
+          <span class="rounded-md bg-violet-100 px-1.5 py-0.5 font-mono font-bold text-violet-800 text-[10px]">PACK-1</span>
+          <span class="font-mono font-bold text-slate-800">120 inners</span>
+          <span class="text-slate-500 truncate">SO-1474 · roll #R-9301</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:38</span>
+          <span class="rounded-md bg-cyan-100 px-1.5 py-0.5 font-mono font-bold text-cyan-800 text-[10px]">SLIT-1</span>
+          <span class="font-mono font-bold text-slate-800">60 KG</span>
+          <span class="text-slate-500 truncate">SO-1481 · reel #SR-2841</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:36</span>
+          <span class="rounded-md bg-rose-100 px-1.5 py-0.5 font-mono font-bold text-rose-800 text-[10px]">ROTO-1</span>
+          <span class="font-mono font-bold text-slate-800">55 KG</span>
+          <span class="text-slate-500 truncate">SO-1474 · ART-DRY-FRUIT-V3</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:33</span>
+          <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono font-bold text-emerald-800 text-[10px]">POU-1</span>
+          <span class="font-mono font-bold text-slate-800">3.6 K pcs</span>
+          <span class="text-slate-500 truncate">SO-1474 · 200×300 stand-up</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:31</span>
+          <span class="rounded-md bg-blue-100 px-1.5 py-0.5 font-mono font-bold text-blue-800 text-[10px]">EXT-1</span>
+          <span class="font-mono font-bold text-slate-800">80 KG</span>
+          <span class="text-slate-500 truncate">SO-1481 · LDPE-NAT 1200mm</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:29</span>
+          <span class="rounded-md bg-violet-100 px-1.5 py-0.5 font-mono font-bold text-violet-800 text-[10px]">PACK-2</span>
+          <span class="font-mono font-bold text-slate-800">4 gunnies</span>
+          <span class="text-slate-500 truncate">SO-1471 · 50 KG each</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:28</span>
+          <span class="rounded-md bg-amber-100 px-1.5 py-0.5 font-mono font-bold text-amber-800 text-[10px]">LAM-1</span>
+          <span class="font-mono font-bold text-slate-800">70 KG</span>
+          <span class="text-slate-500 truncate">SO-1481 · PET12+MET12+LD65</span>
+        </li>
+      </ol>
+      <ol class="space-y-1.5">
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:25</span>
+          <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono font-bold text-emerald-800 text-[10px]">POU-2</span>
+          <span class="font-mono font-bold text-slate-800">2.8 K pcs</span>
+          <span class="text-slate-500 truncate">SO-1471 · 180×260 quad</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:21</span>
+          <span class="rounded-md bg-cyan-100 px-1.5 py-0.5 font-mono font-bold text-cyan-800 text-[10px]">SLIT-2</span>
+          <span class="font-mono font-bold text-slate-800">42 KG</span>
+          <span class="text-slate-500 truncate">STK-228 · 5 × 210mm</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:18</span>
+          <span class="rounded-md bg-blue-100 px-1.5 py-0.5 font-mono font-bold text-blue-800 text-[10px]">EXT-2</span>
+          <span class="font-mono font-bold text-slate-800">65 KG</span>
+          <span class="text-slate-500 truncate">STK-228 · LD-NAT FOOD-A</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:11</span>
+          <span class="rounded-md bg-rose-100 px-1.5 py-0.5 font-mono font-bold text-rose-800 text-[10px]">ROTO-2</span>
+          <span class="font-mono font-bold text-slate-800">48 KG</span>
+          <span class="text-slate-500 truncate">SO-1471 · ART-SPICE-RED-V2</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">09:05</span>
+          <span class="rounded-md bg-amber-100 px-1.5 py-0.5 font-mono font-bold text-amber-800 text-[10px]">LAM-3</span>
+          <span class="font-mono font-bold text-slate-800">40 KG</span>
+          <span class="text-slate-500 truncate">SO-1488 · BOPP20+LD80</span>
+        </li>
+        <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+          <span class="font-mono text-slate-400 w-12">08:48</span>
+          <span class="rounded-md bg-rose-100 px-1.5 py-0.5 font-mono font-bold text-rose-800 text-[10px]">ROTO-3</span>
+          <span class="font-mono font-bold text-slate-800">52 KG</span>
+          <span class="text-slate-500 truncate">SO-1480 · ART-TEA-CSL-V4</span>
+        </li>
+        <li class="text-center text-[10px] text-slate-500 pt-2">+ 39 more events · click to expand full log</li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="tab-divider"></div>
+
+  <!-- ╔═══════════════════ TAB · PLANTS ═══════════════════╗ -->
+  <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Tab · Plants — full detail per plant</div>
+
+  <section class="space-y-4">
+    <div class="rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2 text-[11px] font-bold">
+        <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">3 plants</span>
+        <button class="rounded-full bg-slate-900 px-3 py-1 text-white">All</button>
+        <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">Sanand</button>
+        <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">Pithampur</button>
+        <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">Daman</button>
+      </div>
+      <div class="flex items-center gap-2 text-[10px] font-bold">
+        <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200">18 mc running</span>
+        <span class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 ring-1 ring-amber-200">2 changeover</span>
+        <span class="rounded-full bg-rose-50 px-2 py-0.5 text-rose-700 ring-1 ring-rose-200">1 down</span>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">1 idle</span>
+      </div>
+    </div>
+
+    <!-- Plant detail · Sanand -->
+    <article class="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden scroll-card">
+      <header class="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/60 via-white to-emerald-50/30 px-5 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Plant · Sanand · Gujarat</div>
+            <h3 class="font-display text-xl font-black text-slate-900 mt-0.5">UI E2E Plant — 1774558322587</h3>
+            <div class="text-[11px] text-slate-600 mt-1">Shift A · 09:00 – 17:00 IST · Supervisor: <span class="font-bold">Mehul P.</span> · 5 work centers · 11 machines</div>
+          </div>
+          <div class="flex items-center gap-2 text-[10px] font-bold">
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 ring-1 ring-emerald-300">8 running</span>
+            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 ring-1 ring-amber-300">1 changeover</span>
+            <span class="rounded-full bg-rose-100 px-2 py-0.5 text-rose-800 ring-1 ring-rose-300">1 down</span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">1 idle</span>
+          </div>
+        </div>
+        <!-- KPI strip · scrap and downtime only, no fake P -->
+        <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Today output</div>
+            <div class="font-mono text-lg font-black text-emerald-700">1,420 <span class="text-[10px] font-bold text-slate-500">KG · 28 events</span></div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Availability (A)</div>
+            <div class="font-mono text-lg font-black text-emerald-700">88<span class="text-[10px] font-bold text-slate-500">%</span></div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Quality (Q)</div>
+            <div class="font-mono text-lg font-black text-violet-700">95.8<span class="text-[10px] font-bold text-slate-500">%</span></div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Downtime today</div>
+            <div class="font-mono text-lg font-black text-amber-700">42 <span class="text-[10px] font-bold text-slate-500">min</span></div>
+          </div>
+        </div>
+      </header>
+
+      <!-- WC grid · no fake progress bars or ETAs -->
+      <div class="p-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-blue-800">Extrusion · WC-EXT-S</div>
+              <div class="text-[10px] text-slate-500">3 machines</div>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">2 of 3</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-blue-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">EXT-1</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">LDPE-NAT 1200 mm · SO-1481</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Vishal R.</span><span class="font-mono font-bold text-emerald-700">today: 220 KG</span></div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-blue-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">EXT-2</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">LD-NAT FOOD-A · STK-228</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Karan D.</span><span class="font-mono font-bold text-emerald-700">today: 180 KG</span></div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-amber-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">EXT-3</span><span class="text-[9px] font-bold text-amber-700">changeover</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">→ MET-PET setup</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Aniket S.</span><span class="text-slate-400">since 09:22</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-rose-200 bg-rose-50/40 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-rose-800">Printing · WC-PRINT-S</div>
+              <div class="text-[10px] text-slate-500">2 ROTO · 1 FLEXO</div>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">2 of 3</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-rose-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">ROTO-1</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">ART-DRY-FRUIT-V3 · 8c</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Bhargav M.</span><span class="font-mono font-bold text-emerald-700">today: 320 KG</span></div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-rose-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">ROTO-2</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">ART-SPICE-RED-V2 · 6c</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Mohan T.</span><span class="font-mono font-bold text-emerald-700">today: 140 KG</span></div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-slate-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">FLEXO-1</span><span class="text-[9px] font-bold text-slate-600">idle</span></div>
+              <div class="text-[10px] font-bold text-slate-700 truncate">Awaiting ART-TEA-V5</div>
+              <div class="text-[9px] text-slate-500">idle 22 min</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-amber-800">Lamination · WC-LAM-S</div>
+              <div class="text-[10px] text-slate-500">3 machines</div>
+            </div>
+            <span class="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-800 ring-1 ring-rose-200">2 of 3 · 1 down</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-amber-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">LAM-1</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">PET12+MET12+LD65 · SO-1481</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Sanjay K.</span><span class="font-mono font-bold text-emerald-700">today: 240 KG</span></div>
+            </div>
+            <div class="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-300">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">LAM-2</span><span class="text-[9px] font-black text-rose-800">⚠ DOWN</span></div>
+              <div class="text-[10px] font-bold text-rose-900 truncate">Solvent dispenser fault</div>
+              <div class="text-[9px] text-slate-500">Maint ETA 10:30 · ticket #1827</div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-amber-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">LAM-3</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">BOPP20+LD80 · SO-1488</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Hemil V.</span><span class="font-mono font-bold text-emerald-700">today: 90 KG</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-emerald-800">Pouching · WC-POU-S</div>
+              <div class="text-[10px] text-slate-500">3 machines</div>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">3 of 3</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-emerald-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">POU-1</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">200×300 stand-up · zip</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Pratik S.</span><span class="font-mono font-bold text-emerald-700">today: 18 K pcs</span></div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-emerald-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">POU-2</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">180×260 quad seal</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Manish J.</span><span class="font-mono font-bold text-emerald-700">today: 12 K pcs</span></div>
+            </div>
+            <div class="rounded-lg bg-white p-2 ring-1 ring-emerald-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">POU-3</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">220×320 stand-up</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">Op: Devang H.</span><span class="font-mono font-bold text-emerald-700">today: 9 K pcs</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-violet-200 bg-violet-50/40 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-violet-800">Packing yard · WC-PACK-S</div>
+              <div class="text-[10px] text-slate-500">1 sealer + manual</div>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">1 of 1</span>
+          </div>
+          <div class="space-y-1.5">
+            <div class="rounded-lg bg-white p-2 ring-1 ring-violet-200">
+              <div class="flex justify-between"><span class="font-mono font-black text-[11px]">PACK-1</span><span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700"><span class="live-dot h-1 w-1 rounded-full bg-emerald-500"></span> running</span></div>
+              <div class="text-[10px] font-bold text-slate-800 truncate">Inner pouch sealing</div>
+              <div class="flex justify-between text-[9px]"><span class="text-slate-500">SO-1474</span><span class="font-mono font-bold text-emerald-700">today: 940 inners</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Material yard with aging breakdown -->
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-slate-700">Material yard · this plant</div>
+              <div class="text-[10px] text-slate-500">Raw + WIP storage</div>
+            </div>
+          </div>
+          <div class="space-y-1.5 text-[10px]">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-600 font-bold">Raw granule</span>
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-bold text-slate-900">1,240 KG</span>
+                <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">all fresh</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-600 font-bold">Extruded roll</span>
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-bold text-slate-900">820 KG</span>
+                <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">35 stale</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-600 font-bold">Printed roll</span>
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-bold text-slate-900">380 KG</span>
+                <span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">45 dead</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-600 font-bold">FG pouch (today)</span>
+              <span class="font-mono font-bold text-emerald-700">94 K pcs</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-600 font-bold">Packed lots ready</span>
+              <span class="font-mono font-bold text-violet-700">12 gunnies</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Compact preview plants -->
+    <article class="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
+      <header class="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/60 via-white to-white px-5 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Plant · Pithampur · Madhya Pradesh</div>
+            <h3 class="font-display text-xl font-black text-slate-900 mt-0.5">Pithampur Plant — 1774591178323</h3>
+            <div class="text-[11px] text-slate-600 mt-1">Shift A · Supervisor: <span class="font-bold">Rohini K.</span> · 5 work centers · 7 machines</div>
+          </div>
+          <div class="flex items-center gap-2 text-[10px] font-bold">
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 ring-1 ring-emerald-300">7 running</span>
+            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 ring-1 ring-amber-300">1 changeover</span>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-4 gap-2 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Today output</div>
+            <div class="font-mono text-lg font-black text-emerald-700">980 <span class="text-[10px] font-bold text-slate-500">KG · 18 ev</span></div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Availability</div>
+            <div class="font-mono text-lg font-black text-emerald-700">94%</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Quality</div>
+            <div class="font-mono text-lg font-black text-violet-700">96.9%</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Downtime today</div>
+            <div class="font-mono text-lg font-black text-amber-700">18 min</div>
+          </div>
+        </div>
+      </header>
+      <div class="px-5 py-3 text-[11px] text-slate-600">Click to expand 5 work-centers · 7 machines in the same grid format as Sanand.</div>
+    </article>
+
+    <article class="rounded-2xl border border-violet-200 bg-white shadow-sm overflow-hidden">
+      <header class="border-b border-violet-100 bg-gradient-to-r from-violet-50/60 via-white to-white px-5 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Plant · Daman</div>
+            <h3 class="font-display text-xl font-black text-slate-900 mt-0.5">Daman POD Centre</h3>
+            <div class="text-[11px] text-slate-600 mt-1">In-house POD production · Supervisor: <span class="font-bold">Bhavik T.</span> · 4 machines</div>
+          </div>
+          <div class="flex items-center gap-2 text-[10px] font-bold">
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 ring-1 ring-emerald-300">3 running</span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">1 idle</span>
+          </div>
+        </div>
+        <div class="mt-3 grid grid-cols-4 gap-2 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Today POD</div>
+            <div class="font-mono text-lg font-black text-fuchsia-700">440 <span class="text-[10px] font-bold text-slate-500">KG · 6 ev</span></div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Inhouse vs PO</div>
+            <div class="font-mono text-lg font-black text-slate-900">68% / 32%</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">QA reject</div>
+            <div class="font-mono text-lg font-black text-rose-700">1.4%</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Open requests</div>
+            <div class="font-mono text-lg font-black text-amber-700">11</div>
+          </div>
+        </div>
+      </header>
+      <div class="px-5 py-3 text-[11px] text-slate-600">Click to expand POD cast / cut / QA breakdown.</div>
+    </article>
+  </section>
+
+  <div class="tab-divider"></div>
+
+  <!-- ╔═══════════════════ TAB · CUSTOMER COMMITMENTS ═══════════════════╗ -->
+  <div class="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-700">Tab · Customer commitments — order age driven</div>
+
+  <section class="space-y-4">
+    <!-- KPI strip · order-age driven -->
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6">
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Customers w/ open SO</div>
+        <div class="font-display text-xl font-black text-slate-900 tabular-nums">11</div>
+        <div class="text-[10px] text-slate-500">52 open lines</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">KG committed</div>
+        <div class="font-display text-xl font-black text-blue-700 tabular-nums">14,200</div>
+        <div class="text-[10px] text-slate-500">value ₹49.6 L</div>
+      </div>
+      <div class="rounded-2xl border border-emerald-200 bg-emerald-50/30 px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Fresh · 0-2d</div>
+        <div class="font-display text-xl font-black text-emerald-700 tabular-nums">28</div>
+        <div class="text-[10px] text-emerald-700/80">7,820 KG</div>
+      </div>
+      <div class="rounded-2xl border border-amber-200 bg-amber-50/30 px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-amber-700">Watch · 3-5d</div>
+        <div class="font-display text-xl font-black text-amber-700 tabular-nums">17</div>
+        <div class="text-[10px] text-amber-700/80">4,240 KG</div>
+      </div>
+      <div class="rounded-2xl border border-rose-200 bg-rose-50/30 px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-rose-700">Aged · 6+ days</div>
+        <div class="font-display text-xl font-black text-rose-700 tabular-nums">7</div>
+        <div class="text-[10px] text-rose-700/80">2,140 KG · not good</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Avg age</div>
+        <div class="font-display text-xl font-black text-slate-900 tabular-nums">2.8<span class="text-sm">d</span></div>
+        <div class="text-[10px] text-slate-500">across 52 lines</div>
+      </div>
+    </div>
+
+    <!-- Age timeline -->
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <header class="border-b border-slate-100 bg-gradient-to-r from-fuchsia-50/40 via-white to-white px-5 py-3">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-700">Order age distribution · 52 open lines</div>
+        <h2 class="font-display text-base font-bold text-slate-900">Days since SO was placed</h2>
+      </header>
+      <div class="p-4">
+        <div class="flex gap-0.5 h-8 rounded-md overflow-hidden ring-1 ring-slate-200">
+          <div class="bg-emerald-500 hover:bg-emerald-600 cursor-pointer" style="width:54%" title="Fresh 0-2d · 28 lines · 7,820 KG"></div>
+          <div class="bg-amber-400 hover:bg-amber-500 cursor-pointer" style="width:33%" title="Watch 3-5d · 17 lines · 4,240 KG"></div>
+          <div class="bg-rose-500 hover:bg-rose-600 cursor-pointer" style="width:13%" title="Aged 6+d · 7 lines · 2,140 KG"></div>
+        </div>
+        <div class="mt-2 grid grid-cols-3 text-[10px] font-bold">
+          <div class="text-emerald-700"><span class="font-mono">54%</span> fresh · 0-2 days · OK</div>
+          <div class="text-amber-700 text-center"><span class="font-mono">33%</span> watch · 3-5 days · stir</div>
+          <div class="text-rose-700 text-right"><span class="font-mono">13%</span> aged · 6+ days · not good</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-customer cards -->
+    <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <!-- Customer 1 — has aged orders -->
+      <article class="rounded-2xl border border-rose-200 bg-white shadow-sm overflow-hidden">
+        <header class="border-b border-rose-100 bg-gradient-to-r from-rose-50/60 via-white to-white px-5 py-3 flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-200 to-rose-400 text-white font-black">AB</span>
+            <div class="min-w-0">
+              <div class="text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">2 aged orders</div>
+              <h3 class="font-display text-base font-bold text-slate-900 truncate">ABC Foods Pvt Ltd</h3>
+              <div class="font-mono text-[10px] text-slate-500">CUST-00184 · Mumbai · KG basis</div>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black text-rose-800 ring-1 ring-rose-300">oldest 7 days</span>
+            <span class="font-mono text-[10px] text-slate-500">CL ₹18.5 L · used 6.2 L</span>
+          </div>
+        </header>
+        <div class="grid grid-cols-3 gap-2 px-5 py-3 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Open SOs</div>
+            <div class="font-mono text-base font-black text-slate-900">7</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Committed</div>
+            <div class="font-mono text-base font-black text-blue-700">3,500 KG</div>
+          </div>
+          <div class="rounded-lg bg-rose-50 ring-1 ring-rose-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-rose-700">Avg age</div>
+            <div class="font-mono text-base font-black text-rose-700">4.6 days</div>
+          </div>
+        </div>
+        <div class="px-5 pb-3 space-y-1.5 text-[11px]">
+          <div class="flex items-center gap-2 rounded-lg bg-rose-50 ring-1 ring-rose-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">aged 7d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1463</span>
+            <span class="text-slate-600 truncate">PM-DRY-PET-LD · 200×300 · 2,000 KG</span>
+            <span class="ml-auto font-mono font-bold text-rose-700">placed 8 May</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-rose-50/60 ring-1 ring-rose-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">aged 6d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1465</span>
+            <span class="text-slate-600 truncate">PM-SPICE-TRI · 180×260 · 500 KG</span>
+            <span class="ml-auto font-mono font-bold text-rose-700">placed 9 May</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-amber-50 ring-1 ring-amber-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">watch 4d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1471</span>
+            <span class="text-slate-600 truncate">PM-SPICE-TRI · 180×260 · 1,500 KG</span>
+            <span class="ml-auto font-mono font-bold text-amber-700">placed 11 May</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-emerald-50/40 ring-1 ring-emerald-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">fresh 1d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1481</span>
+            <span class="text-slate-600 truncate">PM-DRY-PET-LD · 220×320 · 800 KG</span>
+            <span class="ml-auto font-mono font-bold text-slate-700">placed 14 May</span>
+          </div>
+          <button class="w-full text-center text-[10px] font-bold text-slate-500 hover:text-slate-900 py-1">+ 3 more lines</button>
+        </div>
+        <div class="bg-slate-50/60 px-5 py-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+          <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">In flight now</span>
+          <span class="rounded-md bg-blue-100 px-1.5 py-0.5 text-blue-800">1 EXT</span>
+          <span class="rounded-md bg-rose-100 px-1.5 py-0.5 text-rose-800">1 PRINT</span>
+          <span class="rounded-md bg-amber-100 px-1.5 py-0.5 text-amber-800">1 LAM</span>
+          <span class="rounded-md bg-violet-100 px-1.5 py-0.5 text-violet-800">2 ready to pack</span>
+        </div>
+      </article>
+
+      <!-- Customer 2 — all fresh -->
+      <article class="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
+        <header class="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/40 via-white to-white px-5 py-3 flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-200 to-emerald-400 text-white font-black">SF</span>
+            <div class="min-w-0">
+              <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">all fresh</div>
+              <h3 class="font-display text-base font-bold text-slate-900 truncate">Sunrise Foods Pvt Ltd</h3>
+              <div class="font-mono text-[10px] text-slate-500">CUST-00211 · Surat · PCS basis</div>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800 ring-1 ring-emerald-300">0 aged</span>
+            <span class="font-mono text-[10px] text-slate-500">CL ₹12 L · used 3.4 L</span>
+          </div>
+        </header>
+        <div class="grid grid-cols-3 gap-2 px-5 py-3 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Open SOs</div>
+            <div class="font-mono text-base font-black text-slate-900">5</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Committed</div>
+            <div class="font-mono text-base font-black text-blue-700">2,200 KG</div>
+          </div>
+          <div class="rounded-lg bg-emerald-50 ring-1 ring-emerald-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Avg age</div>
+            <div class="font-mono text-base font-black text-emerald-700">1.4 days</div>
+          </div>
+        </div>
+        <div class="px-5 pb-3 space-y-1.5 text-[11px]">
+          <div class="flex items-center gap-2 rounded-lg bg-emerald-50/40 ring-1 ring-emerald-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">fresh 0d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1492</span>
+            <span class="text-slate-600 truncate">PM-MANGO-3L · 220×320 · 1,000 KG</span>
+            <span class="ml-auto font-mono font-bold text-slate-700">placed today</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-emerald-50/40 ring-1 ring-emerald-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">fresh 2d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1480</span>
+            <span class="text-slate-600 truncate">PM-DRY-PET-LD · 220×320 · 600 KG</span>
+            <span class="ml-auto font-mono font-bold text-slate-700">placed 13 May</span>
+          </div>
+          <button class="w-full text-center text-[10px] font-bold text-slate-500 hover:text-slate-900 py-1">+ 3 more lines</button>
+        </div>
+        <div class="bg-slate-50/60 px-5 py-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+          <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">In flight now</span>
+          <span class="rounded-md bg-rose-100 px-1.5 py-0.5 text-rose-800">1 PRINT</span>
+          <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-emerald-800">1 POU</span>
+          <span class="rounded-md bg-violet-100 px-1.5 py-0.5 text-violet-800">1 packing</span>
+        </div>
+      </article>
+
+      <!-- Customer 3 — overlay-active -->
+      <article class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <header class="border-b border-slate-100 bg-gradient-to-r from-fuchsia-50/40 via-white to-white px-5 py-3 flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-200 to-violet-400 text-white font-black">AI</span>
+            <div class="min-w-0">
+              <div class="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-700">overlay active</div>
+              <h3 class="font-display text-base font-bold text-slate-900 truncate">Aarav Industries</h3>
+              <div class="font-mono text-[10px] text-slate-500">CUST-00056 · Ahmedabad · KG basis · MOQ 500 kg</div>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800 ring-1 ring-amber-300">1 watch</span>
+            <span class="font-mono text-[10px] text-slate-500">CL ₹9 L · used 1.8 L</span>
+          </div>
+        </header>
+        <div class="grid grid-cols-3 gap-2 px-5 py-3 text-[11px]">
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Open SOs</div>
+            <div class="font-mono text-base font-black text-slate-900">3</div>
+          </div>
+          <div class="rounded-lg bg-slate-50/60 ring-1 ring-slate-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500">Committed</div>
+            <div class="font-mono text-base font-black text-blue-700">1,400 KG</div>
+          </div>
+          <div class="rounded-lg bg-amber-50 ring-1 ring-amber-200 px-2.5 py-1.5">
+            <div class="text-[9px] font-bold uppercase tracking-wider text-amber-700">Avg age</div>
+            <div class="font-mono text-base font-black text-amber-700">3.0 days</div>
+          </div>
+        </div>
+        <div class="px-5 pb-3 space-y-1.5 text-[11px]">
+          <div class="rounded-lg bg-fuchsia-50/60 ring-1 ring-fuchsia-200 px-2.5 py-1.5">
+            <div class="flex items-center gap-2">
+              <span class="rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-fuchsia-800 ring-1 ring-fuchsia-200">overlay</span>
+              <span class="font-mono font-bold text-slate-900">ACME-DRY-V3</span>
+              <span class="text-slate-600 truncate">default artwork · POD CODEX-POD-25 · inner INNER-24</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-amber-50 ring-1 ring-amber-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">watch 5d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1469</span>
+            <span class="text-slate-600 truncate">PM-DRY-PET-LD · 200×300 · 600 KG</span>
+            <span class="ml-auto font-mono font-bold text-amber-700">placed 10 May</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-emerald-50/40 ring-1 ring-emerald-200 px-2.5 py-1.5">
+            <span class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">fresh 1d</span>
+            <span class="font-mono font-bold text-slate-900">SO-1481</span>
+            <span class="text-slate-600 truncate">PM-DRY-PET-LD · 220×320 · 800 KG</span>
+            <span class="ml-auto font-mono font-bold text-slate-700">placed 14 May</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Customer 4 — compact -->
+      <article class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <header class="border-b border-slate-100 bg-white px-5 py-3 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-200 to-blue-400 text-white font-black">TL</span>
+            <div class="min-w-0">
+              <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">fresh + watch</div>
+              <h3 class="font-display text-base font-bold text-slate-900 truncate">Tea Leaves Pvt Ltd</h3>
+              <div class="font-mono text-[10px] text-slate-500">CUST-00309 · Bangalore</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="font-mono font-black text-slate-900">4 SO · 2,800 KG</div>
+            <div class="text-[10px] text-slate-500">avg age 2.5d · 0 aged</div>
+          </div>
+        </header>
+        <div class="bg-slate-50/60 px-5 py-2 flex flex-wrap items-center gap-1.5 text-[10px] font-bold border-t border-slate-100">
+          <span class="rounded-md bg-rose-100 px-1.5 py-0.5 text-rose-800">2 PRINT</span>
+          <span class="rounded-md bg-amber-100 px-1.5 py-0.5 text-amber-800">1 LAM</span>
+          <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-emerald-800">1 POU</span>
+        </div>
+      </article>
+    </div>
+
+    <button class="w-full rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-50">
+      + Show all 11 customers
+    </button>
+  </section>
+
+</main>
+
+</body>
+</html>

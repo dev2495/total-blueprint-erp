@@ -17,6 +17,8 @@ type QuotationSeed = {
   customer_name?: string
   plant_name?: string
   template_name?: string
+  sku_variant_name?: string
+  sku_variant_code?: string
   film_family_name?: string
   film_variant_name?: string
 }
@@ -41,10 +43,11 @@ test("sales can build, save, and export a quotation from the quotations workspac
   await page.getByTestId("quotation-workspace").waitFor({ state: "visible", timeout: 30_000 })
   await selectByTestId(page, "quotation-customer", new RegExp(seed.customer_name || "UAT-GREEN Quote Customer", "i"))
   await selectByTestId(page, "quotation-plant", new RegExp(seed.plant_name || "UAT-GREEN Quote Plant", "i"))
-  await selectByTestId(page, "quotation-line-0-template", new RegExp(seed.template_name || "UAT-GREEN Quote Pouch", "i"))
-  await page.getByTestId("quotation-line-0-tab-materials").click()
-  await selectByTestId(page, "quotation-line-0-layer-0-family", new RegExp(seed.film_family_name || "UAT-GREEN Quote PE Film", "i"))
-  await selectByTestId(page, "quotation-line-0-layer-0-variant", new RegExp(seed.film_variant_name || "UAT-GREEN Quote PE Film 50u", "i"))
+  await selectByTestId(
+    page,
+    "quotation-line-0-sku-variant",
+    new RegExp(seed.sku_variant_name || seed.sku_variant_code || "UAT-GREEN Quote Sales SKU 3 Side Seal", "i"),
+  )
   await page.getByTestId("quotation-line-0-tab-spec").click()
   await page.getByTestId("quotation-line-0-qty").fill("1500")
 
@@ -80,7 +83,7 @@ test("sales can build, save, and export a quotation from the quotations workspac
   const conversion = await convertResponse
   expect(conversion.status()).toBe(200)
   const conversionPayload = await conversion.json()
-  expect(String(conversionPayload.sales_order_number || "")).toMatch(/^SO\d+/)
+  expect(String(conversionPayload.sales_order_number || "")).toMatch(/^SO(?:-\d{4})?-\d+$/)
 
   const popup = await popupPromise
   if (popup) {

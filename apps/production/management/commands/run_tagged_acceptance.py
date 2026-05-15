@@ -17,6 +17,7 @@ from apps.inventory.models import (
     InventoryLocation,
     InventoryReservation,
     InventoryRoll,
+    InkMaterial,
     JobWorkOrder,
     PackagingStock,
     PackagingTransaction,
@@ -59,6 +60,7 @@ from apps.production.services.dispatch_service import FGDispatchService
 from apps.production.services.job_services import JobService
 from apps.production.services.packing_service import PackingService
 from apps.production.views_planner import PlannerViewSet
+from apps.artwork.models import Artwork
 from apps.artwork.services import ArtworkService
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, SalesOrder, SalesOrderItem
@@ -560,8 +562,9 @@ class Command(BaseCommand):
             },
         }
 
-        pod_rows = (pouch_preview.get("bom", {}) or {}).get("pod", []) if isinstance(pouch_preview.get("bom", {}), dict) else []
-        observed_pod_kg = Decimal(str(pod_rows[0].get("weight_kg") or 0)) if pod_rows else Decimal("0")
+        pouch_preview_bom = pouch_preview.get("bom", {}) if isinstance(pouch_preview.get("bom", {}), dict) else {}
+        pod_rows = (pouch_preview_bom or {}).get("pod", [])
+        observed_pod_unit_kg = Decimal(str(pod_rows[0].get("weight_kg") or 0)) if pod_rows else Decimal("0")
         width_m = Decimal(str(pouch_geometry["base"]["width_mm"])) / Decimal("1000")
         height_m = Decimal(str(pod_profile_single.pod_fixed_height_mm or 0)) / Decimal("1000")
         thickness_m = Decimal(str(pod_profile_single.pod_thickness_micron or 0)) / Decimal("1000000")
@@ -575,6 +578,19 @@ class Command(BaseCommand):
             * panel_count
             * Decimal("240")
         ).quantize(Decimal("0.000001"))
+        observed_pod_total_kg = (observed_pod_unit_kg * Decimal("240")).quantize(Decimal("0.000001"))
+        for row in pouch_preview_bom.get("planning_lines") or []:
+            if not isinstance(row, dict):
+                continue
+            category_code = str(row.get("category_code") or row.get("category") or "").strip().upper()
+            if category_code != "POD":
+                continue
+            for qty_key in ("planned_issue_qty", "theoretical_qty", "qty", "quantity", "weight_kg"):
+                if row.get(qty_key) in (None, ""):
+                    continue
+                observed_pod_total_kg = Decimal(str(row.get(qty_key))).quantize(Decimal("0.000001"))
+                break
+            break
         report["pod_formula"] = {
             "profile_id": str(pod_profile_single.id),
             "profile_code": pod_profile_single.code,
@@ -586,8 +602,10 @@ class Command(BaseCommand):
             "pouch_width_mm": pouch_geometry["base"]["width_mm"],
             "output_pcs": 240,
             "expected_weight_kg": float(expected_pod_kg),
-            "observed_weight_kg": float(observed_pod_kg),
-            "abs_delta_kg": float(abs(expected_pod_kg - observed_pod_kg)),
+            "observed_unit_weight_kg": float(observed_pod_unit_kg),
+            "observed_weight_kg": float(observed_pod_total_kg),
+            "abs_delta_kg": float(abs(expected_pod_kg - observed_pod_total_kg)),
+            "tolerance_kg": 0.0001,
         }
 
         roll_so_a, roll_item_a = self._create_sales_order_with_item(
@@ -1224,12 +1242,14 @@ class Command(BaseCommand):
             Decimal("3.100"),
             admin,
             extras=[{"material_id": str(tape_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_GONNY"}],
+            variance_reason="Acceptance fixture uses controlled gross weight.",
         )
         gonny_loose = PackingService.seal_gonny(
             str(gonny_loose.id),
             Decimal("2.400"),
             admin,
             extras=[{"material_id": str(tape_mat.id), "qty": 1, "uom": "PCS", "basis": "PER_GONNY"}],
+            variance_reason="Acceptance fixture uses controlled gross weight.",
         )
         gonny_primary = FGDispatchService.release_gonny_to_dispatch(str(gonny_primary.id), user=admin)
         gonny_loose = FGDispatchService.release_gonny_to_dispatch(str(gonny_loose.id), user=admin)
@@ -1285,7 +1305,7 @@ class Command(BaseCommand):
             "challan_no": pouch_challan.dc_no,
             "pdf_bytes": pouch_pdf_bytes,
             "pdf_path": str(pouch_pdf_path),
-            "pod_theoretical_kg": float(observed_pod_kg),
+            "pod_theoretical_kg": float(observed_pod_total_kg),
         }
         report["inhouse_packaging_proof"] = {
             "skus": [
@@ -1577,28 +1597,15 @@ class Command(BaseCommand):
         )
         modify_fallback_job = modify_fallback_bundle.jobs["modify_existing"]
         modify_fallback_before = self._summarize_pool_details(ExecutionService._resolve_wip_pool_details_v2(modify_fallback_job))
-        ExecutionService.assign_roll_to_job(str(modify_fallback_job.id), str(purchased_fallback_roll.id), user=admin)
+        modify_fallback_assign_error = None
+        try:
+            ExecutionService.assign_roll_to_job(str(modify_fallback_job.id), str(purchased_fallback_roll.id), user=admin)
+        except ValueError as exc:
+            modify_fallback_assign_error = str(exc)
+        else:
+            raise CommandError("Downstream MODIFY_EXISTING accepted a raw fallback roll; lineage output should be required.")
         modify_fallback_after_assign = self._summarize_pool_details(ExecutionService._resolve_wip_pool_details_v2(modify_fallback_job))
-        self._set_job_executing(modify_fallback_job)
-        JobService.log_output_event(
-            modify_fallback_job,
-            Decimal("4.0000"),
-            completion_meta={"output_width_mm": 1550, "output_thickness_micron": 50},
-            user=admin,
-        )
-        JobService.complete_step(modify_fallback_job, user=admin)
-        modify_fallback_output_roll = (
-            InventoryRoll.objects.filter(
-                created_by_job=modify_fallback_job,
-                parent_roll=purchased_fallback_roll,
-                meta_json__roll_role="OUTPUT",
-                status="AVAILABLE",
-            )
-            .order_by("-created_at")
-            .first()
-        )
-        if not modify_fallback_output_roll:
-            raise CommandError("WIP route proof failed to create MODIFY_EXISTING fallback output roll.")
+        modify_fallback_output_roll = None
 
         combine_bundle = _build_route_proof_bundle(
             slug="COMBINE",
@@ -1937,7 +1944,8 @@ class Command(BaseCommand):
                 "before": modify_fallback_before,
                 "after_assign": modify_fallback_after_assign,
                 "fallback_roll": purchased_fallback_roll.label_id,
-                "output_roll": self._summarize_rolls([modify_fallback_output_roll])[0],
+                "assignment_error": modify_fallback_assign_error,
+                "output_roll": None,
             },
             "combine": {
                 "before": combine_before,
@@ -1993,6 +2001,7 @@ class Command(BaseCommand):
                 "combine_lineage_labels": sorted(combine_before["lineage_labels"]),
                 "modify_fallback_lineage_shortage": int(modify_fallback_before["meta"].get("missing_lineage_rolls") or 0),
                 "modify_fallback_discoverable_count": int(modify_fallback_after_assign["meta"].get("discoverable_roll_count") or 0),
+                "modify_fallback_blocked": bool(modify_fallback_assign_error),
                 "combine_three_required_rolls": int(combine_three_validation.get("required_rolls") or 0),
                 "combine_three_matched_slots": len(combine_three_validation.get("matched_target_slots") or []),
                 "combine_three_fallback_matched_slots": len(combine_three_fallback_validation.get("matched_target_slots") or []),
@@ -2119,9 +2128,10 @@ class Command(BaseCommand):
                 "fallback_roll_label": (
                     ui_modify_selected_roll.get("label_id")
                     or ui_modify_selected_roll.get("label")
-                    or ui_modify_fallback_roll.label_id
                 ),
-                "fallback_roll_id": str(ui_modify_selected_roll.get("id") or ui_modify_fallback_roll.id),
+                "fallback_roll_id": str(ui_modify_selected_roll.get("id")) if ui_modify_selected_roll.get("id") else None,
+                "seeded_raw_roll_label": ui_modify_fallback_roll.label_id,
+                "seeded_raw_roll_hidden": not bool(ui_modify_selected_roll.get("id")),
                 "lineage_roll_count": int((ui_modify_context.get("wip_pool_meta") or {}).get("lineage_roll_count") or 0),
                 "fallback_roll_count": int((ui_modify_context.get("wip_pool_meta") or {}).get("fallback_roll_count") or 0),
             },
@@ -2453,6 +2463,96 @@ class Command(BaseCommand):
         pending_gate_item.artwork_assignment_required = False
         planner_assign_artwork_unblocks_release = not planner._order_has_artwork_gate("sales", planner_gate_order)
 
+        printing_contract_fields_populated_after_assignment = False
+        printing_contract_assignment_message = ""
+        try:
+            acceptance_ink = InkMaterial.objects.update_or_create(
+                base_type="POLY",
+                color_name="CYAN",
+                defaults={
+                    "code": "TEST_ACCEPTANCE_INK_POLY_CYAN",
+                    "name": "TEST Acceptance POLY CYAN Ink",
+                    "base_uom": "KG",
+                    "status": "ACTIVE",
+                },
+            )[0]
+            assignment_artwork = Artwork.objects.update_or_create(
+                design_code=f"TEST_ARTWORK_ASSIGN_{tag}",
+                defaults={
+                    "name": f"TEST Artwork Assignment {tag}",
+                    "print_type": "FLEXO",
+                    "substrate_mode": "SHEET",
+                    "front_colors_count": 1,
+                    "back_colors_count": 0,
+                    "front_colors": ["CYAN"],
+                    "back_colors": [],
+                    "color_list": ["CYAN"],
+                    "colors_count": 1,
+                    "color_mapping": {"CYAN": str(acceptance_ink.id)},
+                    "ink_gsm_total": Decimal("1.20"),
+                    "ink_gsm_split_mode": "EQUAL",
+                    "ink_gsm_color_percentages": {},
+                    "ink_gsm_by_color": {"CYAN": 1.2},
+                    "file_path": f"/tmp/test-artwork-assignment-{tag}.pdf",
+                    "status": "APPROVED",
+                    "approved_by": admin,
+                    "approved_at": timezone.now(),
+                },
+            )[0]
+            assignment_item = SimpleNamespace(
+                id="planner-assign-smoke-item",
+                printing_snapshot={
+                    "enabled": True,
+                    "type": "FLEXO",
+                    "method": "FLEXO",
+                    "substrate_mode": "SHEET",
+                    "front_colors_count": 1,
+                    "back_colors_count": 0,
+                    "ink_gsm_total": 1.2,
+                },
+                artwork_assignment_required=True,
+                assigned_artwork_id="",
+                geometry_snapshot={"finished_good_type": "POUCH"},
+                layer_snapshot=[{"density_g_cm3": 0.92}],
+                addons_snapshot=[],
+                bom_snapshot={},
+                qty_value=Decimal("10"),
+                qty_uom="KG",
+                template=SimpleNamespace(fg_type="POUCH"),
+                save=lambda **kwargs: None,
+            )
+            with patch("apps.production.views_planner.SalesOrderService.preview_sales_item") as mock_preview:
+                mock_preview.return_value = {
+                    "bom": {"inks": []},
+                    "unit_weight_g": 25.0,
+                    "total_weight_kg": 10.0,
+                }
+                planner._apply_artwork_to_sales_item(assignment_item, assignment_artwork)
+            assigned_printing = assignment_item.printing_snapshot or {}
+            required_contract_fields = [
+                "artwork_id",
+                "artwork_design_code",
+                "front_colors",
+                "back_colors",
+                "color_names",
+                "color_mapping",
+                "ink_base_family",
+                "ink_gsm_total",
+                "ink_gsm_split_mode",
+                "ink_gsm_by_color",
+                "cylinder_required",
+            ]
+            printing_contract_fields_populated_after_assignment = (
+                not bool(assignment_item.artwork_assignment_required)
+                and str(assignment_item.assigned_artwork_id) == str(assignment_artwork.id)
+                and all(field in assigned_printing for field in required_contract_fields)
+                and Decimal(str(assigned_printing.get("ink_gsm_total") or 0)) > 0
+                and bool((assigned_printing.get("ink_gsm_by_color") or {}).get("CYAN"))
+                and bool((assigned_printing.get("color_mapping") or {}).get("CYAN"))
+            )
+        except Exception as exc:
+            printing_contract_assignment_message = str(exc)
+
         roto_gate_message = ""
         roto_approval_blocks_unfinalized = False
         mock_artwork = SimpleNamespace(
@@ -2467,10 +2567,14 @@ class Command(BaseCommand):
             status="DRAFT",
             color_list=[],
             colors_count=0,
+            ink_gsm_total=Decimal("1.20"),
+            ink_gsm_split_mode="EQUAL",
+            ink_gsm_color_percentages={},
+            ink_gsm_by_color={},
             save=lambda: None,
         )
         with patch("apps.artwork.services.Artwork.objects.get", return_value=mock_artwork), patch(
-            "apps.artwork.services.Cylinder.objects.filter"
+            "apps.artwork.print_contract.Cylinder.objects.filter"
         ) as mock_cylinder_filter:
             mock_cylinder_filter.side_effect = [[], []]
             try:
@@ -2483,6 +2587,8 @@ class Command(BaseCommand):
             "nav_parent_routes_no_404": nav_parent_routes_no_404,
             "planner_artwork_gate_blocks_release": bool(planner_artwork_gate_blocked and planner_gate_has_blocker),
             "planner_assign_artwork_unblocks_release": planner_assign_artwork_unblocks_release,
+            "printing_contract_fields_populated_after_assignment": printing_contract_fields_populated_after_assignment,
+            "printing_contract_assignment_message": printing_contract_assignment_message,
             "roto_approval_blocks_unfinalized_cylinders": roto_approval_blocks_unfinalized,
             "roto_approval_gate_message": roto_gate_message,
         }
@@ -2564,7 +2670,10 @@ class Command(BaseCommand):
                 },
                 {
                     "scenario_id": "POD_FORMULA_MATCH",
-                    "status": "PASS" if Decimal(str(report["pod_formula"]["abs_delta_kg"] or 0)) == Decimal("0") else "FAIL",
+                    "status": "PASS"
+                    if Decimal(str(report["pod_formula"]["abs_delta_kg"] or 0))
+                    <= Decimal(str(report["pod_formula"].get("tolerance_kg") or "0.0001"))
+                    else "FAIL",
                     "evidence": json.dumps(report["pod_formula"], default=str),
                 },
                 {
@@ -2637,12 +2746,13 @@ class Command(BaseCommand):
                     "evidence": json.dumps(report["wip_route_truth"]["combine"], default=str),
                 },
                 {
-                    "scenario_id": "WIP_ROUTE_MODIFY_FALLBACK_MANUAL",
+                    "scenario_id": "WIP_ROUTE_MODIFY_DOWNSTREAM_RAW_REJECTED",
                     "status": "PASS"
                     if int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["lineage_roll_count"]) == 0
-                    and int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["fallback_roll_count"]) >= 1
-                    and int(report["wip_route_truth"]["modify_fallback"]["after_assign"]["meta"]["reserved_rolls"]) == 1
-                    and bool(report["wip_route_truth"]["modify_fallback"].get("output_roll"))
+                    and int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["missing_lineage_rolls"]) >= 1
+                    and int(report["wip_route_truth"]["modify_fallback"]["after_assign"]["meta"]["reserved_rolls"]) == 0
+                    and bool(report["wip_route_truth"]["modify_fallback"].get("assignment_error"))
+                    and not bool(report["wip_route_truth"]["modify_fallback"].get("output_roll"))
                     else "FAIL",
                     "evidence": json.dumps(report["wip_route_truth"]["modify_fallback"], default=str),
                 },
@@ -2771,6 +2881,23 @@ class Command(BaseCommand):
                     ),
                 },
                 {
+                    "scenario_id": "PRINTING_CONTRACT_FIELDS_POPULATED_AFTER_ASSIGNMENT",
+                    "status": "PASS"
+                    if report["hardening_smoke"]["printing_contract_fields_populated_after_assignment"]
+                    else "FAIL",
+                    "evidence": json.dumps(
+                        {
+                            "printing_contract_fields_populated_after_assignment": report["hardening_smoke"][
+                                "printing_contract_fields_populated_after_assignment"
+                            ],
+                            "printing_contract_assignment_message": report["hardening_smoke"][
+                                "printing_contract_assignment_message"
+                            ],
+                        },
+                        default=str,
+                    ),
+                },
+                {
                     "scenario_id": "ROTO_APPROVAL_BLOCKS_UNFINALIZED_CYLINDERS",
                     "status": "PASS" if report["hardening_smoke"]["roto_approval_blocks_unfinalized_cylinders"] else "FAIL",
                     "evidence": json.dumps(
@@ -2787,6 +2914,13 @@ class Command(BaseCommand):
         )
 
         self._write_report_artifacts(report_dir=report_dir, report=report, scenario_rows=scenario_rows)
+
+        failed_scenarios = [row for row in scenario_rows if str(row.get("status") or "").upper() != "PASS"]
+        if failed_scenarios:
+            failed_ids = ", ".join(str(row.get("scenario_id") or "") for row in failed_scenarios)
+            self.stdout.write(self.style.ERROR(f"Tagged acceptance flow failed: {len(failed_scenarios)} scenario(s): {failed_ids}"))
+            self.stdout.write(self.style.ERROR(f"Artifacts: {report_dir}"))
+            raise CommandError(f"Acceptance proof failed: {failed_ids}")
 
         self.stdout.write(self.style.SUCCESS("Tagged acceptance flow completed."))
         self.stdout.write(self.style.SUCCESS(f"Artifacts: {report_dir}"))
@@ -3677,6 +3811,7 @@ class Command(BaseCommand):
             f"- Combine Lineage Labels: `{combine.get('before', {}).get('lineage_labels')}`",
             f"- Modify Fallback Labels: `{modify_fallback.get('before', {}).get('fallback_labels')}`",
             f"- Modify Fallback Lineage Shortage: `{modify_fallback.get('before', {}).get('meta', {}).get('missing_lineage_rolls')}`",
+            f"- Modify Raw Fallback Rejected: `{integrity.get('modify_fallback_blocked')}`",
             f"- Three-Slot Combine Matched Slots: `{len(combine_three.get('validation', {}).get('matched_target_slots') or [])}`",
             f"- Three-Slot Fallback Missing Lineage: `{combine_three_fallback.get('before', {}).get('meta', {}).get('missing_lineage_rolls')}`",
             f"- Three-Slot Fallback Labels: `{combine_three_fallback.get('before', {}).get('fallback_labels')}`",

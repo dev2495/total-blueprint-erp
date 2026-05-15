@@ -462,15 +462,7 @@ export function InventoryWorkspaceShell() {
   const searchParams = readonlySearchParams ?? new URLSearchParams()
   const qc = useQueryClient()
 
-  const routeDefaultTab: WorkspaceTab = pathname.includes("/inventory/bulk")
-    ? "bulk"
-      : pathname.includes("/inventory/packaging")
-        ? "packaging"
-        : pathname.includes("/inventory/grn")
-          ? "grn"
-      : pathname.includes("/inventory/roll-explorer")
-        ? "rolls"
-        : "rolls"
+  const routeDefaultTab: WorkspaceTab = "rolls"
   const tab = normalizeTab(searchParams.get("tab"), routeDefaultTab)
   const inner = normalizeInner(searchParams.get("view"))
   const mode = normalizeMode(searchParams.get("mode"))

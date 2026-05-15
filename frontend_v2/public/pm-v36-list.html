@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V3.6 · Product Master · List</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: Inter, system-ui; background: #f8fafc; }
+  .display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .glassy { backdrop-filter: blur(12px) saturate(140%); }
+  .lift { transition: transform 180ms, box-shadow 180ms; }
+  .lift:hover { transform: translateY(-2px); box-shadow: 0 20px 40px -20px rgba(2,6,23,.18); }
+  .donut { transform: rotate(-90deg); }
+  .nice-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ─── Sticky Header ─── -->
+<header class="sticky top-0 z-30 border-b border-slate-200/60 bg-white/85 glassy">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/pm-v36-index.html" class="text-xs font-bold text-slate-500 hover:text-blue-700">← All mockups</a>
+      <span class="text-slate-300">/</span>
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Master · Product</div>
+      <h1 class="display text-xl font-bold text-slate-900">Product Master · catalog</h1>
+      <div class="ml-auto flex items-center gap-2">
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">Export CSV</button>
+        <button class="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:shadow-lg">
+          + New Product Master
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ─── Hero KPIs ─── -->
+<section class="mx-auto max-w-screen-2xl px-6 pt-6">
+  <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-6 text-white shadow-2xl shadow-blue-500/20">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">Live catalog · 26 May 2026</div>
+        <h2 class="display mt-1 text-3xl font-bold leading-tight">126 active masters</h2>
+        <p class="mt-1 text-sm text-white/80">Across 5 product kinds. 1,432 variants in last 90 days. 38 customers with overlay defaults.</p>
+      </div>
+      <div class="flex flex-wrap gap-2 text-[11px] font-bold">
+        <Kpi label="Pouch" value="68" tone="emerald" />
+        <Kpi label="Roll" value="34" tone="blue" />
+        <Kpi label="POD" value="12" tone="violet" />
+        <Kpi label="Packaging" value="8" tone="amber" />
+        <Kpi label="Other" value="4" tone="slate" />
+        <Kpi label="Activity 24h" value="9" tone="white" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Filter rail + Grid ─── -->
+<div class="mx-auto grid max-w-screen-2xl grid-cols-[260px_minmax(0,1fr)] gap-5 px-6 py-5">
+
+  <!-- Filter rail -->
+  <aside class="sticky top-[80px] h-[calc(100vh-100px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm nice-scroll">
+    <div class="flex items-center justify-between">
+      <span class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Filters</span>
+      <button class="text-[10px] font-bold text-blue-600 hover:underline">Clear all</button>
+    </div>
+    <!-- Search -->
+    <div class="relative mt-3">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Search code or name…" />
+    </div>
+
+    <!-- Kind -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Kind</div>
+      <div class="flex flex-wrap gap-1.5">
+        <FilterPill active>POUCH 68</FilterPill>
+        <FilterPill>ROLL 34</FilterPill>
+        <FilterPill>POD 12</FilterPill>
+        <FilterPill>PACKAGING 8</FilterPill>
+        <FilterPill>OTHER 4</FilterPill>
+      </div>
+    </div>
+
+    <!-- Reporting -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Reporting group</div>
+      <div class="flex flex-wrap gap-1.5">
+        <FilterPill>FG 60</FilterPill>
+        <FilterPill>FILM 22</FilterPill>
+        <FilterPill>LAMINATED 15</FilterPill>
+        <FilterPill>POD 12</FilterPill>
+        <FilterPill>PACKAGING 8</FilterPill>
+        <FilterPill>SEMI_FG 9</FilterPill>
+      </div>
+    </div>
+
+    <!-- Active state -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</div>
+      <div class="flex gap-1.5">
+        <FilterPill active>Active 126</FilterPill>
+        <FilterPill>Inactive 8</FilterPill>
+      </div>
+    </div>
+
+    <!-- Has catalog axes -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Capabilities</div>
+      <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-300" />
+        <span>Catalog-backed axes (V3.3)</span>
+        <span class="ml-auto text-[10px] font-bold text-slate-400">42</span>
+      </label>
+      <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-300" />
+        <span>Print capable</span>
+        <span class="ml-auto text-[10px] font-bold text-slate-400">52</span>
+      </label>
+      <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-300" />
+        <span>With customer overlays</span>
+        <span class="ml-auto text-[10px] font-bold text-slate-400">31</span>
+      </label>
+      <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-300" />
+        <span>Has stock pools</span>
+        <span class="ml-auto text-[10px] font-bold text-slate-400">28</span>
+      </label>
+    </div>
+
+    <!-- Stock health -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Stock health</div>
+      <div class="space-y-1">
+        <FilterPill block>● 80%+ matched</FilterPill>
+        <FilterPill block>◐ 50–79% matched</FilterPill>
+        <FilterPill block>○ Low stock — needs attention</FilterPill>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main grid -->
+  <main>
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div class="flex items-center gap-2 text-xs">
+        <span class="font-bold text-slate-700">126 results</span>
+        <span class="text-slate-400">·</span>
+        <span class="text-slate-500">sorted by</span>
+        <select class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-mono">
+          <option>Most recently active</option><option>Code A→Z</option><option>Variants count</option><option>Stock health</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-1.5 text-xs">
+        <span class="text-slate-500">View:</span>
+        <button class="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-bold text-white">
+          <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Cards
+        </button>
+        <button class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-bold text-slate-700">
+          <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10" width="18" height="3" rx="1"/><rect x="3" y="16" width="18" height="3" rx="1"/></svg>
+          Rows
+        </button>
+        <button class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-bold text-slate-700">
+          Bulk
+        </button>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <MasterCard code="PM-DRY-PET-LD" name="Dry Fruit Standup Pouch · PET/LD" kind="POUCH" tone="blue"
+        sizes="3" axes="9" variants="57" overlays="8" health="72" badges="catalog,print"
+        last="2h ago" demand="4 active SOs" />
+
+      <MasterCard code="PM-LAMINATE-PET-BOPP" name="PET/BOPP Laminate · confectionery"
+        kind="POUCH" tone="blue" sizes="2" axes="6" variants="34" overlays="3" health="86"
+        last="5h ago" badges="print" demand="6 active SOs" />
+
+      <MasterCard code="PM-MLD-LDNAT-ROLL" name="MLD LD Natural roll · generic"
+        kind="ROLL" tone="emerald" sizes="0" axes="4" variants="9" overlays="2" health="65"
+        last="1d ago" badges="" demand="2 active SOs" />
+
+      <MasterCard code="PM-POD-LDNAT" name="POD · LD natural sleeve"
+        kind="POD" tone="violet" sizes="0" axes="3" variants="6" overlays="0" health="55"
+        last="2d ago" badges="catalog" demand="3 active SOs" warn="Low stock on POD-260" />
+
+      <MasterCard code="PM-INNER-PACK-LD" name="Inner pack · LD pouch"
+        kind="PACKAGING" tone="amber" sizes="0" axes="3" variants="12" overlays="0" health="78"
+        last="6h ago" badges="catalog,print" demand="—" />
+
+      <MasterCard code="PM-DRY-CASHEW" name="Cashew Standup Pouch · 3-layer hi-barrier"
+        kind="POUCH" tone="blue" sizes="2" axes="8" variants="22" overlays="5" health="91"
+        last="3d ago" badges="catalog,print" demand="5 active SOs" />
+
+      <MasterCard code="PM-PACK-LD-ROLL" name="LD packaging roll · in-house"
+        kind="PACKAGING" tone="amber" sizes="0" axes="3" variants="4" overlays="0" health="40"
+        last="1w ago" badges="" demand="—" warn="Pool empty" />
+
+      <MasterCard code="PM-RAISIN-METALLIZED" name="Raisin Standup · metallized · 4-layer"
+        kind="POUCH" tone="blue" sizes="3" axes="9" variants="48" overlays="6" health="68"
+        last="4h ago" badges="catalog,print" demand="3 active SOs" />
+
+      <MasterCard code="PM-POD-MET-PET" name="POD · metallised PET sleeve"
+        kind="POD" tone="violet" sizes="0" axes="3" variants="2" overlays="0" health="80"
+        last="2d ago" badges="catalog" demand="1 active SO" />
+    </div>
+
+    <!-- Pagination -->
+    <div class="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div class="text-xs text-slate-500">Showing <span class="font-bold text-slate-700">1–9</span> of 126</div>
+      <div class="flex items-center gap-1">
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">←</button>
+        <button class="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white">1</button>
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">2</button>
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">3</button>
+        <span class="px-1 text-slate-400">…</span>
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">14</button>
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">→</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Pseudo-component templates (resolved by JS below) -->
+<script>
+function el(tag, attrs={}, ...children) {
+  const e = document.createElement(tag)
+  for (const k in attrs) {
+    if (k === 'class') e.className = attrs[k]
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), attrs[k])
+    else e.setAttribute(k, attrs[k])
+  }
+  for (const c of children) {
+    if (c == null) continue
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c))
+    else e.appendChild(c)
+  }
+  return e
+}
+
+// Kpi pill
+document.querySelectorAll('Kpi').forEach(elx => {
+  const tone = elx.getAttribute('tone') || 'blue'
+  const TONE = {
+    emerald:'bg-emerald-500/30 ring-emerald-300/30',
+    blue:'bg-blue-500/30 ring-blue-300/30',
+    violet:'bg-violet-500/30 ring-violet-300/30',
+    amber:'bg-amber-500/30 ring-amber-300/30',
+    slate:'bg-slate-500/30 ring-slate-300/30',
+    white:'bg-white/15 ring-white/20',
+  }
+  elx.outerHTML = `
+  <div class="rounded-2xl ${TONE[tone]} px-3 py-2 ring-1 backdrop-blur-sm">
+    <div class="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">${elx.getAttribute('label')}</div>
+    <div class="display text-2xl font-bold text-white">${elx.getAttribute('value')}</div>
+  </div>`
+})
+
+// FilterPill
+document.querySelectorAll('FilterPill').forEach(elx => {
+  const active = elx.hasAttribute('active')
+  const block = elx.hasAttribute('block')
+  const klass = block
+    ? `flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${active ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}`
+    : `inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${active ? 'bg-blue-600 text-white ring-blue-700' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'}`
+  elx.outerHTML = `<button class="${klass}">${elx.innerHTML}</button>`
+})
+
+// MasterCard — the gem of the list page
+document.querySelectorAll('MasterCard').forEach(elx => {
+  const a = elx.getAttribute.bind(elx)
+  const kind = a('kind')
+  const tone = a('tone')
+  const TONE = {
+    blue:    { ring:'ring-blue-100',    accent:'border-l-blue-500',    badge:'bg-blue-50 text-blue-700 ring-blue-200',       icon:'bg-blue-100 text-blue-700' },
+    emerald: { ring:'ring-emerald-100', accent:'border-l-emerald-500', badge:'bg-emerald-50 text-emerald-700 ring-emerald-200', icon:'bg-emerald-100 text-emerald-700' },
+    violet:  { ring:'ring-violet-100',  accent:'border-l-violet-500',  badge:'bg-violet-50 text-violet-700 ring-violet-200',  icon:'bg-violet-100 text-violet-700' },
+    amber:   { ring:'ring-amber-100',   accent:'border-l-amber-500',   badge:'bg-amber-50 text-amber-700 ring-amber-200',     icon:'bg-amber-100 text-amber-700' },
+  }
+  const t = TONE[tone] || TONE.blue
+  const ICON = { POUCH:'🧴', ROLL:'🌀', POD:'📦', PACKAGING:'📥', OTHER:'✦' }
+  const health = parseInt(a('health'), 10)
+  const healthClass = health >= 80 ? 'text-emerald-700 bg-emerald-50 ring-emerald-200' : health >= 60 ? 'text-amber-700 bg-amber-50 ring-amber-200' : 'text-rose-700 bg-rose-50 ring-rose-200'
+  const healthLabel = health >= 80 ? 'Healthy' : health >= 60 ? 'OK' : 'Low'
+  const badges = (a('badges')||'').split(',').filter(Boolean)
+  const warn = a('warn')
+  elx.outerHTML = `
+  <a href="/pm-v36-detail.html" class="lift block overflow-hidden rounded-2xl border border-l-[3px] ${t.accent} border-slate-200 bg-white shadow-sm ring-1 ${t.ring}">
+    <div class="flex items-start gap-3 px-4 py-4">
+      <div class="flex h-10 w-10 flex-none items-center justify-center rounded-xl text-lg ${t.icon} ring-1 ring-inset ring-current/10">${ICON[kind]||'✦'}</div>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-1.5">
+          <span class="rounded-full ${t.badge} px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset">${kind}</span>
+          ${badges.includes('catalog') ? '<span class="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-700 ring-1 ring-violet-200 ring-inset">CAT-AXES</span>' : ''}
+          ${badges.includes('print') ? '<span class="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200 ring-inset">PRINT</span>' : ''}
+        </div>
+        <div class="mt-1 mono text-[11px] font-bold text-blue-700">${a('code')}</div>
+        <div class="display text-sm font-bold leading-snug text-slate-900 line-clamp-2">${a('name')}</div>
+      </div>
+      <span class="flex-none rounded-full ${healthClass} px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset" title="${health}% demand met from stock">● ${health}%</span>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="grid grid-cols-4 gap-px bg-slate-100">
+      <Kvp label="Sizes" v="${a('sizes')}" />
+      <Kvp label="Axes" v="${a('axes')}" />
+      <Kvp label="Variants" v="${a('variants')}" />
+      <Kvp label="Overlays" v="${a('overlays')}" />
+    </div>
+
+    <!-- Footer -->
+    <div class="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-4 py-2.5">
+      <div class="flex items-center gap-2 text-[11px] text-slate-500">
+        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span>${a('last')}</span>
+        <span class="text-slate-300">·</span>
+        <span>${a('demand')}</span>
+      </div>
+      ${warn ? `<span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">⚠ ${warn}</span>` : '<span class="text-[11px] font-bold text-blue-600">Open →</span>'}
+    </div>
+  </a>`
+})
+
+// Kvp — the inner KPI cells in the master card strip
+document.querySelectorAll('Kvp').forEach(elx => {
+  const label = elx.getAttribute('label')
+  const v = elx.getAttribute('v') || '0'
+  elx.outerHTML = `
+  <div class="bg-white px-3 py-2 text-center">
+    <div class="text-[9px] font-black uppercase tracking-wider text-slate-400">${label}</div>
+    <div class="display text-base font-bold text-slate-900">${v}</div>
+  </div>`
+})
+</script>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { test } from "../support/base"
-import { annotate, assertHealthyPage, assertNoHorizontalOverflow, getExactStaticAppRoutes, loginViaUi } from "../support/test-helpers"
+import { annotate, assertHealthyPage, assertNoHorizontalOverflow, getExactStaticAppRoutes, gotoWithServerRetry, loginViaUi } from "../support/test-helpers"
 
 const routes = getExactStaticAppRoutes().filter((route) => route !== "/login")
 const ROUTES_PER_BATCH = 8
@@ -23,7 +23,7 @@ for (const viewport of viewports) {
 
   for (const [batchIndex, batchRoutes] of routeBatches.entries()) {
     test(`responsive route sweep (${viewport.name}) batch ${batchIndex + 1}`, async ({ page }, testInfo) => {
-      test.setTimeout(2 * 60_000)
+      test.setTimeout(Math.max(2 * 60_000, batchRoutes.length * 30_000))
       annotate(testInfo, {
         module: "Responsive Shell",
         severity: "high",
@@ -38,7 +38,7 @@ for (const viewport of viewports) {
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
           try {
-            await page.goto(route, { waitUntil: "domcontentloaded", timeout: 60_000 })
+            await gotoWithServerRetry(page, route, { waitUntil: "domcontentloaded", timeout: 60_000 })
             await assertHealthyPage(page, { requireAuth: true, requireRoleSwitcher: viewport.requireRoleSwitcher })
             await assertNoHorizontalOverflow(page)
             lastError = null

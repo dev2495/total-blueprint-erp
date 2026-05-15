@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Dashboard • Sales without pro
 
 
 ## Screenshot References
-- ![dashboard-sales-overview](../../../frontend_v2/public/help/screenshots/dashboard-sales-overview.svg)
+- ![dashboard-sales-overview](../../../frontend_v2/public/help/screenshots/dashboard-sales-overview.png)
 - ![dashboard-sales-workflow](../../../frontend_v2/public/help/screenshots/dashboard-sales-workflow.svg)
 
 ## FAQ References

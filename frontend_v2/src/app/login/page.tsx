@@ -6,6 +6,22 @@ import { ArrowRight, CheckCircle2, Factory, KeyRound, ShieldCheck, Workflow } fr
 import { useAuth } from "@/components/auth-provider"
 import { api, ensureCsrfToken } from "@/lib/api"
 
+function readableLoginError(value: unknown): string {
+    if (!value) return ""
+    if (typeof value === "string") return value
+    if (Array.isArray(value)) return value.map(readableLoginError).filter(Boolean).join(" ")
+    if (typeof value === "object") {
+        const obj = value as Record<string, unknown>
+        return (
+            readableLoginError(obj.detail) ||
+            readableLoginError(obj.error) ||
+            readableLoginError(obj.non_field_errors) ||
+            Object.values(obj).map(readableLoginError).filter(Boolean).join(" ")
+        )
+    }
+    return String(value)
+}
+
 export default function LoginPage() {
     const { login } = useAuth()
     const [identifier, setIdentifier] = useState("")
@@ -39,7 +55,7 @@ export default function LoginPage() {
         } catch (err: unknown) {
             const apiError = err as any
             const status = apiError.response?.status
-            const detail = apiError.response?.data?.detail || apiError.response?.data?.error || apiError.message
+            const detail = readableLoginError(apiError.response?.data) || readableLoginError(apiError.message)
             setError(status && status >= 500 ? `Server error (${status}). ${detail || ""}`.trim() : detail || "Invalid credentials")
         } finally {
             setIsLoading(false)

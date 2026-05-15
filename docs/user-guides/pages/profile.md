@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Profile without process ambigui
 
 
 ## Screenshot References
-- ![profile-overview](../../../frontend_v2/public/help/screenshots/profile-overview.svg)
+- ![profile-overview](../../../frontend_v2/public/help/screenshots/profile-overview.png)
 - ![profile-workflow](../../../frontend_v2/public/help/screenshots/profile-workflow.svg)
 
 ## FAQ References

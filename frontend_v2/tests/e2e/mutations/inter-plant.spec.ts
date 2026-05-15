@@ -19,9 +19,9 @@ test("store can create, dispatch, receive, and print an inter-plant challan for 
 
   const seed = readMutationSeed()
 
-  await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/roll-explorer")
-  await page.goto("/inventory/inter-plant")
+  await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
+  await switchRole(page, "Store", "/inventory/rolls-v36")
+  await page.goto("/inventory/inter-plant", { waitUntil: "domcontentloaded" })
   await page.getByTestId("interplant-page").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
 

@@ -2,6 +2,8 @@ from django.db import models
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
+from django.utils import timezone
+import re
 import uuid
 from apps.factory.models import Plant
 from apps.templates.models import TemplateBlueprint
@@ -52,6 +54,88 @@ class Customer(models.Model):
     class Meta:
         db_table = 'sales_customers'
         ordering = ['name']
+
+
+class CustomerProductOverlay(models.Model):
+    PRICE_BASIS_CHOICES = [
+        ('KG', 'Per KG'),
+        ('PCS', 'Per PCS'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.CASCADE,
+        related_name='customer_overlays',
+    )
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='product_overlays')
+    size_variant_code = models.CharField(max_length=80, blank=True, default='')
+    # v3: axis_values replaces size_variant_code for multi-axis matching
+    axis_values = models.JSONField(default=dict, blank=True)
+    customer_item_code = models.CharField(max_length=80, blank=True, default='')
+    customer_display_name = models.CharField(max_length=255, blank=True, default='')
+    default_packing_note = models.TextField(blank=True, default='')
+    default_packing_recipe = models.JSONField(default=dict, blank=True)
+    default_price_basis = models.CharField(max_length=10, choices=PRICE_BASIS_CHOICES, blank=True, default='')
+    moq_kg = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    default_artwork = models.ForeignKey(
+        'artwork.Artwork',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customer_product_overlays',
+    )
+    notes = models.TextField(blank=True, default='')
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'customer_product_overlays'
+        ordering = ['customer__name', 'product_master__name', 'customer_item_code']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product_master', 'customer', 'customer_item_code'],
+                name='customer_product_overlay_unique_item_code',
+            ),
+        ]
+
+    def clean(self):
+        if self.default_artwork_id and str(getattr(self.default_artwork, 'status', '') or '').upper() != 'APPROVED':
+            raise ValidationError({'default_artwork': 'Default artwork must be APPROVED.'})
+
+    @classmethod
+    def find_for(cls, *, customer, product_master, axis_values=None):
+        if not customer or not product_master:
+            return None
+        axis_values = axis_values if isinstance(axis_values, dict) else {}
+        candidates = list(
+            cls.objects.select_related('product_master', 'customer', 'default_artwork')
+            .filter(product_master=product_master, customer=customer, active=True)
+        )
+        matches = []
+        for overlay in candidates:
+            overlay_axes = overlay.axis_values if isinstance(overlay.axis_values, dict) else {}
+            if overlay_axes:
+                if all(str(axis_values.get(key, "")) == str(value) for key, value in overlay_axes.items()):
+                    matches.append((len(overlay_axes), overlay.updated_at, overlay))
+                continue
+            size_code = str(overlay.size_variant_code or "").strip()
+            if size_code:
+                order_size = str(axis_values.get("size") or axis_values.get("size_code") or "").strip()
+                if order_size and order_size.lower() == size_code.lower():
+                    matches.append((1, overlay.updated_at, overlay))
+                continue
+            matches.append((0, overlay.updated_at, overlay))
+        if not matches:
+            return None
+        matches.sort(key=lambda row: (row[0], row[1]), reverse=True)
+        return matches[0][2]
+
+    def __str__(self):
+        label = self.customer_display_name or self.customer_item_code or self.product_master.name
+        return f"{self.customer.code} / {label}"
+
 
 class SalesOrder(models.Model):
     STATUS_CHOICES = [
@@ -113,32 +197,26 @@ class SalesOrder(models.Model):
         from django.db.models import Sum
         return self.items.aggregate(total=Sum('total_weight_kg'))['total'] or 0
 
+    @classmethod
+    def next_order_number(cls, *, now=None):
+        current_year = (now or timezone.now()).year
+        prefix = f"SO-{current_year}-"
+        pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+        max_seq = 0
+        for value in cls.objects.filter(order_number__startswith=prefix).values_list("order_number", flat=True):
+            match = pattern.match(str(value or ""))
+            if not match:
+                continue
+            try:
+                max_seq = max(max_seq, int(match.group(1)))
+            except ValueError:
+                continue
+        return f"{prefix}{max_seq + 1:04d}"
+
     def save(self, *args, **kwargs):
         if not self.order_number:
-            # Robust order number generation
-            from django.db.models import Max
-            import re
-            
-            # Find the latest 'SO' order
-            last_order = SalesOrder.objects.filter(order_number__startswith='SO').order_by('-created_at').first()
-            
-            new_seq = 1
-            if last_order:
-                # Try to extract number from SOxxxxx format
-                match = re.search(r'SO(\d+)', last_order.order_number)
-                if match:
-                    try:
-                        new_seq = int(match.group(1)) + 1
-                    except ValueError:
-                        pass
-            
-            self.order_number = f"SO{new_seq:05d}"
-            
-            # Final safety check: if collision, append random suffix
-            while SalesOrder.objects.filter(order_number=self.order_number).exists():
-                new_seq += 1
-                self.order_number = f"SO{new_seq:05d}"
-                
+            self.order_number = self.next_order_number()
+
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -159,11 +237,39 @@ class SalesOrderItem(models.Model):
         ('KG', 'Per KG'),
         ('PCS', 'Per PCS'),
     ]
+    SOURCE_CHIP_CHOICES = [
+        ('REORDER', 'Quick reorder'),
+        ('PRESET', 'Saved preset'),
+        ('CSV', 'Bulk paste'),
+        ('WIZARD', 'Configure new line'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name='items')
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT)
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='TEMPLATE')
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_order_items',
+    )
+    # v3: product_variant for axis-space identity
+    product_variant = models.ForeignKey(
+        'materials.ProductVariant',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_order_items',
+    )
+    customer_product_overlay = models.ForeignKey(
+        'CustomerProductOverlay',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_order_items',
+    )
     sku_variant = models.ForeignKey(
         'SalesSkuVariant',
         on_delete=models.SET_NULL,
@@ -189,6 +295,14 @@ class SalesOrderItem(models.Model):
     bom_snapshot = models.JSONField(default=dict)
     spec_signature = models.CharField(max_length=128, blank=True, default='')
     invariant_signature = models.CharField(max_length=128, blank=True, default='')
+
+    # v3: axis values snapshot + source tracking
+    axis_values = models.JSONField(default=dict, blank=True)
+    source_chip = models.CharField(max_length=20, choices=SOURCE_CHIP_CHOICES, default='WIZARD')
+    source_ref = models.CharField(max_length=80, blank=True, default='')
+    material_overrides = models.JSONField(default=list, blank=True)
+    bom_material_cost = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    bom_margin_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     # Physics Results
     unit_weight_g = models.DecimalField(max_digits=12, decimal_places=4, default=0)
@@ -263,6 +377,14 @@ class SalesSku(models.Model):
         blank=True,
         related_name='sales_skus',
     )
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sales_skus',
+    )
+    axis_values_template = models.JSONField(default=dict, blank=True)
     default_line_name = models.CharField(max_length=255, blank=True, default="")
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

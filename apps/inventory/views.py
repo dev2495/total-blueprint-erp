@@ -3,9 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
-from django.http import FileResponse
+from django.db.models import Count, Q, Sum
+from django.http import FileResponse, HttpResponse
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.dateparse import parse_date
 from django.utils import timezone
@@ -13,6 +14,7 @@ from decimal import Decimal
 from datetime import timedelta
 from io import BytesIO
 import uuid
+import csv
 from collections import defaultdict
 
 from .models import (
@@ -23,8 +25,11 @@ from .models import (
     RollMovement,
     RollConsumption,
     InventoryBulk,
+    BulkTransaction,
     PackagingStock,
     PackagingTransaction,
+    InventoryReservation,
+    InventorySavedView,
     Vendor,
 )
 from .serializers import (
@@ -46,6 +51,7 @@ from .services.challan_pdf import ChallanPDFService
 from .services.roll_service import RollService
 from .services.bulk_service import BulkService
 from .services.packaging_service import PackagingService
+from .services.audit import InventoryAuditService as StockLifecycleService, current_indian_financial_year
 from .services.roll_naming import (
     build_roll_naming_payload,
     build_variant_key,
@@ -344,6 +350,569 @@ def _group_rows_by_variant(rows):
     families.sort(key=lambda row: (row['family_display_name'], row['reporting_group']))
     return families
 
+
+def _api_error_message(exc):
+    detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+    if isinstance(detail, (list, tuple)):
+        return " ".join(str(part) for part in detail)
+    if isinstance(detail, dict):
+        return detail
+    return str(detail)
+
+
+def _as_decimal(value, default="0"):
+    if value in (None, ""):
+        return Decimal(default)
+    return Decimal(str(value))
+
+
+def _resolve_material_from_payload(payload):
+    material_id = payload.get("material_id") or payload.get("product_id") or payload.get("variant_id")
+    if material_id:
+        return InventoryMaterial.objects.get(id=material_id)
+    code = str(payload.get("material_code") or payload.get("product_code") or payload.get("variant_code") or "").strip()
+    if not code:
+        raise ValidationError("Every GRN line needs material_id/product_id/variant_id or material_code.")
+    material = InventoryMaterial.objects.filter(code__iexact=code).first()
+    if not material:
+        raise ValidationError(f"Material code {code} was not found.")
+    return material
+
+
+def _resolve_location_from_payload(payload, fallback_id=None):
+    location_id = payload.get("location_id") or payload.get("location") or payload.get("store_location_id") or fallback_id
+    if not location_id:
+        raise ValidationError("Receiving location is required.")
+    return InventoryLocation.objects.select_related("plant").get(id=location_id)
+
+
+def _active_reservation_weight_by_roll():
+    reserved = {}
+    for row in InventoryReservation.objects.filter(status="ACTIVE", roll_id__isnull=False).values("roll_id").annotate(total=Sum("quantity")):
+        reserved[str(row["roll_id"])] = float(row["total"] or 0)
+    return reserved
+
+
+def _active_reservation_qty_by_material():
+    reserved = {}
+    for row in InventoryReservation.objects.filter(status="ACTIVE", roll_id__isnull=True).values("material_id").annotate(total=Sum("quantity")):
+        reserved[str(row["material_id"])] = float(row["total"] or 0)
+    return reserved
+
+
+def _roll_age_days(roll):
+    if not roll.created_at:
+        return 0
+    return max((timezone.now().date() - roll.created_at.date()).days, 0)
+
+
+def _material_class(material):
+    category = str(getattr(material, "category", "") or "").upper()
+    if category in {"GRANULE", "FILM_FAMILY", "FILM_VARIANT"}:
+        return "granule" if category == "GRANULE" else "film"
+    if category in {"INK", "ADHESIVE", "SOLVENT", "CHEMICAL", "ADDON", "POD"}:
+        return category.lower()
+    if category == "PACKAGING":
+        return "packaging"
+    return category.lower() or "other"
+
+
+def _facet_counts(items, keys):
+    facets = {}
+    for key in keys:
+        counts = defaultdict(int)
+        for item in items:
+            value = item.get(key)
+            if value in (None, ""):
+                value = "Unassigned"
+            counts[str(value)] += 1
+        facets[key] = [
+            {"value": value, "count": count}
+            for value, count in sorted(counts.items(), key=lambda pair: (pair[0] == "Unassigned", pair[0]))
+        ]
+    return facets
+
+
+def _paged_payload(items, request, *, facet_keys=()):
+    try:
+        limit = min(max(int(request.query_params.get("limit") or 250), 1), 1000)
+    except Exception:
+        limit = 250
+    try:
+        offset = max(int(request.query_params.get("cursor") or request.query_params.get("offset") or 0), 0)
+    except Exception:
+        offset = 0
+    search = str(request.query_params.get("search") or request.query_params.get("q") or "").strip().lower()
+    if search:
+        items = [
+            row for row in items
+            if search in " ".join(str(value or "").lower() for value in row.values())
+        ]
+    next_offset = offset + limit
+    return {
+        "items": items[offset:next_offset],
+        "total": len(items),
+        "next_cursor": str(next_offset) if next_offset < len(items) else None,
+        "facets": _facet_counts(items, facet_keys),
+    }
+
+
+def _stock_snapshot_payload(request):
+    plant_id = request.query_params.get("plant_id") or request.query_params.get("plant")
+    as_of = timezone.now()
+    roll_reservations = _active_reservation_weight_by_roll()
+    material_reservations = _active_reservation_qty_by_material()
+
+    rolls_qs = _inventory_roll_base_queryset().exclude(status__in=["CONSUMED", "SCRAPPED", "MISSING"])
+    bulk_qs = InventoryBulk.objects.select_related("material", "granule_code", "location", "plant").filter(qty_kg__gt=0)
+    packaging_qs = PackagingStock.objects.select_related("material", "location", "plant").filter(qty__gt=0)
+    if plant_id:
+        rolls_qs = rolls_qs.filter(Q(location__plant_id=plant_id) | Q(plant_id=plant_id))
+        bulk_qs = bulk_qs.filter(plant_id=plant_id)
+        packaging_qs = packaging_qs.filter(plant_id=plant_id)
+
+    roll_rows = []
+    ageing_counts = {"0-30": 0, "31-60": 0, "61-90": 0, "90+": 0}
+    total_roll_kg = Decimal("0")
+    reservation_kg = Decimal("0")
+    for roll in rolls_qs.order_by("-created_at")[:2000]:
+        kg = _as_decimal(roll.net_weight_kg if roll.net_weight_kg is not None else roll.weight_kg)
+        reserved_kg = Decimal(str(roll_reservations.get(str(roll.id), 0)))
+        if roll.status == "RESERVED" and reserved_kg <= 0:
+            reserved_kg = kg
+        age_days = _roll_age_days(roll)
+        if age_days <= 30:
+            ageing_counts["0-30"] += 1
+        elif age_days <= 60:
+            ageing_counts["31-60"] += 1
+        elif age_days <= 90:
+            ageing_counts["61-90"] += 1
+        else:
+            ageing_counts["90+"] += 1
+        total_roll_kg += kg
+        reservation_kg += min(reserved_kg, kg)
+        roll_rows.append({
+            "id": str(roll.id),
+            "label": roll.label_id,
+            "label_id": roll.label_id,
+            "product_name": roll.material.name if roll.material else "",
+            "material_name": roll.material.name if roll.material else "",
+            "material_code": roll.material.code if roll.material else "",
+            "variant_code": roll.material.code if roll.material else "",
+            "thickness_um": float(roll.thickness_micron or 0),
+            "thickness_micron": float(roll.thickness_micron or 0),
+            "width_mm": float(roll.width_mm or 0),
+            "length_m": float(roll.length_m or 0),
+            "net_weight_kg": float(kg),
+            "weight_kg": float(roll.weight_kg or 0),
+            "location": str(roll.location_id),
+            "location_code": roll.location.code if roll.location else "",
+            "location_name": roll.location.name if roll.location else "",
+            "reserved_qty": float(reserved_kg),
+            "free_qty": float(max(Decimal("0"), kg - reserved_kg)),
+            "reserved_for_so_id": str(roll.sales_order_item_id) if roll.sales_order_item_id else None,
+            "age_days": age_days,
+            "status": roll.status,
+            "roll_role": resolve_roll_role(roll),
+        })
+
+    bulk_rows = []
+    total_bulk_kg = Decimal("0")
+    for stock in bulk_qs.order_by("material__code", "location__code")[:2000]:
+        qty = _as_decimal(stock.qty_kg)
+        reserved = Decimal(str(material_reservations.get(str(stock.material_id), 0)))
+        total_bulk_kg += qty
+        reservation_kg += min(reserved, qty)
+        bulk_rows.append({
+            "id": str(stock.id),
+            "product_name": stock.material.name,
+            "material": str(stock.material_id),
+            "material_name": stock.material.name,
+            "material_code": stock.material.code,
+            "material_category": stock.material.category,
+            "material_class": _material_class(stock.material),
+            "category": stock.material.category,
+            "is_addon": stock.material.category == "ADDON",
+            "addon_is_purchased": bool(getattr(stock.material, "addon_is_purchased", False)),
+            "addon_purchase_uom": getattr(stock.material, "addon_purchase_uom", "") or "",
+            "purchased_addon": stock.material.category == "ADDON" and bool(getattr(stock.material, "addon_is_purchased", False)),
+            "lot_no": stock.granule_code.code if stock.granule_code else "",
+            "qty": float(qty),
+            "qty_kg": float(qty),
+            "quantity": float(qty),
+            "uom": stock.material.base_uom or "KG",
+            "stock_uom": stock.material.base_uom or "KG",
+            "reserved_qty": float(min(reserved, qty)),
+            "free_qty": float(max(Decimal("0"), qty - reserved)),
+            "plant": str(stock.plant_id) if stock.plant_id else "",
+            "plant_name": stock.plant.name if stock.plant else "",
+            "location": str(stock.location_id),
+            "location_code": stock.location.code,
+            "location_name": stock.location.name,
+            "age_days": max((as_of.date() - stock.updated_at.date()).days, 0) if stock.updated_at else 0,
+            "avg_cost": float(stock.avg_cost or 0),
+        })
+
+    packaging_rows = []
+    packaging_qty = Decimal("0")
+    for stock in packaging_qs.order_by("material__code", "location__code")[:2000]:
+        qty = _as_decimal(stock.qty)
+        reserved = Decimal(str(material_reservations.get(str(stock.material_id), 0)))
+        packaging_qty += qty
+        packaging_rows.append({
+            "id": str(stock.id),
+            "product_name": stock.material.name,
+            "material": str(stock.material_id),
+            "material_name": stock.material.name,
+            "material_code": stock.material.code,
+            "code": stock.material.code,
+            "name": stock.material.name,
+            "packaging_kind": stock.material.packaging_kind,
+            "material_class": _material_class(stock.material),
+            "packaging_supply_mode": getattr(stock.material, "packaging_supply_mode", "") or "",
+            "supply_mode": getattr(stock.material, "packaging_supply_mode", "") or "",
+            "qty": float(qty),
+            "uom": stock.material.base_uom or "PCS",
+            "base_uom": stock.material.base_uom or "PCS",
+            "reserved_qty": float(min(reserved, qty)),
+            "free_qty": float(max(Decimal("0"), qty - reserved)),
+            "plant": str(stock.plant_id) if stock.plant_id else "",
+            "plant_name": stock.plant.name if stock.plant else "",
+            "location": str(stock.location_id),
+            "location_code": stock.location.code,
+            "location_name": stock.location.name,
+            "avg_cost": float(stock.avg_cost or 0),
+        })
+
+    total_rows = max(len(roll_rows), 1)
+    ageing_buckets = {key: round((value / total_rows) * 100, 2) for key, value in ageing_counts.items()}
+    total_kg = total_roll_kg + total_bulk_kg
+    free_kg = max(Decimal("0"), total_kg - reservation_kg)
+    total_value = sum(Decimal(str(row.get("qty_kg", 0))) * Decimal(str(row.get("avg_cost", 0))) for row in bulk_rows)
+    total_value += sum(Decimal(str(row.get("qty", 0))) * Decimal(str(row.get("avg_cost", 0))) for row in packaging_rows)
+
+    return {
+        "as_of": as_of.isoformat(),
+        "plant_id": str(plant_id) if plant_id else None,
+        "kpi": {
+            "total_value_inr": float(total_value),
+            "total_kg": float(total_kg),
+            "rolls_count": len(roll_rows),
+            "bulk_lots": len(bulk_rows),
+            "packaging_skus": len(packaging_rows),
+            "packaging_qty": float(packaging_qty),
+            "reservation_kg": float(reservation_kg),
+            "free_kg": float(free_kg),
+            "reservation_pct": float((reservation_kg / total_kg * 100) if total_kg > 0 else 0),
+            "ageing_buckets": ageing_buckets,
+        },
+        "rolls": roll_rows,
+        "bulk": bulk_rows,
+        "packaging": packaging_rows,
+    }
+
+
+class InventoryV36SnapshotView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(_stock_snapshot_payload(request))
+
+
+class InventoryV36RollMatrixView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        snapshot = _stock_snapshot_payload(request)
+        rows = {}
+        for roll in snapshot["rolls"]:
+            variant_id = roll.get("material_code") or "UNKNOWN"
+            thickness = int(round(float(roll.get("thickness_micron") or 0)))
+            if not thickness:
+                continue
+            bucket = rows.setdefault(variant_id, {"variant_id": variant_id, "variant_code": variant_id, "cells": {}})
+            cell = bucket["cells"].setdefault(thickness, {"thickness_um": thickness, "kg": 0.0, "count": 0})
+            cell["kg"] += float(roll.get("net_weight_kg") or roll.get("weight_kg") or 0)
+            cell["count"] += 1
+        payload = []
+        for row in rows.values():
+            row["cells"] = sorted(row["cells"].values(), key=lambda item: item["thickness_um"])
+            payload.append(row)
+        return Response({"rows": sorted(payload, key=lambda item: item["variant_code"])})
+
+
+class InventoryV36AnomaliesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        kind_filter = str(request.query_params.get("kind") or "").upper().strip()
+        snapshot = _stock_snapshot_payload(request)
+        items = []
+
+        def add(kind, severity, ref_type, ref_id, label, message, suggested_action):
+            if kind_filter and kind != kind_filter:
+                return
+            items.append({
+                "kind": kind,
+                "severity": severity,
+                "ref_type": ref_type,
+                "ref_id": ref_id,
+                "label": label,
+                "message": message,
+                "suggested_action": suggested_action,
+            })
+
+        for roll in snapshot["rolls"]:
+            if int(roll.get("age_days") or 0) > 90:
+                add("AGEING", "warn", "ROLL", roll["id"], f"Roll {roll['label_id']}", f"Aged {roll['age_days']} days, exceeds 90-day target.", "Review for clearance, conversion priority, or write-off.")
+            if float(roll.get("reserved_qty") or 0) > float(roll.get("net_weight_kg") or 0):
+                add("OVER_RESERVED", "block", "ROLL", roll["id"], f"Roll {roll['label_id']}", "Reserved quantity is greater than available roll weight.", "Release or correct the sales/job reservation.")
+        for row in snapshot["bulk"]:
+            if float(row.get("qty_kg") or 0) < 0:
+                add("NEGATIVE", "block", "BULK", row["id"], row["material_code"], "Bulk stock is negative.", "Post stock correction before period close.")
+            if float(row.get("reserved_qty") or 0) > float(row.get("qty_kg") or 0):
+                add("OVER_RESERVED", "block", "BULK", row["id"], row["material_code"], "Reserved quantity exceeds on-hand stock.", "Release stale reservations or inward stock.")
+        for row in snapshot["packaging"]:
+            if float(row.get("reserved_qty") or 0) > float(row.get("qty") or 0):
+                add("OVER_RESERVED", "block", "PACKAGING", row["id"], row["material_code"], "Reserved packaging exceeds on-hand stock.", "Release stale reservations or inward packaging.")
+        return Response({"items": items[:500]})
+
+
+class InventoryV36ReservationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ref_id = request.query_params.get("ref_id")
+        ref_type = str(request.query_params.get("ref_type") or "").upper().strip()
+        qs = InventoryReservation.objects.select_related("job", "roll", "material").filter(status="ACTIVE")
+        if ref_id and ref_type == "ROLL":
+            qs = qs.filter(roll_id=ref_id)
+        elif ref_id:
+            if ref_type == "BULK":
+                material_id = InventoryBulk.objects.filter(id=ref_id).values_list("material_id", flat=True).first() or ref_id
+            elif ref_type == "PACKAGING":
+                material_id = PackagingStock.objects.filter(id=ref_id).values_list("material_id", flat=True).first() or ref_id
+            else:
+                material_id = ref_id
+            qs = qs.filter(material_id=material_id, roll_id__isnull=True)
+        rows = []
+        for reservation in qs.order_by("-created_at")[:500]:
+            job = reservation.job
+            rows.append({
+                "so_id": str(getattr(job, "sales_order_id", "") or getattr(job, "sales_order_item_id", "") or ""),
+                "so_no": getattr(getattr(job, "sales_order", None), "order_no", "") or getattr(job, "job_number", ""),
+                "customer_name": getattr(getattr(getattr(job, "sales_order", None), "customer", None), "name", "") or "",
+                "job_id": str(job.id) if job else "",
+                "job_no": getattr(job, "job_number", "") if job else "",
+                "qty": float(reservation.quantity or 0),
+                "uom": reservation.uom,
+                "reserved_at": reservation.created_at.isoformat() if reservation.created_at else None,
+                "promise_date": str(getattr(job, "due_date", "") or ""),
+            })
+        return Response({"items": rows})
+
+
+class InventoryV36SavedViewsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        workspace = str(request.query_params.get("workspace") or "").strip().lower()
+        qs = InventorySavedView.objects.filter(Q(user=request.user) | Q(shared_team=True))
+        if workspace:
+            qs = qs.filter(workspace=workspace)
+        return Response({"items": [self._serialize(row) for row in qs[:200]]})
+
+    def post(self, request):
+        workspace = str(request.data.get("workspace") or "").strip().lower()
+        name = str(request.data.get("name") or "").strip()
+        if workspace not in dict(InventorySavedView.WORKSPACE_CHOICES):
+            return Response({"error": "workspace must be rolls, bulk, packaging, addons, or home."}, status=status.HTTP_400_BAD_REQUEST)
+        if not name:
+            return Response({"error": "name is required."}, status=status.HTTP_400_BAD_REQUEST)
+        row = InventorySavedView.objects.create(
+            workspace=workspace,
+            name=name,
+            icon=str(request.data.get("icon") or "")[:16],
+            pinned=bool(request.data.get("pinned")),
+            state=request.data.get("state") if isinstance(request.data.get("state"), dict) else {},
+            shared_team=bool(request.data.get("shared_team")),
+            user=request.user if request.user.is_authenticated else None,
+        )
+        return Response(self._serialize(row), status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _serialize(row):
+        return {
+            "id": str(row.id),
+            "workspace": row.workspace,
+            "name": row.name,
+            "icon": row.icon,
+            "pinned": row.pinned,
+            "state": row.state or {},
+            "shared_team": row.shared_team,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        }
+
+
+class InventoryV36SavedViewDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        row = InventorySavedView.objects.filter(id=pk).filter(Q(user=request.user) | Q(shared_team=True)).first()
+        if not row:
+            return Response({"error": "Saved view was not found."}, status=status.HTTP_404_NOT_FOUND)
+        for field in ("name", "icon"):
+            if field in request.data:
+                setattr(row, field, str(request.data.get(field) or ""))
+        if "pinned" in request.data:
+            row.pinned = bool(request.data.get("pinned"))
+        if "state" in request.data and isinstance(request.data.get("state"), dict):
+            row.state = request.data.get("state")
+        row.save()
+        return Response(InventoryV36SavedViewsView._serialize(row))
+
+    def delete(self, request, pk):
+        deleted, _ = InventorySavedView.objects.filter(id=pk, user=request.user).delete()
+        if not deleted:
+            return Response({"error": "Saved view was not found or is shared."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InventoryV36ClassSnapshotView(APIView):
+    permission_classes = [IsAuthenticated]
+    klass = ""
+
+    def get(self, request):
+        snapshot = _stock_snapshot_payload(request)
+        klass = self.klass or str(request.resolver_match.kwargs.get("klass") or "").lower()
+        if klass == "rolls":
+            items = snapshot["rolls"]
+            facets = ("status", "roll_role", "plant_name", "location_name", "width_mm", "thickness_micron")
+        elif klass == "bulk":
+            items = snapshot["bulk"]
+            facets = ("material_class", "material_category", "plant_name", "location_name")
+        elif klass == "packaging":
+            items = snapshot["packaging"]
+            facets = ("packaging_kind", "supply_mode", "plant_name", "location_name")
+        elif klass == "addons":
+            items = [
+                row for row in snapshot["bulk"]
+                if str(row.get("material_category") or "").upper() in {"ADDON", "INK", "ADHESIVE", "SOLVENT", "CHEMICAL"}
+            ]
+            facets = ("material_class", "material_category", "plant_name", "location_name", "uom")
+        else:
+            return Response({"error": "Unknown inventory class."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(_paged_payload(items, request, facet_keys=facets))
+
+
+class InventoryV36CoverageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        snapshot = _stock_snapshot_payload(request)
+        rows = []
+        for row in snapshot["bulk"]:
+            free = float(row.get("free_qty") or 0)
+            reserved = float(row.get("reserved_qty") or 0)
+            rows.append({
+                "stock_class": "BULK",
+                "material_code": row.get("material_code"),
+                "material_name": row.get("material_name"),
+                "material_class": row.get("material_class"),
+                "on_hand": row.get("qty"),
+                "reserved": reserved,
+                "free": free,
+                "uom": row.get("uom") or "KG",
+                "days_cover": None,
+                "reorder_health": "blocked" if free <= 0 and reserved > 0 else ("low" if free <= 0 else "ok"),
+                "suggested_action": "Inward stock or release reservations." if free <= 0 else "No action.",
+            })
+        for row in snapshot["packaging"]:
+            free = float(row.get("free_qty") or 0)
+            reserved = float(row.get("reserved_qty") or 0)
+            rows.append({
+                "stock_class": "PACKAGING",
+                "material_code": row.get("material_code"),
+                "material_name": row.get("material_name"),
+                "material_class": row.get("material_class"),
+                "on_hand": row.get("qty"),
+                "reserved": reserved,
+                "free": free,
+                "uom": row.get("uom") or "PCS",
+                "days_cover": None,
+                "reorder_health": "blocked" if free <= 0 and reserved > 0 else ("low" if free <= 0 else "ok"),
+                "suggested_action": "Inward packaging or release reservations." if free <= 0 else "No action.",
+            })
+        return Response({"items": rows[:1000]})
+
+
+class InventoryV36SnapshotTrendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        days = min(max(int(request.query_params.get("days") or 14), 1), 90)
+        start_date = timezone.now().date() - timedelta(days=days - 1)
+        buckets = {
+            (start_date + timedelta(days=idx)).isoformat(): {
+                "date": (start_date + timedelta(days=idx)).isoformat(),
+                "bulk_in_kg": 0.0,
+                "bulk_out_kg": 0.0,
+                "packaging_in": 0.0,
+                "packaging_out": 0.0,
+                "rolls_created": 0,
+            }
+            for idx in range(days)
+        }
+        for tx in BulkTransaction.objects.filter(created_at__date__gte=start_date):
+            key = tx.created_at.date().isoformat()
+            qty = float(abs(tx.qty_kg or 0))
+            if Decimal(str(tx.qty_kg or 0)) >= 0:
+                buckets[key]["bulk_in_kg"] += qty
+            else:
+                buckets[key]["bulk_out_kg"] += qty
+        for tx in PackagingTransaction.objects.filter(created_at__date__gte=start_date):
+            key = tx.created_at.date().isoformat()
+            qty = float(abs(tx.qty or 0))
+            if Decimal(str(tx.qty or 0)) >= 0:
+                buckets[key]["packaging_in"] += qty
+            else:
+                buckets[key]["packaging_out"] += qty
+        for row in InventoryRoll.objects.filter(created_at__date__gte=start_date).values("created_at__date").annotate(count=Count("id")):
+            key = row["created_at__date"].isoformat()
+            buckets[key]["rolls_created"] = int(row["count"] or 0)
+        return Response({"items": list(buckets.values())})
+
+
+class InventoryV36ExportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, klass):
+        snapshot = _stock_snapshot_payload(request)
+        normalized = str(klass or "").lower()
+        if normalized == "rolls":
+            rows = snapshot["rolls"]
+        elif normalized == "bulk":
+            rows = snapshot["bulk"]
+        elif normalized == "packaging":
+            rows = snapshot["packaging"]
+        elif normalized == "addons":
+            rows = [
+                row for row in snapshot["bulk"]
+                if str(row.get("material_category") or "").upper() in {"ADDON", "INK", "ADHESIVE", "SOLVENT", "CHEMICAL"}
+            ]
+        else:
+            return Response({"error": "Unknown export class."}, status=status.HTTP_400_BAD_REQUEST)
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="inventory-{normalized}-{timezone.now().date().isoformat()}.csv"'
+        writer = csv.writer(response)
+        columns = sorted({key for row in rows for key in row.keys()})
+        writer.writerow(columns)
+        for row in rows:
+            writer.writerow([row.get(key, "") for key in columns])
+        return response
+
+
 class LocationViewSet(viewsets.ModelViewSet):
     queryset = InventoryLocation.objects.all()
     serializer_class = InventoryLocationSerializer
@@ -442,6 +1011,175 @@ class GRNViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             return Response({"error": str(getattr(e, "message", "") or e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='create')
+    def create_unified(self, request):
+        """
+        V3.6 Smart GRN adapter.
+
+        Accepts the new class-tagged payload while keeping the existing bulk,
+        roll, and packaging posting services as the accounting source of truth.
+        """
+        klass = str(request.data.get("klass") or request.data.get("stock_class") or "").upper().strip()
+        if klass not in {"BULK", "ROLL", "PACKAGING"}:
+            return Response({"error": "klass must be BULK, ROLL, or PACKAGING."}, status=status.HTTP_400_BAD_REQUEST)
+
+        lines = request.data.get("lines") or request.data.get("items") or []
+        if not isinstance(lines, list) or not lines:
+            return Response({"error": "At least one GRN line is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        vendor_id = request.data.get("vendor_id") or request.data.get("vendor")
+        if not vendor_id:
+            return Response({"error": "Vendor is required before posting GRN."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            vendor = Vendor.objects.get(id=vendor_id)
+        except Vendor.DoesNotExist:
+            return Response({"error": "Vendor was not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        fallback_location_id = (
+            request.data.get("store_location_id")
+            or request.data.get("warehouse_id")
+            or request.data.get("location_id")
+            or request.data.get("location")
+        )
+        invoice_no = str(request.data.get("vendor_invoice_no") or request.data.get("source_ref") or request.data.get("reference") or "").strip()
+        receipt_ref = invoice_no or f"GRN-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        created_refs = []
+        total_qty = Decimal("0")
+        total_value = Decimal("0")
+
+        try:
+            StockLifecycleService.ensure_default_period()
+            for line in lines:
+                line = dict(line or {})
+                material = _resolve_material_from_payload(line)
+                location = _resolve_location_from_payload(line, fallback_id=fallback_location_id)
+                plant = location.plant
+                if request.data.get("plant_id") and str(plant.id) != str(request.data.get("plant_id")):
+                    return Response({"error": "Receiving location does not belong to selected plant."}, status=status.HTTP_400_BAD_REQUEST)
+
+                line_ref = " | ".join(part for part in [
+                    receipt_ref,
+                    str(line.get("lot_no") or line.get("lot_id") or line.get("vendor_lot_ref") or "").strip(),
+                ] if part)
+
+                if klass == "BULK":
+                    qty = _as_decimal(line.get("qty") or line.get("quantity"))
+                    rate = _as_decimal(line.get("rate_per_uom") or line.get("unit_cost") or line.get("cost") or request.data.get("unit_cost"))
+                    tx = GRNService.create_bulk_grn(
+                        material=material,
+                        location=location,
+                        vendor=vendor,
+                        quantity=qty,
+                        plant=plant,
+                        cost=rate,
+                        reference=line_ref,
+                        granule_code_id=line.get("granule_code_id") or None,
+                        granule_code=line.get("granule_code") or "",
+                    )
+                    total_qty += qty
+                    total_value += qty * rate
+                    created_refs.append({"id": str(tx.id), "ref": tx.reference, "type": "BULK"})
+
+                elif klass == "PACKAGING":
+                    qty = _as_decimal(line.get("qty") or line.get("quantity"))
+                    rate = _as_decimal(line.get("rate_per_uom") or line.get("unit_cost") or line.get("cost"))
+                    tx = PackagingService.add_packaging_stock(
+                        material_id=material.id,
+                        qty=qty,
+                        location_id=location.id,
+                        cost=rate,
+                        vendor_id=vendor.id,
+                        reference=line_ref or "PACKAGING_GRN",
+                        input_uom=line.get("uom") or getattr(material, "base_uom", None),
+                        meta_json={
+                            "vendor_invoice_no": invoice_no,
+                            "packaging_kind": line.get("packaging_kind") or getattr(material, "packaging_kind", ""),
+                            "pcs_per_pack": line.get("pcs_per_pack") or None,
+                            "color_variant": line.get("color_variant") or "",
+                        },
+                    )
+                    total_qty += qty
+                    total_value += qty * rate
+                    created_refs.append({"id": str(tx.id), "ref": tx.reference, "type": "PACKAGING"})
+
+                else:
+                    gross = line.get("gross_weight_kg")
+                    tare = line.get("tare_weight_kg")
+                    net_source = line.get("net_weight_kg") or line.get("weight_kg") or line.get("qty") or line.get("quantity")
+                    if net_source in (None, "") and gross not in (None, "") and tare not in (None, ""):
+                        net_weight = _as_decimal(gross) - _as_decimal(tare)
+                    else:
+                        net_weight = _as_decimal(net_source)
+                    if net_weight <= 0:
+                        raise ValidationError("Roll net weight must be positive. Enter gross and tare, or net weight.")
+                    if gross not in (None, "") or tare not in (None, ""):
+                        gross_dec = _as_decimal(gross)
+                        tare_dec = _as_decimal(tare)
+                        if abs(gross_dec - net_weight - tare_dec) > Decimal("0.05"):
+                            raise ValidationError("Roll gross weight must equal net + tare within 0.05 KG.")
+                    label = str(line.get("roll_label") or line.get("label_id") or "").strip()
+                    if label and InventoryRoll.objects.filter(label_id=label).exists():
+                        raise ValidationError(f"Roll label {label} already exists.")
+                    created = GRNService.create_roll_grn(
+                        material=material,
+                        location=location,
+                        vendor=vendor,
+                        plant=plant,
+                        rolls_data=[{
+                            "label_id": label or None,
+                            "batch_no": line.get("lot_no") or line.get("batch_no") or line.get("vendor_lot_ref") or "",
+                            "thickness_micron": line.get("thickness_um") or line.get("thickness_micron"),
+                            "width_mm": line.get("width_mm"),
+                            "weight_kg": net_weight,
+                            "length_m": line.get("length_m") or 0,
+                            "grade_id": line.get("grade_id") or line.get("grade") or None,
+                        }],
+                        reference=line_ref,
+                    )
+                    roll = created[0]
+                    update_fields = []
+                    if gross not in (None, ""):
+                        roll.gross_weight_kg = _as_decimal(gross)
+                        update_fields.append("gross_weight_kg")
+                    if tare not in (None, ""):
+                        roll.tare_weight_kg = _as_decimal(tare)
+                        update_fields.append("tare_weight_kg")
+                    roll.net_weight_kg = net_weight
+                    update_fields.append("net_weight_kg")
+                    meta = dict(roll.meta_json or {})
+                    meta.update({
+                        "vendor_roll_label": line.get("vendor_roll_label") or "",
+                        "treatment_side": line.get("treatment_side") or "",
+                        "print_direction": line.get("print_direction") or "",
+                        "core_size_inch": line.get("core_size_inch") or "",
+                        "vendor_invoice_no": invoice_no,
+                    })
+                    roll.meta_json = meta
+                    update_fields.append("meta_json")
+                    roll.save(update_fields=update_fields)
+                    rate = _as_decimal(line.get("rate_per_kg") or line.get("rate_per_uom") or line.get("unit_cost"))
+                    total_qty += net_weight
+                    total_value += net_weight * rate
+                    created_refs.append({"id": str(roll.id), "ref": roll.label_id, "type": "ROLL"})
+
+        except (ValidationError, InventoryMaterial.DoesNotExist, InventoryLocation.DoesNotExist) as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        grn_no = f"GRN/{timezone.now().strftime('%Y/%m')}/{str(uuid.uuid4())[:5].upper()}"
+        return Response(
+            {
+                "id": str(uuid.uuid4()),
+                "grn_no": grn_no,
+                "status": "POSTED",
+                "klass": klass,
+                "totals": {"qty": float(total_qty), "value": float(total_value)},
+                "stock_movements": created_refs,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=False, methods=['post'], url_path='bulk')
     def create_bulk(self, request):

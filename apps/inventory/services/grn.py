@@ -78,7 +78,7 @@ class GRNService:
         cls._validate_vendor(vendor)
         
         # Validate material is a bulk type
-        bulk_categories = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD']
+        bulk_categories = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD', 'ADDON']
         if material.category not in bulk_categories:
             raise ValidationError(
                 f"Bulk GRN requires bulk material type. Got: {material.category}"
@@ -89,6 +89,11 @@ class GRNService:
             raise ValidationError('Adhesive inward is locked to the AD-ADHESIVE system master.')
         if material.category == 'SOLVENT' and material_code != 'AD-SOLVENT':
             raise ValidationError('Solvent inward is locked to the AD-SOLVENT system master.')
+        if material.category == 'ADDON':
+            if not material.addon_is_purchased:
+                raise ValidationError('Add-on inward is allowed only when the add-on master is marked purchased.')
+            if str(material.base_uom or '').upper() not in {'KG', 'PCS'}:
+                raise ValidationError('Purchased add-on inward supports only KG or PCS inventory UOM.')
 
         resolved_granule_code_id = None
         if material.category == 'GRANULE':

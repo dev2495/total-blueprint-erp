@@ -8,8 +8,10 @@ import { useAuth } from "@/components/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { HelpFlowDiagram, HelpScreenshotImage } from "@/components/help/help-visuals";
 import { MAIN_NAV_ROUTES } from "@/help/route-registry";
-import { PAGE_GUIDES, ROLE_GUIDES, localize, getHelpContext } from "@/help";
+import { PAGE_GUIDES, ROLE_GUIDES, localize, getHelpContext, resolvePageGuide } from "@/help";
+import type { PageGuide } from "@/help";
 import { useHelpLocale } from "@/hooks/use-help-locale";
 
 function SectionList({ items }: { items: string[] }) {
@@ -41,8 +43,10 @@ export default function HelpCenterPage() {
 
   const mainRoutes = useMemo(() => Array.from(MAIN_NAV_ROUTES).sort(), []);
   const featuredPages = useMemo(
-    () => PAGE_GUIDES.filter((page) => mainRoutes.includes(page.routePattern)),
-    [mainRoutes],
+    () => mainRoutes
+      .map((route) => resolvePageGuide(route, roleCode) || PAGE_GUIDES.find((page) => page.routePattern === route))
+      .filter((page): page is PageGuide => Boolean(page)),
+    [mainRoutes, roleCode],
   );
 
   const goToRouteGuide = (route: string) => {
@@ -178,19 +182,7 @@ export default function HelpCenterPage() {
                       {locale === "hi" ? "निर्णय प्रवाह" : "Decision Flow"}
                       {context.decisionFlow ? ` - ${localize(context.decisionFlow.title, locale)}` : ""}
                     </h3>
-                    {(context.decisionFlow?.nodes || []).map((node) => (
-                      <div key={node.id} className="rounded-lg border border-slate-200 p-3 bg-slate-50/60">
-                        <p className="text-sm font-semibold text-slate-900">{localize(node.title, locale)}</p>
-                        <ul className="list-disc pl-4 mt-2 text-xs text-slate-600 space-y-1">
-                          {node.outcomes.map((outcome, idx) => (
-                            <li key={`${node.id}-${idx}`}>
-                              {localize(outcome.label, locale)}
-                              {outcome.resolution ? ` -> ${localize(outcome.resolution, locale)}` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+                    <HelpFlowDiagram flow={context.decisionFlow} locale={locale} />
                   </section>
 
                   <section className="space-y-2">
@@ -216,7 +208,7 @@ export default function HelpCenterPage() {
                       <div className="grid gap-3 md:grid-cols-2">
                         {guide.screenshotKeys.map((key) => (
                           <div key={key} className="rounded-lg border border-slate-200 p-2 bg-white">
-                            <img src={`/help/screenshots/${key}.svg`} alt={key} className="rounded-md border border-slate-100" />
+                            <HelpScreenshotImage imageKey={key} />
                             <p className="text-[10px] text-slate-500 mt-1">{key}</p>
                           </div>
                         ))}

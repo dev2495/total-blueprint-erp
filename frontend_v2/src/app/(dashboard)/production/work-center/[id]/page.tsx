@@ -2253,6 +2253,7 @@ export default function WCMTerminal() {
                                                                 size="icon"
                                                                 disabled={isReleasedToMachine || mutation.isPending}
                                                                 className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600"
+                                                                data-testid={roll.reservation_id ? `wcm-unassign-roll-${String(roll.reservation_id)}` : `wcm-unassign-roll-by-roll-${String(roll.id)}`}
                                                                 onClick={() => roll.reservation_id ? handleUnassignRoll(roll.reservation_id) : handleUnassignRollByRoll(roll.id)}
                                                             >
                                                                 <Trash2 className="h-4 w-4" />

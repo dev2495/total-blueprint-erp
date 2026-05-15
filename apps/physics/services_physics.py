@@ -2,7 +2,7 @@ import logging
 from typing import Dict, List, Any
 from decimal import Decimal, InvalidOperation
 
-from apps.artwork.print_contract import resolve_ink_contract
+from apps.artwork.print_contract import resolve_ink_contract, resolve_ink_gsm_by_color
 from apps.inventory.models import InkMaterial
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,49 @@ def _dec(value: Any, default: Decimal = Decimal("0")) -> Decimal:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError):
         return default
+
+
+def _dimension_impact(value: Any, default: str = "WIDTH") -> str:
+    impact = str(value or default).upper().strip()
+    aliases = {
+        "W": "WIDTH",
+        "H": "HEIGHT",
+        "ALL": "BOTH",
+        "BOTH_AXES": "BOTH",
+        "NO": "NONE",
+        "OFF": "NONE",
+    }
+    impact = aliases.get(impact, impact)
+    return impact if impact in {"WIDTH", "HEIGHT", "BOTH", "NONE"} else default
+
+
+def _default_gusset_rule(pouch_style: str) -> tuple[str, Decimal]:
+    style = str(pouch_style or "").upper().strip()
+    if style == "STAND_UP":
+        return "HEIGHT", Decimal("1")
+    if style in {"QUAD_SEAL", "FLAT_BOTTOM"}:
+        return "WIDTH", Decimal("2")
+    if style in {"SIDE_GUSSET", "SPOUT"}:
+        return "WIDTH", Decimal("1")
+    return "NONE", Decimal("1")
+
+
+def _apply_dimension_delta(
+    *,
+    width: Decimal,
+    height: Decimal,
+    value: Decimal,
+    impact: str,
+) -> tuple[Decimal, Decimal]:
+    if value <= 0:
+        return width, height
+    if impact == "WIDTH":
+        return width + value, height
+    if impact == "HEIGHT":
+        return width, height + value
+    if impact == "BOTH":
+        return width + value, height + value
+    return width, height
 
 
 class PhysicsEngine:
@@ -44,14 +87,27 @@ class PhysicsEngine:
         pouch_style = str(geometry.get("pouch_style") or "").upper().strip()
         faces = _dec((geometry.get("multipliers") or {}).get("faces") or 1)
 
-        effective_width = base_width + width_adj + trim_loss
-        effective_height = base_height + height_adj + flap_tape
+        trim_apply_to = _dimension_impact(geometry.get("trim_apply_to"), "WIDTH")
+        default_gusset_apply_to, default_gusset_factor = _default_gusset_rule(pouch_style)
+        gusset_apply_to = _dimension_impact(geometry.get("gusset_apply_to"), default_gusset_apply_to)
+        gusset_factor = _dec(geometry.get("gusset_factor"), default_gusset_factor)
+        if gusset_factor < 0:
+            gusset_factor = Decimal("0")
 
-        if gusset > 0:
-            if pouch_style in {"STAND_UP", "SIDE_GUSSET", "SPOUT"}:
-                effective_width += gusset
-            elif pouch_style in {"QUAD_SEAL", "FLAT_BOTTOM"}:
-                effective_width += gusset * Decimal("2")
+        effective_width = base_width + width_adj
+        effective_height = base_height + height_adj + flap_tape
+        effective_width, effective_height = _apply_dimension_delta(
+            width=effective_width,
+            height=effective_height,
+            value=trim_loss,
+            impact=trim_apply_to,
+        )
+        effective_width, effective_height = _apply_dimension_delta(
+            width=effective_width,
+            height=effective_height,
+            value=gusset * gusset_factor,
+            impact=gusset_apply_to,
+        )
 
         return {
             "base_width_mm": base_width,
@@ -59,8 +115,11 @@ class PhysicsEngine:
             "effective_width_mm": effective_width,
             "effective_height_mm": effective_height,
             "trim_loss_mm": trim_loss,
+            "trim_apply_to": trim_apply_to,
             "flap_tape_mm": flap_tape,
             "gusset_mm": gusset,
+            "gusset_apply_to": gusset_apply_to,
+            "gusset_factor": gusset_factor,
             "pouch_style": pouch_style,
             "faces": faces,
         }
@@ -174,11 +233,7 @@ class PhysicsEngine:
             side_count = int(printing.get("front_colors_count") or 0) + int(printing.get("back_colors_count") or 0)
             colors = [f"COLOR-{idx + 1}" for idx in range(max(0, side_count))]
 
-        total_color_count = len(colors)
         ink_gsm_total = _dec(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0)
-        gsm = _dec(printing.get("gsm_per_color") or 0)
-        if gsm <= 0 and ink_gsm_total > 0 and total_color_count > 0:
-            gsm = ink_gsm_total / _dec(total_color_count)
 
         area = _dec(area_override_m2) if area_override_m2 is not None else PhysicsEngine.calculate_total_area(data)
         multiplier = Decimal("1") if area_override_m2 is not None else _dec(total_qty, Decimal("1"))
@@ -193,10 +248,20 @@ class PhysicsEngine:
         colors = ink_contract["color_names"]
         base = ink_contract["ink_base_family"]
         mapping = ink_contract["color_mapping"]
-        per_color_kg = (area * gsm * multiplier) / Decimal("1000")
+        ink_gsm_by_color = resolve_ink_gsm_by_color(
+            color_names=colors,
+            total_gsm=ink_gsm_total,
+            split_mode=printing.get("ink_gsm_split_mode") or "EQUAL",
+            color_percentages=printing.get("ink_gsm_color_percentages") or {},
+            color_gsm=printing.get("ink_gsm_by_color") or {},
+        )
         consumptions = []
 
         for color in colors:
+            gsm = ink_gsm_by_color.get(str(color).upper(), Decimal("0"))
+            if gsm <= 0:
+                continue
+            per_color_kg = (area * gsm * multiplier) / Decimal("1000")
             ink = None
             try:
                 material_id = mapping.get(color) or mapping.get(str(color).upper())

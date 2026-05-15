@@ -39,7 +39,7 @@ class DispatchLineageTests(SimpleTestCase):
         self.assertEqual(record.lines[0]["material_id"], "sheet-1")
         self.assertFalse(record.meta_json["defaulted_from_snapshot"])
 
-    def test_pack_roll_defaults_from_sku_snapshot_when_lines_not_overridden(self):
+    def test_pack_roll_records_allowed_materials_for_eod_count_when_lines_not_overridden(self):
         roll = SimpleNamespace(
             id="roll-1",
             label_id="ROLL-1",
@@ -61,12 +61,14 @@ class DispatchLineageTests(SimpleTestCase):
 
             record = FGDispatchService.pack_roll.__wrapped__("roll-1", None, user=None)
 
-        self.assertEqual(record.lines[0]["material_id"], "sheet-1")
-        self.assertEqual(record.lines[0]["qty"], 2.0)
+        self.assertEqual(record.lines, [])
         self.assertTrue(record.meta_json["defaulted_from_snapshot"])
-        self.assertFalse(record.meta_json["snapshot_override"])
+        self.assertFalse(record.meta_json.get("snapshot_override", False))
+        self.assertEqual(record.meta_json["consumption_capture_mode"], "DAILY_PACKING_COUNT")
+        self.assertEqual(record.meta_json["allowed_material_ids"], ["sheet-1"])
+        self.assertEqual(record.meta_json["allowed_lines"][0]["material_id"], "sheet-1")
 
-    def test_pack_roll_allows_explicit_material_override_outside_snapshot(self):
+    def test_pack_roll_rejects_explicit_material_override_outside_snapshot(self):
         roll = SimpleNamespace(
             id="roll-1",
             label_id="ROLL-1",
@@ -86,17 +88,14 @@ class DispatchLineageTests(SimpleTestCase):
             existing_filter.return_value.first.return_value = None
             create_record.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
 
-            record = FGDispatchService.pack_roll.__wrapped__(
-                "roll-1",
-                [{"material_id": "tape-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
-                user=None,
-            )
+            with self.assertRaisesMessage(ValueError, "selected material is not allowed"):
+                FGDispatchService.pack_roll.__wrapped__(
+                    "roll-1",
+                    [{"material_id": "tape-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
+                    user=None,
+                )
 
-        self.assertTrue(record.meta_json["snapshot_override"])
-        self.assertEqual(record.meta_json["override_material_ids"], ["tape-1"])
-        self.assertTrue(record.lines[0]["snapshot_override"])
-
-    def test_pack_roll_allows_explicit_lines_when_snapshot_not_configured(self):
+    def test_pack_roll_rejects_explicit_lines_when_snapshot_not_configured(self):
         roll = SimpleNamespace(
             id="roll-1",
             label_id="ROLL-1",
@@ -116,14 +115,12 @@ class DispatchLineageTests(SimpleTestCase):
             existing_filter.return_value.first.return_value = None
             create_record.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
 
-            record = FGDispatchService.pack_roll.__wrapped__(
-                "roll-1",
-                [{"material_id": "sheet-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
-                user=None,
-            )
-
-        self.assertTrue(record.meta_json["snapshot_override"])
-        self.assertFalse(record.meta_json["snapshot_enabled"])
+            with self.assertRaisesMessage(ValueError, "has no allowed packing materials"):
+                FGDispatchService.pack_roll.__wrapped__(
+                    "roll-1",
+                    [{"material_id": "sheet-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
+                    user=None,
+                )
 
     def test_pack_roll_rejects_default_packed_release_when_snapshot_not_configured(self):
         roll = SimpleNamespace(

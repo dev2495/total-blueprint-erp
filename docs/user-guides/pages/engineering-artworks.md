@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Engineering • Artworks withou
 
 
 ## Screenshot References
-- ![engineering-artworks-overview](../../../frontend_v2/public/help/screenshots/engineering-artworks-overview.svg)
+- ![engineering-artworks-overview](../../../frontend_v2/public/help/screenshots/engineering-artworks-overview.png)
 - ![engineering-artworks-workflow](../../../frontend_v2/public/help/screenshots/engineering-artworks-workflow.svg)
 
 ## FAQ References

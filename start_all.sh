@@ -15,6 +15,7 @@ FRONTEND_MODE_FILE="${STATE_DIR}/frontend.mode"
 BOOTSTRAP_LOCK_DIR="${STATE_DIR}/bootstrap.lock"
 MAX_RESTARTS="${MAX_RESTARTS:-3}"
 FRONTEND_MODE="${FRONTEND_MODE:-prod}" # prod|dev
+FRONTEND_PORT="${FRONTEND_PORT:-3001}"
 ALLOW_DEV_FALLBACK="${ALLOW_DEV_FALLBACK:-0}" # 1 => fallback to dev if prod build is unstable
 ALLOW_SCHEMA_SKIP_ON_TIMEOUT="${ALLOW_SCHEMA_SKIP_ON_TIMEOUT:-0}"
 BUILD_MAX_ATTEMPTS="${BUILD_MAX_ATTEMPTS:-2}"
@@ -37,9 +38,10 @@ usage() {
 Usage: ./start_all.sh [start|verify|stop|restart|clean-restart|status]
 Environment:
   FRONTEND_MODE=prod|dev    (default: prod)
+  FRONTEND_PORT=3001        (default: 3001, bound on 0.0.0.0 for LAN QA)
   ALLOW_DEV_FALLBACK=1      (default: 0, auto-fallback is disabled unless explicitly enabled)
   ALLOW_SCHEMA_SKIP_ON_TIMEOUT=1 (default: 0, schema skip is disabled unless explicitly enabled)
-  BACKEND_SERVER_MODE=runserver|gunicorn (default: runserver on macOS, gunicorn elsewhere)
+  BACKEND_SERVER_MODE=runserver|gunicorn (default: gunicorn in prod mode; runserver on macOS dev mode)
   BUILD_MAX_ATTEMPTS=2      (default: 2, prod build attempts before failure)
   BUILD_TIMEOUT_SECONDS=480  (default: 480, timeout per prod build attempt)
   MAX_RESTARTS=3            (default: 3)
@@ -122,7 +124,7 @@ detect_frontend_mode() {
   if pid_running "${pid}"; then
     local cmdline
     cmdline="$(ps -o command= -p "${pid}" 2>/dev/null || true)"
-    if echo "${cmdline}" | grep -q "next start -H 0.0.0.0 -p 3000"; then
+    if echo "${cmdline}" | grep -q "next start -H 0.0.0.0 -p ${FRONTEND_PORT}"; then
       echo "prod"
       return 0
     fi
@@ -130,7 +132,7 @@ detect_frontend_mode() {
       echo "prod"
       return 0
     fi
-    if echo "${cmdline}" | grep -Eq "next dev -H 0.0.0.0 -p 3000|npm run dev"; then
+    if echo "${cmdline}" | grep -Eq "next dev -H 0.0.0.0 -p ${FRONTEND_PORT}|npm run dev"; then
       echo "dev"
       return 0
     fi
@@ -470,7 +472,7 @@ probe_route_assets() {
   local html
   local attempt
   for attempt in $(seq 1 5); do
-    html="$(curl_body "http://127.0.0.1:3000${route}")"
+    html="$(curl_body "http://127.0.0.1:${FRONTEND_PORT}${route}")"
     if [ -n "${html}" ]; then
       break
     fi
@@ -498,7 +500,7 @@ probe_route_assets() {
     asset="${asset%/}"
     [ -z "${asset}" ] && continue
     local asset_code
-    asset_code="$(route_status_retry "http://127.0.0.1:3000${asset}")"
+    asset_code="$(route_status_retry "http://127.0.0.1:${FRONTEND_PORT}${asset}")"
     if [ "${asset_code}" -lt 200 ] || [ "${asset_code}" -ge 400 ]; then
       echo "Frontend asset invalid on ${route}: ${asset} (${asset_code})"
       return 1
@@ -530,7 +532,9 @@ start_backend() {
   lan_hosts="$(detect_all_lan_ips || true)"
   local server_mode="${BACKEND_SERVER_MODE}"
   if [ -z "${server_mode}" ]; then
-    if [ "$(uname -s)" = "Darwin" ]; then
+    if [ "${FRONTEND_MODE}" = "prod" ]; then
+      server_mode="gunicorn"
+    elif [ "$(uname -s)" = "Darwin" ]; then
       server_mode="runserver"
     else
       server_mode="gunicorn"
@@ -576,7 +580,7 @@ start_frontend() {
     ) > "${FRONTEND_BUILD_LOG}" 2>&1 && [ -f "${ROOT_DIR}/frontend_v2/.next/BUILD_ID" ]; then
       local cmd
       cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) retries=0; while true; do \
-./node_modules/.bin/next start -H 0.0.0.0 -p 3000; \
+./node_modules/.bin/next start -H 0.0.0.0 -p ${FRONTEND_PORT}; \
 code=\$?; \
 if [ \$code -eq 0 ]; then exit 0; fi; \
 retries=\$((retries+1)); \
@@ -589,7 +593,7 @@ done"
       if [ "${ALLOW_DEV_FALLBACK}" = "1" ]; then
         echo "WARN: prod frontend build did not produce a usable .next/BUILD_ID. Falling back to FRONTEND_MODE=dev for fast local startup."
         local cmd
-        cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) npm run dev"
+        cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 ./node_modules/.bin/next dev -H 0.0.0.0 -p ${FRONTEND_PORT}"
         spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
         write_runtime_mode "${FRONTEND_MODE_FILE}" "dev-fallback"
       else
@@ -600,7 +604,7 @@ done"
   else
     clean_next_artifacts
     local cmd
-    cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) npm run dev"
+    cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 ./node_modules/.bin/next dev -H 0.0.0.0 -p ${FRONTEND_PORT}"
     spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
     write_runtime_mode "${FRONTEND_MODE_FILE}" "dev"
   fi
@@ -610,11 +614,11 @@ wait_for_basic_services() {
   for _ in $(seq 1 60); do
     local backend_code frontend_code
     backend_code="$(curl_status http://127.0.0.1:8000/api/health/)"
-    frontend_code="$(curl_status http://127.0.0.1:3000/login)"
+    frontend_code="$(curl_status http://127.0.0.1:${FRONTEND_PORT}/login)"
     backend_code="${backend_code:-000}"
     frontend_code="${frontend_code:-000}"
     if [ "${backend_code}" -ge 200 ] && [ "${backend_code}" -lt 400 ] \
-      && [ "${frontend_code}" -ge 200 ] && [ "${frontend_code}" -lt 500 ]; then
+      && [ "${frontend_code}" -ge 200 ] && [ "${frontend_code}" -lt 400 ]; then
       echo "Basic service health: backend=${backend_code} frontend=${frontend_code}"
       return 0
     fi
@@ -634,7 +638,7 @@ verify_services() {
       local frontend_pid actual_frontend_mode
       frontend_pid="$(read_pid "${FRONTEND_PID_FILE}" || true)"
       if ! pid_running "${frontend_pid}"; then
-        frontend_pid="$(port_pid 3000)"
+        frontend_pid="$(port_pid "${FRONTEND_PORT}")"
       fi
       actual_frontend_mode="$(detect_frontend_mode "${frontend_pid}")"
       if [ "${requested_frontend_mode}" = "prod" ] && [ "${actual_frontend_mode}" != "prod" ]; then
@@ -643,7 +647,7 @@ verify_services() {
       fi
 
       local login_html
-      login_html="$(curl_body http://127.0.0.1:3000/login)"
+      login_html="$(curl_body http://127.0.0.1:${FRONTEND_PORT}/login)"
       if [ -z "${login_html}" ]; then
         sleep 2
         continue
@@ -655,42 +659,41 @@ verify_services() {
         return 1
       fi
       local asset_code
-      asset_code="$(curl_status "http://127.0.0.1:3000${asset_path}")"
+      asset_code="$(curl_status "http://127.0.0.1:${FRONTEND_PORT}${asset_path}")"
       if [ "${asset_code}" -lt 200 ] || [ "${asset_code}" -ge 400 ]; then
         echo "Frontend static asset failed: ${asset_path} (${asset_code})"
         return 1
       fi
 
-      local owner_code admin_code interplant_code machine_selector_code planner_code sales_create_code templates_code artworks_code traceability_code audit_center_code roll_explorer_code settings_code sku_catalog_code inventory_root_code inventory_bulk_code inventory_bulk_transactions_code inventory_grn_code inventory_job_work_code inventory_ledger_code system_users_code orders_root_code login_route_code sales_root_code engineering_root_code system_root_code dashboard_root_code
-      login_route_code="$(route_status_retry http://127.0.0.1:3000/login)"
-      owner_code="$(route_status_retry http://127.0.0.1:3000/dashboard/owner)"
-      admin_code="$(route_status_retry http://127.0.0.1:3000/dashboard/admin)"
-      dashboard_root_code="$(route_status_retry http://127.0.0.1:3000/dashboard)"
-      sales_root_code="$(route_status_retry http://127.0.0.1:3000/sales)"
-      engineering_root_code="$(route_status_retry http://127.0.0.1:3000/engineering)"
-      system_root_code="$(route_status_retry http://127.0.0.1:3000/system)"
-      inventory_bulk_code="$(route_status_retry http://127.0.0.1:3000/inventory/bulk)"
-      inventory_bulk_transactions_code="$(route_status_retry http://127.0.0.1:3000/inventory/bulk-transactions)"
-      inventory_grn_code="$(route_status_retry http://127.0.0.1:3000/inventory/grn)"
-      interplant_code="$(route_status_retry http://127.0.0.1:3000/inventory/inter-plant)"
-      inventory_job_work_code="$(route_status_retry http://127.0.0.1:3000/inventory/job-work)"
-      inventory_ledger_code="$(route_status_retry http://127.0.0.1:3000/inventory/ledger)"
-      machine_selector_code="$(route_status_retry http://127.0.0.1:3000/production/machine-selector)"
-      planner_code="$(route_status_retry http://127.0.0.1:3000/production/planner)"
-      sales_create_code="$(route_status_retry http://127.0.0.1:3000/sales/orders/create)"
-      templates_code="$(route_status_retry http://127.0.0.1:3000/engineering/templates)"
-      artworks_code="$(route_status_retry http://127.0.0.1:3000/engineering/artworks)"
-      traceability_code="$(route_status_retry http://127.0.0.1:3000/inventory/traceability)"
-      audit_center_code="$(route_status_retry http://127.0.0.1:3000/system/audit)"
-      roll_explorer_code="$(route_status_retry http://127.0.0.1:3000/inventory/roll-explorer)"
-      settings_code="$(route_status_retry http://127.0.0.1:3000/system/settings)"
-      system_users_code="$(route_status_retry http://127.0.0.1:3000/system/users)"
-      sku_catalog_code="$(route_status_retry http://127.0.0.1:3000/sales/sku-catalog)"
-      inventory_root_code="$(route_status_retry http://127.0.0.1:3000/inventory)"
-      orders_root_code="$(route_status_retry http://127.0.0.1:3000/orders)"
-      echo "Route probes: login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, roll-explorer=${roll_explorer_code}, settings=${settings_code}, system-users=${system_users_code}, sku-catalog=${sku_catalog_code}, inventory=${inventory_root_code}, orders=${orders_root_code}"
-      if [ "${login_route_code}" -ge 500 ] || [ "${owner_code}" -ge 500 ] || [ "${admin_code}" -ge 500 ] || [ "${dashboard_root_code}" -ge 500 ] || [ "${sales_root_code}" -ge 500 ] || [ "${engineering_root_code}" -ge 500 ] || [ "${system_root_code}" -ge 500 ] || [ "${inventory_bulk_code}" -ge 500 ] || [ "${inventory_bulk_transactions_code}" -ge 500 ] || [ "${inventory_grn_code}" -ge 500 ] || [ "${interplant_code}" -ge 500 ] || [ "${inventory_job_work_code}" -ge 500 ] || [ "${inventory_ledger_code}" -ge 500 ] || [ "${machine_selector_code}" -ge 500 ] || [ "${planner_code}" -ge 500 ] || [ "${sales_create_code}" -ge 500 ] || [ "${templates_code}" -ge 500 ] || [ "${artworks_code}" -ge 500 ] || [ "${traceability_code}" -ge 500 ] || [ "${audit_center_code}" -ge 500 ] || [ "${roll_explorer_code}" -ge 500 ] || [ "${settings_code}" -ge 500 ] || [ "${system_users_code}" -ge 500 ] || [ "${sku_catalog_code}" -ge 500 ] || [ "${inventory_root_code}" -ge 500 ] || [ "${orders_root_code}" -ge 500 ]; then
-        echo "Dynamic route failure (login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, roll-explorer=${roll_explorer_code}, settings=${settings_code}, system-users=${system_users_code}, sku-catalog=${sku_catalog_code}, inventory=${inventory_root_code}, orders=${orders_root_code})"
+      local owner_code admin_code interplant_code machine_selector_code planner_code sales_create_code templates_code artworks_code traceability_code audit_center_code rolls_workspace_code settings_code inventory_root_code inventory_bulk_code inventory_bulk_transactions_code inventory_grn_code inventory_job_work_code inventory_ledger_code system_users_code orders_root_code login_route_code sales_root_code engineering_root_code system_root_code dashboard_root_code
+      login_route_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/login)"
+      owner_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/dashboard/owner)"
+      admin_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/dashboard/admin)"
+      dashboard_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/dashboard)"
+      sales_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/sales)"
+      engineering_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/engineering)"
+      system_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/system)"
+      inventory_bulk_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/bulk-v36)"
+      inventory_bulk_transactions_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/bulk-transactions)"
+      inventory_grn_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/grn-v36)"
+      interplant_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/inter-plant)"
+      inventory_job_work_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/job-work)"
+      inventory_ledger_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/ledger)"
+      machine_selector_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/production/machine-selector)"
+      planner_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/production/planner)"
+      sales_create_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/sales/orders/create)"
+      templates_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/engineering/templates)"
+      artworks_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/engineering/artworks)"
+      traceability_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/traceability)"
+      audit_center_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/system/audit)"
+      rolls_workspace_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory/rolls-v36)"
+      settings_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/system/settings)"
+      system_users_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/system/users)"
+      inventory_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory)"
+      orders_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/orders)"
+      echo "Route probes: login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk-v36=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn-v36=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, rolls-v36=${rolls_workspace_code}, settings=${settings_code}, system-users=${system_users_code}, inventory=${inventory_root_code}, orders=${orders_root_code}"
+      if [ "${login_route_code}" -ge 500 ] || [ "${owner_code}" -ge 500 ] || [ "${admin_code}" -ge 500 ] || [ "${dashboard_root_code}" -ge 500 ] || [ "${sales_root_code}" -ge 500 ] || [ "${engineering_root_code}" -ge 500 ] || [ "${system_root_code}" -ge 500 ] || [ "${inventory_bulk_code}" -ge 500 ] || [ "${inventory_bulk_transactions_code}" -ge 500 ] || [ "${inventory_grn_code}" -ge 500 ] || [ "${interplant_code}" -ge 500 ] || [ "${inventory_job_work_code}" -ge 500 ] || [ "${inventory_ledger_code}" -ge 500 ] || [ "${machine_selector_code}" -ge 500 ] || [ "${planner_code}" -ge 500 ] || [ "${sales_create_code}" -ge 500 ] || [ "${templates_code}" -ge 500 ] || [ "${artworks_code}" -ge 500 ] || [ "${traceability_code}" -ge 500 ] || [ "${audit_center_code}" -ge 500 ] || [ "${rolls_workspace_code}" -ge 500 ] || [ "${settings_code}" -ge 500 ] || [ "${system_users_code}" -ge 500 ] || [ "${inventory_root_code}" -ge 500 ] || [ "${orders_root_code}" -ge 500 ]; then
+        echo "Dynamic route failure (login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk-v36=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn-v36=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, rolls-v36=${rolls_workspace_code}, settings=${settings_code}, system-users=${system_users_code}, inventory=${inventory_root_code}, orders=${orders_root_code})"
         return 1
       fi
 
@@ -702,14 +705,13 @@ verify_services() {
       probe_route_assets "/system" || return 1
       probe_route_assets "/inventory" || return 1
       probe_route_assets "/inventory/alerts" || return 1
-      probe_route_assets "/inventory/bulk" || return 1
+      probe_route_assets "/inventory/bulk-v36" || return 1
       probe_route_assets "/inventory/bulk-transactions" || return 1
-      probe_route_assets "/inventory/grn" || return 1
+      probe_route_assets "/inventory/grn-v36" || return 1
       probe_route_assets "/inventory/inter-plant" || return 1
       probe_route_assets "/inventory/job-work" || return 1
       probe_route_assets "/inventory/ledger" || return 1
       probe_route_assets "/sales/orders/create" || return 1
-      probe_route_assets "/sales/sku-catalog" || return 1
       probe_route_assets "/engineering/templates" || return 1
       probe_route_assets "/engineering/artworks" || return 1
       probe_route_assets "/master/granules" || return 1
@@ -728,11 +730,11 @@ verify_services() {
       probe_route_assets "/system/role-matrix" || return 1
       probe_route_assets "/system/settings" || return 1
       probe_route_assets "/system/users" || return 1
-      probe_route_assets "/inventory/roll-explorer" || return 1
+      probe_route_assets "/inventory/rolls-v36" || return 1
 
       if [ -n "${tracking_id}" ]; then
         local tracking_code
-        tracking_code="$(curl_status "http://127.0.0.1:3000/sales/orders/${tracking_id}/tracking")"
+        tracking_code="$(curl_status "http://127.0.0.1:${FRONTEND_PORT}/sales/orders/${tracking_id}/tracking")"
         if [ "${tracking_code}" -ge 500 ]; then
           echo "Tracking route failed (${tracking_code}) for order ${tracking_id}"
           return 1
@@ -740,7 +742,7 @@ verify_services() {
       fi
 
       local me_headers
-      me_headers="$(curl_headers_retry http://127.0.0.1:3000/api/users/me)"
+      me_headers="$(curl_headers_retry http://127.0.0.1:${FRONTEND_PORT}/api/users/me)"
       if echo "${me_headers}" | grep -qi "^Location:"; then
         echo "Redirect loop detected on /api/users/me"
         return 1
@@ -755,7 +757,7 @@ verify_services() {
         "/api/templates" \
         "/api/templates/"; do
         local api_headers api_code
-        api_headers="$(curl_headers_retry "http://127.0.0.1:3000${api_path}")"
+        api_headers="$(curl_headers_retry "http://127.0.0.1:${FRONTEND_PORT}${api_path}")"
         api_code="$(echo "${api_headers}" | awk 'NR==1 {print $2}')"
         if echo "${api_headers}" | grep -qi "^Location:"; then
           echo "Redirect loop detected on ${api_path}"
@@ -787,11 +789,11 @@ stop_services() {
   fi
   pgrep -f "${ROOT_DIR}/manage.py runserver 0.0.0.0:8000 --noreload" 2>/dev/null | xargs kill -9 2>/dev/null || true
   pgrep -f "gunicorn config.wsgi:application --bind 0.0.0.0:8000" 2>/dev/null | xargs kill -9 2>/dev/null || true
-  pgrep -f "next start -H 0.0.0.0 -p 3000" 2>/dev/null | xargs kill -9 2>/dev/null || true
+  pgrep -f "next start -H 0.0.0.0 -p ${FRONTEND_PORT}" 2>/dev/null | xargs kill -9 2>/dev/null || true
   pgrep -f "npm run dev" 2>/dev/null | xargs kill -9 2>/dev/null || true
   pgrep -f "${ROOT_DIR}/frontend_v2" 2>/dev/null | xargs kill -9 2>/dev/null || true
   lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-  lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+  lsof -ti:"${FRONTEND_PORT}" | xargs kill -9 2>/dev/null || true
   rm -f "${BACKEND_PID_FILE}" "${FRONTEND_PID_FILE}"
   rm -f "${FRONTEND_MODE_FILE}"
 }
@@ -804,7 +806,7 @@ status_services() {
     bpid="$(port_pid 8000)"
   fi
   if ! pid_running "${fpid}"; then
-    fpid="$(port_pid 3000)"
+    fpid="$(port_pid "${FRONTEND_PORT}")"
   fi
 
   if pid_running "${bpid}"; then
@@ -837,7 +839,7 @@ start_services() {
   fi
 
   sleep 2
-  if ! lsof -ti:8000 >/dev/null 2>&1 || ! lsof -ti:3000 >/dev/null 2>&1; then
+  if ! lsof -ti:8000 >/dev/null 2>&1 || ! lsof -ti:"${FRONTEND_PORT}" >/dev/null 2>&1; then
     echo "Basic health passed but one or more services exited during stability hold."
     exit 1
   fi
@@ -848,14 +850,14 @@ start_services() {
   echo "Frontend log: ${FRONTEND_LOG}"
   echo "Frontend build log: ${FRONTEND_BUILD_LOG}"
   echo "Run './start_all.sh verify' for deep route/auth/API validation."
-  echo "Manual QA: frontend=http://127.0.0.1:3000/login backend-health=http://127.0.0.1:8000/api/health/"
+  echo "Manual QA: frontend=http://127.0.0.1:${FRONTEND_PORT}/login backend-health=http://127.0.0.1:8000/api/health/"
   local lan_ip
   lan_ip="$(detect_lan_ip | tr -d '[:space:]')"
   if [ -n "${lan_ip}" ]; then
-    echo "LAN access: frontend=http://${lan_ip}:3000 backend=http://${lan_ip}:8000"
-    echo "LAN QA: login=http://${lan_ip}:3000/login health=http://${lan_ip}:8000/api/health/"
+    echo "LAN access: frontend=http://${lan_ip}:${FRONTEND_PORT} backend=http://${lan_ip}:8000"
+    echo "LAN QA: login=http://${lan_ip}:${FRONTEND_PORT}/login health=http://${lan_ip}:8000/api/health/"
   else
-    echo "LAN access: could not auto-detect host IP, run 'ipconfig getifaddr en0' and use :3000/:8000."
+    echo "LAN access: could not auto-detect host IP, run 'ifconfig | grep \"inet \"' and use :${FRONTEND_PORT}/:8000."
   fi
 }
 

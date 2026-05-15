@@ -12,18 +12,35 @@ class Artwork(models.Model):
         ('SHEET', 'Sheet'),
         ('TUBING', 'Tubing'),
     ]
+    INK_GSM_SPLIT_CHOICES = [
+        ('EQUAL', 'Equal by color'),
+        ('PERCENT', 'Percentage by color'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     design_code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=255)
     print_type = models.CharField(max_length=20, default='FLEXO')
     substrate_mode = models.CharField(max_length=12, choices=SUBSTRATE_MODE_CHOICES, default='SHEET')
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='artworks',
+    )
+    design_family_code = models.CharField(max_length=80, blank=True, default='')
+    colorway_name = models.CharField(max_length=120, blank=True, default='')
     
     # Decoupled from Customer (Engineering Asset)
     # customer = models.ForeignKey(Customer, ...)  <-- REMOVED
     
     color_list = models.JSONField(default=list, help_text="List of hex codes or pantone names")
     color_mapping = models.JSONField(default=dict, help_text="Mapping of Template Color Name to Ink Material ID")
+    ink_gsm_total = models.DecimalField(max_digits=8, decimal_places=4, default=0)
+    ink_gsm_split_mode = models.CharField(max_length=12, choices=INK_GSM_SPLIT_CHOICES, default='EQUAL')
+    ink_gsm_color_percentages = models.JSONField(default=dict, blank=True)
+    ink_gsm_by_color = models.JSONField(default=dict, blank=True)
     colors_count = models.IntegerField(default=0)
     front_colors_count = models.PositiveIntegerField(default=0)
     back_colors_count = models.PositiveIntegerField(default=0)

@@ -73,6 +73,13 @@ def main() -> int:
     ACCEPTANCE_DIR.mkdir(parents=True, exist_ok=True)
 
     python_bin = _python_bin()
+    os.environ.setdefault("BACKEND_PYTHON", str(python_bin))
+    os.environ.setdefault("UI_E2E_PYTHON", str(python_bin))
+    os.environ.setdefault("UI_BASE_URL", "http://127.0.0.1:3001")
+    os.environ.setdefault("UI_E2E_API_PORT", "8000")
+    os.environ.setdefault("UI_E2E_FRONTEND_MODE", "prod")
+    os.environ.setdefault("FRONTEND_MODE", "prod")
+    os.environ.setdefault("PLAYWRIGHT_DISABLE_VIDEO", "1")
 
     steps = [
         _run_step(
@@ -116,6 +123,10 @@ def main() -> int:
         "printing.color_names",
         "printing.color_mapping",
         "printing.ink_base_family",
+        "printing.ink_gsm_total",
+        "printing.ink_gsm_split_mode",
+        "printing.ink_gsm_color_percentages",
+        "printing.ink_gsm_by_color",
         "printing.artwork_id",
         "printing.artwork_design_code",
         "printing.cylinder_required",

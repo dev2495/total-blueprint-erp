@@ -1,7 +1,8 @@
 from copy import deepcopy
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 import uuid
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -28,9 +29,11 @@ from apps.physics.spec_signature import (
     build_invariant_signature,
 )
 from apps.physics.services_physics import PhysicsEngine
-from apps.materials.models import InventoryMaterial, PodSkuVariant
+from apps.materials.chemistry_defaults import chemicals_payload_from_fixed_attributes
+from apps.materials.models import InventoryMaterial, PodSkuVariant, ProductMaster, ProductVariant
+from apps.materials.services_product_variant import find_or_create_product_variant
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
-from ..models import SalesOrder, SalesOrderItem, SalesSkuVariant
+from ..models import CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSkuVariant
 
 
 def _as_int(value, default=0):
@@ -129,9 +132,14 @@ def _normalize_layer_snapshot(raw_layers, strict=True):
                 "family_id": family_id,
                 "variant_id": variant_id or None,
                 "grade_id": str(grade_id) if (grade_id and variant_obj and bool(getattr(variant_obj, "is_extrudable", False))) else None,
+                "grade_code": str(row.get("grade_code") or row.get("grade") or ""),
+                "material_code": str(row.get("material_code") or ""),
+                "role": str(row.get("role") or ""),
+                "name": str(row.get("name") or row.get("material_code") or ""),
                 "thickness_micron": float(thickness),
                 "density_g_cm3": float(density),
                 "roll_width_mm": float(roll_width_mm) if roll_width_mm > 0 else 0.0,
+                "kg_per_kg_fg": float(row.get("kg_per_kg_fg") or 0),
             }
         )
     return normalized
@@ -155,8 +163,15 @@ def _normalize_packaging_snapshot(raw):
     src = raw if isinstance(raw, dict) else {}
 
     primary_src = src.get("primary_inner_pack") if isinstance(src.get("primary_inner_pack"), dict) else {}
+    outer_src = src.get("final_outer_pack") if isinstance(src.get("final_outer_pack"), dict) else {}
     roll_src = src.get("roll_dispatch_pack") if isinstance(src.get("roll_dispatch_pack"), dict) else {}
     pod_src = src.get("pod") if isinstance(src.get("pod"), dict) else {}
+    customer_overlay_raw = src.get("customer_overlay")
+    customer_overlay_src = (
+        customer_overlay_raw
+        if isinstance(customer_overlay_raw, dict)
+        else ({"id": str(customer_overlay_raw)} if customer_overlay_raw else {})
+    )
 
     lines = []
     for line in roll_src.get("lines") if isinstance(roll_src.get("lines"), list) else []:
@@ -174,6 +189,41 @@ def _normalize_packaging_snapshot(raw):
                 "basis": str(line.get("basis") or "PER_ROLL").upper(),
             }
         )
+
+    packaging_lines = _normalize_packaging_lines(src.get("packaging_lines") if isinstance(src.get("packaging_lines"), list) else [])
+
+    if bool(primary_src.get("enabled", False)):
+        primary_material = _packaging_material_from_ref(primary_src.get("material_id") or primary_src.get("material_code"))
+        if primary_material:
+            primary_line = _packaging_line_from_material(
+                primary_material,
+                {
+                    **primary_src,
+                    "role": primary_src.get("role") or "PRIMARY_INNER",
+                    "basis": primary_src.get("basis") or "PCS_PER_PACK",
+                },
+            )
+            if _packaging_line_has_quantity_rule(primary_line):
+                packaging_lines.append(primary_line)
+
+    for line in lines:
+        material = _packaging_material_from_ref(line.get("material_id") or line.get("material_code"))
+        if material:
+            packaging_line = _packaging_line_from_material(
+                material,
+                {
+                    **line,
+                    "role": line.get("role") or "ROLL_DISPATCH",
+                },
+            )
+            if _packaging_line_has_quantity_rule(packaging_line):
+                packaging_lines.append(packaging_line)
+
+    default_recipe = deepcopy(src.get("default_packing_recipe") or {}) if isinstance(src.get("default_packing_recipe"), dict) else {}
+    for line in _packaging_lines_from_recipe(default_recipe):
+        packaging_lines.append(line)
+
+    packaging_lines = _dedupe_packaging_lines(packaging_lines)
 
     pod_enabled = bool(pod_src.get("enabled", False))
     if "pod_enabled" in src and src.get("pod_enabled") is not None:
@@ -197,7 +247,22 @@ def _normalize_packaging_snapshot(raw):
         "primary_inner_pack": {
             "enabled": bool(primary_src.get("enabled", False)),
             "material_id": _safe_uuid_str(primary_src.get("material_id")) or str(primary_src.get("material_id") or "").strip() or None,
+            "material_code": str(primary_src.get("material_code") or "").strip(),
+            "material_name": str(primary_src.get("material_name") or "").strip(),
+            "supply_mode": str(primary_src.get("supply_mode") or "").upper(),
+            "packaging_kind": str(primary_src.get("packaging_kind") or "").upper(),
             "pcs_per_pack": _as_int(primary_src.get("pcs_per_pack"), 0),
+        },
+        "final_outer_pack": {
+            "enabled": bool(outer_src.get("enabled", False)),
+            "material_id": _safe_uuid_str(outer_src.get("material_id")) or str(outer_src.get("material_id") or "").strip() or None,
+            "material_code": str(outer_src.get("material_code") or "").strip(),
+            "material_name": str(outer_src.get("material_name") or "").strip(),
+            "supply_mode": str(outer_src.get("supply_mode") or "").upper(),
+            "packaging_kind": str(outer_src.get("packaging_kind") or "").upper(),
+            "counted_at_packing": bool(outer_src.get("counted_at_packing", True)),
+            "basis": str(outer_src.get("basis") or "COUNTED_AT_PACKING").upper(),
+            "inners_per_outer": _as_int(outer_src.get("inners_per_outer"), 0),
         },
         "roll_dispatch_pack": {
             "enabled": bool(roll_src.get("enabled", False)),
@@ -208,6 +273,10 @@ def _normalize_packaging_snapshot(raw):
             "pod_profile_id": pod_profile_id if pod_enabled else None,
             "pod_sku_variant_id": pod_sku_variant_id if pod_enabled else None,
         },
+        "packaging_lines": packaging_lines,
+        "customer_overlay": customer_overlay_src,
+        "default_packing_note": str(src.get("default_packing_note") or "").strip(),
+        "default_packing_recipe": default_recipe,
     }
 
 
@@ -221,7 +290,7 @@ def _hydrate_pod_snapshot(pod_cfg):
     pod_sku_variant_id = _safe_uuid_str(config.get("pod_sku_variant_id")) or str(config.get("pod_sku_variant_id") or "").strip() or None
     pod_sku_code = str(config.get("pod_sku_code") or "").strip() or None
     pod_sku_name = str(config.get("pod_sku_name") or "").strip() or None
-    if pod_sku_variant_id and not pod_profile_id:
+    if pod_sku_variant_id and (not pod_profile_id or not pod_sku_code or not pod_sku_name):
         try:
             variant = PodSkuVariant.objects.select_related("material").get(id=pod_sku_variant_id, active=True)
         except PodSkuVariant.DoesNotExist as exc:
@@ -240,6 +309,408 @@ def _hydrate_pod_snapshot(pod_cfg):
         "pod_sku_code": pod_sku_code,
         "pod_sku_name": pod_sku_name,
     }
+
+
+def _packaging_material_from_ref(ref):
+    if not ref:
+        return None
+    material_id = _safe_uuid_str(ref)
+    qs = InventoryMaterial.objects.filter(category="PACKAGING", status="ACTIVE")
+    if material_id:
+        return qs.filter(id=material_id).first()
+    return qs.filter(code__iexact=str(ref).strip()).first()
+
+
+def _packaging_line_from_material(material, config=None):
+    config = config if isinstance(config, dict) else {}
+    defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
+    role = str(config.get("role") or defaults.get("role") or _default_packaging_role(material)).upper()
+    basis = str(config.get("basis") or defaults.get("basis") or _default_packaging_basis(material)).upper()
+    pcs_per_pack = _as_int(config.get("pcs_per_pack") or config.get("pcs") or defaults.get("pcs_per_pack") or defaults.get("pcs_per_carton"), 0)
+    kg_per_pack = Decimal(str(config.get("kg_per_pack") or config.get("kg_per_bag") or defaults.get("kg_per_pack") or defaults.get("kg_per_bag") or 0))
+    qty = Decimal(str(config.get("qty") or config.get("target_qty") or 0))
+    row = {
+        "material_id": str(material.id),
+        "material_code": material.code,
+        "material_name": material.name,
+        "role": role,
+        "basis": basis,
+        "qty": float(qty),
+        "uom": str(config.get("uom") or material.base_uom or "PCS").upper(),
+        "pcs_per_pack": int(pcs_per_pack or 0),
+        "kg_per_pack": float(kg_per_pack or 0),
+        "supply_mode": str(material.packaging_supply_mode or "PURCHASED").upper(),
+        "packaging_kind": str(material.packaging_kind or "").upper(),
+    }
+    if config.get("required_qty") not in (None, ""):
+        row["required_qty"] = float(Decimal(str(config.get("required_qty") or 0)))
+    if config.get("qty_source"):
+        row["qty_source"] = str(config.get("qty_source")).upper()
+    return row
+
+
+def _packaging_line_has_quantity_rule(line):
+    if not isinstance(line, dict) or not line.get("material_id"):
+        return False
+    basis = str(line.get("basis") or "").upper()
+    if basis == "PCS_PER_PACK":
+        return _as_int(line.get("pcs_per_pack"), 0) > 0
+    if basis == "KG_PER_PACK":
+        try:
+            return Decimal(str(line.get("kg_per_pack") or 0)) > 0
+        except Exception:
+            return False
+    if basis in {"PER_ORDER", "PER_ROLL", "PRIMARY_INNER_PACK"}:
+        try:
+            return Decimal(str(line.get("qty") or 0)) > 0
+        except Exception:
+            return False
+    return False
+
+
+def _default_packaging_role(material):
+    kind = str(material.packaging_kind or "").upper()
+    if kind == "INNER_POUCH":
+        return "PRIMARY_INNER"
+    if kind == "OUTER_BAG":
+        return "FINAL_OUTER"
+    if kind == "GONNY":
+        return "FINAL_GUNNY"
+    if kind == "BOX":
+        return "FINAL_CARTON"
+    if kind == "SHEET":
+        return "ROLL_DISPATCH"
+    return "PACKAGING"
+
+
+def _default_packaging_basis(material):
+    defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
+    if defaults.get("pcs_per_pack") or defaults.get("pcs_per_carton"):
+        return "PCS_PER_PACK"
+    if defaults.get("kg_per_bag") or defaults.get("kg_per_pack"):
+        return "KG_PER_PACK"
+    kind = str(material.packaging_kind or "").upper()
+    if kind in {"GONNY", "BOX", "INNER_POUCH", "OUTER_BAG"}:
+        return "PCS_PER_PACK"
+    if kind == "SHEET":
+        return "PER_ROLL"
+    return "PER_ORDER"
+
+
+def _normalize_packaging_lines(raw_lines):
+    rows = []
+    for line in raw_lines if isinstance(raw_lines, list) else []:
+        if not isinstance(line, dict):
+            continue
+        material = _packaging_material_from_ref(
+            line.get("material_id") or line.get("packaging_material_id") or line.get("material_code") or line.get("code")
+        )
+        if material:
+            row = _packaging_line_from_material(material, line)
+            if _packaging_line_has_quantity_rule(row):
+                rows.append(row)
+    return rows
+
+
+def _packaging_lines_from_recipe(recipe):
+    if not isinstance(recipe, dict):
+        return []
+    rows = _normalize_packaging_lines(recipe.get("packaging_lines") if isinstance(recipe.get("packaging_lines"), list) else [])
+    for key, role in (
+        ("inner_pack", "PRIMARY_INNER"),
+        ("primary_inner_pack", "PRIMARY_INNER"),
+        ("outer_pack", "FINAL_OUTER"),
+        ("final_pack", "FINAL_OUTER"),
+        ("roll_dispatch_pack", "ROLL_DISPATCH"),
+    ):
+        cfg = recipe.get(key) if isinstance(recipe.get(key), dict) else {}
+        material = _packaging_material_from_ref(cfg.get("material_id") or cfg.get("material_code") or cfg.get("code"))
+        if material:
+            row = _packaging_line_from_material(material, {**cfg, "role": cfg.get("role") or role})
+            if _packaging_line_has_quantity_rule(row):
+                rows.append(row)
+        for nested in cfg.get("lines") if isinstance(cfg.get("lines"), list) else []:
+            if not isinstance(nested, dict):
+                continue
+            nested_material = _packaging_material_from_ref(nested.get("material_id") or nested.get("material_code") or nested.get("code"))
+            if nested_material:
+                row = _packaging_line_from_material(nested_material, {**nested, "role": nested.get("role") or role})
+                if _packaging_line_has_quantity_rule(row):
+                    rows.append(row)
+    for cfg in recipe.get("secondary_pack_options") if isinstance(recipe.get("secondary_pack_options"), list) else []:
+        if not isinstance(cfg, dict):
+            continue
+        material = _packaging_material_from_ref(cfg.get("material_id") or cfg.get("material_code") or cfg.get("code"))
+        if material:
+            row = _packaging_line_from_material(material, {**cfg, "role": cfg.get("role") or "FINAL_OUTER"})
+            if _packaging_line_has_quantity_rule(row):
+                rows.append(row)
+    return rows
+
+
+def _dedupe_packaging_lines(lines):
+    deduped = []
+    seen = set()
+    for line in lines:
+        key = (line.get("material_id"), line.get("role"), line.get("basis"))
+        if not line.get("material_id") or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(line)
+    return deduped
+
+
+_COMPUTED_GEOMETRY_KEYS = {
+    "axis_values",
+    "effective_height_mm",
+    "effective_width_mm",
+    "input_roll_width_mm",
+    "pod",
+    "pod_enabled",
+    "pod_height_mm",
+    "pod_summary",
+    "pod_type",
+    "product_variant_code",
+    "roll_width_mm",
+    "size_code",
+    "size_label",
+    "thickness_um",
+}
+
+
+def _preserve_computed_geometry(base_geometry, source_geometry):
+    merged = dict(base_geometry or {})
+    source = source_geometry if isinstance(source_geometry, dict) else {}
+    for key in _COMPUTED_GEOMETRY_KEYS:
+        if key in source and source.get(key) not in (None, ""):
+            merged[key] = deepcopy(source.get(key))
+    source_base = source.get("base") if isinstance(source.get("base"), dict) else {}
+    merged_base = merged.get("base") if isinstance(merged.get("base"), dict) else {}
+    for key in ("roll_width_mm", "effective_width_mm", "effective_height_mm", "size_code", "size_label", "thickness_um"):
+        if key in source_base and source_base.get(key) not in (None, ""):
+            merged_base[key] = deepcopy(source_base.get(key))
+    if merged_base:
+        merged["base"] = merged_base
+    return merged
+
+
+def _addons_from_axis_values(axis_values):
+    if isinstance(axis_values, list):
+        selected = axis_values
+    else:
+        src = axis_values if isinstance(axis_values, dict) else {}
+        selected = src.get("addons") or src.get("addon") or []
+    if isinstance(selected, str):
+        selected = [selected]
+    if not isinstance(selected, list):
+        return []
+    rows = []
+    for value in selected:
+        addon = None
+        addon_id = None
+        qty = 1
+        applies_to = "NONE"
+        if isinstance(value, dict):
+            addon_id = _safe_uuid_str(value.get("addon_id") or value.get("material_id") or value.get("id"))
+            code = str(value.get("code") or value.get("material_code") or "").strip()
+            qty = value.get("qty") or value.get("quantity") or 1
+            applies_to = str(value.get("applies_to") or "NONE").upper()
+        else:
+            code = str(value or "").strip()
+        if addon_id:
+            addon = InventoryMaterial.objects.filter(id=addon_id, category="ADDON").first()
+        elif code:
+            addon = InventoryMaterial.objects.filter(code__iexact=code, category="ADDON").first()
+        if not addon:
+            continue
+        weight_mode = str(addon.weight_mode or "").upper()
+        if applies_to == "NONE" and weight_mode == "PER_MM":
+            applies_to = "WIDTH"
+        rows.append(
+            {
+                "addon_id": str(addon.id),
+                "code": addon.code,
+                "name": addon.name,
+                "quantity": float(qty or 1),
+                "qty": float(qty or 1),
+                "applies_to": applies_to,
+                "weight_mode": addon.weight_mode or "",
+                "weight_value": float(addon.weight_value or 0),
+            }
+        )
+    return rows
+
+
+def _merge_axis_packaging_snapshot(raw_snapshot, axis_values, overlay=None, finished_good_type=None):
+    snapshot = dict(raw_snapshot or {}) if isinstance(raw_snapshot, dict) else {}
+    src = axis_values if isinstance(axis_values, dict) else {}
+    fg_type = str(finished_good_type or "").upper()
+
+    def _resolve_packaging_ref(ref):
+        if isinstance(ref, dict):
+            material_id = _safe_uuid_str(ref.get("material_id") or ref.get("id"))
+            material = None
+            if material_id:
+                material = InventoryMaterial.objects.filter(id=material_id, category="PACKAGING").first()
+            if not material and ref.get("code"):
+                material = InventoryMaterial.objects.filter(code__iexact=str(ref.get("code")), category="PACKAGING").first()
+            return material
+        if ref:
+            return InventoryMaterial.objects.filter(code__iexact=str(ref), category="PACKAGING").first()
+        return None
+
+    inner_packaging_ref = (
+        src.get("packaging_inner")
+        or src.get("packaging_inner_ref")
+        or src.get("primary_inner_pack")
+    )
+    outer_packaging_ref = (
+        src.get("packaging_outer")
+        or src.get("packaging_outer_ref")
+        or src.get("final_outer_pack")
+    )
+    roll_packaging_ref = None
+    generic_axis_key = "packaging" if src.get("packaging") else ("packaging_ref" if src.get("packaging_ref") else "")
+    generic_packaging_ref = src.get("packaging") or src.get("packaging_ref")
+    generic_material = _resolve_packaging_ref(generic_packaging_ref)
+    if not inner_packaging_ref and generic_material:
+        # Legacy callers used a single `packaging` axis. Classify that material
+        # by packaging kind so generic `packaging_ref` can still drive real
+        # inner/outer/sheet defaults instead of falling back to a text note.
+        generic_kind = str(generic_material.packaging_kind or "").upper()
+        if generic_axis_key == "packaging":
+            inner_packaging_ref = generic_packaging_ref
+            if generic_kind == "SHEET" and fg_type == "ROLL":
+                roll_packaging_ref = generic_packaging_ref
+            elif not outer_packaging_ref and generic_kind in {"GONNY", "OUTER_BAG", "BOX", "SHEET"}:
+                outer_packaging_ref = generic_packaging_ref
+        elif generic_kind == "INNER_POUCH":
+            inner_packaging_ref = generic_packaging_ref
+        elif generic_kind == "SHEET" and fg_type == "ROLL":
+            roll_packaging_ref = generic_packaging_ref
+        elif not outer_packaging_ref and generic_kind in {"GONNY", "OUTER_BAG", "BOX", "SHEET"}:
+            outer_packaging_ref = generic_packaging_ref
+        else:
+            inner_packaging_ref = generic_packaging_ref
+
+    if inner_packaging_ref:
+        primary = dict(snapshot.get("primary_inner_pack") or {})
+        material = _resolve_packaging_ref(inner_packaging_ref)
+        if isinstance(inner_packaging_ref, dict):
+            primary["pcs_per_pack"] = _as_int(
+                inner_packaging_ref.get("pcs_per_pack") or inner_packaging_ref.get("pcs"),
+                primary.get("pcs_per_pack") or 0,
+            )
+        if material:
+            primary["enabled"] = True
+            primary["material_id"] = str(material.id)
+            primary["material_code"] = material.code
+            primary["material_name"] = material.name
+            defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
+            if not primary.get("pcs_per_pack"):
+                primary["pcs_per_pack"] = _as_int(defaults.get("pcs_per_pack") or defaults.get("pcs_per_carton"), 0)
+            lines = list(snapshot.get("packaging_lines") or []) if isinstance(snapshot.get("packaging_lines"), list) else []
+            row = _packaging_line_from_material(material, {**primary, "role": "PRIMARY_INNER"})
+            if _packaging_line_has_quantity_rule(row):
+                lines.append(row)
+            snapshot["packaging_lines"] = lines
+        snapshot["primary_inner_pack"] = primary
+
+    if roll_packaging_ref:
+        material = _resolve_packaging_ref(roll_packaging_ref)
+        if material:
+            defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
+            roll_pack = dict(snapshot.get("roll_dispatch_pack") or {})
+            lines = list(roll_pack.get("lines") or []) if isinstance(roll_pack.get("lines"), list) else []
+            lines.append(
+                {
+                    "material_id": str(material.id),
+                    "material_code": material.code,
+                    "material_name": material.name,
+                    "role": "ROLL_DISPATCH",
+                    "basis": str(defaults.get("basis") or "PER_ROLL").upper(),
+                    "qty": float(defaults.get("qty") or defaults.get("target_qty") or 1),
+                    "uom": str(material.base_uom or "PCS").upper(),
+                }
+            )
+            roll_pack["enabled"] = True
+            roll_pack["lines"] = lines
+            snapshot["roll_dispatch_pack"] = roll_pack
+
+    if outer_packaging_ref:
+        outer = dict(snapshot.get("final_outer_pack") or {})
+        material = _resolve_packaging_ref(outer_packaging_ref)
+        if material:
+            if fg_type == "ROLL" and str(material.packaging_kind or "").upper() == "SHEET":
+                defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
+                roll_pack = dict(snapshot.get("roll_dispatch_pack") or {})
+                lines = list(roll_pack.get("lines") or []) if isinstance(roll_pack.get("lines"), list) else []
+                lines.append(
+                    {
+                        "material_id": str(material.id),
+                        "material_code": material.code,
+                        "material_name": material.name,
+                        "role": "ROLL_DISPATCH",
+                        "basis": str(defaults.get("basis") or "PER_ROLL").upper(),
+                        "qty": float(defaults.get("qty") or defaults.get("target_qty") or 1),
+                        "uom": str(material.base_uom or "PCS").upper(),
+                    }
+                )
+                roll_pack["enabled"] = True
+                roll_pack["lines"] = lines
+                snapshot["roll_dispatch_pack"] = roll_pack
+            else:
+                defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
+                outer.update(
+                    {
+                        "enabled": True,
+                        "material_id": str(material.id),
+                        "material_code": material.code,
+                        "material_name": material.name,
+                        "supply_mode": str(material.packaging_supply_mode or "PURCHASED").upper(),
+                        "packaging_kind": str(material.packaging_kind or "").upper(),
+                        "counted_at_packing": True,
+                        "basis": "COUNTED_AT_PACKING",
+                        "inners_per_outer": _as_int(defaults.get("inners_per_outer") or defaults.get("inners_per_gunny"), 0),
+                    }
+                )
+                snapshot["final_outer_pack"] = outer
+
+    pod_ref = src.get("pod_variant") or src.get("pod") or src.get("pod_ref")
+    if pod_ref and not isinstance(pod_ref, bool):
+        pod = dict(snapshot.get("pod") or {})
+        if isinstance(pod_ref, dict):
+            pod["enabled"] = bool(pod_ref.get("enabled", True))
+            pod["pod_sku_variant_id"] = _safe_uuid_str(pod_ref.get("pod_sku_variant_id") or pod_ref.get("id")) or pod.get("pod_sku_variant_id")
+            pod["pod_profile_id"] = _safe_uuid_str(pod_ref.get("pod_profile_id") or pod_ref.get("material_id")) or pod.get("pod_profile_id")
+        else:
+            variant = PodSkuVariant.objects.filter(code__iexact=str(pod_ref), active=True).first()
+            if variant:
+                pod["enabled"] = True
+                pod["pod_sku_variant_id"] = str(variant.id)
+                pod["pod_profile_id"] = str(variant.material_id)
+                pod["pod_sku_code"] = variant.code
+                pod["pod_sku_name"] = variant.name
+        snapshot["pod"] = pod
+
+    if overlay:
+        if getattr(overlay, "default_packing_note", "") and not snapshot.get("default_packing_note"):
+            snapshot["default_packing_note"] = overlay.default_packing_note
+        if getattr(overlay, "default_packing_recipe", None) and not snapshot.get("default_packing_recipe"):
+            snapshot["default_packing_recipe"] = deepcopy(overlay.default_packing_recipe or {})
+        if getattr(overlay, "default_packing_recipe", None):
+            existing_lines = snapshot.get("packaging_lines") if isinstance(snapshot.get("packaging_lines"), list) else []
+            snapshot["packaging_lines"] = [
+                *existing_lines,
+                *_packaging_lines_from_recipe(overlay.default_packing_recipe or {}),
+            ]
+        if getattr(overlay, "moq_kg", None) is not None:
+            overlay_snapshot = snapshot.get("customer_overlay")
+            if not isinstance(overlay_snapshot, dict):
+                overlay_snapshot = {"id": str(overlay_snapshot)} if overlay_snapshot else {}
+            overlay_snapshot["moq_kg"] = float(overlay.moq_kg or 0)
+            snapshot["customer_overlay"] = overlay_snapshot
+    return snapshot
 
 
 def _resolve_source_item(raw_item):
@@ -267,6 +738,50 @@ def _resolve_sku_variant(raw_item):
     return variant
 
 
+def _resolve_product_master(raw_item, overlay=None, variant=None):
+    product_id = _safe_uuid_str(raw_item.get("product_master") or raw_item.get("product_master_id"))
+    if not product_id and overlay:
+        return overlay.product_master
+    if not product_id and variant and getattr(getattr(variant, "sku", None), "product_master_id", None):
+        return variant.sku.product_master
+    if not product_id:
+        return None
+    try:
+        product = ProductMaster.objects.get(id=product_id, active=True)
+    except ProductMaster.DoesNotExist as exc:
+        raise ValidationError("product_master is invalid or inactive.") from exc
+    return product
+
+
+def _resolve_product_variant(raw_item, product_master):
+    if not product_master:
+        return None
+    variant_id = _safe_uuid_str(raw_item.get("product_variant") or raw_item.get("product_variant_id"))
+    if variant_id:
+        try:
+            return ProductVariant.objects.get(id=variant_id, master=product_master, active=True)
+        except ProductVariant.DoesNotExist as exc:
+            raise ValidationError("product_variant does not belong to the selected product_master or is inactive.") from exc
+    axis_values = raw_item.get("axis_values")
+    if isinstance(axis_values, dict) and axis_values:
+        variant, _created = find_or_create_product_variant(product_master, axis_values)
+        return variant
+    return None
+
+
+def _resolve_customer_product_overlay(raw_item, *, customer=None):
+    overlay_id = _safe_uuid_str(raw_item.get("customer_product_overlay") or raw_item.get("customer_product_overlay_id"))
+    if not overlay_id:
+        return None
+    try:
+        overlay = CustomerProductOverlay.objects.select_related("product_master", "customer", "default_artwork").get(id=overlay_id, active=True)
+    except CustomerProductOverlay.DoesNotExist as exc:
+        raise ValidationError("customer_product_overlay is invalid or inactive.") from exc
+    if customer and overlay.customer_id != customer.id:
+        raise ValidationError("customer_product_overlay does not belong to the sales order customer.")
+    return overlay
+
+
 def _merge_item_source_defaults(raw_item):
     item = dict(raw_item or {})
     variant = _resolve_sku_variant(item)
@@ -278,6 +793,8 @@ def _merge_item_source_defaults(raw_item):
         if default_chemicals and not isinstance(default_printing.get("chemicals"), dict):
             default_printing["chemicals"] = default_chemicals
         item.setdefault("template_id", str(variant.sku.template_id))
+        if getattr(variant.sku, "product_master_id", None):
+            item.setdefault("product_master", str(variant.sku.product_master_id))
         item.setdefault("fg_type", variant.finished_good_type)
         item.setdefault("roll_form", variant.roll_form or None)
         item.setdefault("geometry", deepcopy(variant.geometry_snapshot or {}))
@@ -318,6 +835,54 @@ def _merge_item_source_defaults(raw_item):
     elif not item.get("mode"):
         item["mode"] = "TEMPLATE"
 
+    # v3 fallback: resolve template from product_master if still no template_id
+    if not item.get("template_id") and item.get("product_master"):
+        pm = _resolve_product_master(item)
+        if pm:
+            if getattr(pm, "template_id", None):
+                item.setdefault("template_id", str(pm.template_id))
+            elif getattr(pm, "default_template_id", None):
+                item.setdefault("template_id", str(pm.default_template_id))
+            item.setdefault("fg_type", str(pm.product_kind or "POUCH").upper())
+            canonical = pm.canonical_layer_stack or []
+            if canonical and not item.get("film_layers"):
+                layers = []
+                for i, entry in enumerate(canonical):
+                    layers.append({
+                        "name": str(entry.get("layer") or f"Layer {i+1}"),
+                        "material_code": str(entry.get("layer") or "").split(" ")[0] if entry.get("layer") else "",
+                        "role": str(entry.get("role") or ""),
+                        "thickness_micron": 0,
+                        "kg_per_kg_fg": round(100 / len(canonical), 1) if canonical else 100,
+                    })
+                item["film_layers"] = layers
+                item["_v3_light_layers"] = True
+            item.setdefault("printing", {})
+            default_chemicals = chemicals_payload_from_fixed_attributes(
+                getattr(pm, "fixed_attributes", {}) or {},
+                layer_template=getattr(pm, "layer_template", None) or getattr(pm, "canonical_layer_stack", None),
+            )
+            if default_chemicals:
+                if not isinstance(item.get("chemicals"), dict) or not item.get("chemicals"):
+                    item["chemicals"] = deepcopy(default_chemicals)
+                printing = item.get("printing") if isinstance(item.get("printing"), dict) else {}
+                if not isinstance(printing.get("chemicals"), dict) or not printing.get("chemicals"):
+                    printing["chemicals"] = deepcopy(default_chemicals)
+                item["printing"] = printing
+            item.setdefault("addons", [])
+            default_packaging = {}
+            fixed_attrs = getattr(pm, "fixed_attributes", {}) if isinstance(getattr(pm, "fixed_attributes", {}), dict) else {}
+            if isinstance(fixed_attrs.get("packaging_lines"), list) and fixed_attrs.get("packaging_lines"):
+                default_packaging["packaging_lines"] = deepcopy(fixed_attrs.get("packaging_lines") or [])
+            if fixed_attrs.get("pod_enabled"):
+                default_packaging["pod"] = {
+                    "enabled": True,
+                    "pod_sku_variant_id": fixed_attrs.get("pod_variant") or fixed_attrs.get("pod_variant_id") or fixed_attrs.get("pod_variant_code"),
+                    "pod_sku_code": fixed_attrs.get("pod_variant_code") or "",
+                    "pod_profile_id": fixed_attrs.get("pod_material") or fixed_attrs.get("pod_material_id"),
+                }
+            item.setdefault("packaging_snapshot", default_packaging)
+
     item["_resolved_sku_variant"] = variant
     item["_resolved_repeat_source_item"] = repeat_source
     return item
@@ -325,20 +890,21 @@ def _merge_item_source_defaults(raw_item):
 
 def _resolve_preview_fg_type(payload):
     src = payload if isinstance(payload, dict) else {}
-    template_id = _safe_uuid_str(src.get("template_id"))
-    if template_id:
-        template = TemplateBlueprint.objects.filter(id=template_id).only("fg_type").first()
-        if template and str(template.fg_type or "").upper() in {"POUCH", "ROLL"}:
-            return str(template.fg_type).upper()
     geometry = src.get("geometry") if isinstance(src.get("geometry"), dict) else {}
     fg_type = str(
         src.get("finished_good_type")
         or src.get("fg_type")
         or geometry.get("finished_good_type")
         or geometry.get("fg_type")
-        or "POUCH"
     ).upper()
-    return fg_type if fg_type in {"POUCH", "ROLL"} else "POUCH"
+    if fg_type in {"POUCH", "ROLL"}:
+        return fg_type
+    template_id = _safe_uuid_str(src.get("template_id"))
+    if template_id:
+        template = TemplateBlueprint.objects.filter(id=template_id).only("fg_type").first()
+        if template and str(template.fg_type or "").upper() in {"POUCH", "ROLL"}:
+            return str(template.fg_type).upper()
+    return "POUCH"
 
 
 def _planning_category_for_row(section_name, row):
@@ -494,29 +1060,57 @@ def _summarize_material_plan_lines(lines):
     src = lines if isinstance(lines, list) else []
     theoretical_total = Decimal("0")
     planned_total = Decimal("0")
+    theoretical_by_uom = {}
+    planned_by_uom = {}
     override_count = 0
     for row in src:
         if not isinstance(row, dict):
             continue
-        theoretical_total += Decimal(str(row.get("theoretical_qty") or 0))
-        planned_total += Decimal(str(row.get("planned_issue_qty") or 0))
+        uom = str(row.get("uom") or "KG").upper()
+        theoretical_qty = Decimal(str(row.get("theoretical_qty") or 0))
+        planned_qty = Decimal(str(row.get("planned_issue_qty") or 0))
+        theoretical_by_uom[uom] = theoretical_by_uom.get(uom, Decimal("0")) + theoretical_qty
+        planned_by_uom[uom] = planned_by_uom.get(uom, Decimal("0")) + planned_qty
+        if uom == "KG":
+            theoretical_total += theoretical_qty
+            planned_total += planned_qty
         if str(row.get("policy_source") or "").upper() == "ORDER_OVERRIDE":
             override_count += 1
+    uoms = sorted(theoretical_by_uom.keys() | planned_by_uom.keys())
     return {
         "line_count": len([row for row in src if isinstance(row, dict)]),
         "override_count": override_count,
         "default_count": max(0, len([row for row in src if isinstance(row, dict)]) - override_count),
         "theoretical_total_qty": float(theoretical_total.quantize(Decimal("0.0001"))),
         "planned_issue_total_qty": float(planned_total.quantize(Decimal("0.0001"))),
-        "uom": "KG",
+        "uom": uoms[0] if len(uoms) == 1 else ("MIXED" if uoms else "KG"),
+        "theoretical_totals_by_uom": {
+            uom: float(qty.quantize(Decimal("0.0001"))) for uom, qty in sorted(theoretical_by_uom.items())
+        },
+        "planned_issue_totals_by_uom": {
+            uom: float(qty.quantize(Decimal("0.0001"))) for uom, qty in sorted(planned_by_uom.items())
+        },
     }
 
 
-def _build_material_plan_lines(template_snapshot, bom_result):
+def _build_material_plan_lines(
+    template_snapshot,
+    bom_result,
+    *,
+    quantity_multiplier=None,
+    order_scoped_sections=None,
+):
     template_snapshot = template_snapshot if isinstance(template_snapshot, dict) else {}
     bom_result = bom_result if isinstance(bom_result, dict) else {}
     template_policy_map = _collect_template_issue_policies(template_snapshot.get("template_id"))
     override_map = _normalize_issue_policy_overrides(template_snapshot.get("issue_policy_overrides"))
+    try:
+        multiplier = Decimal(str(quantity_multiplier if quantity_multiplier is not None else 1))
+    except Exception:
+        multiplier = Decimal("1")
+    if multiplier <= 0:
+        multiplier = Decimal("1")
+    order_scoped = {str(value).lower() for value in (order_scoped_sections or set())}
     lines = []
 
     for section_name in ("films", "granules", "inks", "chemicals", "addons", "pod"):
@@ -530,6 +1124,8 @@ def _build_material_plan_lines(template_snapshot, bom_result):
             theoretical_qty = Decimal(str(row.get("weight_kg") or 0))
             if theoretical_qty <= 0:
                 continue
+            if section_name not in order_scoped:
+                theoretical_qty = theoretical_qty * multiplier
             category_code = _planning_category_for_row(section_name, row)
             template_policies = template_policy_map.get(category_code) or [{}]
             if not isinstance(template_policies, list):
@@ -591,6 +1187,183 @@ def _build_material_plan_lines(template_snapshot, bom_result):
     return lines
 
 
+def _packaging_order_qty_context(payload, unit_weight_g, total_weight_kg):
+    payload = payload if isinstance(payload, dict) else {}
+    qty = Decimal(str(payload.get("order_qty") or payload.get("qty_value") or payload.get("quantity") or payload.get("qty") or 0))
+    qty_uom = str(payload.get("uom") or payload.get("qty_uom") or payload.get("quantity_uom") or "PCS").upper()
+    unit_weight = Decimal(str(unit_weight_g or payload.get("unit_weight_g") or 0))
+    weight = Decimal(str(total_weight_kg or payload.get("total_weight_kg") or 0))
+    if weight <= 0:
+        weight = qty if qty_uom == "KG" else ((qty * unit_weight / Decimal("1000")) if qty_uom == "PCS" and unit_weight > 0 else Decimal("0"))
+    pieces = qty if qty_uom == "PCS" else ((qty * Decimal("1000") / unit_weight) if qty_uom == "KG" and unit_weight > 0 else Decimal("0"))
+    return qty, qty_uom, pieces, weight
+
+
+def _estimate_packaging_line_qty_for_bom(line, payload, unit_weight_g, total_weight_kg):
+    if not isinstance(line, dict):
+        return Decimal("0")
+    explicit = Decimal(str(line.get("qty") or line.get("target_qty") or 0))
+    if explicit > 0:
+        return explicit
+    basis = str(line.get("basis") or "").upper()
+    pcs_per_pack = Decimal(str(line.get("pcs_per_pack") or 0))
+    kg_per_pack = Decimal(str(line.get("kg_per_pack") or line.get("kg_per_bag") or 0))
+    _, _, pieces, weight = _packaging_order_qty_context(payload, unit_weight_g, total_weight_kg)
+
+    if (basis in {"PCS_PER_PACK", "PRIMARY_INNER_PACK"} or pcs_per_pack > 0) and pieces > 0 and pcs_per_pack > 0:
+        return (pieces / pcs_per_pack).to_integral_value(rounding=ROUND_CEILING)
+    if (basis == "KG_PER_PACK" or kg_per_pack > 0) and weight > 0 and kg_per_pack > 0:
+        return (weight / kg_per_pack).to_integral_value(rounding=ROUND_CEILING)
+    return Decimal("0")
+
+
+def _materialize_packaging_snapshot_quantities(packaging_snapshot, payload, unit_weight_g, total_weight_kg):
+    snapshot = deepcopy(packaging_snapshot or {}) if isinstance(packaging_snapshot, dict) else {}
+    lines = snapshot.get("packaging_lines") if isinstance(snapshot.get("packaging_lines"), list) else []
+    materialized_lines = []
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        row = deepcopy(line)
+        required_qty = _estimate_packaging_line_qty_for_bom(row, payload, unit_weight_g, total_weight_kg)
+        if required_qty > 0:
+            row["qty"] = float(required_qty.quantize(Decimal("0.0001")))
+            row["required_qty"] = row["qty"]
+            row["qty_source"] = "ORDER_QUANTITY"
+        materialized_lines.append(row)
+    snapshot["packaging_lines"] = materialized_lines
+
+    primary = snapshot.get("primary_inner_pack") if isinstance(snapshot.get("primary_inner_pack"), dict) else {}
+    if primary.get("enabled") and primary.get("pcs_per_pack"):
+        primary_material = primary.get("material_id")
+        primary_line = next(
+            (
+                line
+                for line in materialized_lines
+                if str(line.get("role") or "").upper() == "PRIMARY_INNER"
+                and (not primary_material or str(line.get("material_id")) == str(primary_material))
+            ),
+            None,
+        )
+        if primary_line:
+            primary = deepcopy(primary)
+            primary["qty"] = primary_line.get("qty") or 0
+            primary["required_qty"] = primary_line.get("required_qty") or primary["qty"]
+            snapshot["primary_inner_pack"] = primary
+
+    roll_pack = snapshot.get("roll_dispatch_pack") if isinstance(snapshot.get("roll_dispatch_pack"), dict) else {}
+    if isinstance(roll_pack.get("lines"), list):
+        resolved_roll_lines = []
+        for line in roll_pack.get("lines") or []:
+            if not isinstance(line, dict):
+                continue
+            row = deepcopy(line)
+            required_qty = _estimate_packaging_line_qty_for_bom(row, payload, unit_weight_g, total_weight_kg)
+            if required_qty > 0:
+                row["qty"] = float(required_qty.quantize(Decimal("0.0001")))
+                row["required_qty"] = row["qty"]
+                row["qty_source"] = "ORDER_QUANTITY"
+            resolved_roll_lines.append(row)
+        roll_pack = deepcopy(roll_pack)
+        roll_pack["lines"] = resolved_roll_lines
+        snapshot["roll_dispatch_pack"] = roll_pack
+    return snapshot
+
+
+def _build_packaging_bom_rows(payload, unit_weight_g, total_weight_kg):
+    payload = payload if isinstance(payload, dict) else {}
+    snapshot = payload.get("packaging_snapshot") or payload.get("packaging") or {}
+    if not isinstance(snapshot, dict):
+        return [], []
+    rows = []
+    planning_lines = []
+    for index, line in enumerate(snapshot.get("packaging_lines") if isinstance(snapshot.get("packaging_lines"), list) else [], start=1):
+        if not isinstance(line, dict):
+            continue
+        material_id = _safe_uuid_str(line.get("material_id")) or str(line.get("material_id") or "").strip() or None
+        material_code = str(line.get("material_code") or "").strip()
+        material_name = str(line.get("material_name") or material_code or "Packaging material").strip()
+        if material_id and (not material_code or not material_name):
+            material = InventoryMaterial.objects.filter(id=material_id, category="PACKAGING").first()
+            if material:
+                material_code = material_code or material.code
+                material_name = material_name or material.name
+        qty = _estimate_packaging_line_qty_for_bom(line, payload, unit_weight_g, total_weight_kg)
+        if qty <= 0:
+            continue
+        uom = str(line.get("uom") or "PCS").upper()
+        role = str(line.get("role") or line.get("kind") or "PACKAGING").upper()
+        basis = str(line.get("basis") or "").upper()
+        bom_row = {
+            "material_id": material_id,
+            "material_code": material_code,
+            "material_name": material_name,
+            "name": material_name,
+            "code": material_code,
+            "role": role,
+            "basis": basis,
+            "qty": float(qty.quantize(Decimal("0.0001"))),
+            "uom": uom,
+            "supply_mode": str(line.get("supply_mode") or "PURCHASED").upper(),
+            "packaging_kind": str(line.get("packaging_kind") or "").upper(),
+            "pcs_per_pack": line.get("pcs_per_pack"),
+            "kg_per_pack": line.get("kg_per_pack"),
+        }
+        rows.append(bom_row)
+        policy_key = f"PACKAGING:{material_id or material_code or index}:{role}"
+        planning_lines.append(
+            {
+                "policy_key": policy_key,
+                "category_code": "PACKAGING",
+                "material_id": material_id,
+                "material_code": material_code,
+                "material_name": material_name,
+                "uom": uom,
+                "step_id": None,
+                "step_sequence": None,
+                "step_name": "Packing",
+                "consumption_basis": basis,
+                "formula_driver": "PACKAGING_CONTRACT",
+                "formula_params": {
+                    "role": role,
+                    "basis": basis,
+                    "pcs_per_pack": line.get("pcs_per_pack"),
+                    "kg_per_pack": line.get("kg_per_pack"),
+                    "supply_mode": str(line.get("supply_mode") or "PURCHASED").upper(),
+                    "packaging_kind": str(line.get("packaging_kind") or "").upper(),
+                },
+                "capture_mode": "PACKAGING_CONTRACT",
+                "split_pct": 100.0,
+                "theoretical_qty": float(qty.quantize(Decimal("0.0001"))),
+                "planned_issue_qty": float(qty.quantize(Decimal("0.0001"))),
+                "template_issue_policy_mode": "NONE",
+                "template_issue_policy_value": 0.0,
+                "override_issue_policy_mode": None,
+                "override_issue_policy_value": None,
+                "effective_issue_policy_mode": "NONE",
+                "effective_issue_policy_value": 0.0,
+                "policy_source": "PACKAGING_CONTRACT",
+            }
+        )
+    return rows, planning_lines
+
+
+def _normalize_pod_bom_to_unit_scope(bom_result, physics_result, fg_type: str):
+    if str(fg_type or "").upper() != "POUCH":
+        return
+    rows = bom_result.get("pod") if isinstance(bom_result, dict) else None
+    if not isinstance(rows, list) or not rows:
+        return
+    pod_unit_weight_g = Decimal(str((physics_result or {}).get("pod_unit_weight_g") or 0))
+    if pod_unit_weight_g <= 0:
+        return
+    per_piece_kg = (pod_unit_weight_g / Decimal("1000")).quantize(Decimal("0.000001"))
+    for row in rows:
+        if isinstance(row, dict):
+            row["weight_kg"] = float(per_piece_kg)
+            row["scope"] = "PER_PIECE"
+
+
 def _normalize_preview_geometry(raw_geometry, fg_type: str):
     geometry = normalize_geometry_override({}, raw_geometry or {})
     geometry["finished_good_type"] = fg_type
@@ -617,6 +1390,55 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     printing = _normalize_printing_snapshot(item.printing_snapshot)
     if not printing.get("enabled", False):
         return printing, False, None
+
+    fixed_attrs = {}
+    if getattr(item, "product_master_id", None):
+        product_master = getattr(item, "product_master", None)
+        fixed_attrs = getattr(product_master, "fixed_attributes", {}) if product_master else {}
+        fixed_attrs = fixed_attrs or {}
+        if not isinstance(fixed_attrs, dict):
+            fixed_attrs = {}
+        substrate_mode = str(
+            printing.get("substrate_mode")
+            or printing.get("film_type")
+            or fixed_attrs.get("film_type")
+            or "SHEET"
+        ).upper()
+        if substrate_mode not in {"SHEET", "TUBING"}:
+            substrate_mode = "SHEET"
+        printing["substrate_mode"] = substrate_mode
+        printing["film_type"] = substrate_mode
+
+        front_default = (
+            fixed_attrs.get("default_front_colors")
+            or fixed_attrs.get("front_colors_count")
+            or fixed_attrs.get("default_color_count")
+            or 1
+        )
+        back_default = (
+            fixed_attrs.get("default_back_colors")
+            or fixed_attrs.get("back_colors_count")
+            or 0
+        )
+        front_count = int(printing.get("front_colors_count") or len(printing.get("front_colors") or []) or front_default or 1)
+        back_count = int(printing.get("back_colors_count") or len(printing.get("back_colors") or []) or back_default or 0)
+        if substrate_mode == "SHEET":
+            back_count = 0
+        printing["front_colors_count"] = max(0, front_count)
+        printing["back_colors_count"] = max(0, back_count)
+
+        ink_gsm = Decimal(str(
+            printing.get("ink_gsm_total")
+            or printing.get("ink_gsm")
+            or fixed_attrs.get("default_ink_gsm_total")
+            or fixed_attrs.get("ink_gsm_total")
+            or fixed_attrs.get("ink_gsm")
+            or 0
+        ))
+        if ink_gsm <= 0:
+            ink_gsm = Decimal("1.2")
+        printing["ink_gsm_total"] = float(ink_gsm)
+        printing["ink_gsm"] = float(ink_gsm)
 
     print_type = str(printing.get("type") or printing.get("method") or "").upper()
     if not print_type:
@@ -661,7 +1483,14 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         raise ValidationError(f"Item {_item_label(item)}: artwork_id is invalid.")
     if artwork.status != "APPROVED":
         raise ValidationError(f"Item {_item_label(item)}: artwork must be APPROVED before confirmation.")
-    contract = get_artwork_contract(artwork, require_asset=True)
+    artwork_product_master_id = getattr(artwork, "product_master_id", None)
+    item_product_master_id = getattr(item, "product_master_id", None)
+    if artwork_product_master_id and item_product_master_id and artwork_product_master_id != item_product_master_id:
+        raise ValidationError(
+            f"Item {_item_label(item)}: artwork {artwork.design_code} is bound to a different product master "
+            f"and cannot be applied to this order item."
+        )
+    contract = get_artwork_contract(artwork, require_asset=True, require_ink_usage=False)
     artwork_type = str(contract["print_type"] or "").upper().strip()
     if artwork_type and artwork_type != print_type:
         raise ValidationError(
@@ -690,7 +1519,7 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     ink_contract = resolve_ink_contract(
         color_names=contract["color_names"],
         layer_snapshot=item.layer_snapshot or [],
-        existing_mapping=printing.get("color_mapping") or {},
+        existing_mapping=printing.get("color_mapping") or contract.get("color_mapping") or {},
         strict=True,
     )
 
@@ -698,6 +1527,13 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     printing["back_colors"] = [str(v).strip().upper() for v in art_back]
     printing["color_names"] = ink_contract["color_names"]
     printing["color_mapping"] = ink_contract["color_mapping"]
+    artwork_ink_gsm = Decimal(str(contract.get("ink_gsm_total") or 0))
+    if artwork_ink_gsm > 0:
+        printing["ink_gsm_total"] = contract["ink_gsm_total"]
+        printing["ink_gsm"] = contract["ink_gsm_total"]
+        printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or "EQUAL"
+        printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
+        printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
     printing["ink_base_family"] = ink_contract["ink_base_family"]
     printing["artwork_id"] = str(artwork.id)
     printing["artwork_design_code"] = artwork.design_code
@@ -778,6 +1614,8 @@ class SalesOrderService:
                         "line_name": payload.get("line_name"),
                         "price_basis": payload.get("price_basis"),
                         "unit_price": payload.get("unit_price"),
+                        "product_master": payload.get("product_master") or payload.get("product_master_id"),
+                        "customer_product_overlay": payload.get("customer_product_overlay") or payload.get("customer_product_overlay_id"),
                     }
                 ]
 
@@ -786,24 +1624,83 @@ class SalesOrderService:
 
             for raw_item_data in items_data:
                 item_data = _merge_item_source_defaults(raw_item_data)
+                overlay = _resolve_customer_product_overlay(item_data, customer=customer)
+                product_master = _resolve_product_master(item_data, overlay=overlay, variant=item_data.get("_resolved_sku_variant"))
+                v3_requested = (
+                    bool(item_data.get("axis_values"))
+                    or bool(item_data.get("customer_product_overlay") or item_data.get("customer_product_overlay_id"))
+                    or bool(product_master and not item_data.get("_resolved_sku_variant"))
+                )
+                if v3_requested and not bool(getattr(settings, "ERP_V3_DEFAULT", True)):
+                    raise ValidationError("Product Master sales flow is disabled by ERP_V3_DEFAULT.")
+                if overlay and product_master and overlay.product_master_id != product_master.id:
+                    raise ValidationError("customer_product_overlay must belong to the selected product_master.")
+                product_variant = None
+                if product_master and isinstance(item_data.get("axis_values"), dict) and item_data.get("axis_values"):
+                    from apps.sales.services.axis_resolver import OrderResolutionService
+
+                    resolved_line = OrderResolutionService.resolve_line(
+                        {
+                            **item_data,
+                            "product_master": str(product_master.id),
+                            "customer": str(customer.id) if customer else item_data.get("customer"),
+                            "customer_product_overlay": str(overlay.id) if overlay else item_data.get("customer_product_overlay"),
+                            "qty": item_data.get("qty_value"),
+                            "quantity_uom": item_data.get("qty_uom"),
+                        },
+                        create_variant=True,
+                    )
+                    item_data["template_id"] = resolved_line["template"]
+                    item_data["axis_values"] = deepcopy(resolved_line.get("axis_values") or {})
+                    item_data["geometry"] = deepcopy(resolved_line.get("geometry_snapshot") or {})
+                    item_data["film_layers"] = deepcopy(resolved_line.get("layer_snapshot") or [])
+                    item_data["printing"] = deepcopy(resolved_line.get("printing_snapshot") or {})
+                    item_data["addons"] = deepcopy(resolved_line.get("addons_snapshot") or [])
+                    item_data["packaging_snapshot"] = deepcopy(resolved_line.get("packaging_snapshot") or {})
+                    overlay_id = resolved_line.get("customer_product_overlay")
+                    if overlay_id and (not overlay or str(overlay.id) != str(overlay_id)):
+                        overlay = CustomerProductOverlay.objects.select_related("product_master", "customer", "default_artwork").get(
+                            id=overlay_id,
+                            active=True,
+                        )
+                    variant_id = resolved_line.get("product_variant")
+                    if variant_id:
+                        product_variant = ProductVariant.objects.get(id=variant_id, master=product_master, active=True)
+                else:
+                    product_variant = _resolve_product_variant(item_data, product_master)
+                variant_geometry_snapshot = None
+                if product_variant:
+                    item_data.setdefault("axis_values", deepcopy(product_variant.axis_values or {}))
+                    variant_geometry_snapshot = deepcopy(product_variant.geometry_snapshot or {})
+                    item_data["geometry"] = deepcopy(product_variant.geometry_snapshot or item_data.get("geometry") or {})
+                    item_data["film_layers"] = deepcopy(product_variant.layer_snapshot or item_data.get("film_layers") or [])
                 template_id = item_data.get("template_id")
                 if not template_id:
                     raise ValidationError("template_id is required for every sales order item.")
                 template = TemplateBlueprint.objects.get(id=template_id)
 
-                if item_data.get("film_layers") is None:
+                if item_data.get("film_layers") is None and not product_master:
                     raise ValidationError(f"Item {template.name}: film_layers snapshot is required.")
-                if item_data.get("printing") is None:
+                if item_data.get("printing") is None and not product_master:
                     raise ValidationError(f"Item {template.name}: printing snapshot is required.")
-                if item_data.get("addons") is None:
+                if item_data.get("addons") is None and not product_master:
                     raise ValidationError(f"Item {template.name}: addons snapshot is required.")
+                if product_master and (not item_data.get("addons")):
+                    axis_addons = _addons_from_axis_values(item_data.get("axis_values") or {})
+                    if axis_addons:
+                        item_data["addons"] = axis_addons
 
                 item_geometry_override = sanitize_geometry_override(item_data.get("geometry") or item_data.get("geometry_override") or order.geometry_override)
                 normalized_geometry = normalize_geometry_override({}, item_geometry_override)
+                normalized_geometry = _preserve_computed_geometry(normalized_geometry, variant_geometry_snapshot or item_data.get("geometry") or {})
                 fg_type = str(template.fg_type or "POUCH").upper()
                 if fg_type not in {"POUCH", "ROLL"}:
                     raise ValidationError(f"Item {template.name}: fg_type must be POUCH or ROLL.")
                 normalized_geometry["finished_good_type"] = fg_type
+                if isinstance(item_data.get("axis_values"), dict):
+                    normalized_geometry["axis_values"] = deepcopy(item_data.get("axis_values") or {})
+                if product_variant:
+                    normalized_geometry["product_variant_code"] = product_variant.code
                 qty_uom = str(item_data.get("qty_uom", "KG") or "KG").upper()
                 if fg_type == "ROLL":
                     normalized_geometry["roll_form"] = str(item_data.get("roll_form") or "FLAT").upper()
@@ -821,13 +1718,23 @@ class SalesOrderService:
                         template_pouch_style=str(getattr(template, "pouch_style", "") or ""),
                         context_label=f"Item {template.name}",
                     )
+                    normalized_geometry = _preserve_computed_geometry(normalized_geometry, variant_geometry_snapshot or item_data.get("geometry") or {})
 
                 qty_value = Decimal(str(item_data.get("qty_value", 0) or 0))
-                layer_snapshot = _normalize_layer_snapshot(item_data.get("film_layers") or [])
+                layer_snapshot = _normalize_layer_snapshot(item_data.get("film_layers") or [], strict=not bool(product_master))
                 _validate_template_film_constraints(template, layer_snapshot, template.name)
                 printing_snapshot = _normalize_printing_snapshot(item_data.get("printing"))
                 addons_snapshot = item_data.get("addons") or []
-                packaging_snapshot = _normalize_packaging_snapshot(item_data.get("packaging_snapshot") or {})
+                raw_packaging_snapshot = _merge_axis_packaging_snapshot(
+                    item_data.get("packaging_snapshot") or {},
+                    item_data.get("axis_values") or {},
+                    overlay=overlay,
+                )
+                packaging_snapshot = _normalize_packaging_snapshot(raw_packaging_snapshot)
+                if isinstance(raw_packaging_snapshot, dict):
+                    for key in ("default_packing_note", "default_packing_recipe", "customer_overlay"):
+                        if key in raw_packaging_snapshot:
+                            packaging_snapshot[key] = deepcopy(raw_packaging_snapshot.get(key))
                 if fg_type == "POUCH":
                     pod_cfg = packaging_snapshot.get("pod") if isinstance(packaging_snapshot.get("pod"), dict) else {}
                     packaging_snapshot["pod"] = _hydrate_pod_snapshot(pod_cfg)
@@ -857,6 +1764,9 @@ class SalesOrderService:
                     sales_order=order,
                     template=template,
                     mode=item_data.get("mode", "TEMPLATE"),
+                    product_master=product_master,
+                    product_variant=product_variant,
+                    customer_product_overlay=overlay,
                     sku_variant=item_data.get("_resolved_sku_variant"),
                     repeat_source_item=item_data.get("_resolved_repeat_source_item"),
                     line_name=line_name,
@@ -864,6 +1774,10 @@ class SalesOrderService:
                     qty_value=qty_value,
                     price_basis=price_basis,
                     unit_price=unit_price,
+                    axis_values=item_data.get("axis_values") or {},
+                    source_chip=str(item_data.get("source_chip") or "WIZARD").upper(),
+                    source_ref=str(item_data.get("source_ref") or ""),
+                    material_overrides=item_data.get("material_overrides") or [],
                     geometry_snapshot=normalized_geometry,
                     layer_snapshot=layer_snapshot,
                     printing_snapshot=printing_snapshot,
@@ -888,8 +1802,14 @@ class SalesOrderService:
                 preview = SalesOrderService.preview_sales_item(preview_data)
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))
+                item.packaging_snapshot = _materialize_packaging_snapshot_quantities(
+                    item.packaging_snapshot,
+                    preview_data,
+                    item.unit_weight_g,
+                    item.total_weight_kg,
+                )
                 item.bom_snapshot = _make_json_serializable(preview["bom"])
-                item.save(update_fields=["unit_weight_g", "total_weight_kg", "bom_snapshot"])
+                item.save(update_fields=["unit_weight_g", "total_weight_kg", "packaging_snapshot", "bom_snapshot"])
 
             return order
 
@@ -987,6 +1907,20 @@ class SalesOrderService:
             raise ValidationError("Roll preview requires KG quantity.")
         if fg_type == "ROLL":
             normalized_payload["uom"] = "KG"
+        packaging_source = normalized_payload.get("packaging_snapshot") or normalized_payload.get("packaging") or {}
+        packaging_snapshot = _normalize_packaging_snapshot(packaging_source)
+        if fg_type == "POUCH":
+            pod_cfg = packaging_snapshot.get("pod") if isinstance(packaging_snapshot.get("pod"), dict) else {}
+            packaging_snapshot["pod"] = _hydrate_pod_snapshot(pod_cfg) if pod_cfg.get("enabled") else {
+                "enabled": False,
+                "pod_profile_id": None,
+                "pod_sku_variant_id": None,
+                "pod_sku_code": None,
+                "pod_sku_name": None,
+            }
+        else:
+            packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None}
+        normalized_payload["packaging_snapshot"] = packaging_snapshot
         physics_result = PhysicsEngine.calculate(normalized_payload)
         unit_weight_g = physics_result.get("unit_weight_g", 0) or 0
 
@@ -994,8 +1928,9 @@ class SalesOrderService:
         if printing.get("enabled") and printing.get("artwork_id"):
             artwork = Artwork.objects.filter(id=printing["artwork_id"]).first()
             if artwork:
-                art_front = [str(v).strip() for v in (artwork.front_colors or []) if str(v).strip()]
-                art_back = [str(v).strip() for v in (artwork.back_colors or []) if str(v).strip()]
+                contract = get_artwork_contract(artwork, require_asset=False, require_ink_usage=False)
+                art_front = [str(v).strip() for v in (contract.get("front_colors") or []) if str(v).strip()]
+                art_back = [str(v).strip() for v in (contract.get("back_colors") or []) if str(v).strip()]
                 if not art_front and not art_back:
                     legacy_colors = [str(v).strip() for v in (artwork.color_list or []) if str(v).strip()]
                     if legacy_colors:
@@ -1003,9 +1938,19 @@ class SalesOrderService:
                 printing["front_colors"] = [str(v).strip().upper() for v in art_front]
                 printing["back_colors"] = [str(v).strip().upper() for v in art_back]
                 printing["color_names"] = [str(v).strip().upper() for v in (art_front + art_back) if str(v).strip()]
+                artwork_mapping = contract.get("color_mapping") if isinstance(contract.get("color_mapping"), dict) else {}
+                incoming_mapping = printing.get("color_mapping") if isinstance(printing.get("color_mapping"), dict) else {}
+                printing["color_mapping"] = {**artwork_mapping, **incoming_mapping}
+                printing["ink_gsm_total"] = contract.get("ink_gsm_total") or printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0
+                printing["ink_gsm"] = printing["ink_gsm_total"]
+                if Decimal(str(contract.get("ink_gsm_total") or 0)) > 0:
+                    printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or printing.get("ink_gsm_split_mode") or "EQUAL"
+                    printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
+                    printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
 
         try:
             bom_result = BOMResolverService.resolve(normalized_payload, physics_result)
+            _normalize_pod_bom_to_unit_scope(bom_result, physics_result, fg_type)
         except Exception as exc:
             bom_result = {
                 "films": [],
@@ -1038,10 +1983,11 @@ class SalesOrderService:
         else:
             sim_qty = Decimal("1") if qty_uom == "KG" else Decimal("0")
 
+        order_scoped_categories = set()
         for category in ["films", "granules", "inks", "chemicals", "addons", "pod"]:
             for row in bom_result.get(category, []):
                 unit_weight = Decimal(str(row.get("weight_kg", 0)))
-                total_qty = unit_weight if roll_kg_absolute_mode else (unit_weight * sim_qty)
+                total_qty = unit_weight if (roll_kg_absolute_mode or category in order_scoped_categories) else (unit_weight * sim_qty)
                 material_name = row.get("name") or row.get("code") or f"Unknown {category[:-1]}"
                 existing = next((c for c in components if c["material_name"] == material_name), None)
                 if existing:
@@ -1055,7 +2001,30 @@ class SalesOrderService:
                         }
                     )
 
-        planning_lines = _build_material_plan_lines(normalized_payload, bom_result)
+        planning_lines = _build_material_plan_lines(
+            normalized_payload,
+            bom_result,
+            quantity_multiplier=sim_qty,
+            order_scoped_sections=order_scoped_categories,
+        )
+        packaging_rows, packaging_plan_lines = _build_packaging_bom_rows(
+            normalized_payload,
+            unit_weight_g,
+            total_weight_kg,
+        )
+        if packaging_rows:
+            bom_result["packaging"] = packaging_rows
+            for row in packaging_rows:
+                material_name = row.get("material_name") or row.get("material_code") or "Packaging material"
+                components.append(
+                    {
+                        "material_name": material_name,
+                        "qty": row.get("qty") or 0,
+                        "uom": row.get("uom") or "PCS",
+                    }
+                )
+        if packaging_plan_lines:
+            planning_lines.extend(packaging_plan_lines)
         planning_summary = _summarize_material_plan_lines(planning_lines)
         bom_payload = dict(bom_result or {})
         bom_payload["planning_lines"] = planning_lines
@@ -1243,6 +2212,10 @@ class SalesOrderService:
             order.execution_model_version = 2
             order.commercial_confirmed_at = timezone.now()
             order.save(update_fields=["status", "execution_model_version", "commercial_confirmed_at"])
+
+            from apps.production.services.in_house_demand_service import InHouseDemandService
+            InHouseDemandService.create_for_order(order)
+
             return order
 
     @staticmethod

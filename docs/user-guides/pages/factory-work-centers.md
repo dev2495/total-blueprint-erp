@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Factory • Work Centers withou
 
 
 ## Screenshot References
-- ![factory-work-centers-overview](../../../frontend_v2/public/help/screenshots/factory-work-centers-overview.svg)
+- ![factory-work-centers-overview](../../../frontend_v2/public/help/screenshots/factory-work-centers-overview.png)
 - ![factory-work-centers-workflow](../../../frontend_v2/public/help/screenshots/factory-work-centers-workflow.svg)
 
 ## FAQ References

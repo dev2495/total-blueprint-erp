@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Sales • Orders without proces
 
 
 ## Screenshot References
-- ![sales-orders-overview](../../../frontend_v2/public/help/screenshots/sales-orders-overview.svg)
+- ![sales-orders-overview](../../../frontend_v2/public/help/screenshots/sales-orders-overview.png)
 - ![sales-orders-workflow](../../../frontend_v2/public/help/screenshots/sales-orders-workflow.svg)
 
 ## FAQ References

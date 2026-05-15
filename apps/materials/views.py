@@ -1,9 +1,15 @@
-from rest_framework import viewsets, filters
+from django.db import models
+from django.db.models import Count
+from django.shortcuts import get_object_or_404
+from rest_framework import status, viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant
+import uuid
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
+from apps.recipes.qty_formula import evaluate_qty_formula
 from apps.users.audit_mixins import MasterDataAuditMixin
 from .serializers import (
     FilmFamilySerializer, 
@@ -19,7 +25,191 @@ from .serializers import (
     InventoryMaterialSerializer,
     PackagingSerializer,
     CommercialFamilySerializer,
+    ProductMasterSerializer,
+    ProductMasterSizeSerializer,
+    ProductVariantSerializer,
+    CustomerProductOverlaySerializer,
 )
+
+
+def _safe_float(value, default=0.0):
+    try:
+        if value in (None, ""):
+            return None if default is None else float(default)
+        return float(value)
+    except Exception:
+        return None if default is None else float(default)
+
+
+def _safe_uuid(value):
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _catalog_ref(axis_values, axis_def):
+    key = str((axis_def or {}).get("axis") or "").strip()
+    if not key:
+        return None
+    aliases = {
+        "pod_variant": ("pod_variant", "pod", "pod_ref"),
+        "pod": ("pod", "pod_variant", "pod_ref"),
+        "packaging_inner": ("packaging_inner", "packaging", "packaging_ref", "primary_inner_pack"),
+        "packaging_outer": ("packaging_outer", "packaging_outer_ref", "final_outer_pack"),
+        "packaging": ("packaging", "packaging_inner", "packaging_ref"),
+        "addons": ("addons", "addon", "addon_ref"),
+    }
+    for candidate in aliases.get(key, (key,)):
+        value = (axis_values or {}).get(candidate)
+        if value not in (None, "", [], {}):
+            return value
+    return (axis_def or {}).get("default_value")
+
+
+def _catalog_refs(axis_values, axis_def):
+    ref = _catalog_ref(axis_values, axis_def)
+    if isinstance(ref, (list, tuple)):
+        return [item for item in ref if item not in (None, "", [], {})]
+    return [ref] if ref not in (None, "", [], {}) else []
+
+
+def _catalog_axis_defs(product, axis_values):
+    """
+    Return V3.3 catalog-backed axis definitions.
+
+    New ProductMaster rows persist `master_data_source` directly. Older local
+    rows used `pod_ref` / `packaging_ref`; infer the same contract so preview
+    and submit stay compatible while data is migrated.
+    """
+    defs = []
+    seen = set()
+    explicit_inner_outer = bool((axis_values or {}).get("packaging_inner") or (axis_values or {}).get("packaging_outer"))
+
+    def add(axis_name, source, base=None, **defaults):
+        key = str(axis_name or "").strip()
+        if not key or key in seen:
+            return
+        row = dict(base or {})
+        row["axis"] = key
+        row["master_data_source"] = row.get("master_data_source") or source
+        for default_key, default_value in defaults.items():
+            row.setdefault(default_key, default_value)
+        defs.append(row)
+        seen.add(key)
+
+    for raw in product.variant_axes or []:
+        if not isinstance(raw, dict):
+            continue
+        axis_name = str(raw.get("axis") or "").strip()
+        axis_type = str(raw.get("type") or "").strip()
+        if raw.get("master_data_source"):
+            add(axis_name, raw.get("master_data_source"), raw)
+            continue
+        if axis_type == "pod_ref" or axis_name in {"pod", "pod_variant"}:
+            add(
+                "pod_variant",
+                "pod_sku_variant",
+                raw,
+                qty_per_pcs=1,
+                auto_demand_in_house=True,
+            )
+        elif axis_type == "packaging_ref" or axis_name in {"packaging", "packaging_inner", "packaging_outer"}:
+            if explicit_inner_outer and axis_name == "packaging":
+                continue
+            add(
+                "packaging_inner" if axis_name == "packaging" else axis_name,
+                "packaging_material",
+                raw,
+                qty_formula="ceil(total_pouches / pcs_per_inner)",
+                auto_demand_in_house=True,
+            )
+        elif axis_type in {"addon", "addon_ref", "multi_enum"} or axis_name in {"addons", "addon"}:
+            add("addons", "addon", raw, qty_per_pcs=1)
+
+    if (axis_values or {}).get("packaging_inner"):
+        add(
+            "packaging_inner",
+            "packaging_material",
+            None,
+            master_data_filter={"packaging_kind": "INNER_POUCH"},
+            qty_formula="ceil(total_pouches / pcs_per_inner)",
+            auto_demand_in_house=True,
+        )
+    if (axis_values or {}).get("packaging_outer"):
+        add("packaging_outer", "packaging_material", None, qty_per_pcs=0)
+    if (axis_values or {}).get("pod_variant") or (axis_values or {}).get("pod"):
+        add("pod_variant", "pod_sku_variant", None, qty_per_pcs=1, auto_demand_in_house=True)
+    if (axis_values or {}).get("addons"):
+        add("addons", "addon", None, qty_per_pcs=1)
+
+    return defs
+
+
+def _packaging_material_from_ref(ref, filters=None):
+    queryset = InventoryMaterial.objects.filter(category="PACKAGING", status="ACTIVE")
+    if isinstance(filters, dict) and filters.get("packaging_kind"):
+        kind_filter = filters.get("packaging_kind")
+        if isinstance(kind_filter, (list, tuple, set)):
+            kinds = [str(kind).upper() for kind in kind_filter if str(kind).strip()]
+            queryset = queryset.filter(packaging_kind__in=kinds)
+        else:
+            queryset = queryset.filter(packaging_kind=str(kind_filter).upper())
+    ref_uuid = _safe_uuid(ref)
+    if ref_uuid:
+        return queryset.filter(id=ref_uuid).first()
+    return queryset.filter(code__iexact=str(ref or "")).first()
+
+
+def _addon_material_from_ref(ref):
+    queryset = InventoryMaterial.objects.filter(category="ADDON", status="ACTIVE")
+    ref_uuid = _safe_uuid(ref)
+    if ref_uuid:
+        return queryset.filter(id=ref_uuid).first()
+    return queryset.filter(code__iexact=str(ref or "")).first()
+
+
+def _pod_variant_from_ref(ref):
+    queryset = PodSkuVariant.objects.select_related("material", "pod_sku").filter(active=True)
+    ref_uuid = _safe_uuid(ref)
+    if ref_uuid:
+        return queryset.filter(id=ref_uuid).first()
+    return queryset.filter(code__iexact=str(ref or "")).first()
+
+
+def _formula_context(total_pouches, material=None, overlay=None):
+    defaults = getattr(material, "packaging_defaults_json", {}) if material is not None else {}
+    defaults = defaults if isinstance(defaults, dict) else {}
+    overlay_defaults = overlay if isinstance(overlay, dict) else {}
+    pcs_per_inner = (
+        overlay_defaults.get("pcs_per_inner")
+        or defaults.get("pcs_per_inner")
+        or defaults.get("pcs_per_pack")
+        or defaults.get("pcs_per_carton")
+        or 1
+    )
+    return {
+        "fixed_qty": 1,
+        "pcs_per_inner": _safe_float(pcs_per_inner, 1),
+        "total_kg": _safe_float(overlay_defaults.get("total_kg"), 0),
+        "total_pouches": _safe_float(total_pouches, 0),
+        "total_pcs": _safe_float(total_pouches, 0),
+    }
+
+
+def _quantity_for_axis(axis_def, total_pouches, *, material=None, overlay=None):
+    if (axis_def or {}).get("qty_formula"):
+        qty = evaluate_qty_formula(axis_def.get("qty_formula"), _formula_context(total_pouches, material, overlay))
+    elif (axis_def or {}).get("qty_per_pcs") is not None:
+        qty = _safe_float(total_pouches, 0) * _safe_float(axis_def.get("qty_per_pcs"), 0)
+    else:
+        qty = 1
+    if (axis_def or {}).get("auto_demand_in_house"):
+        import math
+
+        qty = math.ceil(qty)
+    return max(qty, 0)
+
 
 class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
     """Unified read-only library for BOM selection across all categories"""
@@ -37,6 +227,365 @@ class CommercialFamilyViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['default_form', 'default_reporting_group', 'active']
     search_fields = ['name', 'code']
+
+
+class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_PRODUCT"
+    serializer_class = ProductMasterSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['product_kind', 'default_reporting_group', 'reusable_policy', 'active', 'commercial_family']
+    search_fields = ['name', 'code', 'description', 'commercial_family__name']
+
+    def get_queryset(self):
+        queryset = (
+            ProductMaster.objects.select_related('template', 'default_template', 'commercial_family')
+            .annotate(overlay_count=Count('customer_overlays'))
+            .order_by('name', 'code')
+        )
+        q = str(self.request.query_params.get("q") or "").strip()
+        if q:
+            queryset = queryset.filter(
+                models.Q(name__icontains=q)
+                | models.Q(code__icontains=q)
+                | models.Q(description__icontains=q)
+                | models.Q(commercial_family__name__icontains=q)
+            )
+        return queryset
+
+    def get_object(self):
+        """
+        Product Master codes are used heavily in the UI and handoffs. Accept
+        either the UUID primary key or the stable product code for detail/action
+        routes so stale links do not crash nested endpoints.
+        """
+        lookup = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        queryset = self.filter_queryset(self.get_queryset())
+        try:
+            uuid.UUID(str(lookup))
+            obj = get_object_or_404(queryset, pk=lookup)
+        except (TypeError, ValueError):
+            obj = get_object_or_404(queryset, code__iexact=str(lookup or ""))
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    @action(detail=True, methods=["get", "post"])
+    def sizes(self, request, pk=None):
+        product = self.get_object()
+        if request.method == "POST":
+            serializer = ProductMasterSizeSerializer(data={**request.data, "product_master": str(product.id)})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=201)
+        queryset = product.sizes.all()
+        active = request.query_params.get("active")
+        if active is not None:
+            queryset = queryset.filter(active=str(active).lower() not in {"0", "false", "no"})
+        return Response(ProductMasterSizeSerializer(queryset, many=True).data)
+
+    @action(detail=True, methods=["get", "post"])
+    def variants(self, request, pk=None):
+        product = self.get_object()
+        if request.method == "POST":
+            serializer = ProductVariantSerializer(data={**request.data, "master": str(product.id)})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=201)
+        queryset = product.variants.all()
+        active = request.query_params.get("active")
+        if active is not None:
+            queryset = queryset.filter(active=str(active).lower() not in {"0", "false", "no"})
+        return Response(ProductVariantSerializer(queryset, many=True).data)
+
+    @action(detail=True, methods=["post"], url_path="variants/find-or-create")
+    def find_or_create_variant(self, request, pk=None):
+        product = self.get_object()
+        axis_values = request.data.get("axis_values") or {}
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError
+        from .services_product_variant import find_or_create_product_variant
+
+        try:
+            variant, created = find_or_create_product_variant(
+                product,
+                axis_values,
+                code=request.data.get("code"),
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc))
+        return Response(
+            {"variant": ProductVariantSerializer(variant).data, "created": created},
+            status=201 if created else 200,
+        )
+
+    @action(detail=True, methods=["post"], url_path="preview-bom")
+    def preview_bom(self, request, pk=None):
+        from apps.sales.services.bom_preview import BOMPreviewService
+
+        product = self.get_object()
+        try:
+            preview = BOMPreviewService.for_line({**request.data, "product_master": str(product.id)})
+            return Response(preview, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["get", "post"], url_path="catalog-bom-preview")
+    def catalog_bom_preview(self, request, pk=None):
+        """
+        Side-effect free V3.3 preview for catalog-backed axes.
+        POD, inner pack, outer pack, and add-on axes resolve to the same catalog
+        rows that sales submit will snapshot and planner auto-demand will use.
+        """
+        product = self.get_object()
+        payload = request.data if request.method == "POST" else request.query_params
+        axis_values = payload.get("axis_values") or {}
+        if isinstance(axis_values, str):
+            import json
+
+            try:
+                axis_values = json.loads(axis_values)
+            except Exception:
+                axis_values = {}
+        total_pouches = (
+            payload.get("total_pouches")
+            or payload.get("total_pcs")
+            or payload.get("quantity")
+            or 0
+        )
+        overlay = payload.get("overlay") if isinstance(payload.get("overlay"), dict) else {}
+
+        lines = []
+        for axis_def in _catalog_axis_defs(product, axis_values):
+            if not isinstance(axis_def, dict) or not axis_def.get("master_data_source"):
+                continue
+            axis_name = str(axis_def.get("axis") or "").strip()
+            refs = _catalog_refs(axis_values, axis_def)
+            if not axis_name or not refs:
+                continue
+            for ref in refs:
+                source = str(axis_def.get("master_data_source") or "").strip()
+                catalog_obj = None
+                material = None
+                catalog_id = None
+                catalog_code = str(ref)
+                catalog_name = str(ref)
+                uom = "PCS"
+                in_house = False
+                basis = "FORMULA"
+
+                if source == "packaging_material":
+                    material = _packaging_material_from_ref(ref, axis_def.get("master_data_filter"))
+                    if not material:
+                        return Response(
+                            {"detail": f"{axis_name} catalog value '{ref}' was not found."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    catalog_obj = material
+                    catalog_id = str(material.id)
+                    catalog_code = material.code
+                    catalog_name = material.name
+                    uom = material.base_uom or "PCS"
+                    in_house = str(material.packaging_supply_mode or "").upper() in {"IN_HOUSE", "BOTH"}
+                    if (
+                        axis_name == "packaging_outer"
+                        or _safe_float(axis_def.get("qty_per_pcs"), None) == 0
+                        or str(material.packaging_kind or "").upper() in {"GONNY", "BOX", "OUTER_BAG"}
+                    ):
+                        basis = "COUNTED_AT_PACKING"
+                elif source == "pod_sku_variant":
+                    variant = _pod_variant_from_ref(ref)
+                    if not variant:
+                        return Response(
+                            {"detail": f"{axis_name} catalog value '{ref}' was not found."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    catalog_obj = variant
+                    material = variant.material
+                    catalog_id = str(variant.id)
+                    catalog_code = variant.code
+                    catalog_name = variant.name
+                    uom = getattr(material, "base_uom", None) or "KG"
+                    in_house = bool(getattr(material, "pod_is_inhouse_produced", False))
+                elif source == "addon":
+                    material = _addon_material_from_ref(ref)
+                    if not material:
+                        return Response(
+                            {"detail": f"{axis_name} catalog value '{ref}' was not found."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    catalog_obj = material
+                    catalog_id = str(material.id)
+                    catalog_code = material.code
+                    catalog_name = material.name
+                    uom = material.base_uom or "PCS"
+                    in_house = False
+                else:
+                    return Response(
+                        {"detail": f"{axis_name} uses unsupported master_data_source '{source}'."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                try:
+                    required_qty = 0 if basis == "COUNTED_AT_PACKING" else _quantity_for_axis(
+                        axis_def,
+                        total_pouches,
+                        material=material,
+                        overlay=overlay,
+                    )
+                except Exception as exc:
+                    return Response(
+                        {"detail": f"{axis_name} qty formula failed: {exc}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                auto_demand = bool(axis_def.get("auto_demand_in_house") and in_house and required_qty > 0)
+                lines.append(
+                    {
+                        "axis": axis_name,
+                        "catalog_source": source,
+                        "catalog_id": catalog_id or str(getattr(catalog_obj, "id", "")),
+                        "catalog_code": catalog_code,
+                        "catalog_name": catalog_name,
+                        "required_qty": required_qty,
+                        "uom": uom,
+                        "basis": basis,
+                        "formula": axis_def.get("qty_formula") or None,
+                        "auto_demand_in_house": bool(axis_def.get("auto_demand_in_house")),
+                        "in_house": in_house,
+                        "would_create_demand": auto_demand,
+                    }
+                )
+        return Response({"lines": lines, "count": len(lines), "total_pouches": _safe_float(total_pouches, 0)})
+
+    @action(detail=True, methods=["get", "post"])
+    def overlays(self, request, pk=None):
+        product = self.get_object()
+        if request.method == "POST":
+            serializer = CustomerProductOverlaySerializer(data={**request.data, "product_master": str(product.id)})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=201)
+        queryset = CustomerProductOverlay.objects.select_related("product_master", "customer", "default_artwork").filter(product_master=product)
+        customer = request.query_params.get("customer")
+        if customer:
+            queryset = queryset.filter(customer_id=customer)
+        return Response(CustomerProductOverlaySerializer(queryset.order_by("customer__name", "size_variant_code", "customer_item_code"), many=True).data)
+
+    @action(detail=True, methods=["get"])
+    def template(self, request, pk=None):
+        product = self.get_object()
+        template = product.template or product.default_template
+        if not template:
+            return Response({"template": None, "route_steps": []})
+        steps = []
+        for index, step in enumerate(getattr(template, "process_steps", []).all() if hasattr(template, "process_steps") else []):
+            process = getattr(step, "process", None)
+            steps.append({
+                "index": index + 1,
+                "name": getattr(step, "process_name", "") or getattr(process, "name", "") or getattr(step, "name", "") or str(process or ""),
+                "process_code": getattr(step, "process_code", "") or getattr(process, "code", ""),
+                "transition": getattr(step, "transition", "") or getattr(process, "transition", ""),
+                "roll_behavior": getattr(step, "roll_behavior", "") or getattr(process, "roll_behavior", ""),
+                "has_artwork": bool(getattr(step, "has_artwork", False) or getattr(process, "has_artwork", False)),
+            })
+        return Response({
+            "template": {"id": str(template.id), "name": template.name, "fg_type": template.fg_type, "status": template.status},
+            "route_steps": steps,
+        })
+
+    @action(detail=True, methods=["get"], url_path="planner-stock")
+    def planner_stock(self, request, pk=None):
+        from apps.production.models import PlannedStockOrder
+        from apps.production.serializers import PlannedStockOrderSerializer
+
+        product = self.get_object()
+        queryset = PlannedStockOrder.objects.select_related("template", "plant", "product_master", "committed_customer", "committed_artwork").filter(product_master=product).order_by("-created_at")[:50]
+        return Response(PlannedStockOrderSerializer(queryset, many=True).data)
+
+    @action(detail=True, methods=["get"], url_path="saved-presets")
+    def saved_presets(self, request, pk=None):
+        from apps.sales.models import SalesSku
+        from apps.sales.serializers_orders import SalesSkuSerializer
+
+        product = self.get_object()
+        queryset = SalesSku.objects.select_related("template", "product_master", "commercial_family").prefetch_related("variants").filter(product_master=product).order_by("name", "code")
+        return Response(SalesSkuSerializer(queryset, many=True).data)
+
+    @action(detail=True, methods=["get"])
+    def consumers(self, request, pk=None):
+        product = self.get_object()
+        needles = {str(product.id).lower(), str(product.code or "").lower(), str(product.name or "").lower()}
+        needles.discard("")
+
+        def contains_reference(value):
+            if value is None:
+                return False
+            if isinstance(value, dict):
+                return any(contains_reference(child) for child in value.values())
+            if isinstance(value, (list, tuple)):
+                return any(contains_reference(child) for child in value)
+            if isinstance(value, str):
+                normalized = value.lower()
+                return normalized in needles
+            return False
+
+        consumers = []
+        queryset = (
+            ProductMaster.objects.select_related("template", "default_template", "commercial_family")
+            .annotate(overlay_count=Count("customer_overlays"))
+            .exclude(id=product.id)
+            .order_by("name", "code")
+        )
+        for candidate in queryset:
+            if any(
+                contains_reference(source)
+                for source in (
+                    candidate.layer_template,
+                    candidate.canonical_layer_stack,
+                    candidate.variant_axes,
+                    candidate.fixed_attributes,
+                )
+            ):
+                consumers.append(candidate)
+        return Response(ProductMasterSerializer(consumers, many=True).data)
+
+    @action(detail=True, methods=["get"])
+    def audit(self, request, pk=None):
+        product = self.get_object()
+        return Response([
+            {"at": product.updated_at, "event": "Product Master ready", "detail": "Used by sales as configurable master; sizes/artwork stay below it."}
+        ])
+
+
+class ProductMasterSizeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_PRODUCT_SIZE"
+    serializer_class = ProductMasterSizeSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["product_master", "active", "qty_uom"]
+    search_fields = ["code", "label", "notes", "product_master__code", "product_master__name"]
+
+    def get_queryset(self):
+        return ProductMasterSize.objects.select_related("product_master").order_by("product_master__name", "sort_order", "label")
+
+
+class CustomerProductOverlayViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    audit_area = "MASTER_CUSTOMER_PRODUCT_OVERLAY"
+    serializer_class = CustomerProductOverlaySerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['product_master', 'customer', 'active', 'default_price_basis']
+    search_fields = [
+        'customer_item_code',
+        'customer_display_name',
+        'customer__name',
+        'customer__code',
+        'product_master__name',
+        'product_master__code',
+    ]
+
+    def get_queryset(self):
+        return CustomerProductOverlay.objects.select_related(
+            'product_master',
+            'customer',
+            'default_artwork',
+        ).order_by('customer__name', 'product_master__name', 'customer_item_code')
 
 
 class PODViewSet(viewsets.ModelViewSet):
@@ -122,12 +671,12 @@ class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 raise ValidationError({"detail": f"Ink with this Base Type and Color Name already exists."})
             raise e
 
-class AdhesiveSolventViewSet(viewsets.ReadOnlyModelViewSet):
+class AdhesiveSolventViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     """
-    System-managed adhesive and solvent masters.
+    Adhesive and solvent masters used by Product Master chemistry defaults.
     """
+    audit_area = "MASTER_ADHESIVE_SOLVENT"
     queryset = InventoryMaterial.objects.filter(
-        code__in=['AD-ADHESIVE', 'AD-SOLVENT'],
         category__in=['ADHESIVE', 'SOLVENT'],
     ).order_by('category', 'name')
     serializer_class = AdhesiveSolventSerializer

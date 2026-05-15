@@ -43,6 +43,33 @@ class ExecutionService:
         return True
 
     @classmethod
+    def _behavior_entry_mode(cls, behavior):
+        return {
+            "CREATE_NEW": "ROLL_MULTI",
+            "MODIFY_EXISTING": "ROLL_SINGLE",
+            "MULTI_INPUT_COMBINE": "ROLL_SINGLE",
+            "SPLIT": "GRID_SPLIT",
+            "NONE": "DISCRETE_ONLY",
+        }.get(str(behavior or "").upper(), "PROCESS_DEFAULT")
+
+    @classmethod
+    def _target_source_label(cls, source):
+        return {
+            "V2_COMBINE_RESERVED_TOTAL": "Total weight of all reserved input rolls",
+            "V2_STEP0_RESERVED_TOTAL": "Total weight of the reserved raw roll",
+            "V2_STEP0_RESERVED_LAYER": "BOM layer matching the reserved roll material",
+            "V2_STEP0_RESERVED_ACTUAL_WEIGHT": "Actual weight of reserved roll because it did not match a BOM layer",
+            "V2_STEP0_HEAVIEST_PURCHASE_LAYER": "Heaviest purchasable BOM layer by density",
+            "V2_COMBINE_FILM_SUM": "Sum of all BOM film layer weights for the order",
+            "V2_STEP_VARIANT_MATCH": "Film layers matching the output variant",
+            "V2_ROLL_MASS_TARGET": "Order quantity for roll-mass job",
+            "V2_FINAL_STEP_ORDER_TARGET": "Final route step uses the full order target",
+            "V2_FINAL_STEP_PARTIAL_REPLAN_TARGET": "Partial replan final step uses remaining job demand",
+            "V2_TARGET_UNRESOLVED": "Target could not be resolved",
+            "V2_DEFAULT": "Default target derivation",
+        }.get(str(source or ""), "Unknown target derivation")
+
+    @classmethod
     def _job_geometry_snapshot(cls, job):
         if getattr(job, "sales_order_item", None) and getattr(job.sales_order_item, "geometry_snapshot", None):
             return job.sales_order_item.geometry_snapshot
@@ -488,6 +515,24 @@ class ExecutionService:
         return layer_count >= cls._lane_active_min_layer_count(job, process, step_roll_spec)
 
     @classmethod
+    def _route_lamination_step_count(cls, job):
+        try:
+            ordered_codes = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
+            if not ordered_codes:
+                return 0
+            from apps.factory.models import Process
+
+            combine_codes = set(
+                Process.objects.filter(
+                    code__in=ordered_codes,
+                    roll_behavior="MULTI_INPUT_COMBINE",
+                ).values_list("code", flat=True)
+            )
+            return len([code for code in ordered_codes if code in combine_codes])
+        except Exception:
+            return 0
+
+    @classmethod
     def _resolve_step_roll_spec(cls, job, process=None):
         process = process or job.current_process or job.process
         behavior = (getattr(process, "roll_behavior", None) or "NONE").upper()
@@ -571,15 +616,23 @@ class ExecutionService:
                             "adhesive_split_pct": getattr(rs, "adhesive_split_pct", None),
                             "solvent_split_pct": getattr(rs, "solvent_split_pct", None),
                             "lane_schema": getattr(rs, "lane_schema", None) or [],
-                            "thickness_rule": rs.thickness_rule or spec.get("thickness_rule"),
-                            "width_rule": rs.width_rule or spec.get("width_rule"),
-                            "operator_entry_mode": rs.operator_entry_mode or spec.get("operator_entry_mode"),
                             "source": "STEP_SPEC",
                         })
+                        if rs.thickness_rule and rs.thickness_rule != "TEMPLATE_DEFAULT":
+                            spec["thickness_rule"] = rs.thickness_rule
+                        if rs.width_rule and rs.width_rule != "TEMPLATE_DEFAULT":
+                            spec["width_rule"] = rs.width_rule
+                        if rs.operator_entry_mode and rs.operator_entry_mode != "PROCESS_DEFAULT":
+                            spec["operator_entry_mode"] = rs.operator_entry_mode
         except Exception:
             pass
 
+        if spec.get("operator_entry_mode") == "PROCESS_DEFAULT":
+            spec["operator_entry_mode"] = cls._behavior_entry_mode(behavior)
+
         if behavior == "MULTI_INPUT_COMBINE" and str(spec.get("combine_mode") or "").upper() == "LANE_GROUPS":
+            layer_count = cls._job_layer_count(job)
+            route_lamination_steps = cls._route_lamination_step_count(job)
             if int(spec.get("input_lane_count") or 0) <= 0:
                 spec["input_lane_count"] = 2
             if int(spec.get("input_roll_count") or 0) <= 0:
@@ -588,6 +641,14 @@ class ExecutionService:
                 spec["lamination_pass_index"] = cls._infer_lamination_pass_index(job, process)
             if int(spec.get("active_min_layer_count") or 0) <= 0:
                 spec["active_min_layer_count"] = cls._lane_active_min_layer_count(job, process, spec)
+            if (
+                layer_count > int(spec.get("input_lane_count") or 0)
+                and int(spec.get("lamination_pass_index") or 1) <= 1
+                and route_lamination_steps <= 1
+            ):
+                spec["input_lane_count"] = layer_count
+                spec["input_roll_count"] = max(int(spec.get("input_roll_count") or 0), layer_count)
+                spec["active_min_layer_count"] = max(int(spec.get("active_min_layer_count") or 0), layer_count)
 
         return spec
 
@@ -1256,7 +1317,12 @@ class ExecutionService:
                                 chosen = film
                                 target_source = "V2_STEP0_RESERVED_LAYER"
                                 break
-                    if chosen is None and purch_films:
+                    if chosen is None and reserved and reserved.roll:
+                        reserved_weight = _as_decimal(getattr(reserved.roll, "weight_kg", 0))
+                        if reserved_weight > 0:
+                            step_roll_target_kg = reserved_weight
+                            target_source = "V2_STEP0_RESERVED_ACTUAL_WEIGHT"
+                    if chosen is None and step_roll_target_kg <= 0 and purch_films:
                         chosen = max(
                             purch_films,
                             key=lambda row: (
@@ -1444,6 +1510,8 @@ class ExecutionService:
             "tolerance_primary": primary_metrics["tolerance_primary"],
             "derivation_fallback": bool(step_roll_target_kg <= 0 and input_form == "ROLL"),
             "target_source": target_source,
+            "target_source_label": cls._target_source_label(target_source),
+            "target_source_detail": cls._target_source_label(target_source),
             "roll_spec_variant_id": step_roll_spec.get("output_variant_id") or None,
         }
 
@@ -2313,6 +2381,13 @@ class ExecutionService:
                 except Exception:
                     continue
 
+            if str(spec.get("source_role") or "").upper() == "LAMINATED_WIP":
+                meta = getattr(roll, "meta_json", None) or {}
+                roll_role = str(meta.get("roll_role") or "").upper()
+                roll_behavior = str(meta.get("source_behavior") or "").upper()
+                if roll_role != "OUTPUT" or roll_behavior != "MULTI_INPUT_COMBINE":
+                    continue
+
             variant_match = True
             family_match = True
             if spec.get("variant_id"):
@@ -2346,7 +2421,7 @@ class ExecutionService:
                 except Exception:
                     continue
 
-            # Auto-allocation window: keep automatic picks within +5% width.
+            # Auto-allocation window: keep automatic picks within +10% width.
             # Manual override may intentionally pick larger rolls, so this gate
             # is only enabled by callers that request strict auto behavior.
             if enforce_auto_width_window:
@@ -2620,7 +2695,7 @@ class ExecutionService:
                 effective_req_width = layer_req_width if layer_req_width is not None else req_width_mm
                 if effective_req_width is not None:
                     layer_spec["min_width_mm"] = effective_req_width
-                    layer_spec["max_auto_width_mm"] = float(effective_req_width) * 1.05
+                    layer_spec["max_auto_width_mm"] = float(effective_req_width) * 1.10
                 _push(layer_spec)
 
         fallback_spec = {
@@ -2630,7 +2705,7 @@ class ExecutionService:
         }
         if req_width_mm is not None:
             fallback_spec["min_width_mm"] = req_width_mm
-            fallback_spec["max_auto_width_mm"] = float(req_width_mm) * 1.05
+            fallback_spec["max_auto_width_mm"] = float(req_width_mm) * 1.10
         _push(fallback_spec)
         return specs
 
@@ -2707,17 +2782,29 @@ class ExecutionService:
                             else layer.get("thickness")
                         ),
                         "min_width_mm": effective_req_width,
-                        "max_auto_width_mm": float(effective_req_width) * 1.05 if effective_req_width is not None else None,
+                        "max_auto_width_mm": float(effective_req_width) * 1.10 if effective_req_width is not None else None,
                         "variant_name": layer.get("variant_name") or layer.get("name"),
                         "source_role": "LAYER",
                     },
                     slot_index,
                 )
 
+            def _lane_key(slot_index):
+                if 1 <= int(slot_index) <= 26:
+                    return f"LANE_{chr(64 + int(slot_index))}"
+                return f"LANE_{int(slot_index)}"
+
             if pass_index <= 1:
+                lane_count = max(2, int(step_roll_spec.get("input_lane_count") or 2))
                 lane_defs = [
-                    (layers[0] if len(layers) >= 1 else {}, 1, 1, "LANE_A", "Lane A · Layer 1"),
-                    (layers[1] if len(layers) >= 2 else {}, 2, 2, "LANE_B", "Lane B · Layer 2"),
+                    (
+                        layers[idx] if len(layers) > idx else {},
+                        idx + 1,
+                        idx + 1,
+                        _lane_key(idx + 1),
+                        f"Lane {_lane_key(idx + 1).replace('LANE_', '')} · Layer {idx + 1}",
+                    )
+                    for idx in range(lane_count)
                 ]
                 slots = [slot for args in lane_defs if (slot := _layer_slot(*args))]
             else:
@@ -2767,7 +2854,7 @@ class ExecutionService:
                             else layer.get("thickness")
                         ),
                         "min_width_mm": effective_req_width,
-                        "max_auto_width_mm": float(effective_req_width) * 1.05 if effective_req_width is not None else None,
+                        "max_auto_width_mm": float(effective_req_width) * 1.10 if effective_req_width is not None else None,
                         "variant_name": layer.get("variant_name") or layer.get("name"),
                     },
                     idx + 1,
@@ -2782,7 +2869,7 @@ class ExecutionService:
                     "grade_id": step_roll_spec.get("output_grade_id"),
                     "thickness_micron": step_roll_spec.get("fixed_thickness_micron"),
                     "min_width_mm": req_width_mm,
-                    "max_auto_width_mm": float(req_width_mm) * 1.05 if req_width_mm is not None else None,
+                    "max_auto_width_mm": float(req_width_mm) * 1.10 if req_width_mm is not None else None,
                     "variant_name": step_roll_spec.get("output_variant_name"),
                 },
                 1,
@@ -2902,7 +2989,7 @@ class ExecutionService:
             }
 
         for roll in roll_rows:
-            matched_lane_key = None
+            compatible_lane_keys = []
             for slot in slots:
                 if cls._is_roll_step_compatible(
                     job,
@@ -2915,8 +3002,14 @@ class ExecutionService:
                     [slot],
                     enforce_auto_width_window=enforce_auto_width_window,
                 ):
-                    matched_lane_key = str(slot.get("lane_key") or f"LANE_{slot.get('slot_index') or 1}")
+                    compatible_lane_keys.append(str(slot.get("lane_key") or f"LANE_{slot.get('slot_index') or 1}"))
+            matched_lane_key = None
+            for lane_key in compatible_lane_keys:
+                if not (lane_rows.get(lane_key) or {}).get("rolls"):
+                    matched_lane_key = lane_key
                     break
+            if not matched_lane_key and compatible_lane_keys:
+                matched_lane_key = compatible_lane_keys[0]
             if not matched_lane_key:
                 if getattr(roll, "id", None):
                     unmatched_roll_ids.append(str(roll.id))
@@ -3534,10 +3627,12 @@ class ExecutionService:
         expected_stage_names = cls._expected_input_stage_names(job, process)
         try:
             from apps.inventory.serializers import (
+                resolve_roll_display_label as roll_display_label_resolver,
                 resolve_roll_role as roll_role_resolver,
                 resolve_roll_stage_name as stage_name_resolver,
             )
         except Exception:
+            roll_display_label_resolver = None
             roll_role_resolver = None
             stage_name_resolver = None
 
@@ -4286,10 +4381,12 @@ class ExecutionService:
         
         try:
             from apps.inventory.serializers import (
+                resolve_roll_display_label as roll_display_label_resolver,
                 resolve_roll_role as roll_role_resolver,
                 resolve_roll_stage_name as stage_name_resolver,
             )
         except Exception:
+            roll_display_label_resolver = None
             roll_role_resolver = None
             stage_name_resolver = None
         
@@ -4700,7 +4797,7 @@ class ExecutionService:
                     effective_width = layer_width if layer_width is not None else req_width_mm
                     if effective_width is not None:
                         spec["min_width_mm"] = float(effective_width)
-                        spec["max_auto_width_mm"] = float(effective_width) * 1.05
+                        spec["max_auto_width_mm"] = float(effective_width) * 1.10
 
                 if target_roll_specs:
                     target_roll_spec["min_width_mm"] = target_roll_specs[0].get("min_width_mm")
@@ -4752,7 +4849,7 @@ class ExecutionService:
         }
         if step_roll_spec_hint.get("width_rule") == "FIXED" and step_roll_spec_hint.get("fixed_width_mm") is not None:
             step_target["min_width_mm"] = step_roll_spec_hint.get("fixed_width_mm")
-            step_target["max_auto_width_mm"] = float(step_roll_spec_hint.get("fixed_width_mm")) * 1.05
+            step_target["max_auto_width_mm"] = float(step_roll_spec_hint.get("fixed_width_mm")) * 1.10
         _merge_target_spec(step_target, target_roll_specs)
         if target_roll_specs:
             target_roll_spec = target_roll_specs[0]
@@ -5637,6 +5734,7 @@ class ExecutionService:
             and process_input_form == "ROLL"
             and roll_behavior_upper in {"MODIFY_EXISTING", "SPLIT"}
         )
+        step_target_source_label = step_profile.get("target_source_label") or cls._target_source_label(step_profile.get("target_source"))
 
         def _serialize_context_roll(roll, source=None):
             raw_role = (
@@ -5658,6 +5756,7 @@ class ExecutionService:
             return {
                 'id': str(roll.id),
                 'label_id': roll.label_id,
+                'display_label': roll_display_label_resolver(roll) if roll_display_label_resolver else roll.label_id,
                 'material_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
                 'variant_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
                 'material_name': roll.material.name if roll.material else None,
@@ -5669,6 +5768,8 @@ class ExecutionService:
                 'status': roll.status,
                 'roll_role': raw_role,
                 'roll_source': source_value,
+                'source_behavior': (getattr(roll, "meta_json", None) or {}).get("source_behavior"),
+                'created_process_name': roll.created_process.name if getattr(roll, "created_process", None) else None,
                 'stage': (
                     stage_name_resolver(roll)
                     if stage_name_resolver
@@ -5754,6 +5855,8 @@ class ExecutionService:
             'execution_profile': execution_profile,
             'execution_model_version': cls._execution_model_version(job),
             'step_target_source': step_profile.get("target_source"),
+            'step_target_source_label': step_target_source_label,
+            'step_target_source_detail': step_profile.get("target_source_detail") or step_target_source_label,
             'order_target_source': "V2_ORDER_REFERENCE",
             'step_execution': {
                 'primary_uom': step_profile.get("primary_uom"),
@@ -5776,6 +5879,8 @@ class ExecutionService:
                 'tolerance_primary': step_profile.get("tolerance_primary"),
                 'derivation_fallback': step_profile.get("derivation_fallback"),
                 'target_source': step_profile.get("target_source"),
+                'target_source_label': step_target_source_label,
+                'target_source_detail': step_profile.get("target_source_detail") or step_target_source_label,
                 'closed_with_variance': bool(getattr(job, "closed_with_variance", False)),
             },
             'step_policy': {
@@ -5794,6 +5899,8 @@ class ExecutionService:
                 ),
                 'output_capture_policy': roll_to_bulk_output_policy,
                 'step_target_source': step_profile.get("target_source"),
+                'step_target_source_label': step_target_source_label,
+                'step_target_source_detail': step_profile.get("target_source_detail") or step_target_source_label,
                 'order_target_source': "V2_ORDER_REFERENCE",
                 'tolerance_kg': step_profile.get("tolerance_kg"),
             },
@@ -5999,7 +6106,7 @@ class ExecutionService:
             )
         if not auto_window_ok and not manual_override:
             raise ValueError(
-                "Selected roll width is outside the auto-allocation window (+5%). "
+                "Selected roll width is outside the auto-allocation window (+10%). "
                 "Use manual override with reason to allocate a larger roll."
             )
         if manual_override and not (override_reason or "").strip():
@@ -6124,10 +6231,12 @@ class ExecutionService:
         grouped = {}
         try:
             from apps.inventory.serializers import (
+                resolve_roll_display_label,
                 resolve_roll_role,
                 resolve_roll_stage_name,
             )
         except Exception:
+            resolve_roll_display_label = None
             resolve_roll_role = None
             resolve_roll_stage_name = None
         for roll in pool:
@@ -6146,6 +6255,7 @@ class ExecutionService:
             grouped[family].append({
                 'id': str(roll.id),
                 'label_id': roll.label_id,
+                'display_label': resolve_roll_display_label(roll) if resolve_roll_display_label else roll.label_id,
                 'material_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
                 'variant_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
                 'material_name': roll.material.name if roll.material else 'N/A',
@@ -6153,6 +6263,8 @@ class ExecutionService:
                 'width_mm': float(roll.width_mm or 0),
                 'status': roll.status,
                 'roll_role': roll_role,
+                'source_behavior': roll_meta.get("source_behavior"),
+                'created_process_name': roll.created_process.name if getattr(roll, "created_process", None) else None,
                 'is_remainder': bool(roll_meta.get("is_remainder")) or str(roll_role or "").upper() == "REMAINDER",
                 'stage_index': int(getattr(roll, "stage_index", 0) or 0),
                 'current_step_index': int(getattr(roll, "current_step_index", 0) or 0),
@@ -6318,7 +6430,16 @@ class ExecutionService:
             'process',
             'template',
             'sales_order_item',
-        ).get(id=job_id)
+        ).filter(id=job_id).first()
+        if job is None:
+            return {
+                'job_id': str(job_id or ''),
+                'missing': True,
+                'status': 'missing',
+                'step_target_total_kg': 0,
+                'step_produced_kg': 0,
+                'step_remaining_kg': 0,
+            }
         return cls._resolve_step_execution_profile(job)
 
     @classmethod
@@ -6947,10 +7068,11 @@ class ExecutionService:
 
         roll_counter = InventoryRoll.objects.filter(production_job=job).count()
 
-        def _next_job_roll_label():
+        def _next_job_roll_label(prefix=""):
             nonlocal roll_counter
             roll_counter += 1
-            return f"R-{job.job_number}-{roll_counter:04d}"
+            suffix = f"-{str(prefix).upper()}" if prefix else ""
+            return f"R-{job.job_number}-{roll_counter:04d}{suffix}"
 
         def _resolve_rm_location_for_plant(plant_id):
             if not plant_id:
@@ -7027,7 +7149,7 @@ class ExecutionService:
             })
 
             remainder_roll = InventoryRoll.objects.create(
-                label_id=_next_job_roll_label(),
+                label_id=_next_job_roll_label("REM"),
                 material=parent_roll.material,
                 plant=(
                     target_location.plant
@@ -7499,6 +7621,14 @@ class ExecutionService:
 
             if roll_behavior in ('MODIFY_EXISTING', 'SPLIT') and len(input_rolls) != 1:
                 raise ValueError(f"{roll_behavior} requires exactly one reserved roll.")
+            if roll_behavior == 'MODIFY_EXISTING' and int(getattr(job, "current_step_index", 0) or 0) > 0:
+                roll = input_rolls[0]
+                roll_step = int(getattr(roll, "current_step_index", 0) or 0)
+                if roll_step < int(getattr(job, "current_step_index", 0) or 0) or not getattr(roll, "created_by_job_id", None):
+                    raise ValueError(
+                        f"MODIFY_EXISTING at step {job.current_step_index} requires a lineage output roll "
+                        f"from the previous production flow. Roll {roll.label_id} has current_step_index={roll_step}."
+                    )
             if roll_behavior == 'MULTI_INPUT_COMBINE' and lane_group_mode:
                 assignment_validation = cls._summarize_roll_assignment_validation(
                     job,
@@ -7675,7 +7805,7 @@ class ExecutionService:
                         out_meta.update(internal_stock_meta)
 
                         out_roll = InventoryRoll.objects.create(
-                            label_id=_next_job_roll_label(),
+                            label_id=_next_job_roll_label("MOD"),
                             material=out_material,
                             plant=job.work_center.plant if job.work_center else roll.plant,
                             production_job=job,
@@ -7797,7 +7927,7 @@ class ExecutionService:
                             out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
                         else:
                             out_roll = InventoryRoll.objects.create(
-                                label_id=_next_job_roll_label(),
+                                label_id=_next_job_roll_label("COMB"),
                                 material=material,
                                 plant=job.work_center.plant if job.work_center else None,
                                 production_job=job,
@@ -7876,7 +8006,7 @@ class ExecutionService:
                     for out in parsed_outputs:
                         weight_breakdown = out["weight_breakdown"]
                         child = InventoryRoll.objects.create(
-                            label_id=_next_job_roll_label(),
+                            label_id=_next_job_roll_label("SPL"),
                             material=parent.material,
                             plant=job.work_center.plant if job.work_center else None,
                             production_job=job,
@@ -8013,7 +8143,7 @@ class ExecutionService:
                             out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
                         else:
                             out_roll = InventoryRoll.objects.create(
-                                label_id=_next_job_roll_label(),
+                                label_id=_next_job_roll_label("NEW"),
                                 material=material_out,
                                 plant=job.work_center.plant if job.work_center else None,
                                 production_job=job,

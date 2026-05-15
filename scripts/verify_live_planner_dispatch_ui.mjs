@@ -465,10 +465,10 @@ async function main() {
     }
     await page.screenshot({ path: runtimePath("live-planner-completed-orders.png"), fullPage: true })
 
-    console.log("[live-proof] create stock order")
-    await page.goto(`${webOrigin}/production/planner/stock-orders/create`, { waitUntil: "domcontentloaded" })
-    await assertHealthyPage(page, "create-stock-order")
-    await page.getByRole("heading", { name: /create stock orders/i }).waitFor({ state: "visible", timeout: 30000 })
+    console.log("[live-proof] stock launcher")
+    await page.goto(`${webOrigin}/production/planner/stock-launcher`, { waitUntil: "domcontentloaded" })
+    await assertHealthyPage(page, "stock-launcher")
+    await page.getByRole("heading", { name: /stock launcher|create stock orders/i }).waitFor({ state: "visible", timeout: 30000 })
     await page.getByTestId("planner-stock-launch-studio").waitFor({ state: "visible", timeout: 30000 })
 
     console.log("[live-proof] stock launcher dryfruit fg")
@@ -517,13 +517,7 @@ async function main() {
       })
       throw error
     }
-    await page.screenshot({ path: runtimePath("live-create-stock-order.png"), fullPage: true })
-
-    console.log("[live-proof] sales sku catalog")
-    await page.goto(`${webOrigin}/sales/sku-catalog`, { waitUntil: "domcontentloaded" })
-    await assertHealthyPage(page, "sales-sku-catalog")
-    await page.getByRole("heading", { name: /sales sku studio/i }).waitFor({ state: "visible", timeout: 30000 })
-    await page.screenshot({ path: runtimePath("live-sales-sku-catalog.png"), fullPage: true })
+    await page.screenshot({ path: runtimePath("live-stock-launcher.png"), fullPage: true })
 
     console.log("[live-proof] sales create order")
     await page.goto(`${webOrigin}/sales/orders/create`, { waitUntil: "domcontentloaded" })
@@ -778,10 +772,9 @@ async function main() {
       screenshots: {
         planner: runtimePath("live-planner-control-tower.png"),
         completed_orders: runtimePath("live-planner-completed-orders.png"),
-        create_stock_order: runtimePath("live-create-stock-order.png"),
+        stock_launcher: runtimePath("live-stock-launcher.png"),
         sales_orders_create: runtimePath("live-sales-orders-create.png"),
         sales_orders_list: runtimePath("live-sales-orders-list.png"),
-        sales_sku_catalog: runtimePath("live-sales-sku-catalog.png"),
         sales_tracking: runtimePath("live-sales-order-tracking.png"),
         packing_before: runtimePath("live-packing-yard-before-release.png"),
         packing_after: runtimePath("live-packing-yard-after-release.png"),

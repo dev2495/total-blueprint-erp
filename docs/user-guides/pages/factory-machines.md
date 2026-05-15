@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Factory • Machines without pr
 
 
 ## Screenshot References
-- ![factory-machines-overview](../../../frontend_v2/public/help/screenshots/factory-machines-overview.svg)
+- ![factory-machines-overview](../../../frontend_v2/public/help/screenshots/factory-machines-overview.png)
 - ![factory-machines-workflow](../../../frontend_v2/public/help/screenshots/factory-machines-workflow.svg)
 
 ## FAQ References

@@ -156,6 +156,7 @@ export interface PlannerControlOrder {
     stock_strategy?: 'FINAL_STOCK' | 'INTERMEDIATE_POOL' | 'PACKAGING_STOCK' | string;
     required_qty_kg: number;
     required_qty_pcs?: number;
+    unit_weight_g?: number | null;
     qty_uom?: string;
     math_valid?: boolean;
     math_error?: string;
@@ -376,7 +377,23 @@ export interface PlannerControlOrder {
             inherited: string[];
             review_flags: string[];
         };
+        // Backend serializer also returns these labels — used by Control Tower v2:
+        profile_kind?: string;
+        profile_label?: string;
+        roll_form?: string | null;
+        print_profile_label?: string;
+        geometry_label?: string;
+        route_span_label?: string;
+        has_started_final_output?: boolean;
     };
+    template_steps?: Array<{
+        sequence_number: number;
+        process_code: string;
+        process_name: string;
+        step_name?: string;
+        input_form?: string;
+        output_form?: string;
+    }>;
 }
 
 export interface ControlHubResponse {
@@ -437,6 +454,11 @@ export interface CloneOrderPayload {
 
 export interface CreateStockOrderPayload {
     template_id?: string;
+    product_master?: string | null;
+    axis_values?: Record<string, any>;
+    commitment_scope?: 'GENERIC' | 'CUSTOMER' | 'ARTWORK' | 'CUSTOMER_ARTWORK';
+    committed_customer?: string | null;
+    committed_artwork?: string | null;
     planner_sku_variant_id?: string;
     sales_sku_variant_id?: string;
     launcher_mode?: 'FINAL_ROLL' | 'SHARED_INVARIANT_ROLL' | 'BASE_UPSTREAM_ROLL' | 'POD_STOCK' | 'PACKAGING_STOCK';
@@ -449,14 +471,32 @@ export interface CreateStockOrderPayload {
     packaging_material_id?: string;
     roll_form?: 'FLAT' | 'FOLDED' | 'TUBING';
     geometry_override?: GeometryOverridePayload;
-    geometry: any;
-    film_layers: any[];
+    geometry?: any;
+    film_layers?: any[];
     printing: any;
     addons: any[];
     packaging_snapshot?: any;
     start_step_index: number;
     stop_step_index?: number;
     preferred_plant_id?: string;
+}
+
+export interface ValidateStockPoolPayload {
+    template_id?: string;
+    product_master?: string | null;
+    commitment_scope?: 'GENERIC' | 'CUSTOMER' | 'ARTWORK' | 'CUSTOMER_ARTWORK';
+    committed_customer?: string | null;
+    committed_artwork?: string | null;
+    stop_step_index?: number;
+}
+
+export interface ValidateStockPoolResult {
+    valid: boolean;
+    first_artwork_step_index?: number | null;
+    route_last_step_index?: number;
+    message?: string;
+    error?: any;
+    detail?: any;
 }
 
 export interface CreateStockOrdersBulkResponse {
@@ -475,6 +515,14 @@ export interface PlannerSkuVariantPreset {
     launch_kind: 'FINAL_ROLL' | 'SHARED_INVARIANT_ROLL' | 'BASE_UPSTREAM_ROLL' | 'POD_STOCK' | 'PACKAGING_STOCK';
     template?: string | null;
     template_name?: string;
+    product_master?: string | null;
+    product_master_name?: string | null;
+    product_master_code?: string | null;
+    commitment_scope?: 'GENERIC' | 'CUSTOMER' | 'ARTWORK' | 'CUSTOMER_ARTWORK';
+    committed_customer?: string | null;
+    committed_customer_name?: string | null;
+    committed_artwork?: string | null;
+    committed_artwork_design_code?: string | null;
     default_plant?: string | null;
     default_plant_name?: string;
     default_qty: number;
@@ -504,6 +552,9 @@ export interface PlannerSkuPreset {
     name: string;
     template: string;
     template_name?: string;
+    product_master?: string | null;
+    product_master_name?: string | null;
+    product_master_code?: string | null;
     default_plant?: string | null;
     default_plant_name?: string;
     active: boolean;
@@ -588,6 +639,11 @@ export const plannerService = {
 
     createStockOrder: async (payload: CreateStockOrderPayload) => {
         const { data } = await api.post('/api/production/planner/create-stock-order/', payload);
+        return data;
+    },
+
+    validateStockPool: async (payload: ValidateStockPoolPayload) => {
+        const { data } = await api.post<ValidateStockPoolResult>('/api/production/planner/stock-pools/validate/', payload);
         return data;
     },
 

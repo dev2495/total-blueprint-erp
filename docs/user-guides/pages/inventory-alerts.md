@@ -84,9 +84,8 @@ This guide helps users complete all key tasks on Inventory • Alerts without pr
 
 
 ## Related Routes
-- /inventory/bulk
 - /inventory/bulk-transactions
-- /inventory/grn
+- /inventory/grn-v36
 
 
 ## Screenshot References

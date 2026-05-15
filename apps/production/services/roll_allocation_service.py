@@ -69,6 +69,17 @@ class RollAllocationService:
         else:
             lineage_qs = qs_all
 
+        downstream_modify_existing = (
+            is_v2
+            and current_step_index > 0
+            and roll_behavior == "MODIFY_EXISTING"
+        )
+        if downstream_modify_existing:
+            lineage_qs = lineage_qs.filter(
+                current_step_index__gte=current_step_index,
+                created_by_job__isnull=False,
+            )
+
         eligible_ids = []
         seen_ids = set()
         from apps.inventory.models import InventoryReservation
@@ -141,7 +152,7 @@ class RollAllocationService:
         
         logger.debug("RollAllocationService job=%s lineage eligible count=%s", job.id, len(eligible_ids))
 
-        if include_non_lineage_fallback:
+        if include_non_lineage_fallback and not downstream_modify_existing:
             required_rolls = 0
             try:
                 step_roll_spec = ExecutionService._resolve_step_roll_spec(job, process)

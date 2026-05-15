@@ -31,6 +31,123 @@ def _normalize_color_list(raw: Any) -> list[str]:
     return [str(value).strip().upper() for value in raw if str(value).strip()]
 
 
+def _normalize_decimal_map(raw: Any) -> dict[str, Decimal]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, Decimal] = {}
+    for key, value in raw.items():
+        color = str(key or "").strip().upper()
+        if not color:
+            continue
+        amount = _as_decimal(value, Decimal("0"))
+        if amount < 0:
+            amount = Decimal("0")
+        out[color] = amount
+    return out
+
+
+def _plain_number(value: Decimal) -> float:
+    return float(value.quantize(Decimal("0.0001")).normalize())
+
+
+def _resolve_ink_gsm_contract(
+    *,
+    color_names: list[str],
+    total_gsm: Any,
+    split_mode: Any = "EQUAL",
+    color_percentages: Any = None,
+    color_gsm: Any = None,
+    require_ink_usage: bool = False,
+    context_label: str = "Artwork",
+) -> dict[str, Any]:
+    colors = list(dict.fromkeys([str(color or "").strip().upper() for color in color_names if str(color or "").strip()]))
+    total = _as_decimal(total_gsm, Decimal("0"))
+    if total < 0:
+        raise ValidationError(f"{context_label}: total ink GSM cannot be negative.")
+    mode = str(split_mode or "EQUAL").strip().upper()
+    if mode not in {"EQUAL", "PERCENT"}:
+        raise ValidationError(f"{context_label}: ink GSM split mode must be EQUAL or PERCENT.")
+    if require_ink_usage and total <= 0:
+        raise ValidationError(f"{context_label}: total ink GSM must be greater than zero.")
+    if not colors or total <= 0:
+        return {
+            "ink_gsm_total": _plain_number(total),
+            "ink_gsm": _plain_number(total),
+            "ink_gsm_split_mode": mode,
+            "ink_gsm_color_percentages": {},
+            "ink_gsm_by_color": {},
+        }
+
+    supplied_color_gsm = _normalize_decimal_map(color_gsm)
+    if mode != "PERCENT" and supplied_color_gsm and all(color in supplied_color_gsm for color in colors):
+        by_color = {color: supplied_color_gsm[color] for color in colors}
+        summed = sum(by_color.values(), Decimal("0"))
+        if summed > 0:
+            total = summed
+        return {
+            "ink_gsm_total": _plain_number(total),
+            "ink_gsm": _plain_number(total),
+            "ink_gsm_split_mode": mode,
+            "ink_gsm_color_percentages": {
+                color: _plain_number((value * Decimal("100") / total) if total > 0 else Decimal("0"))
+                for color, value in by_color.items()
+            } if mode == "PERCENT" else {},
+            "ink_gsm_by_color": {color: _plain_number(value) for color, value in by_color.items()},
+        }
+
+    if mode == "EQUAL":
+        per_color = total / Decimal(str(len(colors)))
+        return {
+            "ink_gsm_total": _plain_number(total),
+            "ink_gsm": _plain_number(total),
+            "ink_gsm_split_mode": mode,
+            "ink_gsm_color_percentages": {},
+            "ink_gsm_by_color": {color: _plain_number(per_color) for color in colors},
+        }
+
+    percentages = _normalize_decimal_map(color_percentages)
+    missing = [color for color in colors if color not in percentages]
+    if missing:
+        raise ValidationError(f"{context_label}: ink GSM percentage missing for colors {', '.join(missing)}.")
+    pruned = {color: percentages[color] for color in colors}
+    total_pct = sum(pruned.values(), Decimal("0"))
+    if abs(total_pct - Decimal("100")) > Decimal("0.01"):
+        raise ValidationError(f"{context_label}: ink GSM color percentages must total 100.")
+    return {
+        "ink_gsm_total": _plain_number(total),
+        "ink_gsm": _plain_number(total),
+        "ink_gsm_split_mode": mode,
+        "ink_gsm_color_percentages": {color: _plain_number(value) for color, value in pruned.items()},
+        "ink_gsm_by_color": {
+            color: _plain_number(total * pct / Decimal("100")) for color, pct in pruned.items()
+        },
+    }
+
+
+def resolve_ink_gsm_by_color(
+    *,
+    color_names: list[str],
+    total_gsm: Any,
+    split_mode: Any = "EQUAL",
+    color_percentages: Any = None,
+    color_gsm: Any = None,
+) -> dict[str, Decimal]:
+    contract = _resolve_ink_gsm_contract(
+        color_names=color_names,
+        total_gsm=total_gsm,
+        split_mode=split_mode,
+        color_percentages=color_percentages,
+        color_gsm=color_gsm,
+        require_ink_usage=False,
+        context_label="Ink GSM",
+    )
+    return {
+        str(color).strip().upper(): _as_decimal(gsm, Decimal("0"))
+        for color, gsm in (contract.get("ink_gsm_by_color") or {}).items()
+        if str(color).strip()
+    }
+
+
 def normalize_printing_snapshot(raw: Any) -> dict[str, Any]:
     src = raw if isinstance(raw, dict) else {}
     out = dict(src)
@@ -41,9 +158,10 @@ def normalize_printing_snapshot(raw: Any) -> dict[str, Any]:
         out["type"] = print_type
         out["method"] = print_type
 
-    substrate_mode = str(out.get("substrate_mode") or "").strip().upper()
+    substrate_mode = str(out.get("substrate_mode") or out.get("film_type") or "").strip().upper()
     if substrate_mode:
         out["substrate_mode"] = substrate_mode
+        out["film_type"] = substrate_mode
 
     front_count = max(0, _as_int(out.get("front_colors_count"), 0))
     back_count = max(0, _as_int(out.get("back_colors_count"), 0))
@@ -57,6 +175,18 @@ def normalize_printing_snapshot(raw: Any) -> dict[str, Any]:
     out["back_colors"] = _normalize_color_list(out.get("back_colors"))
     out["color_names"] = _normalize_color_list(out.get("color_names"))
     out["color_mapping"] = out.get("color_mapping") if isinstance(out.get("color_mapping"), dict) else {}
+    color_names = out["color_names"] or out["front_colors"] + out["back_colors"]
+    out.update(
+        _resolve_ink_gsm_contract(
+            color_names=color_names,
+            total_gsm=out.get("ink_gsm_total") or out.get("ink_gsm") or 0,
+            split_mode=out.get("ink_gsm_split_mode") or "EQUAL",
+            color_percentages=out.get("ink_gsm_color_percentages") or {},
+            color_gsm=out.get("ink_gsm_by_color") or {},
+            require_ink_usage=False,
+            context_label="Frozen printing snapshot",
+        )
+    )
     return out
 
 
@@ -93,7 +223,7 @@ def resolve_ink_base_from_layers(layer_snapshot: Any) -> str:
         if not isinstance(layer, dict):
             continue
         density = _as_decimal(layer.get("density_g_cm3") or layer.get("density_gcm3") or 0)
-        if density >= Decimal("1.4"):
+        if density > Decimal("1.2"):
             return "PET"
     return "POLY"
 
@@ -108,11 +238,23 @@ def resolve_ink_contract(
     normalized_colors = [str(color).strip().upper() for color in color_names if str(color).strip()]
     base_family = resolve_ink_base_from_layers(layer_snapshot)
     supplied_mapping = existing_mapping if isinstance(existing_mapping, dict) else {}
-    normalized_mapping = {
-        str(key).strip().upper(): str(value).strip()
-        for key, value in supplied_mapping.items()
-        if str(key).strip() and str(value).strip()
-    }
+    normalized_mapping: dict[str, str] = {}
+    for key, value in supplied_mapping.items():
+        color_key = str(key).strip().upper()
+        if not color_key:
+            continue
+        mapped_value = value
+        if isinstance(value, dict):
+            mapped_value = (
+                value.get(base_family)
+                or value.get(base_family.lower())
+                or value.get("id")
+                or value.get("ink_id")
+                or ""
+            )
+        mapped_id = str(mapped_value or "").strip()
+        if mapped_id:
+            normalized_mapping[color_key] = mapped_id
 
     resolved_mapping: dict[str, str] = {}
     unresolved: list[str] = []
@@ -144,7 +286,7 @@ def resolve_ink_contract(
     }
 
 
-def get_artwork_contract(artwork, *, require_asset: bool = False) -> dict[str, Any]:
+def get_artwork_contract(artwork, *, require_asset: bool = False, require_ink_usage: bool = False) -> dict[str, Any]:
     has_image_list = False
     try:
         has_image_list = artwork.images.exists()
@@ -168,6 +310,16 @@ def get_artwork_contract(artwork, *, require_asset: bool = False) -> dict[str, A
         back_colors=back_colors,
         context_label="Artwork",
     )
+    color_names = front_colors + back_colors
+    ink_contract = _resolve_ink_gsm_contract(
+        color_names=color_names,
+        total_gsm=getattr(artwork, "ink_gsm_total", 0),
+        split_mode=getattr(artwork, "ink_gsm_split_mode", "EQUAL"),
+        color_percentages=getattr(artwork, "ink_gsm_color_percentages", {}) or {},
+        color_gsm=getattr(artwork, "ink_gsm_by_color", {}) or {},
+        require_ink_usage=require_ink_usage,
+        context_label="Artwork",
+    )
 
     return {
         "print_type": str(getattr(artwork, "print_type", "FLEXO") or "FLEXO").upper(),
@@ -176,7 +328,9 @@ def get_artwork_contract(artwork, *, require_asset: bool = False) -> dict[str, A
         "back_colors_count": back_count,
         "front_colors": front_colors,
         "back_colors": back_colors,
-        "color_names": front_colors + back_colors,
+        "color_names": color_names,
+        "color_mapping": getattr(artwork, "color_mapping", {}) if isinstance(getattr(artwork, "color_mapping", {}), dict) else {},
+        **ink_contract,
     }
 
 
@@ -185,16 +339,19 @@ def _cylinder_incomplete(row) -> bool:
         not str(getattr(row, "code", "") or "").strip()
         or not str(getattr(row, "name", "") or "").strip()
         or not str(getattr(row, "color_name", "") or "").strip()
+        or float(getattr(row, "diameter_mm", 0) or 0) <= 0
+        or float(getattr(row, "width_mm", 0) or 0) <= 0
         or getattr(row, "circumference", None) is None
         or float(getattr(row, "circumference", 0) or 0) <= 0
+        or float(getattr(row, "cell_depth_microns", 0) or 0) <= 0
         or not getattr(row, "engraving_vendor_id", None)
         or not getattr(row, "storage_location_id", None)
         or str(getattr(row, "lifecycle_status", "DRAFT") or "DRAFT").upper() == "DRAFT"
     )
 
 
-def validate_roto_cylinder_readiness(artwork) -> dict[str, Any]:
-    contract = get_artwork_contract(artwork, require_asset=True)
+def validate_roto_cylinder_readiness(artwork, *, require_ink_usage: bool = False) -> dict[str, Any]:
+    contract = get_artwork_contract(artwork, require_asset=True, require_ink_usage=require_ink_usage)
     if contract["print_type"] != "ROTO":
         return contract
 

@@ -228,7 +228,7 @@ export default function RollTraceabilityPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                            <Link href="/inventory/roll-explorer">
+                            <Link href="/inventory?tab=rolls">
                                 <Button variant="outline" className="h-12 rounded-2xl font-bold">
                                     Open Roll Explorer
                                 </Button>

@@ -1,29 +1,29 @@
 import { test, expect } from "../support/base"
 import { annotate, assertHealthyPage, loginViaUi, switchRole } from "../support/test-helpers"
 
-test("roll explorer defaults to a business-friendly by-variant stock view", async ({ page }, testInfo) => {
+test("rolls workspace defaults to a business-friendly by-variant stock view", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Variant Stock",
     severity: "high",
     role: "STORE",
     feature: "Family to variant roll intelligence",
-    expected: "The explorer should default to a family-first variant view and show readable stock naming without flattening everything into stage rows.",
+    expected: "The rolls workspace should default to a family-first variant view and show readable stock naming without flattening everything into stage rows.",
   })
 
   await loginViaUi(page)
-  await switchRole(page, "Store", "/inventory/roll-explorer")
-  await page.goto("/inventory/roll-explorer")
+  await switchRole(page, "Store", "/inventory/rolls-v36")
+  await page.goto("/inventory/rolls-v36")
   await assertHealthyPage(page)
-  await expect(page.getByRole("tab", { name: /by variant/i })).toHaveAttribute("data-state", "active")
-  await expect(page.locator("body")).toContainText("Business Family")
-  const variantResponsePromise = page.waitForResponse(
-    (response) => response.url().includes("/api/inventory/rolls/by-variant/") && response.request().method() === "GET",
+  await expect(page.getByRole("heading", { name: /roll workspace/i })).toBeVisible()
+  await expect(page.locator("body")).toContainText(/Variant × thickness/i)
+  const rollSnapshotResponsePromise = page.waitForResponse(
+    (response) => response.url().includes("/api/inventory/snapshot/") && response.request().method() === "GET",
   )
   await page.reload({ waitUntil: "domcontentloaded" })
-  const variantResponse = await variantResponsePromise
-  expect(variantResponse.status()).toBe(200)
-  await expect(page.locator("body")).toContainText("Family Contribution")
-  await expect(page.locator("body")).toContainText(/usable sizes/i)
+  const rollSnapshotResponse = await rollSnapshotResponsePromise
+  expect(rollSnapshotResponse.status()).toBe(200)
+  await expect(page.locator("body")).toContainText("Variant / family")
+  await expect(page.locator("body")).toContainText(/Top variants by KG/i)
   await expect(page.locator("body")).toContainText(/kg/i)
 })
 

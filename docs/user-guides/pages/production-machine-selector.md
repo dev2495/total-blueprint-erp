@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Production • Machine Selector
 
 
 ## Screenshot References
-- ![production-machine-selector-overview](../../../frontend_v2/public/help/screenshots/production-machine-selector-overview.svg)
+- ![production-machine-selector-overview](../../../frontend_v2/public/help/screenshots/production-machine-selector-overview.png)
 - ![production-machine-selector-workflow](../../../frontend_v2/public/help/screenshots/production-machine-selector-workflow.svg)
 
 ## FAQ References

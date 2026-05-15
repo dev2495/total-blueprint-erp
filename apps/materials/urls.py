@@ -14,6 +14,9 @@ from .views import (
     MaterialLibraryViewSet,
     PackagingViewSet,
     CommercialFamilyViewSet,
+    ProductMasterViewSet,
+    ProductMasterSizeViewSet,
+    CustomerProductOverlayViewSet,
 )
 
 router = OptionalSlashRouter()
@@ -30,6 +33,9 @@ router.register(r'pod-sku-variants', PodSkuVariantViewSet, basename='pod-sku-var
 router.register(r'packaging', PackagingViewSet, basename='packaging')
 router.register(r'library', MaterialLibraryViewSet, basename='material-library')
 router.register(r'commercial-families', CommercialFamilyViewSet, basename='commercial-family')
+router.register(r'products', ProductMasterViewSet, basename='product-master')
+router.register(r'product-sizes', ProductMasterSizeViewSet, basename='product-master-size')
+router.register(r'customer-product-overlays', CustomerProductOverlayViewSet, basename='customer-product-overlay')
 
 urlpatterns = [
     path('', include(router.urls)),

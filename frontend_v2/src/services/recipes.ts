@@ -50,8 +50,9 @@ export const recipeService = {
     deleteGrade: async (id: string) => {
         await api.delete(`/api/recipes/grades/${id}/`);
     },
-    getAll: async () => {
-        const response = await api.get<ExtrusionRecipe[]>("/api/recipes/recipes/");
+    getAll: async (params?: any) => {
+        const requestParams = params && typeof params === "object" && !("queryKey" in params) && !("signal" in params) ? params : undefined;
+        const response = await api.get<ExtrusionRecipe[]>("/api/recipes/recipes/", { params: requestParams });
         return response.data;
     },
     create: async (data: CreateExtrusionRecipeDto) => {

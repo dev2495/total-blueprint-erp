@@ -13,6 +13,7 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
 export interface Location {
     id: string
     plant: string
+    plant_name?: string
     code: string
     name: string
     type: string
@@ -97,6 +98,7 @@ export interface InventoryBulk {
     qty_kg: number
     quantity?: number
     uom?: string
+    stock_uom?: string
     avg_cost: number
     updated_at: string
 }
@@ -196,6 +198,28 @@ export interface GrnCorrectionPayload {
     batch_no?: string
 }
 
+export interface WipAgingPool {
+    klass: string // RAW-FILM | EXT-ROLL | PRINTED | LAMINATED | SLIT | FG-POUCH
+    label: string
+    description?: string
+    uom: "KG" | "PCS" | "M"
+    total: number
+    fresh: number
+    aging: number
+    stale: number
+    dead: number
+    line_counts?: { fresh: number; aging: number; stale: number; dead: number }
+    tags?: Array<{ code: string; label?: string; count?: number; tone?: "blue" | "rose" | "emerald" | "amber" | "violet" | "fuchsia" | "slate" }>
+}
+
+export interface WipAgingResponse {
+    generated_at: string
+    fresh_max_days: number
+    aging_max_days: number
+    stale_max_days: number
+    pools: WipAgingPool[]
+}
+
 export interface InventoryFinancialPeriod {
     id: string
     financial_year: string
@@ -278,6 +302,15 @@ export interface InventoryStockSnapshotPayload {
     plant?: { id: string; name: string; code: string } | null
     rows: Array<Record<string, any>>
     totals: Record<string, number>
+}
+
+export interface InventoryV36SnapshotPayload {
+    as_of: string
+    plant_id?: string | null
+    kpi: Record<string, any>
+    rolls: Roll[]
+    bulk: InventoryBulk[]
+    packaging: PackagingStockRow[]
 }
 
 export interface StockCardPayload {
@@ -367,8 +400,9 @@ export interface JobWorkEligibleRoll {
 
 export const inventoryService = {
     // Locations
-    getLocations: async (plantId: string) => {
-        const { data } = await api.get<MaybePaginated<Location>>(`/api/inventory/plants/${plantId}/locations/`)
+    getLocations: async (plantId?: string) => {
+        const url = plantId ? `/api/inventory/plants/${plantId}/locations/` : "/api/inventory/locations/"
+        const { data } = await api.get<MaybePaginated<Location>>(url)
         return unwrapList<Location>(data)
     },
 
@@ -410,6 +444,75 @@ export const inventoryService = {
         return unwrapList<Roll>(data)
     },
 
+    getInventorySnapshot: async (params?: { plant_id?: string; plant?: string; as_of?: string }) => {
+        const { data } = await api.get<InventoryV36SnapshotPayload>("/api/inventory/snapshot/", { params })
+        return data
+    },
+
+    getInventoryClassSnapshot: async (klass: "rolls" | "bulk" | "packaging" | "addons", params?: Record<string, any>) => {
+        const endpoint = klass === "addons" ? "/api/inventory/addons/" : `/api/inventory/${klass}/v36/`
+        const { data } = await api.get(endpoint, { params })
+        return data as { items: Array<Record<string, any>>; total: number; next_cursor?: string | null; facets?: Record<string, any[]> }
+    },
+
+    getInventoryCoverage: async (params?: Record<string, any>) => {
+        const { data } = await api.get<{ items: Array<Record<string, any>> }>("/api/inventory/coverage/", { params })
+        return data.items || []
+    },
+
+    getInventoryTrend: async (params?: { days?: number; plant_id?: string }) => {
+        const { data } = await api.get<{ items: Array<Record<string, any>> }>("/api/inventory/snapshot/trend/", { params })
+        return data.items || []
+    },
+
+    /**
+     * WIP aging by stock class (RAW-FILM, EXT-ROLL, PRINTED, LAMINATED, SLIT, FG-POUCH).
+     * Default age buckets: fresh ≤2d · aging 3-5d · stale 6-10d · dead >10d.
+     * Falls back to a derived view from getRollStock + getBulkStock when backend lacks
+     * the dedicated endpoint, so the Visual Factory page renders against real seed data
+     * without requiring a new backend deploy.
+     */
+    getWipAging: async (params?: { plant_id?: string; klass?: string }): Promise<WipAgingResponse> => {
+        try {
+            const { data } = await api.get<WipAgingResponse>("/api/inventory/wip/aging/", { params })
+            if (data && Array.isArray((data as any).pools)) return data
+        } catch {/* fall through to local derive */}
+        return deriveWipAgingLocally(params)
+    },
+
+    getInventoryExportUrl: (klass: "rolls" | "bulk" | "packaging" | "addons") => {
+        return `/api/inventory/${klass}/export/`
+    },
+
+    getSavedViews: async (workspace: "rolls" | "bulk" | "packaging" | "addons" | "home") => {
+        const { data } = await api.get<{ items: Array<Record<string, any>> }>("/api/inventory/saved-views/", { params: { workspace } })
+        return data.items || []
+    },
+
+    createSavedView: async (payload: { workspace: string; name: string; icon?: string; pinned?: boolean; state: Record<string, any> }) => {
+        const { data } = await api.post("/api/inventory/saved-views/", payload)
+        return data
+    },
+
+    updateSavedView: async (id: string, payload: Partial<{ name: string; icon: string; pinned: boolean; state: Record<string, any> }>) => {
+        const { data } = await api.patch(`/api/inventory/saved-views/${id}/`, payload)
+        return data
+    },
+
+    deleteSavedView: async (id: string) => {
+        await api.delete(`/api/inventory/saved-views/${id}/`)
+    },
+
+    getInventoryAnomalies: async (params?: { plant_id?: string; kind?: string }) => {
+        const { data } = await api.get<{ items: Array<Record<string, any>> }>("/api/inventory/anomalies/", { params })
+        return data.items || []
+    },
+
+    getInventoryReservations: async (params?: { ref_id?: string; ref_type?: "ROLL" | "BULK" | "PACKAGING" }) => {
+        const { data } = await api.get<{ items: Array<Record<string, any>> }>("/api/inventory/reservations/", { params })
+        return data.items || []
+    },
+
     // GRN
     createBulkGRN: async (payload: {
         material_id: string, location_id: string, vendor_id: string, quantity: number, reference?: string, [key: string]: any
@@ -433,6 +536,24 @@ export const inventoryService = {
         [key: string]: any
     }) => {
         return await api.post("/api/inventory/grn/packaging/", payload)
+    },
+
+    createUnifiedGRN: async (payload: {
+        klass: "BULK" | "ROLL" | "PACKAGING"
+        vendor_id?: string
+        vendor_invoice_no?: string
+        vendor_invoice_date?: string
+        plant_id?: string
+        store_location_id?: string
+        warehouse_id?: string
+        reference_po_id?: string
+        transport?: Record<string, any>
+        remarks?: string
+        lines: Array<Record<string, any>>
+        [key: string]: any
+    }) => {
+        const { data } = await api.post("/api/inventory/grn/create/", payload)
+        return data
     },
 
     getPackagingStock: async (params?: any) => {
@@ -535,6 +656,36 @@ export const inventoryService = {
         return data
     },
 
+    startAuditBatch: async (id: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/start/`)
+        return data
+    },
+
+    finalizeAuditBatch: async (id: string) => {
+        const { data } = await api.post<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/finalize/`)
+        return data
+    },
+
+    submitAuditCountLine: async (id: string, payload: Record<string, any>) => {
+        const { data } = await api.post(`/api/inventory/audit/batches/${id}/submit-line/`, payload)
+        return data
+    },
+
+    syncAuditCountLines: async (id: string, events: Array<Record<string, any>>) => {
+        const { data } = await api.post(`/api/inventory/audit/batches/${id}/sync/`, { events })
+        return data
+    },
+
+    getAuditBatchLocations: async (id: string) => {
+        const { data } = await api.get<{ items?: Array<Record<string, any>> }>(`/api/inventory/audit/batches/${id}/locations/`)
+        return data.items || []
+    },
+
+    getAuditBatchItems: async (id: string, params?: { location?: string; cursor?: string }) => {
+        const { data } = await api.get<{ items?: Array<Record<string, any>> }>(`/api/inventory/audit/batches/${id}/items/`, { params })
+        return data.items || []
+    },
+
     getAuditBatch: async (id: string) => {
         const { data } = await api.get<InventoryAuditBatch>(`/api/inventory/audit/batches/${id}/`)
         return data
@@ -619,6 +770,35 @@ export const inventoryService = {
         return data
     },
 
+    postOpeningStockManual: async (payload: {
+        plant?: string
+        plant_id?: string
+        financial_year?: string
+        cutoff_at?: string
+        notes?: string
+        lines: Array<Record<string, any>>
+    }) => {
+        const { data } = await api.post<{
+            batch_id: string
+            rows_committed: number
+            opening_value_inr: number
+        }>("/api/inventory/opening-stock/manual/", payload)
+        return data
+    },
+
+    postOpeningStockFromCount: async (payload: {
+        batch_id: string
+        financial_year?: string
+        cutoff_at?: string
+    }) => {
+        const { data } = await api.post<{
+            batch_id: string
+            rows_committed: number
+            opening_value_inr: number
+        }>("/api/inventory/opening-stock/from-count/", payload)
+        return data
+    },
+
     getStockCard: async (params?: { material?: string; plant?: string; location?: string; financial_year?: string; from?: string; to?: string }) => {
         const { data } = await api.get<StockCardPayload>("/api/inventory/audit/stock-card/", { params })
         return data
@@ -681,6 +861,106 @@ export const inventoryService = {
     getInterPlantPrintPdfUrl: (id: string) => {
         return `/api/inventory/inter-plant/${id}/print-pdf/`
     },
+}
+
+/**
+ * Local-derive helper for the WIP-aging endpoint until the backend ships a dedicated route.
+ * Pulls existing roll + bulk inventory snapshots and buckets each row by its age in days
+ * (created_at / received_at → today). Returns the canonical WipAgingResponse shape so the
+ * UI doesn't need to branch on "real vs derived".
+ *
+ * Bucket thresholds:
+ *   fresh  ≤ 2 days
+ *   aging  3–5 days
+ *   stale  6–10 days
+ *   dead   > 10 days
+ */
+async function deriveWipAgingLocally(params?: { plant_id?: string; klass?: string }): Promise<WipAgingResponse> {
+    const FRESH_MAX = 2
+    const AGING_MAX = 5
+    const STALE_MAX = 10
+
+    const ageDaysOf = (iso: string | null | undefined): number => {
+        if (!iso) return 0
+        const dt = new Date(iso).getTime()
+        if (!Number.isFinite(dt)) return 0
+        return Math.max(0, Math.floor((Date.now() - dt) / (1000 * 60 * 60 * 24)))
+    }
+
+    const bucketise = (rows: Array<{ kg: number; age: number }>) => {
+        const pool = { total: 0, fresh: 0, aging: 0, stale: 0, dead: 0, fresh_n: 0, aging_n: 0, stale_n: 0, dead_n: 0 }
+        for (const r of rows) {
+            const kg = Number(r.kg) || 0
+            pool.total += kg
+            if (r.age <= FRESH_MAX) { pool.fresh += kg; pool.fresh_n += 1 }
+            else if (r.age <= AGING_MAX) { pool.aging += kg; pool.aging_n += 1 }
+            else if (r.age <= STALE_MAX) { pool.stale += kg; pool.stale_n += 1 }
+            else { pool.dead += kg; pool.dead_n += 1 }
+        }
+        return pool
+    }
+
+    // Pull what the backend currently exposes — gracefully tolerate failures.
+    let rollRows: any[] = []
+    let bulkRows: any[] = []
+    try { rollRows = await inventoryService.getRollStock(params?.plant_id) || [] } catch {/* no-op */}
+    try { bulkRows = await inventoryService.getBulkStock(params?.plant_id ? { plant: params.plant_id } : undefined) || [] } catch {/* no-op */}
+
+    // Bucket rolls by their role/stage signature.
+    const rollByStage: Record<string, Array<{ kg: number; age: number }>> = {
+        "EXT-ROLL": [], "PRINTED": [], "LAMINATED": [], "SLIT": [], "FG-POUCH": [],
+    }
+    for (const r of rollRows) {
+        const role = String((r as any).role || (r as any).stock_class || (r as any).inventory_class || "").toUpperCase()
+        const kg = Number((r as any).net_weight_kg || (r as any).weight_kg || (r as any).quantity || 0) || 0
+        const age = ageDaysOf((r as any).created_at || (r as any).received_at)
+        const target =
+            role.includes("PRINT") ? "PRINTED" :
+            role.includes("LAMIN") ? "LAMINATED" :
+            role.includes("SLIT") ? "SLIT" :
+            role.includes("POUCH") || role.includes("FG") ? "FG-POUCH" :
+            "EXT-ROLL"
+        rollByStage[target].push({ kg, age })
+    }
+    const raw = bulkRows.map((b: any) => ({
+        kg: Number(b.net_weight_kg || b.weight_kg || b.quantity || 0) || 0,
+        age: ageDaysOf(b.received_at || b.created_at),
+    }))
+
+    const POOL_META: Array<{ klass: string; label: string; description: string; uom: "KG"; rows: Array<{ kg: number; age: number }> }> = [
+        { klass: "RAW-FILM", label: "Granule / raw resin", description: "Before extrusion", uom: "KG", rows: raw },
+        { klass: "EXT-ROLL", label: "Extruded film roll", description: "Before printing / lamination", uom: "KG", rows: rollByStage["EXT-ROLL"] },
+        { klass: "PRINTED", label: "Printed roll", description: "Artwork-locked · before lamination", uom: "KG", rows: rollByStage["PRINTED"] },
+        { klass: "LAMINATED", label: "Laminated jumbo", description: "Before slit / pouching", uom: "KG", rows: rollByStage["LAMINATED"] },
+        { klass: "SLIT", label: "Slit reel", description: "Pouching-ready", uom: "KG", rows: rollByStage["SLIT"] },
+        { klass: "FG-POUCH", label: "Finished pouches", description: "Awaiting packing", uom: "KG", rows: rollByStage["FG-POUCH"] },
+    ]
+
+    const pools: WipAgingPool[] = POOL_META
+        .filter((p) => !params?.klass || params.klass.toUpperCase() === p.klass)
+        .map((p) => {
+            const b = bucketise(p.rows)
+            return {
+                klass: p.klass,
+                label: p.label,
+                description: p.description,
+                uom: p.uom,
+                total: Math.round(b.total),
+                fresh: Math.round(b.fresh),
+                aging: Math.round(b.aging),
+                stale: Math.round(b.stale),
+                dead: Math.round(b.dead),
+                line_counts: { fresh: b.fresh_n, aging: b.aging_n, stale: b.stale_n, dead: b.dead_n },
+            }
+        })
+
+    return {
+        generated_at: new Date().toISOString(),
+        fresh_max_days: FRESH_MAX,
+        aging_max_days: AGING_MAX,
+        stale_max_days: STALE_MAX,
+        pools,
+    }
 }
 
 export interface DeliveryChallan {

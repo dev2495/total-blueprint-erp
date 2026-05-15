@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Factory • Processes without p
 
 
 ## Screenshot References
-- ![factory-processes-overview](../../../frontend_v2/public/help/screenshots/factory-processes-overview.svg)
+- ![factory-processes-overview](../../../frontend_v2/public/help/screenshots/factory-processes-overview.png)
 - ![factory-processes-workflow](../../../frontend_v2/public/help/screenshots/factory-processes-workflow.svg)
 
 ## FAQ References

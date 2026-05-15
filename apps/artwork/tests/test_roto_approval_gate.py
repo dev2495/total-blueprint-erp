@@ -7,6 +7,15 @@ from django.test import SimpleTestCase
 from apps.artwork.services import ArtworkService
 
 
+def _ink_contract():
+    return {
+        "ink_gsm_total": 1.2,
+        "ink_gsm_split_mode": "EQUAL",
+        "ink_gsm_color_percentages": {},
+        "ink_gsm_by_color": {},
+    }
+
+
 def _build_cylinder(*, side, slot, is_draft=False, cell_depth=28, lifecycle_status="READY"):
     return SimpleNamespace(
         side=side,
@@ -19,6 +28,8 @@ def _build_cylinder(*, side, slot, is_draft=False, cell_depth=28, lifecycle_stat
         width_mm=500,
         circumference=314,
         cell_depth_microns=cell_depth,
+        engraving_vendor_id="vendor-1",
+        storage_location_id="rack-1",
         lifecycle_status=lifecycle_status,
     )
 
@@ -55,6 +66,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["YELLOW", "BLACK"],
             back_colors=[],
             print_type="ROTO",
+            **_ink_contract(),
         )
         mock_get.return_value = artwork
         mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1)]
@@ -76,6 +88,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["RED"],
             back_colors=[],
             print_type="ROTO",
+            **_ink_contract(),
         )
         mock_get.return_value = artwork
         mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1, cell_depth=0)]
@@ -101,6 +114,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             color_list=[],
             colors_count=0,
             save=lambda: None,
+            **_ink_contract(),
         )
         mock_get.return_value = artwork
         mock_filter.return_value.order_by.return_value = [
@@ -125,6 +139,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["YELLOW"],
             back_colors=[],
             print_type="ROTO",
+            **_ink_contract(),
         )
         mock_get.return_value = artwork
         mock_filter.return_value.order_by.return_value = [
@@ -149,6 +164,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["YELLOW"],
             back_colors=[],
             print_type="ROTO",
+            **_ink_contract(),
         )
         mock_get.return_value = artwork
         mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=2)]

@@ -24,7 +24,8 @@ import {
   BadgePercent,
   Palette,
   Disc,
-  Scale,
+  CalendarRange,
+  Smartphone,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -47,6 +48,7 @@ export interface NavItem extends NavAccessDescriptor {
   href: string
   icon: ElementType
   roles: string[]
+  badge?: string
   children?: NavChildItem[]
 }
 
@@ -75,14 +77,14 @@ export const NAV_ITEMS: NavItem[] = [
       },
       {
         title: "Planner Control Tower",
-        href: "/production/planner",
+        href: "/dashboard/planner/control-tower/command",
         icon: Layers,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
         permissions: ["production.view", "production.manage"],
       },
       {
-        title: "Planner SKU Library",
-        href: "/production/planner/sku-catalog",
+        title: "Stock Launcher",
+        href: "/production/planner/stock-launcher",
         icon: Package,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
         permissions: ["production.view", "production.manage"],
@@ -118,20 +120,90 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    title: "Inventory",
+    title: "Inventory Workspace",
     href: "/inventory",
     icon: Database,
     roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
     permissionModules: ["inventory"],
     children: [
       {
-        title: "Inventory Workspace",
-        href: "/inventory",
+        title: "Rolls Workspace",
+        href: "/inventory/rolls-v36",
+        icon: Layers,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Bulk Workspace",
+        href: "/inventory/bulk-v36",
         icon: Database,
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
       },
-      { title: "GRN Desk", href: "/inventory/grn", icon: ClipboardList, roles: ["ADMIN", "OWNER", "STORE"], permissions: ["inventory.view", "inventory.manage"] },
+      {
+        title: "Packaging Workspace",
+        href: "/inventory/packaging-v36",
+        icon: Package,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Inks · Adhesives",
+        href: "/inventory/addons-v36",
+        icon: Palette,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Smart GRN",
+        href: "/inventory/grn-v36",
+        icon: ClipboardList,
+        roles: ["ADMIN", "OWNER", "STORE"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "GRN History",
+        href: "/inventory/grn-history-v36",
+        icon: ClipboardList,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Stock Lifecycle",
+        href: "/inventory/period",
+        icon: CalendarRange,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.audit.view", "inventory.manage"],
+      },
+      {
+        title: "Mobile Count",
+        href: "/inventory/count",
+        icon: Smartphone,
+        roles: ["ADMIN", "OWNER", "STORE", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.audit.view", "inventory.manage"],
+        badge: "Mobile",
+      },
+      {
+        title: "Inter-Plant",
+        href: "/inventory/inter-plant-v36",
+        icon: Plane,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Roll Genealogy",
+        href: "/inventory/traceability-v36",
+        icon: Workflow,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Job Work",
+        href: "/inventory/job-work",
+        icon: Layers,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
       {
         title: "Inventory Health",
         href: "/analytics/inventory-health",
@@ -139,16 +211,6 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
       },
-      {
-        title: "Roll Genealogy",
-        href: "/inventory/traceability",
-        icon: Workflow,
-        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
-        permissions: ["inventory.view", "inventory.manage"],
-      },
-      { title: "Stock Lifecycle", href: "/inventory/stock-lifecycle", icon: Scale, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"], permissions: ["inventory.audit.view"] },
-      { title: "Job Work", href: "/inventory/job-work", icon: Layers, roles: ["ADMIN", "OWNER", "STORE", "PLANNER"], permissions: ["inventory.view", "inventory.manage"] },
-      { title: "Inter-Plant", href: "/inventory/inter-plant", icon: Plane, roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"], permissions: ["inventory.view", "inventory.manage"] },
     ],
   },
   {
@@ -159,6 +221,7 @@ export const NAV_ITEMS: NavItem[] = [
     permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"],
     children: [
       { title: "Packing Yard", href: "/logistics/packing", icon: Package, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
+      { title: "Packing EOD Count", href: "/logistics/packing/consumption", icon: ClipboardList, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
       {
         title: "Dispatch Bay",
         href: "/logistics/dispatch",
@@ -183,7 +246,7 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["sales.view", "sales.manage"],
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
-      { title: "SKU Catalog", href: "/sales/sku-catalog", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
+      { title: "Product Master", href: "/master/products", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
     ],
@@ -400,6 +463,10 @@ export function getSidebarRoutesForRole(
       return canAccessNavTarget(child, context)
     })
     if (!hasParentAccess && authorizedChildren.length === 0) continue
+
+    if (hasParentAccess) {
+      routes.push(item.href)
+    }
 
     for (const child of authorizedChildren) {
       const resolved = resolveNavigableRoute(child.href)

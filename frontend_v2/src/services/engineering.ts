@@ -33,11 +33,21 @@ export interface Artwork {
     name: string;
     print_type?: "FLEXO" | "ROTO" | "DIGITAL";
     substrate_mode?: "SHEET" | "TUBING";
+    product_master?: string | null;
+    product_master_code?: string | null;
+    product_master_name?: string | null;
+    design_family_code?: string;
+    colorway_name?: string;
     color_list: string[]; // List of color names (visual)
     front_colors_count?: number;
     back_colors_count?: number;
     front_colors?: string[];
     back_colors?: string[];
+    color_mapping?: Record<string, string | { POLY?: string; PET?: string }>;
+    ink_gsm_total?: number;
+    ink_gsm_split_mode?: "EQUAL" | "PERCENT";
+    ink_gsm_color_percentages?: Record<string, number>;
+    ink_gsm_by_color?: Record<string, number>;
     total_side_colors?: number;
     cylinder_ready?: boolean;
     colors_count: number;
@@ -147,6 +157,8 @@ export const engineeringService = {
         back_colors_count?: number;
         cylinder_ready?: boolean | string;
         exclude_cylinder_artwork?: boolean | string;
+        product_master?: string;
+        product_master_id?: string;
     }) => {
         const { data } = await api.get<Artwork[]>("/api/engineering/artworks/", { params });
         return data;

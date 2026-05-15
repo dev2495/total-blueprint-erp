@@ -156,6 +156,8 @@ const strictEnv = {
   UI_E2E_GREEN_RUN: "1",
   UI_E2E_FRONTEND_MODE: process.env.UI_E2E_FRONTEND_MODE || "prod",
   FRONTEND_MODE: process.env.FRONTEND_MODE || process.env.UI_E2E_FRONTEND_MODE || "prod",
+  BACKEND_SERVER_MODE: "gunicorn",
+  GUNICORN_WORKERS: process.env.GUNICORN_WORKERS || "2",
 }
 
 fs.mkdirSync(runtimeRoot, { recursive: true })
@@ -163,6 +165,7 @@ writeRunMetadata()
 assertNoProtectedDuplicateFiles()
 
 trimIdleDbConnections(strictEnv)
+runOrThrow(path.join(repoRoot, "start_all.sh"), ["clean-restart"], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "manage.py"), "migrate", "--noinput"], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "manage.py"), "migrate", "--check"], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e.py")], strictEnv)

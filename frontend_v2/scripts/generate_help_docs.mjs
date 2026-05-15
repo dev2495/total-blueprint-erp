@@ -45,7 +45,7 @@ function write(filePath, content) {
 }
 
 function screenshotFileForKey(key) {
-  const candidates = [".svg", ".png", ".jpg", ".jpeg", ".webp"];
+  const candidates = [".png", ".webp", ".jpg", ".jpeg", ".svg"];
   for (const ext of candidates) {
     const filename = `${key}${ext}`;
     if (fs.existsSync(path.join(screenshotDir, filename))) {

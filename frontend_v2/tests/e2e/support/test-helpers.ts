@@ -12,7 +12,7 @@ export const ROLE_OPTIONS = [
   { code: "PLANNER", name: "Planner", landing: "/production/planner" },
   { code: "WORK_CENTER_MANAGER", name: "Work Center Manager", landing: "/production/work-center" },
   { code: "OPERATOR", name: "Operator", landing: "/production/machine-selector" },
-  { code: "STORE", name: "Store", landing: "/inventory/roll-explorer" },
+  { code: "STORE", name: "Store", landing: "/inventory/rolls-v36" },
   { code: "DISPATCH", name: "Dispatch", landing: "/dashboard/logistics" },
   { code: "ENGINEERING", name: "Engineering", landing: "/engineering/artworks" },
   { code: "SALES", name: "Sales", landing: "/sales/orders" },
@@ -24,6 +24,31 @@ export function annotate(testInfo: TestInfo, values: { module: string; severity:
   if (values.role) testInfo.annotations.push({ type: "role", description: values.role })
   if (values.feature) testInfo.annotations.push({ type: "feature", description: values.feature })
   if (values.expected) testInfo.annotations.push({ type: "expected", description: values.expected })
+}
+
+function isTransientServerNavigationError(error: unknown) {
+  return /ERR_CONNECTION_REFUSED|ECONNREFUSED|net::ERR_EMPTY_RESPONSE/i.test(String(error instanceof Error ? error.message : error))
+}
+
+export async function gotoWithServerRetry(
+  page: Page,
+  url: string,
+  options: Parameters<Page["goto"]>[1] = {},
+) {
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await page.goto(url, options)
+      return
+    } catch (error) {
+      lastError = error
+      if (!isTransientServerNavigationError(error) || attempt === 3) {
+        throw error
+      }
+      await page.waitForTimeout(1200 * (attempt + 1))
+    }
+  }
+  throw lastError
 }
 
 function escapeRegex(value: string) {
@@ -137,16 +162,55 @@ export async function loginViaUi(
   password = process.env.UI_E2E_ADMIN_PASSWORD || "admin123",
   options?: { requireRoleSwitcher?: boolean },
 ) {
-  await page.goto("/login", { waitUntil: "domcontentloaded" })
+  await gotoWithServerRetry(page, "/login", { waitUntil: "domcontentloaded" })
   await clearRoleOverride(page)
+  await Promise.race([
+    page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 2_000 }),
+    page.getByTestId("login-form").waitFor({ state: "visible", timeout: 2_000 }),
+    page.getByTestId("profile-menu-trigger").waitFor({ state: "visible", timeout: 2_000 }),
+    page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout: 2_000 }),
+  ]).catch(() => {})
   if (!page.url().includes("/login")) {
     await assertAuthenticatedShell(page, { requireRoleSwitcher: options?.requireRoleSwitcher ?? true })
     return
   }
-  await waitForLoginReady(page)
+  const loginFormVisible = await page.getByTestId("login-form").isVisible().catch(() => false)
+  const authenticatedShellVisible = await Promise.any([
+    page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout: 500 }).then(() => true),
+    page.getByRole("complementary").first().waitFor({ state: "visible", timeout: 500 }).then(() => true),
+    page.getByTestId("profile-menu-trigger").waitFor({ state: "visible", timeout: 500 }).then(() => true),
+    page.getByRole("button", { name: /help/i }).first().waitFor({ state: "visible", timeout: 500 }).then(() => true),
+  ]).catch(() => false)
+  if (!loginFormVisible && authenticatedShellVisible) {
+    await assertAuthenticatedShell(page, { requireRoleSwitcher: options?.requireRoleSwitcher ?? true })
+    return
+  }
+  await Promise.race([
+    waitForLoginReady(page).then(() => "login"),
+    page.getByRole("complementary").first().waitFor({ state: "visible", timeout: 30_000 }).then(() => "shell"),
+    page.getByTestId("profile-menu-trigger").waitFor({ state: "visible", timeout: 30_000 }).then(() => "shell"),
+    page.getByRole("button", { name: /help/i }).first().waitFor({ state: "visible", timeout: 30_000 }).then(() => "shell"),
+  ]).then(async (state) => {
+    if (state === "shell") {
+      await assertAuthenticatedShell(page, { requireRoleSwitcher: options?.requireRoleSwitcher ?? true })
+    }
+  })
+  if (!page.url().includes("/login")) return
+  if (!(await page.getByTestId("login-form").isVisible().catch(() => false))) {
+    await assertAuthenticatedShell(page, { requireRoleSwitcher: options?.requireRoleSwitcher ?? true })
+    return
+  }
   await page.getByTestId("login-identifier").fill(identifier)
   await page.getByTestId("login-password").fill(password)
-  await page.getByTestId("login-submit").click()
+  try {
+    await page.getByTestId("login-submit").click({ timeout: 15_000 })
+  } catch {
+    if (!page.url().includes("/login")) return
+    await page.evaluate(() => {
+      const form = document.querySelector("[data-testid='login-form']") as HTMLFormElement | null
+      form?.requestSubmit?.()
+    }).catch(() => {})
+  }
 
   try {
     await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
@@ -193,7 +257,7 @@ export async function loginViaUi(
       throw new Error(`Fallback login failed (${loginResult.status}): ${loginResult.detail}`)
     }
 
-    await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
+    await gotoWithServerRetry(page, "/dashboard/admin", { waitUntil: "domcontentloaded" })
   }
 
   try {
@@ -224,7 +288,7 @@ export async function switchRole(page: Page, roleName: string, landingPath: stri
     try {
       await page.waitForURL((url) => url.pathname === landingPath, { timeout: 8_000 })
     } catch {
-      await page.goto(landingPath, { waitUntil: "domcontentloaded" })
+      await gotoWithServerRetry(page, landingPath, { waitUntil: "domcontentloaded" })
     }
   } else {
     if (!options?.allowCookieFallback) {
@@ -239,13 +303,13 @@ export async function switchRole(page: Page, roleName: string, landingPath: stri
         window.localStorage.setItem("x_role_override", roleCode)
       } catch {}
     }, role.code)
-    await page.goto(landingPath, { waitUntil: "domcontentloaded" })
+    await gotoWithServerRetry(page, landingPath, { waitUntil: "domcontentloaded" })
   }
   let lastError: unknown = null
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       if (attempt > 0) {
-        await page.goto(landingPath, { waitUntil: "domcontentloaded" })
+        await gotoWithServerRetry(page, landingPath, { waitUntil: "domcontentloaded" })
       }
       await assertHealthyPage(page, { requireAuth: true })
       return

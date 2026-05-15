@@ -1,8 +1,10 @@
 import { test, expect } from "../support/base"
-import { annotate, assertHealthyPage, switchRole } from "../support/test-helpers"
+import { annotate, assertHealthyPage, gotoWithServerRetry, switchRole } from "../support/test-helpers"
 import { readMutationSeed } from "../support/mutation-seed"
 
 test("planner, WCM, and operator screens expose simple guided next-step copy", async ({ page }, testInfo) => {
+  test.setTimeout(180_000)
+
   annotate(testInfo, {
     module: "Shop Floor UX",
     severity: "high",
@@ -13,23 +15,33 @@ test("planner, WCM, and operator screens expose simple guided next-step copy", a
 
   const seed = readMutationSeed()
 
-  await page.goto("/dashboard/admin")
-  await page.goto("/production/planner")
+  await gotoWithServerRetry(page, "/dashboard/admin", { waitUntil: "domcontentloaded" })
+  await gotoWithServerRetry(page, "/dashboard/planner/control-tower/command", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
-  await expect(page.getByRole("tab", { name: /completed orders/i })).toBeVisible()
-  await expect(page.locator("body")).toContainText("Material policy handoff")
-  await expect(page.locator("body")).toContainText("Planner checks the material plan here")
-  await expect(page.locator("body")).toContainText("Fulfillment path")
+  await expect(page.getByRole("heading", { name: /command/i })).toBeVisible()
+  await expect(page.locator("body")).toContainText("Open Plan Queue")
+  await expect(page.locator("body")).toContainText("Planning queue")
+  await expect(page.locator("body")).toContainText("Source mix")
+
+  await gotoWithServerRetry(page, "/dashboard/planner/control-tower/plan-queue", { waitUntil: "domcontentloaded" })
+  await assertHealthyPage(page)
+  await expect(page.getByRole("heading", { name: /plan queue/i })).toBeVisible()
+  await expect(page.getByPlaceholder(/search order/i)).toBeVisible()
+  await expect(page.locator("body")).toContainText("Queue")
+  await expect(page.locator("body")).toContainText(/Source path|Source · Release/i)
 
   await switchRole(page, "Work Center Manager", "/production/work-center")
-  await page.goto(`/production/work-center/${seed.wcm.work_center_id}`)
-  await page.getByTestId("wcm-terminal-page").waitFor({ state: "visible", timeout: 30_000 })
+  await gotoWithServerRetry(page, `/production/work-center/${seed.wcm.work_center_id}`, { waitUntil: "domcontentloaded" })
+  await page.getByTestId("wcm-terminal-page").waitFor({ state: "visible", timeout: 60_000 })
   await assertHealthyPage(page)
-  await expect(page.locator("body")).toContainText("1. Pick the job from the left queue.")
-  await expect(page.locator("body")).toContainText("2. Check step requirements and material rule.")
+  await expect(page.locator("body")).toContainText("Work Center Terminal")
+  await expect(page.locator("body")).toContainText("Selected sales product")
+  await expect(page.locator("body")).toContainText("Machine assignment")
+  await expect(page.locator("body")).toContainText("Material release")
+  await expect(page.locator("body")).toContainText("Current-step issue")
 
   await switchRole(page, "Operator", "/production/machine-selector")
-  await page.goto(`/production/machine/${seed.operator.machine_id}`)
+  await gotoWithServerRetry(page, `/production/machine/${seed.operator.machine_id}`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("machine-execution-page").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Kiosk focus for operators")

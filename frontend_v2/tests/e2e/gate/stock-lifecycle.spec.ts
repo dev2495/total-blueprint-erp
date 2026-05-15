@@ -2,17 +2,6 @@ import { expect, type Page } from "@playwright/test"
 import { test } from "../support/base"
 import { annotate, assertHealthyPage, switchRole } from "../support/test-helpers"
 
-function currentFy() {
-  const now = new Date()
-  const year = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1
-  return `${year}-${year + 1}`
-}
-
-function previousFy() {
-  const [start] = currentFy().split("-").map(Number)
-  return `${start - 1}-${start}`
-}
-
 async function expectNoPageOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
     const documentElement = document.documentElement
@@ -40,89 +29,39 @@ async function expectNoPageOverflow(page: Page) {
   expect(overflow.bodyScrollWidth, JSON.stringify(overflow, null, 2)).toBeLessThanOrEqual(overflow.viewport + 2)
 }
 
-test("stock lifecycle workspace combines opening count close correction and stock card", async ({ page }, testInfo) => {
+test("stock lifecycle workspace combines period close audit count and opening wizard", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory",
     severity: "high",
     role: "STORE",
-    feature: "Unified stock lifecycle",
-    expected: "Stock lifecycle should be one polished workspace with internal tabs and old pages redirecting into the correct tab.",
+    feature: "V36 period workspace",
+    expected: "Stock lifecycle should be one polished V36 period workspace with audit batches, close preview, and opening stock entry points.",
   })
 
-  await switchRole(page, "Store", "/inventory/stock-lifecycle", { allowCookieFallback: true })
-  await page.goto("/inventory/stock-lifecycle", { waitUntil: "domcontentloaded" })
+  await switchRole(page, "Store", "/inventory/period", { allowCookieFallback: true })
+  await page.goto("/inventory/period", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
   await expect(page.getByTestId("stock-lifecycle-workspace")).toBeVisible()
   await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Opening Stock")
-  await expect(page.locator("body")).toContainText("FY period (Apr-Mar)")
-  await expect(page.locator("body")).toContainText("Opening balance qty")
-  await expect(page.locator("body")).toContainText("Sheet - Enter - Validate - Preview - Approve - Post")
-  await expect(page.locator("body")).toContainText("Activity")
-  await expect(page.locator("body")).toContainText("FY State")
-  await expect(page.locator("body")).toContainText("Validation graph")
-  await expect(page.locator("body")).toContainText("Impact chart")
-  await expect(page.locator("body")).toContainText("Data points captured")
-  await expect(page.locator("body")).toContainText("Two-person signoff")
+  await expect(page.locator("body")).toContainText(/Stock Lifecycle/i)
+  await expect(page.locator("body")).toContainText("FY timeline")
+  await expect(page.locator("body")).toContainText("Audit → Variance → Approve → Close")
+  await expect(page.locator("body")).toContainText("Count entry desk")
+  await expect(page.locator("body")).toContainText("Stock counts")
+  await expect(page.locator("body")).toContainText("Opening stock wizard")
+  await expect(page.locator("body")).toContainText("Past audits & closes")
 
-  await page.getByTestId("stock-lifecycle-tab-count").click()
-  await expect(page).toHaveURL(/tab=count/)
-  await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Stock Count Reconciliation")
-  await expect(page.locator("body")).toContainText("Load live stock")
-  await expect(page.locator("body")).toContainText("Physical count qty")
-
-  await page.getByTestId("stock-lifecycle-tab-stockcard").click()
-  await expect(page).toHaveURL(/tab=stockcard/)
-  await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Material Stock Card")
-  await expect(page.locator("body")).toContainText("Running Balance")
-  await expect(page.locator("body")).toContainText("WAC")
-  await expect(page.locator("body")).toContainText("Ledger graph")
-  await expect(page.locator("body")).toContainText("Rate and value")
-  await expect(page.getByTestId("stock-card-financial-year")).toHaveValue(currentFy())
-
-  await page.getByTestId("stock-lifecycle-tab-yearclose").click()
-  await expect(page).toHaveURL(/tab=yearclose/)
-  await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Year Close")
-  await expect(page.locator("body")).toContainText("Close Checklist")
-  await expect(page.locator("body")).toContainText("Closing breakdown")
-  await expect(page.locator("body")).toContainText("Roll-forward preview")
-
-  await page.getByTestId("stock-lifecycle-tab-correction").click()
-  await expect(page).toHaveURL(/tab=correction/)
-  await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Closed FY Correction")
-  await expect(page.locator("body")).toContainText("Correction reason and approval")
-  await expect(page.locator("body")).toContainText("Corrected closing qty")
-  await expect(page.locator("body")).toContainText("Dual-FY preview")
-  await expect(page.getByTestId("stock-lifecycle-financial-year")).toHaveValue(previousFy())
-
-  await page.getByTestId("stock-lifecycle-tab-help").click()
-  await expect(page).toHaveURL(/tab=help/)
-  await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Lifecycle Help & Flow")
-  await expect(page.locator("body")).toContainText("Weighted Average Cost")
-  await expect(page.locator("body")).toContainText("OPENING_BALANCE_ADJUST")
-  await expect(page.locator("body")).toContainText("Worked example")
-  await expect(page.locator("body")).toContainText("Operator checklist")
-  await expect(page.locator("body")).toContainText("Which tab should I use?")
-  await expect(page.getByAltText("Stock lifecycle flow diagram")).toBeVisible()
-
-  await page.goto("/help?route=%2Finventory%2Fstock-lifecycle", { waitUntil: "domcontentloaded" })
+  await page.goto("/help?route=%2Finventory%2Fperiod", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
   await expectNoPageOverflow(page)
-  await expect(page.locator("body")).toContainText("Stock Lifecycle")
-  await expect(page.locator("body")).toContainText("One simple place for Opening Stock")
-  await expect(page.locator("body")).toContainText("Stock Lifecycle Flow")
-  await expect(page.locator("body")).toContainText("Choose the correct tab")
-  await expect(page.locator("body")).toContainText("Preview shows qty delta")
-  await expect(page.getByAltText("inventory-stock-lifecycle-overview")).toBeVisible()
-  await expect(page.getByAltText("inventory-stock-lifecycle-workflow")).toBeVisible()
+  await expect(page.locator("body")).toContainText("Period & Audit")
+  await expect(page.locator("body")).toContainText(/Stock Lifecycle/i)
 
-  await page.goto("/inventory/stock-lifecycle", { waitUntil: "domcontentloaded" })
-  await expect(page.getByTestId("sidebar-link-inventory-stock-lifecycle").first()).toBeVisible()
+  await page.goto("/inventory/period", { waitUntil: "domcontentloaded" })
+  const inventoryWorkspaceIcon = page.getByTestId("sidebar-link-inventory").first()
+  await expect(inventoryWorkspaceIcon).toBeVisible()
+  await expect(page.locator("main").getByRole("link", { name: /Stock Lifecycle/i })).toBeVisible()
+  await expect(page.getByTestId("sidebar-link-inventory-stock-lifecycle")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-opening-stock")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-stock-count")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-year-close")).toHaveCount(0)
@@ -130,28 +69,29 @@ test("stock lifecycle workspace combines opening count close correction and stoc
   await expect(page.getByTestId("sidebar-link-inventory-stock-card")).toHaveCount(0)
 })
 
-test("legacy stock lifecycle routes redirect into the unified workspace", async ({ page }, testInfo) => {
+test("stock lifecycle canonical tabs load inside the unified workspace", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory",
     severity: "medium",
     role: "STORE",
-    feature: "Stock lifecycle compatibility redirects",
-    expected: "Existing route links should keep working while landing inside the unified stock lifecycle workspace.",
+    feature: "Stock lifecycle canonical tabs",
+    expected: "Current stock lifecycle tabs should load directly inside the unified workspace without legacy route wrappers.",
   })
 
-  await switchRole(page, "Store", "/inventory/stock-lifecycle", { allowCookieFallback: true })
+  await switchRole(page, "Store", "/inventory/period", { allowCookieFallback: true })
 
-  const redirects: Array<[string, RegExp]> = [
-    ["/inventory/opening-stock", /\/inventory\/stock-lifecycle\?tab=opening/],
-    ["/inventory/stock-count", /\/inventory\/stock-lifecycle\?tab=count/],
-    ["/inventory/stock-card", /\/inventory\/stock-lifecycle\?tab=stockcard/],
-    ["/inventory/year-close", /\/inventory\/stock-lifecycle\?tab=yearclose/],
-    ["/inventory/fy-correction", /\/inventory\/stock-lifecycle\?tab=correction/],
+  const tabs = [
+    "/inventory/period",
+    "/inventory/period?tab=opening",
+    "/inventory/period?tab=count",
+    "/inventory/period?tab=stockcard",
+    "/inventory/period?tab=yearclose",
+    "/inventory/period?tab=correction",
   ]
 
-  for (const [route, expectedUrl] of redirects) {
+  for (const route of tabs) {
     await page.goto(route, { waitUntil: "domcontentloaded" })
-    await expect(page).toHaveURL(expectedUrl)
+    await expect(page).toHaveURL(new RegExp(route.replace("?", "\\?")))
     await expect(page.getByTestId("stock-lifecycle-workspace")).toBeVisible()
   }
 })

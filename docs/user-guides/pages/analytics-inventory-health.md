@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Analytics • Inventory Health 
 
 
 ## Screenshot References
-- ![analytics-inventory-health-overview](../../../frontend_v2/public/help/screenshots/analytics-inventory-health-overview.svg)
+- ![analytics-inventory-health-overview](../../../frontend_v2/public/help/screenshots/analytics-inventory-health-overview.png)
 - ![analytics-inventory-health-workflow](../../../frontend_v2/public/help/screenshots/analytics-inventory-health-workflow.svg)
 
 ## FAQ References

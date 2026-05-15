@@ -813,10 +813,26 @@ class FGDispatchService:
         snapshot = dict(getattr(roll.sales_order_item, "packaging_snapshot", {}) or {})
         roll_pack_cfg, default_lines, allowed_material_ids = FGDispatchService._roll_pack_config(snapshot)
         explicit_lines = isinstance(lines, list) and len(lines) > 0
-        if not explicit_lines and (not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids):
+        if not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids:
             raise ValueError(
-                f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging, submit explicit pack lines, or release unpacked."
+                f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging or release unpacked."
             )
+        if not explicit_lines:
+            return RollDispatchPackRecord.objects.create(
+                roll=roll,
+                sales_order_item_id=roll.sales_order_item_id,
+                packed_by=user,
+                lines=[],
+                tx_ids=[],
+                meta_json={
+                    "defaulted_from_snapshot": True,
+                    "snapshot_enabled": True,
+                    "consumption_capture_mode": "DAILY_PACKING_COUNT",
+                    "allowed_material_ids": sorted(allowed_material_ids),
+                    "allowed_lines": default_lines,
+                },
+            )
+
         pack_lines = lines if explicit_lines else default_lines
         if not pack_lines:
             raise ValueError(
@@ -843,9 +859,9 @@ class FGDispatchService:
             if not material_id:
                 raise ValueError(f"Pack line {idx + 1}: material_id is required.")
             material_id_str = str(material_id).strip()
-            snapshot_override = bool(explicit_lines and material_id_str not in allowed_material_ids)
-            if snapshot_override:
-                override_material_ids.append(material_id_str)
+            if material_id_str not in allowed_material_ids:
+                raise ValueError(f"Pack line {idx + 1}: selected material is not allowed by this sales order packing snapshot.")
+            snapshot_override = False
             input_uom = str(line.get("uom") or "").upper() or None
             basis = str(line.get("basis") or "PER_ROLL").upper()
             tx = PackagingService.consume_packaging_stock(
@@ -1023,29 +1039,43 @@ class FGDispatchService:
             allowed_material_ids: set[str] = set()
 
             if not explicit_lines:
-                aggregate: dict[tuple[str, str, str], Decimal] = {}
                 for roll in rolls:
                     roll_pack_cfg, default_lines, roll_allowed_ids = FGDispatchService._roll_pack_config(
                         getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}
                     )
                     if not bool(roll_pack_cfg.get("enabled", False)) or not roll_allowed_ids:
                         raise ValueError(
-                            f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Submit total pack lines or release unpacked."
+                            f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging or release unpacked."
                         )
-                    allowed_material_ids.update(roll_allowed_ids)
-                    for line in default_lines:
-                        if not isinstance(line, dict):
-                            continue
-                        material_id = str(line.get("material_id") or "").strip()
-                        qty = Decimal(str(line.get("qty") or 0))
-                        if not material_id or qty <= 0:
-                            continue
-                        key = (material_id, str(line.get("uom") or "").upper() or "PCS", str(line.get("basis") or "PER_ROLL").upper())
-                        aggregate[key] = aggregate.get(key, Decimal("0")) + qty
-                source_lines = [
-                    {"material_id": material_id, "qty": float(qty), "uom": uom, "basis": basis}
-                    for (material_id, uom, basis), qty in aggregate.items()
-                ]
+                    meta_json = FGDispatchService._mark_release_meta(
+                        {
+                            "defaulted_from_snapshot": True,
+                            "snapshot_enabled": True,
+                            "release_mode": "PACKED",
+                            "bulk_release_id": bulk_release_id,
+                            "consumption_capture_mode": "DAILY_PACKING_COUNT",
+                            "allowed_material_ids": sorted(roll_allowed_ids),
+                            "allowed_lines": default_lines,
+                        },
+                        user=user,
+                        release_mode="PACKED",
+                    )
+                    meta_json["dispatch_unit_no"] = f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+                    records.append(
+                        RollDispatchPackRecord.objects.create(
+                            roll=roll,
+                            sales_order_item_id=roll.sales_order_item_id,
+                            packed_by=user,
+                            lines=[],
+                            tx_ids=[],
+                            meta_json=meta_json,
+                        )
+                    )
+                FGDispatchService._set_sales_order_status(
+                    getattr(getattr(rolls[0], "sales_order_item", None), "sales_order", None),
+                    "DISPATCH_READY",
+                )
+                return records
             else:
                 for roll in rolls:
                     _, _, roll_allowed_ids = FGDispatchService._roll_pack_config(
@@ -1076,11 +1106,11 @@ class FGDispatchService:
                     continue
                 if not material_id:
                     raise ValueError(f"Pack line {idx + 1}: material_id is required.")
+                if material_id not in allowed_material_ids:
+                    raise ValueError(f"Pack line {idx + 1}: selected material is not allowed by this sales order packing snapshot.")
                 input_uom = str(line.get("uom") or "").upper() or None
                 basis = str(line.get("basis") or "TOTAL_ROLLS").upper()
-                snapshot_override = bool(explicit_lines and material_id not in allowed_material_ids)
-                if snapshot_override:
-                    override_material_ids.append(material_id)
+                snapshot_override = False
                 tx = PackagingService.consume_packaging_stock(
                     material_id=material_id,
                     qty=qty,

@@ -63,6 +63,10 @@ def ensure_seed_artwork(
             "back_colors": back_colors,
             "color_list": color_list,
             "colors_count": len(color_list),
+            "ink_gsm_total": 1.2,
+            "ink_gsm_split_mode": "EQUAL",
+            "ink_gsm_color_percentages": {},
+            "ink_gsm_by_color": {},
             "file_path": "/tmp/ui-e2e-flexo-gate.pdf",
             "status": "APPROVED",
             "approved_by": admin_user,
@@ -80,6 +84,10 @@ def ensure_seed_artwork(
         "back_colors": back_colors,
         "color_list": color_list,
         "colors_count": len(color_list),
+        "ink_gsm_total": 1.2,
+        "ink_gsm_split_mode": "EQUAL",
+        "ink_gsm_color_percentages": {},
+        "ink_gsm_by_color": {},
         "file_path": "/tmp/ui-e2e-flexo-gate.pdf",
         "status": "APPROVED",
     }
@@ -138,6 +146,38 @@ def _ensure_seed_ink_contract(layer_snapshot: list | None, total_colors: int) ->
     return base_family, color_names, color_mapping
 
 
+def _sheet_safe_seed_printing(printing: dict | None, layer_snapshot: list | None) -> dict:
+    payload = dict(printing or {})
+    print_type = "FLEXO"
+    front_count = int(payload.get("front_colors_count") or 1)
+    back_count = int(payload.get("back_colors_count") or 0)
+    total_colors = max(1, front_count + back_count)
+    ink_base_family, color_names, color_mapping = _ensure_seed_ink_contract(layer_snapshot or [], total_colors)
+    ink_gsm = float(payload.get("ink_gsm_total") or payload.get("ink_gsm") or 1.2)
+    payload.update(
+        {
+            "enabled": True,
+            "type": print_type,
+            "method": print_type,
+            "substrate_mode": "SHEET",
+            "film_type": "SHEET",
+            "front_colors_count": total_colors,
+            "back_colors_count": 0,
+            "front_colors": color_names[:total_colors],
+            "back_colors": [],
+            "color_names": color_names[:total_colors],
+            "color_mapping": color_mapping,
+            "ink_base_family": ink_base_family,
+            "ink_gsm_total": ink_gsm,
+            "ink_gsm": ink_gsm,
+            "cylinder_required": False,
+        }
+    )
+    payload.pop("artwork_id", None)
+    payload.pop("artwork_design_code", None)
+    return payload
+
+
 def _find_seed_variant() -> SalesSkuVariant:
     variants = (
         SalesSkuVariant.objects.select_related("sku", "sku__template")
@@ -159,6 +199,7 @@ def build_gate_order() -> SalesOrder:
     variant = _find_seed_variant()
     customer = Customer.objects.order_by("name", "created_at").first()
     customer_name = customer.name if customer else "UI E2E Customer"
+    layer_snapshot = deepcopy(variant.layer_snapshot or [])
     payload = {
         "customer": str(customer.id) if customer else None,
         "customer_name": customer_name,
@@ -170,8 +211,8 @@ def build_gate_order() -> SalesOrder:
         "qty_value": "2500",
         "qty_uom": "PCS",
         "geometry": deepcopy(variant.geometry_snapshot or {}),
-        "film_layers": deepcopy(variant.layer_snapshot or []),
-        "printing": deepcopy(variant.printing_snapshot or {}),
+        "film_layers": layer_snapshot,
+        "printing": _sheet_safe_seed_printing(deepcopy(variant.printing_snapshot or {}), layer_snapshot),
         "chemicals": deepcopy(variant.chemicals_snapshot or {}),
         "addons": deepcopy(variant.addons_snapshot or []),
         "packaging_snapshot": deepcopy(variant.packaging_snapshot or {}),
@@ -196,39 +237,9 @@ def force_artwork_gate(order: SalesOrder) -> SalesOrder:
     if not item:
         raise RuntimeError("Planner artwork gate seed order has no items.")
 
-    printing = dict(item.printing_snapshot or {})
     # This browser gate validates deferred artwork assignment, not cylinder readiness.
-    # Keep the seeded row FLEXO so an otherwise valid ROTO SKU cannot fail the test
-    # only because finalized cylinders were intentionally not seeded.
-    print_type = "FLEXO"
-    front_count = int(printing.get("front_colors_count") or 1)
-    back_count = int(printing.get("back_colors_count") or 0)
-    if front_count + back_count <= 0:
-        front_count = 1
-        back_count = 0
-    ink_base_family, color_names, color_mapping = _ensure_seed_ink_contract(item.layer_snapshot or [], front_count + back_count)
-    front_colors = color_names[:front_count]
-    back_colors = color_names[front_count : front_count + back_count]
-    printing.update(
-        {
-            "enabled": True,
-            "type": print_type,
-            "method": print_type,
-            "substrate_mode": str(printing.get("substrate_mode") or "SHEET").upper(),
-            "front_colors_count": front_count,
-            "back_colors_count": back_count,
-            "front_colors": front_colors,
-            "back_colors": back_colors,
-            "color_names": front_colors + back_colors,
-            "color_mapping": color_mapping,
-            "ink_base_family": ink_base_family,
-            "ink_gsm_total": float(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 1.2),
-            "ink_gsm": float(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 1.2),
-            "cylinder_required": print_type == "ROTO",
-        }
-    )
-    printing.pop("artwork_id", None)
-    printing.pop("artwork_design_code", None)
+    # Keep the seeded row FLEXO and sheet-safe regardless of the source variant.
+    printing = _sheet_safe_seed_printing(item.printing_snapshot or {}, item.layer_snapshot or [])
 
     item.printing_snapshot = printing
     item.assigned_artwork_id = None

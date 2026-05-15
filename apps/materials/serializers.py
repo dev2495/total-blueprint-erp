@@ -1,8 +1,130 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from .chemistry_defaults import normalize_product_master_chemistry_defaults
+from .naming import normalize_code
 from apps.inventory.models import InkMaterial
+from apps.recipes.qty_formula import evaluate_qty_formula
+from apps.recipes.models import RecipeGrade
+from apps.sales.models import CustomerProductOverlay
+from django.core.exceptions import ValidationError as DjangoValidationError
 import uuid
+import hashlib
+import json
+
+GLOBAL_PRODUCT_LAYER_AXES = {"thickness_um", "thickness_micron", "grade", "grade_id"}
+LAYER_THICKNESS_AXIS_KEYS = {"layer_thicknesses", "layer_thickness", "thickness_by_layer", "per_layer_thickness"}
+LAYER_GRADE_AXIS_KEYS = {"layer_grades", "layer_grade", "grade_by_layer", "per_layer_grade"}
+CATALOG_AXIS_SOURCES = {"pod_sku_variant", "packaging_material", "addon"}
+LAYER_MATERIAL_AXIS_KEYS = {
+    "layer_material_overrides",
+    "layer_materials",
+    "film_variant_by_layer",
+    "layer_film_variants",
+    "material_by_layer",
+}
+LAYER_MATERIAL_AXIS_TYPES = {
+    "layer_material_enum",
+    "per_layer_material_enum",
+    "layer_film_variant_enum",
+    "per_layer_film_variant_enum",
+}
+LAYER_MATERIAL_OPTION_KEYS = {
+    "allowed_film_variant_codes",
+    "alternate_film_variant_codes",
+    "allowed_alternate_film_variant_codes",
+    "allowed_material_codes",
+    "alternate_material_codes",
+    "material_options",
+    "film_variant_options",
+}
+
+
+def _material_codes_from_options(value):
+    if value in (None, ""):
+        return set()
+    if isinstance(value, dict):
+        code = value.get("code") or value.get("material_code") or value.get("film_variant_code") or value.get("value")
+        if code:
+            return {str(code).strip()}
+        codes = set()
+        for nested in value.values():
+            codes.update(_material_codes_from_options(nested))
+        return codes
+    if isinstance(value, (list, tuple, set)):
+        codes = set()
+        for item in value:
+            codes.update(_material_codes_from_options(item))
+        return codes
+    return {str(value).strip()} if str(value).strip() else set()
+
+
+def _layer_allowed_material_codes(row):
+    codes = set()
+    for key in LAYER_MATERIAL_OPTION_KEYS:
+        if isinstance(row, dict) and row.get(key) not in (None, ""):
+            codes.update(_material_codes_from_options(row.get(key)))
+    return codes
+
+
+def _catalog_default_exists(source, default_value, filters=None):
+    if not default_value:
+        return True
+    filters = filters if isinstance(filters, dict) else {}
+    ref = str(default_value).strip()
+    if source == "pod_sku_variant":
+        return PodSkuVariant.objects.filter(code__iexact=ref, active=True).exists()
+    if source == "packaging_material":
+        queryset = InventoryMaterial.objects.filter(code__iexact=ref, category="PACKAGING", status="ACTIVE")
+        packaging_kind = filters.get("packaging_kind")
+        if packaging_kind:
+            if isinstance(packaging_kind, (list, tuple, set)):
+                queryset = queryset.filter(packaging_kind__in=[str(kind).upper() for kind in packaging_kind if str(kind).strip()])
+            else:
+                queryset = queryset.filter(packaging_kind=str(packaging_kind).upper())
+        return queryset.exists()
+    if source == "addon":
+        return InventoryMaterial.objects.filter(code__iexact=ref, category="ADDON", status="ACTIVE").exists()
+    return False
+
+
+def _grade_name_exists(name):
+    if not str(name or "").strip():
+        return False
+    return RecipeGrade.objects.filter(name__iexact=str(name).strip(), is_active=True).exists()
+
+
+def _normalize_grade_options(value):
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+def _normalize_thickness_options(value, default_thickness):
+    options = []
+    if value not in (None, ""):
+        source = value if isinstance(value, (list, tuple, set)) else [value]
+        for item in source:
+            try:
+                option = float(item)
+            except Exception as exc:
+                raise serializers.ValidationError({"layer_template": "Layer thickness options must be numeric."}) from exc
+            if option <= 0:
+                raise serializers.ValidationError({"layer_template": "Layer thickness options must be greater than zero."})
+            options.append(option)
+    if default_thickness not in (None, ""):
+        options.append(float(default_thickness))
+    return sorted({round(option, 3) for option in options if option > 0})
+
+
+def _axis_names(variant_axes):
+    if not isinstance(variant_axes, list):
+        return set()
+    return {str((axis or {}).get("axis") or "").strip() for axis in variant_axes if isinstance(axis, dict)}
 
 class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,7 +148,438 @@ class CommercialFamilySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def validate_code(self, value):
-        return str(value or '').upper().strip()
+        return normalize_code(value, max_length=50)
+
+
+class ProductMasterSerializer(serializers.ModelSerializer):
+    default_template_name = serializers.CharField(source='default_template.name', read_only=True, allow_null=True)
+    template_name = serializers.CharField(source='template.name', read_only=True, allow_null=True)
+    commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
+    overlay_count = serializers.IntegerField(read_only=True, default=0)
+    overlays_count = serializers.SerializerMethodField()
+    sizes_count = serializers.SerializerMethodField()
+    variants_count = serializers.SerializerMethodField()
+    default_reporting_group = serializers.ChoiceField(
+        choices=CommercialFamily.REPORTING_GROUP_CHOICES,
+        required=False,
+        allow_blank=True,
+        default="FG",
+    )
+
+    class Meta:
+        model = ProductMaster
+        fields = [
+            'id',
+            'code',
+            'name',
+            'product_kind',
+            'default_template',
+            'default_template_name',
+            'template',
+            'template_name',
+            'extrusion_recipe',
+            'commercial_family',
+            'commercial_family_name',
+            'default_reporting_group',
+            'reusable_policy',
+            'canonical_layer_stack',
+            'layer_template',
+            'variant_axes',
+            'fixed_attributes',
+            'invariant_signature',
+            'description',
+            'active',
+            'overlay_count',
+            'overlays_count',
+            'sizes_count',
+            'variants_count',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'default_template_name', 'template_name', 'commercial_family_name', 'overlay_count', 'overlays_count', 'sizes_count', 'variants_count', 'created_at', 'updated_at']
+
+    def get_overlays_count(self, obj):
+        annotated = getattr(obj, "overlay_count", None)
+        if annotated is not None:
+            return annotated
+        return obj.customer_overlays.count()
+
+    def get_sizes_count(self, obj):
+        return obj.sizes.count()
+
+    def get_variants_count(self, obj):
+        return obj.variants.count()
+
+    def validate_code(self, value):
+        return normalize_code(value, max_length=80)
+
+    def validate_default_reporting_group(self, value):
+        return value or "FG"
+
+    def validate(self, attrs):
+        template = attrs.get("template") or getattr(self.instance, "template", None)
+        default_template = attrs.get("default_template") or getattr(self.instance, "default_template", None)
+        if not template and default_template:
+            attrs["template"] = default_template
+            template = default_template
+        if not default_template and template:
+            attrs["default_template"] = template
+        if not attrs.get("layer_template") and attrs.get("canonical_layer_stack"):
+            attrs["layer_template"] = attrs.get("canonical_layer_stack")
+        if not attrs.get("canonical_layer_stack") and attrs.get("layer_template"):
+            attrs["canonical_layer_stack"] = attrs.get("layer_template")
+        product_kind = str(attrs.get("product_kind") or getattr(self.instance, "product_kind", "POUCH") or "POUCH").upper()
+        fixed_attributes = attrs.get("fixed_attributes")
+        if not fixed_attributes:
+            physical_fg_type = "ROLL" if product_kind == "ROLL" else "POUCH"
+            attrs["fixed_attributes"] = {"fg_type": physical_fg_type, "print_capable": True}
+        elif isinstance(fixed_attributes, dict):
+            fixed = dict(fixed_attributes)
+            raw_fg_type = str(fixed.get("fg_type") or "").upper()
+            if raw_fg_type not in {"POUCH", "ROLL"}:
+                fixed["fg_type"] = "ROLL" if product_kind == "ROLL" else "POUCH"
+            attrs["fixed_attributes"] = fixed
+        layer_template = attrs.get("layer_template")
+        if layer_template is None and self.instance:
+            layer_template = getattr(self.instance, "layer_template", None)
+        variant_axes_for_layers = attrs.get("variant_axes")
+        if variant_axes_for_layers is None and self.instance:
+            variant_axes_for_layers = getattr(self.instance, "variant_axes", None)
+        axis_names_for_layers = _axis_names(variant_axes_for_layers)
+        has_layer_thickness_axis = bool(axis_names_for_layers & LAYER_THICKNESS_AXIS_KEYS)
+        has_layer_grade_axis = bool(axis_names_for_layers & LAYER_GRADE_AXIS_KEYS)
+        if isinstance(layer_template, list):
+            for index, row in enumerate(layer_template):
+                if not isinstance(row, dict):
+                    raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must be an object."})
+                material_id = row.get("film_variant_id") or row.get("material_id")
+                material_code = row.get("film_variant_code") or row.get("material_code") or row.get("code") or row.get("layer") or row.get("name")
+                if not material_code:
+                    material = InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first() if material_id else None
+                    if material:
+                        material_code = material.code
+                else:
+                    material = InventoryMaterial.objects.filter(code__iexact=str(material_code), category="FILM_VARIANT").first()
+                if not material:
+                    raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must select a valid film variant."})
+                row["film_variant_id"] = str(material.id)
+                row["film_variant_code"] = material.code
+                raw_thickness = row.get("thickness_micron", row.get("thickness_um"))
+                if raw_thickness in (None, ""):
+                    if not has_layer_thickness_axis:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} thickness_micron is required unless thickness is a per-layer axis."})
+                    thickness = 0
+                else:
+                    try:
+                        thickness = float(raw_thickness)
+                    except Exception as exc:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} thickness must be numeric."}) from exc
+                    if thickness <= 0 and has_layer_thickness_axis:
+                        thickness = 0
+                    elif thickness <= 0:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} thickness must be greater than zero."})
+                row["thickness_micron"] = thickness
+                row["thickness_options"] = _normalize_thickness_options(row.get("thickness_options"), thickness if thickness > 0 else None)
+                grade = row.get("default_grade") or row.get("grade_name") or row.get("grade")
+                can_skip_grade = bool(material and material.is_purchasable and not material.is_extrudable)
+                if can_skip_grade:
+                    row["default_grade"] = ""
+                    row["grade_options"] = []
+                elif not str(grade or "").strip():
+                    if not has_layer_grade_axis:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} grade is required unless the selected film variant is purchasable-only or grade is a per-layer axis."})
+                    options = _normalize_grade_options(row.get("grade_options"))
+                    invalid_grades = [option for option in options if not _grade_name_exists(option)]
+                    if invalid_grades:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} has invalid grade options: {', '.join(invalid_grades)}."})
+                    row["default_grade"] = ""
+                    row["grade_options"] = list(dict.fromkeys(options))
+                else:
+                    grade = str(grade).strip()
+                    if not _grade_name_exists(grade):
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} grade must come from the grade master."})
+                    options = _normalize_grade_options(row.get("grade_options"))
+                    if grade not in options:
+                        options.insert(0, grade)
+                    invalid_grades = [option for option in options if not _grade_name_exists(option)]
+                    if invalid_grades:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} has invalid grade options: {', '.join(invalid_grades)}."})
+                    row["default_grade"] = grade
+                    row["grade_options"] = list(dict.fromkeys(options))
+                raw_share = row.get("thickness_share", row.get("percent_of_total"))
+                if raw_share not in (None, ""):
+                    try:
+                        share = float(raw_share)
+                    except Exception as exc:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} share must be numeric."}) from exc
+                    if share < 0:
+                        raise serializers.ValidationError({"layer_template": f"Layer {index + 1} share cannot be negative."})
+                alternate_codes = _layer_allowed_material_codes(row)
+                if alternate_codes:
+                    found_codes = set(
+                        InventoryMaterial.objects.filter(
+                            code__in=alternate_codes,
+                            category="FILM_VARIANT",
+                        ).values_list("code", flat=True)
+                    )
+                    missing = sorted(alternate_codes - found_codes)
+                    if missing:
+                        raise serializers.ValidationError(
+                            {"layer_template": f"Layer {index + 1} alternate film variants are invalid: {', '.join(missing)}."}
+                        )
+        try:
+            attrs["fixed_attributes"] = normalize_product_master_chemistry_defaults(
+                attrs.get("fixed_attributes") or getattr(self.instance, "fixed_attributes", {}),
+                layer_template=layer_template,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)) from exc
+        variant_axes = attrs.get("variant_axes")
+        if variant_axes is None and self.instance:
+            variant_axes = getattr(self.instance, "variant_axes", None)
+        if isinstance(variant_axes, list):
+            layer_rows = [row for row in (layer_template or []) if isinstance(row, dict)]
+            layer_allowed_codes = set()
+            for row in layer_rows:
+                layer_allowed_codes.update(_layer_allowed_material_codes(row))
+            forbidden = [
+                str((axis or {}).get("axis") or "")
+                for axis in variant_axes
+                if isinstance(axis, dict) and str((axis or {}).get("axis") or "") in GLOBAL_PRODUCT_LAYER_AXES
+            ]
+            if forbidden:
+                raise serializers.ValidationError({"variant_axes": f"Global thickness/grade axes are not valid: {', '.join(forbidden)}. Use layer_thicknesses/layer_grades or layer defaults."})
+            for axis in variant_axes:
+                if not isinstance(axis, dict):
+                    continue
+                key = str(axis.get("axis") or "").strip()
+                axis_type = str(axis.get("type") or "").strip()
+                catalog_source = axis.get("master_data_source")
+                if catalog_source:
+                    catalog_source = str(catalog_source).strip()
+                    if catalog_source not in CATALOG_AXIS_SOURCES:
+                        raise serializers.ValidationError(
+                            {"variant_axes": f"{key or 'Catalog axis'} uses unsupported master_data_source '{catalog_source}'."}
+                        )
+                    if not key:
+                        raise serializers.ValidationError({"variant_axes": "Catalog-backed axes require an axis name."})
+                    if axis_type and axis_type not in {"catalog_ref", "packaging_ref", "pod_ref", "enum", "multi_enum"}:
+                        raise serializers.ValidationError(
+                            {"variant_axes": f"{key} must use catalog_ref, packaging_ref, pod_ref, enum, or multi_enum type."}
+                        )
+                    formula = axis.get("qty_formula")
+                    if formula not in (None, ""):
+                        try:
+                            evaluate_qty_formula(
+                                formula,
+                                {
+                                    "fixed_qty": 1,
+                                    "pcs_per_inner": 24,
+                                    "total_kg": 1,
+                                    "total_pouches": 100,
+                                    "total_pcs": 100,
+                                },
+                            )
+                        except Exception as exc:
+                            raise serializers.ValidationError(
+                                {"variant_axes": f"{key} has invalid qty_formula: {exc}"}
+                            ) from exc
+                    qty_per_pcs = axis.get("qty_per_pcs")
+                    if qty_per_pcs not in (None, ""):
+                        try:
+                            if float(qty_per_pcs) < 0:
+                                raise ValueError("must be non-negative")
+                        except Exception as exc:
+                            raise serializers.ValidationError({"variant_axes": f"{key} qty_per_pcs must be non-negative numeric."}) from exc
+                    if not _catalog_default_exists(catalog_source, axis.get("default_value"), axis.get("master_data_filter")):
+                        raise serializers.ValidationError(
+                            {"variant_axes": f"{key} default_value '{axis.get('default_value')}' was not found in {catalog_source}."}
+                        )
+                if key not in LAYER_MATERIAL_AXIS_KEYS and axis_type not in LAYER_MATERIAL_AXIS_TYPES:
+                    continue
+                axis_options = axis.get("options") or axis.get("allowed") or axis.get("allowed_by_layer")
+                option_codes = _material_codes_from_options(axis_options)
+                scoped_option_codes = _material_codes_from_options(axis_options) if isinstance(axis_options, dict) else set()
+                allowed_codes = layer_allowed_codes | scoped_option_codes
+                if not allowed_codes:
+                    raise serializers.ValidationError(
+                        {
+                            "variant_axes": (
+                                "Layer material override axes require approved alternates on the layer row or axis options. "
+                                "Product Master layers are fixed by default."
+                            )
+                        }
+                    )
+                validate_codes = layer_allowed_codes | option_codes
+                found_codes = set(
+                    InventoryMaterial.objects.filter(
+                        code__in=validate_codes,
+                        category="FILM_VARIANT",
+                    ).values_list("code", flat=True)
+                )
+                missing = sorted(validate_codes - found_codes)
+                if missing:
+                    raise serializers.ValidationError(
+                        {"variant_axes": f"Layer material override options are invalid film variants: {', '.join(missing)}."}
+                    )
+        if not attrs.get("invariant_signature"):
+            seed = {
+                "template": str(getattr(attrs.get("template") or getattr(self.instance, "template", None), "id", "") or ""),
+                "layer_template": attrs.get("layer_template") or getattr(self.instance, "layer_template", []),
+                "variant_axes": attrs.get("variant_axes") or getattr(self.instance, "variant_axes", []),
+                "fixed_attributes": attrs.get("fixed_attributes") or getattr(self.instance, "fixed_attributes", {}),
+            }
+            attrs["invariant_signature"] = hashlib.sha256(
+                json.dumps(seed, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()[:64]
+        return attrs
+
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    master_code = serializers.CharField(source='master.code', read_only=True)
+    master_name = serializers.CharField(source='master.name', read_only=True)
+
+    class Meta:
+        model = ProductVariant
+        fields = [
+            'id',
+            'master',
+            'master_code',
+            'master_name',
+            'code',
+            'axis_values',
+            'geometry_snapshot',
+            'layer_snapshot',
+            'bom_signature',
+            'active',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'master_code', 'master_name', 'created_at']
+
+
+class ProductMasterSizeSerializer(serializers.ModelSerializer):
+    product_master_code = serializers.CharField(source="product_master.code", read_only=True)
+    product_master_name = serializers.CharField(source="product_master.name", read_only=True)
+
+    GEOMETRY_KEYS = {
+        "trim_loss_mm",
+        "trim_apply_to",
+        "flap_tape_mm",
+        "gusset_apply_to",
+        "gusset_factor",
+        "adjustments",
+        "multipliers",
+        "pouch_style",
+        "roll_form",
+    }
+
+    class Meta:
+        model = ProductMasterSize
+        fields = [
+            "id",
+            "product_master",
+            "product_master_code",
+            "product_master_name",
+            "code",
+            "label",
+            "width_mm",
+            "height_mm",
+            "gusset_mm",
+            "roll_width_mm",
+            "thickness_micron",
+            "standard_qty",
+            "qty_uom",
+            "geometry_config",
+            "notes",
+            "active",
+            "sort_order",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "product_master_code", "product_master_name", "created_at", "updated_at"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        geometry = data.get("geometry_config") if isinstance(data.get("geometry_config"), dict) else {}
+        for key in self.GEOMETRY_KEYS - {"multipliers"}:
+            if key in geometry:
+                data[key] = geometry.get(key)
+        multipliers = geometry.get("multipliers") if isinstance(geometry.get("multipliers"), dict) else {}
+        if "faces" in multipliers:
+            data["faces"] = multipliers.get("faces")
+        return data
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            data = data.copy()
+            geometry = data.get("geometry_config") if isinstance(data.get("geometry_config"), dict) else {}
+            geometry = dict(geometry)
+            legacy = data.pop("default_packing", None)
+            if isinstance(legacy, dict):
+                nested = legacy.get("geometry")
+                if isinstance(nested, dict):
+                    geometry.update(nested)
+                else:
+                    geometry.update({key: legacy[key] for key in self.GEOMETRY_KEYS if key in legacy})
+            for key in self.GEOMETRY_KEYS - {"multipliers"}:
+                if key in data:
+                    geometry[key] = data.pop(key)
+            if "faces" in data:
+                multipliers = geometry.get("multipliers") if isinstance(geometry.get("multipliers"), dict) else {}
+                geometry["multipliers"] = {**multipliers, "faces": data.pop("faces")}
+            if "multipliers" in data and isinstance(data.get("multipliers"), dict):
+                multipliers = geometry.get("multipliers") if isinstance(geometry.get("multipliers"), dict) else {}
+                geometry["multipliers"] = {**multipliers, **data.pop("multipliers")}
+            if geometry:
+                data["geometry_config"] = geometry
+        return super().to_internal_value(data)
+
+    def validate_code(self, value):
+        return normalize_code(value, max_length=80)
+
+
+class CustomerProductOverlaySerializer(serializers.ModelSerializer):
+    product_master_name = serializers.CharField(source='product_master.name', read_only=True)
+    product_master_code = serializers.CharField(source='product_master.code', read_only=True)
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    customer_code = serializers.CharField(source='customer.code', read_only=True)
+    default_artwork_design_code = serializers.CharField(source='default_artwork.design_code', read_only=True, allow_null=True)
+
+    class Meta:
+        model = CustomerProductOverlay
+        fields = [
+            'id',
+            'product_master',
+            'product_master_name',
+            'product_master_code',
+            'customer',
+            'customer_name',
+            'customer_code',
+            'size_variant_code',
+            'axis_values',
+            'customer_item_code',
+            'customer_display_name',
+            'default_packing_note',
+            'default_packing_recipe',
+            'default_price_basis',
+            'moq_kg',
+            'default_artwork',
+            'default_artwork_design_code',
+            'notes',
+            'active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'product_master_name',
+            'product_master_code',
+            'customer_name',
+            'customer_code',
+            'default_artwork_design_code',
+            'created_at',
+            'updated_at',
+        ]
 
 class InventoryMaterialSerializer(serializers.ModelSerializer):
     category_display = serializers.CharField(source='get_category_display', read_only=True)
@@ -37,6 +590,8 @@ class InventoryMaterialSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'category', 'category_display', 
             'base_uom', 'status', 'is_extrudable', 'is_purchasable',
             'packaging_kind', 'packaging_supply_mode', 'per_sheet_base_qty',
+            'weight_mode', 'weight_value', 'addon_is_purchased', 'addon_purchase_uom',
+            'packaging_defaults_json', 'production_template',
             'commercial_family', 'commercial_family_name',
         ]
 
@@ -167,12 +722,30 @@ class AdhesiveSolventSerializer(serializers.ModelSerializer):
 class AddonSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
-        fields = ['id', 'code', 'name', 'weight_mode', 'weight_value', 'status', 'created_at']
+        fields = [
+            'id', 'code', 'name', 'weight_mode', 'weight_value',
+            'is_purchasable', 'addon_is_purchased', 'addon_purchase_uom', 'base_uom',
+            'status', 'created_at',
+        ]
         read_only_fields = ['id', 'created_at']
+
+    def validate(self, attrs):
+        if 'is_purchasable' in attrs:
+            attrs['addon_is_purchased'] = bool(attrs.get('is_purchasable'))
+        purchased = attrs.get('addon_is_purchased', getattr(self.instance, 'addon_is_purchased', False))
+        attrs['is_purchasable'] = bool(purchased)
+        purchase_uom = str(attrs.get('addon_purchase_uom', getattr(self.instance, 'addon_purchase_uom', 'KG')) or 'KG').upper()
+        if purchase_uom not in {'KG', 'PCS'}:
+            raise serializers.ValidationError({'addon_purchase_uom': 'Purchased add-on UOM must be KG or PCS.'})
+        attrs['addon_purchase_uom'] = purchase_uom
+        attrs['base_uom'] = purchase_uom if purchased else 'KG'
+        return attrs
 
     def create(self, validated_data):
         validated_data['category'] = 'ADDON'
-        validated_data['base_uom'] = 'KG' # Usually KG or Unit? Base UOM KG is fine, weight_mode handles consumption.
+        validated_data['addon_is_purchased'] = bool(validated_data.get('addon_is_purchased', False))
+        validated_data['is_purchasable'] = bool(validated_data['addon_is_purchased'])
+        validated_data['base_uom'] = validated_data.get('addon_purchase_uom') if validated_data.get('addon_is_purchased') else 'KG'
         return super().create(validated_data)
 
 class PODSerializer(serializers.ModelSerializer):
@@ -243,7 +816,7 @@ class PackagingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'packaging_kind': 'packaging_kind is required for packaging materials.'})
         if not supply_mode:
             raise serializers.ValidationError({'packaging_supply_mode': 'packaging_supply_mode is required for packaging materials.'})
-        in_house_kinds = {"INNER_POUCH", "SHEET"}
+        in_house_kinds = {"INNER_POUCH", "OUTER_BAG", "SHEET"}
         if supply_mode in {'IN_HOUSE', 'BOTH'} and kind not in in_house_kinds:
             raise serializers.ValidationError({'packaging_supply_mode': f'{kind} cannot be IN_HOUSE in this phase.'})
         if supply_mode in {'IN_HOUSE', 'BOTH'} and not production_template:

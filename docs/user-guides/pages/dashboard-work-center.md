@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Dashboard • Work Center witho
 
 
 ## Screenshot References
-- ![dashboard-work-center-overview](../../../frontend_v2/public/help/screenshots/dashboard-work-center-overview.svg)
+- ![dashboard-work-center-overview](../../../frontend_v2/public/help/screenshots/dashboard-work-center-overview.png)
 - ![dashboard-work-center-workflow](../../../frontend_v2/public/help/screenshots/dashboard-work-center-workflow.svg)
 
 ## FAQ References

@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Analytics • Costing without p
 
 
 ## Screenshot References
-- ![analytics-costing-overview](../../../frontend_v2/public/help/screenshots/analytics-costing-overview.svg)
+- ![analytics-costing-overview](../../../frontend_v2/public/help/screenshots/analytics-costing-overview.png)
 - ![analytics-costing-workflow](../../../frontend_v2/public/help/screenshots/analytics-costing-workflow.svg)
 
 ## FAQ References

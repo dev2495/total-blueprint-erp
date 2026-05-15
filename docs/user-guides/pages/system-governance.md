@@ -88,7 +88,7 @@ This guide helps users complete all key tasks on System • Governance without p
 
 
 ## Screenshot References
-- ![system-governance-overview](../../../frontend_v2/public/help/screenshots/system-governance-overview.svg)
+- ![system-governance-overview](../../../frontend_v2/public/help/screenshots/system-governance-overview.png)
 - ![system-governance-workflow](../../../frontend_v2/public/help/screenshots/system-governance-workflow.svg)
 
 ## FAQ References

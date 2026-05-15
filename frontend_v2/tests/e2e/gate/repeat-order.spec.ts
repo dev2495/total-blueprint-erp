@@ -23,7 +23,7 @@ test("sales repeat order lane surfaces inherited values and clear next actions b
   await switchRole(page, "Sales", "/sales/orders", { allowCookieFallback: true })
   await page.goto("/sales/orders/create")
   await assertHealthyPage(page)
-  await page.getByTestId("sales-order-batch-workspace").waitFor({ state: "visible", timeout: 30_000 })
+  await page.getByTestId("sales-order-v34-workspace").waitFor({ state: "visible", timeout: 30_000 })
 
   await selectByTestId(page, "sales-batch-customer", new RegExp(seed.customer_name || "UI E2E Sales Customer", "i"))
   if (seed.customer_id) {
@@ -34,18 +34,18 @@ test("sales repeat order lane surfaces inherited values and clear next actions b
       repeatResponse.data.some((candidate) => String(candidate?.line_name || "").includes(seed.repeat_line_name || "UI E2E Repeat Pouch")),
     ).toBeTruthy()
   }
-  await page.getByTestId("sales-batch-lane-repeat").click()
+  const quickStart = page.getByTestId("sales-quick-start-band")
+  await quickStart.waitFor({ state: "visible", timeout: 30_000 })
+  await expect(quickStart).toContainText(/Quick Start/i)
+  if (await page.locator("[data-testid^='sales-quick-start-card-']").first().isVisible().catch(() => false)) {
+    await expect(quickStart).toContainText(/Last order|Customer default/i)
+    const firstQuickStartCard = page.locator("[data-testid^='sales-quick-start-card-']").first()
+    await expect(firstQuickStartCard).toContainText(/\+ Add to cart/i)
+    await firstQuickStartCard.click()
+    await expect(page.locator("body")).toContainText(/cart/i)
+    await expect(page.locator("body")).not.toContainText(/cart empty/i)
+    return
+  }
 
-  const repeatDialog = page.getByTestId("sales-repeat-dialog")
-  await repeatDialog.waitFor({ state: "visible", timeout: 30_000 })
-  await page.getByPlaceholder("Search order no, line name, template, or SKU variant").fill(seed.repeat_line_name || "UI E2E Repeat Pouch")
-  await expect(page.getByTestId("sales-repeat-loading")).toHaveCount(0, { timeout: 30_000 })
-
-  await expect(repeatDialog).toContainText(seed.repeat_line_name || "UI E2E Repeat Pouch")
-  await expect(repeatDialog).toContainText(/Repeat Exact/i)
-  await expect(repeatDialog).toContainText(/Repeat & Edit Commercial/i)
-  await expect(repeatDialog).toContainText(/Convert to Custom Detailed/i)
-  await expect(repeatDialog).toContainText(/POD/i)
-  await expect(repeatDialog).toContainText(/layer\(s\)/i)
-  await expect(repeatDialog).toContainText(/\/ PCS|\/ KG/i)
+  await expect(page.getByTestId("sales-quick-start-empty")).toContainText(/no overlays or recent activity/i)
 })

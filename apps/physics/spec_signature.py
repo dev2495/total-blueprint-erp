@@ -71,11 +71,24 @@ def _normalize_printing(printing: Any) -> Dict[str, Any]:
     color_names = [str(v).strip().upper() for v in (src.get("color_names") or []) if str(v).strip()]
     mapping = src.get("color_mapping") if isinstance(src.get("color_mapping"), dict) else {}
 
-    normalized_mapping = {
-        str(k).strip().upper(): str(v).strip()
-        for k, v in mapping.items()
-        if str(k).strip() and str(v).strip()
-    }
+    normalized_mapping = {}
+    for key, value in mapping.items():
+        color = str(key).strip().upper()
+        if not color:
+            continue
+        if isinstance(value, dict):
+            nested = {
+                str(base).strip().upper(): str(ink_id).strip()
+                for base, ink_id in value.items()
+                if str(base).strip() and str(ink_id).strip()
+            }
+            if nested:
+                normalized_mapping[color] = nested
+        elif str(value).strip():
+            normalized_mapping[color] = str(value).strip()
+
+    color_percentages = src.get("ink_gsm_color_percentages") if isinstance(src.get("ink_gsm_color_percentages"), dict) else {}
+    ink_by_color = src.get("ink_gsm_by_color") if isinstance(src.get("ink_gsm_by_color"), dict) else {}
 
     return {
         "enabled": True,
@@ -84,6 +97,17 @@ def _normalize_printing(printing: Any) -> Dict[str, Any]:
         "front_colors_count": front_count,
         "back_colors_count": back_count,
         "ink_gsm_total": float(ink_gsm_total),
+        "ink_gsm_split_mode": str(src.get("ink_gsm_split_mode") or "EQUAL").upper(),
+        "ink_gsm_color_percentages": {
+            str(k).strip().upper(): float(_to_decimal(v))
+            for k, v in color_percentages.items()
+            if str(k).strip()
+        },
+        "ink_gsm_by_color": {
+            str(k).strip().upper(): float(_to_decimal(v))
+            for k, v in ink_by_color.items()
+            if str(k).strip()
+        },
         "artwork_id": str(src.get("artwork_id") or ""),
         "front_colors": front_colors,
         "back_colors": back_colors,

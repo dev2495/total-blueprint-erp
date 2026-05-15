@@ -975,6 +975,50 @@ class InventoryAlert(models.Model):
         return f"[{self.severity}] {self.get_type_display()}: {self.message[:50]}"
 
 
+class InventorySavedView(models.Model):
+    """
+    Server-backed saved filters for the V3.6 inventory workspaces.
+
+    The UI still ships default views locally, but user-created views must live
+    in the backend so they survive browser/cache/device changes.
+    """
+    WORKSPACE_CHOICES = [
+        ("rolls", "Rolls"),
+        ("bulk", "Bulk"),
+        ("packaging", "Packaging"),
+        ("addons", "Add-ons"),
+        ("home", "Inventory Home"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.CharField(max_length=40, choices=WORKSPACE_CHOICES, db_index=True)
+    name = models.CharField(max_length=120)
+    icon = models.CharField(max_length=16, blank=True, default="")
+    pinned = models.BooleanField(default=False)
+    state = models.JSONField(default=dict, blank=True)
+    user = models.ForeignKey(
+        "users.User",
+        on_delete=models.CASCADE,
+        related_name="inventory_saved_views",
+        null=True,
+        blank=True,
+    )
+    shared_team = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "inventory_saved_views"
+        ordering = ["-pinned", "name"]
+        indexes = [
+            models.Index(fields=["workspace", "user"]),
+            models.Index(fields=["workspace", "shared_team"]),
+        ]
+
+    def __str__(self):
+        return f"{self.workspace}: {self.name}"
+
+
 class InventoryReservation(models.Model):
     """
     Hard allocation of inventory for a specific job.

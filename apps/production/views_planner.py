@@ -1,4 +1,5 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.db import transaction
 from django.db.models import Count, Max, Prefetch, Q, Sum
@@ -26,14 +27,25 @@ from apps.sales.services.order_service import (
     SalesOrderService,
     _planned_issue_qty,
     _summarize_material_plan_lines,
+    _addons_from_axis_values,
+    _merge_axis_packaging_snapshot,
+    _hydrate_pod_snapshot,
     _normalize_packaging_snapshot,
     _normalize_layer_snapshot,
     _normalize_printing_snapshot,
+    _preserve_computed_geometry,
     _validate_printing_snapshot_for_confirm,
 )
 from apps.artwork.models import Artwork
-from apps.materials.models import InventoryMaterial, PodSkuVariant
+from apps.materials.models import InventoryMaterial, PodSkuVariant, ProductMaster
+from apps.materials.services_product_variant import (
+    apply_layer_totals_to_geometry,
+    canonical_axis_values,
+    compute_geometry,
+    compute_layers,
+)
 from apps.templates.models import TemplateBlueprint
+from apps.production.services.stock_validator import first_artwork_step_index, validate_planner_stop_step
 
 from apps.physics.services_physics import PhysicsEngine
 from apps.inventory.services.roll_naming import build_roll_naming_payload
@@ -50,6 +62,126 @@ def _jsonify(value):
     if isinstance(value, list):
         return [_jsonify(v) for v in value]
     return value
+
+
+def _ensure_axis_value(product_master, axis_values, *, names=(), types=(), value=None):
+    if not product_master or value in (None, ""):
+        return
+    axes = product_master.variant_axes if isinstance(product_master.variant_axes, list) else []
+    normalized_names = {str(name).strip() for name in names if str(name).strip()}
+    normalized_types = {str(kind).strip() for kind in types if str(kind).strip()}
+    for axis in axes:
+        if not isinstance(axis, dict):
+            continue
+        key = str(axis.get("axis") or "").strip()
+        axis_type = str(axis.get("type") or "").strip()
+        if key and (key in normalized_names or axis_type in normalized_types):
+            axis_values.setdefault(key, value)
+            return
+
+
+def _resolve_product_master_snapshots(product_master, axis_values, geometry_payload, layer_payload, *, force_master=False):
+    axis_values = canonical_axis_values(axis_values if isinstance(axis_values, dict) else {})
+    geometry = geometry_payload if isinstance(geometry_payload, dict) else None
+    layers = layer_payload if isinstance(layer_payload, list) else None
+    if not product_master:
+        return geometry_payload, layer_payload
+    if not force_master and not axis_values and geometry is not None and layers is not None:
+        if isinstance(geometry, dict) and isinstance(layers, list):
+            geometry = apply_layer_totals_to_geometry(geometry, layers)
+        return geometry, layers
+    if force_master or not geometry:
+        geometry = compute_geometry(product_master, axis_values)
+    else:
+        computed = compute_geometry(product_master, axis_values)
+        for key in ("axis_values", "roll_width_mm", "effective_width_mm", "effective_height_mm", "size_code", "size_label", "thickness_um"):
+            if key in computed and key not in geometry:
+                geometry[key] = computed[key]
+    if force_master or not layers:
+        layers = compute_layers(product_master, axis_values, geometry or {})
+    if isinstance(geometry, dict) and isinstance(layers, list):
+        geometry = apply_layer_totals_to_geometry(geometry, layers)
+    return geometry, layers
+
+
+def _numeric(value) -> Decimal:
+    try:
+        if value in (None, ""):
+            return Decimal("0")
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
+
+
+def _geometry_roll_width_mm(geometry):
+    if not isinstance(geometry, dict):
+        return Decimal("0")
+    direct = _numeric(
+        geometry.get("roll_width_mm")
+        or geometry.get("effective_width_mm")
+        or geometry.get("input_roll_width_mm")
+    )
+    if direct > 0:
+        return direct
+    base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+    return _numeric(base.get("roll_width_mm") or base.get("width_mm") or base.get("effective_width_mm"))
+
+
+def _stock_pool_structure_reasons(product_master, geometry_snapshot, layer_snapshot, *, stock_purpose="PRODUCT", bom_by_step=None):
+    if str(stock_purpose or "PRODUCT").upper() != "PRODUCT":
+        return []
+    if not product_master or not hasattr(product_master, "layer_template"):
+        return []
+
+    reasons = []
+    master_layers = product_master.layer_template if isinstance(getattr(product_master, "layer_template", None), list) else []
+    layers = layer_snapshot if isinstance(layer_snapshot, list) else []
+    if not master_layers:
+        reasons.append("Product Master has no layer template. Add film layers before launching product stock.")
+    if not layers:
+        reasons.append("Selected axes did not resolve any film layers. Pick a complete size/layer axis set.")
+
+    total_thickness = Decimal("0")
+    max_width = _geometry_roll_width_mm(geometry_snapshot)
+    for idx, layer in enumerate(layers, start=1):
+        if not isinstance(layer, dict):
+            reasons.append(f"Layer {idx} is not a valid layer snapshot.")
+            continue
+        material_code = (
+            layer.get("material_code")
+            or layer.get("film_variant_code")
+            or layer.get("base_material_code")
+            or ""
+        )
+        if not str(material_code).strip():
+            reasons.append(f"Layer {idx} has no film material selected.")
+        thickness = _numeric(layer.get("thickness_micron") or layer.get("thickness_um"))
+        width = _numeric(layer.get("roll_width_mm") or layer.get("input_roll_width_mm") or layer.get("width_mm"))
+        total_thickness += thickness
+        if width > max_width:
+            max_width = width
+        if thickness <= 0:
+            reasons.append(f"Layer {idx} has zero thickness.")
+        if width <= 0 and max_width <= 0:
+            reasons.append(f"Layer {idx} has no roll width and the selected size has no roll-width fallback.")
+
+    if layers and total_thickness <= 0:
+        reasons.append("Total film thickness is zero, so consumption math cannot be computed.")
+    if layers and max_width <= 0:
+        reasons.append("Roll width is zero. Select a Product Master size or enter layer roll width.")
+
+    if bom_by_step is not None:
+        has_material = any(
+            bool(mat.get("material_code")) and _numeric(mat.get("qty")) > 0
+            for group in (bom_by_step or [])
+            if isinstance(group, dict)
+            for mat in (group.get("materials") or [])
+            if isinstance(mat, dict)
+        )
+        if not has_material:
+            reasons.append("No BOM lines resolved for the selected stop step. Check layer materials and route recipe mapping.")
+
+    return list(dict.fromkeys(str(reason) for reason in reasons if str(reason or "").strip()))
 
 
 class PlannerViewSet(viewsets.ViewSet):
@@ -200,6 +332,350 @@ class PlannerViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=["post"], url_path="stock-pools/validate")
+    def validate_stock_pool(self, request):
+        template_id = request.data.get("template_id") or request.data.get("template")
+        product_master_id = request.data.get("product_master") or request.data.get("product_master_id")
+        template = None
+        product_master = None
+
+        try:
+            if product_master_id:
+                product_master = ProductMaster.objects.select_related("template", "default_template").get(
+                    id=product_master_id,
+                    active=True,
+                )
+            if template_id:
+                template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
+            elif product_master:
+                template = product_master.template or product_master.default_template
+        except (TemplateBlueprint.DoesNotExist, ProductMaster.DoesNotExist):
+            return Response({"error": "Invalid template_id or product_master."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not template:
+            return Response({"error": "template_id or product_master is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not getattr(template, "routing_rule", None):
+            return Response({"error": "Template has no routing rule."}, status=status.HTTP_400_BAD_REQUEST)
+
+        route_last = self._route_last_index(template)
+        raw_stop = request.data.get("stop_step_index")
+        try:
+            stop_step_index = route_last if raw_stop in (None, "") else int(raw_stop)
+        except Exception:
+            return Response({"error": "stop_step_index must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+        if stop_step_index < 0 or stop_step_index > route_last:
+            return Response(
+                {"error": f"stop_step_index must be between 0 and {route_last}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        commitment_scope = str(request.data.get("commitment_scope") or "GENERIC").upper()
+        committed_customer = request.data.get("committed_customer") or request.data.get("committed_customer_id")
+        committed_artwork = request.data.get("committed_artwork") or request.data.get("committed_artwork_id")
+        stock_purpose = str(request.data.get("stock_purpose") or "PRODUCT").strip().upper()
+        if stock_purpose == "PACKAGING":
+            result = SimpleNamespace(
+                first_artwork_step_index=first_artwork_step_index(template),
+                message="Valid packaging stock route.",
+            )
+        else:
+            try:
+                result = validate_planner_stop_step(
+                    template=template,
+                    stop_step_index=stop_step_index,
+                    commitment_scope=commitment_scope,
+                    committed_artwork=committed_artwork,
+                    committed_customer=committed_customer,
+                )
+            except ValidationError as exc:
+                detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+                return Response({"valid": False, "error": detail, "detail": detail, "reasons": detail if isinstance(detail, list) else [str(detail)]})
+
+        response_payload = {
+            "valid": True,
+            "first_artwork_step_index": result.first_artwork_step_index,
+            "message": result.message,
+            "route_last_step_index": route_last,
+        }
+
+        if product_master:
+            try:
+                axis_values = canonical_axis_values(request.data.get("axis_values") if isinstance(request.data.get("axis_values"), dict) else {})
+                launcher_mode = str(request.data.get("launcher_mode") or "").strip().upper()
+                packaging_material_ref = (
+                    request.data.get("packaging_material_id")
+                    or request.data.get("packaging_material")
+                )
+                pod_sku_variant_ref = (
+                    request.data.get("pod_sku_variant_id")
+                    or request.data.get("pod_sku_variant")
+                )
+
+                if stock_purpose == "PACKAGING" and packaging_material_ref:
+                    packaging_material = None
+                    try:
+                        packaging_material = InventoryMaterial.objects.get(
+                            id=packaging_material_ref,
+                            category="PACKAGING",
+                        )
+                    except Exception:
+                        packaging_material = InventoryMaterial.objects.filter(
+                            code__iexact=str(packaging_material_ref),
+                            category="PACKAGING",
+                        ).first()
+                    if not packaging_material:
+                        return Response(
+                            {"valid": False, "error": "Invalid packaging_material_id."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    _ensure_axis_value(
+                        product_master,
+                        axis_values,
+                        names=("packaging_inner", "packaging_outer", "packaging", "packaging_ref"),
+                        types=("catalog_ref", "packaging_ref"),
+                        value=str(packaging_material.code or ""),
+                    )
+
+                if launcher_mode == "POD_STOCK" or pod_sku_variant_ref:
+                    pod_variant = None
+                    try:
+                        pod_variant = PodSkuVariant.objects.select_related("pod_sku", "material").get(
+                            id=pod_sku_variant_ref,
+                            active=True,
+                        )
+                    except Exception:
+                        pod_variant = PodSkuVariant.objects.select_related("pod_sku", "material").filter(
+                            code__iexact=str(pod_sku_variant_ref),
+                            active=True,
+                        ).first()
+                    if not pod_variant:
+                        return Response(
+                            {"valid": False, "error": "Invalid pod_sku_variant_id."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    _ensure_axis_value(
+                        product_master,
+                        axis_values,
+                        names=("pod_variant", "pod", "pod_ref"),
+                        types=("catalog_ref", "pod_ref"),
+                        value=str(pod_variant.code or pod_variant.pod_sku.code or ""),
+                    )
+
+                geometry_payload = (
+                    request.data.get("geometry_snapshot")
+                    or request.data.get("geometry")
+                    or request.data.get("geometry_override")
+                )
+                layer_payload = (
+                    request.data.get("layer_snapshot")
+                    or request.data.get("film_layers")
+                    or request.data.get("layers")
+                )
+                geometry_snapshot, layer_snapshot = _resolve_product_master_snapshots(
+                    product_master,
+                    axis_values,
+                    geometry_payload if isinstance(geometry_payload, dict) else None,
+                    layer_payload if isinstance(layer_payload, list) else None,
+                )
+                structure_reasons = _stock_pool_structure_reasons(
+                    product_master,
+                    geometry_snapshot or {},
+                    layer_snapshot or [],
+                    stock_purpose=stock_purpose,
+                )
+
+                printing_snapshot = _normalize_printing_snapshot(
+                    request.data.get("printing_snapshot")
+                    if isinstance(request.data.get("printing_snapshot"), dict)
+                    else request.data.get("printing")
+                    if isinstance(request.data.get("printing"), dict)
+                    else {}
+                )
+                addons_snapshot = request.data.get("addons_snapshot") or request.data.get("addons") or _addons_from_axis_values(axis_values)
+                addons_snapshot = addons_snapshot if isinstance(addons_snapshot, list) else []
+                packaging_snapshot = _merge_axis_packaging_snapshot(
+                    request.data.get("packaging_snapshot")
+                    if isinstance(request.data.get("packaging_snapshot"), dict)
+                    else request.data.get("packaging")
+                    if isinstance(request.data.get("packaging"), dict)
+                    else {},
+                    axis_values,
+                )
+                normalized_packaging_snapshot = _normalize_packaging_snapshot(packaging_snapshot or {})
+
+                fixed = product_master.fixed_attributes if isinstance(product_master.fixed_attributes, dict) else {}
+                fg_type = str(
+                    (geometry_snapshot or {}).get("finished_good_type")
+                    or template.fg_type
+                    or fixed.get("fg_type")
+                    or ("ROLL" if product_master.product_kind in {"ROLL", "PACKAGING", "POD"} else "POUCH")
+                ).upper()
+                if fg_type not in {"POUCH", "ROLL"}:
+                    fg_type = "ROLL" if product_master.product_kind in {"ROLL", "PACKAGING", "POD"} else "POUCH"
+                if fg_type == "ROLL":
+                    normalized_packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None}
+                else:
+                    normalized_packaging_snapshot["pod"] = _hydrate_pod_snapshot(normalized_packaging_snapshot.get("pod") or {})
+
+                raw_qty = request.data.get("quantity") or request.data.get("target_qty") or 1
+                try:
+                    preview_qty = Decimal(str(raw_qty))
+                    if preview_qty <= 0:
+                        preview_qty = Decimal("1")
+                except Exception:
+                    preview_qty = Decimal("1")
+                quantity_uom = str(request.data.get("quantity_uom") or request.data.get("uom") or "KG").upper()
+                if fg_type == "ROLL":
+                    quantity_uom = "KG"
+
+                preview = SalesOrderService.preview_sales_item(
+                    {
+                        "finished_good_type": fg_type,
+                        "geometry": geometry_snapshot or {},
+                        "film_layers": layer_snapshot or [],
+                        "printing": printing_snapshot,
+                        "chemicals": printing_snapshot.get("chemicals") or {},
+                        "addons": addons_snapshot,
+                        "packaging_snapshot": normalized_packaging_snapshot,
+                        "packaging": normalized_packaging_snapshot,
+                        "roll_form": (geometry_snapshot or {}).get("roll_form"),
+                        "order_qty": float(preview_qty),
+                        "uom": quantity_uom,
+                    }
+                )
+                bom_snapshot = preview.get("bom") or {}
+                planning_lines = bom_snapshot.get("planning_lines") if isinstance(bom_snapshot, dict) else []
+                bom_by_step = []
+                by_key = {}
+                for row in planning_lines or []:
+                    if not isinstance(row, dict):
+                        continue
+                    step_sequence = row.get("step_sequence")
+                    try:
+                        step_index = int(step_sequence) if step_sequence not in (None, "") else 0
+                    except Exception:
+                        step_index = 0
+                    key = str(step_index)
+                    group = by_key.setdefault(
+                        key,
+                        {
+                            "index": step_index,
+                            "step_label": row.get("step_name") or self._route_step_label(template, step_index),
+                            "step_kind": row.get("category_code") or "MATERIAL",
+                            "description": "",
+                            "materials": [],
+                        },
+                    )
+                    group["materials"].append(
+                        {
+                            "material_code": row.get("material_code") or "",
+                            "material_name": row.get("material_name") or row.get("material_code") or "",
+                            "qty": float(
+                                row.get("planned_issue_qty")
+                                or row.get("planned_qty")
+                                or row.get("theoretical_qty")
+                                or 0
+                            ),
+                            "uom": row.get("uom") or "KG",
+                            "waste_percent": float(row.get("waste_percent") or 0),
+                        }
+                    )
+                bom_by_step = list(by_key.values())
+                structure_reasons.extend(
+                    _stock_pool_structure_reasons(
+                        product_master,
+                        geometry_snapshot or {},
+                        layer_snapshot or [],
+                        stock_purpose=stock_purpose,
+                        bom_by_step=bom_by_step,
+                    )
+                )
+                structure_reasons = list(dict.fromkeys(structure_reasons))
+                first_material = next(
+                    (
+                        mat
+                        for group in bom_by_step
+                        for mat in group.get("materials", [])
+                        if mat.get("material_code")
+                    ),
+                    None,
+                )
+                required_material = {}
+                if first_material:
+                    first_layer = next(
+                        (
+                            layer
+                            for layer in (layer_snapshot or [])
+                            if (
+                                layer.get("material_code")
+                                or layer.get("film_variant_code")
+                                or layer.get("base_material_code")
+                            )
+                            == first_material.get("material_code")
+                        ),
+                        None,
+                    )
+                    required_material = {
+                        "code": first_material.get("material_code") or "",
+                        "material_code": first_material.get("material_code") or "",
+                        "name": first_material.get("material_name") or first_material.get("material_code") or "",
+                        "material_name": first_material.get("material_name") or first_material.get("material_code") or "",
+                        "target_qty": first_material.get("qty") or 0,
+                        "qty": first_material.get("qty") or 0,
+                        "uom": first_material.get("uom") or "KG",
+                        "grade": (first_layer or {}).get("grade") or (first_layer or {}).get("grade_code") or "",
+                        "thickness_micron": (first_layer or {}).get("thickness_micron"),
+                        "width_mm": (first_layer or {}).get("roll_width_mm") or (first_layer or {}).get("input_roll_width_mm"),
+                    }
+                inv_payload = build_invariant_payload(
+                    film_layers=layer_snapshot or [],
+                    printing=printing_snapshot or {},
+                )
+                response_payload.update(
+                    {
+                        "valid": not bool(structure_reasons),
+                        "reasons": structure_reasons,
+                        "blockers": structure_reasons,
+                        "axis_values": axis_values,
+                        "geometry_snapshot": _jsonify(geometry_snapshot or {}),
+                        "layer_snapshot": _jsonify(layer_snapshot or []),
+                        "printing_snapshot": _jsonify(printing_snapshot or {}),
+                        "packaging_snapshot": _jsonify(normalized_packaging_snapshot or {}),
+                        "addons_snapshot": _jsonify(addons_snapshot or []),
+                        "unit_weight_g": preview.get("unit_weight_g"),
+                        "total_weight_kg": preview.get("total_weight_kg"),
+                        "invariant_signature": build_invariant_signature(inv_payload),
+                        "bom_by_step": _jsonify(bom_by_step),
+                        "bom_snapshot": _jsonify(bom_snapshot),
+                        "required_material": required_material,
+                        "eligible_demand": {
+                            "eligible_orders": 0,
+                            "exact_match": 0,
+                            "widening_allowed": 0,
+                            "wrong_artwork": 0,
+                        },
+                        "commitment_safety": {
+                            "scope": commitment_scope,
+                            "customer_lock": committed_customer or None,
+                            "artwork_lock": committed_artwork or None,
+                            "match_window": (
+                                "at_or_after_artwork_step"
+                                if commitment_scope in {"ARTWORK", "CUSTOMER_ARTWORK"}
+                                else "before_artwork_step"
+                                if result.first_artwork_step_index is not None
+                                else "full_route"
+                            ),
+                        },
+                    }
+                )
+            except ValidationError as exc:
+                detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+                return Response({"valid": False, "error": detail, "detail": detail, "reasons": detail if isinstance(detail, list) else [str(detail)]})
+            except Exception as exc:
+                return Response({"valid": False, "error": str(exc), "reasons": [str(exc)]})
+
+        return Response(response_payload)
+
     @action(detail=False, methods=["post"], url_path="create-stock-order")
     def create_stock_order(self, request):
         def _payload_value(primary_key, secondary_key):
@@ -223,6 +699,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     "default_plant",
                     "packaging_material",
                     "pod_sku_variant",
+                    "product_master",
+                    "committed_customer",
+                    "committed_artwork",
+                    "sku__product_master",
                 ).get(id=planner_sku_variant_id, active=True)
             except PlannerSkuVariant.DoesNotExist:
                 return Response({"error": "Invalid planner_sku_variant_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -231,6 +711,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 sales_variant = SalesSkuVariant.objects.select_related(
                     "sku",
                     "sku__template",
+                    "sku__product_master",
                 ).get(id=sales_sku_variant_id, active=True)
             except SalesSkuVariant.DoesNotExist:
                 return Response({"error": "Invalid sales_sku_variant_id"}, status=status.HTTP_400_BAD_REQUEST)
@@ -248,6 +729,12 @@ class PlannerViewSet(viewsets.ViewSet):
         requested_stock_strategy = request.data.get("stock_strategy")
         requested_planner_stock_class = request.data.get("planner_stock_class")
         packaging_material_id = request.data.get("packaging_material_id") or request.data.get("packaging_material")
+        product_master_id = request.data.get("product_master") or request.data.get("product_master_id")
+        axis_values = request.data.get("axis_values") if isinstance(request.data.get("axis_values"), dict) else {}
+        axis_values = dict(axis_values)
+        commitment_scope = str(request.data.get("commitment_scope") or "GENERIC").strip().upper()
+        committed_customer_id = request.data.get("committed_customer") or request.data.get("committed_customer_id")
+        committed_artwork_id = request.data.get("committed_artwork") or request.data.get("committed_artwork_id")
         start_step_index = request.data.get("start_step_index")
         stop_step_index = request.data.get("stop_step_index")
         preferred_plant_id = request.data.get("preferred_plant_id") or request.data.get("plant_id")
@@ -256,7 +743,27 @@ class PlannerViewSet(viewsets.ViewSet):
         layer_snapshot_payload = _payload_value("film_layers", "layer_snapshot")
         printing_snapshot_payload = _payload_value("printing", "printing_snapshot")
         addons_snapshot_payload = _payload_value("addons", "addons_snapshot")
-        packaging_snapshot_payload = _payload_value("packaging_snapshot", "packaging")
+        if addons_snapshot_payload is None and axis_values:
+            addons_snapshot_payload = _addons_from_axis_values(axis_values)
+        packaging_payload_from_request = _payload_value("packaging_snapshot", "packaging")
+        axis_has_packaging = any(
+            key in axis_values
+            for key in (
+                "packaging_inner",
+                "packaging_outer",
+                "packaging",
+                "packaging_ref",
+                "primary_inner_pack",
+                "pod_variant",
+                "pod",
+                "pod_ref",
+            )
+        )
+        packaging_snapshot_payload = (
+            _merge_axis_packaging_snapshot(packaging_payload_from_request or {}, axis_values)
+            if packaging_payload_from_request is not None or axis_has_packaging
+            else None
+        )
         normalized_packaging_snapshot = _normalize_packaging_snapshot(packaging_snapshot_payload or {})
 
         if planner_variant:
@@ -269,6 +776,11 @@ class PlannerViewSet(viewsets.ViewSet):
             requested_stock_strategy = planner_variant.stock_strategy or requested_stock_strategy
             requested_planner_stock_class = planner_variant.planner_stock_class or requested_planner_stock_class
             packaging_material_id = planner_variant.packaging_material_id
+            product_master_id = product_master_id or planner_variant.product_master_id or planner_variant.sku.product_master_id
+            axis_values = axis_values or (planner_variant.axis_values or {})
+            commitment_scope = str(planner_variant.commitment_scope or commitment_scope).upper()
+            committed_customer_id = committed_customer_id or planner_variant.committed_customer_id
+            committed_artwork_id = committed_artwork_id or planner_variant.committed_artwork_id
             pod_sku_variant_id = planner_variant.pod_sku_variant_id
             start_step_index = planner_variant.start_step_index
             stop_step_index = planner_variant.stop_step_index
@@ -277,7 +789,7 @@ class PlannerViewSet(viewsets.ViewSet):
             layer_snapshot_payload = planner_variant.layer_snapshot or []
             printing_snapshot_payload = planner_variant.printing_snapshot or {}
             addons_snapshot_payload = planner_variant.addons_snapshot or []
-            packaging_snapshot_payload = planner_variant.packaging_snapshot or {}
+            packaging_snapshot_payload = _merge_axis_packaging_snapshot(planner_variant.packaging_snapshot or {}, axis_values)
             normalized_packaging_snapshot = _normalize_packaging_snapshot(packaging_snapshot_payload or {})
         elif sales_variant:
             sales_fg_type = str(getattr(sales_variant, "finished_good_type", "") or "POUCH").upper()
@@ -287,6 +799,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 or getattr(sales_variant, "template_id", None)
                 or getattr(getattr(sales_variant, "sku", None), "template_id", None)
             )
+            product_master_id = product_master_id or getattr(getattr(sales_variant, "sku", None), "product_master_id", None)
             internal_name = internal_name or _auto_internal_name(
                 getattr(sales_variant, "code", "")
                 or getattr(sales_variant, "name", "")
@@ -312,8 +825,49 @@ class PlannerViewSet(viewsets.ViewSet):
                     merged_printing_snapshot["chemicals"] = sales_variant.chemicals_snapshot
                 printing_snapshot_payload = merged_printing_snapshot
             addons_snapshot_payload = addons_snapshot_payload if addons_snapshot_payload is not None else (sales_variant.addons_snapshot or [])
-            packaging_snapshot_payload = packaging_snapshot_payload if packaging_snapshot_payload is not None else (sales_variant.packaging_snapshot or {})
+            packaging_snapshot_payload = _merge_axis_packaging_snapshot(
+                packaging_snapshot_payload if packaging_snapshot_payload is not None else (sales_variant.packaging_snapshot or {}),
+                axis_values,
+            )
             normalized_packaging_snapshot = _normalize_packaging_snapshot(packaging_snapshot_payload or {})
+
+        product_master = None
+        packaging_material = None
+        needs_product_resolution = geometry_snapshot_payload is None or layer_snapshot_payload is None or not template_id
+        needs_axis_injection = (
+            (stock_purpose == "PACKAGING" and packaging_material_id)
+            or launcher_mode == "POD_STOCK"
+            or bool(pod_sku_variant_id)
+        )
+        if product_master_id:
+            try:
+                product_master = ProductMaster.objects.get(id=product_master_id, active=True)
+            except Exception:
+                return Response({"error": "Invalid product_master_id"}, status=status.HTTP_400_BAD_REQUEST)
+            if not template_id:
+                template_id = product_master.template_id or product_master.default_template_id
+
+        if stock_purpose == "PACKAGING" and packaging_material_id:
+            try:
+                packaging_material = InventoryMaterial.objects.get(id=packaging_material_id)
+            except Exception:
+                return Response({"error": "Invalid packaging_material_id"}, status=status.HTTP_400_BAD_REQUEST)
+            _ensure_axis_value(
+                product_master,
+                axis_values,
+                names=("packaging_inner", "packaging_outer", "packaging", "packaging_ref"),
+                types=("catalog_ref", "packaging_ref"),
+                value=str(packaging_material.code or ""),
+            )
+
+        if product_master_id:
+            geometry_snapshot_payload, layer_snapshot_payload = _resolve_product_master_snapshots(
+                product_master,
+                axis_values,
+                geometry_snapshot_payload,
+                layer_snapshot_payload,
+                force_master=bool(axis_values),
+            )
 
         if launcher_mode == "POD_STOCK" or pod_sku_variant_id:
             if quantity is None:
@@ -328,10 +882,19 @@ class PlannerViewSet(viewsets.ViewSet):
                 pod_sku_variant = PodSkuVariant.objects.select_related("pod_sku", "material").get(id=pod_sku_variant_id, active=True)
             except Exception:
                 return Response({"error": "Invalid pod_sku_variant_id"}, status=status.HTTP_400_BAD_REQUEST)
+            _ensure_axis_value(
+                product_master,
+                axis_values,
+                names=("pod_variant", "pod", "pod_ref"),
+                types=("catalog_ref", "pod_ref"),
+                value=str(pod_sku_variant.code or pod_sku_variant.pod_sku.code or ""),
+            )
 
             planner_origin_meta = {
                 "launch_kind": "POD_STOCK",
                 "naming_source": "planner_preset" if planner_variant else "pod_sku",
+                "product_master_id": str(product_master_id or ""),
+                "axis_values": axis_values or {},
                 "pod_sku_variant_id": str(pod_sku_variant.id),
                 "pod_variant_code": str(pod_sku_variant.code or pod_sku_variant.pod_sku.code or ""),
                 "pod_variant_name": str(pod_sku_variant.name or pod_sku_variant.pod_sku.name or ""),
@@ -415,14 +978,14 @@ class PlannerViewSet(viewsets.ViewSet):
         except Exception:
             return Response({"error": "Invalid template_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-        packaging_material = None
         if stock_purpose == "PACKAGING":
             if not packaging_material_id:
                 return Response({"error": "packaging_material_id is required when stock_purpose=PACKAGING"}, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                packaging_material = InventoryMaterial.objects.get(id=packaging_material_id)
-            except Exception:
-                return Response({"error": "Invalid packaging_material_id"}, status=status.HTTP_400_BAD_REQUEST)
+            if packaging_material is None:
+                try:
+                    packaging_material = InventoryMaterial.objects.get(id=packaging_material_id)
+                except Exception:
+                    return Response({"error": "Invalid packaging_material_id"}, status=status.HTTP_400_BAD_REQUEST)
             if str(packaging_material.category or "").upper() != "PACKAGING":
                 return Response({"error": "packaging_material must be category=PACKAGING"}, status=status.HTTP_400_BAD_REQUEST)
             base_uom = str(packaging_material.base_uom or "").upper()
@@ -435,6 +998,16 @@ class PlannerViewSet(viewsets.ViewSet):
             return Response({"error": "Template has no routing rule"}, status=status.HTTP_400_BAD_REQUEST)
         if template.status != "LIVE":
             return Response({"error": "Template must be LIVE for Stock Order creation"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if commitment_scope not in {"GENERIC", "CUSTOMER", "ARTWORK", "CUSTOMER_ARTWORK"}:
+            return Response({"error": "Invalid commitment_scope"}, status=status.HTTP_400_BAD_REQUEST)
+        if commitment_scope in {"CUSTOMER", "CUSTOMER_ARTWORK"} and not committed_customer_id:
+            return Response({"error": "committed_customer is required for customer-committed stock"}, status=status.HTTP_400_BAD_REQUEST)
+        if commitment_scope in {"ARTWORK", "CUSTOMER_ARTWORK"} and not committed_artwork_id:
+            return Response({"error": "committed_artwork is required for artwork-committed stock"}, status=status.HTTP_400_BAD_REQUEST)
+        if commitment_scope == "GENERIC":
+            committed_customer_id = None
+            committed_artwork_id = None
 
         route_last = len(template.routing_rule.ordered_processes) - 1
 
@@ -457,8 +1030,21 @@ class PlannerViewSet(viewsets.ViewSet):
                 {"error": f"stop_step_index must be between {start_step_index} and {route_last}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if stock_purpose != "PACKAGING":
+            try:
+                validate_planner_stop_step(
+                    template=template,
+                    stop_step_index=stop_step_index,
+                    commitment_scope=commitment_scope,
+                    committed_artwork=committed_artwork_id,
+                    committed_customer=committed_customer_id,
+                )
+            except ValidationError as exc:
+                detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+                return Response({"error": detail, "detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
         normalized_geometry = normalize_geometry_override({}, geometry_snapshot_payload or geometry_override)
+        normalized_geometry = _preserve_computed_geometry(normalized_geometry, geometry_snapshot_payload or {})
         fg_type = str(template.fg_type or "POUCH").upper()
         if fg_type not in {"POUCH", "ROLL"}:
             return Response({"error": "fg_type must be POUCH or ROLL"}, status=status.HTTP_400_BAD_REQUEST)
@@ -473,9 +1059,15 @@ class PlannerViewSet(viewsets.ViewSet):
             base = normalized_geometry.get("base") if isinstance(normalized_geometry.get("base"), dict) else {}
             base["height_mm"] = 0.0
             normalized_geometry["base"] = base
+            normalized_packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None}
         else:
             normalized_geometry.pop("roll_form", None)
             roll_form = ""
+            try:
+                normalized_packaging_snapshot["pod"] = _hydrate_pod_snapshot(normalized_packaging_snapshot.get("pod") or {})
+            except ValidationError as exc:
+                detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+                return Response({"error": detail}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             layer_snapshot = _normalize_layer_snapshot(layer_snapshot_payload or [])
@@ -483,6 +1075,21 @@ class PlannerViewSet(viewsets.ViewSet):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         printing_snapshot = _normalize_printing_snapshot(printing_snapshot_payload if isinstance(printing_snapshot_payload, dict) else {})
         addons_snapshot = addons_snapshot_payload if isinstance(addons_snapshot_payload, list) else []
+        structure_reasons = _stock_pool_structure_reasons(
+            product_master,
+            normalized_geometry,
+            layer_snapshot,
+            stock_purpose=stock_purpose,
+        )
+        if structure_reasons:
+            return Response(
+                {
+                    "error": "Stock order snapshots are incomplete.",
+                    "detail": structure_reasons,
+                    "reasons": structure_reasons,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         class _StockOrderItem:
             template = None
@@ -513,11 +1120,24 @@ class PlannerViewSet(viewsets.ViewSet):
                 "printing": printing_snapshot,
                 "chemicals": printing_snapshot.get("chemicals") or {},
                 "addons": addons_snapshot,
+                "packaging_snapshot": normalized_packaging_snapshot,
+                "packaging": normalized_packaging_snapshot,
                 "roll_form": roll_form or None,
                 "order_qty": float(qty_input),
                 "uom": quantity_uom,
             }
         )
+        planning_lines = ((preview or {}).get("bom") or {}).get("planning_lines") or []
+        strict_product_master_stock = isinstance(product_master, ProductMaster)
+        if stock_purpose == "PRODUCT" and strict_product_master_stock and not planning_lines:
+            return Response(
+                {
+                    "error": "No BOM lines resolved for this stock order.",
+                    "detail": ["No BOM lines resolved for the selected Product Master axes and route stop."],
+                    "reasons": ["No BOM lines resolved for the selected Product Master axes and route stop."],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if bool((printing_snapshot or {}).get("enabled", False)) and not artwork_required:
             inks = ((preview or {}).get("bom") or {}).get("inks") or []
@@ -584,11 +1204,25 @@ class PlannerViewSet(viewsets.ViewSet):
                 "launch_kind": launcher_mode or "SALES_SKU",
                 "naming_source": "sales_sku",
             }
+        planner_origin_meta.update(
+            {
+                "product_master_id": str(product_master_id or ""),
+                "commitment_scope": commitment_scope,
+                "committed_customer_id": str(committed_customer_id or ""),
+                "committed_artwork_id": str(committed_artwork_id or ""),
+                "axis_values": axis_values or {},
+            }
+        )
         with transaction.atomic():
             mts_order = PlannedStockOrder.objects.create(
                 internal_name=internal_name or (planner_variant and _auto_internal_name(planner_variant.code)) or f"{template.name} Stock",
                 template=template,
                 plant_id=preferred_plant_id,
+                product_master_id=product_master_id or None,
+                axis_values=axis_values or {},
+                commitment_scope=commitment_scope,
+                committed_customer_id=committed_customer_id or None,
+                committed_artwork_id=committed_artwork_id or None,
                 target_qty=target_qty,
                 quantity_uom=execution_uom,
                 geometry_override=geometry_override,
@@ -618,9 +1252,26 @@ class PlannerViewSet(viewsets.ViewSet):
             )
             jobs_created = self._prime_stock_order_for_release(mts_order)
 
+            # auto_release: planner stock launcher fires straight to production with no gate.
+            # The launcher is for stock-class production (no customer commitment) so we
+            # bypass the explicit release step. Skips when artwork is required and absent.
+            auto_release = bool(request.data.get("auto_release"))
+            released_job_id = None
+            if auto_release:
+                # Refresh from DB to ensure jobs were persisted
+                primed_jobs = self._order_job_queryset("stock", mts_order).order_by("current_step_index", "created_at")
+                first_job = next((job for job in primed_jobs if job.job_state in ["PLANNED", "WAITING"]), None)
+                if first_job is not None:
+                    JobService.release_job(first_job.id)
+                    mts_order.status = "RELEASED"
+                    mts_order.save(update_fields=["status", "updated_at"])
+                    released_job_id = str(first_job.id)
+
         return Response(
             {
-                "status": "planned",
+                "status": "released" if released_job_id else "planned",
+                "auto_released": bool(released_job_id),
+                "released_job_id": released_job_id,
                 "stock_order_id": str(mts_order.id),
                 "order_id": str(mts_order.id),
                 "order_number": mts_order.order_number,
@@ -1165,6 +1816,24 @@ class PlannerViewSet(viewsets.ViewSet):
         )
         return build_invariant_signature(inv_payload)
 
+    def _layer_only_invariant_signature(self, layer_snapshot=None):
+        inv_payload = build_invariant_payload(
+            film_layers=layer_snapshot or [],
+            printing={"enabled": False},
+        )
+        return build_invariant_signature(inv_payload)
+
+    def _is_pre_artwork_shared_stock(self, stock, template=None) -> bool:
+        scope = str(getattr(stock, "commitment_scope", "") or "GENERIC").upper()
+        if scope not in {"GENERIC", "CUSTOMER"}:
+            return False
+        route_template = template or getattr(stock, "template", None)
+        first_artwork = first_artwork_step_index(route_template)
+        if first_artwork is None:
+            return False
+        stock_stop = int(getattr(stock, "stop_step_index", 0) or 0)
+        return stock_stop < int(first_artwork)
+
     def _roll_signature(self, roll):
         meta = getattr(roll, "meta_json", {}) or {}
         if meta.get("spec_signature"):
@@ -1203,14 +1872,85 @@ class PlannerViewSet(viewsets.ViewSet):
             return str(origin_job.mts_order.invariant_signature)
         return ""
 
-    def _matching_stock_orders_for_sales(self, template, order_signature: str, order_invariant_signature: str, required_start_step: int):
+    @staticmethod
+    def _safe_id(value) -> str:
+        if value in (None, ""):
+            return ""
+        return str(value)
+
+    def _stock_commitment_matches_sales_item(self, stock, sales_item) -> bool:
+        if not stock or not sales_item:
+            return True
+
+        stock_product_master_id = self._safe_id(getattr(stock, "product_master_id", None) or getattr(getattr(stock, "product_master", None), "id", None))
+        sales_product_master_id = self._safe_id(getattr(sales_item, "product_master_id", None) or getattr(getattr(sales_item, "product_master", None), "id", None))
+        if stock_product_master_id and sales_product_master_id and stock_product_master_id != sales_product_master_id:
+            return False
+
+        scope = str(getattr(stock, "commitment_scope", "") or "GENERIC").upper()
+        if scope == "GENERIC":
+            return True
+        if scope not in {"CUSTOMER", "ARTWORK", "CUSTOMER_ARTWORK"}:
+            return False
+
+        sales_order = getattr(sales_item, "sales_order", None)
+        sales_customer_id = self._safe_id(
+            getattr(sales_order, "customer_id", None) or getattr(getattr(sales_order, "customer", None), "id", None)
+        )
+        stock_customer_id = self._safe_id(
+            getattr(stock, "committed_customer_id", None) or getattr(getattr(stock, "committed_customer", None), "id", None)
+        )
+        if scope in {"CUSTOMER", "CUSTOMER_ARTWORK"}:
+            if not stock_customer_id or not sales_customer_id or stock_customer_id != sales_customer_id:
+                return False
+
+        printing = getattr(sales_item, "printing_snapshot", {}) or {}
+        if not isinstance(printing, dict):
+            printing = {}
+        sales_artwork_ids = {
+            self._safe_id(getattr(sales_item, "assigned_artwork_id", None)),
+            self._safe_id(getattr(getattr(sales_item, "assigned_artwork", None), "id", None)),
+            self._safe_id(printing.get("artwork_id")),
+            self._safe_id(printing.get("artwork")),
+            self._safe_id(printing.get("artwork_ref")),
+        }
+        sales_artwork_ids.discard("")
+        stock_artwork_id = self._safe_id(
+            getattr(stock, "committed_artwork_id", None) or getattr(getattr(stock, "committed_artwork", None), "id", None)
+        )
+        if scope in {"ARTWORK", "CUSTOMER_ARTWORK"}:
+            if not stock_artwork_id or stock_artwork_id not in sales_artwork_ids:
+                return False
+
+        return True
+
+    def _stock_commitment_mismatch_message(self, stock, sales_item, label: str) -> str:
+        scope = str(getattr(stock, "commitment_scope", "") or "GENERIC").upper()
+        if scope in {"CUSTOMER", "CUSTOMER_ARTWORK"}:
+            sales_order = getattr(sales_item, "sales_order", None)
+            sales_customer_id = self._safe_id(
+                getattr(sales_order, "customer_id", None) or getattr(getattr(sales_order, "customer", None), "id", None)
+            )
+            stock_customer_id = self._safe_id(
+                getattr(stock, "committed_customer_id", None) or getattr(getattr(stock, "committed_customer", None), "id", None)
+            )
+            if stock_customer_id != sales_customer_id:
+                return f"{label} is committed to a different customer and cannot be claimed to this sales order."
+        if scope in {"ARTWORK", "CUSTOMER_ARTWORK"}:
+            return f"{label} is artwork-committed and cannot be claimed unless the sales item uses the same approved artwork."
+        return f"{label} commitment scope does not match this sales order."
+
+    def _matching_stock_orders_for_sales(self, template, order_signature: str, order_invariant_signature: str, required_start_step: int, sales_item=None):
         matches = []
         route_last = self._route_last_index(template)
+        order_layer_only_signature = self._layer_only_invariant_signature(getattr(sales_item, "layer_snapshot", None)) if sales_item else ""
         stock_orders = (
             PlannedStockOrder.objects.filter(template=template, status__in=["PLANNED", "RELEASED", "STOCK_READY", "COMPLETED"])
             .order_by("-updated_at")
         )
         for stock in stock_orders:
+            if not self._stock_commitment_matches_sales_item(stock, sales_item):
+                continue
             stock_sig = self._order_signature(
                 spec_signature=getattr(stock, "spec_signature", ""),
                 geometry_snapshot=stock.geometry_snapshot or {},
@@ -1247,6 +1987,14 @@ class PlannerViewSet(viewsets.ViewSet):
             elif is_stopped_route_candidate and order_invariant_signature and stock_inv_sig == order_invariant_signature:
                 matches_sig = True
                 match_mode = "SEMI_INVARIANT"
+            elif (
+                is_stopped_route_candidate
+                and order_layer_only_signature
+                and self._is_pre_artwork_shared_stock(stock, template)
+                and self._layer_only_invariant_signature(stock.layer_snapshot or []) == order_layer_only_signature
+            ):
+                matches_sig = True
+                match_mode = "PRE_ARTWORK_INVARIANT"
             
             if not matches_sig:
                 continue
@@ -2149,7 +2897,36 @@ class PlannerViewSet(viewsets.ViewSet):
             "tone": "info",
         }
 
+    def _row_template_steps(self, row: dict):
+        template_id = str(row.get("template_id") or "").strip()
+        if not template_id:
+            return []
+        try:
+            template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
+        except Exception:
+            return []
+        ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
+        if not ordered:
+            return []
+        process_map = {
+            str(process.code): process
+            for process in Process.objects.filter(code__in=ordered).only("code", "name", "input_form", "output_form")
+        }
+        steps = []
+        for index, code in enumerate(ordered):
+            process = process_map.get(str(code))
+            steps.append({
+                "sequence_number": index,
+                "process_code": str(code),
+                "process_name": str(getattr(process, "name", "") or code),
+                "step_name": str(getattr(process, "name", "") or code),
+                "input_form": str(getattr(process, "input_form", "") or ""),
+                "output_form": str(getattr(process, "output_form", "") or ""),
+            })
+        return steps
+
     def _decorate_control_hub_row(self, row: dict):
+        row["template_steps"] = self._row_template_steps(row)
         row["source_availability"] = row.get("source_availability") if isinstance(row.get("source_availability"), dict) else {
             "fg_match_count": 0,
             "wip_match_count": 0,
@@ -2543,14 +3320,21 @@ class PlannerViewSet(viewsets.ViewSet):
         roll_alloc_map,
         fg_alloc_map,
         order_layer_snapshot=None,
+        sales_item=None,
     ):
         options = []
         max_roll_candidates = 24
         max_fg_candidates = 12
         order_routing_rule_id = getattr(template, "routing_rule_id", None)
 
-        # Relaxed filtering for step 0: allow rolls with matching material but no template (raw materials/remainders)
-        filter_q = Q(status="AVAILABLE") & Q(completed_step_index__gte=required_start_step)
+        required_start_step = int(required_start_step or 0)
+        shared_invariant_min_step = max(0, required_start_step - 1)
+        order_layer_only_signature = self._layer_only_invariant_signature(order_layer_snapshot or [])
+
+        # Relaxed filtering for step 0: allow rolls with matching material but no template (raw materials/remainders).
+        # For shared invariant WIP, the reusable roll is often stopped at the step immediately before
+        # the sales route resumes, e.g. generic laminated roll before a print step.
+        filter_q = Q(status="AVAILABLE") & Q(completed_step_index__gte=shared_invariant_min_step)
         
         if required_start_step == 0:
             # Step-0 compat should use order snapshots, not template technical spec.
@@ -2595,6 +3379,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
             same_lineage = self._is_same_order_lineage_roll(roll, order_kind, order_obj)
             source_planner_class = self._planner_stock_class_for_roll(roll)
+            source_stock_order = self._origin_stock_order_for_roll(roll)
 
             if required_start_step == 0 and completed_step_index == 0:
                 # Stage-0 raw/purchasable rolls can be used as fresh input without historical signature.
@@ -2609,9 +3394,20 @@ class PlannerViewSet(viewsets.ViewSet):
                 if order_invariant_signature and inv_inv_sig == order_invariant_signature:
                     matches_sig = True
                     signature_match_mode = "SEMI_INVARIANT"
+                elif (
+                    order_layer_only_signature
+                    and source_stock_order
+                    and self._is_pre_artwork_shared_stock(source_stock_order, template)
+                    and self._layer_only_invariant_signature(source_stock_order.layer_snapshot or []) == order_layer_only_signature
+                ):
+                    matches_sig = True
+                    signature_match_mode = "PRE_ARTWORK_INVARIANT"
             
             if not matches_sig:
                 continue
+            if order_kind == "sales":
+                if source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, sales_item or order_obj):
+                    continue
             physical = Decimal(str(roll.weight_kg or 0))
             allocated = roll_alloc_map.get(str(roll.id), Decimal("0"))
             allocatable = physical - allocated
@@ -2625,9 +3421,11 @@ class PlannerViewSet(viewsets.ViewSet):
             elif same_lineage:
                 source_bucket = "CARRY_FORWARD_WIP"
                 source_label = "Carry-forward WIP"
-            elif source_planner_class == "SHARED_INVARIANT_ROLL" and completed_step_index == int(required_start_step or 0):
+            elif source_planner_class == "SHARED_INVARIANT_ROLL" and completed_step_index in {shared_invariant_min_step, required_start_step}:
                 source_bucket = "SHARED_INVARIANT_ROLL_STOCK"
                 source_label = "Shared invariant roll stock"
+                if required_start_step > 0 and completed_step_index == shared_invariant_min_step:
+                    source_label = "Shared invariant roll stock · continue from next step"
             elif source_planner_class == "EXTRUDED_BASE_ROLL" or str(signature_match_mode or "").upper() == "STEP0_RAW":
                 source_bucket = "COMPATIBLE_UPSTREAM_ROLL_STOCK"
                 source_label = "Compatible upstream roll stock"
@@ -2672,6 +3470,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 continue
             if order_signature and self._fg_signature(batch) != order_signature:
                 continue
+            if order_kind == "sales":
+                source_stock_order = self._origin_stock_order_for_batch(batch)
+                if source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, sales_item or order_obj):
+                    continue
             physical = Decimal(str(batch.qty_kg or 0))
             allocated = fg_alloc_map.get(str(batch.id), Decimal("0"))
             allocatable = physical - allocated
@@ -2806,7 +3608,10 @@ class PlannerViewSet(viewsets.ViewSet):
             effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
             qty_uom = str(getattr(so_item, "qty_uom", "KG") or "KG").upper()
             required_qty_kg = self._order_qty_kg("sales", order)
+            unit_weight = Decimal(str(getattr(so_item, "unit_weight_g", 0) or 0))
             required_qty_pcs = float(getattr(so_item, "qty_value", 0) or 0) if qty_uom == "PCS" else None
+            if required_qty_pcs is None and str(template.fg_type or "").upper() != "ROLL" and unit_weight > 0:
+                required_qty_pcs = float((Decimal(str(getattr(so_item, "total_weight_kg", 0) or 0)) * Decimal("1000")) / unit_weight)
             material_plan_lines, material_plan_summary = self._material_plan_payload(getattr(so_item, "bom_snapshot", {}) or {})
             pending_artwork_items = self._light_pending_artwork_items(so_item)
             job_summary = sales_job_map.get(str(order.id), {})
@@ -2845,6 +3650,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "planned_output_type": str(template.fg_type or "").upper(),
                 "required_qty_kg": float(required_qty_kg),
                 "required_qty_pcs": required_qty_pcs,
+                "unit_weight_g": float(unit_weight),
                 "qty_uom": qty_uom,
                 "math_valid": True,
                 "math_error": "",
@@ -2892,12 +3698,14 @@ class PlannerViewSet(viewsets.ViewSet):
                     roll_alloc_map=roll_alloc_map,
                     fg_alloc_map=fg_alloc_map,
                     order_layer_snapshot=layer_snapshot,
+                    sales_item=so_item,
                 )
                 row["matching_stock_orders"] = self._matching_stock_orders_for_sales(
                     template=template,
                     order_signature=order_signature,
                     order_invariant_signature=order_invariant_signature,
                     required_start_step=required_start_step,
+                    sales_item=so_item,
                 )
                 row["source_availability"] = self._source_availability(row)
                 row["continuation"] = self._row_continuation(row)
@@ -3591,6 +4399,8 @@ class PlannerViewSet(viewsets.ViewSet):
             source_stock_order = self._origin_stock_order_for_roll(roll)
             if not source_stock_order:
                 continue
+            if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                continue
             roll_route_id = getattr(getattr(roll, "template", None), "routing_rule_id", None)
             if required_route_id and roll_route_id != required_route_id:
                 continue
@@ -3631,6 +4441,8 @@ class PlannerViewSet(viewsets.ViewSet):
         for batch in batch_qs:
             source_stock_order = self._origin_stock_order_for_batch(batch)
             if not source_stock_order:
+                continue
+            if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
                 continue
             batch_route_id = getattr(getattr(batch, "template", None), "routing_rule_id", None)
             if required_route_id and batch_route_id != required_route_id:
@@ -3745,6 +4557,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 source_stock_order = self._origin_stock_order_for_roll(roll)
                 if not source_stock_order or str(source_stock_order.stock_purpose or "").upper() != "PRODUCT":
                     return Response({"error": f"Roll {roll.label_id} is not product stock-order output."}, status=status.HTTP_400_BAD_REQUEST)
+                if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                    return Response(
+                        {"error": self._stock_commitment_mismatch_message(source_stock_order, so_item, f"Roll {roll.label_id}")},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 roll_route_id = getattr(getattr(roll, "template", None), "routing_rule_id", None)
                 if required_route_id and roll_route_id != required_route_id:
                     return Response({"error": f"Roll {roll.label_id} route lineage does not match this sales order."}, status=status.HTTP_400_BAD_REQUEST)
@@ -3825,6 +4642,11 @@ class PlannerViewSet(viewsets.ViewSet):
             source_stock_order = self._origin_stock_order_for_batch(batch)
             if not source_stock_order or str(source_stock_order.stock_purpose or "").upper() != "PRODUCT":
                 return Response({"error": f"FG batch {batch.batch_number} is not product stock-order output."}, status=status.HTTP_400_BAD_REQUEST)
+            if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                return Response(
+                    {"error": self._stock_commitment_mismatch_message(source_stock_order, so_item, f"FG batch {batch.batch_number}")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             batch_route_id = getattr(getattr(batch, "template", None), "routing_rule_id", None)
             if required_route_id and batch_route_id != required_route_id:
                 return Response({"error": f"FG batch {batch.batch_number} route lineage does not match this sales order."}, status=status.HTTP_400_BAD_REQUEST)
@@ -3925,6 +4747,7 @@ class PlannerViewSet(viewsets.ViewSet):
             order_signature=order_sig,
             order_invariant_signature=order_inv_sig,
             required_start_step=self._sales_required_start_step(so_item.template, so_item.layer_snapshot or []),
+            sales_item=so_item,
         )
         exact_match = next(
             (
@@ -4037,8 +4860,56 @@ class PlannerViewSet(viewsets.ViewSet):
     def _aggregate_packaging_requirements(self, order_kind: str, order_obj):
         requirements = {}
         warnings = []
+
+        def _item_qty_context(item):
+            qty_pcs = Decimal("0")
+            qty_uom = str(getattr(item, "qty_uom", "KG") or "KG").upper()
+            if qty_uom == "PCS":
+                qty_pcs = Decimal(str(getattr(item, "qty_value", 0) or 0))
+            unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+            total_weight_kg = Decimal(str(getattr(item, "total_weight_kg", 0) or 0))
+            if qty_pcs <= 0 and unit_weight_g > 0 and total_weight_kg > 0:
+                qty_pcs = (total_weight_kg * Decimal("1000")) / unit_weight_g
+            return qty_pcs, total_weight_kg
+
+        def _add_requirement(material_id, uom, qty):
+            material_key = str(material_id or "").strip()
+            if not material_key:
+                return
+            qty_decimal = Decimal(str(qty or 0))
+            if qty_decimal <= 0:
+                return
+            key = (material_key, str(uom or "PCS").upper())
+            requirements[key] = requirements.get(key, Decimal("0")) + qty_decimal
+
+        def _aggregate_packaging_line(item, line):
+            if not isinstance(line, dict):
+                return
+            material_id = str(line.get("material_id") or "").strip()
+            if not material_id:
+                return
+            basis = str(line.get("basis") or "").upper()
+            uom = str(line.get("uom") or "PCS").upper()
+            qty_pcs, total_weight_kg = _item_qty_context(item)
+            pcs_per_pack = Decimal(str(line.get("pcs_per_pack") or 0))
+            kg_per_pack = Decimal(str(line.get("kg_per_pack") or line.get("kg_per_bag") or 0))
+            if basis in {"PCS_PER_PACK", "PRIMARY_INNER_PACK"} and qty_pcs > 0 and pcs_per_pack > 0:
+                _add_requirement(material_id, uom, int((qty_pcs + pcs_per_pack - 1) // pcs_per_pack))
+                return
+            if basis == "KG_PER_PACK" and total_weight_kg > 0 and kg_per_pack > 0:
+                _add_requirement(material_id, uom, int((total_weight_kg + kg_per_pack - 1) // kg_per_pack))
+                return
+            if basis == "PER_ORDER":
+                _add_requirement(material_id, uom, line.get("qty") or 0)
+
         for item in self._order_items_for_planner(order_kind, order_obj):
-            snapshot = _normalize_packaging_snapshot(getattr(item, "packaging_snapshot", {}) or {})
+            snapshot = getattr(item, "packaging_snapshot", {}) or {}
+            snapshot = snapshot if isinstance(snapshot, dict) else {}
+            packaging_lines = snapshot.get("packaging_lines") if isinstance(snapshot.get("packaging_lines"), list) else []
+            if packaging_lines:
+                for line in packaging_lines:
+                    _aggregate_packaging_line(item, line)
+                continue
             primary_cfg = snapshot.get("primary_inner_pack") if isinstance(snapshot.get("primary_inner_pack"), dict) else {}
             roll_pack_cfg = snapshot.get("roll_dispatch_pack") if isinstance(snapshot.get("roll_dispatch_pack"), dict) else {}
 
@@ -4551,6 +5422,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     )
                 local_consumption[("ROLL", str(roll.id))] = consumed_here + qty
                 source_stock_order = self._origin_stock_order_for_roll(roll)
+                if order_kind == "sales" and so_item and source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                    raise ValueError(self._stock_commitment_mismatch_message(source_stock_order, so_item, f"Roll {roll.label_id}"))
 
                 allocation = InventoryAllocation.objects.create(
                     sales_order=order_obj if order_kind == "sales" else None,
@@ -4613,6 +5486,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     )
                 local_consumption[("FG_BATCH", str(batch.id))] = consumed_here + qty
                 source_stock_order = self._origin_stock_order_for_batch(batch)
+                if order_kind == "sales" and so_item and source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                    raise ValueError(self._stock_commitment_mismatch_message(source_stock_order, so_item, f"FG batch {batch.batch_number}"))
 
                 allocation = InventoryAllocation.objects.create(
                     sales_order=order_obj if order_kind == "sales" else None,

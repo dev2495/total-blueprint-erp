@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Factory • Plants without proc
 
 
 ## Screenshot References
-- ![factory-plants-overview](../../../frontend_v2/public/help/screenshots/factory-plants-overview.svg)
+- ![factory-plants-overview](../../../frontend_v2/public/help/screenshots/factory-plants-overview.png)
 - ![factory-plants-workflow](../../../frontend_v2/public/help/screenshots/factory-plants-workflow.svg)
 
 ## FAQ References

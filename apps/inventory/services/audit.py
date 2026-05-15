@@ -1184,7 +1184,7 @@ class InventoryAuditService:
                     "status": row.get("status"),
                     "packaging_kind": row.get("packaging_kind"),
                     "base_uom": row.get("base_uom"),
-                    "rate": row.get("rate"),
+                    "rate": row.get("rate") if row.get("rate") not in (None, "", 0, 0.0) else None,
                 }
             )
         if replace_existing:
@@ -1208,7 +1208,7 @@ class InventoryAuditService:
                 "location": str(bulk.location_id),
                 "location_name": bulk.location.name,
                 "qty": float(bulk.qty_kg or 0),
-                "uom": "KG",
+                "uom": bulk.material.base_uom or "KG",
                 "rate": float(bulk.avg_cost or 0),
             })
         for roll in InventoryRoll.objects.select_related("material", "grade", "location").filter(location__plant=plant).exclude(status__in=["CONSUMED", "SCRAPPED"]):
@@ -1231,7 +1231,7 @@ class InventoryAuditService:
                 "is_fg": bool(roll.is_fg),
                 "stage_index": roll.stage_index,
                 "status": roll.status,
-                "rate": 0,
+                "rate": None,
             })
         for stock in PackagingStock.objects.select_related("material", "location").filter(plant=plant, qty__gt=0):
             rows.append({
@@ -1370,10 +1370,14 @@ class InventoryAuditService:
         period.save(update_fields=["status", "closed_by", "closed_at", "closing_batch", "opening_batch_next_year", "updated_at"])
 
         next_start_date, next_end_date = financial_year_dates(next_fy)
-        InventoryFinancialPeriod.objects.get_or_create(
-            financial_year=next_fy,
-            defaults={"start_date": next_start_date, "end_date": next_end_date, "status": "OPEN"},
-        )
+        next_period = InventoryFinancialPeriod.objects.filter(financial_year=next_fy).first()
+        if not next_period and not InventoryFinancialPeriod.objects.filter(status="OPEN").exists():
+            InventoryFinancialPeriod.objects.create(
+                financial_year=next_fy,
+                start_date=next_start_date,
+                end_date=next_end_date,
+                status="OPEN",
+            )
         return period
 
     @classmethod
@@ -1411,6 +1415,7 @@ class InventoryAuditService:
         date_from=None,
         date_to=None,
     ) -> Dict[str, Any]:
+        auto_financial_year_window = bool(financial_year and not date_from and not date_to)
         if financial_year and not date_from and not date_to:
             date_from, date_to = financial_year_dates(financial_year)
         entries: List[Dict[str, Any]] = []
@@ -1425,9 +1430,11 @@ class InventoryAuditService:
         for line in batch_lines.order_by("batch__cutoff_at", "created_at"):
             if line.batch.type == "FY_CLOSE":
                 continue
-            if date_from and line.batch.cutoff_at.date() < date_from:
+            if financial_year and line.batch.financial_year != financial_year:
                 continue
-            if date_to and line.batch.cutoff_at.date() > date_to:
+            if not auto_financial_year_window and date_from and line.batch.cutoff_at.date() < date_from:
+                continue
+            if not auto_financial_year_window and date_to and line.batch.cutoff_at.date() > date_to:
                 continue
             if line.batch.type == "OPENING_STOCK":
                 qty = _dec(line.opening_qty)

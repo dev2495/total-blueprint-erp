@@ -85,12 +85,11 @@ This guide helps users complete all key tasks on Inventory • Traceability with
 
 ## Related Routes
 - /inventory/alerts
-- /inventory/bulk
 - /inventory/bulk-transactions
 
 
 ## Screenshot References
-- ![inventory-traceability-overview](../../../frontend_v2/public/help/screenshots/inventory-traceability-overview.svg)
+- ![inventory-traceability-overview](../../../frontend_v2/public/help/screenshots/inventory-traceability-overview.png)
 - ![inventory-traceability-workflow](../../../frontend_v2/public/help/screenshots/inventory-traceability-workflow.svg)
 
 ## FAQ References

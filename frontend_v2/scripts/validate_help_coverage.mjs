@@ -90,8 +90,8 @@ for (const route of dashboardPages) {
   }
 }
 
-if (pages.length !== dashboardPages.length) {
-  failures.push(`Page guide count (${pages.length}) does not match dashboard routes (${dashboardPages.length}).`);
+if (pagePatterns.size !== dashboardPages.length) {
+  failures.push(`Unique page guide route count (${pagePatterns.size}) does not match dashboard routes (${dashboardPages.length}).`);
 }
 
 for (const page of pages) {

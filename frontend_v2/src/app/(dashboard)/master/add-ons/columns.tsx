@@ -36,6 +36,18 @@ export const getColumns = ({ onEdit, onDelete }: ColumnsProps): ColumnDef<Addon>
         cell: ({ row }) => <div>{row.getValue("weight_value")}</div>,
     },
     {
+        accessorKey: "is_purchasable",
+        header: "Purchasable",
+        cell: ({ row }) => <StatusBadge status={(row.original.is_purchasable ?? row.original.addon_is_purchased) ? "YES" : "NO"} />,
+    },
+    {
+        accessorKey: "addon_purchase_uom",
+        header: "Stock UOM",
+        cell: ({ row }) => (
+            <div className="font-mono text-xs">{(row.original.is_purchasable ?? row.original.addon_is_purchased) ? row.original.addon_purchase_uom || "KG" : "-"}</div>
+        ),
+    },
+    {
         id: "actions",
         cell: ({ row }) => (
             <ActionMenu

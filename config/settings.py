@@ -104,6 +104,10 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 if IS_PRODUCTION:
     DEBUG = False
 
+# v3 Product Master sales model rollout guard. Default is on locally/currently,
+# but this gives us a single backend switch to fail closed if rollout needs pause.
+ERP_V3_DEFAULT = _env_bool("ERP_V3_DEFAULT", True)
+
 _raw_allowed_hosts = os.getenv("ALLOWED_HOSTS", "").strip()
 if IS_HOSTED_SECURE:
     ALLOWED_HOSTS = [host.strip() for host in _raw_allowed_hosts.split(",") if host.strip()]

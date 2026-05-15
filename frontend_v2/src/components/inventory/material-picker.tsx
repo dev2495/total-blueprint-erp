@@ -64,8 +64,8 @@ export function MaterialPicker({
     }, [items])
 
     const handleSelect = React.useCallback((itemId: string) => {
-        onValueChange(itemId)
         setOpen(false)
+        onValueChange(itemId)
     }, [onValueChange])
 
     return (
@@ -111,7 +111,7 @@ export function MaterialPicker({
                     <div className="flex items-center px-3 border-b border-slate-200 bg-white">
                         <Search className="h-4 w-4 text-slate-500 mr-2" />
                         <CommandInput
-                            placeholder="Search by code or name.."
+                            placeholder="Search code or material name"
                             className="h-10 border-none ring-0 focus:ring-0 bg-transparent text-slate-900 text-sm"
                         />
                     </div>
@@ -133,11 +133,6 @@ export function MaterialPicker({
                                         key={item.id}
                                         value={`${item.id} ${item.code} ${item.name} ${item.category || ""}`}
                                         onSelect={() => handleSelect(item.id)}
-                                        onMouseDown={(e) => {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            handleSelect(item.id)
-                                        }}
                                         className={cn(
                                             "flex items-center gap-2 px-3 py-2 cursor-pointer rounded-md mx-1 mb-0.5",
                                             "hover:bg-blue-50 aria-selected:bg-blue-600 aria-selected:text-white",

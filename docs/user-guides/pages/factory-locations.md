@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Factory • Locations without p
 
 
 ## Screenshot References
-- ![factory-locations-overview](../../../frontend_v2/public/help/screenshots/factory-locations-overview.svg)
+- ![factory-locations-overview](../../../frontend_v2/public/help/screenshots/factory-locations-overview.png)
 - ![factory-locations-workflow](../../../frontend_v2/public/help/screenshots/factory-locations-workflow.svg)
 
 ## FAQ References

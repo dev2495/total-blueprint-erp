@@ -85,7 +85,6 @@ This guide helps users complete all key tasks on Inventory • Movements without
 
 ## Related Routes
 - /inventory/alerts
-- /inventory/bulk
 - /inventory/bulk-transactions
 
 

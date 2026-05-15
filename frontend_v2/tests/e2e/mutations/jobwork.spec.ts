@@ -21,7 +21,7 @@ test("store can create, dispatch, and receive a planned-step jobwork order", asy
   const returnLabel = `UIE2E-JW-${Date.now()}`
 
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/roll-explorer")
+  await switchRole(page, "Store", "/inventory/rolls-v36")
   await page.goto("/inventory/job-work")
   await page.getByTestId("jobwork-page").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)

@@ -85,8 +85,7 @@ This guide helps users complete all key tasks on Inventory • Bulk Transactions
 
 ## Related Routes
 - /inventory/alerts
-- /inventory/bulk
-- /inventory/grn
+- /inventory/grn-v36
 
 
 ## Screenshot References

@@ -39,7 +39,7 @@ export default function FactoryHeatmap() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-1">
-                    <Link href="/production/planner" className="inline-flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-widest hover:gap-3 transition-all">
+                    <Link href="/dashboard/planner/control-tower/stock-intelligence" className="inline-flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-widest hover:gap-3 transition-all">
                         <ArrowLeft className="h-4 w-4" /> Back to Control Tower
                     </Link>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 flex items-center gap-3 mt-2">

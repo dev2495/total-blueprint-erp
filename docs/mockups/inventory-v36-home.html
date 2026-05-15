@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V3.6 · Inventory · What we have</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: Inter, system-ui; background: #f8fafc; }
+  .display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .lift { transition: transform 180ms, box-shadow 180ms; }
+  .lift:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -12px rgba(2,6,23,.15); }
+  .glassy { backdrop-filter: blur(12px) saturate(140%); }
+  .nice-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  .donut { transform: rotate(-90deg); }
+  .fill-bar { height: 4px; border-radius: 9999px; background: #e2e8f0; overflow: hidden; }
+  .fill-bar > i { display: block; height: 100%; background: linear-gradient(90deg, #10b981, #34d399); }
+  /* Heatmap cells for roll matrix */
+  .mx-0 { background: #f8fafc; color: #cbd5e1; }
+  .mx-1 { background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #047857; }
+  .mx-2 { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #047857; }
+  .mx-3 { background: linear-gradient(135deg, #a7f3d0, #6ee7b7); color: #064e3b; }
+  .mx-4 { background: linear-gradient(135deg, #34d399, #10b981); color: white; }
+  .mx-warn { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .mx-empty { background: #fafafa; color: #94a3b8; }
+</style>
+</head>
+<body class="min-h-screen pb-24">
+
+<!-- Sticky header -->
+<header class="sticky top-0 z-30 border-b border-slate-200/60 bg-white/85 glassy">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/inventory-v36-index.html" class="text-xs font-bold text-slate-500 hover:text-blue-700">← All inventory mockups</a>
+      <span class="text-slate-300">/</span>
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Inventory · V3.6</div>
+      <h1 class="display text-xl font-bold text-slate-900">Stock workspace</h1>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="/inventory-v36-grn.html" class="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg">+ Receive stock</a>
+        <a href="/stock-lifecycle-v36.html" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">📅 Period management</a>
+      </div>
+    </div>
+    <!-- Sub-nav (the 3 sub-views) -->
+    <div class="mt-2.5 flex items-center gap-1 text-xs">
+      <button class="rounded-lg bg-blue-600 px-3 py-1.5 font-bold text-white">📦 What we have</button>
+      <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-50">📈 What's moving</button>
+      <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-50">📅 Period</button>
+      <span class="ml-auto text-[10px] text-slate-500">As of <span class="mono font-bold text-slate-700">today 14:32</span> · live snapshot</span>
+    </div>
+  </div>
+</header>
+
+<!-- Hero KPI tiles -->
+<section class="mx-auto max-w-screen-2xl px-6 pt-6">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <KpiTile tone="blue" label="Bulk granules &amp; chemicals" value="12,400" unit="KG" sub="across 24 materials · 4 locations" health="78" alerts="2 low-stock alerts" />
+    <KpiTile tone="violet" label="Active rolls" value="287" unit="rolls" sub="142 available · 89 reserved · 56 in-use" health="62" alerts="6 aging > 30 days" />
+    <KpiTile tone="amber" label="Packaging &amp; POD" value="45,000" unit="PCS" sub="INNER · GUNNY · TAPE · POD" health="84" alerts="" />
+  </div>
+</section>
+
+<!-- 2-column: filter rail + main content -->
+<div class="mx-auto grid max-w-screen-2xl grid-cols-[260px_minmax(0,1fr)] gap-5 px-6 py-5">
+
+  <!-- Filter rail -->
+  <aside class="sticky top-[120px] h-[calc(100vh-140px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm nice-scroll">
+    <div class="flex items-center justify-between">
+      <span class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Filters</span>
+      <button class="text-[10px] font-bold text-blue-600 hover:underline">Clear all</button>
+    </div>
+    <!-- Search -->
+    <div class="relative mt-3">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm shadow-sm focus:bg-white" placeholder="Material code · roll # · lot…" />
+    </div>
+
+    <!-- Class -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Class</div>
+      <div class="flex flex-col gap-1">
+        <ClassToggle id="all" label="All" count="358" active />
+        <ClassToggle id="bulk" label="Bulk" count="142" />
+        <ClassToggle id="roll" label="Rolls" count="287" />
+        <ClassToggle id="packaging" label="Packaging" count="68" />
+        <ClassToggle id="pod" label="POD" count="32" />
+        <ClassToggle id="pouch" label="Finished pouch" count="44" />
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Location</div>
+      <select class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono shadow-sm">
+        <option>All 4 locations</option>
+        <option>WH-A · Bulk warehouse</option>
+        <option>WCM-PRT-1 · Print room</option>
+        <option>WCM-LAM-1 · Lamination</option>
+        <option>PACKING · Packing yard</option>
+      </select>
+    </div>
+
+    <!-- Status -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</div>
+      <div class="grid grid-cols-2 gap-1">
+        <StatPill code="●" label="Available" count="142" />
+        <StatPill code="◑" label="Reserved" count="89" />
+        <StatPill code="◐" label="In-use" count="56" />
+        <StatPill code="○" label="Aging" count="6" warn />
+      </div>
+    </div>
+
+    <!-- Reservations -->
+    <div class="mt-4 rounded-xl border border-violet-200 bg-violet-50/30 p-3">
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-black uppercase tracking-wider text-violet-700">Reservations</span>
+        <span class="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-800">SALES VIEW</span>
+      </div>
+      <p class="mt-1 text-[10px] text-violet-700 leading-snug">Reserved against:</p>
+      <ul class="mt-1.5 space-y-0.5 text-[10px]">
+        <li class="flex justify-between"><span class="text-slate-700">A.K.Poly · SO-1245</span><span class="font-bold mono">800 KG</span></li>
+        <li class="flex justify-between"><span class="text-slate-700">Bigbasket · SO-1247</span><span class="font-bold mono">500 KG</span></li>
+        <li class="flex justify-between"><span class="text-slate-700">Reliance · SO-1251</span><span class="font-bold mono">800 KG</span></li>
+        <li class="text-[10px] text-violet-600 text-center mt-1">+ 6 more</li>
+      </ul>
+    </div>
+
+    <!-- Aging -->
+    <div class="mt-4">
+      <div class="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Aging</div>
+      <div class="space-y-1 text-[11px]">
+        <div class="flex justify-between rounded-lg bg-emerald-50/60 px-2 py-1"><span>0-7 days</span><span class="font-bold text-emerald-700">218</span></div>
+        <div class="flex justify-between rounded-lg bg-blue-50/60 px-2 py-1"><span>8-30 days</span><span class="font-bold text-blue-700">63</span></div>
+        <div class="flex justify-between rounded-lg bg-amber-50/60 px-2 py-1"><span>31-60 days</span><span class="font-bold text-amber-700">12</span></div>
+        <div class="flex justify-between rounded-lg bg-rose-50/60 px-2 py-1"><span>60+ days</span><span class="font-bold text-rose-700">6</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="space-y-5">
+
+    <!-- ★ ROLL MATRIX VIEW (the showcase) ─────────────────────────── -->
+    <section class="overflow-hidden rounded-2xl border border-violet-200/60 bg-white shadow-md ring-1 ring-violet-100/50 border-l-[3px] border-l-violet-500">
+      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-violet-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-violet-600 text-white text-base shadow-sm ring-1 ring-violet-700">🌀</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Roll inventory · 287 rolls</div>
+            <h2 class="display text-lg font-bold text-slate-900">Variant × thickness matrix</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Each cell = roll count + total KG. Color = stock health. Click any cell for the rolls inside.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-[10px] font-bold text-slate-600">View</span>
+          <button class="rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-bold text-white">Matrix</button>
+          <button class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">List</button>
+          <button class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">Tree</button>
+          <span class="text-slate-300">·</span>
+          <span class="text-[10px] font-bold text-slate-600">Pivot</span>
+          <select class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-mono">
+            <option>variant</option><option>size</option><option>customer</option>
+          </select>
+          <span class="text-[10px] text-slate-500">×</span>
+          <select class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-mono">
+            <option>thickness</option><option>grade</option><option>width</option>
+          </select>
+        </div>
+      </header>
+
+      <!-- Matrix table -->
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead>
+            <tr class="border-b border-slate-200 text-slate-500">
+              <th class="sticky left-0 bg-white px-4 py-2 text-left font-bold uppercase tracking-wider">Variant / Size</th>
+              <th class="px-3 py-2 text-center mono font-bold">12μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">15μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">20μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">25μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">30μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">50μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">65μ</th>
+              <th class="px-3 py-2 text-center mono font-bold">75μ</th>
+              <th class="px-3 py-2 text-center font-bold uppercase">Total</th>
+              <th class="px-3 py-2 text-right font-bold uppercase">KG</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <MtxRow head="PET-12 · print-web · FOOD-A · 1050mm" cells="14|0|0|0|0|0|0|0" total="14" kg="2,800" tone="3" />
+            <MtxRow head="PET-12 · print-web · FOOD-A · 1200mm" cells="6|0|0|0|0|0|0|0" total="6" kg="1,440" tone="2" />
+            <MtxRow head="PET-15 · print-web · GP · 1050mm" cells="0|8|0|0|0|0|0|0" total="8" kg="2,000" tone="2" />
+            <MtxRow head="MET-BOPP-20 · barrier · 1050mm" cells="0|0|22|0|0|0|0|0" total="22" kg="6,600" tone="4" />
+            <MtxRow head="MET-BOPP-20 · barrier · 1200mm" cells="0|0|9|0|0|0|0|0" total="9" kg="2,700" tone="2" />
+            <MtxRow head="MET-BOPP-25 · barrier · 1050mm" cells="0|0|0|4|0|0|0|0" total="4" kg="1,200" tone="warn" />
+            <MtxRow head="LD-PE · sealant · FOOD-A · 1050mm" cells="0|0|0|0|0|31|0|0" total="31" kg="15,500" tone="4" />
+            <MtxRow head="LD-PE · sealant · GP · 1050mm" cells="0|0|0|0|0|18|0|0" total="18" kg="9,000" tone="3" />
+            <MtxRow head="LD-PE · sealant · FOOD-A · 1200mm" cells="0|0|0|0|0|0|12|0" total="12" kg="9,000" tone="3" />
+            <MtxRow head="LD-PE · sealant · FOOD-A · 1500mm" cells="0|0|0|0|0|0|0|3" total="3" kg="3,375" tone="warn" />
+            <MtxRow head="POD-LDNAT · 1050mm" cells="0|0|0|0|24|0|0|0" total="24" kg="3,600" tone="4" />
+            <MtxRow head="POD-LDNAT · 1200mm" cells="0|0|0|0|0|0|0|0" total="0" kg="0" tone="0" gap />
+            <MtxRow head="LAM-PET-MET-LD · 77μ · 1050mm · DF-ALMOND" cells="0|0|0|0|0|0|0|0" total="48" kg="38,400" tone="4" customSpan="laminated" />
+            <MtxRow head="LAM-PET-MET-LD · 77μ · 1050mm · DEFER" cells="0|0|0|0|0|0|0|0" total="22" kg="17,600" tone="2" customSpan="laminated" />
+          </tbody>
+          <tfoot class="bg-slate-50/60">
+            <tr>
+              <td class="sticky left-0 bg-slate-50/60 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-600">Total rolls</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">20</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">8</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">31</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">4</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">24</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">49</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">12</td>
+              <td class="px-3 py-2 text-center mono font-bold text-slate-700">3</td>
+              <td class="px-3 py-2 text-center mono font-bold text-blue-700">221+66 lam</td>
+              <td class="px-3 py-2 text-right mono font-bold text-emerald-700">113,215 KG</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Drill-down preview (sample drawer) -->
+      <div class="border-t border-slate-200 bg-violet-50/30 px-5 py-3">
+        <div class="flex items-center justify-between gap-2 text-[10px]">
+          <div class="flex items-center gap-2">
+            <span class="font-black uppercase tracking-wider text-violet-700">Click cell to drill →</span>
+            <span class="text-slate-500">Shows individual rolls with status, location, age, parent/children</span>
+          </div>
+          <a href="#" class="font-bold text-violet-700 hover:underline">Toggle list view ↗</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- BULK STOCK TABLE ───────────────────────────────────── -->
+    <section class="overflow-hidden rounded-2xl border border-blue-200/60 bg-white shadow-md ring-1 ring-blue-100/50 border-l-[3px] border-l-blue-500">
+      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-blue-600 text-white text-base shadow-sm ring-1 ring-blue-700">🧪</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Bulk · 142 lots · 24 materials</div>
+            <h2 class="display text-lg font-bold text-slate-900">Bulk granules &amp; chemicals</h2>
+          </div>
+        </div>
+        <button class="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 shadow-sm hover:bg-blue-100">View as bulk lots →</button>
+      </header>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead>
+            <tr class="border-b border-slate-200 bg-slate-50/40 text-slate-500">
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Material</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Grade</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Location</th>
+              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">On hand</th>
+              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">Reserved</th>
+              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">Available</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Health</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Last in/out</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <BulkRow material="LD-PE-NAT" grade="FOOD-A" loc="WH-A" onhand="4,200" reserved="600" available="3,600" health="80" last="GRN 2h ago" />
+            <BulkRow material="LD-PE-NAT" grade="GP" loc="WH-A" onhand="2,100" reserved="400" available="1,700" health="68" last="ISSUE 4h ago" />
+            <BulkRow material="PET-PELLET" grade="GP" loc="WH-A" onhand="1,100" reserved="200" available="900" health="55" last="GRN 1d ago" warn />
+            <BulkRow material="ADHESIVE-PU-2K" grade="—" loc="WH-A" onhand="48" reserved="12" available="36" health="45" last="ISSUE 30m ago" warn />
+            <BulkRow material="MET-BOPP-INPUT" grade="FOOD-A" loc="WH-A" onhand="850" reserved="0" available="850" health="78" last="GRN 3d ago" />
+            <BulkRow material="INK-CMYK-CYAN" grade="—" loc="WH-A" onhand="24" reserved="6" available="18" health="32" last="ISSUE 1h ago" warn alert="Below MOQ" />
+            <BulkRow material="SOLVENT-MEK" grade="—" loc="WH-A" onhand="180" reserved="20" available="160" health="72" last="GRN 5d ago" />
+            <BulkRow material="PROCESS-AID" grade="—" loc="WH-A" onhand="120" reserved="0" available="120" health="65" last="None 12d" />
+          </tbody>
+        </table>
+      </div>
+      <div class="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-5 py-2">
+        <div class="text-[10px] text-slate-500">Showing 8 of 142</div>
+        <a href="#" class="text-[11px] font-bold text-blue-700 hover:underline">View all bulk lots →</a>
+      </div>
+    </section>
+
+    <!-- PACKAGING & POD TABLE ─────────────────────────────── -->
+    <section class="overflow-hidden rounded-2xl border border-amber-200/60 bg-white shadow-md ring-1 ring-amber-100/50 border-l-[3px] border-l-amber-500">
+      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-amber-50/60 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-amber-500 text-white text-base shadow-sm ring-1 ring-amber-600">📦</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Packaging + POD · 100 SKU rows</div>
+            <h2 class="display text-lg font-bold text-slate-900">Packaging materials</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Inner pouches, gunny, carton, tape, POD sleeves. <span class="font-bold">Catalog-backed.</span></p>
+          </div>
+        </div>
+      </header>
+      <div class="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <div class="p-4">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700 mb-2">Inner pouches</div>
+          <PkgRow code="INNER-POUCH-24" name="24/inner · 60μ GP" qty="1,200 PCS" reserved="200" status="ok" preset />
+          <PkgRow code="INNER-POUCH-12" name="12/inner · 60μ GP" qty="800 PCS" reserved="120" status="ok" />
+          <PkgRow code="INNER-POUCH-48" name="48/inner · 60μ GP" qty="40 PCS" reserved="0" status="warn" />
+        </div>
+        <div class="p-4">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700 mb-2">Outer / shipping</div>
+          <PkgRow code="GUNNY-25KG" name="25kg gunny" qty="180 PCS" reserved="32" status="ok" preset />
+          <PkgRow code="GUNNY-50KG" name="50kg gunny" qty="60 PCS" reserved="8" status="ok" />
+          <PkgRow code="MASTER-CARTON-24" name="24-pcs master carton" qty="120 PCS" reserved="0" status="ok" />
+          <PkgRow code="TAPE-50MM" name="50mm shipping tape" qty="8 ROLL" reserved="0" status="warn" alert="MOQ alert" />
+        </div>
+        <div class="p-4 sm:col-span-2 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">POD inventory</span>
+            <span class="text-[10px] text-slate-500">12 POD SKUs · catalog-backed via PM-POD-LDNAT</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <PodTile code="POD-220" qty="500 KG" status="ok" />
+            <PodTile code="POD-260" qty="0" status="empty" />
+            <PodTile code="POD-300" qty="200 KG" status="warn" />
+            <PodTile code="POD-340" qty="120 KG" status="ok" />
+            <PodTile code="POD-380" qty="80 KG" status="warn" />
+            <PodTile code="POD-420" qty="60 KG" status="ok" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FINISHED POUCH stock (variant matrix collapsed view) -->
+    <section class="overflow-hidden rounded-2xl border border-emerald-200/60 bg-white shadow-md ring-1 ring-emerald-100/50 border-l-[3px] border-l-emerald-500">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 via-white to-white px-5 py-4">
+        <div class="flex items-start gap-3">
+          <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-emerald-600 text-white text-base shadow-sm ring-1 ring-emerald-700">🧴</span>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Finished pouches · 44 SKU lots · ready to dispatch</div>
+            <h2 class="display text-lg font-bold text-slate-900">Finished goods</h2>
+          </div>
+        </div>
+        <a href="#" class="text-[11px] font-bold text-emerald-700 hover:underline">View by customer →</a>
+      </header>
+      <div class="px-5 py-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <FgCard code="PM-DRY-PET-LD-SNK250-FOODA-DFALMOND-ZIP" customer="A.K.Poly · SO-1245" qty="1,000 KG · 50,000 pcs" status="ready" />
+        <FgCard code="PM-DRY-PET-LD-SNK100-FOODA-DFALMOND" customer="Bigbasket · SO-1247" qty="500 KG · 50,000 pcs" status="ready" />
+        <FgCard code="PM-DRY-PET-LD-SNK500-FOODA-DFRAISIN-ZIP" customer="DMart · SO-1244" qty="800 KG · 16,000 pcs" status="dispatch_ready" />
+        <FgCard code="PM-DRY-PET-LD-SNK250-GP-DEFER" customer="(generic stock)" qty="200 KG" status="generic" />
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Floating CTA -->
+<div class="fixed bottom-6 right-6 z-30 flex flex-col gap-2">
+  <a href="/inventory-v36-grn.html" class="rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-bold text-white shadow-2xl shadow-emerald-500/30 hover:shadow-emerald-500/50 transition">+ Receive stock</a>
+</div>
+
+<!-- Sticky bottom toolbar (sales reservation visibility) -->
+<div class="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 glassy">
+  <div class="mx-auto max-w-screen-2xl px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <span class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Reservations open</span>
+      <span class="rounded-full bg-violet-100 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">9 SOs holding stock</span>
+      <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">3,200 KG reserved</span>
+      <span class="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">8,800 KG free</span>
+    </div>
+    <div class="flex items-center gap-2 text-[10px] text-slate-500">
+      <span>Period: <span class="font-bold text-slate-700">Sep 2025 (open · 30d in)</span></span>
+      <span class="text-slate-300">·</span>
+      <a href="/stock-lifecycle-v36.html" class="font-bold text-blue-600 hover:underline">Open period →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// Helper: KpiTile
+document.querySelectorAll('KpiTile').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const TONE = {
+    blue:    { grad:'from-blue-600 via-indigo-600 to-violet-600',     ring:'ring-blue-500/20' },
+    violet:  { grad:'from-violet-600 via-fuchsia-600 to-pink-600',    ring:'ring-violet-500/20' },
+    amber:   { grad:'from-amber-500 via-orange-500 to-rose-500',      ring:'ring-amber-500/20' },
+    emerald: { grad:'from-emerald-600 via-teal-600 to-cyan-600',      ring:'ring-emerald-500/20' },
+  }
+  const t = TONE[a('tone')] || TONE.blue
+  el.outerHTML = `
+  <div class="overflow-hidden rounded-2xl bg-gradient-to-br ${t.grad} p-5 text-white shadow-2xl ${t.ring} ring-1 lift">
+    <div class="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">${a('label')}</div>
+    <div class="mt-1 flex items-baseline gap-2">
+      <span class="display text-4xl font-black">${a('value')}</span>
+      <span class="text-sm font-bold text-white/80">${a('unit')}</span>
+    </div>
+    <div class="mt-1 text-xs text-white/80">${a('sub')}</div>
+    <div class="mt-3 fill-bar !bg-white/20"><i style="width:${a('health')}%; background: linear-gradient(90deg, #fff, rgba(255,255,255,.7));"></i></div>
+    <div class="mt-2 flex items-center justify-between text-[10px]">
+      <span class="text-white/80"><span class="font-bold">${a('health')}%</span> healthy</span>
+      ${a('alerts') ? `<span class="rounded-full bg-white/20 px-2 py-0.5 font-bold">⚠ ${a('alerts')}</span>` : ''}
+    </div>
+  </div>`
+})
+
+// ClassToggle
+document.querySelectorAll('ClassToggle').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  el.outerHTML = `<button class="flex items-center justify-between rounded-lg ${active ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'} px-2.5 py-1.5 text-xs font-bold">
+    <span>${a('label')}</span>
+    <span class="${active ? 'bg-white/20' : 'bg-slate-100'} rounded px-1.5 py-0.5 text-[10px] font-black">${a('count')}</span>
+  </button>`
+})
+
+// StatPill
+document.querySelectorAll('StatPill').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const warn = el.hasAttribute('warn')
+  el.outerHTML = `<div class="flex items-center justify-between rounded-lg ${warn ? 'bg-rose-50 ring-rose-200 text-rose-700' : 'bg-slate-50 ring-slate-200 text-slate-700'} px-2 py-1 text-[10px] font-bold ring-1">
+    <span>${a('code')} ${a('label')}</span>
+    <span class="font-black">${a('count')}</span>
+  </div>`
+})
+
+// MtxRow + MtxCell (the killer roll matrix)
+document.querySelectorAll('MtxRow').forEach(el => {
+  const head = el.getAttribute('head')
+  const cells = (el.getAttribute('cells')||'').split('|')
+  const total = el.getAttribute('total')
+  const kg = el.getAttribute('kg')
+  const tone = el.getAttribute('tone')
+  const gap = el.hasAttribute('gap')
+  const customSpan = el.getAttribute('customSpan')
+  const cellHtml = cells.map((c) => {
+    const n = parseInt(c, 10)
+    if (n === 0) return `<td class="px-2 py-1.5 text-center"><span class="inline-flex h-7 w-12 items-center justify-center rounded-md mx-empty text-[10px]">—</span></td>`
+    const intensity = n >= 20 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : 1
+    return `<td class="px-2 py-1.5 text-center"><a href="#" class="inline-flex h-7 w-12 items-center justify-center rounded-md mx-${intensity} text-xs font-bold cursor-pointer hover:opacity-80">${n}</a></td>`
+  }).join('')
+  // Total cell color
+  const totalToneClass = tone === '4' ? 'bg-emerald-100 text-emerald-900 ring-emerald-300' : tone === '3' ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : tone === '2' ? 'bg-blue-50 text-blue-800 ring-blue-200' : tone === 'warn' ? 'bg-amber-50 text-amber-800 ring-amber-200' : 'bg-slate-50 text-slate-500 ring-slate-200'
+  const headStyle = customSpan === 'laminated' ? 'bg-emerald-50/40 italic' : ''
+  el.outerHTML = `
+  <tr class="${gap ? 'opacity-60' : ''} hover:bg-violet-50/30 ${headStyle}">
+    <td class="sticky left-0 bg-white hover:bg-violet-50/30 px-4 py-1.5 text-[11px] font-medium text-slate-700 truncate max-w-[280px]" title="${head}">${head}</td>
+    ${cellHtml}
+    <td class="px-3 py-1.5 text-center"><span class="inline-flex items-center rounded-md ${totalToneClass} px-2 py-0.5 ring-1 ring-inset font-bold">${total}</span></td>
+    <td class="px-3 py-1.5 text-right mono font-bold text-slate-800">${kg}</td>
+  </tr>`
+})
+
+// BulkRow
+document.querySelectorAll('BulkRow').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const warn = el.hasAttribute('warn')
+  const alert = a('alert')
+  const health = parseInt(a('health'), 10)
+  const healthClass = health >= 70 ? 'text-emerald-700 bg-emerald-50' : health >= 50 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50'
+  el.outerHTML = `
+  <tr class="hover:bg-blue-50/30 ${warn ? '' : ''}">
+    <td class="px-3 py-2 mono font-bold text-slate-900">${a('material')}</td>
+    <td class="px-3 py-2"><span class="rounded-md bg-violet-50 px-1.5 py-0.5 mono text-[10px] font-bold text-violet-700 ring-1 ring-violet-200">${a('grade')}</span></td>
+    <td class="px-3 py-2 mono text-[11px] text-slate-600">${a('loc')}</td>
+    <td class="px-3 py-2 text-right mono font-bold text-slate-900">${a('onhand')} <span class="text-[10px] text-slate-500">KG</span></td>
+    <td class="px-3 py-2 text-right mono text-violet-700 font-bold">${a('reserved')}</td>
+    <td class="px-3 py-2 text-right mono font-bold text-emerald-700">${a('available')}</td>
+    <td class="px-3 py-2"><div class="flex items-center gap-2"><div class="fill-bar w-16"><i style="width:${health}%"></i></div><span class="rounded-md ${healthClass} px-1.5 py-0.5 text-[10px] font-bold">${health}%</span></div></td>
+    <td class="px-3 py-2 text-[11px] text-slate-500">${a('last')} ${alert ? `<span class="ml-1 rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200">⚠ ${alert}</span>` : ''}</td>
+  </tr>`
+})
+
+// PkgRow
+document.querySelectorAll('PkgRow').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const status = a('status')
+  const preset = el.hasAttribute('preset')
+  const alert = a('alert')
+  const ICON = { ok:'●', warn:'◐', empty:'○' }
+  const COLOR = { ok:'text-emerald-600', warn:'text-amber-600', empty:'text-slate-400' }
+  el.outerHTML = `
+  <div class="flex items-center justify-between gap-2 rounded-lg ${status==='warn' ? 'bg-amber-50/40 ring-1 ring-amber-200' : 'hover:bg-slate-50/60'} px-2 py-1.5 mb-1">
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="${COLOR[status]} text-base leading-none">${ICON[status]}</span>
+      <div class="min-w-0">
+        <div class="flex items-center gap-1.5">
+          <span class="mono text-[11px] font-bold text-slate-900">${a('code')}</span>
+          ${preset ? '<span class="rounded-sm bg-emerald-100 px-1 text-[8px] font-bold text-emerald-800">DEFAULT</span>' : ''}
+        </div>
+        <div class="text-[10px] text-slate-500 truncate">${a('name')}</div>
+      </div>
+    </div>
+    <div class="text-right flex-none">
+      <div class="mono text-[11px] font-bold text-slate-800">${a('qty')}</div>
+      <div class="text-[9px] text-violet-700">res ${a('reserved')}</div>
+    </div>
+    ${alert ? `<span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200">${alert}</span>` : ''}
+  </div>`
+})
+
+// PodTile
+document.querySelectorAll('PodTile').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const status = a('status')
+  const TONE = { ok:'border-emerald-200 bg-emerald-50/40', warn:'border-amber-200 bg-amber-50/40', empty:'border-slate-200 bg-slate-50' }
+  el.outerHTML = `
+  <div class="rounded-lg border ${TONE[status]} px-2.5 py-2 lift">
+    <div class="mono text-[11px] font-bold text-slate-900">${a('code')}</div>
+    <div class="mt-0.5 mono text-[10px] text-slate-700">${a('qty')}</div>
+  </div>`
+})
+
+// FgCard
+document.querySelectorAll('FgCard').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const status = a('status')
+  const TONE = { ready:'border-emerald-200 bg-emerald-50/40', dispatch_ready:'border-blue-200 bg-blue-50/40', generic:'border-slate-200 bg-slate-50/40' }
+  const STATUS = { ready:'● Reserved', dispatch_ready:'◐ Dispatch ready', generic:'○ Generic stock' }
+  el.outerHTML = `
+  <div class="rounded-xl border ${TONE[status]} px-3 py-2.5 shadow-sm lift">
+    <div class="text-[9px] font-black uppercase text-slate-500">${STATUS[status]}</div>
+    <div class="mt-0.5 mono text-[10px] font-bold text-blue-700 truncate">${a('code')}</div>
+    <div class="mt-1 text-xs text-slate-700">${a('customer')}</div>
+    <div class="mt-1 mono text-[11px] font-bold text-slate-900">${a('qty')}</div>
+  </div>`
+})
+</script>
+</body>
+</html>

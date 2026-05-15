@@ -37,6 +37,11 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        job_state_filter = (self.request.query_params.get('job_state') or '').strip()
+        if job_state_filter:
+            states = [state.strip().upper() for state in job_state_filter.split(',') if state.strip()]
+            if states:
+                queryset = queryset.filter(job_state__in=states)
         job_number_filter = (self.request.query_params.get('job_number') or '').strip()
         if job_number_filter:
             queryset = queryset.filter(job_number=job_number_filter)
@@ -678,6 +683,34 @@ class PackingViewSet(viewsets.ViewSet):
                 ],
                 "message": f"{len(records)} rolls sent to Dispatch Bay",
             }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get', 'post'], url_path='material-count')
+    def material_count(self, request):
+        """Evening packing-material count with same-day order allocation."""
+        from .services.packing_count_service import PackingCountService
+
+        if request.method == 'GET':
+            try:
+                return Response(
+                    PackingCountService.snapshot(
+                        count_date=request.query_params.get('date') or request.query_params.get('count_date'),
+                        plant_id=request.query_params.get('plant_id') or request.query_params.get('plant'),
+                        location_id=request.query_params.get('location_id') or request.query_params.get('location'),
+                    )
+                )
+            except Exception as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = PackingCountService.post_count(
+                lines=request.data.get('lines') if isinstance(request.data.get('lines'), list) else [],
+                count_date=request.data.get('date') or request.data.get('count_date'),
+                user=request.user if request.user.is_authenticated else None,
+                notes=request.data.get('notes') or '',
+            )
+            return Response(result, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     

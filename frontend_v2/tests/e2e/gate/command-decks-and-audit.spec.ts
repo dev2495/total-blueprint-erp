@@ -138,18 +138,18 @@ test("audit center stays admin-only while inventory keeps genealogy access", asy
   const adminRoutes = await collectSidebarRoutes(page)
   expect(adminRoutes).toContain("/system/audit")
 
-  await switchRole(page, "Store", "/inventory/roll-explorer", { allowCookieFallback: true })
+  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
 
   const storeRoutes = await collectSidebarRoutes(page)
   expect(storeRoutes).not.toContain("/system/audit")
-  expect(storeRoutes).toContain("/inventory/traceability")
+  expect(storeRoutes).toContain("/inventory/traceability-v36")
 
   await page.goto("/system/audit", { waitUntil: "domcontentloaded" })
   await expect(page.locator("body")).toContainText(/Audit Center is limited to owner and admin roles/i)
 
-  await page.goto("/inventory/traceability", { waitUntil: "domcontentloaded" })
+  await page.goto("/inventory/traceability-v36", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
   await expect(page.locator("body")).toContainText(/Roll Genealogy/i)
-  await expect(page.locator("body")).toContainText(/Open Roll Explorer/i)
+  await expect(page.locator("body")).toContainText(/Trace roll|Back to stock/i)
   await expect(page.locator("body")).not.toContainText(/Audit Center/i)
 })

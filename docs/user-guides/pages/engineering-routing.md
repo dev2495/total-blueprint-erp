@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Engineering • Routing without
 
 
 ## Screenshot References
-- ![engineering-routing-overview](../../../frontend_v2/public/help/screenshots/engineering-routing-overview.svg)
+- ![engineering-routing-overview](../../../frontend_v2/public/help/screenshots/engineering-routing-overview.png)
 - ![engineering-routing-workflow](../../../frontend_v2/public/help/screenshots/engineering-routing-workflow.svg)
 
 ## FAQ References

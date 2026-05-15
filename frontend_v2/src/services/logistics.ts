@@ -115,6 +115,65 @@ export interface PackingBoardSnapshot {
     }>;
 }
 
+export interface PackingMaterialCountSnapshot {
+    count_date: string;
+    stocks: Array<{
+        id: string;
+        material_id: string;
+        material_code: string;
+        material_name: string;
+        packaging_kind: string;
+        base_uom: string;
+        plant_id: string;
+        plant_name: string;
+        location_id: string;
+        location_name: string;
+        book_qty: number;
+        avg_cost: number;
+        is_virtual?: boolean;
+    }>;
+    throughput: Array<{
+        sales_order_item_id: string;
+        sales_order_id: string;
+        order_number: string;
+        customer_name: string;
+        location_id: string;
+        location_name: string;
+        units: number;
+        sources: Array<{ source: string; label: string; units: number }>;
+    }>;
+    totals: {
+        materials: number;
+        throughput_orders: number;
+        book_qty: number;
+    };
+    eod_allocation?: {
+        date: string;
+        sessions: number;
+        transactions: number;
+        consumed_qty: number;
+        mapped_qty: number;
+        mapped_orders: number;
+        unassigned_qty: number;
+        top_materials: Array<{ material_code: string; qty: number }>;
+    };
+}
+
+export interface PackingMaterialCountResult {
+    session_id: string;
+    count_date: string;
+    posted_transactions: number;
+    results: Array<{
+        stock_id: string;
+        material_code: string;
+        location_name: string;
+        system_qty: number;
+        counted_qty: number;
+        delta_qty: number;
+        transactions: Array<{ id: string; type: string; qty: number; order_number: string }>;
+    }>;
+}
+
 export interface DispatchBoardSnapshot {
     totals: Record<string, number>;
     orders: Array<{
@@ -353,6 +412,20 @@ export const logisticsService = {
             }>
             message: string
         }
+    },
+
+    async getPackingMaterialCount(params: { date?: string; plant_id?: string; location_id?: string } = {}): Promise<PackingMaterialCountSnapshot> {
+        const response = await api.get('/api/production/packing/material-count/', { params });
+        return response.data as PackingMaterialCountSnapshot;
+    },
+
+    async postPackingMaterialCount(payload: {
+        date?: string;
+        notes?: string;
+        lines: Array<{ stock_id: string; counted_qty: number }>;
+    }): Promise<PackingMaterialCountResult> {
+        const response = await api.post('/api/production/packing/material-count/', payload);
+        return response.data as PackingMaterialCountResult;
     },
 
     // Dispatch

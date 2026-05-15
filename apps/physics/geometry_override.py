@@ -28,6 +28,40 @@ POUCH_STYLE_VALUES = {
     "STICK_PACK",
 }
 
+DIMENSION_IMPACT_VALUES = {"WIDTH", "HEIGHT", "BOTH", "NONE"}
+
+
+def _default_gusset_rule(pouch_style: str) -> tuple[str, float]:
+    style = str(pouch_style or "").upper().strip()
+    if style == "STAND_UP":
+        return "HEIGHT", 1.0
+    if style in {"QUAD_SEAL", "FLAT_BOTTOM"}:
+        return "WIDTH", 2.0
+    if style in {"SIDE_GUSSET", "SPOUT"}:
+        return "WIDTH", 1.0
+    return "NONE", 1.0
+
+
+def _normalize_dimension_impact(value: Any, default: str = "WIDTH") -> str:
+    impact = str(value or default).upper().strip()
+    aliases = {
+        "W": "WIDTH",
+        "H": "HEIGHT",
+        "ALL": "BOTH",
+        "BOTH_AXES": "BOTH",
+        "NO": "NONE",
+        "OFF": "NONE",
+    }
+    impact = aliases.get(impact, impact)
+    return impact if impact in DIMENSION_IMPACT_VALUES else default
+
+
+def _normalize_factor(value: Any, default: float = 1.0) -> float:
+    number = _to_number(value)
+    if number is None:
+        return default
+    return max(0.0, number)
+
 
 def _to_decimal(value: Any) -> Decimal | None:
     if value in (None, ""):
@@ -55,8 +89,8 @@ def _normalize_adjustments(value: Any) -> List[Dict[str, Any]]:
         name = str(row.get("name") or "").strip()
         if not name:
             continue
-        impact = str(row.get("impact") or row.get("affects_dimension") or "WIDTH").upper()
-        if impact not in {"WIDTH", "HEIGHT", "BOTH"}:
+        impact = _normalize_dimension_impact(row.get("impact") or row.get("affects_dimension"), "WIDTH")
+        if impact == "NONE":
             impact = "WIDTH"
         qty = _to_number(row.get("value"))
         rows.append(
@@ -83,6 +117,11 @@ def _template_base_geometry(template_geometry: Dict[str, Any]) -> Dict[str, Any]
     raw_multipliers = source.get("multipliers") if isinstance(source.get("multipliers"), dict) else {}
     faces = _to_number(raw_multipliers.get("faces"))
 
+    pouch_style = str(source.get("pouch_style") or "").upper().strip()
+    if pouch_style not in POUCH_STYLE_VALUES:
+        pouch_style = ""
+    default_gusset_apply_to, default_gusset_factor = _default_gusset_rule(pouch_style)
+
     normalized: Dict[str, Any] = {
         "base": {
             "width_mm": width if width is not None else 0.0,
@@ -92,6 +131,9 @@ def _template_base_geometry(template_geometry: Dict[str, Any]) -> Dict[str, Any]
         "multipliers": {
             "faces": int(max(1, faces if faces is not None else 1)),
         },
+        "trim_apply_to": _normalize_dimension_impact(source.get("trim_apply_to"), "WIDTH"),
+        "gusset_apply_to": _normalize_dimension_impact(source.get("gusset_apply_to"), default_gusset_apply_to),
+        "gusset_factor": _normalize_factor(source.get("gusset_factor"), default_gusset_factor),
     }
 
     for key in ("gusset_mm", "trim_loss_mm", "flap_tape_mm"):
@@ -102,8 +144,7 @@ def _template_base_geometry(template_geometry: Dict[str, Any]) -> Dict[str, Any]
     for key in ("pod_enabled", "pod_height_mm", "pod_type", "pod"):
         if key in source:
             normalized[key] = source.get(key)
-    pouch_style = str(source.get("pouch_style") or "").upper().strip()
-    if pouch_style in POUCH_STYLE_VALUES:
+    if pouch_style:
         normalized["pouch_style"] = pouch_style
     return normalized
 
@@ -146,6 +187,17 @@ def sanitize_geometry_override(override_geometry: Any) -> Dict[str, Any]:
     pouch_style = str(override_geometry.get("pouch_style") or "").upper().strip()
     if pouch_style in POUCH_STYLE_VALUES:
         payload["pouch_style"] = pouch_style
+    default_gusset_apply_to, default_gusset_factor = _default_gusset_rule(pouch_style)
+
+    if "trim_apply_to" in override_geometry:
+        payload["trim_apply_to"] = _normalize_dimension_impact(override_geometry.get("trim_apply_to"), "WIDTH")
+    if "gusset_apply_to" in override_geometry:
+        payload["gusset_apply_to"] = _normalize_dimension_impact(
+            override_geometry.get("gusset_apply_to"),
+            default_gusset_apply_to,
+        )
+    if "gusset_factor" in override_geometry:
+        payload["gusset_factor"] = _normalize_factor(override_geometry.get("gusset_factor"), default_gusset_factor)
 
     if "adjustments" in override_geometry:
         payload["adjustments"] = _normalize_adjustments(override_geometry.get("adjustments"))
@@ -185,6 +237,17 @@ def normalize_geometry_override(template_geometry: Any, override_geometry: Any) 
         normalized["flap_tape_mm"] = override["flap_tape_mm"]
     if "pouch_style" in override:
         normalized["pouch_style"] = override["pouch_style"]
+        default_gusset_apply_to, default_gusset_factor = _default_gusset_rule(override["pouch_style"])
+        if "gusset_apply_to" not in override:
+            normalized["gusset_apply_to"] = default_gusset_apply_to
+        if "gusset_factor" not in override:
+            normalized["gusset_factor"] = default_gusset_factor
+    if "trim_apply_to" in override:
+        normalized["trim_apply_to"] = override["trim_apply_to"]
+    if "gusset_apply_to" in override:
+        normalized["gusset_apply_to"] = override["gusset_apply_to"]
+    if "gusset_factor" in override:
+        normalized["gusset_factor"] = override["gusset_factor"]
     if "adjustments" in override:
         normalized["adjustments"] = override.get("adjustments") or []
     if "multipliers" in override:

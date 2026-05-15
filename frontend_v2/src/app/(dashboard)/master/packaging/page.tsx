@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 
-const kinds = ["INNER_POUCH", "GONNY", "TAPE", "SHEET", "BOX", "LABEL", "TAG", "OTHER"] as const
+const kinds = ["INNER_POUCH", "GONNY", "SHEET", "TAPE", "LABEL", "TAG", "OTHER"] as const
 const supplyModes = ["PURCHASED", "IN_HOUSE", "BOTH"] as const
 const uoms = ["PCS", "KG", "METER"] as const
 
@@ -173,7 +173,7 @@ function PackagingForm({
                 placeholder={`Enter ${baseUom.toLowerCase()} represented by one ${unitLabel}`}
               />
               <div className="mt-1 text-xs text-slate-500">
-                This is the stock conversion rule used later when actual {unitLabel} consumption is entered in Packing Yard.
+                This is the stock conversion rule used when physical count is posted for this packing SKU.
               </div>
             </>
           ) : (
@@ -264,7 +264,17 @@ export default function PackagingMasterPage() {
   const [searchQuery, setSearchQuery] = useState("")
 
   const { data = [], isError, error } = useQuery({ queryKey: ["master-packaging"], queryFn: masterDataService.getPackaging })
-  const { data: templates = [] } = useQuery({ queryKey: ["template-options"], queryFn: () => templateService.getTemplates() })
+  const { data: templates = [] } = useQuery({
+    queryKey: ["template-options", "packaging-live"],
+    queryFn: async () => {
+      try {
+        return await templateService.getTemplates({ status: "LIVE" })
+      } catch {
+        return []
+      }
+    },
+    staleTime: 60_000,
+  })
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -312,7 +322,7 @@ export default function PackagingMasterPage() {
   return (
     <MasterRegistryShell
       title="Packaging Master"
-      description="Control purchased versus in-house packaging SKUs, sheet conversion math, and linked production templates."
+      description="Control inner pouch/gonny auto-posted SKUs plus sheet, tape, label, tag, and other EOD-counted packing SKUs."
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search packaging code, name, kind, or supply mode"
@@ -337,6 +347,8 @@ export default function PackagingMasterPage() {
         { kind: "packagingKind", value: "INNER_POUCH" },
         { kind: "packagingKind", value: "GONNY" },
         { kind: "packagingKind", value: "SHEET" },
+        { kind: "packagingKind", value: "TAPE" },
+        { kind: "packagingKind", value: "LABEL" },
       ]}
     >
       {isError ? (

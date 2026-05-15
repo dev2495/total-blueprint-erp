@@ -46,6 +46,20 @@ function isRoleCompatible(guide: PageGuide, normalizedRole: string): boolean {
   return userIsMaster && guideHasMasterScope;
 }
 
+function exactGuidePriority(pathname: string, guide: PageGuide): number {
+  const title = String(guide.title?.en || "").toLowerCase();
+
+  if (pathname === "/inventory/period") {
+    if (title.includes("period") && title.includes("audit")) return 120;
+    if (title.includes("stock lifecycle")) return 110;
+    if (["fy correction", "opening stock", "stock count", "stock card", "year close"].some((legacyTitle) => title.includes(legacyTitle))) {
+      return 20;
+    }
+  }
+
+  return 50;
+}
+
 export function localize(text: LocalizedText | string | undefined, locale: HelpLocale): string {
   if (!text) return "";
   if (typeof text === "string") return text;
@@ -63,7 +77,9 @@ export function resolvePageGuide(pathname: string, roleCode?: string | null): Pa
   const normalizedRole = String(roleCode || "").toUpperCase();
 
   const exactMatches = PAGE_GUIDES.filter((guide) => guide.routePattern === normalizedPath);
-  const exactRoleMatch = exactMatches.find((guide) => isRoleCompatible(guide, normalizedRole));
+  const exactRoleMatch = exactMatches
+    .filter((guide) => isRoleCompatible(guide, normalizedRole))
+    .sort((a, b) => exactGuidePriority(normalizedPath, b) - exactGuidePriority(normalizedPath, a))[0];
   if (exactRoleMatch) return exactRoleMatch;
   if (exactMatches.length > 0) return undefined;
 

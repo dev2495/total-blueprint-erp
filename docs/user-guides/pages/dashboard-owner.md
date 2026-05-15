@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Owner Command Deck without proc
 
 
 ## Screenshot References
-- ![dashboard-owner-overview](../../../frontend_v2/public/help/screenshots/dashboard-owner-overview.svg)
+- ![dashboard-owner-overview](../../../frontend_v2/public/help/screenshots/dashboard-owner-overview.png)
 - ![dashboard-owner-workflow](../../../frontend_v2/public/help/screenshots/dashboard-owner-workflow.svg)
 
 ## FAQ References

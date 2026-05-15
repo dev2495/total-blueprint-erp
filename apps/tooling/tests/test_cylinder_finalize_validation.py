@@ -1,7 +1,8 @@
 from django.test import TestCase
 
 from apps.artwork.models import Artwork
-from apps.inventory.models import Vendor
+from apps.factory.models import Plant
+from apps.inventory.models import InventoryLocation, Vendor
 from apps.tooling.models import Cylinder
 from apps.tooling.serializers import CylinderSerializer
 
@@ -17,6 +18,13 @@ class CylinderFinalizeValidationTests(TestCase):
             front_colors_count=1,
         )
         self.vendor = Vendor.objects.create(name="Cylinder Vendor", code="CYL-VENDOR-001")
+        self.plant = Plant.objects.create(name="Cylinder Plant", code="CYL-PLANT")
+        self.location = InventoryLocation.objects.create(
+            plant=self.plant,
+            code="CYL-STORE",
+            name="Cylinder Store",
+            type="TOOLING",
+        )
 
     def _base_payload(self):
         return {
@@ -44,14 +52,15 @@ class CylinderFinalizeValidationTests(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("lifecycle_status", serializer.errors)
 
-    def test_finalize_requires_cell_depth_and_vendor(self):
+    def test_finalize_requires_vendor_location_and_circumference(self):
         payload = self._base_payload()
         payload.update(
             {
                 "is_draft": False,
                 "lifecycle_status": "READY",
-                "cell_depth_microns": 0,
+                "circumference": 0,
                 "engraving_vendor": None,
+                "storage_location": None,
             }
         )
 
@@ -59,8 +68,9 @@ class CylinderFinalizeValidationTests(TestCase):
 
         self.assertFalse(serializer.is_valid())
         detail = str(serializer.errors.get("detail", ""))
-        self.assertIn("cell_depth_microns", detail)
+        self.assertIn("circumference", detail)
         self.assertIn("engraving_vendor", detail)
+        self.assertIn("storage_location", detail)
 
     def test_finalize_rejects_duplicate_finalized_slot_for_same_artwork(self):
         Cylinder.objects.create(
@@ -68,6 +78,7 @@ class CylinderFinalizeValidationTests(TestCase):
             name="Existing Finalized Cylinder",
             artwork=self.artwork,
             engraving_vendor=self.vendor,
+            storage_location=self.location,
             color_name="YELLOW",
             diameter_mm=100,
             width_mm=500,
@@ -84,6 +95,7 @@ class CylinderFinalizeValidationTests(TestCase):
             {
                 "code": "CYL-TEST-002",
                 "engraving_vendor": str(self.vendor.id),
+                "storage_location": str(self.location.id),
                 "is_draft": False,
                 "lifecycle_status": "READY",
             }

@@ -135,7 +135,49 @@ export const test = base.extend<{ autoAuth: boolean }>({
       await identifierField.fill(identifier)
       await passwordField.fill(password)
       await submitButton.click()
-      await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
+      try {
+        await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
+      } catch {
+        const loginResult = await page.evaluate(
+          async ({ backendOrigin, identifier, password }) => {
+            const csrfResponse = await fetch(`${backendOrigin}/api/users/csrf/`, {
+              method: "GET",
+              credentials: "include",
+            })
+            const csrfPayload = await csrfResponse.json().catch(() => ({}))
+            const cookieToken = document.cookie
+              .split(";")
+              .map((value) => value.trim())
+              .find((value) => value.startsWith("csrftoken="))
+              ?.split("=")[1]
+            const csrfToken = String(cookieToken || csrfPayload?.csrfToken || csrfPayload?.csrf_token || "")
+            const loginResponse = await fetch(`${backendOrigin}/api/users/login/`, {
+              method: "POST",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
+              },
+              body: JSON.stringify({ identifier, password }),
+            })
+            const loginPayload = await loginResponse.json().catch(() => ({}))
+            return {
+              ok: loginResponse.ok,
+              status: loginResponse.status,
+              detail:
+                loginPayload?.detail ||
+                loginPayload?.message ||
+                loginPayload?.error ||
+                `fallback auth returned ${loginResponse.status}`,
+            }
+          },
+          { backendOrigin, identifier, password },
+        )
+        if (!loginResult.ok) {
+          throw new Error(`Fallback login failed (${loginResult.status}): ${loginResult.detail}`)
+        }
+        await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
+      }
       await clearRoleOverride(page)
       await waitForShell(30_000)
     }

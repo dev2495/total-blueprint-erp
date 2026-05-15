@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Engineering • Templates witho
 
 
 ## Screenshot References
-- ![engineering-templates-overview](../../../frontend_v2/public/help/screenshots/engineering-templates-overview.svg)
+- ![engineering-templates-overview](../../../frontend_v2/public/help/screenshots/engineering-templates-overview.png)
 - ![engineering-templates-workflow](../../../frontend_v2/public/help/screenshots/engineering-templates-workflow.svg)
 
 ## FAQ References

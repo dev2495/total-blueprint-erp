@@ -118,13 +118,14 @@ function progressParts(order: SalesOrder) {
     const dispatchedBasis = qty.ordered_pcs != null ? safeNumber(summary.dispatched_pcs) : safeNumber(summary.dispatched_kg)
     const remainingBasis = qty.ordered_pcs != null ? safeNumber(summary.remaining_pcs) : safeNumber(summary.remaining_kg)
     const total = Math.max(orderedBasis, producedBasis, dispatchedBasis + remainingBasis, 0)
-    if (!total) return { pct: 0, producedLabel: "0", totalLabel: orderQuantityLabel(order), dispatchedPct: 0, producedOpenPct: 0, remainingPct: 100 }
+    if (!total) return { pct: 0, producedLabel: "0", totalLabel: orderQuantityLabel(order), remainingLabel: orderQuantityLabel(order), dispatchedPct: 0, producedOpenPct: 0, remainingPct: 100 }
     const dispatchedPct = Math.max(0, Math.min(100, (dispatchedBasis / total) * 100))
     const producedOpenPct = Math.max(0, Math.min(100 - dispatchedPct, ((producedBasis - dispatchedBasis) / total) * 100))
     return {
         pct: Math.max(0, Math.min(100, safeNumber(summary.completion_percent) || ((producedBasis / total) * 100))),
         producedLabel: qty.ordered_pcs != null ? compact(producedBasis, 0) : `${compact(producedBasis, 1)} kg`,
         totalLabel: qty.ordered_pcs != null ? `${compact(total, 0)} pcs` : `${compact(total, 1)} kg`,
+        remainingLabel: qty.ordered_pcs != null ? `${compact(remainingBasis, 0)} pcs` : `${compact(remainingBasis, 1)} kg`,
         dispatchedPct,
         producedOpenPct,
         remainingPct: Math.max(0, 100 - dispatchedPct - producedOpenPct),
@@ -330,6 +331,9 @@ function OrderQueueRow({
             <div className="min-w-0">
                 <div className="font-mono text-sm font-black text-blue-900">{order.order_number}</div>
                 <div className="mt-1 truncate text-xs font-bold text-slate-600">{order.customer_name || "Customer"}</div>
+                {order.order_name ? (
+                    <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{order.order_name}</div>
+                ) : null}
                 <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{order.order_type || "MTO"}</div>
             </div>
             <div className="min-w-0">
@@ -341,6 +345,7 @@ function OrderQueueRow({
                 <div className="text-xs font-black text-slate-700">
                     {progress.producedLabel} / {progress.totalLabel} · {compact(progress.pct, 0)}%
                 </div>
+                <div className="mt-1 text-[11px] font-bold text-slate-500">Remaining {progress.remainingLabel}</div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
                     <div className="flex h-full">
                         <div className="bg-emerald-500" style={{ width: `${progress.dispatchedPct}%` }} />
@@ -587,7 +592,7 @@ export default function SalesOrdersPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Button asChild variant="outline" className="h-9 rounded-full border-white/20 bg-white/10 text-xs font-black text-white hover:bg-white hover:text-violet-900">
-                            <Link href="/sales/sku-catalog">SKU Studio</Link>
+                            <Link href="/master/products">Product Master</Link>
                         </Button>
                         <Button asChild className="h-9 rounded-full bg-white px-4 text-xs font-black uppercase tracking-[0.14em] text-violet-900 hover:bg-violet-50">
                             <Link href="/sales/orders/create">

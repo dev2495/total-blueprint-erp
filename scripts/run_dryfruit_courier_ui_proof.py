@@ -23,12 +23,15 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.artwork.models import Artwork
+from apps.artwork.print_contract import resolve_ink_base_from_layers, resolve_ink_gsm_by_color
 from apps.factory.models import Machine, Plant, Process, WorkCenter
-from apps.inventory.models import InventoryBulk, InventoryLocation, InventoryRoll, PackagingStock
+from apps.inventory.models import InkMaterial, InventoryBulk, InventoryLocation, InventoryRoll, PackagingStock
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.materials.models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
 from apps.production.models import FinishedGoodsBatch, JobExecutionLog, PlannedBulkStockOrder, PlannedStockOrder, PlannerSku, PlannerSkuVariant, ProductionJob
+from apps.production.services.stock_validator import first_artwork_step_index
 from apps.sales.models import Customer, SalesOrder, SalesSku, SalesSkuVariant
 from apps.sales.services.quotation_service import QuotationService
 from apps.templates.models import TemplateBlueprint
@@ -59,6 +62,74 @@ def _api_client(user):
     client.defaults["HTTP_HOST"] = "127.0.0.1"
     client.force_authenticate(user=user)
     return client
+
+
+def _ensure_proof_artwork(admin, variant: SalesSkuVariant) -> Artwork:
+    for base_type in ("PET", "POLY"):
+        for color_name in ("BLACK", "RED"):
+            InkMaterial.objects.update_or_create(
+                base_type=base_type,
+                color_name=color_name,
+                defaults={"status": "ACTIVE", "base_uom": "KG"},
+            )
+    artwork, _ = Artwork.objects.update_or_create(
+        design_code=f"DF-PROOF-{variant.code}"[:50],
+        defaults={
+            "name": f"Dry Fruit Proof Artwork {variant.code}",
+            "print_type": "FLEXO",
+            "substrate_mode": "SHEET",
+            "front_colors_count": 2,
+            "back_colors_count": 0,
+            "front_colors": ["BLACK", "RED"],
+            "back_colors": [],
+            "color_list": ["BLACK", "RED"],
+            "colors_count": 2,
+            "file_path": "/tmp/dryfruit-proof-artwork.pdf",
+            "ink_gsm_total": Decimal("1.2"),
+            "ink_gsm_split_mode": "EQUAL",
+            "ink_gsm_color_percentages": {},
+            "ink_gsm_by_color": {"BLACK": 0.6, "RED": 0.6},
+            "status": "APPROVED",
+            "approved_by": admin,
+            "approved_at": _now(),
+        },
+    )
+    return artwork
+
+
+def _proof_printing_payload(artwork: Artwork, layer_snapshot=None) -> dict:
+    ink_base_family = resolve_ink_base_from_layers(layer_snapshot or [])
+    black = InkMaterial.objects.get(base_type=ink_base_family, color_name="BLACK")
+    red = InkMaterial.objects.get(base_type=ink_base_family, color_name="RED")
+    ink_gsm_by_color = resolve_ink_gsm_by_color(
+        color_names=["BLACK", "RED"],
+        total_gsm=getattr(artwork, "ink_gsm_total", None) or Decimal("1.2"),
+        split_mode=getattr(artwork, "ink_gsm_split_mode", None) or "EQUAL",
+        color_percentages=getattr(artwork, "ink_gsm_color_percentages", None) or {},
+        color_gsm=getattr(artwork, "ink_gsm_by_color", None) or {},
+    )
+    return {
+        "enabled": True,
+        "type": "FLEXO",
+        "method": "FLEXO",
+        "substrate_mode": "SHEET",
+        "film_type": "SHEET",
+        "front_colors_count": 2,
+        "back_colors_count": 0,
+        "front_colors": ["BLACK", "RED"],
+        "back_colors": [],
+        "color_names": ["BLACK", "RED"],
+        "color_mapping": {"BLACK": str(black.id), "RED": str(red.id)},
+        "ink_base_family": ink_base_family,
+        "ink_gsm_total": float(getattr(artwork, "ink_gsm_total", None) or Decimal("1.2")),
+        "ink_gsm": float(getattr(artwork, "ink_gsm_total", None) or Decimal("1.2")),
+        "ink_gsm_split_mode": getattr(artwork, "ink_gsm_split_mode", None) or "EQUAL",
+        "ink_gsm_color_percentages": getattr(artwork, "ink_gsm_color_percentages", None) or {},
+        "ink_gsm_by_color": {color: float(gsm) for color, gsm in ink_gsm_by_color.items()},
+        "artwork_id": str(artwork.id),
+        "artwork_design_code": artwork.design_code,
+        "cylinder_required": False,
+    }
 
 
 def _d(value) -> Decimal:
@@ -125,9 +196,19 @@ def _seed_sales():
     return json.loads(seed_path.read_text(encoding="utf-8"))
 
 
-def _create_sales_order(customer: Customer, plant: Plant, variant: SalesSkuVariant, qty_pcs: int, unit_price: Decimal, line_name: str):
+def _create_sales_order(
+    customer: Customer,
+    plant: Plant,
+    variant: SalesSkuVariant,
+    qty_pcs: int,
+    unit_price: Decimal,
+    line_name: str,
+    *,
+    artwork: Artwork | None = None,
+):
     geometry = variant.geometry_snapshot or {}
     base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+    printing = _proof_printing_payload(artwork, variant.layer_snapshot or []) if artwork else {}
     payload = {
         "customer": str(customer.id),
         "plant": str(plant.id),
@@ -141,6 +222,7 @@ def _create_sales_order(customer: Customer, plant: Plant, variant: SalesSkuVaria
                 "qty_uom": "PCS",
                 "price_basis": "PCS",
                 "geometry": {"base": {"width_mm": base.get("width_mm") or 0, "height_mm": base.get("height_mm") or 0}},
+                "printing": printing,
                 "commercial_snapshot": {"manual_unit_price": unit_price, "tax_percent": 18},
             }
         ],
@@ -149,11 +231,18 @@ def _create_sales_order(customer: Customer, plant: Plant, variant: SalesSkuVaria
     order = QuotationService.convert_to_sales_order(quotation)
     order.status = "PLANNING_REQUIRED"
     order.save(update_fields=["status"])
-    return quotation, order, order.items.select_related("template").first()
+    item = order.items.select_related("template").first()
+    if item and artwork:
+        item.assigned_artwork = artwork
+        item.printing_snapshot = _proof_printing_payload(artwork, variant.layer_snapshot or [])
+        item.save(update_fields=["assigned_artwork", "printing_snapshot"])
+    return quotation, order, item
 
 
 def _ensure_dryfruit_planner_variant(admin, template: TemplateBlueprint, plant: Plant, sales_variant: SalesSkuVariant):
     route_last_index = _route_last_index(template)
+    first_artwork = first_artwork_step_index(template)
+    invariant_stop_index = max(int(first_artwork) - 1, 0) if first_artwork is not None else route_last_index
     sku, _ = PlannerSku.objects.update_or_create(
         code="PLN-DRYFRUIT-COURIER",
         defaults={
@@ -179,8 +268,8 @@ def _ensure_dryfruit_planner_variant(admin, template: TemplateBlueprint, plant: 
             "stock_purpose": "PRODUCT",
             "stock_strategy": "INTERMEDIATE_POOL",
             "planner_stock_class": "SHARED_INVARIANT_ROLL",
-            "start_step_index": route_last_index,
-            "stop_step_index": route_last_index,
+            "start_step_index": 0,
+            "stop_step_index": invariant_stop_index,
             "geometry_snapshot": sales_variant.geometry_snapshot or {},
             "layer_snapshot": sales_variant.layer_snapshot or [],
             "printing_snapshot": sales_variant.printing_snapshot or {},
@@ -680,6 +769,8 @@ def main():
     packaging_assets = _ensure_packaging_assets(admin, plant)
     pod_assets = _ensure_pod_assets(admin, plant)
     route_last_index = max(len(courier_template.routing_rule.ordered_processes or []) - 1, 0)
+    proof_artwork = _ensure_proof_artwork(admin, dryfruit_variant)
+    proof_printing = _proof_printing_payload(proof_artwork, dryfruit_variant.layer_snapshot or [])
 
     direct_fg_order = _create_stock_order(
         client,
@@ -690,6 +781,10 @@ def main():
             "quantity_uom": "PCS",
             "start_step_index": 0,
             "stop_step_index": route_last_index,
+            "commitment_scope": "CUSTOMER_ARTWORK",
+            "committed_customer_id": str(customer.id),
+            "committed_artwork_id": str(proof_artwork.id),
+            "printing": proof_printing,
         },
     )
     invariant_order = _create_stock_order(
@@ -723,9 +818,9 @@ def main():
     )
 
     pricing = Decimal("8.25")
-    _, so_wip, so_wip_item = _create_sales_order(customer, plant, dryfruit_variant, 1800, pricing, "Dry Fruit WIP Continuation")
-    _, so_fg, so_fg_item = _create_sales_order(customer, plant, dryfruit_variant, 2000, pricing, "Dry Fruit FG Claim")
-    _, so_fresh, so_fresh_item = _create_sales_order(customer, plant, dryfruit_variant, 2200, pricing, "Dry Fruit Fresh Route")
+    _, so_wip, so_wip_item = _create_sales_order(customer, plant, dryfruit_variant, 1800, pricing, "Dry Fruit WIP Continuation", artwork=proof_artwork)
+    _, so_fg, so_fg_item = _create_sales_order(customer, plant, dryfruit_variant, 2000, pricing, "Dry Fruit FG Claim", artwork=proof_artwork)
+    _, so_fresh, so_fresh_item = _create_sales_order(customer, plant, dryfruit_variant, 2200, pricing, "Dry Fruit Fresh Route", artwork=proof_artwork)
 
     control_payload = _planner_rows(client)
     row_wip = _sales_row(control_payload, so_wip)

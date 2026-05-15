@@ -85,12 +85,11 @@ This guide helps users complete all key tasks on Inventory • Inter Plant witho
 
 ## Related Routes
 - /inventory/alerts
-- /inventory/bulk
 - /inventory/bulk-transactions
 
 
 ## Screenshot References
-- ![inventory-inter-plant-overview](../../../frontend_v2/public/help/screenshots/inventory-inter-plant-overview.svg)
+- ![inventory-inter-plant-overview](../../../frontend_v2/public/help/screenshots/inventory-inter-plant-overview.png)
 - ![inventory-inter-plant-workflow](../../../frontend_v2/public/help/screenshots/inventory-inter-plant-workflow.svg)
 
 ## FAQ References

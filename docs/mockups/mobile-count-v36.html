@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Stock Count · Mobile</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: Inter, system-ui; background: #0f172a; min-height: 100dvh; color: #f1f5f9; }
+  .display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  /* Phone frame for desktop preview */
+  .phone-frame { width: 414px; max-width: 100%; min-height: 880px; margin: 0 auto; background: #0b1322; border: 12px solid #1e293b; border-radius: 36px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5), 0 10px 20px -10px rgba(0,0,0,.5); overflow: hidden; position: relative; }
+  .phone-screen { position: absolute; inset: 0; overflow-y: auto; background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%); -webkit-overflow-scrolling: touch; }
+  .keypad-key { transition: transform 60ms; }
+  .keypad-key:active { transform: scale(0.95); }
+  /* Status colors */
+  .ok-glow { box-shadow: 0 0 20px rgba(16,185,129,.4); }
+  .warn-glow { box-shadow: 0 0 20px rgba(245,158,11,.4); }
+  /* Soft pulse for "actively counting" */
+  @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+  .pulse-soft { animation: pulse-soft 1.4s ease-in-out infinite; }
+</style>
+</head>
+<body class="min-h-dvh">
+
+<!-- Desktop intro banner -->
+<div class="bg-slate-900/95 px-6 py-4 text-center hidden lg:block">
+  <div class="text-[10px] font-black uppercase tracking-[0.28em] text-violet-400">📱 V3.6 · Mobile Count UI · Floor walk</div>
+  <h1 class="display mt-1 text-2xl font-bold text-white">Stock count for the floor — three-tap entry per row</h1>
+  <p class="mt-1 text-xs text-slate-400">This screen runs on supervisor phones during audit walks. Big touch targets · numeric keypad · barcode scanner · offline-first.</p>
+  <div class="mt-3 flex items-center justify-center gap-2 text-[11px]">
+    <a href="/inventory-v36-home.html" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 font-bold text-slate-300 hover:bg-slate-700">← Stock workspace</a>
+    <a href="/stock-lifecycle-v36.html" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 font-bold text-slate-300 hover:bg-slate-700">Period management</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 px-6 py-6 lg:py-10">
+
+  <!-- ─────── PHONE 1 — Location picker / batch overview -->
+  <div>
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400 text-center mb-2">Screen 1 · Pick location</div>
+    <div class="phone-frame">
+      <div class="phone-screen">
+        <!-- Status bar -->
+        <div class="flex items-center justify-between px-5 py-2 text-[10px] mono text-slate-300">
+          <span>14:32</span>
+          <span class="flex items-center gap-1"><span class="text-emerald-400">●</span> online</span>
+        </div>
+        <!-- Header -->
+        <div class="bg-gradient-to-br from-violet-700 via-fuchsia-700 to-rose-700 px-5 py-4">
+          <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-white/80">
+            <span>📋 audit batch</span>
+            <span class="rounded-full bg-white/20 px-2 py-0.5 backdrop-blur">SUPERVISOR · R. SINGH</span>
+          </div>
+          <div class="display mt-2 text-3xl font-black text-white leading-tight">AB-2025-09-A</div>
+          <div class="mt-1 text-sm text-white/90">Monthly count · all locations</div>
+          <div class="mt-3 flex items-center gap-2">
+            <div class="flex-1 rounded-full bg-white/20 h-2 overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-300" style="width: 65%"></div>
+            </div>
+            <span class="mono text-xs font-black text-white">65%</span>
+          </div>
+          <div class="mt-1 text-[10px] text-white/70 mono">93 of 142 lines · 49 to go</div>
+        </div>
+
+        <!-- Title -->
+        <div class="px-5 py-4">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Pick a location to count</div>
+          <h2 class="display mt-1 text-xl font-bold text-white">Where are you?</h2>
+        </div>
+
+        <!-- Location tiles -->
+        <div class="px-5 space-y-3 pb-6">
+          <button class="w-full rounded-2xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-900/40 to-slate-800 px-4 py-4 text-left ok-glow">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-emerald-300">DONE</div>
+                <div class="display text-lg font-bold text-white">WH-A · Bulk warehouse</div>
+                <div class="text-xs text-emerald-300 mono">42 of 42 lines counted</div>
+              </div>
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white text-xl">✓</span>
+            </div>
+          </button>
+
+          <button class="w-full rounded-2xl border-2 border-violet-400 bg-gradient-to-br from-violet-900/40 to-slate-800 px-4 py-4 text-left pulse-soft" style="box-shadow: 0 0 30px rgba(167,139,250,.3);">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-violet-300">▶ COUNTING NOW</div>
+                <div class="display text-lg font-bold text-white">WCM-PRT-1 · Print room</div>
+                <div class="text-xs text-violet-300 mono">28 of 38 lines counted</div>
+              </div>
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-violet-500 text-white text-xl">▶</span>
+            </div>
+            <div class="mt-3 flex items-center gap-2 rounded-xl bg-black/30 px-3 py-2 text-[11px]">
+              <span class="text-violet-200">Continue from</span>
+              <span class="mono font-bold text-white">ROLL-EXT-9912</span>
+              <span class="ml-auto text-violet-300">tap →</span>
+            </div>
+          </button>
+
+          <button class="w-full rounded-2xl border-2 border-slate-600 bg-slate-800/60 px-4 py-4 text-left">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">PENDING</div>
+                <div class="display text-lg font-bold text-white">WCM-LAM-1 · Lamination</div>
+                <div class="text-xs text-slate-400 mono">0 of 32 lines counted</div>
+              </div>
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-slate-400 text-xl">○</span>
+            </div>
+          </button>
+
+          <button class="w-full rounded-2xl border-2 border-slate-600 bg-slate-800/60 px-4 py-4 text-left">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">PENDING</div>
+                <div class="display text-lg font-bold text-white">PACKING · Packing yard</div>
+                <div class="text-xs text-slate-400 mono">0 of 30 lines counted</div>
+              </div>
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-slate-400 text-xl">○</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- Bottom action bar -->
+        <div class="sticky bottom-0 border-t border-slate-700/50 bg-slate-900/95 backdrop-blur px-5 py-3 flex items-center justify-between">
+          <div class="text-[10px] mono text-slate-400">93/142</div>
+          <button class="rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-2 text-xs font-bold text-white shadow-lg">📋 Submit batch</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────── PHONE 2 — Active counting screen with keypad -->
+  <div>
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400 text-center mb-2">Screen 2 · Count a row</div>
+    <div class="phone-frame">
+      <div class="phone-screen">
+        <!-- Status bar -->
+        <div class="flex items-center justify-between px-5 py-2 text-[10px] mono text-slate-300">
+          <span>14:34</span>
+          <span class="flex items-center gap-1"><span class="text-amber-400">●</span> 4 unsynced</span>
+        </div>
+        <!-- Mini header with breadcrumb -->
+        <div class="px-5 py-2 flex items-center gap-2 text-[10px] mono">
+          <a class="text-violet-400">←</a>
+          <span class="text-slate-400">WCM-PRT-1</span>
+          <span class="text-slate-600">/</span>
+          <span class="text-violet-300">Row 28 of 38</span>
+        </div>
+
+        <!-- Material card -->
+        <div class="mx-5 mt-2 rounded-2xl border-2 border-violet-500 bg-gradient-to-br from-violet-900/50 to-slate-900 p-4">
+          <div class="flex items-center gap-2">
+            <span class="rounded-full bg-violet-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">ROLL</span>
+            <span class="rounded-full bg-blue-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-200 ring-1 ring-blue-400/50">PET-12 · 12μ</span>
+          </div>
+          <div class="display mt-2 text-2xl font-black text-white">ROLL-EXT-9912</div>
+          <div class="mt-0.5 text-xs text-violet-200">PET-12 · print-web · 1050mm · FOOD-A</div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <div class="rounded-lg bg-black/30 px-3 py-2">
+              <div class="text-[9px] font-black uppercase text-slate-400">System says</div>
+              <div class="mono text-xl font-bold text-white">200.0</div>
+              <div class="text-[10px] text-slate-400">KG · last move 2h ago</div>
+            </div>
+            <div class="rounded-lg bg-emerald-500/20 ring-1 ring-emerald-400/40 px-3 py-2">
+              <div class="text-[9px] font-black uppercase text-emerald-300">You count</div>
+              <div class="mono text-xl font-bold text-white">198.5</div>
+              <div class="text-[10px] text-emerald-300">tap to edit</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variance hint -->
+        <div class="mx-5 mt-3 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/40 px-3 py-2 flex items-center gap-2">
+          <span class="text-emerald-400 text-base">✓</span>
+          <div class="flex-1 text-[11px]">
+            <div class="text-emerald-300 font-bold">Variance -1.5 KG · -0.75%</div>
+            <div class="text-emerald-200/80">Within ±2% threshold · auto-accept</div>
+          </div>
+        </div>
+
+        <!-- Numeric keypad -->
+        <div class="mx-5 mt-3 rounded-2xl bg-slate-900/80 ring-1 ring-slate-700/50 p-3">
+          <div class="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2 px-1">Counted qty (KG)</div>
+          <div class="rounded-xl bg-slate-950 px-3 py-3 text-right">
+            <div class="mono text-3xl font-black text-emerald-300">198.5</div>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5 mt-3">
+            <KP n="7" /><KP n="8" /><KP n="9" />
+            <KP n="4" /><KP n="5" /><KP n="6" />
+            <KP n="1" /><KP n="2" /><KP n="3" />
+            <KP n="." /><KP n="0" /><KP n="⌫" del />
+          </div>
+          <div class="mt-2 grid grid-cols-2 gap-1.5">
+            <button class="rounded-xl bg-slate-700 text-white text-xs font-bold py-2 keypad-key">📷 Scan label</button>
+            <button class="rounded-xl bg-amber-600 text-white text-xs font-bold py-2 keypad-key">🚩 Flag damage</button>
+          </div>
+        </div>
+
+        <!-- Action -->
+        <div class="px-5 py-4 sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-slate-700/50">
+          <div class="flex items-center gap-2">
+            <button class="rounded-xl bg-slate-700 text-white text-xs font-bold px-3 py-2.5">Skip</button>
+            <button class="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-base font-bold text-white shadow-lg shadow-emerald-500/30">
+              ✓ Save &amp; next →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────── PHONE 3 — Variance flag / submit done -->
+  <div>
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400 text-center mb-2">Screen 3 · Variance &amp; submit</div>
+    <div class="phone-frame">
+      <div class="phone-screen">
+        <!-- Status bar -->
+        <div class="flex items-center justify-between px-5 py-2 text-[10px] mono text-slate-300">
+          <span>14:48</span>
+          <span class="flex items-center gap-1"><span class="text-emerald-400">●</span> all synced</span>
+        </div>
+
+        <!-- Variance flagged scenario -->
+        <div class="mx-5 mt-2 rounded-2xl border-2 border-rose-500 bg-gradient-to-br from-rose-900/50 to-slate-900 p-4">
+          <div class="flex items-center gap-2">
+            <span class="rounded-full bg-rose-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">⚠ VARIANCE FLAG</span>
+            <span class="rounded-full bg-amber-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-200 ring-1 ring-amber-400/50">-25%</span>
+          </div>
+          <div class="display mt-2 text-xl font-black text-white">INK-CMYK-CYAN</div>
+          <div class="mt-0.5 text-xs text-rose-200">Bulk · WH-A · Bay 5</div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <div class="rounded-lg bg-black/30 px-3 py-2"><div class="text-[9px] font-black uppercase text-slate-400">System</div><div class="mono text-base font-bold text-white">24 KG</div></div>
+            <div class="rounded-lg bg-rose-500/20 ring-1 ring-rose-400/40 px-3 py-2"><div class="text-[9px] font-black uppercase text-rose-300">Counted</div><div class="mono text-base font-bold text-white">18 KG</div></div>
+          </div>
+          <div class="mt-2 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+            <span class="font-bold">Δ -6 KG · -25%</span> · exceeds 2% threshold · reason required to submit
+          </div>
+        </div>
+
+        <!-- Reason picker -->
+        <div class="mx-5 mt-3">
+          <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Why is it short?</div>
+          <div class="space-y-1.5">
+            <ReasonRow icon="💧" label="Spillage" />
+            <ReasonRow icon="📉" label="Shrinkage / evaporation" active />
+            <ReasonRow icon="🔢" label="Possible miscount" />
+            <ReasonRow icon="🔄" label="Recount needed (lock for re-walk)" />
+            <ReasonRow icon="✏️" label="Other (note required)" />
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div class="mx-5 mt-3">
+          <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Note (optional)</div>
+          <textarea rows="2" class="w-full rounded-xl bg-slate-800 border border-slate-700 text-white px-3 py-2 text-sm placeholder:text-slate-500" placeholder="e.g. cyan ink can showing visible evaporation marks"></textarea>
+        </div>
+
+        <!-- Photo -->
+        <div class="mx-5 mt-3">
+          <button class="w-full rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/40 px-4 py-3 text-sm font-bold text-slate-300 flex items-center justify-center gap-2">📸 Add photo evidence</button>
+        </div>
+
+        <!-- Final submit / actions -->
+        <div class="mx-5 mt-3 rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-400/40 px-4 py-3">
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-emerald-400 text-lg">✓</span>
+            <span class="text-emerald-200 font-bold">All 142 lines counted across 4 locations</span>
+          </div>
+          <div class="mt-1 text-[11px] text-emerald-300/80">4 variances flagged · waiting for plant manager review back at workstation</div>
+        </div>
+
+        <!-- Sticky submit -->
+        <div class="px-5 py-4 sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-slate-700/50 mt-4">
+          <button class="w-full rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-rose-600 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-violet-500/30">
+            📤 Submit batch &amp; sign off
+          </button>
+          <div class="mt-1.5 text-center text-[10px] text-slate-500">After this, plant manager reviews variances on desktop.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom features section -->
+<div class="px-6 py-10 bg-gradient-to-b from-slate-900 to-slate-800">
+  <div class="mx-auto max-w-screen-lg">
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-violet-400 text-center">Designed for the floor</div>
+    <h3 class="display mt-2 text-3xl font-bold text-white text-center">Six things this UI gets right</h3>
+    <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <Feat icon="👆" title="3-tap entry" desc="System qty pre-filled · type counted qty · tap save. No keyboard switching." />
+      <Feat icon="📡" title="Offline-first" desc="Counts queued locally · sync indicator at top · resumes when back online." />
+      <Feat icon="📷" title="Barcode + photo" desc="Scan roll labels to jump to that line · attach photo for damage / evaporation evidence." />
+      <Feat icon="⚡" title="Auto-flag variance" desc="±2% threshold instant. Above? UI forces a reason picker before submit." />
+      <Feat icon="🔓" title="Resume anywhere" desc="Phone dies mid-walk? Reopen, system shows where you left off down to the row." />
+      <Feat icon="✋" title="Mistake-proof" desc="Negative qty blocked. Decimal sanity. Outlier alert if 100× off historical." />
+    </div>
+  </div>
+</div>
+
+<script>
+// Keypad
+document.querySelectorAll('KP').forEach(el => {
+  const n = el.getAttribute('n')
+  const del = el.hasAttribute('del')
+  el.outerHTML = `<button class="keypad-key rounded-xl ${del ? 'bg-rose-700/50 text-rose-200' : 'bg-slate-700/60 text-white'} text-xl font-black h-14 hover:bg-slate-600 active:bg-slate-500">${n}</button>`
+})
+
+// ReasonRow
+document.querySelectorAll('ReasonRow').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  el.outerHTML = `
+  <button class="w-full flex items-center gap-3 rounded-xl ${active ? 'bg-violet-600 ring-2 ring-violet-300' : 'bg-slate-800 ring-1 ring-slate-700'} px-3 py-2.5 text-left">
+    <span class="text-xl">${a('icon')}</span>
+    <span class="text-sm font-bold text-white flex-1">${a('label')}</span>
+    ${active ? '<span class="text-white text-base">✓</span>' : ''}
+  </button>`
+})
+
+// Feat
+document.querySelectorAll('Feat').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  el.outerHTML = `
+  <div class="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3 backdrop-blur">
+    <div class="text-2xl">${a('icon')}</div>
+    <div class="mt-2 text-sm font-bold text-white">${a('title')}</div>
+    <div class="mt-1 text-[11px] leading-relaxed text-slate-400">${a('desc')}</div>
+  </div>`
+})
+</script>
+</body>
+</html>

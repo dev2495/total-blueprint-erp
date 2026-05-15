@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V3.6 Mockups · Index</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>body { font-family: Inter, system-ui; background: linear-gradient(180deg, #fafbff 0%, #f8fafc 100%); }
+.display { font-family: 'Plus Jakarta Sans', sans-serif; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.lift { transition: transform 180ms, box-shadow 180ms; }
+.lift:hover { transform: translateY(-2px); box-shadow: 0 16px 32px -16px rgba(2,6,23,.18); }
+</style>
+</head>
+<body class="min-h-screen">
+<div class="mx-auto max-w-screen-xl px-6 py-12">
+  <div class="rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-10 text-white shadow-2xl shadow-blue-500/20">
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">Total Poly Print · ERP V3.6</div>
+    <h1 class="display mt-2 text-4xl font-bold leading-tight">Workspace mockups</h1>
+    <p class="mt-2 max-w-2xl text-white/80 text-sm">Five fully designed surfaces. Open each, click around, tell me what to refine. When you sign off, codex implements them PR-by-PR.</p>
+    <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
+      <span class="rounded-full bg-white/15 px-3 py-1 ring-1 ring-white/20">Single canvas, no tabs</span>
+      <span class="rounded-full bg-white/15 px-3 py-1 ring-1 ring-white/20">Catalog-backed axes</span>
+      <span class="rounded-full bg-white/15 px-3 py-1 ring-1 ring-white/20">Stop-step pools</span>
+      <span class="rounded-full bg-white/15 px-3 py-1 ring-1 ring-white/20">Live BOM preview</span>
+      <span class="rounded-full bg-white/15 px-3 py-1 ring-1 ring-white/20">Configurator simulator</span>
+    </div>
+  </div>
+
+  <div class="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <!-- Card 1: Master List -->
+    <a href="/pm-v36-list.html" class="lift block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-blue-100 via-blue-50 to-white p-4 relative">
+        <span class="absolute top-3 right-3 rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white">List</span>
+        <div class="display text-2xl font-bold text-blue-900">📋</div>
+        <div class="mt-1 text-[11px] font-black uppercase tracking-wider text-blue-700">Master catalog</div>
+      </div>
+      <div class="p-5">
+        <h2 class="display text-lg font-bold text-slate-900">Product Master · List</h2>
+        <p class="mt-1 text-xs text-slate-600 leading-relaxed">All masters in a scannable grid. Filter by kind, reporting, axis-count. Health pill + KPI strip per master. Click → detail.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600">Open mockup →</div>
+      </div>
+    </a>
+
+    <!-- Card 2: Create -->
+    <a href="/pm-v36-create.html" class="lift block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-violet-100 via-violet-50 to-white p-4 relative">
+        <span class="absolute top-3 right-3 rounded-full bg-violet-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white">Create</span>
+        <div class="display text-2xl font-bold text-violet-900">✨</div>
+        <div class="mt-1 text-[11px] font-black uppercase tracking-wider text-violet-700">New master</div>
+      </div>
+      <div class="p-5">
+        <h2 class="display text-lg font-bold text-slate-900">Product Master · Create</h2>
+        <p class="mt-1 text-xs text-slate-600 leading-relaxed">One-screen form. Live preview right rail shows the master taking shape. Kind-aware sections. No SKU pre-registration.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-600">Open mockup →</div>
+      </div>
+    </a>
+
+    <!-- Card 3: Detail/Edit -->
+    <a href="/pm-v36-detail.html" class="lift block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-emerald-100 via-emerald-50 to-white p-4 relative">
+        <span class="absolute top-3 right-3 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white">Detail</span>
+        <div class="display text-2xl font-bold text-emerald-900">🔬</div>
+        <div class="mt-1 text-[11px] font-black uppercase tracking-wider text-emerald-700">Workspace</div>
+      </div>
+      <div class="p-5">
+        <h2 class="display text-lg font-bold text-slate-900">Product Master · Detail</h2>
+        <p class="mt-1 text-xs text-slate-600 leading-relaxed">Improved over V3.5 — prominent Product Spec card with visual silhouette, route map, axis gallery, variant matrix, overlay matrix, configurator simulator. Sticky scroll-spy.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-600">Open mockup →</div>
+      </div>
+    </a>
+
+    <!-- Card 4: Variant Editor -->
+    <a href="/variant-editor-v36.html" class="lift block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-fuchsia-100 via-fuchsia-50 to-white p-4 relative">
+        <span class="absolute top-3 right-3 rounded-full bg-fuchsia-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white">Variant</span>
+        <div class="display text-2xl font-bold text-fuchsia-900">🧬</div>
+        <div class="mt-1 text-[11px] font-black uppercase tracking-wider text-fuchsia-700">Configure & save</div>
+      </div>
+      <div class="p-5">
+        <h2 class="display text-lg font-bold text-slate-900">Variant Editor</h2>
+        <p class="mt-1 text-xs text-slate-600 leading-relaxed">Side-drawer for creating or editing one variant tuple. Live variant code, BOM breakdown, stock match estimate, pricing hints. Save & duplicate flow.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-fuchsia-600">Open mockup →</div>
+      </div>
+    </a>
+
+    <!-- Card 5: Stock Launcher -->
+    <a href="/stock-launcher-v36.html" class="lift block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-4 relative">
+        <span class="absolute top-3 right-3 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-black uppercase text-white">Planner</span>
+        <div class="display text-2xl font-bold text-amber-900">🏭</div>
+        <div class="mt-1 text-[11px] font-black uppercase tracking-wider text-amber-700">Launch stock</div>
+      </div>
+      <div class="p-5">
+        <h2 class="display text-lg font-bold text-slate-900">Stock Launcher</h2>
+        <p class="mt-1 text-xs text-slate-600 leading-relaxed">Visual mode picker, master quick-pick, click-to-set stop step on the route, axis builder, live material breakdown, eligible-demand match preview.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-amber-600">Open mockup →</div>
+      </div>
+    </a>
+
+    <!-- Card 6: V3.5 (previous) -->
+    <a href="/pm-v35-mockup.html" class="lift block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-slate-100 via-slate-50 to-white p-4 relative">
+        <span class="absolute top-3 right-3 rounded-full bg-slate-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white">V3.5</span>
+        <div class="display text-2xl font-bold text-slate-900">📐</div>
+        <div class="mt-1 text-[11px] font-black uppercase tracking-wider text-slate-700">Reference</div>
+      </div>
+      <div class="p-5">
+        <h2 class="display text-lg font-bold text-slate-900">V3.5 reference (older)</h2>
+        <p class="mt-1 text-xs text-slate-600 leading-relaxed">First-pass single-canvas mockup. Kept as a reference — V3.6 detail builds on this.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-slate-600">Open mockup →</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Design pillars</div>
+    <ul class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <li class="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+        <div class="font-bold text-blue-900">5-second understanding</div>
+        <div class="mt-1 text-[11px] text-blue-700">Hero + product spec card answer "what is this?" instantly.</div>
+      </li>
+      <li class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+        <div class="font-bold text-emerald-900">2-click edits</div>
+        <div class="mt-1 text-[11px] text-emerald-700">Click any cell, axis, or value → edit inline, save with one button.</div>
+      </li>
+      <li class="rounded-xl border border-violet-100 bg-violet-50/50 p-3">
+        <div class="font-bold text-violet-900">3-click sales sim</div>
+        <div class="mt-1 text-[11px] text-violet-700">Configurator simulator computes variant code + BOM + stock fill live.</div>
+      </li>
+      <li class="rounded-xl border border-amber-100 bg-amber-50/50 p-3">
+        <div class="font-bold text-amber-900">Live everything</div>
+        <div class="mt-1 text-[11px] text-amber-700">Material breakdown, stock health, auto-demand fires shown right where you work.</div>
+      </li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

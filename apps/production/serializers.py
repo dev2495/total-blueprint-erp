@@ -164,7 +164,26 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         printing = self.get_printing(obj)
         addons = self.get_addons(obj)
         packaging = getattr(sales_item, "packaging_snapshot", None) if sales_item else getattr(mts_order, "packaging_snapshot", None) if mts_order else {}
-        variant = getattr(sales_item, "sku_variant", None) if sales_item else None
+        sku_variant = getattr(sales_item, "sku_variant", None) if sales_item else None
+        product_master = getattr(sales_item, "product_master", None) if sales_item else None
+        product_variant = getattr(sales_item, "product_variant", None) if sales_item else None
+        overlay = getattr(sales_item, "customer_product_overlay", None) if sales_item else None
+        axis_values = getattr(sales_item, "axis_values", None) if sales_item else {}
+        if not isinstance(axis_values, dict) and product_variant is not None:
+            axis_values = getattr(product_variant, "axis_values", {}) or {}
+        product_name = (
+            str(getattr(overlay, "customer_display_name", "") or "").strip()
+            or str(getattr(product_master, "name", "") or "").strip()
+            or str(getattr(obj, "product_name", "") or "").strip()
+        )
+        variant_code = (
+            str(getattr(product_variant, "code", "") or "").strip()
+            or str(getattr(sku_variant, "code", "") or "").strip()
+        )
+        variant_name = (
+            str(getattr(product_variant, "code", "") or "").strip()
+            or str(getattr(sku_variant, "name", "") or "").strip()
+        )
         return build_product_spec(
             geometry=geometry,
             layers=layers,
@@ -173,10 +192,16 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             packaging=packaging or {},
             customer_name=str(getattr(obj, "customer_name", "") or ""),
             order_number=str(getattr(obj, "sales_order_no", "") or ""),
-            product_name=str(getattr(obj, "product_name", "") or ""),
+            product_name=product_name,
             template_name=str(getattr(getattr(obj, "template", None), "name", "") or ""),
-            variant_code=str(getattr(variant, "code", "") or ""),
-            variant_name=str(getattr(variant, "name", "") or ""),
+            variant_code=variant_code,
+            variant_name=variant_name,
+            product_master_code=str(getattr(product_master, "code", "") or ""),
+            product_master_name=str(getattr(product_master, "name", "") or ""),
+            product_variant_code=str(getattr(product_variant, "code", "") or ""),
+            product_variant_name=str(getattr(product_variant, "code", "") or ""),
+            customer_item_code=str(getattr(overlay, "customer_item_code", "") or ""),
+            axis_values=axis_values if isinstance(axis_values, dict) else {},
             qty_value=getattr(obj, "quantity", None),
             qty_uom=str(getattr(obj, "uom", "") or ""),
         )
@@ -249,10 +274,58 @@ class WorkCenterAssignmentSerializer(serializers.ModelSerializer):
 
 from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, PlannerSkuVariant
 
+
+def _route_step_count(template):
+    if not template:
+        return 0
+    process_steps = list(template.process_steps.select_related("process").filter(is_removed_from_route=False).order_by("sequence_number"))
+    if process_steps:
+        return len(process_steps)
+    return len(getattr(getattr(template, "routing_rule", None), "ordered_processes", None) or [])
+
+
+def _first_artwork_step_index(template):
+    if not template:
+        return None
+    process_steps = list(template.process_steps.select_related("process").filter(is_removed_from_route=False).order_by("sequence_number"))
+    for index, step in enumerate(process_steps):
+        process = getattr(step, "process", None)
+        if process and bool(getattr(process, "has_artwork", False) or getattr(process, "print_capable", False)):
+            return index
+    ordered_codes = getattr(getattr(template, "routing_rule", None), "ordered_processes", None) or []
+    if not ordered_codes:
+        return None
+    from apps.factory.models import Process
+
+    process_map = {p.code: p for p in Process.objects.filter(code__in=ordered_codes)}
+    for index, code in enumerate(ordered_codes):
+        process = process_map.get(code)
+        if process and bool(process.has_artwork or process.print_capable):
+            return index
+    return None
+
+
+def _validate_commitment_stop_rule(*, template, stop_idx, commitment_scope, committed_artwork):
+    first_artwork_idx = _first_artwork_step_index(template)
+    if commitment_scope in {"GENERIC", "CUSTOMER"}:
+        if committed_artwork:
+            raise serializers.ValidationError({"committed_artwork": "Generic/customer stock cannot be artwork-committed."})
+        if first_artwork_idx is not None and stop_idx >= first_artwork_idx:
+            raise serializers.ValidationError({"stop_step_index": "Generic/customer stock must stop before the first artwork-capable step."})
+    if commitment_scope in {"ARTWORK", "CUSTOMER_ARTWORK"}:
+        if first_artwork_idx is None:
+            raise serializers.ValidationError({"stop_step_index": "Template has no artwork-capable step; artwork-committed stock is not valid."})
+        if stop_idx < first_artwork_idx:
+            raise serializers.ValidationError({"stop_step_index": "Artwork-committed stock must stop at or after the first artwork-capable step."})
+
 class PlannedStockOrderSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source='template.name')
     plant_name = serializers.ReadOnlyField(source='plant.name')
     created_by_name = serializers.ReadOnlyField(source='created_by.username')
+    product_master_name = serializers.ReadOnlyField(source='product_master.name')
+    product_master_code = serializers.ReadOnlyField(source='product_master.code')
+    committed_customer_name = serializers.ReadOnlyField(source='committed_customer.name')
+    committed_artwork_design_code = serializers.ReadOnlyField(source='committed_artwork.design_code')
     target_step_index = serializers.SerializerMethodField()
     name = serializers.CharField(source='internal_name', required=False, allow_blank=True)
     quantity = serializers.DecimalField(source='target_qty', max_digits=12, decimal_places=2, required=False)
@@ -260,6 +333,7 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
     film_layers = serializers.JSONField(source='layer_snapshot', required=False)
     printing = serializers.JSONField(source='printing_snapshot', required=False)
     addons = serializers.JSONField(source='addons_snapshot', required=False)
+    axis_values = serializers.JSONField(required=False)
     derived_output_type = serializers.SerializerMethodField()
     planner_stock_class = serializers.SerializerMethodField()
     planner_origin_meta = serializers.JSONField(required=False)
@@ -290,6 +364,25 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
         quantity_uom = str(attrs.get('quantity_uom', getattr(self.instance, 'quantity_uom', 'KG')) or 'KG').upper()
         start_step_index = attrs.get('start_step_index', getattr(self.instance, 'start_step_index', 0))
         stop_step_index = attrs.get('stop_step_index', getattr(self.instance, 'stop_step_index', None))
+        commitment_scope = str(attrs.get('commitment_scope', getattr(self.instance, 'commitment_scope', 'GENERIC')) or 'GENERIC').upper()
+        committed_customer = attrs.get('committed_customer', getattr(self.instance, 'committed_customer', None))
+        committed_artwork = attrs.get('committed_artwork', getattr(self.instance, 'committed_artwork', None))
+
+        if commitment_scope not in {'GENERIC', 'CUSTOMER', 'ARTWORK', 'CUSTOMER_ARTWORK'}:
+            raise serializers.ValidationError({'commitment_scope': 'Invalid commitment scope.'})
+        if commitment_scope in {'CUSTOMER', 'CUSTOMER_ARTWORK'} and not committed_customer:
+            raise serializers.ValidationError({'committed_customer': 'Customer commitment requires committed_customer.'})
+        if commitment_scope in {'ARTWORK', 'CUSTOMER_ARTWORK'} and not committed_artwork:
+            raise serializers.ValidationError({'committed_artwork': 'Artwork commitment requires committed_artwork.'})
+        if commitment_scope in {'GENERIC', 'CUSTOMER'}:
+            if committed_artwork:
+                raise serializers.ValidationError({'committed_artwork': 'Generic/customer WIP cannot be artwork-committed. Stop before print or choose an artwork scope.'})
+            attrs['committed_customer'] = None
+            if commitment_scope == 'CUSTOMER':
+                attrs['committed_customer'] = committed_customer
+            attrs['committed_artwork'] = None
+        if committed_artwork and str(getattr(committed_artwork, 'status', '') or '').upper() != 'APPROVED':
+            raise serializers.ValidationError({'committed_artwork': 'Committed artwork must be APPROVED.'})
 
         if stock_purpose == 'PACKAGING':
             if not packaging_material:
@@ -309,8 +402,8 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'stock_strategy': 'PACKAGING_STOCK is only valid when stock_purpose=PACKAGING.'})
 
         template = attrs.get('template', getattr(self.instance, 'template', None))
-        route_steps = (getattr(getattr(template, 'routing_rule', None), 'ordered_processes', None) or []) if template else []
-        route_last = max(0, len(route_steps) - 1)
+        route_len = _route_step_count(template)
+        route_last = max(0, route_len - 1)
         try:
             stop_idx = int(route_last if stop_step_index is None else stop_step_index)
             start_idx = int(start_step_index or 0)
@@ -324,6 +417,12 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'stock_strategy': 'Pre-final product stock orders must use INTERMEDIATE_POOL.'})
             if stop_idx >= route_last and stock_strategy not in {'FINAL_STOCK', 'INTERMEDIATE_POOL'}:
                 raise serializers.ValidationError({'stock_strategy': 'Final product stock orders must use FINAL_STOCK or INTERMEDIATE_POOL.'})
+            _validate_commitment_stop_rule(
+                template=template,
+                stop_idx=stop_idx,
+                commitment_scope=commitment_scope,
+                committed_artwork=committed_artwork,
+            )
         return attrs
 
     class Meta:
@@ -331,8 +430,11 @@ class PlannedStockOrderSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order_number', 'template', 'template_name',
             'plant', 'plant_name', 'name', 'internal_name',
+            'product_master', 'product_master_name', 'product_master_code',
+            'commitment_scope', 'committed_customer', 'committed_customer_name',
+            'committed_artwork', 'committed_artwork_design_code',
             'quantity', 'target_qty', 'quantity_uom', 'produced_qty',
-            'geometry', 'geometry_snapshot', 'geometry_override',
+            'axis_values', 'geometry', 'geometry_snapshot', 'geometry_override',
             'film_layers', 'layer_snapshot', 'printing', 'printing_snapshot',
             'addons', 'addons_snapshot', 'packaging_snapshot',
             'bom_snapshot', 'spec_signature',
@@ -428,6 +530,10 @@ class PlannerSkuVariantSerializer(serializers.ModelSerializer):
     packaging_material_name = serializers.ReadOnlyField(source="packaging_material.name")
     pod_sku_variant_code = serializers.ReadOnlyField(source="pod_sku_variant.code")
     pod_sku_variant_name = serializers.ReadOnlyField(source="pod_sku_variant.name")
+    product_master_name = serializers.ReadOnlyField(source="product_master.name")
+    product_master_code = serializers.ReadOnlyField(source="product_master.code")
+    committed_customer_name = serializers.ReadOnlyField(source="committed_customer.name")
+    committed_artwork_design_code = serializers.ReadOnlyField(source="committed_artwork.design_code")
 
     class Meta:
         model = PlannerSkuVariant
@@ -444,6 +550,14 @@ class PlannerSkuVariantSerializer(serializers.ModelSerializer):
             "template_name",
             "default_plant",
             "default_plant_name",
+            "product_master",
+            "product_master_name",
+            "product_master_code",
+            "commitment_scope",
+            "committed_customer",
+            "committed_customer_name",
+            "committed_artwork",
+            "committed_artwork_design_code",
             "default_qty",
             "quantity_uom",
             "stock_purpose",
@@ -451,6 +565,7 @@ class PlannerSkuVariantSerializer(serializers.ModelSerializer):
             "planner_stock_class",
             "start_step_index",
             "stop_step_index",
+            "axis_values",
             "geometry_snapshot",
             "layer_snapshot",
             "printing_snapshot",
@@ -478,6 +593,9 @@ class PlannerSkuVariantSerializer(serializers.ModelSerializer):
         pod_sku_variant = attrs.get("pod_sku_variant", getattr(instance, "pod_sku_variant", None))
         start_step_index = attrs.get("start_step_index", getattr(instance, "start_step_index", 0))
         stop_step_index = attrs.get("stop_step_index", getattr(instance, "stop_step_index", None))
+        commitment_scope = str(attrs.get("commitment_scope", getattr(instance, "commitment_scope", "GENERIC")) or "GENERIC").upper()
+        committed_customer = attrs.get("committed_customer", getattr(instance, "committed_customer", None))
+        committed_artwork = attrs.get("committed_artwork", getattr(instance, "committed_artwork", None))
 
         errors = {}
         if launch_kind == "PACKAGING_STOCK":
@@ -487,6 +605,13 @@ class PlannerSkuVariantSerializer(serializers.ModelSerializer):
                 errors["packaging_material"] = "Packaging planner presets require packaging_material."
         elif stock_purpose == "PACKAGING":
             errors["stock_purpose"] = "Only PACKAGING_STOCK presets may use stock_purpose=PACKAGING."
+        if commitment_scope in {"CUSTOMER", "CUSTOMER_ARTWORK"} and not committed_customer:
+            errors["committed_customer"] = "Customer commitment requires committed_customer."
+        if commitment_scope in {"ARTWORK", "CUSTOMER_ARTWORK"} and not committed_artwork:
+            errors["committed_artwork"] = "Artwork commitment requires committed_artwork."
+        if commitment_scope == "GENERIC":
+            attrs["committed_customer"] = None
+            attrs["committed_artwork"] = None
 
         if launch_kind == "POD_STOCK":
             if not pod_sku_variant:
@@ -507,12 +632,22 @@ class PlannerSkuVariantSerializer(serializers.ModelSerializer):
 
         if errors:
             raise serializers.ValidationError(errors)
+        template = attrs.get("template", getattr(instance, "template", None))
+        if stock_purpose == "PRODUCT" and template and stop_step_index is not None:
+            _validate_commitment_stop_rule(
+                template=template,
+                stop_idx=int(stop_step_index),
+                commitment_scope=commitment_scope,
+                committed_artwork=committed_artwork,
+            )
         return attrs
 
 
 class PlannerSkuSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source="template.name")
     default_plant_name = serializers.ReadOnlyField(source="default_plant.name")
+    product_master_name = serializers.ReadOnlyField(source="product_master.name")
+    product_master_code = serializers.ReadOnlyField(source="product_master.code")
     variants = PlannerSkuVariantSerializer(many=True, read_only=True)
 
     class Meta:
@@ -523,6 +658,9 @@ class PlannerSkuSerializer(serializers.ModelSerializer):
             "name",
             "template",
             "template_name",
+            "product_master",
+            "product_master_name",
+            "product_master_code",
             "default_plant",
             "default_plant_name",
             "active",

@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Analytics • Mrp without proce
 
 
 ## Screenshot References
-- ![analytics-mrp-overview](../../../frontend_v2/public/help/screenshots/analytics-mrp-overview.svg)
+- ![analytics-mrp-overview](../../../frontend_v2/public/help/screenshots/analytics-mrp-overview.png)
 - ![analytics-mrp-workflow](../../../frontend_v2/public/help/screenshots/analytics-mrp-workflow.svg)
 
 ## FAQ References

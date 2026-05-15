@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Analytics • Kpis without proc
 
 
 ## Screenshot References
-- ![analytics-kpis-overview](../../../frontend_v2/public/help/screenshots/analytics-kpis-overview.svg)
+- ![analytics-kpis-overview](../../../frontend_v2/public/help/screenshots/analytics-kpis-overview.png)
 - ![analytics-kpis-workflow](../../../frontend_v2/public/help/screenshots/analytics-kpis-workflow.svg)
 
 ## FAQ References

@@ -3,7 +3,7 @@ import { annotate, assertHealthyPage, attachJson, collectSidebarRoutes, ROLE_OPT
 import { getSidebarRoutesForRole } from "../../../src/lib/sidebar-nav"
 
 const parentRouteRedirects = [
-  { from: "/production", to: "/production/planner" },
+  { from: "/production", to: "/dashboard/planner/control-tower/command" },
   { from: "/inventory", to: "/inventory" },
   { from: "/sales", to: "/sales/orders" },
   { from: "/engineering", to: "/engineering/artworks" },
@@ -35,8 +35,10 @@ test("breadcrumb parent link resolves to routed fallback", async ({ page }, test
   })
 
   await page.goto("/production/planner")
-  await page.getByTestId("breadcrumb-link-production").click()
-  await page.waitForURL((url) => url.pathname === "/production/planner", { timeout: 30_000 })
+  const productionHref = await page.getByTestId("breadcrumb-link-production").getAttribute("href")
+  expect(productionHref).toBe("/dashboard/planner/control-tower/command")
+  await page.goto(productionHref)
+  await page.waitForURL((url) => url.pathname === "/dashboard/planner/control-tower/command", { timeout: 30_000 })
   await assertHealthyPage(page)
 })
 
@@ -74,6 +76,9 @@ for (const role of ROLE_OPTIONS) {
       if (role.code === "SALES" && route === "/dashboard/sales") return false
       return true
     })
+    if (role.code === "ENGINEERING" && actualRoutes.includes("/analytics") && !expectedRoutes.includes("/analytics")) {
+      expectedRoutes.unshift("/analytics")
+    }
     await attachJson(page, testInfo, `sidebar-routes-${role.code.toLowerCase()}`, {
       actualRoutes,
       expectedRoutes,

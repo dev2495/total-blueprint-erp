@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Dashboard • Logistics without
 
 
 ## Screenshot References
-- ![dashboard-logistics-overview](../../../frontend_v2/public/help/screenshots/dashboard-logistics-overview.svg)
+- ![dashboard-logistics-overview](../../../frontend_v2/public/help/screenshots/dashboard-logistics-overview.png)
 - ![dashboard-logistics-workflow](../../../frontend_v2/public/help/screenshots/dashboard-logistics-workflow.svg)
 
 ## FAQ References

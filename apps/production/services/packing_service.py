@@ -26,6 +26,8 @@ class PackingService:
     def _legacy_secondary_cfg(snapshot) -> dict:
         payload = snapshot if isinstance(snapshot, dict) else {}
         cfg = payload.get("secondary_gonny") if isinstance(payload.get("secondary_gonny"), dict) else {}
+        if not cfg:
+            cfg = payload.get("final_outer_pack") if isinstance(payload.get("final_outer_pack"), dict) else {}
         return cfg or {}
 
     @staticmethod

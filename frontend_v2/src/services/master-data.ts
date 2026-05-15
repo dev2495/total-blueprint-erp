@@ -17,6 +17,7 @@ export interface Material {
     name: string;
     status: string;
     category?: string;
+    base_uom?: 'KG' | 'PCS' | 'METER' | string;
     created_at: string;
     base_type?: 'POLY' | 'PET';
     color_name?: string;
@@ -24,6 +25,15 @@ export interface Material {
     is_purchasable?: boolean;
     is_extrudable?: boolean;
     grade?: string | null;
+    weight_mode?: 'PER_MM' | 'PER_PIECE' | 'FIXED' | string;
+    weight_value?: number | null;
+    addon_is_purchased?: boolean;
+    addon_purchase_uom?: 'KG' | 'PCS' | string | null;
+    packaging_kind?: 'INNER_POUCH' | 'OUTER_BAG' | 'GONNY' | 'TAPE' | 'SHEET' | 'BOX' | 'LABEL' | 'TAG' | 'OTHER' | string;
+    packaging_supply_mode?: 'PURCHASED' | 'IN_HOUSE' | 'BOTH' | string;
+    production_template?: string | null;
+    packaging_defaults_json?: Record<string, any>;
+    per_sheet_base_qty?: number | null;
     pod_type?: "SINGLE" | "DOUBLE" | null;
     pod_fixed_height_mm?: number | null;
     pod_thickness_micron?: number | null;
@@ -49,11 +59,15 @@ export interface GranuleQualityCode {
 export interface Addon extends Material {
     weight_mode: 'PER_MM' | 'PER_PIECE' | 'FIXED';
     weight_value: number;
+    is_purchasable?: boolean;
+    addon_is_purchased?: boolean;
+    addon_purchase_uom?: 'KG' | 'PCS';
+    base_uom?: 'KG' | 'PCS' | 'METER';
 }
 
 export interface PackagingMaterial extends Material {
     base_uom: 'PCS' | 'KG' | 'METER';
-    packaging_kind: 'INNER_POUCH' | 'GONNY' | 'TAPE' | 'SHEET' | 'BOX' | 'LABEL' | 'TAG' | 'OTHER';
+    packaging_kind: 'INNER_POUCH' | 'OUTER_BAG' | 'GONNY' | 'TAPE' | 'SHEET' | 'BOX' | 'LABEL' | 'TAG' | 'OTHER';
     packaging_supply_mode: 'PURCHASED' | 'IN_HOUSE' | 'BOTH';
     production_template?: string | null;
     production_template_name?: string | null;
@@ -230,8 +244,8 @@ export const masterDataService = {
     // Adhesives & Solvents
     getAdhesivesSolvents: async (category?: 'ADHESIVE' | 'SOLVENT') => {
         const params = category ? { category } : {};
-        const { data } = await api.get<Material[]>("/api/master/adhesives-solvents/", { params });
-        return data;
+        const { data } = await api.get<MaybePaginated<Material>>("/api/master/adhesives-solvents/", { params });
+        return unwrapList<Material>(data);
     },
     createAdhesiveSolvent: async (data: { code: string; name: string; category: 'ADHESIVE' | 'SOLVENT' }) => {
         const { data: res } = await api.post<Material>("/api/master/adhesives-solvents/", data);
@@ -250,11 +264,11 @@ export const masterDataService = {
         const { data } = await api.get<MaybePaginated<Addon>>("/api/master/addons/");
         return unwrapList<Addon>(data);
     },
-    createAddon: async (data: { code: string; name: string; weight_mode: string; weight_value: number }) => {
+    createAddon: async (data: { code: string; name: string; weight_mode: string; weight_value: number; is_purchasable?: boolean; addon_is_purchased?: boolean; addon_purchase_uom?: 'KG' | 'PCS' }) => {
         const { data: res } = await api.post<Addon>("/api/master/addons/", data);
         return res;
     },
-    updateAddon: async (id: string, data: { code: string; name: string; weight_mode: string; weight_value: number }) => {
+    updateAddon: async (id: string, data: { code: string; name: string; weight_mode: string; weight_value: number; is_purchasable?: boolean; addon_is_purchased?: boolean; addon_purchase_uom?: 'KG' | 'PCS' }) => {
         const { data: res } = await api.put<Addon>(`/api/master/addons/${id}/`, data);
         return res;
     },

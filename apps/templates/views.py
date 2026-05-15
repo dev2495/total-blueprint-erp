@@ -49,6 +49,9 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             return qs
         if status_param:
             qs = qs.filter(status=status_param)
+        fg_type = str(self.request.query_params.get("fg_type") or "").upper()
+        if fg_type in {"POUCH", "ROLL"}:
+            qs = qs.filter(fg_type=fg_type)
         elif not include_obsolete:
             qs = qs.exclude(status="OBSOLETE")
         return qs
@@ -171,6 +174,30 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="route-steps")
     def route_steps(self, request, pk=None):
         template = self.get_object()
+        process_steps = list(template.process_steps.select_related("process").filter(is_removed_from_route=False).order_by("sequence_number"))
+        if process_steps:
+            return Response([
+                {
+                    "id": str(step.id),
+                    "index": index,
+                    "sequence_number": step.sequence_number,
+                    "label": f"Step {step.sequence_number} - {step.process.name}",
+                    "process_code": step.process.code,
+                    "name": step.process.name,
+                    "input_form": step.process.input_form,
+                    "output_form": step.process.output_form,
+                    "roll_behavior": step.process.roll_behavior,
+                    "process_transition": step.process.transition or f"{step.process.input_form}_TO_{step.process.output_form}",
+                    "process_has_artwork": bool(step.process.has_artwork or step.process.print_capable),
+                    "process_print_capable": bool(step.process.print_capable or step.process.has_artwork),
+                    "requires_recipe": bool(step.process.requires_recipe),
+                    "requires_substrate_prep": bool(step.process.requires_substrate_prep),
+                    "requires_lamination_adhesive": bool(step.process.requires_lamination_adhesive),
+                    "notes": step.notes or "",
+                }
+                for index, step in enumerate(process_steps)
+            ])
+
         if not template.routing_rule:
             return Response([])
         steps = []
@@ -187,6 +214,12 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "input_form": proc.input_form if proc else "BULK",
                     "output_form": proc.output_form if proc else "ROLL",
                     "roll_behavior": proc.roll_behavior if proc else "NONE",
+                    "process_transition": (proc.transition or f"{proc.input_form}_TO_{proc.output_form}") if proc else "BULK_TO_ROLL",
+                    "process_has_artwork": bool(proc and (proc.has_artwork or proc.print_capable)),
+                    "process_print_capable": bool(proc and (proc.print_capable or proc.has_artwork)),
+                    "requires_recipe": bool(proc and proc.requires_recipe),
+                    "requires_substrate_prep": bool(proc and proc.requires_substrate_prep),
+                    "requires_lamination_adhesive": bool(proc and proc.requires_lamination_adhesive),
                     "notes": "",
                 }
             )

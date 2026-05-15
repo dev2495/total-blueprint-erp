@@ -41,9 +41,9 @@ class ArtworkService:
         artwork = Artwork.objects.get(id=artwork_id)
         print_type = str(getattr(artwork, "print_type", "FLEXO") or "FLEXO").upper()
         contract = (
-            validate_roto_cylinder_readiness(artwork)
+            validate_roto_cylinder_readiness(artwork, require_ink_usage=True)
             if print_type == "ROTO"
-            else get_artwork_contract(artwork, require_asset=True)
+            else get_artwork_contract(artwork, require_asset=True, require_ink_usage=True)
         )
 
         artwork.status = 'APPROVED'
@@ -53,5 +53,9 @@ class ArtworkService:
         artwork.substrate_mode = contract["substrate_mode"]
         artwork.color_list = contract["color_names"]
         artwork.colors_count = len(contract["color_names"])
+        artwork.ink_gsm_total = contract["ink_gsm_total"]
+        artwork.ink_gsm_split_mode = contract["ink_gsm_split_mode"]
+        artwork.ink_gsm_color_percentages = contract["ink_gsm_color_percentages"]
+        artwork.ink_gsm_by_color = contract["ink_gsm_by_color"]
         artwork.save()
         return artwork

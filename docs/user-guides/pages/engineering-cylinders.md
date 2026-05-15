@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Engineering • Cylinders witho
 
 
 ## Screenshot References
-- ![engineering-cylinders-overview](../../../frontend_v2/public/help/screenshots/engineering-cylinders-overview.svg)
+- ![engineering-cylinders-overview](../../../frontend_v2/public/help/screenshots/engineering-cylinders-overview.png)
 - ![engineering-cylinders-workflow](../../../frontend_v2/public/help/screenshots/engineering-cylinders-workflow.svg)
 
 ## FAQ References

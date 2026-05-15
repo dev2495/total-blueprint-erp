@@ -183,7 +183,7 @@ export default function InventoryDashboard() {
             </p>
           </div>
           <div className="flex flex-col gap-3">
-            <Link href="/inventory/grn/new">
+            <Link href="/inventory/grn-v36">
               <Button
                 size="lg"
                 className="w-full bg-emerald-600 text-white hover:bg-emerald-500 font-bold px-8 rounded-xl shadow-xl transition-all hover:scale-105 active:scale-95"

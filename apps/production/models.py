@@ -275,6 +275,12 @@ class PlannedStockOrder(models.Model):
         ('PCS', 'Pieces'),
         ('METER', 'Meter'),
     ]
+    COMMITMENT_SCOPE_CHOICES = [
+        ('GENERIC', 'Generic / Shared'),
+        ('CUSTOMER', 'Customer Committed'),
+        ('ARTWORK', 'Artwork Committed'),
+        ('CUSTOMER_ARTWORK', 'Customer + Artwork Committed'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order_number = models.CharField(max_length=50, unique=True, blank=True)
@@ -282,11 +288,34 @@ class PlannedStockOrder(models.Model):
     
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT)
     plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, null=True, blank=True)
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planned_stock_orders',
+    )
+    commitment_scope = models.CharField(max_length=24, choices=COMMITMENT_SCOPE_CHOICES, default='GENERIC')
+    committed_customer = models.ForeignKey(
+        'sales.Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='committed_stock_orders',
+    )
+    committed_artwork = models.ForeignKey(
+        'artwork.Artwork',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='committed_stock_orders',
+    )
     
     target_qty = models.DecimalField(max_digits=12, decimal_places=2)
     quantity_uom = models.CharField(max_length=10, choices=QUANTITY_UOM_CHOICES, default='KG')
     produced_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     geometry_override = models.JSONField(default=dict, blank=True)
+    axis_values = models.JSONField(default=dict, blank=True)
     geometry_snapshot = models.JSONField(default=dict, blank=True)
     layer_snapshot = models.JSONField(default=list, blank=True)
     printing_snapshot = models.JSONField(default=dict, blank=True)
@@ -412,6 +441,13 @@ class PlannerSku(models.Model):
     code = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=255)
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, related_name="planner_skus")
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planner_skus',
+    )
     default_plant = models.ForeignKey(
         'factory.Plant',
         on_delete=models.PROTECT,
@@ -468,6 +504,28 @@ class PlannerSkuVariant(models.Model):
         blank=True,
         related_name='planner_sku_variants',
     )
+    product_master = models.ForeignKey(
+        'materials.ProductMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planner_sku_variants',
+    )
+    commitment_scope = models.CharField(max_length=24, choices=PlannedStockOrder.COMMITMENT_SCOPE_CHOICES, default='GENERIC')
+    committed_customer = models.ForeignKey(
+        'sales.Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planner_sku_variants',
+    )
+    committed_artwork = models.ForeignKey(
+        'artwork.Artwork',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planner_sku_variants',
+    )
     default_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     quantity_uom = models.CharField(max_length=10, choices=PlannedStockOrder.QUANTITY_UOM_CHOICES, default='KG')
     stock_purpose = models.CharField(max_length=20, choices=PlannedStockOrder.STOCK_PURPOSE_CHOICES, default='PRODUCT')
@@ -480,6 +538,7 @@ class PlannerSkuVariant(models.Model):
     )
     start_step_index = models.IntegerField(default=0)
     stop_step_index = models.IntegerField(null=True, blank=True)
+    axis_values = models.JSONField(default=dict, blank=True)
     geometry_snapshot = models.JSONField(default=dict, blank=True)
     layer_snapshot = models.JSONField(default=list, blank=True)
     printing_snapshot = models.JSONField(default=dict, blank=True)
@@ -1224,3 +1283,53 @@ class InventoryAllocation(models.Model):
         target = self.sales_order.order_number if self.sales_order_id else self.mts_order.order_number
         inventory = self.inventory_roll.label_id if self.inventory_roll_id else self.fg_batch.batch_number
         return f"{target} <- {inventory} ({self.allocated_qty_kg} KG)"
+
+
+class SalesOrderItemInHouseDemand(models.Model):
+    """
+    Idempotent link between a confirmed SalesOrderItem and an auto-created
+    in-house planner stock order (PACKAGING) or bulk stock order (POD).
+    """
+    DEMAND_KIND_CHOICES = [
+        ('PACKAGING', 'In-House Packaging'),
+        ('POD', 'In-House POD'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sales_order_item = models.ForeignKey(
+        'sales.SalesOrderItem',
+        on_delete=models.CASCADE,
+        related_name='in_house_demands',
+    )
+    demand_kind = models.CharField(max_length=12, choices=DEMAND_KIND_CHOICES)
+    packaging_material = models.ForeignKey(
+        'materials.InventoryMaterial',
+        on_delete=models.PROTECT,
+        related_name='in_house_demand_links',
+    )
+    planned_stock_order = models.ForeignKey(
+        PlannedStockOrder,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='source_in_house_demands',
+    )
+    planned_bulk_stock_order = models.ForeignKey(
+        PlannedBulkStockOrder,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='source_in_house_demands',
+    )
+    target_qty = models.DecimalField(max_digits=14, decimal_places=4)
+    qty_uom = models.CharField(max_length=10, default='KG')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'production_sales_in_house_demand'
+        unique_together = [('sales_order_item', 'demand_kind', 'packaging_material')]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        target = self.planned_stock_order or self.planned_bulk_stock_order
+        return f"{self.sales_order_item_id} {self.demand_kind} -> {target}"

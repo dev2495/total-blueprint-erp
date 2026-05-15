@@ -89,7 +89,7 @@ This guide helps users complete all key tasks on Reports Hub without process amb
 
 
 ## Screenshot References
-- ![analytics-overview](../../../frontend_v2/public/help/screenshots/analytics-overview.svg)
+- ![analytics-overview](../../../frontend_v2/public/help/screenshots/analytics-overview.png)
 - ![analytics-workflow](../../../frontend_v2/public/help/screenshots/analytics-workflow.svg)
 
 ## FAQ References

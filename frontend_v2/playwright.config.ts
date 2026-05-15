@@ -4,6 +4,7 @@ import { defineConfig } from "@playwright/test"
 const runtimeRoot = path.resolve(__dirname, "../.runtime/ui-e2e")
 const reportSuffix = process.env.UI_E2E_REPORT_SUFFIX ? `-${process.env.UI_E2E_REPORT_SUFFIX}` : ""
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL
+const disableVideo = process.env.PLAYWRIGHT_DISABLE_VIDEO === "1"
 const sharedUse = {
   baseURL: process.env.UI_BASE_URL || "http://127.0.0.1:3000",
   headless: true,
@@ -11,7 +12,7 @@ const sharedUse = {
   ...(browserChannel ? { channel: browserChannel } : {}),
   trace: "retain-on-failure" as const,
   screenshot: "only-on-failure" as const,
-  video: "retain-on-failure" as const,
+  video: disableVideo ? ("off" as const) : ("retain-on-failure" as const),
   actionTimeout: 15_000,
   navigationTimeout: 30_000,
   ignoreHTTPSErrors: true,

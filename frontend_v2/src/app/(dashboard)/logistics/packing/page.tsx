@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowRight, Check, ClipboardList, HelpCircle, History, Layers, PackageCheck, PackageOpen, Scale, Search } from "lucide-react"
@@ -116,7 +117,7 @@ export default function PackingYardPage() {
     const [releaseRolls, setReleaseRolls] = useState<any[]>([])
     const [selectedRollIds, setSelectedRollIds] = useState<string[]>([])
     const [releaseMode, setReleaseMode] = useState<"PACKED" | "UNPACKED">("PACKED")
-    const [rollPackLines, setRollPackLines] = useState<RollPackLineDraft[]>([{ material_id: "", qty: "", uom: "PCS", basis: "PER_ROLL" }])
+    const [rollPackLines, setRollPackLines] = useState<RollPackLineDraft[]>([])
     const [queuePage, setQueuePage] = useState(1)
     const [batchPage, setBatchPage] = useState(1)
     const [gonnyPage, setGonnyPage] = useState(1)
@@ -130,11 +131,14 @@ export default function PackingYardPage() {
     })
     const packaging = useQuery({ queryKey: ["packaging-materials"], queryFn: masterDataService.getPackaging })
     const gonnies = useMemo(() => (packaging.data || []).filter((p) => p.packaging_kind === "GONNY"), [packaging.data])
-    const rollPackagingMaterials = useMemo(
-        () => (packaging.data || []).filter((p) => ["SHEET", "TAPE", "BOX", "LABEL", "TAG", "OTHER", "INNER_POUCH"].includes(String(p.packaging_kind || "").toUpperCase())),
+    const packagingById = useMemo(
+        () => new Map((packaging.data || []).map((item) => [String(item.id), item])),
         [packaging.data],
     )
-    const firstRollPackMaterialId = rollPackagingMaterials[0]?.id || ""
+    const materialLabel = (materialId: string) => {
+        const material = packagingById.get(String(materialId))
+        return material ? `${material.code} · ${material.name}` : String(materialId || "Allowed material")
+    }
 
     const invalidate = () => {
         queryClient.invalidateQueries({ queryKey: ["packing-board"] })
@@ -183,10 +187,8 @@ export default function PackingYardPage() {
     })
 
     const releaseRollMutation = useMutation<any, any, { rollIds: string[]; mode: "PACKED" | "UNPACKED"; lines: RollPackLineDraft[] }>({
-        mutationFn: ({ rollIds, mode, lines }: { rollIds: string[]; mode: "PACKED" | "UNPACKED"; lines: RollPackLineDraft[] }) => {
-            const payloadLines = lines
-                .filter((line) => line.material_id.trim() && Number(line.qty || 0) > 0)
-                .map((line) => ({ material_id: line.material_id.trim(), qty: Number(line.qty), uom: line.uom || "PCS", basis: line.basis || "TOTAL_ROLLS" }))
+        mutationFn: ({ rollIds, mode }: { rollIds: string[]; mode: "PACKED" | "UNPACKED"; lines: RollPackLineDraft[] }) => {
+            const payloadLines: Array<{ material_id: string; qty: number; uom?: string; basis?: string }> = []
             return rollIds.length > 1
                 ? logisticsService.releaseRolls(rollIds, mode, payloadLines)
                 : logisticsService.releaseRoll(rollIds[0], mode, payloadLines)
@@ -359,13 +361,13 @@ export default function PackingYardPage() {
         const defaults = Array.isArray(defaultSource.default_pack_lines) && defaultSource.default_pack_lines.length
             ? defaultSource.default_pack_lines.map((line: any) => ({
                 material_id: String(line.material_id || ""),
-                qty: String(Number(line.qty || 0) * rollList.length || ""),
+                qty: String(line.qty || ""),
                 uom: String(line.uom || "PCS"),
-                basis: "TOTAL_ROLLS",
+                basis: String(line.basis || "ALLOWED"),
             }))
-            : [{ material_id: firstRollPackMaterialId, qty: String(rollList.length || 1), uom: "PCS", basis: "TOTAL_ROLLS" }]
+            : []
         setReleaseRolls(rollList)
-        setReleaseMode("PACKED")
+        setReleaseMode(activeRoute === "RELEASE_UNPACKED" ? "UNPACKED" : "PACKED")
         setRollPackLines(defaults)
     }
 
@@ -384,6 +386,13 @@ export default function PackingYardPage() {
                         <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-white/78">Every job carries its SO, SKU, roll or pouch route, weight split, packing recipe, and handoff status. Work left queue to right rail without losing the order context.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                        <Link
+                            href="/logistics/packing/consumption"
+                            data-testid="packing-evening-count-link"
+                            className="inline-flex items-center rounded-full border border-white/25 bg-white px-3 py-1.5 text-xs font-black text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50"
+                        >
+                            <ClipboardList className="mr-1.5 h-3.5 w-3.5" /> Evening count
+                        </Link>
                         {[
                             { label: "All routes", value: "ALL" as const, count: board.data?.orders?.length || 0 },
                             { label: "Pouch", value: "POUCH" as const, count: routeCounts.pouch },
@@ -583,7 +592,14 @@ export default function PackingYardPage() {
                                         ["ROLL_PACK", "Packed roll with sheet or wrap", `${n(selected.rolls.length || selected.packing_pending.rolls_count || selected.ready_for_dispatch.rolls_count, 0)} rolls`, !hasRollWork],
                                         ["RELEASE_UNPACKED", "Direct roll dispatch unit", "skips wrap consumption", !hasRollWork],
                                     ] as Array<[RouteKind, string, string, boolean]>).map(([route, title, copy, disabled]) => (
-                                        <button key={route} disabled={disabled} onClick={() => setRouteChoice(route)} className={`relative rounded-[14px] border p-4 text-left transition ${activeRoute === route ? "border-violet-500 bg-violet-50 shadow-sm" : "border-slate-200 bg-white"} ${disabled ? "cursor-not-allowed opacity-45" : "hover:-translate-y-0.5 hover:border-violet-300"}`}>
+                                        <button
+                                            key={route}
+                                            type="button"
+                                            data-testid={`packing-route-choice-${route}`}
+                                            disabled={disabled}
+                                            onClick={() => setRouteChoice(route)}
+                                            className={`relative rounded-[14px] border p-4 text-left transition ${activeRoute === route ? "border-violet-500 bg-violet-50 shadow-sm" : "border-slate-200 bg-white"} ${disabled ? "cursor-not-allowed opacity-45" : "hover:-translate-y-0.5 hover:border-violet-300"}`}
+                                        >
                                             {recommendedRoute === route && <span className="absolute -top-3 left-4 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">Recommended</span>}
                                             <div className="font-mono text-sm font-black text-violet-700">{route}</div>
                                             <div className="mt-2 text-sm font-black text-slate-900">{title}</div>
@@ -711,7 +727,7 @@ export default function PackingYardPage() {
                                     <div className="mb-4 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
                                         <div className="min-w-0">
                                             <h3 className="text-base font-black text-slate-950">{activeRoute === "ROLL_PACK" ? "Rolls available · pack and release" : "Release unpacked rolls"}</h3>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Select one or many rolls. Material qty entered in bulk is the total issue for selected rolls.</div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Select one or many rolls. Allowed materials come from the sales packing axis.</div>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             <Button size="sm" variant="outline" data-testid="packing-roll-select-all" disabled={!selected.rolls.some((roll: any) => !roll.released_to_dispatch)} onClick={() => {
@@ -751,7 +767,7 @@ export default function PackingYardPage() {
                                                             <Chip tone={roll.released_to_dispatch ? "green" : "amber"}>{roll.released_to_dispatch ? "Dispatch ready" : activeRoute}</Chip>
                                                         </div>
                                                         <div className="mt-2 text-xs font-semibold text-slate-500">{roll.batch_no || "No batch"} · net {n(roll.net_weight_kg || roll.weight_kg)} kg · tare {n(roll.tare_weight_kg || 0)} kg · gross {n(roll.gross_weight_kg || roll.weight_kg)} kg · {roll.location?.name}</div>
-                                                        <div className="mt-1 text-xs font-semibold text-slate-500">Dispatch unit: {roll.dispatch_unit_no || "created on release"} · sheet/wrap can be overridden here if SKU has no default.</div>
+                                                        <div className="mt-1 text-xs font-semibold text-slate-500">Dispatch unit: {roll.dispatch_unit_no || "created on release"} · stock issue is captured from evening packing count.</div>
                                                         </div>
                                                     </div>
                                                     {!roll.released_to_dispatch ? (
@@ -908,7 +924,7 @@ export default function PackingYardPage() {
                                     <div className="rounded-[18px] border border-blue-200 bg-blue-50 p-4">
                                         <div className="text-sm font-black text-slate-950">How material is consumed</div>
                                         <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                                            For bulk roll packing, enter the total sheet, wrap, tape, label, or tag quantity for all selected rolls. The system creates one audit issue and links it back to every roll.
+                                            Packing Yard marks the roll release against the allowed packing list. Actual stock issue is posted by the evening count and allocated back to same-day orders.
                                         </p>
                                     </div>
                                 </div>
@@ -926,41 +942,30 @@ export default function PackingYardPage() {
                                         <div className="rounded-[18px] border border-slate-200 bg-white p-4">
                                             <div className="mb-3 flex items-start justify-between gap-3">
                                                 <div>
-                                                    <div className="text-sm font-black text-slate-950">Total packing consumption</div>
-                                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">total qty for selected rolls, not per roll</div>
+                                                    <div className="text-sm font-black text-slate-950">Allowed packing materials</div>
+                                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">no per-order qty entry in packing yard</div>
                                                 </div>
-                                                <Chip tone="green">Total issue</Chip>
+                                                <Chip tone="green">Daily count</Chip>
                                             </div>
                                             <div className="space-y-3">
-                                                {rollPackLines.map((line, index) => (
-                                                    <div key={index} className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-                                                        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_110px]">
-                                                            <div>
-                                                                <Label>Material</Label>
-                                                                <select data-testid={`packing-roll-material-${index}`} value={line.material_id} onChange={(event) => setRollPackLines((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, material_id: event.target.value } : row))} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold">
-                                                                    <option value="">Select sheet / wrap / tape</option>
-                                                                    {rollPackagingMaterials.map((item) => <option key={item.id} value={item.id}>{item.code} • {item.name}</option>)}
-                                                                </select>
+                                                {rollPackLines.length ? rollPackLines.map((line, index) => (
+                                                    <div key={`${line.material_id}-${index}`} className="rounded-[14px] border border-emerald-200 bg-emerald-50 p-3">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                                                                <PackageCheck className="h-4 w-4" />
                                                             </div>
-                                                            <div>
-                                                                <Label>Total qty</Label>
-                                                                <Input data-testid={`packing-roll-qty-${index}`} className="mt-1 h-11" value={line.qty} onChange={(event) => setRollPackLines((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, qty: event.target.value } : row))} type="number" step="0.001" placeholder="Qty" />
-                                                            </div>
-                                                        </div>
-                                                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                                                            <div>
-                                                                <Label>UOM</Label>
-                                                                <Input className="mt-1 h-10" value={line.uom || "PCS"} onChange={(event) => setRollPackLines((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, uom: event.target.value } : row))} placeholder="PCS" />
-                                                            </div>
-                                                            <div>
-                                                                <Label>Basis</Label>
-                                                                <Input className="mt-1 h-10" value={line.basis || "TOTAL_ROLLS"} onChange={(event) => setRollPackLines((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, basis: event.target.value } : row))} placeholder="TOTAL_ROLLS" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <div data-testid={`packing-roll-allowed-material-${index}`} className="break-words text-sm font-black text-slate-950">{materialLabel(line.material_id)}</div>
+                                                                <div className="mt-1 text-xs font-semibold text-emerald-800">{line.qty ? `Recipe ${line.qty} ${line.uom || ""}` : "Allowed for this order"} · {line.basis || "snapshot"}</div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))}
+                                                )) : (
+                                                    <div className="rounded-[14px] border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                                                        No roll packing material is allowed on this sales line. Switch to unpacked release or update the product/customer packing axis.
+                                                    </div>
+                                                )}
                                             </div>
-                                            <Button type="button" variant="outline" className="mt-3" onClick={() => setRollPackLines((rows) => [...rows, { material_id: "", qty: "", uom: "PCS", basis: "TOTAL_ROLLS" }])}>Add line</Button>
                                         </div>
                                     )}
 
@@ -975,7 +980,7 @@ export default function PackingYardPage() {
 
                         <DialogFooter className="border-t border-slate-200 bg-white p-4">
                             <Button variant="outline" onClick={() => setReleaseRolls([])}>Cancel</Button>
-                            <Button data-testid="packing-roll-submit" disabled={!releaseRolls.length || releaseRollMutation.isPending} onClick={() => releaseRollMutation.mutate({ rollIds: releaseRolls.map((roll) => String(roll.id)), mode: releaseMode, lines: rollPackLines })}>
+                            <Button data-testid="packing-roll-submit" disabled={!releaseRolls.length || releaseRollMutation.isPending || (releaseMode === "PACKED" && !rollPackLines.length)} onClick={() => releaseRollMutation.mutate({ rollIds: releaseRolls.map((roll) => String(roll.id)), mode: releaseMode, lines: rollPackLines })}>
                                 {releaseRollMutation.isPending ? "Releasing..." : activeRollCount > 1 ? `Release ${activeRollCount} rolls` : "Release roll"}
                             </Button>
                         </DialogFooter>
@@ -989,13 +994,23 @@ export default function PackingYardPage() {
                     {sealGonny && (
                         <div className="space-y-4">
                             <div className="rounded-3xl bg-slate-50 p-4">
-                                <div className="font-black">{sealGonny.label_id}</div>
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="font-black">{sealGonny.label_id}</div>
+                                    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200">
+                                        {n(sealGonny.qty_pcs || 0, 0)} pouches inside
+                                    </span>
+                                </div>
                                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
                                     <div><b>{kg(sealGonny.net_product_weight_kg)}</b><br />product net</div>
                                     <div><b>{n(sealGonny.inner_pack_tare_kg)}</b><br />inner tare</div>
                                     <div><b>{n(sealGonny.secondary_pack_tare_kg)}</b><br />gonny tare</div>
                                     <div><b>{kg(expected)}</b><br />expected gross</div>
                                 </div>
+                                {(sealGonny as any).primary_pack_count ? (
+                                    <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                                        Inner packs: {n((sealGonny as any).primary_pack_count, 0)} · content mode: {(sealGonny as any).content_mode || "LOOSE_POUCHES"}
+                                    </div>
+                                ) : null}
                             </div>
                             <div>
                                 <Label>Actual gonny gross weight (kg)</Label>

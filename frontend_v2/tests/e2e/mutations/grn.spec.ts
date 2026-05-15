@@ -2,12 +2,6 @@ import { test, expect } from "../support/base"
 import { annotate, assertHealthyPage, fetchJson, selectByTestId, switchRole, unwrapApiList } from "../support/test-helpers"
 import { readMutationSeed } from "../support/mutation-seed"
 
-async function pickMaterial(page: import("@playwright/test").Page, testId: string, materialCode: string) {
-  await page.getByTestId(testId).click()
-  await page.getByPlaceholder("Search by code or name..").fill(materialCode)
-  await page.getByText(new RegExp(materialCode, "i")).first().click()
-}
-
 function bulkQty(rows: any[], materialId: string, locationId: string) {
   return rows
     .filter((row) => String(row.material_id || row.material || "") === materialId && String(row.location_id || row.location || "") === locationId)
@@ -26,25 +20,25 @@ test("store can inward bulk stock through GRN and update inventory ledger state"
   const seed = readMutationSeed()
 
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/roll-explorer", { allowCookieFallback: true })
-  await page.goto("/inventory/grn")
-  await page.getByTestId("grn-page").waitFor({ state: "visible", timeout: 30_000 })
+  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
+  await page.goto("/inventory/grn-v36")
+  await page.getByTestId("smart-grn-v36").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
 
   const before = await fetchJson<any>(page, `/api/inventory/stock/bulk/?plant=${seed.grn.plant_id}&location=${seed.grn.bulk_location_id}`)
   const beforeRows = unwrapApiList<any>(before.data)
   const beforeQty = bulkQty(beforeRows, seed.grn.bulk_material_id, seed.grn.bulk_location_id)
 
-  await selectByTestId(page, "bulk-grn-plant", new RegExp(seed.grn.plant_name, "i"))
-  await selectByTestId(page, "bulk-grn-location", new RegExp(seed.grn.bulk_location_name, "i"))
-  await page.getByTestId("bulk-grn-vendor").click()
+  await page.getByTestId("smart-grn-class-BULK").click()
+  await page.getByTestId("smart-grn-vendor").click()
   await page.getByRole("option").first().click()
-  await pickMaterial(page, "bulk-grn-material", seed.grn.bulk_material_code)
-  await page.getByTestId("bulk-grn-granule-code").click()
+  await selectByTestId(page, "smart-grn-warehouse", new RegExp(seed.grn.bulk_location_name, "i"))
+  await selectByTestId(page, "smart-grn-line-0-material", new RegExp(seed.grn.bulk_material_code, "i"))
+  await page.getByTestId("smart-grn-line-0-granule-code").click()
   await page.getByRole("option").first().click()
-  await page.getByTestId("bulk-grn-quantity").fill("25.250")
-  const bulkSubmit = page.waitForResponse((response) => response.url().includes("/api/inventory/grn/bulk/") && response.request().method() === "POST")
-  await page.getByTestId("bulk-grn-submit").click()
+  await page.getByTestId("smart-grn-line-0-qty").fill("25.250")
+  const bulkSubmit = page.waitForResponse((response) => response.url().includes("/api/inventory/grn/create/") && response.request().method() === "POST")
+  await page.getByTestId("smart-grn-submit").click()
   expect((await bulkSubmit).status()).toBe(201)
 
   await page.waitForTimeout(1000)
@@ -64,36 +58,32 @@ test("store can inward roll stock through GRN and create a traceable new roll", 
   })
 
   const seed = readMutationSeed()
-  const label = `${seed.grn.roll_label_prefix}-${Date.now()}`
-
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/roll-explorer", { allowCookieFallback: true })
-  await page.goto("/inventory/grn")
-  await page.getByTestId("grn-page").waitFor({ state: "visible", timeout: 30_000 })
+  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
+  await page.goto("/inventory/grn-v36")
+  await page.getByTestId("smart-grn-v36").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
 
-  await page.getByTestId("grn-tab-roll").click()
-  await selectByTestId(page, "roll-grn-plant", new RegExp(seed.grn.plant_name, "i"))
-  await selectByTestId(page, "roll-grn-location", new RegExp(seed.grn.roll_location_name, "i"))
-  await page.getByTestId("roll-grn-vendor").click()
+  await page.getByTestId("smart-grn-class-ROLL").click()
+  await page.getByTestId("smart-grn-vendor").click()
   await page.getByRole("option").first().click()
-  await pickMaterial(page, "roll-grn-material", seed.grn.roll_material_code)
-  await page.getByTestId("roll-grn-label-0").fill(label)
-  await page.getByTestId("roll-grn-thickness-0").fill("12")
-  await page.getByTestId("roll-grn-width-0").fill("760")
-  await page.getByTestId("roll-grn-weight-0").fill("3.250")
-  const rollSubmit = page.waitForResponse((response) => response.url().includes("/api/inventory/grn/roll/") && response.request().method() === "POST")
-  await page.getByTestId("roll-grn-submit").click()
-  expect((await rollSubmit).status()).toBe(201)
+  await selectByTestId(page, "smart-grn-warehouse", new RegExp(seed.grn.roll_location_name, "i"))
+  await selectByTestId(page, "smart-grn-line-0-material", new RegExp(seed.grn.roll_material_code, "i"))
+  await page.getByTestId("smart-grn-line-0-thickness").fill("12")
+  await page.getByTestId("smart-grn-line-0-width").fill("760")
+  await page.getByTestId("smart-grn-line-0-gross").fill("3.500")
+  await page.getByTestId("smart-grn-line-0-tare").fill("0.250")
+  const rollSubmit = page.waitForResponse((response) => response.url().includes("/api/inventory/grn/create/") && response.request().method() === "POST")
+  await page.getByTestId("smart-grn-submit").click()
+  const rollSubmitResponse = await rollSubmit
+  expect(rollSubmitResponse.status()).toBe(201)
+  const rollSubmitPayload = await rollSubmitResponse.json()
+  const createdRef = (rollSubmitPayload.stock_movements || []).find((row: any) => String(row.type || "").toUpperCase() === "ROLL")
+  expect(createdRef?.id).toBeTruthy()
 
-  await page.waitForTimeout(1500)
-  let created: any | undefined
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const rollsResponse = await fetchJson<any>(page, `/api/inventory/stock/rolls/?plant=${seed.grn.plant_id}&location=${seed.grn.roll_location_id}`)
-    const rolls = unwrapApiList<any>(rollsResponse.data)
-    created = rolls.find((row) => String(row.label_id || "") === label)
-    if (created) break
-    await page.waitForTimeout(500)
-  }
+  const rollDetailResponse = await fetchJson<any>(page, `/api/inventory/rolls/${createdRef.id}/`)
+  expect(rollDetailResponse.status).toBe(200)
+  const created = rollDetailResponse.data
   expect(created).toBeTruthy()
+  expect(Math.abs(Number(created.net_weight_kg || created.weight_kg || 0) - 3.25)).toBeLessThan(0.001)
 })

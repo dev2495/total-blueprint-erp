@@ -87,7 +87,7 @@ This guide helps users complete all key tasks on Sales • Quotations without pr
 
 
 ## Screenshot References
-- ![sales-quotations-overview](../../../frontend_v2/public/help/screenshots/sales-quotations-overview.svg)
+- ![sales-quotations-overview](../../../frontend_v2/public/help/screenshots/sales-quotations-overview.png)
 - ![sales-quotations-workflow](../../../frontend_v2/public/help/screenshots/sales-quotations-workflow.svg)
 
 ## FAQ References

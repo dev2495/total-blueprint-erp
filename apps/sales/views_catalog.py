@@ -11,11 +11,11 @@ from .serializers_orders import SalesSkuSerializer, SalesSkuVariantSerializer
 
 class SalesSkuViewSet(viewsets.ModelViewSet):
     serializer_class = SalesSkuSerializer
-    search_fields = ["code", "name", "default_line_name", "template__name", "commercial_family__name"]
-    filterset_fields = ["active", "template", "commercial_family"]
+    search_fields = ["code", "name", "default_line_name", "template__name", "commercial_family__name", "product_master__name", "product_master__code"]
+    filterset_fields = ["active", "template", "commercial_family", "product_master"]
 
     def get_queryset(self):
-        queryset = SalesSku.objects.select_related("template", "commercial_family").prefetch_related("variants").order_by("name", "code")
+        queryset = SalesSku.objects.select_related("template", "commercial_family", "product_master").prefetch_related("variants").order_by("name", "code")
         customer_id = str(self.request.query_params.get("customer_id") or "").strip()
         if customer_id:
             queryset = queryset.annotate(
@@ -51,7 +51,7 @@ class SalesSkuVariantViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        queryset = SalesSkuVariant.objects.select_related("sku", "sku__template").order_by("sku__name", "name", "code")
+        queryset = SalesSkuVariant.objects.select_related("sku", "sku__template", "sku__product_master").order_by("sku__name", "name", "code")
         customer_id = str(self.request.query_params.get("customer_id") or "").strip()
         sku_id = str(self.request.query_params.get("sku_id") or "").strip()
         if sku_id:

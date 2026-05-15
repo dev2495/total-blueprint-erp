@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
 export default function ProductionRootRedirect() {
-  redirect("/production/planner")
+  redirect("/dashboard/planner/control-tower/command")
 }

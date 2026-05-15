@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -138,10 +138,11 @@ export default function JobWorkPage() {
 
 function CreateOrderDialog() {
     const [open, setOpen] = useState(false)
+    const [jobs, setJobs] = useState<any[]>([])
+    const [jobsLoading, setJobsLoading] = useState(false)
     const queryClient = useQueryClient()
     const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: factoryService.getPlants })
     const { data: vendors = [] } = useQuery({ queryKey: ["vendors"], queryFn: inventoryService.getVendors })
-    const { data: jobs = [] } = useQuery({ queryKey: ["production-jobs"], queryFn: () => productionService.getJobs() })
 
     const form = useForm<CreateOrderFormInput, any, CreateOrderFormOutput>({
         resolver: zodResolver(createOrderSchema),
@@ -152,6 +153,24 @@ function CreateOrderDialog() {
             notes: "",
         },
     })
+
+    const loadJobs = useCallback(async () => {
+        setJobsLoading(true)
+        try {
+            const rows = await productionService.getJobs({ job_state: "RELEASED,EXECUTING,PAUSED" })
+            setJobs(Array.isArray(rows) ? rows : [])
+        } catch (error) {
+            setJobs([])
+            toast.error("Could not load eligible production jobs.")
+        } finally {
+            setJobsLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!open) return
+        void loadJobs()
+    }, [loadJobs, open])
 
     const selectedProductionJob = form.watch("production_job")
     const selectedMode = form.watch("mode")
@@ -261,9 +280,12 @@ function CreateOrderDialog() {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Production Job</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select onOpenChange={(nextOpen) => { if (nextOpen && !jobs.length) void loadJobs() }} onValueChange={field.onChange} value={field.value}>
                                         <FormControl><SelectTrigger data-testid="jobwork-create-production-job"><SelectValue placeholder="Select eligible job (optional for emergency)" /></SelectTrigger></FormControl>
                                         <SelectContent>
+                                            {!jobsLoading && !eligibleJobs.length ? (
+                                                <SelectItem value="__no_eligible_jobs" disabled>No released jobs available</SelectItem>
+                                            ) : null}
                                             {eligibleJobs.map((job: any) => (
                                                 <SelectItem key={job.id} value={job.id}>
                                                     {job.job_number} • {job.job_state} • {job.process_code || "PROC"}
@@ -271,6 +293,7 @@ function CreateOrderDialog() {
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    {jobsLoading ? <p className="text-xs text-muted-foreground">Loading eligible jobs...</p> : null}
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -390,7 +413,7 @@ function DispatchDialog({ order }: { order: JobWorkOrder }) {
             setOpen(false)
             setSelectedRollIds([])
             queryClient.invalidateQueries({ queryKey: ["job-work-orders"] })
-            queryClient.invalidateQueries({ queryKey: ["roll-explorer"] })
+            queryClient.invalidateQueries({ queryKey: ["rolls-v36"] })
         },
         onError: (err: AxiosError<{ detail?: string; error?: string }>) => {
             toast.error(err.response?.data?.detail || err.response?.data?.error || "Dispatch failed")
@@ -509,7 +532,7 @@ function ReceiveDialog({ order }: { order: JobWorkOrder }) {
             toast.success("Received from jobwork.")
             setOpen(false)
             queryClient.invalidateQueries({ queryKey: ["job-work-orders"] })
-            queryClient.invalidateQueries({ queryKey: ["roll-explorer"] })
+            queryClient.invalidateQueries({ queryKey: ["rolls-v36"] })
             queryClient.invalidateQueries({ queryKey: ["stock"] })
         },
         onError: (err: AxiosError<{ detail?: string; error?: string }>) => {

@@ -148,6 +148,42 @@ def resolve_roll_stage_name(roll):
         return 'Unknown'
 
 
+def resolve_roll_display_label(roll):
+    if not roll:
+        return None
+
+    meta = roll.meta_json or {}
+    stage = resolve_roll_stage_name(roll) or f"Stage {getattr(roll, 'stage_index', '')}"
+    role = str(resolve_roll_role(roll) or "").upper()
+    behavior = str(meta.get("source_behavior") or "").upper()
+
+    if role == "OUTPUT":
+        suffix = {
+            "MODIFY_EXISTING": "Modified",
+            "MULTI_INPUT_COMBINE": "Combined",
+            "CREATE_NEW": "New",
+            "SPLIT": "Split",
+        }.get(behavior)
+        prefix = f"{stage} ({suffix})" if suffix else f"{stage} Output"
+    elif role == "SPLIT_OUTPUT":
+        prefix = f"{stage} (Split)"
+    elif role in {"REMAINDER", "RAW_REMAINDER", "WIP_REMAINDER"}:
+        prefix = f"Remainder [{stage}]"
+    elif role == "FG":
+        prefix = "Finished Good"
+    elif role == "INPUT_STOCK":
+        prefix = "Raw Input"
+    else:
+        prefix = role or stage
+
+    material = roll.material.name if getattr(roll, "material", None) else "Unknown"
+    try:
+        weight = Decimal(str(roll.weight_kg or 0))
+    except Exception:
+        weight = Decimal("0")
+    return f"{prefix} - {material} - {weight:.1f} kg"
+
+
 class InventoryLocationSerializer(serializers.ModelSerializer):
     plant_name = serializers.CharField(source='plant.name', read_only=True)
     
@@ -161,14 +197,19 @@ class InventoryLocationSerializer(serializers.ModelSerializer):
 
 
 class InventoryFinancialPeriodSerializer(serializers.ModelSerializer):
+    label = serializers.SerializerMethodField()
     closing_batch_no = serializers.CharField(source="closing_batch.batch_no", read_only=True, allow_null=True)
     opening_batch_next_year_no = serializers.CharField(source="opening_batch_next_year.batch_no", read_only=True, allow_null=True)
     closed_by_name = serializers.CharField(source="closed_by.username", read_only=True, allow_null=True)
+
+    def get_label(self, obj):
+        return obj.financial_year
 
     class Meta:
         model = InventoryFinancialPeriod
         fields = [
             "id",
+            "label",
             "financial_year",
             "start_date",
             "end_date",
@@ -239,6 +280,11 @@ class InventoryAuditLineSerializer(serializers.ModelSerializer):
 
 
 class InventoryAuditBatchSerializer(serializers.ModelSerializer):
+    code = serializers.CharField(source="batch_no", read_only=True)
+    name = serializers.SerializerMethodField()
+    period_label = serializers.CharField(source="financial_year", read_only=True)
+    scope = serializers.SerializerMethodField()
+    variance_count = serializers.SerializerMethodField()
     plant_name = serializers.CharField(source="plant.name", read_only=True)
     plant_code = serializers.CharField(source="plant.code", read_only=True)
     posted_by_name = serializers.CharField(source="posted_by.username", read_only=True, allow_null=True)
@@ -247,15 +293,34 @@ class InventoryAuditBatchSerializer(serializers.ModelSerializer):
     lines = InventoryAuditLineSerializer(many=True, read_only=True)
     line_count = serializers.IntegerField(source="lines.count", read_only=True)
 
+    def get_name(self, obj):
+        workflow = (obj.summary_json or {}).get("workflow") or {}
+        return workflow.get("name") or obj.get_type_display()
+
+    def get_scope(self, obj):
+        workflow = (obj.summary_json or {}).get("workflow") or {}
+        return workflow.get("scope") or ("FULL" if obj.type == "PHYSICAL_COUNT" else obj.type)
+
+    def get_variance_count(self, obj):
+        workflow = (obj.summary_json or {}).get("workflow") or {}
+        value = workflow.get("variance_count")
+        if value is not None:
+            return value
+        return obj.lines.exclude(variance_qty=0).count()
+
     class Meta:
         model = InventoryAuditBatch
         fields = [
             "id",
+            "code",
+            "name",
             "batch_no",
             "type",
+            "scope",
             "plant",
             "plant_name",
             "plant_code",
+            "period_label",
             "financial_year",
             "cutoff_at",
             "status",
@@ -273,6 +338,7 @@ class InventoryAuditBatchSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "line_count",
+            "variance_count",
             "lines",
         ]
         read_only_fields = [
@@ -750,6 +816,7 @@ class InventoryBulkSerializer(serializers.ModelSerializer):
     material_name = serializers.CharField(source='material.name', read_only=True)
     material_code = serializers.CharField(source='material.code', read_only=True)
     material_category = serializers.CharField(source='material.category', read_only=True)
+    stock_uom = serializers.CharField(source='material.base_uom', read_only=True)
     granule_quality_code = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
     granule_quality_code_id = serializers.CharField(source='granule_code.id', read_only=True, allow_null=True)
     location_name = serializers.CharField(source='location.name', read_only=True)
@@ -764,6 +831,7 @@ class BulkTransactionSerializer(serializers.ModelSerializer):
     material_code = serializers.CharField(source='material.code', read_only=True)
     granule_quality_code = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
     granule_quality_code_id = serializers.CharField(source='granule_code.id', read_only=True, allow_null=True)
+    stock_uom = serializers.CharField(source='material.base_uom', read_only=True)
     location_name = serializers.CharField(source='location.name', read_only=True)
     job_no = serializers.CharField(source='job.job_no', read_only=True, allow_null=True)
     

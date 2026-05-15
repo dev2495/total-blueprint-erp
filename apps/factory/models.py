@@ -130,16 +130,34 @@ class Process(models.Model):
         ("SPLIT", "Split Roll"),
         ("NONE", "None"),
     ]
+    TRANSITION_CHOICES = [
+        ("BULK_TO_ROLL", "Bulk → Roll"),
+        ("ROLL_TO_ROLL", "Roll → Roll"),
+        ("ROLL_TO_BULK", "Roll → Bulk"),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True, default="")
-    
+
     # Physical IO
     input_form = models.CharField(max_length=10, choices=INPUT_FORMS, default='BULK')
     output_form = models.CharField(max_length=10, choices=OUTPUT_FORMS, default='ROLL')
     roll_behavior = models.CharField(max_length=30, choices=ROLL_BEHAVIORS, default='NONE')
+
+    # v3: transition is the canonical primitive (derived from input/output form if blank)
+    transition = models.CharField(max_length=20, choices=TRANSITION_CHOICES, blank=True, default="")
+
+    # v3 capability flags
+    has_artwork = models.BooleanField(default=False)
+    print_capable = models.BooleanField(default=False)
+    requires_recipe = models.BooleanField(default=False)
+    requires_substrate_prep = models.BooleanField(default=False)
+    requires_lamination_adhesive = models.BooleanField(default=False)
+
+    notes = models.TextField(blank=True, default="")
+    active = models.BooleanField(default=True)
     
     def __str__(self):
         return f"{self.name} ({self.code})"

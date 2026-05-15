@@ -258,6 +258,40 @@ class TemplateProcessStepRollSpec(models.Model):
         super().clean()
         if not self.operator_entry_mode:
             self.operator_entry_mode = "PROCESS_DEFAULT"
+        process = getattr(getattr(self, "template_step", None), "process", None)
+        behavior = str(getattr(process, "roll_behavior", "") or "").upper()
+        valid_rules = {
+            "CREATE_NEW": {
+                "thickness_rule": {"FIXED"},
+                "width_rule": {"OPERATOR", "FIXED"},
+            },
+            "MODIFY_EXISTING": {
+                "thickness_rule": {"INHERIT_INPUT"},
+                "width_rule": {"LOCK_INPUT"},
+            },
+            "MULTI_INPUT_COMBINE": {
+                "thickness_rule": {"SUM_INPUTS"},
+                "width_rule": {"MIN_INPUT"},
+            },
+            "SPLIT": {
+                "thickness_rule": {"INHERIT_INPUT"},
+                "width_rule": {"OPERATOR_GRID"},
+            },
+        }.get(behavior)
+        if not valid_rules:
+            return
+
+        errors = {}
+        thickness_rule = str(self.thickness_rule or "")
+        width_rule = str(self.width_rule or "")
+        if thickness_rule and thickness_rule != "TEMPLATE_DEFAULT" and thickness_rule not in valid_rules["thickness_rule"]:
+            allowed = ", ".join(sorted(valid_rules["thickness_rule"]))
+            errors["thickness_rule"] = f"For {behavior}, thickness rule must be {allowed} or TEMPLATE_DEFAULT."
+        if width_rule and width_rule != "TEMPLATE_DEFAULT" and width_rule not in valid_rules["width_rule"]:
+            allowed = ", ".join(sorted(valid_rules["width_rule"]))
+            errors["width_rule"] = f"For {behavior}, width rule must be {allowed} or TEMPLATE_DEFAULT."
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         self.full_clean()

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase
@@ -513,6 +514,21 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(qty, Decimal("2138.0000"))
         self.assertEqual(rate, Decimal("183.8258"))
         self.assertEqual(signed_value(qty, rate), Decimal("393019.5604"))
+
+    def test_closing_backdated_period_does_not_create_second_open_period(self):
+        InventoryAuditService.start_period(financial_year="2026-2027", user=self.user)
+        historical = InventoryFinancialPeriod.objects.create(
+            financial_year="2180-2181",
+            start_date=date(2180, 4, 1),
+            end_date=date(2181, 3, 31),
+            status="CLOSING_IN_PROGRESS",
+        )
+
+        closed = InventoryAuditService.close_period(period=historical, plant_id=str(self.plant.id), user=self.user)
+
+        self.assertEqual(closed.status, "CLOSED")
+        self.assertEqual(InventoryFinancialPeriod.objects.filter(status="OPEN").count(), 1)
+        self.assertFalse(InventoryFinancialPeriod.objects.filter(financial_year="2181-2182").exists())
 
     def test_stock_card_uses_wac_rate_and_value_for_real_postings(self):
         opening = self._batch()

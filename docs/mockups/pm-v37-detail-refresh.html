@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Product Master · Detail layout refresh · V3.7 mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: {
+    display: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui'],
+    sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+    mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+  } } } }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%); color: #0f172a; }
+  .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .scroll-card { content-visibility: auto; contain-intrinsic-size: 1px 280px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- TOP BAR -->
+<header class="sticky top-0 z-30 backdrop-blur-md bg-white/85 border-b border-slate-200">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <button class="text-slate-500 hover:text-slate-700">←</button>
+      <div>
+        <div class="text-[10px] font-bold tracking-[0.22em] text-slate-500 uppercase">Master data › Product master</div>
+        <div class="font-display font-bold text-sm text-slate-900">Dry Fruit Standup Pouch — PET/LD food-grade</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">ACTIVE</span>
+      <button class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200">Duplicate</button>
+      <button class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200">Archive</button>
+      <button class="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white">Edit</button>
+    </div>
+  </div>
+  <!-- Section tabs -->
+  <div class="mx-auto max-w-screen-2xl px-6 pb-3">
+    <div class="inline-flex gap-1 rounded-2xl bg-white border border-slate-200 p-1 shadow-sm">
+      <button class="rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm">Overview</button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Layer template</button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Variants <span class="ml-1 rounded-full bg-slate-100 px-1.5 text-[9px] font-black">28</span></button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Sizes <span class="ml-1 rounded-full bg-slate-100 px-1.5 text-[9px] font-black">7</span></button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Customer overlays <span class="ml-1 rounded-full bg-slate-100 px-1.5 text-[9px] font-black">5</span></button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Artworks</button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Saved presets</button>
+      <button class="rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100">Audit trail</button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-screen-2xl px-6 py-5 space-y-4">
+
+  <!-- HERO + KPI -->
+  <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4">
+    <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50/40 to-indigo-50/30 px-5 py-4 shadow-sm">
+      <div class="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-indigo-400 via-violet-400 to-fuchsia-400"></div>
+      <div class="pl-2">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Product kind · POUCH</div>
+        <h1 class="font-display text-2xl font-black text-slate-900 mt-0.5 tracking-tight">Dry Fruit Standup Pouch — PET/LD food-grade</h1>
+        <p class="mt-1 text-xs text-slate-600 max-w-2xl">Stand-up pouch with PET print web, metallised barrier, and LD-NAT food-grade sealant. Standard route extrusion → printing → lamination → slitting → packing.</p>
+        <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+          <div class="rounded-lg bg-white ring-1 ring-slate-200 px-3 py-2">
+            <div class="text-[9px] font-black uppercase text-slate-500">Master code</div>
+            <div class="font-mono font-bold text-slate-900">PM-DRY-PET-LD</div>
+          </div>
+          <div class="rounded-lg bg-white ring-1 ring-slate-200 px-3 py-2">
+            <div class="text-[9px] font-black uppercase text-slate-500">Family</div>
+            <div class="font-bold text-slate-900">FG · Pouch</div>
+          </div>
+          <div class="rounded-lg bg-white ring-1 ring-slate-200 px-3 py-2">
+            <div class="text-[9px] font-black uppercase text-slate-500">Reusable policy</div>
+            <div class="font-bold text-slate-900">Configurable</div>
+          </div>
+          <div class="rounded-lg bg-white ring-1 ring-slate-200 px-3 py-2">
+            <div class="text-[9px] font-black uppercase text-slate-500">Template</div>
+            <div class="font-bold text-slate-900">ROLL → BULK</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI tiles -->
+    <div class="grid grid-cols-2 gap-2">
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="absolute"></div>
+        <div class="flex items-start justify-between"><div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Variants</div><span class="text-base">🌀</span></div>
+        <div class="font-display text-2xl font-black mt-1">28</div>
+        <div class="text-[10px] text-slate-500">12 used last 30 days</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="flex items-start justify-between"><div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Sizes</div><span class="text-base">📐</span></div>
+        <div class="font-display text-2xl font-black mt-1">7</div>
+        <div class="text-[10px] text-slate-500">200×300 → 300×400</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="flex items-start justify-between"><div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Customer overlays</div><span class="text-base">👥</span></div>
+        <div class="font-display text-2xl font-black mt-1">5</div>
+        <div class="text-[10px] text-slate-500">ABC · XYZ · 3 more</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="flex items-start justify-between"><div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Artworks</div><span class="text-base">🎨</span></div>
+        <div class="font-display text-2xl font-black mt-1">9</div>
+        <div class="text-[10px] text-slate-500">4 approved · 2 in review</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2-col body — left big content, right side rail -->
+  <section class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+
+    <!-- LEFT -->
+    <div class="space-y-4">
+      <!-- Section: Layer template -->
+      <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+        <header class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+          <div class="flex items-center gap-2"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">📚</span><div><h3 class="font-display text-sm font-bold text-slate-900">Layer template</h3><div class="text-[10px] text-slate-500">3 layers · roles fixed · grades/thickness configurable per variant</div></div></div>
+          <button class="text-[10px] font-bold text-indigo-600 hover:underline">Edit template</button>
+        </header>
+        <div class="p-5 space-y-3">
+          <!-- Layer row -->
+          <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="rounded-md bg-blue-100 text-blue-800 px-2 py-0.5 text-[10px] font-black">L1</span>
+                <span class="text-[10px] font-black uppercase tracking-wider text-slate-600">print web</span>
+              </div>
+              <span class="font-mono text-[11px] text-slate-500">fixed thickness · single grade</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-[11px]">
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Film</div><div class="font-mono font-bold">PET-12</div></div>
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Thickness</div><div class="font-mono font-bold">12 μ</div></div>
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Grade</div><div class="font-mono">— (none)</div></div>
+            </div>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="rounded-md bg-slate-200 text-slate-800 px-2 py-0.5 text-[10px] font-black">L2</span>
+                <span class="text-[10px] font-black uppercase tracking-wider text-slate-600">barrier</span>
+              </div>
+              <span class="font-mono text-[11px] text-slate-500">fixed</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-[11px]">
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Film</div><div class="font-mono font-bold">MET-PET-12</div></div>
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Thickness</div><div class="font-mono font-bold">12 μ</div></div>
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Grade</div><div class="font-mono">—</div></div>
+            </div>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="rounded-md bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">L3</span>
+                <span class="text-[10px] font-black uppercase tracking-wider text-slate-600">sealant · variable</span>
+              </div>
+              <span class="font-mono text-[11px] text-emerald-700">apportioned per variant</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-[11px]">
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Film</div><div class="font-mono font-bold">LD-NAT</div></div>
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Thickness options</div><div class="font-mono font-bold">50 · 65 · 80 · 100 · 120 μ</div></div>
+              <div><div class="text-[9px] font-bold uppercase text-slate-500">Grade options</div><div class="flex gap-1"><span class="rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-emerald-200">FOOD-A</span><span class="rounded bg-slate-100 text-slate-700 px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-slate-200">GP</span></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: variant axes -->
+      <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+        <header class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+          <div class="flex items-center gap-2"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">🔀</span><div><h3 class="font-display text-sm font-bold text-slate-900">Variant axes · 4 axes</h3><div class="text-[10px] text-slate-500">Each axis = one dropdown sales sees while configuring</div></div></div>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-5">
+          <!-- axis 1 -->
+          <div class="rounded-xl border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-1">
+              <div class="font-bold text-sm text-slate-900">size <span class="text-[10px] font-bold text-slate-500 uppercase ml-1">geometry</span></div>
+              <span class="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-2 py-0.5 text-[10px] font-bold">required</span>
+            </div>
+            <div class="text-[11px] text-slate-500">Drives W×H+gusset. Values from <span class="font-mono">Sizes</span> sub-section.</div>
+            <div class="mt-2 flex flex-wrap gap-1"><span class="rounded bg-blue-50 text-blue-800 ring-1 ring-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">200×300</span><span class="rounded bg-blue-50 text-blue-800 ring-1 ring-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">220×320</span><span class="rounded bg-blue-50 text-blue-800 ring-1 ring-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">+5</span></div>
+          </div>
+          <!-- axis 2 -->
+          <div class="rounded-xl border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-1">
+              <div class="font-bold text-sm text-slate-900">thickness <span class="text-[10px] font-bold text-slate-500 uppercase ml-1">per layer numbers</span></div>
+              <span class="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-2 py-0.5 text-[10px] font-bold">required</span>
+            </div>
+            <div class="text-[11px] text-slate-500">Applies to <span class="font-mono">L3 sealant</span> · fixed for L1/L2.</div>
+            <div class="mt-2 flex flex-wrap gap-1"><span class="rounded bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">50μ</span><span class="rounded bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">65μ</span><span class="rounded bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">80μ</span><span class="rounded bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">100μ</span><span class="rounded bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">120μ</span></div>
+          </div>
+          <!-- axis 3 -->
+          <div class="rounded-xl border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-1">
+              <div class="font-bold text-sm text-slate-900">grade <span class="text-[10px] font-bold text-slate-500 uppercase ml-1">per-layer enum</span></div>
+              <span class="rounded-full bg-slate-100 text-slate-700 ring-1 ring-slate-200 px-2 py-0.5 text-[10px] font-bold">optional · default FOOD-A</span>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-1"><span class="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">FOOD-A</span><span class="rounded bg-slate-100 text-slate-700 px-2 py-0.5 text-[10px] font-bold">GP</span></div>
+          </div>
+          <!-- axis 4 — catalog -->
+          <div class="rounded-xl border border-violet-200 bg-violet-50/30 p-3">
+            <div class="flex items-center justify-between mb-1">
+              <div class="font-bold text-sm text-slate-900">pod_variant <span class="text-[10px] font-bold text-violet-700 uppercase ml-1">catalog ref · PodSkuVariant</span></div>
+              <span class="rounded-full bg-violet-100 text-violet-800 ring-1 ring-violet-200 px-2 py-0.5 text-[10px] font-bold">auto-demand on shortage</span>
+            </div>
+            <div class="text-[11px] text-violet-800">Values pulled live from POD catalog. Default <span class="font-mono">POD-220-30U-GP</span>.</div>
+            <div class="mt-2 flex flex-wrap gap-1"><span class="rounded bg-violet-100 text-violet-800 ring-1 ring-violet-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">POD-220-30U-GP</span><span class="rounded bg-violet-100 text-violet-800 ring-1 ring-violet-200 px-1.5 py-0.5 text-[10px] font-mono font-bold">POD-220-25U-MAT</span><span class="rounded bg-slate-100 text-slate-700 ring-1 ring-slate-200 px-1.5 py-0.5 text-[10px] font-bold">(none)</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: variants peek (links to full Variants tab) -->
+      <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+        <header class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+          <div class="flex items-center gap-2"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">🌀</span><div><h3 class="font-display text-sm font-bold text-slate-900">Recent variants · 6 of 28 shown</h3><div class="text-[10px] text-slate-500">Open <span class="font-bold text-indigo-700">Variants tab</span> for matrix / grid / table views</div></div></div>
+          <button class="text-[11px] font-bold text-indigo-600 hover:underline">See all 28 →</button>
+        </header>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-5">
+          <button class="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:shadow-md">
+            <div class="flex items-center justify-between"><span class="font-mono text-[11px] font-bold text-indigo-700">V21</span><span class="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">in stock</span></div>
+            <div class="mt-1 text-[10px] text-slate-500">220×320 · 65μ · FOOD-A · POD-220</div>
+            <div class="mt-2 font-mono text-[10px] text-slate-700"><span class="font-bold">31g</span> per pouch · 8 BOM mats</div>
+          </button>
+          <button class="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:shadow-md">
+            <div class="flex items-center justify-between"><span class="font-mono text-[11px] font-bold text-indigo-700">V18</span><span class="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">in stock</span></div>
+            <div class="mt-1 text-[10px] text-slate-500">200×300 · 65μ · FOOD-A</div>
+            <div class="mt-2 font-mono text-[10px] text-slate-700"><span class="font-bold">28g</span> per pouch · 7 BOM mats</div>
+          </button>
+          <button class="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:shadow-md">
+            <div class="flex items-center justify-between"><span class="font-mono text-[11px] font-bold text-indigo-700">V24</span><span class="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">in stock</span></div>
+            <div class="mt-1 text-[10px] text-slate-500">200×300 · 80μ · FOOD-A · POD-200</div>
+            <div class="mt-2 font-mono text-[10px] text-slate-700"><span class="font-bold">35g</span> per pouch · 8 BOM mats</div>
+          </button>
+          <button class="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:shadow-md">
+            <div class="flex items-center justify-between"><span class="font-mono text-[11px] font-bold text-indigo-700">V47</span><span class="rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-1.5 py-0.5 text-[9px] font-bold">WIP</span></div>
+            <div class="mt-1 text-[10px] text-slate-500">260×360 · 120μ · FOOD-A · POD-260</div>
+            <div class="mt-2 font-mono text-[10px] text-slate-700"><span class="font-bold">52g</span> per pouch · 9 BOM mats</div>
+          </button>
+          <button class="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:shadow-md">
+            <div class="flex items-center justify-between"><span class="font-mono text-[11px] font-bold text-indigo-700">V31</span><span class="rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-200 px-1.5 py-0.5 text-[9px] font-bold">fresh</span></div>
+            <div class="mt-1 text-[10px] text-slate-500">220×320 · 120μ · FOOD-A · POD-220</div>
+            <div class="mt-2 font-mono text-[10px] text-slate-700"><span class="font-bold">42g</span> per pouch · 9 BOM mats</div>
+          </button>
+          <button class="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:shadow-md">
+            <div class="flex items-center justify-between"><span class="font-mono text-[11px] font-bold text-indigo-700">V61</span><span class="rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-200 px-1.5 py-0.5 text-[9px] font-bold">fresh</span></div>
+            <div class="mt-1 text-[10px] text-slate-500">300×400 · 120μ · FOOD-A · POD-300</div>
+            <div class="mt-2 font-mono text-[10px] text-slate-700"><span class="font-bold">62g</span> per pouch · 9 BOM mats</div>
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- RIGHT — side rail -->
+    <aside class="space-y-3">
+      <!-- Recent activity -->
+      <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <header class="border-b border-slate-100 px-4 py-3"><div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Recent activity</div><h3 class="font-display text-sm font-bold text-slate-900">Last 7 changes</h3></header>
+        <ol class="p-4 space-y-3 text-[11px]">
+          <li class="flex gap-2"><span class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[10px]">+</span><div><div class="font-bold text-slate-800">V61 created · 300×400 · 120μ</div><div class="text-[10px] text-slate-500">11 May 2026 · admin</div></div></li>
+          <li class="flex gap-2"><span class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-amber-100 text-amber-700 text-[10px]">✎</span><div><div class="font-bold text-slate-800">Overlay updated · Customer ABC</div><div class="text-[10px] text-slate-500">10 May · sales</div></div></li>
+          <li class="flex gap-2"><span class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-[10px]">+</span><div><div class="font-bold text-slate-800">Size 300×400 added</div><div class="text-[10px] text-slate-500">09 May · engineering</div></div></li>
+          <li class="flex gap-2"><span class="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-slate-100 text-slate-700 text-[10px]">↻</span><div><div class="font-bold text-slate-800">Re-saved layer template</div><div class="text-[10px] text-slate-500">06 May · admin</div></div></li>
+        </ol>
+      </section>
+      <!-- Quick links -->
+      <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <header class="border-b border-slate-100 px-4 py-3"><div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Quick links</div></header>
+        <div class="p-4 space-y-2 text-[11px]">
+          <a class="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700" href="#">Open in Sales create →</a>
+          <a class="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700" href="#">Open Routing studio →</a>
+          <a class="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700" href="#">Print spec sheet (PDF)</a>
+          <a class="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700" href="#">View planner pools (3)</a>
+        </div>
+      </section>
+      <!-- Owner -->
+      <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <header class="border-b border-slate-100 px-4 py-3"><div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Ownership</div></header>
+        <div class="p-4 space-y-2 text-[11px]">
+          <div class="flex items-center justify-between"><span class="text-slate-500">Owner</span><span class="font-bold text-slate-800">Engineering · Vikram</span></div>
+          <div class="flex items-center justify-between"><span class="text-slate-500">Created</span><span class="font-mono text-slate-800">06 May 2026</span></div>
+          <div class="flex items-center justify-between"><span class="text-slate-500">Last edit</span><span class="font-mono text-slate-800">11 May 2026</span></div>
+          <div class="flex items-center justify-between"><span class="text-slate-500">Used in SOs</span><span class="font-bold text-slate-800">147 last 90 days</span></div>
+        </div>
+      </section>
+    </aside>
+
+  </section>
+
+</main>
+
+</body>
+</html>

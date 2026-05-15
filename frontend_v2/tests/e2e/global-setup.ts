@@ -484,13 +484,22 @@ export default async function globalSetup(config: FullConfig) {
   await waitForFrontend(`${String(baseURL).replace(/\/$/, "")}/login`)
   await waitForBackend(`${resolveApiOrigin(String(baseURL))}/api/health/`)
 
-  const browser = await chromium.launch({
-    headless: true,
-    ...(browserChannel ? { channel: browserChannel } : {}),
-  })
-  const context = await browser.newContext({ baseURL: String(baseURL) })
-  const page = await context.newPage()
-  await bootstrapSession(page, String(baseURL))
-  await context.storageState({ path: storagePath })
-  await browser.close()
+  try {
+    const browser = await chromium.launch({
+      headless: true,
+      ...(browserChannel ? { channel: browserChannel } : {}),
+    })
+    const context = await browser.newContext({ baseURL: String(baseURL) })
+    const page = await context.newPage()
+    await bootstrapSession(page, String(baseURL))
+    await context.storageState({ path: storagePath })
+    await browser.close()
+  } catch (error) {
+    console.warn(
+      `Global setup browser bootstrap failed; continuing with per-test auth. ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+    await fs.writeFile(storagePath, JSON.stringify({ cookies: [], origins: [] }, null, 2), "utf8")
+  }
 }

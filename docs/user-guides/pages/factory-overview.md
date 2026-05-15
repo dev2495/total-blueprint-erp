@@ -90,7 +90,7 @@ This guide helps users complete all key tasks on Factory • Overview without pr
 
 
 ## Screenshot References
-- ![factory-overview-overview](../../../frontend_v2/public/help/screenshots/factory-overview-overview.svg)
+- ![factory-overview-overview](../../../frontend_v2/public/help/screenshots/factory-overview-overview.png)
 - ![factory-overview-workflow](../../../frontend_v2/public/help/screenshots/factory-overview-workflow.svg)
 
 ## FAQ References

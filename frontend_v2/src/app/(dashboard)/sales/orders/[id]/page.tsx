@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { StatusBadge } from "@/components/ui-custom/status-badge"
 import { cn } from "@/lib/utils"
+import { orderAge, ORDER_AGE_TONE_CLASSES } from "@/lib/order-age"
 import Link from "next/link"
 
 export default function SalesOrderDetailPage() {
@@ -90,16 +91,36 @@ export default function SalesOrderDetailPage() {
                         <h1 className="text-4xl font-black tracking-tight text-slate-900">
                             {order.customer_name}
                         </h1>
-                        <div className="flex items-center gap-4 text-slate-500 font-bold text-sm">
-                            <span className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-blue-400" />
-                                Created {new Date(order.created_at).toLocaleDateString()}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-blue-400" />
-                                Delivery: {new Date(order.delivery_date).toLocaleDateString()}
-                            </span>
+                        <div className="flex flex-wrap items-center gap-3 text-slate-500 font-bold text-sm">
+                            {(() => {
+                                const placedAt = order.created_at
+                                if (!placedAt) return null
+                                const age = orderAge(placedAt)
+                                return (
+                                    <>
+                                        <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 ring-1 ring-blue-100">
+                                            <Calendar className="h-4 w-4 text-blue-600" />
+                                            <span className="text-slate-700">Order placed</span>
+                                            <span className="text-slate-900">{age.placedOn}</span>
+                                        </span>
+                                        {age.days !== null && (
+                                            <span className={cn(
+                                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider ring-1 ring-inset shadow-sm",
+                                                ORDER_AGE_TONE_CLASSES[age.tone]
+                                            )}>
+                                                <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+                                                {age.days === 0 ? "Today" : age.days === 1 ? "Yesterday" : `${age.days}d ago`}
+                                            </span>
+                                        )}
+                                        {order.delivery_date && (
+                                            <span className="flex items-center gap-2 text-slate-400 text-xs">
+                                                <Clock className="h-3.5 w-3.5" />
+                                                Due {new Date(order.delivery_date).toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
+                                            </span>
+                                        )}
+                                    </>
+                                )
+                            })()}
                         </div>
                     </div>
                 </div>

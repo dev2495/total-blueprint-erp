@@ -107,6 +107,14 @@ function kg(value: unknown, digits = 3) {
     return `${toNumber(value, 0).toFixed(digits)} kg`;
 }
 
+function netWeightInput(grossValue: unknown, tareValue: unknown): string | null {
+    const gross = toNumber(grossValue, NaN);
+    if (!Number.isFinite(gross) || gross <= 0) return null;
+    const tare = Math.max(0, toNumber(tareValue, 0));
+    const net = gross - tare;
+    return net > 0 ? net.toFixed(3) : '';
+}
+
 function qtyLabel(value: unknown, uom = 'KG', digits = 3) {
     const unit = String(uom || 'KG').toUpperCase();
     if (unit === 'KG') return kg(value, digits);
@@ -978,8 +986,39 @@ export default function MachineExecutionPage() {
 
     const addCreateRollRow = () => setCreateRollRows((prev) => [...prev, { id: createCounterRef.current++, width_mm: outputWidthMm, weight_kg: '', length_m: '', tare_weight_kg: '', gross_weight_kg: '' }]);
     const addSplitRow = () => setSplitRows((prev) => [...prev, { id: splitCounterRef.current++, width_mm: '', weight_kg: '', tare_weight_kg: '', gross_weight_kg: '' }]);
-    const updateCreateRow = (id: number, key: keyof CreateRollRow, value: string) => setCreateRollRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
-    const updateSplitRow = (id: number, key: keyof SplitRow, value: string) => setSplitRows((prev) => prev.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+    const updatePrimaryRollGrossTare = (key: 'tare_weight_kg' | 'gross_weight_kg', value: string) => {
+        const nextGross = key === 'gross_weight_kg' ? value : outputGrossKg;
+        const nextTare = key === 'tare_weight_kg' ? value : outputTareKg;
+        if (key === 'gross_weight_kg') setOutputGrossKg(value);
+        if (key === 'tare_weight_kg') setOutputTareKg(value);
+        const nextNet = netWeightInput(nextGross, nextTare);
+        if (nextNet !== null) {
+            setOutputWeightDirty(false);
+            setOutputWeightKg(nextNet);
+            if (showPcsEntry && outputEntryMode === 'KG' && unitWeightG > 0) {
+                const kgValue = toNumber(nextNet, NaN);
+                setOutputPcs(Number.isFinite(kgValue) && kgValue > 0 ? String(Math.max(1, Math.round((kgValue * 1000) / unitWeightG))) : '');
+            }
+        }
+    };
+    const updateCreateRow = (id: number, key: keyof CreateRollRow, value: string) => setCreateRollRows((prev) => prev.map((row) => {
+        if (row.id !== id) return row;
+        const next = { ...row, [key]: value };
+        if (key === 'tare_weight_kg' || key === 'gross_weight_kg') {
+            const nextNet = netWeightInput(next.gross_weight_kg, next.tare_weight_kg);
+            if (nextNet !== null) next.weight_kg = nextNet;
+        }
+        return next;
+    }));
+    const updateSplitRow = (id: number, key: keyof SplitRow, value: string) => setSplitRows((prev) => prev.map((row) => {
+        if (row.id !== id) return row;
+        const next = { ...row, [key]: value };
+        if (key === 'tare_weight_kg' || key === 'gross_weight_kg') {
+            const nextNet = netWeightInput(next.gross_weight_kg, next.tare_weight_kg);
+            if (nextNet !== null) next.weight_kg = nextNet;
+        }
+        return next;
+    }));
     const updateMaterialConfirmation = (requirementId: string, patch: Partial<MaterialConfirmationDraft>) => {
         setMaterialConfirmations((prev) => ({
             ...prev,
@@ -1235,6 +1274,7 @@ export default function MachineExecutionPage() {
                                             setOutputTareKg={setOutputTareKg}
                                             outputGrossKg={outputGrossKg}
                                             setOutputGrossKg={setOutputGrossKg}
+                                            updatePrimaryRollGrossTare={updatePrimaryRollGrossTare}
                                             createRollRows={createRollRows}
                                             addCreateRollRow={addCreateRollRow}
                                             updateCreateRow={updateCreateRow}
@@ -1600,6 +1640,7 @@ function ProcessLogForm(props: any) {
         setOutputTareKg,
         outputGrossKg,
         setOutputGrossKg,
+        updatePrimaryRollGrossTare,
         createRollRows,
         addCreateRollRow,
         updateCreateRow,
@@ -1765,15 +1806,15 @@ function ProcessLogForm(props: any) {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500">
-                                <tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Net</th><th className="p-2 text-right">Core tare</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Length</th><th className="p-2" /></tr>
+                                <tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Core tare</th><th className="p-2 text-right">Net auto</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Length</th><th className="p-2" /></tr>
                             </thead>
                             <tbody>
                                 <tr className="border-t border-slate-100">
                                     <td className="p-2 pl-4 font-mono text-xs text-slate-500">1</td>
                                     <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-weight-0" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-tare-0" value={outputTareKg} onChange={(event) => setOutputTareKg(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-gross-0" value={outputGrossKg} onChange={(event) => setOutputGrossKg(event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-gross-0" value={outputGrossKg} onChange={(event) => updatePrimaryRollGrossTare('gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-tare-0" value={outputTareKg} onChange={(event) => updatePrimaryRollGrossTare('tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-weight-0" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="ml-auto h-9 w-28 rounded-lg bg-emerald-50 font-mono font-semibold text-emerald-900" /></td>
                                     <td className="p-2 text-right"><Input data-testid="machine-create-row-width-0" value={outputWidthMm} onChange={(event) => setOutputWidthMm(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                     <td className="p-2 text-right"><Input data-testid="machine-create-row-length-0" value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                     <td />
@@ -1782,9 +1823,9 @@ function ProcessLogForm(props: any) {
                                     <tr key={row.id} className="border-t border-slate-100">
                                         <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 2}</td>
                                         <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-weight-${index + 1}`} value={row.weight_kg} onChange={(event) => updateCreateRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-tare-${index + 1}`} value={row.tare_weight_kg} onChange={(event) => updateCreateRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-create-row-gross-${index + 1}`} value={row.gross_weight_kg} onChange={(event) => updateCreateRow(row.id, 'gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-tare-${index + 1}`} value={row.tare_weight_kg} onChange={(event) => updateCreateRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-weight-${index + 1}`} value={row.weight_kg} onChange={(event) => updateCreateRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg bg-emerald-50 font-mono font-semibold text-emerald-900" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-create-row-width-${index + 1}`} value={row.width_mm} onChange={(event) => updateCreateRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-create-row-length-${index + 1}`} value={row.length_m} onChange={(event) => updateCreateRow(row.id, 'length_m', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeCreateRow(row.id)}><Trash2 className="h-4 w-4" /></Button></td>
@@ -1813,16 +1854,16 @@ function ProcessLogForm(props: any) {
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Net</th><th className="p-2 text-right">Core tare</th><th className="p-2 text-right">Gross</th><th className="p-2" /></tr></thead>
+                            <thead className="bg-slate-50/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="p-2 pl-4 text-left">#</th><th className="p-2 text-left">Label</th><th className="p-2 text-right">Width</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Core tare</th><th className="p-2 text-right">Net auto</th><th className="p-2" /></tr></thead>
                             <tbody>
                                 {splitRows.map((row: SplitRow, index: number) => (
                                     <tr key={row.id} className="border-t border-slate-100">
                                         <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 1}</td>
                                         <td className="p-2 font-mono text-xs font-semibold">Auto child label</td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-split-row-width-${index}`} value={row.width_mm} onChange={(event) => updateSplitRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-weight-${index}`} value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-tare-${index}`} value={row.tare_weight_kg} onChange={(event) => updateSplitRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
                                         <td className="p-2 text-right"><Input data-testid={`machine-split-row-gross-${index}`} value={row.gross_weight_kg} onChange={(event) => updateSplitRow(row.id, 'gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-tare-${index}`} value={row.tare_weight_kg} onChange={(event) => updateSplitRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-weight-${index}`} value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg bg-emerald-50 font-mono font-semibold text-emerald-900" /></td>
                                         <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeSplitRow(row.id)} disabled={splitRows.length <= 1}><Trash2 className="h-4 w-4" /></Button></td>
                                     </tr>
                                 ))}
@@ -2011,6 +2052,14 @@ function LiveEventsCard({ events, loading }: { events: MachineJobEvent[]; loadin
 }
 
 function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDateTo, historyStatus, setHistoryDateFrom, setHistoryDateTo, setHistoryStatus }: any) {
+    const rows = Array.isArray(historyRows) ? historyRows : [];
+    const historySummary = rows.reduce((summary: { jobs: number; producedKg: number; varianceKg: number }, row: any) => ({
+        jobs: summary.jobs + 1,
+        producedKg: summary.producedKg + Number(row?.produced_kg || 0),
+        varianceKg: summary.varianceKg + Number(row?.variance_kg || 0),
+    }), { jobs: 0, producedKg: 0, varianceKg: 0 });
+    const fixed2 = (value: number) => Number(value || 0).toFixed(2);
+
     return (
         <section className={cn(surfaceClass, 'p-5')}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -2032,6 +2081,20 @@ function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDat
                     </Select>
                 </div>
             </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className={cn(labelClass, 'text-slate-500')}>Jobs completed</div>
+                    <div className="mt-1 font-mono text-2xl font-black text-slate-950">{historySummary.jobs}</div>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                    <div className={cn(labelClass, 'text-emerald-700')}>Produced</div>
+                    <div className="mt-1 font-mono text-2xl font-black text-emerald-900">{fixed2(historySummary.producedKg)} kg</div>
+                </div>
+                <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                    <div className={cn(labelClass, 'text-amber-700')}>Variance</div>
+                    <div className="mt-1 font-mono text-2xl font-black text-amber-900">{fixed2(historySummary.varianceKg)} kg</div>
+                </div>
+            </div>
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
                 <div className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                     <div>Product</div><div>Completed</div><div>Output</div><div>Variance</div><div>Status</div>
@@ -2039,7 +2102,7 @@ function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDat
                 <div className="overflow-x-auto">
                     {historyLoading ? (
                         <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Loading history...</div>
-                    ) : historyRows.length ? historyRows.map((row: any) => (
+                    ) : rows.length ? rows.map((row: any) => (
                         <div key={row.job_id} className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-4 py-3 text-sm">
                             <div className="min-w-0"><div className="truncate font-black">{row.job_number}</div><div className="truncate text-xs font-semibold text-slate-500">{row.template_name} · {row.step_name}</div></div>
                             <div className="font-semibold text-slate-600">{formatShortDateTime(row.completed_at)}</div>

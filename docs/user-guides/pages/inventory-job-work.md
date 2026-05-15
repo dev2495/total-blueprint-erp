@@ -85,12 +85,11 @@ This guide helps users complete all key tasks on Inventory • Job Work without 
 
 ## Related Routes
 - /inventory/alerts
-- /inventory/bulk
 - /inventory/bulk-transactions
 
 
 ## Screenshot References
-- ![inventory-job-work-overview](../../../frontend_v2/public/help/screenshots/inventory-job-work-overview.svg)
+- ![inventory-job-work-overview](../../../frontend_v2/public/help/screenshots/inventory-job-work-overview.png)
 - ![inventory-job-work-workflow](../../../frontend_v2/public/help/screenshots/inventory-job-work-workflow.svg)
 
 ## FAQ References

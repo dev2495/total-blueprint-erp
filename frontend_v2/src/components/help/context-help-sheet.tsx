@@ -7,6 +7,7 @@ import { CircleHelp, ExternalLink } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
+import { HelpFlowDiagram, HelpScreenshotImage } from "@/components/help/help-visuals";
 import {
   Sheet,
   SheetContent,
@@ -144,23 +145,17 @@ export function ContextHelpSheet() {
             </TabsContent>
 
             <TabsContent value="flow" className="pt-4 space-y-3">
-              {context.decisionFlow?.nodes?.length ? (
-                context.decisionFlow.nodes.map((node) => (
-                  <div key={node.id} className="rounded-lg border border-slate-200 p-3 bg-white">
-                    <div className="font-semibold text-sm text-slate-900">{localize(node.title, locale)}</div>
-                    <ul className="mt-2 text-xs text-slate-600 list-disc pl-4 space-y-1">
-                      {node.outcomes.map((outcome, idx) => (
-                        <li key={`${node.id}-${idx}`}>
-                          {localize(outcome.label, locale)}
-                          {outcome.resolution ? ` -> ${localize(outcome.resolution, locale)}` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-500">{locale === "hi" ? "निर्णय प्रवाह उपलब्ध नहीं है।" : "Decision flow unavailable."}</p>
-              )}
+              <HelpFlowDiagram flow={context.decisionFlow} locale={locale} />
+              {context.pageGuide?.screenshotKeys?.length ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {context.pageGuide.screenshotKeys.slice(0, 4).map((key) => (
+                    <div key={key} className="rounded-xl border border-slate-200 bg-white p-2">
+                      <HelpScreenshotImage imageKey={key} compact />
+                      <div className="mt-1 truncate text-[10px] font-semibold text-slate-500">{key}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </TabsContent>
 
             <TabsContent value="faq" className="pt-4 space-y-3">

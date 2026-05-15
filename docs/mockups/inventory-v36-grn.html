@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>V3.6 · Receive Stock (GRN)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: Inter, system-ui; background: #f8fafc; }
+  .display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .lift { transition: transform 180ms, box-shadow 180ms; }
+  .lift:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -12px rgba(2,6,23,.15); }
+  .glassy { backdrop-filter: blur(12px) saturate(140%); }
+  .nice-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  .class-active { background: linear-gradient(135deg, #ecfdf5 0%, #fff 100%); border-color: #34d399; box-shadow: 0 0 0 2px #a7f3d0 inset, 0 4px 12px -4px rgba(16,185,129,.25); }
+</style>
+</head>
+<body class="min-h-screen pb-32">
+
+<!-- Sticky header -->
+<header class="sticky top-0 z-30 border-b border-slate-200/60 bg-white/85 glassy">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/inventory-v36-home.html" class="text-xs font-bold text-slate-500 hover:text-blue-700">← Stock workspace</a>
+      <span class="text-slate-300">/</span>
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Inventory · GRN</div>
+      <h1 class="display text-xl font-bold text-slate-900">Receive stock</h1>
+      <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">UNIFIED FORM</span>
+      <div class="ml-auto flex items-center gap-2">
+        <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">📂 Save draft</button>
+        <button class="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg">✓ Submit &amp; post to ledger</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="mx-auto max-w-screen-2xl px-6 pt-6">
+  <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-6 text-white shadow-2xl shadow-emerald-500/20">
+    <div class="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">GRN · goods receipt note</div>
+    <h2 class="display mt-1 text-3xl font-bold leading-tight">One form. Smart per class.</h2>
+    <p class="mt-1 text-sm text-white/80 max-w-2xl">Select what you're receiving — bulk granules, film rolls, or packaging — and the form adapts. All fields preserved, just smarter.</p>
+  </div>
+</section>
+
+<!-- 2-column layout -->
+<div class="mx-auto grid max-w-screen-2xl grid-cols-[minmax(0,1fr)_360px] gap-5 px-6 py-6">
+  <main class="space-y-5">
+
+    <!-- 1. CLASS PICKER -->
+    <Section idx="1" eyebrow="What are you receiving?" title="Pick the stock class" tone="emerald">
+      <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        <ClassTile id="BULK" icon="🧪" label="Bulk material" desc="Granules · masterbatch · adhesive · ink · solvent" example="LD-PE granules from Acme Petrochem" active />
+        <ClassTile id="ROLL" icon="🌀" label="Film roll" desc="Pre-printed roll · laminated roll · slit roll · sheet" example="MET-BOPP-20 from Cosmo Films" />
+        <ClassTile id="PACKAGING" icon="📦" label="Packaging" desc="Inner pouches · gunny · carton · tape · POD sleeves" example="GUNNY-25KG from Local Stitching Co" />
+      </div>
+      <div class="mt-3 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+        <svg class="mt-0.5 h-4 w-4 flex-none text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+        <div><span class="font-bold">Bulk receipt selected.</span> Form below shows lot tracking, density, COA fields. Roll/packaging fields hidden.</div>
+      </div>
+    </Section>
+
+    <!-- 2. SOURCE -->
+    <Section idx="2" eyebrow="Source" title="Where is this coming from?" tone="blue">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Source type">
+          <div class="flex gap-2">
+            <Toggle active>📜 Against PO</Toggle>
+            <Toggle>📦 Direct receipt</Toggle>
+            <Toggle>🔄 Inter-plant</Toggle>
+            <Toggle>🛠 Job work return</Toggle>
+          </div>
+        </Field>
+        <Field label="Receipt date">
+          <input type="date" value="2026-05-08" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm">
+        </Field>
+        <Field label="Purchase order" required col2>
+          <select class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm font-mono">
+            <option>PO-2025-0042 · Acme Petrochem · 5 lines · 4,500 KG remaining</option>
+            <option>PO-2025-0048 · Reliance Polymer · 3 lines · 1,200 KG remaining</option>
+            <option>PO-2025-0051 · Cosmo Films · 2 lines · 850 KG remaining</option>
+          </select>
+        </Field>
+        <Field label="Vendor">
+          <div class="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm shadow-sm">
+            <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 ring-1 ring-blue-200">GST 27AAACR…</span>
+            <span class="font-bold text-slate-900">Acme Petrochem Pvt Ltd</span>
+            <span class="ml-auto text-xs text-slate-500">linked from PO</span>
+          </div>
+        </Field>
+        <Field label="Vendor invoice no.">
+          <input value="ACM/INV/2025-0098" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm">
+        </Field>
+        <Field label="Vendor invoice date">
+          <input type="date" value="2026-05-07" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm">
+        </Field>
+        <Field label="LR / vehicle # / driver">
+          <input value="LR-MH04-AB-1234 · Suresh K." class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm">
+        </Field>
+        <Field label="Receiving warehouse" required col2>
+          <select class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm font-mono">
+            <option>WH-A · Bulk warehouse · Plant 1</option>
+            <option>WH-B · Bulk warehouse · Plant 2</option>
+            <option>WH-FILM · Film warehouse · Plant 1</option>
+            <option>PACKING · Packing yard · Plant 1</option>
+          </select>
+        </Field>
+      </div>
+    </Section>
+
+    <!-- 3. ITEMS — adapts per class -->
+    <Section idx="3" eyebrow="Items received" title="What did you actually receive?" tone="violet" actions='<button class="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 shadow-sm">+ Add line</button>'>
+      <div class="overflow-hidden rounded-2xl border border-slate-200">
+        <table class="min-w-full text-xs">
+          <thead class="bg-slate-50/60 text-slate-500">
+            <tr>
+              <th class="w-8 px-2 py-2"></th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Material</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Lot ID</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Vendor lot ref</th>
+              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">Qty</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">UOM</th>
+              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">Unit cost</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Best before</th>
+              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Storage</th>
+              <th class="w-8 px-2 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <ItemRow line="1" material="LD-PE-NAT · FOOD-A" lot="LOT-2025-08-19" vendorLot="ACM-LOT-9842" qty="3,000" uom="KG" cost="142.50" bbf="2027-08-19" loc="WH-A · Bay 2" />
+            <ItemRow line="2" material="LD-PE-NAT · GP" lot="LOT-2025-08-19-B" vendorLot="ACM-LOT-9843" qty="1,500" uom="KG" cost="138.00" bbf="2027-08-19" loc="WH-A · Bay 2" />
+            <ItemRow line="3" material="MET-BOPP-INPUT" lot="LOT-2025-08-20" vendorLot="ACM-LOT-9851" qty="850" uom="KG" cost="186.00" bbf="2027-02-20" loc="WH-A · Bay 1" />
+          </tbody>
+          <tfoot class="bg-slate-50/40">
+            <tr>
+              <td colspan="4" class="px-3 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Total</td>
+              <td class="px-3 py-2 text-right mono font-bold text-slate-900">5,350</td>
+              <td class="px-3 py-2 text-left mono text-slate-700">KG</td>
+              <td class="px-3 py-2 text-right mono font-bold text-emerald-700">₹7,80,200</td>
+              <td colspan="3"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="mt-2 flex items-center justify-between text-[10px]">
+        <span class="text-slate-500">3 lines · linked to PO-2025-0042 · 0 errors</span>
+        <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-700">PO match: ✓</span>
+      </div>
+    </Section>
+
+    <!-- 4. ROLL-SPECIFIC fields (hidden when class != ROLL) — shown for completeness -->
+    <Section idx="3b" eyebrow="If receiving rolls" title="Roll-specific fields (auto-shown for class=ROLL)" tone="slate" muted>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Roll # (system)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono" placeholder="auto-generated · ROLL-EXT-…"></Field>
+        <Field label="Roll # (vendor label)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono" placeholder="vendor's label"></Field>
+        <Field label="Net weight (KG)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+        <Field label="Gross weight (KG)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+        <Field label="Tare weight (KG)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+        <Field label="Length (m)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+        <Field label="Width (mm)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono" placeholder="e.g. 1050"></Field>
+        <Field label="Thickness (μ)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono" placeholder="e.g. 50"></Field>
+        <Field label="Grade"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+        <Field label="Core size (inch)"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+        <Field label="Treatment side"><select class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs mono"><option>OUT</option><option>IN</option><option>BOTH</option><option>NONE</option></select></Field>
+        <Field label="Print direction"><select class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs mono"><option>—</option><option>OUT</option><option>IN</option></select></Field>
+      </div>
+    </Section>
+
+    <!-- 5. PACKAGING-SPECIFIC fields (hidden when class != PACKAGING) -->
+    <Section idx="3c" eyebrow="If receiving packaging" title="Packaging-specific fields (auto-shown for class=PACKAGING)" tone="slate" muted>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Packaging kind"><select class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs mono"><option>INNER_POUCH</option><option>GONNY</option><option>BOX</option><option>TAPE</option><option>SHEET</option><option>LABEL</option></select></Field>
+        <Field label="Pcs per pack"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono" placeholder="e.g. 24"></Field>
+        <Field label="Color / variant"><input class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs mono"></Field>
+      </div>
+    </Section>
+
+    <!-- 6. QUALITY -->
+    <Section idx="4" eyebrow="Quality" title="QC checks &amp; documents" tone="amber">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Vendor COA">
+          <label class="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm cursor-pointer">
+            <input type="checkbox" checked class="h-4 w-4 rounded text-emerald-600">
+            <span>COA attached</span>
+            <span class="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">📎 ACM-COA-9842.pdf</span>
+          </label>
+        </Field>
+        <Field label="In-house QC">
+          <div class="flex gap-2">
+            <Toggle>Required</Toggle>
+            <Toggle active>Skip · vendor approved</Toggle>
+            <Toggle>Sample taken</Toggle>
+          </div>
+        </Field>
+        <Field label="Density check (g/cm³)">
+          <input value="0.92" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm">
+        </Field>
+        <Field label="MFI / melt-flow index">
+          <input value="2.0" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm">
+        </Field>
+        <Field label="Moisture %">
+          <input value="0.3" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm">
+        </Field>
+        <Field label="QC inspector">
+          <input value="R. Mehta" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm">
+        </Field>
+      </div>
+      <div class="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+        <svg class="h-4 w-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+        <span><span class="font-bold">All QC checks passed.</span> Density within ±2% of spec. Material approved for production.</span>
+      </div>
+    </Section>
+
+    <!-- 7. FINANCIALS -->
+    <Section idx="5" eyebrow="Financials" title="Costs &amp; taxes" tone="blue">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Currency"><select class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm font-mono"><option>INR ₹</option><option>USD $</option></select></Field>
+        <Field label="Subtotal"><input value="780,200" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm"></Field>
+        <Field label="GST (18%)"><input value="140,436" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm"></Field>
+        <Field label="Freight"><input value="2,500" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm"></Field>
+        <Field label="Other charges"><input value="0" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono shadow-sm"></Field>
+        <Field label="Grand total">
+          <div class="flex h-10 items-center justify-end rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-mono font-bold text-emerald-700 shadow-sm">₹923,136</div>
+        </Field>
+      </div>
+    </Section>
+
+    <!-- 8. NOTES -->
+    <Section idx="6" eyebrow="Notes" title="Remarks (optional)" tone="slate">
+      <textarea rows="2" placeholder="Any extra notes for warehouse / accounts / planner…" class="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm leading-relaxed shadow-sm">3 bags damaged in transit — replaced from vendor stock. Original LR PIC #20.</textarea>
+    </Section>
+
+  </main>
+
+  <!-- RIGHT RAIL: live preview -->
+  <aside class="space-y-4 sticky top-[80px] h-[calc(100vh-100px)] overflow-y-auto nice-scroll">
+
+    <!-- GRN preview -->
+    <div class="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-md ring-1 ring-emerald-100">
+      <div class="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 px-4 py-3 text-white">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">Live preview</div>
+        <div class="display text-base font-bold">GRN to be posted</div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">GRN number (will be assigned)</div>
+        <div class="mt-0.5 mono text-sm font-bold text-blue-700">GRN-2025-09-0142 (preview)</div>
+        <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <div class="rounded-lg bg-slate-50 px-2 py-1.5"><div class="text-[9px] font-black uppercase text-slate-500">Class</div><div class="font-bold">BULK</div></div>
+          <div class="rounded-lg bg-slate-50 px-2 py-1.5"><div class="text-[9px] font-black uppercase text-slate-500">Lines</div><div class="font-bold">3</div></div>
+          <div class="rounded-lg bg-slate-50 px-2 py-1.5"><div class="text-[9px] font-black uppercase text-slate-500">Total qty</div><div class="font-bold mono">5,350 KG</div></div>
+          <div class="rounded-lg bg-slate-50 px-2 py-1.5"><div class="text-[9px] font-black uppercase text-slate-500">Value</div><div class="font-bold mono text-emerald-700">₹9.23L</div></div>
+          <div class="rounded-lg bg-slate-50 px-2 py-1.5 col-span-2"><div class="text-[9px] font-black uppercase text-slate-500">Source</div><div class="font-bold mono text-[11px]">PO-2025-0042 · Acme Petrochem</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stock impact preview -->
+    <div class="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/40 to-white p-4 shadow-md">
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">📈 Stock impact</div>
+      <div class="text-sm font-bold text-slate-900">After this GRN posts</div>
+      <ul class="mt-3 space-y-1 text-[11px]">
+        <li class="flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-blue-200">
+          <span class="mono font-bold">LD-PE-NAT FOOD-A</span>
+          <span class="mono"><span class="text-slate-500">4,200</span> <span class="text-emerald-700 font-bold">→ 7,200</span></span>
+        </li>
+        <li class="flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-blue-200">
+          <span class="mono font-bold">LD-PE-NAT GP</span>
+          <span class="mono"><span class="text-slate-500">2,100</span> <span class="text-emerald-700 font-bold">→ 3,600</span></span>
+        </li>
+        <li class="flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-blue-200">
+          <span class="mono font-bold">MET-BOPP-INPUT</span>
+          <span class="mono"><span class="text-slate-500">850</span> <span class="text-emerald-700 font-bold">→ 1,700</span></span>
+        </li>
+      </ul>
+      <div class="mt-2 text-[10px] text-slate-500">3 reservation alerts will auto-clear · 2 demand-match flags will fire to planner.</div>
+    </div>
+
+    <!-- Period awareness -->
+    <div class="rounded-2xl border border-violet-200 bg-violet-50/30 p-4 shadow-sm">
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">📅 Period</div>
+      <div class="mt-1 text-xs">
+        <div class="flex items-center justify-between"><span class="text-slate-600">Posting period</span><span class="rounded-md bg-violet-100 px-2 py-0.5 mono font-bold text-violet-800 text-[10px]">SEP 2025</span></div>
+        <div class="mt-1 flex items-center justify-between"><span class="text-slate-600">Status</span><span class="font-bold text-emerald-700 text-[10px]">● OPEN</span></div>
+        <div class="mt-1 flex items-center justify-between"><span class="text-slate-600">FY</span><span class="mono text-[10px]">FY 2025-26</span></div>
+      </div>
+    </div>
+
+    <!-- Validation -->
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+      <div class="flex items-start gap-2">
+        <div class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</div>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Ready to post</div>
+          <ul class="mt-1 space-y-0.5 text-[11px] text-emerald-900">
+            <li>✓ Class &amp; source set</li>
+            <li>✓ Vendor matched (PO)</li>
+            <li>✓ All 3 items have qty &amp; cost</li>
+            <li>✓ COA attached</li>
+            <li>✓ QC passed</li>
+            <li>✓ Period open · period_id = SEP 2025</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- Sticky footer -->
+<div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 glassy">
+  <div class="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-3">
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <span class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">GRN draft</span>
+      <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">VALID</span>
+      <span class="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">3 LINES · 5,350 KG</span>
+      <span class="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-700 ring-1 ring-amber-200">₹9.23L</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/inventory-v36-home.html" class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">Cancel</a>
+      <button class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-sm">📂 Save as draft</button>
+      <button class="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg">✓ Submit &amp; post →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Section
+document.querySelectorAll('Section').forEach(el => {
+  const idx = el.getAttribute('idx')
+  const eyebrow = el.getAttribute('eyebrow')
+  const title = el.getAttribute('title')
+  const tone = el.getAttribute('tone') || 'blue'
+  const actions = el.getAttribute('actions') || ''
+  const muted = el.hasAttribute('muted')
+  const TONE = {
+    blue:    {bar:'border-l-blue-500',    head:'from-blue-50/80',    num:'bg-blue-600 ring-blue-700'},
+    violet:  {bar:'border-l-violet-500',  head:'from-violet-50/80',  num:'bg-violet-600 ring-violet-700'},
+    emerald: {bar:'border-l-emerald-500', head:'from-emerald-50/80', num:'bg-emerald-600 ring-emerald-700'},
+    amber:   {bar:'border-l-amber-500',   head:'from-amber-50/60',   num:'bg-amber-500 ring-amber-600'},
+    slate:   {bar:'border-l-slate-400',   head:'from-slate-50/80',   num:'bg-slate-500 ring-slate-600'},
+  }
+  const t = TONE[tone] || TONE.blue
+  const inner = el.innerHTML
+  el.outerHTML = `
+  <section class="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] ${t.bar} ${muted ? 'opacity-70' : ''}">
+    <header class="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r ${t.head} via-white to-white px-5 py-3.5">
+      <div class="flex items-start gap-3">
+        <span class="flex h-7 w-7 flex-none items-center justify-center rounded-lg ${t.num} text-white text-xs font-bold shadow-sm ring-1">${idx}</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">${eyebrow}</div>
+          <h2 class="text-[15px] font-bold text-slate-900">${title}</h2>
+          ${muted ? '<div class="mt-0.5 text-[10px] text-slate-500 italic">Hidden by default · expanded here for spec completeness</div>' : ''}
+        </div>
+      </div>
+      <div>${actions}</div>
+    </header>
+    <div class="px-5 py-4">${inner}</div>
+  </section>`
+})
+
+// ClassTile
+document.querySelectorAll('ClassTile').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  const active = el.hasAttribute('active')
+  el.outerHTML = `
+  <button class="lift flex flex-col gap-2 rounded-2xl border ${active ? 'class-active' : 'border-slate-200 bg-white'} px-4 py-3 text-left shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl text-lg ${active ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25' : 'bg-slate-100 text-slate-600'} ring-1 ring-current/20">${a('icon')}</span>
+      <span class="text-sm font-bold text-slate-900">${a('label')}</span>
+    </div>
+    <div class="text-[11px] leading-snug text-slate-500">${a('desc')}</div>
+    <div class="mt-1 text-[10px] mono text-slate-400 italic">e.g. ${a('example')}</div>
+  </button>`
+})
+
+// Field
+document.querySelectorAll('Field').forEach(el => {
+  const label = el.getAttribute('label')
+  const required = el.hasAttribute('required')
+  const col2 = el.hasAttribute('col2')
+  el.outerHTML = `<div class="${col2 ? 'sm:col-span-2' : ''}"><label class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">${label}${required ? ' <span class="text-rose-600">*</span>' : ''}</label><div class="mt-1">${el.innerHTML}</div></div>`
+})
+
+// Toggle
+document.querySelectorAll('Toggle').forEach(el => {
+  const active = el.hasAttribute('active')
+  el.outerHTML = `<button class="rounded-lg ${active ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200'} px-3 py-1.5 text-xs font-bold">${el.innerHTML}</button>`
+})
+
+// ItemRow
+document.querySelectorAll('ItemRow').forEach(el => {
+  const a = el.getAttribute.bind(el)
+  el.outerHTML = `
+  <tr class="hover:bg-violet-50/30">
+    <td class="px-2 py-2 text-center mono text-[10px] text-slate-400">${a('line')}</td>
+    <td class="px-3 py-2"><div class="font-bold text-slate-900 text-xs">${a('material').split('·')[0]}</div><div class="text-[10px] text-slate-500">${a('material').split('·')[1] || ''}</div></td>
+    <td class="px-3 py-2 mono text-[11px] text-blue-700 font-bold">${a('lot')}</td>
+    <td class="px-3 py-2 mono text-[10px] text-slate-500">${a('vendorLot')}</td>
+    <td class="px-3 py-2 text-right mono font-bold text-slate-900">${a('qty')}</td>
+    <td class="px-3 py-2 text-left mono text-[10px] text-slate-700">${a('uom')}</td>
+    <td class="px-3 py-2 text-right mono text-[11px] text-emerald-700">₹${a('cost')}</td>
+    <td class="px-3 py-2 mono text-[10px] text-slate-500">${a('bbf')}</td>
+    <td class="px-3 py-2 mono text-[10px] text-violet-700">${a('loc')}</td>
+    <td class="px-2 py-2 text-center"><button class="text-rose-400 hover:text-rose-600 text-base">×</button></td>
+  </tr>`
+})
+</script>
+</body>
+</html>

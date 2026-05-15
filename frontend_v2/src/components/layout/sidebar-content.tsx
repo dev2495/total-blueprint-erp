@@ -124,67 +124,113 @@ export function SidebarNavContent({
           if (item.children && authorizedChildren?.length === 0 && !isAuthorized(item)) return null;
 
           const isDirectLink = !item.children;
-          const isActive = isDirectLink ? pathname === item.href : pathname.startsWith(item.href);
+          const routeIsActive = (href: string) => {
+            const normalizedHref = String(href || "");
+            const isPlannerRoot = normalizedHref === "/production/planner";
+            return isPlannerRoot
+              ? pathname === normalizedHref
+              : pathname === normalizedHref || pathname.startsWith(normalizedHref + "/");
+          };
+          const isActive = isDirectLink
+            ? pathname === item.href
+            : pathname === item.href || Boolean(authorizedChildren?.some((child) => routeIsActive(child.href)));
 
-        if (compact && !mobile) {
-            const compactLinks: Array<{
-              href: string;
-              title: string;
-              icon: React.ElementType;
-              active: boolean;
-              badge?: string;
-            }> = isDirectLink
-              ? [{
-                  href: item.href,
-                  title: item.title,
-                  icon: item.icon,
-                  active: isActive,
-                }]
-              : (authorizedChildren || []).map((child) => {
-                  const childHref = String(child.href || "");
-                  const isPlannerRoot = childHref === "/production/planner";
-                  const active = isPlannerRoot
-                    ? pathname === childHref
-                    : pathname === childHref || pathname.startsWith(childHref + "/");
-                  return {
-                    href: child.href,
-                    title: child.title,
-                    icon: child.icon,
-                    active,
-                    badge: child.badge,
-                  };
-                });
+          if (compact && !mobile) {
+            const childLinks = (authorizedChildren || []).map((child) => {
+              const active = routeIsActive(child.href);
+              return {
+                href: child.href,
+                title: child.title,
+                icon: child.icon,
+                active,
+                badge: child.badge,
+              };
+            });
+            const linkActive = isDirectLink ? isActive : childLinks.some((link) => link.active) || isActive;
+            const parentHref = item.href;
+            const ParentIcon = item.icon;
+            const flyoutPlacement = index >= authorizedItems.length - 3 ? "bottom-0" : "top-0";
 
             return (
-              <div key={index} className="space-y-2">
-                {compactLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={onNavigate}
-                    title={link.title}
-                    aria-label={link.title}
-                    data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
-                    data-route={link.href}
-                    data-active={link.active ? "true" : undefined}
+              <div key={index} className="group/compact relative mx-auto flex h-11 w-11 items-center justify-center">
+                <Link
+                  href={parentHref}
+                  onClick={onNavigate}
+                  title={item.title}
+                  aria-label={item.title}
+                  data-testid={`sidebar-link-${navTestId(parentHref || item.title)}`}
+                  data-route={parentHref}
+                  data-active={linkActive ? "true" : undefined}
+                  className={cn(
+                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-150",
+                    linkActive
+                      ? "border-blue-500 bg-blue-700 text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
+                      : "border-transparent bg-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                  )}
+                >
+                  <ParentIcon className="h-4 w-4" strokeWidth={linkActive ? 2.1 : 1.8} />
+                  {childLinks.some((link) => link.badge) ? (
+                    <span className="absolute -right-1 -top-1 rounded-full bg-slate-950 px-1 py-0.5 text-[8px] font-bold text-white">
+                      {childLinks.find((link) => link.badge)?.badge}
+                    </span>
+                  ) : null}
+                </Link>
+                {!isDirectLink && childLinks.length > 0 ? (
+                  <div
                     className={cn(
-                      "relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-150",
-                      link.active
-                        ? "border-blue-500 bg-blue-700 text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
-                        : "border-transparent bg-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                      "invisible absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 opacity-0 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-950/[0.04] transition-all duration-150 group-hover/compact:visible group-hover/compact:translate-x-1 group-hover/compact:opacity-100",
+                      flyoutPlacement,
                     )}
                   >
-                    <link.icon className="h-4 w-4" strokeWidth={link.active ? 2.1 : 1.8} />
-                    {link.badge ? (
-                      <span className="absolute -right-1 -top-1 rounded-full bg-slate-950 px-1.5 py-0.5 text-[8px] font-bold text-white">
-                        {link.badge}
-                      </span>
-                    ) : null}
-                  </Link>
-                ))}
+                    <div className="px-2 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                      {item.title}
+                    </div>
+                    <div className="space-y-1">
+                      {childLinks.map((link) => (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          onClick={onNavigate}
+                          data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
+                          data-route={link.href}
+                          data-active={link.active ? "true" : undefined}
+                          className={cn(
+                            "group/item flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
+                            link.active
+                              ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
+                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                          )}
+                        >
+                          <link.icon
+                            className={cn(
+                              "h-4 w-4 shrink-0",
+                              link.active ? "text-white" : "text-slate-400 group-hover/item:text-slate-700",
+                            )}
+                            strokeWidth={link.active ? 2 : 1.7}
+                          />
+                          <span className="min-w-0 flex-1 truncate">{link.title}</span>
+                          {link.badge ? (
+                            <span
+                              className={cn(
+                                "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                                link.active
+                                  ? "bg-white/15 text-white"
+                                  : "border border-slate-200 bg-slate-50 text-slate-500",
+                              )}
+                            >
+                              {link.badge}
+                            </span>
+                          ) : null}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             );
           }
+
+          const sectionTitle = item.title.replace(/\s+Workspace$/i, "");
 
           return (
             <div key={index}>
@@ -195,7 +241,7 @@ export function SidebarNavContent({
                   data-testid={`sidebar-link-${navTestId(item.href || item.title)}`}
                   data-route={item.href}
                   data-active={isActive ? "true" : undefined}
-                    className={cn(
+                  className={cn(
                     "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                     isActive
                       ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
@@ -219,17 +265,39 @@ export function SidebarNavContent({
                       "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400",
                       mobile ? "mt-4 px-3 text-[10px]" : "",
                     )}
-                    data-testid={`sidebar-section-${navTestId(item.title)}`}
+                    data-testid={`sidebar-section-${navTestId(sectionTitle)}`}
                   >
-                    {item.title}
+                    {sectionTitle}
                   </div>
-                  <div className="space-y-1">
+                  <Link
+                    href={item.href}
+                    onClick={onNavigate}
+                    data-testid={`sidebar-workspace-${navTestId(item.href || item.title)}`}
+                    data-route={item.href}
+                    data-active={isActive ? "true" : undefined}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-bold transition-all duration-150",
+                      isActive
+                        ? "border-blue-100 bg-blue-50 text-slate-950 shadow-sm"
+                        : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                      mobile ? "px-3 py-2.5 text-[13px]" : "",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-150",
+                        isActive
+                          ? "bg-blue-700 text-white shadow-[0_10px_20px_-14px_rgba(37,99,235,0.9)]"
+                          : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-800",
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" strokeWidth={isActive ? 2 : 1.7} />
+                    </div>
+                    <span className="flex-1 truncate">{item.title}</span>
+                  </Link>
+                  <div className="ml-[22px] mt-1 space-y-1 border-l border-slate-200 pl-3">
                     {authorizedChildren?.map((child) => {
-                      const childHref = String(child.href || "");
-                      const isPlannerRoot = childHref === "/production/planner";
-                      const isChildActive = isPlannerRoot
-                        ? pathname === childHref
-                        : pathname === childHref || pathname.startsWith(childHref + "/");
+                      const isChildActive = routeIsActive(child.href);
                       return (
                         <Link
                           key={child.href}
@@ -239,16 +307,16 @@ export function SidebarNavContent({
                           data-route={child.href}
                           data-active={isChildActive ? "true" : undefined}
                           className={cn(
-                            "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
+                            "group flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all duration-150",
                             isChildActive
                               ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
                               : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-                            mobile ? "px-3 py-2.5 text-[13px]" : "",
+                            mobile ? "px-3 py-2 text-[12px]" : "",
                           )}
                         >
                           <div
                             className={cn(
-                              "flex shrink-0 items-center justify-center rounded-lg p-1 transition-all duration-150",
+                              "flex shrink-0 items-center justify-center rounded-lg p-0.5 transition-all duration-150",
                               isChildActive
                                 ? "text-white"
                                 : "text-slate-400 group-hover:text-slate-700",
