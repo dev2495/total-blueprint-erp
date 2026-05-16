@@ -35,7 +35,7 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: ALLOWED_HOSTS
-        value: backend-api-prod.onrender.com
+        value: backend-api-prod-y1xa.onrender.com,backend-api-prod.onrender.com
       - key: CORS_ALLOWED_ORIGINS
         value: https://frontend-web-prod.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
@@ -63,7 +63,7 @@ services:
       - key: MEDIA_URL
         value: /media/
       - key: PUBLIC_BACKEND_URL
-        value: https://backend-api-prod.onrender.com
+        value: https://backend-api-prod-y1xa.onrender.com
       - key: DB_NAME
         fromDatabase:
           name: erp-postgres-prod
@@ -214,6 +214,6 @@ services:
     autoDeployTrigger: off
     envVars:
       - key: UI_API_BASE_URL
-        value: https://backend-api-prod.onrender.com
+        value: https://backend-api-prod-y1xa.onrender.com
       - key: NEXT_PUBLIC_SENTRY_DSN
         sync: false
