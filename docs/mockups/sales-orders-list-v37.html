@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sales Orders · V3.7 mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: {
+    display: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui'],
+    sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+    mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+  } } } }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%); color: #0f172a; }
+  .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .scroll-card { content-visibility: auto; contain-intrinsic-size: 1px 360px; }
+  @keyframes pulse-soft { 0%,100%{opacity:.85} 50%{opacity:.55} }
+  .live-dot { animation: pulse-soft 1.4s ease-in-out infinite; }
+  .tab-divider { background: repeating-linear-gradient(90deg, #c7d2fe 0 8px, transparent 8px 16px); height: 2px; border-radius: 9999px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ╔════════════════════════════════════════════════════════════════╗ -->
+<!-- ║ DESIGN CRITIQUE — current /sales/orders page                    ║ -->
+<!-- ╚════════════════════════════════════════════════════════════════╝ -->
+<main class="mx-auto max-w-screen-2xl px-6 py-5 space-y-5">
+
+  <section class="rounded-2xl border-2 border-slate-300 bg-white shadow-sm overflow-hidden">
+    <header class="bg-slate-900 px-5 py-3 text-white">
+      <div class="font-display text-base font-black">Design critique · current /sales/orders page</div>
+      <div class="text-[11px] text-slate-300 mt-0.5">Reviewed against the V37 vocabulary we've shipped on PM Detail, Sales Create, Visual Factory.</div>
+    </header>
+
+    <div class="px-5 py-4 grid grid-cols-1 xl:grid-cols-2 gap-x-6 gap-y-2 text-[12px]">
+      <!-- Left column: usability/hierarchy issues -->
+      <div class="space-y-2">
+        <div class="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">Usability &amp; hierarchy</div>
+        <CriticItem severity="🔴" title="Saturated violet hero competes with the data" body="Other V37 pages use a calm white hero with a 1.5 px accent stripe. This page screams in a saturated radial gradient with white-on-violet KPI tiles. Result: hero outranks the order rows visually, even though the rows are the work surface." fix="Switch to the subtle V37 hero (white bg, indigo→fuchsia 1.5 px left stripe, slate-900 typography). KPI tiles become white cards with mono numbers — matches Visual Factory and Sales Create exactly." />
+        <CriticItem severity="🔴" title="Order placed date is invisible and unbucketed" body="Created date is one tiny line under the plant name with no age framing. The user's stated #1 signal — “6+ days old = not good” — is currently the LEAST visible thing on the page." fix="Promote order age to a colored badge next to the SO number: emerald ≤2d / amber 3-5d / rose 6+d. Add a top-level aged-orders KPI tile." />
+        <CriticItem severity="🟡" title="Filters cascade 4-5 rows before showing data" body="Search → Sort/Layout/Export → FG type chips → 3 range filters → Material/Grade chips → Status pills → Created-date pills → Reset. By the time the eye reaches the queue it's exhausted. Status (most-used) is at the BOTTOM of the filter stack." fix="Two-row compact filter bar: row 1 = search + status pills + age pills (most-used). Row 2 = customer / product-master / advanced (collapsed). FG/material/grade/range filters move into a popover under Advanced." />
+        <CriticItem severity="🟡" title="Horizontal scroll at standard laptop widths" body="The row grid is min-width 1120 px. On a 13” MacBook the page scrolls horizontally — operator misses the Status column on first paint." fix="Drop the Variant ID column (merge with master code in same cell). Move Spec chips into a second line under the variant code. Result: fits comfortably under 1100 px without scroll." />
+        <CriticItem severity="🟡" title="Customer is buried as small slate-600 text" body="In a sales queue, the operator's #1 question is 'whose order is this?'. Customer name is currently a 12 px line under the SO number, no avatar, no code." fix="Promote customer to first-class — initials avatar + bold name + customer code chip. SO number moves to a mono line below." />
+      </div>
+
+      <!-- Right column: consistency/system issues -->
+      <div class="space-y-2">
+        <div class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Consistency &amp; system</div>
+        <CriticItem severity="🟡" title="Status colour palette is custom, not the V37 process palette" body="Status uses generic emerald/amber/blue/cyan. Visual Factory route swimlane uses blue=EXT / rose=PRINT / amber=LAM / cyan=SLIT / emerald=POU / violet=PACK. Operators see different tones for the same job across two pages." fix="Reuse the process palette for status tones (PLANNING amber, PLANNED blue, RELEASED rose, PACKING_READY violet, DISPATCH_READY emerald) so 'where is this order now?' reads identically across pages." />
+        <CriticItem severity="🟡" title="Cancel uses window.prompt for the reason" body="Native prompt is non-stylable, blocks the page, and offers zero structure. Reason becomes a free-text field with no audit categories." fix="Modal with reason categories (Customer cancel / Spec error / Credit hold / Duplicate / Other) + free-text. Mirrors the overlay dialog pattern from PM Detail." />
+        <CriticItem severity="🟡" title="No bulk actions" body="Even though the queue often has 50+ rows, there's no checkbox to multi-select for export / status filter / bulk cancel-attempt." fix="Sticky bulk-action bar appears at the top once a row is checked: 'N selected · Export · Cancel · Re-plan'." />
+        <CriticItem severity="🟢" title="“Rendering N for speed” is shown as a passive chip" body="The user has no agency over density. They can't say 'show me everything' or 'condensed rows'." fix="Density toggle (Compact / Comfortable) + 'Show all' button. Pagination only when count > 500." />
+        <CriticItem severity="🟢" title="No row drill-down without leaving the page" body="To see line items for an SO the user must navigate to /sales/orders/[id]. The hot-path of skimming and triaging breaks every click." fix="Row expand-on-click to show line items inline (variant tuples, layer summary, dispatch progress) without a route change." />
+        <CriticItem severity="🟢" title="Inconsistent button shapes" body="Rounded-full + rounded-xl + rounded-md all on the same page (Cancel/Track buttons are rounded-full; Sort/Export are rounded-xl)." fix="Standardise: rounded-full for chip-style actions, rounded-xl for form buttons. Match the rest of V37." />
+      </div>
+    </div>
+
+    <div class="bg-slate-50/60 border-t border-slate-200 px-5 py-3 grid grid-cols-3 gap-3 text-[12px]">
+      <div class="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2">
+        <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">What works</div>
+        <div class="text-[11px] text-emerald-900 mt-0.5">Range filters (width / height / thickness) are excellent. Saved-views bar is a real-life shortcut. Status counts on the pills are visible.</div>
+      </div>
+      <div class="rounded-xl bg-amber-50 ring-1 ring-amber-200 px-3 py-2">
+        <div class="text-[10px] font-black uppercase tracking-wider text-amber-700">Keep + relocate</div>
+        <div class="text-[11px] text-amber-900 mt-0.5">Range filters → Advanced popover. FG/material/grade → Advanced. Saved views → top-of-filter band. Cancel button → modal with categories.</div>
+      </div>
+      <div class="rounded-xl bg-rose-50 ring-1 ring-rose-200 px-3 py-2">
+        <div class="text-[10px] font-black uppercase tracking-wider text-rose-700">Add</div>
+        <div class="text-[11px] text-rose-900 mt-0.5">Order-age badge + KPI tile. Customer avatar. Row expand. Density toggle. Bulk select. V37 process-palette status colours.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="tab-divider"></div>
+
+  <!-- ╔════════════════════════════════════════════════════════════════╗ -->
+  <!-- ║ DESIGN SYSTEM CHECK — what V37 vocabulary the new mockup uses   ║ -->
+  <!-- ╚════════════════════════════════════════════════════════════════╝ -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <header class="border-b border-slate-100 bg-gradient-to-r from-indigo-50/40 via-white to-white px-5 py-3">
+      <div class="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Design system · v37 vocabulary applied</div>
+      <h2 class="font-display text-base font-bold text-slate-900">Tokens reused from PM Detail / Sales Create / Visual Factory</h2>
+    </header>
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 px-5 py-3 text-[11px]">
+      <TokenTile cat="Typography" body="display Plus Jakarta Sans · body Inter · numbers JetBrains Mono" />
+      <TokenTile cat="Hero" body="white bg · 1.5 px left accent stripe · slate-900 title · text-[10px] tracking-[0.22em] eyebrow" />
+      <TokenTile cat="Status palette" body="PLANNING amber · PLANNED blue · RELEASED rose · PACKING_READY violet · DISPATCH_READY emerald · CANCELLED slate" />
+      <TokenTile cat="Order-age palette" body="0-2d emerald · 3-5d amber · 6+d rose (matches Visual Factory)" />
+      <TokenTile cat="KPI tile" body="rounded-2xl border-slate-200 bg-white · 10 px uppercase eyebrow · 20 px black tabular number · 10 px slate-500 subtle" />
+      <TokenTile cat="Chips" body="rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 · tonal pastel bg + matching dark text" />
+    </div>
+  </section>
+
+  <div class="tab-divider"></div>
+
+  <!-- ╔════════════════════════════════════════════════════════════════╗ -->
+  <!-- ║ NEW SALES ORDERS LIST · V3.7                                    ║ -->
+  <!-- ╚════════════════════════════════════════════════════════════════╝ -->
+
+  <!-- HERO + KPI strip -->
+  <section class="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_580px]">
+    <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-violet-50/60 via-white to-emerald-50/30 px-6 py-5 shadow-sm">
+      <div class="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500"></div>
+      <div class="relative pl-3 flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Sales · order operations</div>
+          <h1 class="font-display text-3xl font-black tracking-tight text-slate-900 mt-1">Sales Orders</h1>
+          <p class="mt-1.5 max-w-2xl text-xs text-slate-600">
+            Every open order, by age and stage. Click a row to drill in. Anything older than 5 days bubbles up in red — that's the line worth chasing.
+          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200">⚡ 38 open</span>
+            <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-amber-700 ring-1 ring-amber-200">12 awaiting planning</span>
+            <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-rose-700 ring-1 ring-rose-200">▾ 7 aged 6+d</span>
+            <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">11 customers</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="/master/products" class="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Product master</a>
+          <a href="/sales/orders/create" class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 text-[11px] font-bold text-white shadow-md">+ New order</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI tiles · 6 -->
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <KpiTile label="Open" value="38" sub="orders in flight" tone="slate" />
+      <KpiTile label="Awaiting planning" value="12" sub="needs action" tone="amber" link="?status=PLANNING_REQUIRED" />
+      <KpiTile label="Aged 6+ days" value="7" sub="2,140 KG · not good" tone="rose" link="?age=aged" />
+      <KpiTile label="Created today" value="3" sub="vs 5d avg 4" tone="emerald" />
+      <KpiTile label="Value in flight" value="₹49.6 L" sub="across 38 orders" tone="indigo" />
+      <KpiTile label="Avg age" value="2.8d" sub="across 38 lines" tone="slate" />
+    </div>
+  </section>
+
+  <!-- SAVED VIEWS bar -->
+  <section class="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+    <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mr-1">Views</span>
+    <button class="rounded-full bg-slate-900 px-3 py-1 text-white shadow-sm">All open · 38</button>
+    <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Aged 6+ · 7</button>
+    <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Awaiting planning · 12</button>
+    <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Created last 7d · 18</button>
+    <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Pouches · 22</button>
+    <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">LDPE rolls · 4</button>
+    <button class="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">+ Save current view</button>
+    <span class="ml-auto inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700">⤓ Export · 38 visible</span>
+  </section>
+
+  <!-- FILTER BAND — two rows, status + age first, advanced collapses -->
+  <section class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <!-- Row 1: search + status + age -->
+    <div class="flex flex-col gap-2 xl:flex-row xl:items-center">
+      <div class="relative min-w-[18rem] flex-1">
+        <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+        <input value="" placeholder="Search SO #, customer, product master, variant code …" class="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 text-sm font-semibold shadow-sm" />
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+        <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mr-1">Status</span>
+        <button class="rounded-full bg-slate-900 px-2.5 py-1 text-white">All · 38</button>
+        <button class="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100">Planning · 12</button>
+        <button class="rounded-full bg-blue-50 px-2.5 py-1 text-blue-800 ring-1 ring-blue-200 hover:bg-blue-100">Planned · 8</button>
+        <button class="rounded-full bg-rose-50 px-2.5 py-1 text-rose-800 ring-1 ring-rose-200 hover:bg-rose-100">Released · 9</button>
+        <button class="rounded-full bg-violet-50 px-2.5 py-1 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100">Packing · 5</button>
+        <button class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100">Dispatch · 4</button>
+      </div>
+    </div>
+    <div class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+      <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mr-1">Age</span>
+      <button class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200">Fresh 0-2d · 19</button>
+      <button class="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 ring-1 ring-amber-200">Watch 3-5d · 12</button>
+      <button class="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 ring-2 ring-offset-1">Aged 6+d · 7</button>
+      <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mx-2">Customer</span>
+      <button class="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Any customer ▾</button>
+      <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mx-2">Product master</span>
+      <button class="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Any master ▾</button>
+      <button class="ml-auto rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Advanced ▾ <span class="ml-1 text-slate-400">FG · material · grade · width · height · thickness</span></button>
+      <button class="rounded-full bg-white px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50">Reset</button>
+    </div>
+    <!-- Active filter chips -->
+    <div class="mt-2 flex flex-wrap items-center gap-1 text-[10px] font-bold border-t border-slate-100 pt-2">
+      <span class="text-slate-500">Active</span>
+      <span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-rose-800 ring-1 ring-rose-200">age · 6+d ✕</span>
+      <span class="text-slate-400">·</span>
+      <span class="text-slate-500">7 of 38 visible</span>
+    </div>
+  </section>
+
+  <!-- BULK-ACTION BAR (appears when row is checked) -->
+  <section class="rounded-2xl border border-violet-300 bg-violet-50 px-4 py-2 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+    <div class="flex items-center gap-2 text-[12px] font-bold text-violet-900">
+      <input type="checkbox" checked class="h-4 w-4 rounded border-violet-300 text-violet-600" />
+      <span>2 orders selected</span>
+      <button class="text-[11px] font-bold text-violet-700 hover:underline">Clear</button>
+    </div>
+    <div class="flex items-center gap-2 text-[11px] font-bold">
+      <button class="rounded-lg bg-white px-3 py-1.5 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">⤓ Export 2</button>
+      <button class="rounded-lg bg-white px-3 py-1.5 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">⟳ Re-plan</button>
+      <button class="rounded-lg bg-rose-600 px-3 py-1.5 text-white shadow-sm hover:bg-rose-700">Cancel 2 orders</button>
+    </div>
+  </section>
+
+  <!-- ORDERS TABLE -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <!-- Tab header + density toggle -->
+    <header class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2">
+      <div class="flex items-center gap-1.5 text-[11px] font-bold">
+        <button class="rounded-full bg-slate-900 px-3 py-1 text-white">Order queue · 38</button>
+        <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">History · 248</button>
+        <button class="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Cancelled · 31</button>
+      </div>
+      <div class="flex items-center gap-1.5 text-[11px] font-bold">
+        <span class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Density</span>
+        <div class="inline-flex rounded-lg bg-slate-100 p-0.5 shadow-inner">
+          <button class="h-7 rounded-md bg-white px-2.5 text-slate-900 ring-1 ring-slate-200 shadow-sm">Comfortable</button>
+          <button class="h-7 rounded-md px-2.5 text-slate-600">Compact</button>
+        </div>
+        <button class="rounded-lg bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Sort ↕ Age (oldest first)</button>
+      </div>
+    </header>
+
+    <!-- Column headers -->
+    <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+      <div><input type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300" /></div>
+      <div>Customer · Order #</div>
+      <div>Product master · variant tuple</div>
+      <div>Qty · progress</div>
+      <div>Placed · age</div>
+      <div class="text-right">Status · actions</div>
+    </div>
+
+    <!-- ROW 1 · aged red -->
+    <article class="border-b border-slate-100 hover:bg-rose-50/30 transition">
+      <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 px-4 py-3 items-center">
+        <div><input type="checkbox" checked class="h-3.5 w-3.5 rounded border-violet-300 text-violet-600" /></div>
+        <!-- customer + order -->
+        <div class="min-w-0 flex items-center gap-2.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-rose-200 to-rose-400 text-white font-black text-[11px]">AB</span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-slate-900 truncate">ABC Foods Pvt Ltd</div>
+            <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span class="font-mono font-black text-violet-700">SO-1463</span>
+              <span class="text-slate-400">·</span>
+              <span class="font-mono text-slate-500">CUST-00184</span>
+              <span class="text-slate-400">·</span>
+              <span class="text-slate-500">PO/ABC/2026-05/0421</span>
+            </div>
+          </div>
+        </div>
+        <!-- master + variant -->
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-slate-900 truncate">Dry Fruit Standup Pouch — PET/LD</div>
+          <div class="flex items-center gap-1 mt-0.5 text-[10px] font-mono">
+            <span class="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">PM-DRY-PET-LD</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">200×300</span>
+            <span class="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">PET12+MET12+LD65</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">FOOD-A</span>
+            <span class="rounded bg-fuchsia-50 px-1.5 py-0.5 font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">POD-220</span>
+          </div>
+        </div>
+        <!-- qty + progress -->
+        <div class="min-w-0">
+          <div class="text-[12px] font-mono font-black text-slate-900">2,000 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="text-[10px] text-slate-500">320 produced · 1,680 remaining · 16%</div>
+          <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
+            <div class="flex h-full">
+              <div class="bg-emerald-500" style="width:8%"></div>
+              <div class="bg-blue-500" style="width:8%"></div>
+            </div>
+          </div>
+        </div>
+        <!-- placed + age -->
+        <div class="min-w-0">
+          <div class="text-[11px] font-mono font-bold text-slate-900">8 May</div>
+          <div class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[9px] font-black text-white">aged 7d</div>
+        </div>
+        <!-- status + actions -->
+        <div class="flex items-center justify-end gap-1.5">
+          <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">PLANNING</span>
+          <button title="Track" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</button>
+          <button title="Cancel" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">✕</button>
+        </div>
+      </div>
+      <!-- expand affordance -->
+      <button class="w-full text-left text-[10px] font-bold text-slate-400 px-4 pb-2 hover:text-slate-700">↓ Expand · 3 line items · last update 2h ago</button>
+    </article>
+
+    <!-- ROW 2 · aged 6d -->
+    <article class="border-b border-slate-100 hover:bg-rose-50/30 transition">
+      <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 px-4 py-3 items-center">
+        <div><input type="checkbox" checked class="h-3.5 w-3.5 rounded border-violet-300 text-violet-600" /></div>
+        <div class="min-w-0 flex items-center gap-2.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-rose-200 to-rose-400 text-white font-black text-[11px]">AB</span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-slate-900 truncate">ABC Foods Pvt Ltd</div>
+            <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span class="font-mono font-black text-violet-700">SO-1465</span>
+              <span class="text-slate-400">·</span>
+              <span class="font-mono text-slate-500">CUST-00184</span>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-slate-900 truncate">Spice Pouch — Triple Layer Lam</div>
+          <div class="flex items-center gap-1 mt-0.5 text-[10px] font-mono">
+            <span class="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">PM-SPICE-TRI</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">180×260</span>
+            <span class="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">80μ</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">FOOD-A</span>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-mono font-black text-slate-900">500 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="text-[10px] text-slate-500">— not started · 0%</div>
+          <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200"></div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[11px] font-mono font-bold text-slate-900">9 May</div>
+          <div class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[9px] font-black text-white">aged 6d</div>
+        </div>
+        <div class="flex items-center justify-end gap-1.5">
+          <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">PLANNING</span>
+          <button title="Track" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</button>
+          <button title="Cancel" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">✕</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- ROW 3 · watch 4d (amber) -->
+    <article class="border-b border-slate-100 hover:bg-amber-50/30 transition">
+      <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 px-4 py-3 items-center">
+        <div><input type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300" /></div>
+        <div class="min-w-0 flex items-center gap-2.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-amber-200 to-amber-400 text-white font-black text-[11px]">AB</span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-slate-900 truncate">ABC Foods Pvt Ltd</div>
+            <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span class="font-mono font-black text-violet-700">SO-1471</span>
+              <span class="text-slate-400">·</span>
+              <span class="font-mono text-slate-500">CUST-00184</span>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-slate-900 truncate">Spice Pouch — Triple Layer Lam</div>
+          <div class="flex items-center gap-1 mt-0.5 text-[10px] font-mono">
+            <span class="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">PM-SPICE-TRI</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">180×260</span>
+            <span class="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">80μ</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">FOOD-A</span>
+            <span class="rounded bg-rose-50 px-1.5 py-0.5 font-bold text-rose-800 ring-1 ring-rose-200">PRINT 6c</span>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-mono font-black text-slate-900">1,500 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="text-[10px] text-slate-500">920 produced · 580 remaining · 61%</div>
+          <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
+            <div class="flex h-full">
+              <div class="bg-emerald-500" style="width:30%"></div>
+              <div class="bg-blue-500" style="width:31%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[11px] font-mono font-bold text-slate-900">11 May</div>
+          <div class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black text-white">watch 4d</div>
+        </div>
+        <div class="flex items-center justify-end gap-1.5">
+          <span class="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-800 ring-1 ring-rose-200">RELEASED</span>
+          <button title="Track" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- ROW 4 · fresh 1d (subtle, default) — expanded inline preview -->
+    <article class="border-b border-slate-100 bg-slate-50/40">
+      <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 px-4 py-3 items-center">
+        <div><input type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300" /></div>
+        <div class="min-w-0 flex items-center gap-2.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-emerald-200 to-emerald-400 text-white font-black text-[11px]">SF</span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-slate-900 truncate">Sunrise Foods Pvt Ltd</div>
+            <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span class="font-mono font-black text-violet-700">SO-1492</span>
+              <span class="text-slate-400">·</span>
+              <span class="font-mono text-slate-500">CUST-00211</span>
+              <span class="text-slate-400">·</span>
+              <span class="rounded-full bg-fuchsia-50 px-1.5 py-0.5 font-bold text-fuchsia-700 ring-1 ring-fuchsia-200">overlay</span>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-slate-900 truncate">Mango Pouch — 3 Layer · PET/MET-PET/LDPE</div>
+          <div class="flex items-center gap-1 mt-0.5 text-[10px] font-mono">
+            <span class="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">PM-MANGO-3L</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">220×320</span>
+            <span class="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">104μ</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">CODEX FOOD</span>
+            <span class="rounded bg-fuchsia-50 px-1.5 py-0.5 font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">POD-220</span>
+            <span class="rounded bg-amber-50 px-1.5 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">ZIPPER</span>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-mono font-black text-slate-900">1,000 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="text-[10px] text-slate-500">0 produced · 1,000 remaining · 0%</div>
+          <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200"></div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[11px] font-mono font-bold text-slate-900">today</div>
+          <div class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white">fresh 0d</div>
+        </div>
+        <div class="flex items-center justify-end gap-1.5">
+          <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">PLANNING</span>
+          <button title="Track" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</button>
+          <button title="Cancel" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">✕</button>
+        </div>
+      </div>
+      <!-- expanded · line items + overlay match -->
+      <div class="border-t border-slate-100 bg-white px-4 py-3 grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4">
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Customer overlay applied</div>
+          <div class="rounded-xl bg-fuchsia-50/60 ring-1 ring-fuchsia-200 px-3 py-2 text-[11px]">
+            <div class="font-bold text-slate-900">SUNRISE-MANGO-DESIGN-V2</div>
+            <div class="text-slate-600 mt-0.5">basis · PCS · MOQ 1,000 kg · 220×320 lock</div>
+            <div class="text-slate-600">POD POD-220 · zipper add-on</div>
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Line items · 1</div>
+          <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px]">
+            <div class="flex items-center justify-between">
+              <span class="font-mono font-bold text-slate-900">Line 1 · PM-MANGO-3L · 220×320 · CODEX FOOD</span>
+              <span class="font-mono font-bold text-slate-700">1,000 KG · ₹3,48,000</span>
+            </div>
+            <div class="text-slate-500 mt-1">3 layers · POD-220 · ZIP-PCS-CODEX · artwork SUNRISE-MANGO-DESIGN-V2</div>
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Activity</div>
+          <ol class="space-y-1 text-[11px]">
+            <li class="flex items-center gap-2"><span class="font-mono text-slate-400">09:12</span><span class="text-slate-600">Sales submitted · 1 line</span></li>
+            <li class="flex items-center gap-2"><span class="font-mono text-slate-400">09:14</span><span class="text-slate-600">Auto-demand fired for POD-220</span></li>
+            <li class="flex items-center gap-2"><span class="font-mono text-slate-400">09:18</span><span class="text-slate-600">Planner queue · awaiting release</span></li>
+          </ol>
+          <div class="mt-2 flex items-center gap-2">
+            <a href="#" class="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Open SO →</a>
+            <a href="#" class="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Track</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ROW 5 · fresh 2d compact -->
+    <article class="border-b border-slate-100 hover:bg-emerald-50/20 transition">
+      <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 px-4 py-3 items-center">
+        <div><input type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300" /></div>
+        <div class="min-w-0 flex items-center gap-2.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-blue-200 to-blue-400 text-white font-black text-[11px]">TL</span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-slate-900 truncate">Tea Leaves Pvt Ltd</div>
+            <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span class="font-mono font-black text-violet-700">SO-1488</span>
+              <span class="text-slate-400">·</span>
+              <span class="font-mono text-slate-500">CUST-00309</span>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-slate-900 truncate">Tea Center-seal Pouch · BOPP/LD</div>
+          <div class="flex items-center gap-1 mt-0.5 text-[10px] font-mono">
+            <span class="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">PM-TEA-CSL</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">160×240</span>
+            <span class="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">100μ</span>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">FOOD-A</span>
+            <span class="rounded bg-rose-50 px-1.5 py-0.5 font-bold text-rose-800 ring-1 ring-rose-200">PRINT CMYK</span>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-mono font-black text-slate-900">800 <span class="text-[10px] font-bold text-slate-500">KG</span></div>
+          <div class="text-[10px] text-slate-500">240 produced · 560 remaining · 30%</div>
+          <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
+            <div class="flex h-full">
+              <div class="bg-emerald-500" style="width:12%"></div>
+              <div class="bg-blue-500" style="width:18%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[11px] font-mono font-bold text-slate-900">13 May</div>
+          <div class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white">fresh 2d</div>
+        </div>
+        <div class="flex items-center justify-end gap-1.5">
+          <span class="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-black text-violet-800 ring-1 ring-violet-200">PACKING</span>
+          <button title="Track" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- ROW 6 · cancelled (history-style preview) -->
+    <article class="border-b border-slate-100 opacity-70 hover:opacity-100 transition">
+      <div class="grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_8.5rem] gap-3 px-4 py-3 items-center">
+        <div><input type="checkbox" disabled class="h-3.5 w-3.5 rounded border-slate-200" /></div>
+        <div class="min-w-0 flex items-center gap-2.5">
+          <span class="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-slate-200 text-slate-500 font-black text-[11px]">RB</span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-slate-700 truncate line-through decoration-slate-400">Royal Beverages</div>
+            <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span class="font-mono font-bold text-slate-500">SO-1456</span>
+              <span class="text-slate-400">·</span>
+              <span class="text-slate-500">cancelled · spec error</span>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-slate-600 truncate">Juice Pouch — laminate</div>
+          <div class="text-[10px] text-slate-500 mt-0.5 font-mono">PM-JUICE-LAM · 220×320 · 80μ</div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[12px] font-mono font-bold text-slate-500">1,200 <span class="text-[10px] font-bold">KG</span></div>
+          <div class="text-[10px] text-slate-400">cancelled before production</div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[11px] font-mono font-bold text-slate-500">6 May</div>
+          <div class="mt-0.5 text-[9px] font-bold text-slate-500">cancelled 12 May</div>
+        </div>
+        <div class="flex items-center justify-end gap-1.5">
+          <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">CANCELLED</span>
+          <button title="Re-open" class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↻</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- Footer · pagination + bulk hint -->
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50/60 px-4 py-2.5 border-t border-slate-200">
+      <div class="text-[10px] font-bold text-slate-500">Showing 6 of 38 visible orders</div>
+      <button class="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Show next 32 orders</button>
+    </div>
+  </section>
+
+  <div class="tab-divider"></div>
+
+  <!-- CANCEL MODAL preview (overlayed) -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <header class="bg-slate-900 px-5 py-3 text-white">
+      <div class="font-display text-base font-black">Cancel modal · replaces window.prompt</div>
+      <div class="text-[11px] text-slate-300 mt-0.5">Structured reason categories + free-text. Same dialog pattern as PM Detail's Add overlay.</div>
+    </header>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 px-5 py-4 bg-slate-50/40">
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-md max-w-md mx-auto">
+        <div class="border-b border-rose-100 bg-gradient-to-r from-rose-50/60 via-white to-white px-5 py-3">
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">Cancel sales order</div>
+          <div class="font-display text-base font-bold text-slate-900 mt-0.5">SO-1463 · ABC Foods · 2,000 KG</div>
+          <div class="text-[11px] text-slate-600 mt-0.5">Aged 7 days · status PLANNING · safe to cancel before release.</div>
+        </div>
+        <div class="px-5 py-4 space-y-3">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Reason category <span class="text-rose-600">*</span></div>
+            <div class="flex flex-wrap gap-1.5 text-[11px] font-bold">
+              <button class="rounded-full bg-rose-100 px-2.5 py-1 text-rose-800 ring-1 ring-rose-300">Customer cancelled</button>
+              <button class="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Spec error</button>
+              <button class="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Credit hold</button>
+              <button class="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Duplicate</button>
+              <button class="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Other</button>
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Note (optional)</div>
+            <textarea class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px]" rows="3" placeholder="Customer called — switching to a different pouch size next week."></textarea>
+          </div>
+          <div class="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[10px] font-bold text-amber-900">
+            ⚠ Cancelling will release any in-house auto-demand stock created for this SO back to the generic WIP pool.
+          </div>
+        </div>
+        <div class="border-t border-slate-200 bg-white px-5 py-3 flex items-center justify-end gap-2">
+          <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Keep order</button>
+          <button class="rounded-xl bg-rose-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:bg-rose-700">Cancel SO-1463</button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Why structured cancel matters</div>
+        <ul class="space-y-1.5 text-[12px] text-slate-700">
+          <li>✓ Categorised reason flows into the sales-ops scorecard (which customers cancel most? which spec errors recur?)</li>
+          <li>✓ The amber warning about auto-demand stock is the kind of guardrail a window.prompt can't deliver</li>
+          <li>✓ Reuses the same dialog shell as Add-overlay (max-w-md, gradient header, sticky footer) so the pattern compounds</li>
+          <li>✓ Keyboard-friendly: tab through categories, type note, Enter to confirm</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Helper components rendered above -->
+<script>
+  // No-op — this is a static mockup. The components below are visual references only.
+</script>
+
+<!-- Helper component conventions used above (for reviewer's reference):
+  <CriticItem severity title body fix> renders a row with severity dot + title + body + recommended fix.
+  <TokenTile cat body> renders a small token explainer tile.
+  Replaced below with actual HTML for review readability.
+-->
+<template id="t-critic">
+  <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+    <div class="flex items-baseline gap-2">
+      <span class="text-sm" data-bind="severity"></span>
+      <span class="text-[12px] font-bold text-slate-900" data-bind="title"></span>
+    </div>
+    <p class="mt-1 text-[11px] text-slate-600 leading-relaxed" data-bind="body"></p>
+    <p class="mt-1 text-[11px] text-emerald-800 leading-relaxed"><strong>Fix —</strong> <span data-bind="fix"></span></p>
+  </div>
+</template>
+
+<script>
+  // Inline render of CriticItem entries from custom-element tags
+  document.querySelectorAll("CriticItem").forEach((el) => {
+    const tpl = document.getElementById("t-critic").content.cloneNode(true)
+    tpl.querySelector('[data-bind="severity"]').textContent = el.getAttribute("severity") || "•"
+    tpl.querySelector('[data-bind="title"]').textContent = el.getAttribute("title") || ""
+    tpl.querySelector('[data-bind="body"]').textContent = el.getAttribute("body") || ""
+    tpl.querySelector('[data-bind="fix"]').textContent = el.getAttribute("fix") || ""
+    el.replaceWith(tpl)
+  })
+  document.querySelectorAll("TokenTile").forEach((el) => {
+    const div = document.createElement("div")
+    div.className = "rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2"
+    div.innerHTML = `<div class="text-[10px] font-black uppercase tracking-wider text-indigo-700">${el.getAttribute("cat") || ""}</div><div class="text-[11px] text-slate-700 mt-0.5">${el.getAttribute("body") || ""}</div>`
+    el.replaceWith(div)
+  })
+  document.querySelectorAll("KpiTile").forEach((el) => {
+    const tone = el.getAttribute("tone") || "slate"
+    const tones = { slate: "text-slate-900", amber: "text-amber-700 border-amber-200 bg-amber-50/40", rose: "text-rose-700 border-rose-200 bg-rose-50/40", emerald: "text-emerald-700", indigo: "text-indigo-700" }
+    const valClass = tones[tone] || "text-slate-900"
+    const isCard = tone === "amber" || tone === "rose"
+    const card = document.createElement(el.getAttribute("link") ? "a" : "div")
+    if (el.getAttribute("link")) card.setAttribute("href", el.getAttribute("link"))
+    card.className = "rounded-2xl border px-3.5 py-2.5 shadow-sm " + (isCard ? valClass : "border-slate-200 bg-white")
+    card.innerHTML = `<div class="text-[10px] font-black uppercase tracking-wider text-slate-500">${el.getAttribute("label") || ""}</div><div class="font-display text-xl font-black tabular-nums ${isCard ? "" : valClass}">${el.getAttribute("value") || ""}</div><div class="text-[10px] text-slate-500 truncate">${el.getAttribute("sub") || ""}</div>`
+    el.replaceWith(card)
+  })
+</script>
+
+</body>
+</html>
+</parameter>
+</invoke>
