@@ -3,15 +3,14 @@ import { api } from "@/lib/api";
 export function normalizeMediaUrl(url?: string | null) {
     const raw = String(url || "").trim();
     if (!raw) return null;
-    try {
-        const parsed = new URL(raw);
-        if (parsed.pathname.startsWith("/media/")) {
-            return `${parsed.pathname}${parsed.search}`;
-        }
-    } catch {
-        // Relative URLs are handled below.
-    }
     return raw;
+}
+
+export function isPdfMediaUrl(url?: string | null, mimeType?: string | null) {
+    const type = String(mimeType || "").toLowerCase();
+    if (type.includes("pdf")) return true;
+    const raw = String(url || "").split("?")[0].toLowerCase();
+    return raw.endsWith(".pdf");
 }
 
 export function artworkImageUrls(artwork?: Pick<Artwork, "primary_image" | "image" | "images"> | null) {
@@ -48,6 +47,7 @@ export interface Artwork {
     ink_gsm_split_mode?: "EQUAL" | "PERCENT";
     ink_gsm_color_percentages?: Record<string, number>;
     ink_gsm_by_color?: Record<string, number>;
+    cylinder_circumference_mm?: number;
     total_side_colors?: number;
     cylinder_ready?: boolean;
     colors_count: number;
@@ -175,7 +175,7 @@ export const engineeringService = {
         const { data: res } = await api.post<Artwork>(`/api/engineering/artworks/${id}/approve/`);
         return res;
     },
-    generateArtworkCylinders: async (id: string, payload?: { side?: "FRONT" | "BACK"; slot?: number; targets?: Array<{ side: "FRONT" | "BACK"; slot: number }> }) => {
+    generateArtworkCylinders: async (id: string, payload?: { side?: "FRONT" | "BACK"; slot?: number; targets?: Array<{ side: "FRONT" | "BACK"; slot: number }>; circumference?: number; cylinder_circumference_mm?: number; engraving_vendor?: string; storage_location?: string; status?: string }) => {
         const { data: res } = await api.post(`/api/engineering/artworks/${id}/generate-cylinders/`, payload || {});
         return res;
     },

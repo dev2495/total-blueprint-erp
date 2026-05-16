@@ -15,11 +15,19 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 import os
+from pathlib import Path
 
 from django.conf import settings
 from django.urls import include, path
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.static import serve
 from .views import health_check, health_live, health_ready
+
+
+@xframe_options_exempt
+def artwork_media_serve(request, path):
+    return serve(request, path, document_root=Path(settings.MEDIA_ROOT) / 'artworks')
+
 
 urlpatterns = [
     path('api/health/live/', health_live, name='health-live'),
@@ -57,7 +65,7 @@ urlpatterns = [
     path('api/mrp/', include('apps.mrp.urls')),
     path('api/costing/', include('apps.costing.urls')),
     path('api/ops/', include('apps.platformops.urls')),
-    path('media/artworks/<path:path>', serve, {'document_root': settings.MEDIA_ROOT / 'artworks'}),
+    path('media/artworks/<path:path>', artwork_media_serve),
 ]
 
 if os.getenv("SKIP_ADMIN_APP_IMPORT") != "1":

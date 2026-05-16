@@ -41,6 +41,7 @@ class Artwork(models.Model):
     ink_gsm_split_mode = models.CharField(max_length=12, choices=INK_GSM_SPLIT_CHOICES, default='EQUAL')
     ink_gsm_color_percentages = models.JSONField(default=dict, blank=True)
     ink_gsm_by_color = models.JSONField(default=dict, blank=True)
+    cylinder_circumference_mm = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     colors_count = models.IntegerField(default=0)
     front_colors_count = models.PositiveIntegerField(default=0)
     back_colors_count = models.PositiveIntegerField(default=0)
@@ -48,7 +49,7 @@ class Artwork(models.Model):
     back_colors = models.JSONField(default=list, help_text="Back side color names")
     
     file_path = models.CharField(max_length=500, blank=True, null=True, help_text="S3 or Local Path to PDF/AI")
-    image = models.ImageField(upload_to='artworks/', null=True, blank=True)
+    image = models.FileField(upload_to='artworks/', null=True, blank=True)
     version = models.IntegerField(default=1)
     previous_version = models.ForeignKey(
         "self",
@@ -88,7 +89,7 @@ class Artwork(models.Model):
 class ArtworkImage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     artwork = models.ForeignKey(Artwork, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to="artworks/")
+    image = models.FileField(upload_to="artworks/")
     sort_order = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

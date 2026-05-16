@@ -29,6 +29,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             front_colors_count=2,
             color_list=["YELLOW", "BLACK"],
             colors_count=2,
+            cylinder_circumference_mm=420,
         )
 
         result = CylinderService.generate_for_artwork(
@@ -41,6 +42,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
         self.assertEqual(cylinder.side, "FRONT")
         self.assertEqual(cylinder.side_slot_index, 2)
         self.assertEqual(cylinder.color_name, "BLACK")
+        self.assertEqual(float(cylinder.circumference), 420.0)
         self.assertFalse(Cylinder.objects.filter(artwork=artwork, side_slot_index=1).exists())
         self.assertTrue(CylinderSlotAssignment.objects.filter(artwork=artwork, side="FRONT", side_slot_index=2).exists())
 
@@ -54,6 +56,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             front_colors_count=1,
             color_list=["CYAN"],
             colors_count=1,
+            cylinder_circumference_mm=314,
         )
         target = Artwork.objects.create(
             design_code="ART-REUSE-TARGET",
@@ -64,6 +67,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             front_colors_count=1,
             color_list=["CYAN"],
             colors_count=1,
+            cylinder_circumference_mm=314,
         )
         cylinder = Cylinder.objects.create(
             code="CYL-REUSE-CYAN",
@@ -104,6 +108,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             front_colors_count=1,
             color_list=["GREEN"],
             colors_count=1,
+            cylinder_circumference_mm=340,
         )
         result = CylinderService.generate_for_artwork(artwork.id, targets=[{"side": "FRONT", "slot": 1}])
         cylinder = result["created"][0]
@@ -126,3 +131,51 @@ class CylinderSlotAssignmentFlowTests(TestCase):
         self.assertFalse(saved.is_draft)
         self.assertEqual(saved.lifecycle_status, "ACTIVE")
         self.assertEqual(saved.status, "ACTIVE")
+
+    def test_reuse_blocks_cylinder_with_different_artwork_circumference(self):
+        source = Artwork.objects.create(
+            design_code="ART-REUSE-420",
+            name="Reuse Source 420",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+            cylinder_circumference_mm=420,
+        )
+        target = Artwork.objects.create(
+            design_code="ART-REUSE-500",
+            name="Reuse Target 500",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+            cylinder_circumference_mm=500,
+        )
+        cylinder = Cylinder.objects.create(
+            code="CYL-REUSE-420",
+            name="Reusable 420",
+            artwork=source,
+            engraving_vendor=self.vendor,
+            storage_location=self.location,
+            color_name="CYAN",
+            diameter_mm=100,
+            width_mm=500,
+            circumference=420,
+            side="FRONT",
+            side_slot_index=1,
+            is_draft=False,
+            lifecycle_status="ACTIVE",
+            status="ACTIVE",
+        )
+
+        with self.assertRaisesMessage(ValueError, "circumference must match"):
+            CylinderService.assign_existing_to_slot(
+                artwork_id=target.id,
+                cylinder_id=cylinder.id,
+                side="FRONT",
+                slot=1,
+            )

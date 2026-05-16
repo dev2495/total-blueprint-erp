@@ -30,6 +30,7 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
   await page.getByTestId("artwork-image-input").setInputFiles(sampleImage)
   await page.getByTestId("artwork-add-front-color").click()
   await page.getByTestId("artwork-ink-gsm-total").fill("1.2")
+  await page.getByTestId("artwork-cylinder-circumference").fill("420")
   await page.getByTestId("artwork-save-draft").click()
 
   await expect(page.getByTestId("artwork-dialog")).toBeHidden({ timeout: 30_000 })

@@ -247,6 +247,16 @@ api.interceptors.request.use(
         }
 
         config.headers = config.headers || {};
+        if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+            const headers = config.headers as Record<string, unknown> & { delete?: (name: string) => unknown };
+            if (typeof headers.delete === "function") {
+                headers.delete("Content-Type");
+                headers.delete("content-type");
+            } else {
+                delete headers["Content-Type"];
+                delete headers["content-type"];
+            }
+        }
 
         const roleOverride = Cookies.get("x_role_override");
         if (roleOverride) {

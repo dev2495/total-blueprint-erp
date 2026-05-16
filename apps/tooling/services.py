@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from decimal import Decimal, InvalidOperation
 
 from apps.artwork.print_contract import get_artwork_contract
 from apps.artwork.models import Artwork
@@ -8,6 +9,21 @@ from .models import Cylinder, CylinderSlotAssignment
 
 
 class CylinderService:
+    @staticmethod
+    def _decimal(value, default=Decimal("0")):
+        try:
+            if value in (None, ""):
+                return default
+            return Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _same_circumference(left, right) -> bool:
+        left_num = CylinderService._decimal(left)
+        right_num = CylinderService._decimal(right)
+        return abs(left_num - right_num) <= Decimal("0.01")
+
     @staticmethod
     def _next_code(artwork: Artwork, side: str, slot: int) -> str:
         base = f"CYL-{str(artwork.id)[:6].upper()}-{side[:1]}{slot:02d}"
@@ -99,6 +115,12 @@ class CylinderService:
             raise ValueError("Inactive legacy cylinders cannot be reused for artwork slots.")
         if float(cylinder.circumference or 0) <= 0:
             raise ValueError("Reusable cylinder must have a circumference.")
+        required_circumference = CylinderService._decimal(getattr(artwork, "cylinder_circumference_mm", 0))
+        if required_circumference > 0 and not CylinderService._same_circumference(cylinder.circumference, required_circumference):
+            raise ValueError(
+                "Reusable cylinder circumference must match the artwork repeat "
+                f"({required_circumference} mm)."
+            )
         if not cylinder.engraving_vendor_id or not cylinder.storage_location_id:
             raise ValueError("Reusable cylinder must have vendor and storage location.")
         color_name = CylinderService._slot_color(artwork, side, slot)
@@ -112,7 +134,16 @@ class CylinderService:
 
     @staticmethod
     @transaction.atomic
-    def generate_for_artwork(artwork_id, force: bool = False, targets=None):
+    def generate_for_artwork(
+        artwork_id,
+        force: bool = False,
+        targets=None,
+        *,
+        circumference=None,
+        engraving_vendor=None,
+        storage_location=None,
+        status=None,
+    ):
         artwork = Artwork.objects.get(id=artwork_id)
         try:
             contract = get_artwork_contract(artwork, require_asset=False)
@@ -123,6 +154,17 @@ class CylinderService:
         front_colors = list(contract["front_colors"])
         back_colors = list(contract["back_colors"])
         target_slots = CylinderService._normalize_targets(targets, front_count, back_count)
+        required_circumference = CylinderService._decimal(circumference, CylinderService._decimal(getattr(artwork, "cylinder_circumference_mm", 0)))
+        if required_circumference <= 0:
+            raise ValueError("Enter artwork cylinder circumference before generating cylinders.")
+        if not CylinderService._same_circumference(getattr(artwork, "cylinder_circumference_mm", 0), required_circumference):
+            artwork.cylinder_circumference_mm = required_circumference
+            artwork.save(update_fields=["cylinder_circumference_mm"])
+
+        lifecycle_status = str(status or "DRAFT").strip().upper()
+        if lifecycle_status not in {"DRAFT", "ACTIVE", "MAINTENANCE", "SCRAP"}:
+            lifecycle_status = "DRAFT"
+        make_final = lifecycle_status != "DRAFT" and bool(engraving_vendor) and bool(storage_location)
 
         created = []
         existing_draft = []
@@ -197,15 +239,17 @@ class CylinderService:
                     code=code,
                     name=f"{artwork.design_code} {side.title()} #{slot}",
                     artwork=artwork,
+                    engraving_vendor_id=engraving_vendor if make_final else None,
+                    storage_location_id=storage_location if make_final else None,
                     color_name=color,
                     side=side,
                     side_slot_index=slot,
-                    is_draft=True,
-                    lifecycle_status="DRAFT",
+                    is_draft=not make_final,
+                    lifecycle_status=lifecycle_status if make_final else "DRAFT",
                     diameter_mm=100.00,
                     width_mm=500.00,
-                    circumference=314.16,
-                    status="ACTIVE",
+                    circumference=required_circumference,
+                    status=lifecycle_status if make_final else "ACTIVE",
                 )
                 CylinderService.sync_direct_assignment(cyl)
                 created.append(cyl)

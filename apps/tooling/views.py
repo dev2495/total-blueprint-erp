@@ -14,6 +14,14 @@ class CylinderViewSet(viewsets.ModelViewSet):
         include_inactive = str(self.request.query_params.get("include_inactive", "")).strip().lower() in {"1", "true", "yes"}
         if not include_inactive:
             qs = qs.filter(is_catalog_active=True)
+        circumference = self.request.query_params.get("circumference") or self.request.query_params.get("repeat_mm")
+        if circumference not in (None, ""):
+            try:
+                value = float(circumference)
+            except Exception:
+                value = None
+            if value is not None and value > 0:
+                qs = qs.filter(circumference__gte=value - 0.01, circumference__lte=value + 0.01)
         return qs
 
     def perform_create(self, serializer):

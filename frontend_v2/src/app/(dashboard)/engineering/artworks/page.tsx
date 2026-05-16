@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
-import { artworkImageUrls, engineeringService, type Artwork } from "@/services/engineering"
+import { artworkImageUrls, engineeringService, isPdfMediaUrl, type Artwork } from "@/services/engineering"
 import { ArtworkDialog } from "@/components/engineering/artwork-dialog"
 
 function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
@@ -19,6 +19,10 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
   useEffect(() => {
     if (!imageUrl) {
       setLoadState("failed")
+      return
+    }
+    if (isPdfMediaUrl(imageUrl)) {
+      setLoadState("ready")
       return
     }
 
@@ -40,6 +44,9 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
   }, [imageUrl])
 
   if (imageUrl && loadState === "ready") {
+    if (isPdfMediaUrl(imageUrl)) {
+      return <iframe src={imageUrl} title={`${artwork.name} PDF preview`} className="h-full w-full bg-white" />
+    }
     return (
       <img
         src={imageUrl}

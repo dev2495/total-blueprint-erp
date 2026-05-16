@@ -16,7 +16,7 @@ def _ink_contract():
     }
 
 
-def _build_cylinder(*, side, slot, is_draft=False, cell_depth=28, lifecycle_status="READY"):
+def _build_cylinder(*, side, slot, is_draft=False, cell_depth=0, lifecycle_status="READY", vendor_id="vendor-1", circumference=314):
     return SimpleNamespace(
         side=side,
         side_slot_index=slot,
@@ -26,9 +26,9 @@ def _build_cylinder(*, side, slot, is_draft=False, cell_depth=28, lifecycle_stat
         color_name="YELLOW",
         diameter_mm=100,
         width_mm=500,
-        circumference=314,
+        circumference=circumference,
         cell_depth_microns=cell_depth,
-        engraving_vendor_id="vendor-1",
+        engraving_vendor_id=vendor_id,
         storage_location_id="rack-1",
         lifecycle_status=lifecycle_status,
     )
@@ -66,6 +66,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["YELLOW", "BLACK"],
             back_colors=[],
             print_type="ROTO",
+            cylinder_circumference_mm=314,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
@@ -88,10 +89,11 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["RED"],
             back_colors=[],
             print_type="ROTO",
+            cylinder_circumference_mm=314,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
-        mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1, cell_depth=0)]
+        mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1, vendor_id="")]
 
         with self.assertRaises(ValidationError) as exc:
             ArtworkService.approve_artwork("art-2", user=SimpleNamespace())
@@ -110,6 +112,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["CYAN"],
             back_colors=["BLACK"],
             print_type="ROTO",
+            cylinder_circumference_mm=314,
             status="DRAFT",
             color_list=[],
             colors_count=0,
@@ -139,6 +142,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["YELLOW"],
             back_colors=[],
             print_type="ROTO",
+            cylinder_circumference_mm=314,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
@@ -164,6 +168,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             front_colors=["YELLOW"],
             back_colors=[],
             print_type="ROTO",
+            cylinder_circumference_mm=314,
             **_ink_contract(),
         )
         mock_get.return_value = artwork

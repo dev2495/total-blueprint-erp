@@ -66,6 +66,35 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.assertEqual(response.status_code, 400, response.content)
         self.assertFalse(Artwork.objects.filter(design_code="ART-API-2").exists())
 
+    def test_multipart_create_keeps_new_artwork_current(self):
+        upload = SimpleUploadedFile(
+            "new-artwork.png",
+            b"new-artwork-payload",
+            content_type="image/png",
+        )
+
+        response = self.client.post(
+            "/api/engineering/artworks/",
+            {
+                "design_code": "ART-API-CURRENT",
+                "name": "Current Multipart Artwork",
+                "print_type": "FLEXO",
+                "substrate_mode": "SHEET",
+                "front_colors": '["CYAN"]',
+                "front_colors_count": "1",
+                "color_list": '["CYAN"]',
+                "colors_count": "1",
+                "ink_gsm_total": "1.2",
+                "image": upload,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        artwork = Artwork.objects.get(design_code="ART-API-CURRENT")
+        self.assertTrue(artwork.is_current_version)
+        self.assertTrue(response.data["is_current_version"])
+
     def test_patch_rejects_direct_approval_metadata_writes(self):
         response = self.client.patch(
             f"/api/engineering/artworks/{self.artwork.id}/",
@@ -126,6 +155,30 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.assertIn("/media/artworks/", response.data["image"])
         self.assertEqual(len(response.data["images"]), 1)
         self.assertIn("/media/artworks/", response.data["primary_image"])
+
+    def test_patch_persists_uploaded_artwork_pdf_and_returns_preview_url(self):
+        upload = SimpleUploadedFile(
+            "artwork-proof.pdf",
+            b"%PDF-1.4\n% artwork proof\n",
+            content_type="application/pdf",
+        )
+
+        response = self.client.patch(
+            f"/api/engineering/artworks/{self.artwork.id}/",
+            {"image": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.artwork.refresh_from_db()
+        self.assertTrue(self.artwork.image.name.endswith(".pdf"))
+        self.assertIn("/media/artworks/", response.data["primary_image"])
+        self.assertIn(".pdf", response.data["primary_image"])
+
+        media_path = response.data["primary_image"].split("testserver", 1)[-1]
+        media_response = self.client.get(media_path)
+        self.assertEqual(media_response.status_code, 200)
+        self.assertNotIn("X-Frame-Options", media_response.headers)
 
     def test_patch_persists_up_to_three_artwork_images(self):
         uploads = [
@@ -310,6 +363,7 @@ class ArtworkApiApprovalControlTests(TestCase):
             colors_count=2,
             ink_gsm_total="1.20",
             ink_gsm_split_mode="EQUAL",
+            cylinder_circumference_mm=314,
             status="DRAFT",
         )
         vendor = Vendor.objects.create(name="Approval Cylinder Vendor", code="APR-CYL-VENDOR")
@@ -357,3 +411,68 @@ class ArtworkApiApprovalControlTests(TestCase):
         saved_artwork = Artwork.objects.get(id=saved_artwork_id)
         self.assertEqual(saved_artwork.status, "APPROVED")
         self.assertTrue(saved_artwork.image.name)
+
+    def test_generated_roto_cylinders_can_be_finalized_with_minimal_common_fields_and_approved(self):
+        artwork = Artwork.objects.create(
+            design_code="ART-API-ROTO-2",
+            name="Generated cylinder approval",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN", "BLACK"],
+            front_colors_count=2,
+            back_colors=[],
+            back_colors_count=0,
+            color_list=["CYAN", "BLACK"],
+            colors_count=2,
+            ink_gsm_total="1.20",
+            ink_gsm_split_mode="EQUAL",
+            cylinder_circumference_mm=420,
+            status="DRAFT",
+        )
+        vendor = Vendor.objects.create(name="Generated Cylinder Vendor", code="GEN-CYL-VENDOR")
+        plant = Plant.objects.create(name="Generated Plant", code="GEN-PLANT")
+        location = InventoryLocation.objects.create(plant=plant, code="GEN-TOOL", name="Generated Tool Room", type="TOOLING")
+        upload = SimpleUploadedFile(
+            "generated-roto.pdf",
+            b"%PDF-1.4\n% generated roto proof\n",
+            content_type="application/pdf",
+        )
+        upload_response = self.client.patch(
+            f"/api/engineering/artworks/{artwork.id}/",
+            {"image": upload, "update_in_place": "true"},
+            format="multipart",
+        )
+        self.assertEqual(upload_response.status_code, 200, upload_response.content)
+
+        generate_response = self.client.post(
+            f"/api/engineering/artworks/{artwork.id}/generate-cylinders/",
+            {"circumference": "420"},
+            format="json",
+        )
+        self.assertEqual(generate_response.status_code, 200, generate_response.content)
+        self.assertEqual(generate_response.data["count"], 2)
+
+        for cylinder in Cylinder.objects.filter(artwork=artwork):
+            response = self.client.patch(
+                f"/api/tooling/cylinders/{cylinder.id}/",
+                {
+                    "circumference": "420",
+                    "engraving_vendor": str(vendor.id),
+                    "storage_location": str(location.id),
+                    "is_draft": False,
+                    "lifecycle_status": "ACTIVE",
+                    "status": "ACTIVE",
+                },
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+
+        approve_response = self.client.post(
+            f"/api/engineering/artworks/{artwork.id}/approve/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(approve_response.status_code, 200, approve_response.content)
+        artwork.refresh_from_db()
+        self.assertEqual(artwork.status, "APPROVED")

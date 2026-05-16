@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { artworkImageUrls, normalizeMediaUrl, engineeringService, type Artwork, type Cylinder, type CylinderSlotAssignment } from "@/services/engineering"
+import { artworkImageUrls, isPdfMediaUrl, normalizeMediaUrl, engineeringService, type Artwork, type Cylinder, type CylinderSlotAssignment } from "@/services/engineering"
 import { masterDataService } from "@/services/master-data"
 import { CylinderDialog } from "@/components/engineering/cylinder-dialog"
 import { MasterRegistryShell } from "@/components/master/master-registry-shell"
@@ -40,6 +40,9 @@ function ArtworkCardMedia({ src, name }: { src?: string | null; name: string }) 
   const [failed, setFailed] = useState(false)
   useEffect(() => setFailed(false), [src])
   if (src && !failed) {
+    if (isPdfMediaUrl(src)) {
+      return <iframe src={src} title={`${name} PDF preview`} className="h-full w-full bg-white" onError={() => setFailed(true)} />
+    }
     return <img src={src} alt={name} className="h-full w-full object-cover" onError={() => setFailed(true)} />
   }
   return (
@@ -118,7 +121,7 @@ function CylinderArtworkGroupDialog({
   useEffect(() => {
     if (!open) return
     const first = slots.find((slot) => slot.cylinder)?.cylinder
-    setCircumference(first?.circumference ? String(first.circumference) : "")
+    setCircumference(artwork?.cylinder_circumference_mm ? String(artwork.cylinder_circumference_mm) : first?.circumference ? String(first.circumference) : "")
     setCommonDiameter(first?.diameter_mm ? String(first.diameter_mm) : "")
     setCommonWidth(first?.width_mm ? String(first.width_mm) : "")
     setCommonCellDepth(first?.cell_depth_microns ? String(first.cell_depth_microns) : "")
@@ -127,6 +130,17 @@ function CylinderArtworkGroupDialog({
     setCommonStatus((["ACTIVE", "MAINTENANCE", "SCRAP"].includes(String(first?.status || "")) ? String(first?.status) : "ACTIVE") as "ACTIVE" | "MAINTENANCE" | "SCRAP")
     setSelectedBySlot({})
   }, [open, artwork?.id])
+
+  async function persistArtworkRepeat() {
+    if (!artwork?.id) return
+    const repeat = asNumber(circumference, 0)
+    if (repeat <= 0) throw new Error("Enter required circumference before using cylinder slots.")
+    if (Math.abs(asNumber(artwork.cylinder_circumference_mm, 0) - repeat) <= 0.01) return
+    await engineeringService.updateArtwork(artwork.id, {
+      cylinder_circumference_mm: repeat,
+      update_in_place: true,
+    })
+  }
 
   const reuseCandidates = useMemo(() => {
     const required = asNumber(circumference, 0)
@@ -139,12 +153,15 @@ function CylinderArtworkGroupDialog({
   }, [cylinders, circumference])
 
   const assignMutation = useMutation({
-    mutationFn: ({ slot, cylinderId }: { slot: CylinderSlotView; cylinderId: string }) => engineeringService.assignCylinderSlot({
-      artwork: artwork?.id || "",
-      cylinder: cylinderId,
-      side: slot.side,
-      side_slot_index: slot.slot,
-    }),
+    mutationFn: async ({ slot, cylinderId }: { slot: CylinderSlotView; cylinderId: string }) => {
+      await persistArtworkRepeat()
+      return engineeringService.assignCylinderSlot({
+        artwork: artwork?.id || "",
+        cylinder: cylinderId,
+        side: slot.side,
+        side_slot_index: slot.slot,
+      })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cylinders"] })
       queryClient.invalidateQueries({ queryKey: ["artworks"] })
@@ -169,6 +186,7 @@ function CylinderArtworkGroupDialog({
       if (!commonVendor) throw new Error("Select engraving vendor before finalizing generated cylinders.")
       if (!commonLocation) throw new Error("Select storage location before finalizing generated cylinders.")
       if (asNumber(circumference, 0) <= 0) throw new Error("Enter circumference before finalizing generated cylinders.")
+      await persistArtworkRepeat()
       const payload: Partial<Cylinder> = {
         diameter_mm: asNumber(commonDiameter, 100),
         width_mm: asNumber(commonWidth, 500),
@@ -287,7 +305,11 @@ function CylinderArtworkGroupDialog({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {slot.cylinder ? (
+                    {slot.cylinder?.is_draft ? (
+                      <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-bold text-amber-700">
+                        Draft covered by common finalize
+                      </div>
+                    ) : slot.cylinder ? (
                       <Button variant="outline" className="w-full" onClick={() => onEditCylinder(slot.cylinder as Cylinder)}>
                         <Pencil className="mr-2 h-4 w-4" /> Edit cylinder
                       </Button>

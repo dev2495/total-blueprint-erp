@@ -173,7 +173,15 @@ class ArtworkViewSet(viewsets.ModelViewSet):
                 }
             ]
         try:
-            result = CylinderService.generate_for_artwork(pk, force=force, targets=targets)
+            result = CylinderService.generate_for_artwork(
+                pk,
+                force=force,
+                targets=targets,
+                circumference=request.data.get("circumference") or request.data.get("cylinder_circumference_mm"),
+                engraving_vendor=request.data.get("engraving_vendor"),
+                storage_location=request.data.get("storage_location"),
+                status=request.data.get("status"),
+            )
             created_rows = result.get("created", [])
             existing_draft = result.get("existing_draft", [])
             existing_finalized = result.get("existing_finalized", [])

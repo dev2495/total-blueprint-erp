@@ -212,7 +212,14 @@ class ArtworkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Artwork
         fields = "__all__"
-        read_only_fields = ("approved_by", "approved_at", "product_master_name", "product_master_code")
+        read_only_fields = (
+            "approved_by",
+            "approved_at",
+            "previous_version",
+            "is_current_version",
+            "product_master_name",
+            "product_master_code",
+        )
 
     def _next_version_code(self, instance: Artwork) -> str:
         raw_code = str(instance.design_code or "ART").strip().upper()
@@ -337,6 +344,7 @@ class ArtworkSerializer(serializers.ModelSerializer):
                 "ink_gsm_split_mode": instance.ink_gsm_split_mode,
                 "ink_gsm_color_percentages": dict(instance.ink_gsm_color_percentages or {}),
                 "ink_gsm_by_color": dict(instance.ink_gsm_by_color or {}),
+                "cylinder_circumference_mm": instance.cylinder_circumference_mm,
                 "file_path": instance.file_path,
                 "image": instance.image,
                 "version": int(instance.version or 1) + 1,
@@ -445,6 +453,14 @@ class ArtworkSerializer(serializers.ModelSerializer):
             percentages_value=raw_percentages,
             color_names=color_list,
         )
+        cylinder_circumference = _coerce_decimal(
+            attrs.get(
+                "cylinder_circumference_mm",
+                getattr(self.instance, "cylinder_circumference_mm", 0) if self.instance else 0,
+            )
+        )
+        if cylinder_circumference < 0:
+            raise serializers.ValidationError({"cylinder_circumference_mm": "Cylinder circumference cannot be negative."})
 
         attrs["print_type"] = str(attrs.get("print_type") or getattr(self.instance, "print_type", "FLEXO")).upper()
         attrs["substrate_mode"] = substrate_mode
@@ -459,4 +475,5 @@ class ArtworkSerializer(serializers.ModelSerializer):
         attrs["ink_gsm_split_mode"] = ink_contract["ink_gsm_split_mode"]
         attrs["ink_gsm_color_percentages"] = ink_contract["ink_gsm_color_percentages"]
         attrs["ink_gsm_by_color"] = ink_contract["ink_gsm_by_color"]
+        attrs["cylinder_circumference_mm"] = cylinder_circumference
         return attrs
