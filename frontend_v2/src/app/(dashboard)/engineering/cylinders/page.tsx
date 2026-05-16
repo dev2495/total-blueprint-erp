@@ -123,7 +123,7 @@ function CylinderArtworkGroupDialog({
     const first = slots.find((slot) => slot.cylinder)?.cylinder
     setCircumference(artwork?.cylinder_circumference_mm ? String(artwork.cylinder_circumference_mm) : first?.circumference ? String(first.circumference) : "")
     setCommonDiameter(first?.diameter_mm ? String(first.diameter_mm) : "")
-    setCommonWidth(first?.width_mm ? String(first.width_mm) : "")
+    setCommonWidth(artwork?.cylinder_length_mm ? String(artwork.cylinder_length_mm) : first?.width_mm ? String(first.width_mm) : "")
     setCommonCellDepth(first?.cell_depth_microns ? String(first.cell_depth_microns) : "")
     setCommonVendor(first?.engraving_vendor || "")
     setCommonLocation(first?.storage_location || "")
@@ -131,30 +131,39 @@ function CylinderArtworkGroupDialog({
     setSelectedBySlot({})
   }, [open, artwork?.id])
 
-  async function persistArtworkRepeat() {
+  async function persistArtworkCylinderSpecs() {
     if (!artwork?.id) return
     const repeat = asNumber(circumference, 0)
+    const length = asNumber(commonWidth, 0)
     if (repeat <= 0) throw new Error("Enter required circumference before using cylinder slots.")
-    if (Math.abs(asNumber(artwork.cylinder_circumference_mm, 0) - repeat) <= 0.01) return
+    if (length <= 0) throw new Error("Enter required cylinder length before using cylinder slots.")
+    if (
+      Math.abs(asNumber(artwork.cylinder_circumference_mm, 0) - repeat) <= 0.01 &&
+      Math.abs(asNumber(artwork.cylinder_length_mm, 0) - length) <= 0.01
+    ) return
     await engineeringService.updateArtwork(artwork.id, {
       cylinder_circumference_mm: repeat,
+      cylinder_length_mm: length,
       update_in_place: true,
     })
   }
 
   const reuseCandidates = useMemo(() => {
     const required = asNumber(circumference, 0)
+    const requiredLength = asNumber(commonWidth, 0)
     return cylinders
       .filter((row) => !Boolean(row.is_draft))
       .filter((row) => Number(row.circumference || 0) > 0)
+      .filter((row) => Number(row.width_mm || 0) > 0)
       .filter((row) => Boolean(row.engraving_vendor && row.storage_location))
       .filter((row) => (required > 0 ? Math.abs(Number(row.circumference || 0) - required) < 0.01 : true))
+      .filter((row) => (requiredLength > 0 ? Math.abs(Number(row.width_mm || 0) - requiredLength) < 0.01 : true))
       .sort((left, right) => String(left.artwork_name || "").localeCompare(String(right.artwork_name || "")) || String(left.code || "").localeCompare(String(right.code || "")))
-  }, [cylinders, circumference])
+  }, [cylinders, circumference, commonWidth])
 
   const assignMutation = useMutation({
     mutationFn: async ({ slot, cylinderId }: { slot: CylinderSlotView; cylinderId: string }) => {
-      await persistArtworkRepeat()
+      await persistArtworkCylinderSpecs()
       return engineeringService.assignCylinderSlot({
         artwork: artwork?.id || "",
         cylinder: cylinderId,
@@ -186,10 +195,11 @@ function CylinderArtworkGroupDialog({
       if (!commonVendor) throw new Error("Select engraving vendor before finalizing generated cylinders.")
       if (!commonLocation) throw new Error("Select storage location before finalizing generated cylinders.")
       if (asNumber(circumference, 0) <= 0) throw new Error("Enter circumference before finalizing generated cylinders.")
-      await persistArtworkRepeat()
+      if (asNumber(commonWidth, 0) <= 0) throw new Error("Enter cylinder length before finalizing generated cylinders.")
+      await persistArtworkCylinderSpecs()
       const payload: Partial<Cylinder> = {
         diameter_mm: asNumber(commonDiameter, 100),
-        width_mm: asNumber(commonWidth, 500),
+        width_mm: asNumber(commonWidth, 0),
         circumference: asNumber(circumference, 0),
         cell_depth_microns: asNumber(commonCellDepth, 0),
         engraving_vendor: commonVendor,
@@ -230,19 +240,33 @@ function CylinderArtworkGroupDialog({
         </DialogHeader>
         <div className="grid max-h-[72vh] gap-5 overflow-y-auto p-6 lg:grid-cols-[280px_1fr]">
           <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div>
-              <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Required Circumference</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={circumference}
-                onChange={(event) => setCircumference(event.target.value)}
-                placeholder="Repeat in mm"
-                className="mt-2 bg-white"
-                data-testid="cylinder-reuse-circumference"
-              />
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Required Circumference</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={circumference}
+                  onChange={(event) => setCircumference(event.target.value)}
+                  placeholder="Repeat in mm"
+                  className="mt-2 bg-white"
+                  data-testid="cylinder-reuse-circumference"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Required Length</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={commonWidth}
+                  onChange={(event) => setCommonWidth(event.target.value)}
+                  placeholder="Length in mm"
+                  className="mt-2 bg-white"
+                  data-testid="cylinder-reuse-length"
+                />
+              </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                Enter the repeat once, then reuse any finalized cylinder with the same circumference for empty slots.
+                Reuse candidates must match repeat and length. Vendor can be any.
               </p>
             </div>
             <div className="space-y-3 border-t border-slate-200 pt-4">
@@ -297,7 +321,7 @@ function CylinderArtworkGroupDialog({
                     {slot.cylinder ? (
                       <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
                         <div><span className="font-semibold text-slate-900">{slot.cylinder.code}</span><br />{slot.cylinder.artwork_name || "Current artwork"}</div>
-                        <div>{slot.cylinder.circumference || 0} mm repeat<br />{slot.cylinder.engraving_vendor_name || "Vendor pending"}</div>
+                        <div>{slot.cylinder.circumference || 0} mm repeat<br />{slot.cylinder.width_mm || 0} mm length</div>
                         <div>{slot.cylinder.location_name || "Location pending"}<br />{slot.cylinder.lifecycle_status || slot.cylinder.status}</div>
                       </div>
                     ) : (
@@ -323,7 +347,7 @@ function CylinderArtworkGroupDialog({
                             <SelectItem value="__NONE__">Select matching cylinder</SelectItem>
                             {reuseCandidates.map((candidate) => (
                               <SelectItem key={candidate.id} value={candidate.id}>
-                                {candidate.code} · {candidate.color_name || "Color"} · {candidate.artwork_name || "Unlinked"} · {candidate.circumference}mm
+                                {candidate.code} · {candidate.color_name || "Color"} · {candidate.artwork_name || "Unlinked"} · {candidate.circumference}×{candidate.width_mm}mm
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -375,6 +399,8 @@ export default function CylinderManagementPage() {
           substrate_mode: "TUBING",
           color_list: [],
           colors_count: 0,
+          cylinder_circumference_mm: cylinder.circumference,
+          cylinder_length_mm: cylinder.width_mm,
           file_path: "",
           image: cylinder.artwork_image || null,
           primary_image: cylinder.artwork_image || null,
@@ -473,6 +499,9 @@ export default function CylinderManagementPage() {
                 <div className="flex flex-wrap gap-2">
                   <SemanticBadge kind="approval" value={draft ? "PENDING" : "APPROVED"} label={draft ? `${draft} draft` : `${ready} ready`} />
                   <SemanticBadge kind="severity" value="INFO" label={`${group.artwork.print_type || "PRINT"} · ${group.artwork.substrate_mode || "SHEET"}`} />
+                  {Number(group.artwork.cylinder_circumference_mm || 0) > 0 && Number(group.artwork.cylinder_length_mm || 0) > 0 ? (
+                    <SemanticBadge kind="severity" value="LOW" label={`${group.artwork.cylinder_circumference_mm}×${group.artwork.cylinder_length_mm} mm`} />
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">

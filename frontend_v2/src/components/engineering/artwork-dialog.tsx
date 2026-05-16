@@ -53,6 +53,7 @@ const artworkSchema = z.object({
     ink_gsm_split_mode: z.enum(["EQUAL", "PERCENT"]),
     ink_gsm_color_percentages: z.record(z.string(), z.number().min(0)).optional(),
     cylinder_circumference_mm: z.number().min(0),
+    cylinder_length_mm: z.number().min(0),
     file_path: z.string().optional(),
     image: z.any().optional(), // Used for local file selection
 })
@@ -139,6 +140,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             ink_gsm_split_mode: "EQUAL",
             ink_gsm_color_percentages: {},
             cylinder_circumference_mm: 0,
+            cylinder_length_mm: 0,
             file_path: "",
         }
     })
@@ -162,6 +164,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 ink_gsm_split_mode: (artwork.ink_gsm_split_mode || "EQUAL") as "EQUAL" | "PERCENT",
                 ink_gsm_color_percentages: artwork.ink_gsm_color_percentages || {},
                 cylinder_circumference_mm: Number(artwork.cylinder_circumference_mm || 0),
+                cylinder_length_mm: Number(artwork.cylinder_length_mm || 0),
                 file_path: artwork.file_path || "",
             })
             setPreviewUrls(artworkImageUrls(artwork))
@@ -183,6 +186,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 ink_gsm_split_mode: "EQUAL",
                 ink_gsm_color_percentages: {},
                 cylinder_circumference_mm: 0,
+                cylinder_length_mm: 0,
                 file_path: "",
             })
             setPreviewUrls([])
@@ -209,6 +213,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             formData.append("ink_gsm_split_mode", values.ink_gsm_split_mode || "EQUAL")
             formData.append("ink_gsm_color_percentages", JSON.stringify(values.ink_gsm_color_percentages || {}))
             formData.append("cylinder_circumference_mm", String(values.cylinder_circumference_mm || 0))
+            formData.append("cylinder_length_mm", String(values.cylinder_length_mm || 0))
 
             const imageFiles = Array.isArray(values.image)
                 ? values.image.filter((file): file is File => file instanceof File)
@@ -263,12 +268,21 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 side,
                 slot,
                 circumference: Number(form.getValues("cylinder_circumference_mm") || 0),
+                length_mm: Number(form.getValues("cylinder_length_mm") || 0),
             }),
-        onSuccess: (res: any) => {
-            queryClient.invalidateQueries({ queryKey: ["artworks"] })
-            queryClient.invalidateQueries({ queryKey: ["cylinders"] })
-            queryClient.invalidateQueries({ queryKey: ["artwork-cylinders"] })
-            queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] })
+        onSuccess: async (res: any, variables) => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["artworks"] }),
+                queryClient.invalidateQueries({ queryKey: ["cylinders"] }),
+                queryClient.invalidateQueries({ queryKey: ["artwork-cylinders"] }),
+                queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] }),
+            ])
+            await Promise.all([
+                queryClient.refetchQueries({ queryKey: ["artworks"], type: "active" }),
+                queryClient.refetchQueries({ queryKey: ["cylinders"], type: "active" }),
+                queryClient.refetchQueries({ queryKey: ["artwork-cylinders", variables.artworkId], type: "active" }),
+                queryClient.refetchQueries({ queryKey: ["cylinder-slot-assignments", variables.artworkId], type: "active" }),
+            ])
             toast({
                 title: Number(res?.count || 0) > 0 ? "Draft cylinder generated" : "Cylinder slot already covered",
                 description: `Created ${Number(res?.count || 0)}, existing draft ${Number(res?.existing_draft_count || 0)}, existing finalized ${Number(res?.existing_finalized_count || 0)}.`,
@@ -288,7 +302,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const finalizeDraftCylindersMutation = useMutation({
         mutationFn: async () => {
             const repeat = Number(form.getValues("cylinder_circumference_mm") || 0)
+            const length = Number(form.getValues("cylinder_length_mm") || 0)
             if (repeat <= 0) throw new Error("Enter cylinder circumference before finalizing.")
+            if (length <= 0) throw new Error("Enter cylinder length before finalizing.")
             if (!finalizeVendor) throw new Error("Select engraving vendor before finalizing.")
             if (!finalizeLocation) throw new Error("Select storage location before finalizing.")
             const drafts = (artworkCylinders || []).filter(
@@ -299,6 +315,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 drafts.map((row) =>
                     engineeringService.updateCylinder(row.id, {
                         circumference: repeat,
+                        width_mm: length,
                         engraving_vendor: finalizeVendor,
                         storage_location: finalizeLocation,
                         is_draft: false,
@@ -334,6 +351,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const frontColorCount = Number(form.watch("front_colors_count") || 0)
     const backColorCount = Number(form.watch("back_colors_count") || 0)
     const cylinderCircumference = Number(form.watch("cylinder_circumference_mm") || 0)
+    const cylinderLength = Number(form.watch("cylinder_length_mm") || 0)
     const { data: artworkCylinders = [] } = useQuery({
         queryKey: ["artwork-cylinders", activeArtworkId || "none"],
         queryFn: () => engineeringService.getCylinders({ artwork: activeArtworkId }),
@@ -438,6 +456,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                     !String(row?.name || "").trim() ||
                     !String(row?.color_name || "").trim() ||
                     Number(row?.circumference || 0) <= 0 ||
+                    Number(row?.width_mm || 0) <= 0 ||
                     !String(row?.engraving_vendor || "").trim() ||
                     !String(row?.storage_location || "").trim()
                 )
@@ -448,6 +467,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                     .filter((row: any) => {
                         return (
                             Number(row?.cylinder_circumference || 0) <= 0 ||
+                            Number(row?.cylinder_width_mm || 0) <= 0 ||
                             !String(row?.cylinder_engraving_vendor || "").trim() ||
                             !String(row?.cylinder_storage_location || "").trim()
                         )
@@ -479,6 +499,12 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 label: "Cylinder repeat captured",
                 ok: printType !== "ROTO" || cylinderCircumference > 0,
                 detail: cylinderCircumference > 0 ? `${cylinderCircumference} mm` : "",
+            },
+            {
+                id: "length",
+                label: "Cylinder length captured",
+                ok: printType !== "ROTO" || cylinderLength > 0,
+                detail: cylinderLength > 0 ? `${cylinderLength} mm` : "",
             },
             {
                 id: "front-colors",
@@ -516,6 +542,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             inkSplitMode,
             percentageTotal,
             cylinderCircumference,
+            cylinderLength,
             frontColorCount,
             frontColors.length,
             backColorCount,
@@ -539,6 +566,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         if (!activeArtworkId) blockers.push("Save draft before approval.")
         if (printType === "ROTO") {
             if (cylinderCircumference <= 0) blockers.push("Enter artwork cylinder circumference.")
+            if (cylinderLength <= 0) blockers.push("Enter artwork cylinder length.")
             if (missingFrontSlots.length) blockers.push(`Missing finalized front slots: ${missingFrontSlots.join(", ")}.`)
             if (hasBackSide && missingBackSlots.length) blockers.push(`Missing finalized back slots: ${missingBackSlots.join(", ")}.`)
             if (incompleteFinalizedSlots.length) blockers.push(`Finalize technical data for: ${incompleteFinalizedSlots.join(", ")}.`)
@@ -558,12 +586,13 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         activeArtworkId,
         printType,
         cylinderCircumference,
+        cylinderLength,
         missingFrontSlots,
         missingBackSlots,
         incompleteFinalizedSlots,
     ])
     const canApprove = approvalBlockers.length === 0
-    const canGenerateCylinders = printType === "ROTO" && colorContractOk && cylinderCircumference > 0
+    const canGenerateCylinders = printType === "ROTO" && colorContractOk && cylinderCircumference > 0 && cylinderLength > 0
     const setColorMapping = useCallback(
         (color: string, inkId: string) => {
             const key = String(color || "").trim().toUpperCase()
@@ -586,7 +615,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         [form]
     )
     const slotCoverage = useMemo(() => {
-        const map = new Map<string, { state: "draft" | "ready"; label: string }>()
+        const map = new Map<string, { state: "draft" | "ready"; label: string; repeat?: number; length?: number }>()
         for (const row of artworkCylinders || []) {
             const side = String((row as any)?.side || "FRONT").toUpperCase()
             const slot = Number((row as any)?.side_slot_index || 0)
@@ -594,6 +623,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             map.set(`${side}:${slot}`, {
                 state: Boolean((row as any)?.is_draft) ? "draft" : "ready",
                 label: String((row as any)?.code || (row as any)?.name || "Cylinder"),
+                repeat: Number((row as any)?.circumference || 0),
+                length: Number((row as any)?.width_mm || 0),
             })
         }
         for (const row of cylinderAssignments || []) {
@@ -603,6 +634,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             map.set(`${side}:${slot}`, {
                 state: Boolean((row as any)?.cylinder_is_draft) ? "draft" : "ready",
                 label: String((row as any)?.cylinder_code || (row as any)?.cylinder_name || "Assigned cylinder"),
+                repeat: Number((row as any)?.cylinder_circumference || 0),
+                length: Number((row as any)?.cylinder_width_mm || 0),
             })
         }
         return map
@@ -629,6 +662,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 return
             }
             await generateCylindersMutation.mutateAsync({ artworkId: targetId, side: target.side, slot: target.slot })
+            await Promise.all([
+                queryClient.refetchQueries({ queryKey: ["artwork-cylinders", targetId], type: "active" }),
+                queryClient.refetchQueries({ queryKey: ["cylinder-slot-assignments", targetId], type: "active" }),
+            ])
         } catch {
             // handled in mutation onError / generate onError
         } finally {
@@ -1069,27 +1106,52 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                 </div>
                             </div>
                             {printType === "ROTO" ? (
-                                <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3" data-testid="artwork-roto-checklist">
-                                    <FormField control={form.control} name="cylinder_circumference_mm" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Artwork cylinder circumference / repeat (mm)</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    type="number"
-                                                    min={0}
-                                                    step="0.01"
-                                                    data-testid="artwork-cylinder-circumference"
-                                                    value={String(field.value ?? 0)}
-                                                    onChange={(event) => field.onChange(Number(event.target.value || 0))}
-                                                    className="bg-white"
-                                                />
-                                            </FormControl>
-                                            <FormDescription className="text-[10px]">
-                                                One repeat per artwork. Generated cylinders and reuse candidates must match this circumference.
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )} />
+                                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="artwork-roto-checklist">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">Cylinder specs</p>
+                                            <p className="mt-1 text-[10px] text-slate-500">One repeat and one length for this artwork. Reuse only matches both specs.</p>
+                                        </div>
+                                        <Badge variant="outline" className="bg-slate-50">
+                                            {cylinderCircumference > 0 && cylinderLength > 0 ? `${cylinderCircumference} × ${cylinderLength} mm` : "Required"}
+                                        </Badge>
+                                    </div>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <FormField control={form.control} name="cylinder_circumference_mm" render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Circumference / repeat (mm)</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        step="0.01"
+                                                        data-testid="artwork-cylinder-circumference"
+                                                        value={String(field.value ?? 0)}
+                                                        onChange={(event) => field.onChange(Number(event.target.value || 0))}
+                                                        className="bg-white"
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                        <FormField control={form.control} name="cylinder_length_mm" render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Cylinder length (mm)</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        step="0.01"
+                                                        data-testid="artwork-cylinder-length"
+                                                        value={String(field.value ?? 0)}
+                                                        onChange={(event) => field.onChange(Number(event.target.value || 0))}
+                                                        className="bg-white"
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                    </div>
                                     <div>
                                         <p className="text-[10px] font-bold uppercase text-slate-600">ROTO Readiness Checklist</p>
                                     <div className="mt-2 space-y-1.5">
@@ -1108,7 +1170,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
                                                 <p className="text-[10px] font-bold uppercase text-slate-600">Cylinder generation by color</p>
-                                                <p className="mt-1 text-[10px] text-slate-500">Generate only the colors that need a new cylinder. Reuse existing cylinders from the Cylinder Catalog.</p>
+                                                <p className="mt-1 text-[10px] text-slate-500">Each button covers only that color slot. A covered slot cannot generate another cylinder.</p>
                                             </div>
                                             <Badge variant="outline">{rotoColorSlots.length} color slots</Badge>
                                         </div>
@@ -1122,7 +1184,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         <div className="min-w-0">
                                                             <div className="truncate text-xs font-black text-slate-900">{slot.side} {slot.slot} · {slot.color || "Color pending"}</div>
                                                             <div className="mt-0.5 text-[10px] text-slate-500">
-                                                                {coverage ? `${coverage.state === "ready" ? "Ready" : "Draft"}: ${coverage.label}` : "No cylinder assigned yet"}
+                                                                {coverage
+                                                                    ? `${coverage.state === "ready" ? "Ready" : "Draft"}: ${coverage.label} · ${coverage.repeat || cylinderCircumference}×${coverage.length || cylinderLength} mm`
+                                                                    : "No cylinder assigned yet"}
                                                             </div>
                                                         </div>
                                                         <Button
@@ -1134,7 +1198,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                             onClick={form.handleSubmit(() => generateCylinderForSlot({ side: slot.side, slot: slot.slot }))}
                                                         >
                                                             {isBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-2 h-3.5 w-3.5" />}
-                                                            {coverage ? "Covered" : "Generate"}
+                                                            {coverage ? "Covered" : "Generate this slot"}
                                                         </Button>
                                                     </div>
                                                 )
@@ -1153,7 +1217,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                             Applies the same repeat, vendor, location, and status to all {generatedDraftCylinders.length} draft slot{generatedDraftCylinders.length === 1 ? "" : "s"}.
                                                         </p>
                                                     </div>
-                                                    <Badge variant="outline" className="bg-white">{cylinderCircumference || 0} mm</Badge>
+                                                    <Badge variant="outline" className="bg-white">{cylinderCircumference || 0} × {cylinderLength || 0} mm</Badge>
                                                 </div>
                                                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                                                     <Select value={finalizeVendor || "__NONE__"} onValueChange={(value) => setFinalizeVendor(value === "__NONE__" ? "" : value)}>
@@ -1192,7 +1256,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                 <Button
                                                     type="button"
                                                     className="mt-3 w-full bg-emerald-600 text-white hover:bg-emerald-700"
-                                                    disabled={finalizeDraftCylindersMutation.isPending || cylinderCircumference <= 0 || !finalizeVendor || !finalizeLocation}
+                                                    disabled={finalizeDraftCylindersMutation.isPending || cylinderCircumference <= 0 || cylinderLength <= 0 || !finalizeVendor || !finalizeLocation}
                                                     onClick={() => finalizeDraftCylindersMutation.mutate()}
                                                     data-testid="artwork-finalize-generated-cylinders-button"
                                                 >

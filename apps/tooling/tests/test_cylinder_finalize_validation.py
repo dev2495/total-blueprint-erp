@@ -16,6 +16,8 @@ class CylinderFinalizeValidationTests(TestCase):
             file_path="/tmp/cylinder-test-artwork.pdf",
             front_colors=["YELLOW"],
             front_colors_count=1,
+            cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
         )
         self.vendor = Vendor.objects.create(name="Cylinder Vendor", code="CYL-VENDOR-001")
         self.plant = Plant.objects.create(name="Cylinder Plant", code="CYL-PLANT")

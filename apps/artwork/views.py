@@ -178,6 +178,7 @@ class ArtworkViewSet(viewsets.ModelViewSet):
                 force=force,
                 targets=targets,
                 circumference=request.data.get("circumference") or request.data.get("cylinder_circumference_mm"),
+                length_mm=request.data.get("length_mm") or request.data.get("width_mm") or request.data.get("cylinder_length_mm"),
                 engraving_vendor=request.data.get("engraving_vendor"),
                 storage_location=request.data.get("storage_location"),
                 status=request.data.get("status"),

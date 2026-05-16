@@ -16,7 +16,7 @@ def _ink_contract():
     }
 
 
-def _build_cylinder(*, side, slot, is_draft=False, cell_depth=0, lifecycle_status="READY", vendor_id="vendor-1", circumference=314):
+def _build_cylinder(*, side, slot, is_draft=False, cell_depth=0, lifecycle_status="READY", vendor_id="vendor-1", circumference=314, width_mm=500):
     return SimpleNamespace(
         side=side,
         side_slot_index=slot,
@@ -25,7 +25,7 @@ def _build_cylinder(*, side, slot, is_draft=False, cell_depth=0, lifecycle_statu
         name=f"Cylinder {side}-{slot}",
         color_name="YELLOW",
         diameter_mm=100,
-        width_mm=500,
+        width_mm=width_mm,
         circumference=circumference,
         cell_depth_microns=cell_depth,
         engraving_vendor_id=vendor_id,
@@ -67,6 +67,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             back_colors=[],
             print_type="ROTO",
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
@@ -90,6 +91,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             back_colors=[],
             print_type="ROTO",
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
@@ -113,6 +115,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             back_colors=["BLACK"],
             print_type="ROTO",
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
             status="DRAFT",
             color_list=[],
             colors_count=0,
@@ -143,6 +146,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             back_colors=[],
             print_type="ROTO",
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
@@ -169,6 +173,7 @@ class RotoApprovalGateTests(SimpleTestCase):
             back_colors=[],
             print_type="ROTO",
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
             **_ink_contract(),
         )
         mock_get.return_value = artwork
@@ -178,3 +183,31 @@ class RotoApprovalGateTests(SimpleTestCase):
             ArtworkService.approve_artwork("art-5", user=SimpleNamespace())
 
         self.assertIn("exceed the approved artwork slot range", str(exc.exception).lower())
+
+    @patch("apps.artwork.services.Artwork.objects.get")
+    @patch("apps.artwork.print_contract.Cylinder.objects.filter")
+    def test_approval_fails_when_finalized_cylinder_length_does_not_match_artwork(self, mock_filter, mock_get):
+        artwork = SimpleNamespace(
+            id="art-length",
+            file_path="/tmp/art.png",
+            image=None,
+            front_colors_count=1,
+            back_colors_count=0,
+            front_colors=["YELLOW"],
+            back_colors=[],
+            print_type="ROTO",
+            cylinder_circumference_mm=314,
+            cylinder_length_mm=650,
+            status="DRAFT",
+            color_list=[],
+            colors_count=0,
+            save=lambda: None,
+            **_ink_contract(),
+        )
+        mock_get.return_value = artwork
+        mock_filter.return_value.order_by.return_value = [_build_cylinder(side="FRONT", slot=1, width_mm=500)]
+
+        with self.assertRaises(ValidationError) as exc:
+            ArtworkService.approve_artwork("art-length", user=SimpleNamespace())
+
+        self.assertIn("cylinder length must match artwork", str(exc.exception).lower())

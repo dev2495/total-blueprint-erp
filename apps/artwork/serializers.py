@@ -345,6 +345,7 @@ class ArtworkSerializer(serializers.ModelSerializer):
                 "ink_gsm_color_percentages": dict(instance.ink_gsm_color_percentages or {}),
                 "ink_gsm_by_color": dict(instance.ink_gsm_by_color or {}),
                 "cylinder_circumference_mm": instance.cylinder_circumference_mm,
+                "cylinder_length_mm": instance.cylinder_length_mm,
                 "file_path": instance.file_path,
                 "image": instance.image,
                 "version": int(instance.version or 1) + 1,
@@ -461,6 +462,14 @@ class ArtworkSerializer(serializers.ModelSerializer):
         )
         if cylinder_circumference < 0:
             raise serializers.ValidationError({"cylinder_circumference_mm": "Cylinder circumference cannot be negative."})
+        cylinder_length = _coerce_decimal(
+            attrs.get(
+                "cylinder_length_mm",
+                getattr(self.instance, "cylinder_length_mm", 0) if self.instance else 0,
+            )
+        )
+        if cylinder_length < 0:
+            raise serializers.ValidationError({"cylinder_length_mm": "Cylinder length cannot be negative."})
 
         attrs["print_type"] = str(attrs.get("print_type") or getattr(self.instance, "print_type", "FLEXO")).upper()
         attrs["substrate_mode"] = substrate_mode
@@ -476,4 +485,5 @@ class ArtworkSerializer(serializers.ModelSerializer):
         attrs["ink_gsm_color_percentages"] = ink_contract["ink_gsm_color_percentages"]
         attrs["ink_gsm_by_color"] = ink_contract["ink_gsm_by_color"]
         attrs["cylinder_circumference_mm"] = cylinder_circumference
+        attrs["cylinder_length_mm"] = cylinder_length
         return attrs

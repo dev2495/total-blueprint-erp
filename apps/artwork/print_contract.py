@@ -341,6 +341,8 @@ def _cylinder_incomplete(row) -> bool:
         or not str(getattr(row, "color_name", "") or "").strip()
         or getattr(row, "circumference", None) is None
         or float(getattr(row, "circumference", 0) or 0) <= 0
+        or getattr(row, "width_mm", None) is None
+        or float(getattr(row, "width_mm", 0) or 0) <= 0
         or not getattr(row, "engraving_vendor_id", None)
         or not getattr(row, "storage_location_id", None)
         or str(getattr(row, "lifecycle_status", "DRAFT") or "DRAFT").upper() == "DRAFT"
@@ -357,6 +359,9 @@ def validate_roto_cylinder_readiness(artwork, *, require_ink_usage: bool = False
     required_circumference = _as_decimal(getattr(artwork, "cylinder_circumference_mm", 0), Decimal("0"))
     if required_circumference <= 0:
         raise ValidationError("ROTO approval blocked: artwork cylinder circumference is required.")
+    required_length = _as_decimal(getattr(artwork, "cylinder_length_mm", 0), Decimal("0"))
+    if required_length <= 0:
+        raise ValidationError("ROTO approval blocked: artwork cylinder length is required.")
     required_front_slots = set(range(1, front_count + 1))
     required_back_slots = set(range(1, back_count + 1))
 
@@ -391,6 +396,7 @@ def validate_roto_cylinder_readiness(artwork, *, require_ink_usage: bool = False
     unexpected_slots: list[str] = []
     incomplete_slots: list[str] = []
     circumference_mismatch_slots: list[str] = []
+    length_mismatch_slots: list[str] = []
     for row in finalized_rows:
         side = str(getattr(row, "_assignment_side", getattr(row, "side", "FRONT")) or "FRONT").upper()
         slot = _as_int(getattr(row, "_assignment_slot", getattr(row, "side_slot_index", 0)), 0)
@@ -410,6 +416,9 @@ def validate_roto_cylinder_readiness(artwork, *, require_ink_usage: bool = False
         cylinder_circumference = _as_decimal(getattr(row, "circumference", 0), Decimal("0"))
         if abs(cylinder_circumference - required_circumference) > Decimal("0.01"):
             circumference_mismatch_slots.append(f"{side}-{slot}")
+        cylinder_length = _as_decimal(getattr(row, "width_mm", 0), Decimal("0"))
+        if abs(cylinder_length - required_length) > Decimal("0.01"):
+            length_mismatch_slots.append(f"{side}-{slot}")
 
     duplicate_slots = sorted(f"{side}-{slot}" for (side, slot), rows in coverage.items() if len(rows) > 1)
     if duplicate_slots:
@@ -445,6 +454,11 @@ def validate_roto_cylinder_readiness(artwork, *, require_ink_usage: bool = False
         raise ValidationError(
             "ROTO approval blocked: cylinder circumference must match artwork repeat for slots "
             f"{sorted(set(circumference_mismatch_slots))}."
+        )
+    if length_mismatch_slots:
+        raise ValidationError(
+            "ROTO approval blocked: cylinder length must match artwork cylinder length for slots "
+            f"{sorted(set(length_mismatch_slots))}."
         )
 
     return contract

@@ -42,6 +42,7 @@ class Artwork(models.Model):
     ink_gsm_color_percentages = models.JSONField(default=dict, blank=True)
     ink_gsm_by_color = models.JSONField(default=dict, blank=True)
     cylinder_circumference_mm = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    cylinder_length_mm = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     colors_count = models.IntegerField(default=0)
     front_colors_count = models.PositiveIntegerField(default=0)
     back_colors_count = models.PositiveIntegerField(default=0)

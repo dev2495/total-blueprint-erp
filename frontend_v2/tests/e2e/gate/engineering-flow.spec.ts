@@ -31,6 +31,7 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
   await page.getByTestId("artwork-add-front-color").click()
   await page.getByTestId("artwork-ink-gsm-total").fill("1.2")
   await page.getByTestId("artwork-cylinder-circumference").fill("420")
+  await page.getByTestId("artwork-cylinder-length").fill("540")
   await page.getByTestId("artwork-save-draft").click()
 
   await expect(page.getByTestId("artwork-dialog")).toBeHidden({ timeout: 30_000 })
@@ -38,7 +39,7 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
   await page.locator("button").filter({ hasText: artworkCode }).first().click()
   await page.getByTestId("artwork-dialog").waitFor({ state: "visible" })
   const cylinderActions = page.getByTestId("artwork-cylinder-color-actions")
-  const generateButton = cylinderActions.getByRole("button", { name: /^Generate$/ }).first()
+  const generateButton = cylinderActions.getByRole("button", { name: /generate this slot/i }).first()
   if (await generateButton.isVisible().catch(() => false)) {
     await Promise.all([
       page.waitForResponse((response) => response.url().includes("/generate-cylinders") && response.status() < 500, { timeout: 30_000 }),
@@ -58,7 +59,7 @@ test("roto artwork stays blocked until cylinders are finalized", async ({ page }
   await page.getByRole("button", { name: /manage slots/i }).first().click()
   await page.getByTestId("cylinder-artwork-group-dialog").waitFor({ state: "visible", timeout: 30_000 })
   await expect(page.getByTestId("cylinder-artwork-group-dialog")).toContainText(/cylinder set/i)
-  await expect(page.getByTestId("cylinder-artwork-group-dialog")).toContainText(/Empty slot|Draft cylinder|Confirm Generated Cylinders/i)
+  await expect(page.getByTestId("cylinder-artwork-group-dialog")).toContainText(/Empty slot|Draft cylinder|Confirm Generated Cylinders|540 mm length/i)
 })
 
 test("artwork dialog blocks cylinder generation until print colors are assigned", async ({ page }, testInfo) => {

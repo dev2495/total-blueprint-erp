@@ -22,6 +22,18 @@ class CylinderViewSet(viewsets.ModelViewSet):
                 value = None
             if value is not None and value > 0:
                 qs = qs.filter(circumference__gte=value - 0.01, circumference__lte=value + 0.01)
+        length = (
+            self.request.query_params.get("length_mm")
+            or self.request.query_params.get("width_mm")
+            or self.request.query_params.get("cylinder_length_mm")
+        )
+        if length not in (None, ""):
+            try:
+                value = float(length)
+            except Exception:
+                value = None
+            if value is not None and value > 0:
+                qs = qs.filter(width_mm__gte=value - 0.01, width_mm__lte=value + 0.01)
         return qs
 
     def perform_create(self, serializer):

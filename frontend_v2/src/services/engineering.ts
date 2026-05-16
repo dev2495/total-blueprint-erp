@@ -48,6 +48,7 @@ export interface Artwork {
     ink_gsm_color_percentages?: Record<string, number>;
     ink_gsm_by_color?: Record<string, number>;
     cylinder_circumference_mm?: number;
+    cylinder_length_mm?: number;
     total_side_colors?: number;
     cylinder_ready?: boolean;
     colors_count: number;
@@ -175,7 +176,7 @@ export const engineeringService = {
         const { data: res } = await api.post<Artwork>(`/api/engineering/artworks/${id}/approve/`);
         return res;
     },
-    generateArtworkCylinders: async (id: string, payload?: { side?: "FRONT" | "BACK"; slot?: number; targets?: Array<{ side: "FRONT" | "BACK"; slot: number }>; circumference?: number; cylinder_circumference_mm?: number; engraving_vendor?: string; storage_location?: string; status?: string }) => {
+    generateArtworkCylinders: async (id: string, payload?: { side?: "FRONT" | "BACK"; slot?: number; targets?: Array<{ side: "FRONT" | "BACK"; slot: number }>; circumference?: number; cylinder_circumference_mm?: number; length_mm?: number; width_mm?: number; cylinder_length_mm?: number; engraving_vendor?: string; storage_location?: string; status?: string }) => {
         const { data: res } = await api.post(`/api/engineering/artworks/${id}/generate-cylinders/`, payload || {});
         return res;
     },

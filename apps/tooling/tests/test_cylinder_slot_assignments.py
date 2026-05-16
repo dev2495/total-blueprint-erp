@@ -30,6 +30,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             color_list=["YELLOW", "BLACK"],
             colors_count=2,
             cylinder_circumference_mm=420,
+            cylinder_length_mm=620,
         )
 
         result = CylinderService.generate_for_artwork(
@@ -43,6 +44,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
         self.assertEqual(cylinder.side_slot_index, 2)
         self.assertEqual(cylinder.color_name, "BLACK")
         self.assertEqual(float(cylinder.circumference), 420.0)
+        self.assertEqual(float(cylinder.width_mm), 620.0)
         self.assertFalse(Cylinder.objects.filter(artwork=artwork, side_slot_index=1).exists())
         self.assertTrue(CylinderSlotAssignment.objects.filter(artwork=artwork, side="FRONT", side_slot_index=2).exists())
 
@@ -57,6 +59,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             color_list=["CYAN"],
             colors_count=1,
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
         )
         target = Artwork.objects.create(
             design_code="ART-REUSE-TARGET",
@@ -68,6 +71,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             color_list=["CYAN"],
             colors_count=1,
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
         )
         cylinder = Cylinder.objects.create(
             code="CYL-REUSE-CYAN",
@@ -109,6 +113,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             color_list=["GREEN"],
             colors_count=1,
             cylinder_circumference_mm=340,
+            cylinder_length_mm=540,
         )
         result = CylinderService.generate_for_artwork(artwork.id, targets=[{"side": "FRONT", "slot": 1}])
         cylinder = result["created"][0]
@@ -117,6 +122,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             cylinder,
             data={
                 "circumference": 340,
+                "width_mm": 540,
                 "engraving_vendor": str(self.vendor.id),
                 "storage_location": str(self.location.id),
                 "is_draft": False,
@@ -143,6 +149,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             color_list=["CYAN"],
             colors_count=1,
             cylinder_circumference_mm=420,
+            cylinder_length_mm=500,
         )
         target = Artwork.objects.create(
             design_code="ART-REUSE-500",
@@ -154,6 +161,7 @@ class CylinderSlotAssignmentFlowTests(TestCase):
             color_list=["CYAN"],
             colors_count=1,
             cylinder_circumference_mm=500,
+            cylinder_length_mm=500,
         )
         cylinder = Cylinder.objects.create(
             code="CYL-REUSE-420",
@@ -173,6 +181,56 @@ class CylinderSlotAssignmentFlowTests(TestCase):
         )
 
         with self.assertRaisesMessage(ValueError, "circumference must match"):
+            CylinderService.assign_existing_to_slot(
+                artwork_id=target.id,
+                cylinder_id=cylinder.id,
+                side="FRONT",
+                slot=1,
+            )
+
+    def test_reuse_blocks_cylinder_with_different_artwork_length(self):
+        source = Artwork.objects.create(
+            design_code="ART-REUSE-LEN-SOURCE",
+            name="Reuse Length Source",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+            cylinder_circumference_mm=420,
+            cylinder_length_mm=500,
+        )
+        target = Artwork.objects.create(
+            design_code="ART-REUSE-LEN-TARGET",
+            name="Reuse Length Target",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+            cylinder_circumference_mm=420,
+            cylinder_length_mm=650,
+        )
+        cylinder = Cylinder.objects.create(
+            code="CYL-REUSE-LEN-500",
+            name="Reusable Length 500",
+            artwork=source,
+            engraving_vendor=self.vendor,
+            storage_location=self.location,
+            color_name="CYAN",
+            diameter_mm=100,
+            width_mm=500,
+            circumference=420,
+            side="FRONT",
+            side_slot_index=1,
+            is_draft=False,
+            lifecycle_status="ACTIVE",
+            status="ACTIVE",
+        )
+
+        with self.assertRaisesMessage(ValueError, "length must match"):
             CylinderService.assign_existing_to_slot(
                 artwork_id=target.id,
                 cylinder_id=cylinder.id,

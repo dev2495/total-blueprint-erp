@@ -364,6 +364,7 @@ class ArtworkApiApprovalControlTests(TestCase):
             ink_gsm_total="1.20",
             ink_gsm_split_mode="EQUAL",
             cylinder_circumference_mm=314,
+            cylinder_length_mm=500,
             status="DRAFT",
         )
         vendor = Vendor.objects.create(name="Approval Cylinder Vendor", code="APR-CYL-VENDOR")
@@ -427,6 +428,7 @@ class ArtworkApiApprovalControlTests(TestCase):
             ink_gsm_total="1.20",
             ink_gsm_split_mode="EQUAL",
             cylinder_circumference_mm=420,
+            cylinder_length_mm=540,
             status="DRAFT",
         )
         vendor = Vendor.objects.create(name="Generated Cylinder Vendor", code="GEN-CYL-VENDOR")
@@ -446,7 +448,7 @@ class ArtworkApiApprovalControlTests(TestCase):
 
         generate_response = self.client.post(
             f"/api/engineering/artworks/{artwork.id}/generate-cylinders/",
-            {"circumference": "420"},
+            {"circumference": "420", "length_mm": "540"},
             format="json",
         )
         self.assertEqual(generate_response.status_code, 200, generate_response.content)
@@ -457,6 +459,7 @@ class ArtworkApiApprovalControlTests(TestCase):
                 f"/api/tooling/cylinders/{cylinder.id}/",
                 {
                     "circumference": "420",
+                    "width_mm": "540",
                     "engraving_vendor": str(vendor.id),
                     "storage_location": str(location.id),
                     "is_draft": False,

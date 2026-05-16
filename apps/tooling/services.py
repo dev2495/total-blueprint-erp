@@ -25,6 +25,12 @@ class CylinderService:
         return abs(left_num - right_num) <= Decimal("0.01")
 
     @staticmethod
+    def _same_dimension(left, right) -> bool:
+        left_num = CylinderService._decimal(left)
+        right_num = CylinderService._decimal(right)
+        return abs(left_num - right_num) <= Decimal("0.01")
+
+    @staticmethod
     def _next_code(artwork: Artwork, side: str, slot: int) -> str:
         base = f"CYL-{str(artwork.id)[:6].upper()}-{side[:1]}{slot:02d}"
         code = base
@@ -121,6 +127,12 @@ class CylinderService:
                 "Reusable cylinder circumference must match the artwork repeat "
                 f"({required_circumference} mm)."
             )
+        required_length = CylinderService._decimal(getattr(artwork, "cylinder_length_mm", 0))
+        if required_length > 0 and not CylinderService._same_dimension(cylinder.width_mm, required_length):
+            raise ValueError(
+                "Reusable cylinder length must match the artwork cylinder length "
+                f"({required_length} mm)."
+            )
         if not cylinder.engraving_vendor_id or not cylinder.storage_location_id:
             raise ValueError("Reusable cylinder must have vendor and storage location.")
         color_name = CylinderService._slot_color(artwork, side, slot)
@@ -140,6 +152,7 @@ class CylinderService:
         targets=None,
         *,
         circumference=None,
+        length_mm=None,
         engraving_vendor=None,
         storage_location=None,
         status=None,
@@ -157,9 +170,18 @@ class CylinderService:
         required_circumference = CylinderService._decimal(circumference, CylinderService._decimal(getattr(artwork, "cylinder_circumference_mm", 0)))
         if required_circumference <= 0:
             raise ValueError("Enter artwork cylinder circumference before generating cylinders.")
+        required_length = CylinderService._decimal(length_mm, CylinderService._decimal(getattr(artwork, "cylinder_length_mm", 0)))
+        if required_length <= 0:
+            raise ValueError("Enter artwork cylinder length before generating cylinders.")
+        update_fields = []
         if not CylinderService._same_circumference(getattr(artwork, "cylinder_circumference_mm", 0), required_circumference):
             artwork.cylinder_circumference_mm = required_circumference
-            artwork.save(update_fields=["cylinder_circumference_mm"])
+            update_fields.append("cylinder_circumference_mm")
+        if not CylinderService._same_dimension(getattr(artwork, "cylinder_length_mm", 0), required_length):
+            artwork.cylinder_length_mm = required_length
+            update_fields.append("cylinder_length_mm")
+        if update_fields:
+            artwork.save(update_fields=update_fields)
 
         lifecycle_status = str(status or "DRAFT").strip().upper()
         if lifecycle_status not in {"DRAFT", "ACTIVE", "MAINTENANCE", "SCRAP"}:
@@ -193,6 +215,8 @@ class CylinderService:
                             "assignment_id": str(assignment.id),
                             "side": side,
                             "slot": slot,
+                            "circumference": str(assigned_cylinder.circumference),
+                            "width_mm": str(assigned_cylinder.width_mm),
                         }
                     )
                     existing_assigned.append(str(assignment.id))
@@ -218,6 +242,8 @@ class CylinderService:
                             "id": str(finalized[0].id),
                             "side": side,
                             "slot": slot,
+                            "circumference": str(finalized[0].circumference),
+                            "width_mm": str(finalized[0].width_mm),
                         }
                     )
                     CylinderService.sync_direct_assignment(finalized[0])
@@ -228,6 +254,8 @@ class CylinderService:
                             "id": str(drafts[0].id),
                             "side": side,
                             "slot": slot,
+                            "circumference": str(drafts[0].circumference),
+                            "width_mm": str(drafts[0].width_mm),
                         }
                     )
                     CylinderService.sync_direct_assignment(drafts[0])
@@ -247,7 +275,7 @@ class CylinderService:
                     is_draft=not make_final,
                     lifecycle_status=lifecycle_status if make_final else "DRAFT",
                     diameter_mm=100.00,
-                    width_mm=500.00,
+                    width_mm=required_length,
                     circumference=required_circumference,
                     status=lifecycle_status if make_final else "ACTIVE",
                 )
