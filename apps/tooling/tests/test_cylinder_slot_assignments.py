@@ -1,4 +1,6 @@
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork
 from apps.factory.models import Plant
@@ -10,6 +12,14 @@ from apps.tooling.services import CylinderService
 
 class CylinderSlotAssignmentFlowTests(TestCase):
     def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            username="tooling-api",
+            password="pass12345",
+            is_owner=True,
+            is_staff=True,
+        )
+        self.client.force_authenticate(user=self.user)
         self.vendor = Vendor.objects.create(name="Reuse Vendor", code="REUSE-VENDOR")
         self.plant = Plant.objects.create(name="Main Plant", code="MAIN")
         self.location = InventoryLocation.objects.create(
@@ -187,6 +197,74 @@ class CylinderSlotAssignmentFlowTests(TestCase):
                 side="FRONT",
                 slot=1,
             )
+
+    def test_catalog_endpoints_filter_cylinders_and_assignments_by_artwork(self):
+        source = Artwork.objects.create(
+            design_code="ART-FILTER-SOURCE",
+            name="Filter Source",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["CYAN"],
+            front_colors_count=1,
+            color_list=["CYAN"],
+            colors_count=1,
+            cylinder_circumference_mm=420,
+            cylinder_length_mm=500,
+        )
+        target = Artwork.objects.create(
+            design_code="ART-FILTER-TARGET",
+            name="Filter Target",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors=["BLACK"],
+            front_colors_count=1,
+            color_list=["BLACK"],
+            colors_count=1,
+            cylinder_circumference_mm=420,
+            cylinder_length_mm=500,
+        )
+        source_cylinder = Cylinder.objects.create(
+            code="CYL-FILTER-SOURCE",
+            name="Source Cylinder",
+            artwork=source,
+            engraving_vendor=self.vendor,
+            storage_location=self.location,
+            color_name="CYAN",
+            diameter_mm=100,
+            width_mm=500,
+            circumference=420,
+            side="FRONT",
+            side_slot_index=1,
+            is_draft=False,
+            lifecycle_status="ACTIVE",
+            status="ACTIVE",
+        )
+        target_cylinder = Cylinder.objects.create(
+            code="CYL-FILTER-TARGET",
+            name="Target Cylinder",
+            artwork=target,
+            engraving_vendor=self.vendor,
+            storage_location=self.location,
+            color_name="BLACK",
+            diameter_mm=100,
+            width_mm=500,
+            circumference=420,
+            side="FRONT",
+            side_slot_index=1,
+            is_draft=False,
+            lifecycle_status="ACTIVE",
+            status="ACTIVE",
+        )
+        CylinderSlotAssignment.objects.create(artwork=source, cylinder=source_cylinder, side="FRONT", side_slot_index=1, color_name="CYAN")
+        CylinderSlotAssignment.objects.create(artwork=target, cylinder=target_cylinder, side="FRONT", side_slot_index=1, color_name="BLACK")
+
+        cylinder_response = self.client.get("/api/tooling/cylinders/", {"artwork": str(target.id)})
+        assignment_response = self.client.get("/api/tooling/cylinder-slot-assignments/", {"artwork": str(target.id)})
+
+        self.assertEqual(cylinder_response.status_code, 200)
+        self.assertEqual(assignment_response.status_code, 200)
+        self.assertEqual([row["code"] for row in cylinder_response.json()], ["CYL-FILTER-TARGET"])
+        self.assertEqual([row["cylinder_code"] for row in assignment_response.json()], ["CYL-FILTER-TARGET"])
 
     def test_reuse_blocks_cylinder_with_different_artwork_length(self):
         source = Artwork.objects.create(

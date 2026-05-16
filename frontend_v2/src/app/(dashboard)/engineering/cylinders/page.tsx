@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, Disc, Pencil, Plus, Wrench } from "lucide-react"
+import { CheckCircle2, Disc, Loader2, Pencil, Plus, Wrench } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,12 @@ function slotKey(side: string, slot: number) {
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value)
   return Number.isFinite(number) ? number : fallback
+}
+
+function fmtMm(value: unknown) {
+  const number = asNumber(value, 0)
+  if (number <= 0) return "-"
+  return number.toFixed(2).replace(/\.?0+$/, "")
 }
 
 function ArtworkCardMedia({ src, name }: { src?: string | null; name: string }) {
@@ -106,12 +112,12 @@ function CylinderArtworkGroupDialog({
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [circumference, setCircumference] = useState("")
-  const [commonDiameter, setCommonDiameter] = useState("")
-  const [commonWidth, setCommonWidth] = useState("")
-  const [commonCellDepth, setCommonCellDepth] = useState("")
-  const [commonVendor, setCommonVendor] = useState("")
-  const [commonLocation, setCommonLocation] = useState("")
-  const [commonStatus, setCommonStatus] = useState<"ACTIVE" | "MAINTENANCE" | "SCRAP">("ACTIVE")
+  const [cylinderLength, setCylinderLength] = useState("")
+  const [diameter, setDiameter] = useState("100")
+  const [cellDepth, setCellDepth] = useState("")
+  const [vendor, setVendor] = useState("")
+  const [location, setLocation] = useState("")
+  const [status, setStatus] = useState<"ACTIVE" | "MAINTENANCE" | "SCRAP">("ACTIVE")
   const [selectedBySlot, setSelectedBySlot] = useState<Record<string, string>>({})
   const { data: vendorsRaw = [] } = useQuery({ queryKey: ["vendors"], queryFn: () => masterDataService.getVendors() })
   const { data: locationsRaw = [] } = useQuery({ queryKey: ["locations", "TOOLING"], queryFn: () => masterDataService.getLocations("TOOLING") })
@@ -122,21 +128,29 @@ function CylinderArtworkGroupDialog({
     if (!open) return
     const first = slots.find((slot) => slot.cylinder)?.cylinder
     setCircumference(artwork?.cylinder_circumference_mm ? String(artwork.cylinder_circumference_mm) : first?.circumference ? String(first.circumference) : "")
-    setCommonDiameter(first?.diameter_mm ? String(first.diameter_mm) : "")
-    setCommonWidth(artwork?.cylinder_length_mm ? String(artwork.cylinder_length_mm) : first?.width_mm ? String(first.width_mm) : "")
-    setCommonCellDepth(first?.cell_depth_microns ? String(first.cell_depth_microns) : "")
-    setCommonVendor(first?.engraving_vendor || "")
-    setCommonLocation(first?.storage_location || "")
-    setCommonStatus((["ACTIVE", "MAINTENANCE", "SCRAP"].includes(String(first?.status || "")) ? String(first?.status) : "ACTIVE") as "ACTIVE" | "MAINTENANCE" | "SCRAP")
+    setCylinderLength(artwork?.cylinder_length_mm ? String(artwork.cylinder_length_mm) : first?.width_mm ? String(first.width_mm) : "")
+    setDiameter(first?.diameter_mm ? String(first.diameter_mm) : "100")
+    setCellDepth(first?.cell_depth_microns ? String(first.cell_depth_microns) : "")
+    setVendor(first?.engraving_vendor || "")
+    setLocation(first?.storage_location || "")
+    setStatus((["ACTIVE", "MAINTENANCE", "SCRAP"].includes(String(first?.status || "")) ? String(first?.status) : "ACTIVE") as "ACTIVE" | "MAINTENANCE" | "SCRAP")
     setSelectedBySlot({})
-  }, [open, artwork?.id])
+  }, [open, artwork?.id, slots])
+
+  async function refreshCylinderMap() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["cylinders"] }),
+      queryClient.invalidateQueries({ queryKey: ["artworks"] }),
+      queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] }),
+    ])
+  }
 
   async function persistArtworkCylinderSpecs() {
     if (!artwork?.id) return
     const repeat = asNumber(circumference, 0)
-    const length = asNumber(commonWidth, 0)
-    if (repeat <= 0) throw new Error("Enter required circumference before using cylinder slots.")
-    if (length <= 0) throw new Error("Enter required cylinder length before using cylinder slots.")
+    const length = asNumber(cylinderLength, 0)
+    if (repeat <= 0) throw new Error("Enter circumference / repeat before using cylinder slots.")
+    if (length <= 0) throw new Error("Enter cylinder length before using cylinder slots.")
     if (
       Math.abs(asNumber(artwork.cylinder_circumference_mm, 0) - repeat) <= 0.01 &&
       Math.abs(asNumber(artwork.cylinder_length_mm, 0) - length) <= 0.01
@@ -149,17 +163,74 @@ function CylinderArtworkGroupDialog({
   }
 
   const reuseCandidates = useMemo(() => {
-    const required = asNumber(circumference, 0)
-    const requiredLength = asNumber(commonWidth, 0)
+    const repeat = asNumber(circumference, 0)
+    const length = asNumber(cylinderLength, 0)
     return cylinders
       .filter((row) => !Boolean(row.is_draft))
-      .filter((row) => Number(row.circumference || 0) > 0)
-      .filter((row) => Number(row.width_mm || 0) > 0)
+      .filter((row) => Boolean(row.is_catalog_active ?? true))
+      .filter((row) => asNumber(row.circumference, 0) > 0)
+      .filter((row) => asNumber(row.width_mm, 0) > 0)
       .filter((row) => Boolean(row.engraving_vendor && row.storage_location))
-      .filter((row) => (required > 0 ? Math.abs(Number(row.circumference || 0) - required) < 0.01 : true))
-      .filter((row) => (requiredLength > 0 ? Math.abs(Number(row.width_mm || 0) - requiredLength) < 0.01 : true))
-      .sort((left, right) => String(left.artwork_name || "").localeCompare(String(right.artwork_name || "")) || String(left.code || "").localeCompare(String(right.code || "")))
-  }, [cylinders, circumference, commonWidth])
+      .filter((row) => (repeat > 0 ? Math.abs(asNumber(row.circumference, 0) - repeat) <= 0.01 : true))
+      .filter((row) => (length > 0 ? Math.abs(asNumber(row.width_mm, 0) - length) <= 0.01 : true))
+      .sort((left, right) => String(left.code || "").localeCompare(String(right.code || "")))
+  }, [cylinders, circumference, cylinderLength])
+
+  const generateMutation = useMutation({
+    mutationFn: async (slot: CylinderSlotView) => {
+      if (!artwork?.id) throw new Error("Select an artwork before generating cylinders.")
+      await persistArtworkCylinderSpecs()
+      return engineeringService.generateArtworkCylinders(artwork.id, {
+        side: slot.side,
+        slot: slot.slot,
+        circumference: asNumber(circumference, 0),
+        length_mm: asNumber(cylinderLength, 0),
+      })
+    },
+    onSuccess: async (_result, slot) => {
+      await refreshCylinderMap()
+      toast({ title: "Draft cylinder generated", description: `${slot.side} ${slot.slot} is now waiting for vendor and location.` })
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Generation blocked",
+        description: err?.response?.data?.error?.message || err?.response?.data?.detail || err?.message || "Could not generate this cylinder.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const finalizeSlotMutation = useMutation({
+    mutationFn: async (slot: CylinderSlotView) => {
+      const cylinder = slot.cylinder
+      if (!cylinder?.id) throw new Error("This slot has no generated cylinder.")
+      if (!vendor) throw new Error("Select engraving vendor before finalizing.")
+      if (!location) throw new Error("Select storage location before finalizing.")
+      await persistArtworkCylinderSpecs()
+      return engineeringService.updateCylinder(cylinder.id, {
+        diameter_mm: asNumber(diameter, 100),
+        circumference: asNumber(circumference, 0),
+        width_mm: asNumber(cylinderLength, 0),
+        cell_depth_microns: asNumber(cellDepth, 0),
+        engraving_vendor: vendor,
+        storage_location: location,
+        is_draft: false,
+        lifecycle_status: status,
+        status,
+      })
+    },
+    onSuccess: async (_row, slot) => {
+      await refreshCylinderMap()
+      toast({ title: "Cylinder finalized", description: `${slot.side} ${slot.slot} is now ready for approval.` })
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Finalization blocked",
+        description: err?.response?.data?.detail || err?.message || "Could not finalize this cylinder.",
+        variant: "destructive",
+      })
+    },
+  })
 
   const assignMutation = useMutation({
     mutationFn: async ({ slot, cylinderId }: { slot: CylinderSlotView; cylinderId: string }) => {
@@ -171,11 +242,10 @@ function CylinderArtworkGroupDialog({
         side_slot_index: slot.slot,
       })
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cylinders"] })
-      queryClient.invalidateQueries({ queryKey: ["artworks"] })
-      queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] })
-      toast({ title: "Cylinder slot assigned" })
+    onSuccess: async (_row, variables) => {
+      setSelectedBySlot((current) => ({ ...current, [variables.slot.key]: "" }))
+      await refreshCylinderMap()
+      toast({ title: "Cylinder reused", description: `${variables.slot.side} ${variables.slot.slot} now uses the selected physical cylinder.` })
     },
     onError: (err: any) => {
       toast({
@@ -186,180 +256,230 @@ function CylinderArtworkGroupDialog({
     },
   })
 
-  const finalizeGeneratedMutation = useMutation({
-    mutationFn: async () => {
-      const generatedDrafts = slots
-        .map((slot) => slot.cylinder)
-        .filter((row): row is Cylinder => Boolean(row && row.is_draft && String(row.artwork || "") === String(artwork?.id || "")))
-      if (!generatedDrafts.length) throw new Error("No generated draft cylinders are waiting for common details.")
-      if (!commonVendor) throw new Error("Select engraving vendor before finalizing generated cylinders.")
-      if (!commonLocation) throw new Error("Select storage location before finalizing generated cylinders.")
-      if (asNumber(circumference, 0) <= 0) throw new Error("Enter circumference before finalizing generated cylinders.")
-      if (asNumber(commonWidth, 0) <= 0) throw new Error("Enter cylinder length before finalizing generated cylinders.")
-      await persistArtworkCylinderSpecs()
-      const payload: Partial<Cylinder> = {
-        diameter_mm: asNumber(commonDiameter, 100),
-        width_mm: asNumber(commonWidth, 0),
-        circumference: asNumber(circumference, 0),
-        cell_depth_microns: asNumber(commonCellDepth, 0),
-        engraving_vendor: commonVendor,
-        storage_location: commonLocation,
-        is_draft: false,
-        lifecycle_status: commonStatus,
-        status: commonStatus,
-      }
-      await Promise.all(generatedDrafts.map((row) => engineeringService.updateCylinder(row.id, payload)))
-      return generatedDrafts.length
-    },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["cylinders"] })
-      queryClient.invalidateQueries({ queryKey: ["artworks"] })
-      queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] })
-      toast({ title: "Generated cylinders finalized", description: `${count} cylinder(s) now share the common technical details.` })
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Finalization blocked",
-        description: err?.response?.data?.detail || err?.message || "Could not finalize generated cylinders.",
-        variant: "destructive",
-      })
-    },
-  })
-
   if (!artwork) return null
 
+  const repeat = asNumber(circumference, 0)
+  const length = asNumber(cylinderLength, 0)
   const coveredCount = slots.filter((slot) => slot.cylinder).length
+  const draftCount = slots.filter((slot) => slot.cylinder?.is_draft).length
+  const readyCount = slots.filter((slot) => slot.cylinder && !slot.cylinder.is_draft).length
+  const slotSpecText = `${fmtMm(repeat)} × ${fmtMm(length)} mm`
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden p-0" data-testid="cylinder-artwork-group-dialog">
-        <DialogHeader className="border-b border-slate-100 px-6 py-5">
-          <DialogTitle className="text-xl font-black text-slate-950">{artwork.design_code} cylinder set</DialogTitle>
-          <div className="mt-1 text-sm text-slate-500">
-            {artwork.name} · {artwork.print_type || "PRINT"} · {artwork.substrate_mode || "SHEET"} · {coveredCount}/{slots.length} slots covered
+      <DialogContent className="max-h-[94vh] max-w-6xl overflow-hidden p-0" data-testid="cylinder-artwork-group-dialog">
+        <DialogHeader className="border-b border-slate-100 bg-white px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <DialogTitle className="text-2xl font-black tracking-tight text-slate-950">{artwork.design_code || artwork.name} cylinder map</DialogTitle>
+              <div className="mt-1 text-sm text-slate-500">
+                {artwork.name} · {artwork.print_type || "PRINT"} · {artwork.substrate_mode || "SHEET"} · {coveredCount}/{slots.length} slots covered
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <SemanticBadge kind="severity" value={coveredCount === slots.length ? "LOW" : "MEDIUM"} label={`${readyCount} ready`} />
+              <SemanticBadge kind="approval" value={draftCount ? "PENDING" : "APPROVED"} label={`${draftCount} draft`} />
+              <Badge variant="outline" className="bg-slate-50">{slotSpecText}</Badge>
+            </div>
           </div>
         </DialogHeader>
-        <div className="grid max-h-[72vh] gap-5 overflow-y-auto p-6 lg:grid-cols-[280px_1fr]">
-          <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Required Circumference</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={circumference}
-                  onChange={(event) => setCircumference(event.target.value)}
-                  placeholder="Repeat in mm"
-                  className="mt-2 bg-white"
-                  data-testid="cylinder-reuse-circumference"
-                />
+
+        <div className="grid max-h-[76vh] gap-5 overflow-y-auto bg-slate-50/60 p-6 lg:grid-cols-[320px_1fr]">
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">1. Artwork cylinder spec</div>
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Circumference / repeat</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={circumference}
+                    onChange={(event) => setCircumference(event.target.value)}
+                    placeholder="420"
+                    className="mt-2 bg-white"
+                    data-testid="cylinder-reuse-circumference"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Cylinder length</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={cylinderLength}
+                    onChange={(event) => setCylinderLength(event.target.value)}
+                    placeholder="800"
+                    className="mt-2 bg-white"
+                    data-testid="cylinder-reuse-length"
+                  />
+                </div>
               </div>
-              <div>
-                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Required Length</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={commonWidth}
-                  onChange={(event) => setCommonWidth(event.target.value)}
-                  placeholder="Length in mm"
-                  className="mt-2 bg-white"
-                  data-testid="cylinder-reuse-length"
-                />
-              </div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Reuse candidates must match repeat and length. Vendor can be any.
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Reuse is filtered by {slotSpecText}. Vendor can be any.
               </p>
             </div>
-            <div className="space-y-3 border-t border-slate-200 pt-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Common Technical Details</div>
-              <Select value={commonVendor || "__NONE__"} onValueChange={(value) => setCommonVendor(value === "__NONE__" ? "" : value)}>
-                <SelectTrigger className="bg-white"><SelectValue placeholder="Engraving vendor" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__NONE__">Select vendor</SelectItem>
-                  {vendors.map((vendor: any) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={commonLocation || "__NONE__"} onValueChange={(value) => setCommonLocation(value === "__NONE__" ? "" : value)}>
-                <SelectTrigger className="bg-white"><SelectValue placeholder="Cylinder location" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__NONE__">Select location</SelectItem>
-                  {locations.map((location: any) => <SelectItem key={location.id} value={location.id}>{location.name} ({location.code})</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={commonStatus} onValueChange={(value) => setCommonStatus(value as "ACTIVE" | "MAINTENANCE" | "SCRAP")}>
-                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                  <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                  <SelectItem value="SCRAP">SCRAP</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button className="w-full" disabled={finalizeGeneratedMutation.isPending} onClick={() => finalizeGeneratedMutation.mutate()}>
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Confirm Generated Cylinders
-              </Button>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">2. Finish generated drafts</div>
+              <div className="mt-3 space-y-3">
+                <Select value={vendor || "__NONE__"} onValueChange={(value) => setVendor(value === "__NONE__" ? "" : value)}>
+                  <SelectTrigger className="bg-white" data-testid="cylinder-finalize-vendor"><SelectValue placeholder="Engraving vendor" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">Select vendor</SelectItem>
+                    {vendors.map((row: any) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={location || "__NONE__"} onValueChange={(value) => setLocation(value === "__NONE__" ? "" : value)}>
+                  <SelectTrigger className="bg-white" data-testid="cylinder-finalize-location"><SelectValue placeholder="Storage location" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">Select location</SelectItem>
+                    {locations.map((row: any) => <SelectItem key={row.id} value={row.id}>{row.name} ({row.code})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={status} onValueChange={(value) => setStatus(value as "ACTIVE" | "MAINTENANCE" | "SCRAP")}>
+                  <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                    <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
+                    <SelectItem value="SCRAP">SCRAP</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="number" step="0.01" value={diameter} onChange={(event) => setDiameter(event.target.value)} placeholder="Diameter" className="bg-white" />
+                  <Input type="number" step="1" value={cellDepth} onChange={(event) => setCellDepth(event.target.value)} placeholder="Cell depth" className="bg-white" />
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                These values apply only when you press a slot&apos;s Finalize button. Empty slots can generate new or reuse an existing cylinder.
+              </p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Matching Reuse Pool</div>
-              <div className="mt-2 text-2xl font-black text-slate-950">{reuseCandidates.length}</div>
-              <div className="text-xs text-slate-500">finalized cylinders</div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Matching reuse pool</div>
+              <div className="mt-2 text-3xl font-black text-slate-950">{reuseCandidates.length}</div>
+              <div className="text-xs text-slate-500">finalized cylinders with {slotSpecText}</div>
             </div>
           </aside>
+
           <div className="space-y-3">
             {slots.map((slot) => {
               const selected = selectedBySlot[slot.key] || ""
+              const cylinder = slot.cylinder
+              const isDraft = Boolean(cylinder?.is_draft)
+              const isReady = Boolean(cylinder && !cylinder.is_draft)
+              const isReused = Boolean(slot.assignment && cylinder && String(cylinder.artwork || "") !== String(artwork.id))
+              const selectedCandidate = reuseCandidates.find((candidate) => String(candidate.id) === selected)
+              const slotLabel = `${slot.side} ${slot.slot}`
+              const busy = generateMutation.isPending || finalizeSlotMutation.isPending || assignMutation.isPending
               return (
-                <div key={slot.key} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_320px]">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{slot.side} {slot.slot}</Badge>
-                      <div className="text-sm font-black text-slate-950">{slot.color}</div>
-                      {slot.cylinder ? (
-                        <SemanticBadge kind="approval" value={slot.cylinder.is_draft ? "PENDING" : "APPROVED"} label={slot.cylinder.is_draft ? "Draft cylinder" : "Ready / reused"} />
+                <div
+                  key={slot.key}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  data-testid={`cylinder-slot-${slot.side}-${slot.slot}`}
+                >
+                  <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{slotLabel}</Badge>
+                        <div className="text-base font-black text-slate-950">{slot.color || "Color pending"}</div>
+                        {isDraft ? (
+                          <SemanticBadge kind="approval" value="PENDING" label="Draft generated" />
+                        ) : isReady ? (
+                          <SemanticBadge kind="approval" value="APPROVED" label={isReused ? "Reused ready" : "Ready"} />
+                        ) : (
+                          <SemanticBadge kind="severity" value="MEDIUM" label="Empty slot" />
+                        )}
+                      </div>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">Reuse is filtered by {slotSpecText}. Vendor can be any.</p>
+                      {cylinder ? (
+                        <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                          <div>
+                            <div className="font-black text-slate-900">{cylinder.code}</div>
+                            <div>{cylinder.artwork_name || "Current artwork"}</div>
+                          </div>
+                          <div>
+                            <div>{fmtMm(cylinder.circumference)} mm repeat</div>
+                            <div>{fmtMm(cylinder.width_mm)} mm length</div>
+                          </div>
+                          <div>
+                            <div>{cylinder.vendor_name || cylinder.engraving_vendor_name || "Vendor pending"}</div>
+                            <div>{cylinder.location_name || "Location pending"}</div>
+                          </div>
+                        </div>
                       ) : (
-                        <SemanticBadge kind="severity" value="MEDIUM" label="Empty slot" />
+                        <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                          Generate a new cylinder for this color, or reuse a finalized cylinder with the same repeat and length.
+                        </div>
                       )}
                     </div>
-                    {slot.cylinder ? (
-                      <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-                        <div><span className="font-semibold text-slate-900">{slot.cylinder.code}</span><br />{slot.cylinder.artwork_name || "Current artwork"}</div>
-                        <div>{slot.cylinder.circumference || 0} mm repeat<br />{slot.cylinder.width_mm || 0} mm length</div>
-                        <div>{slot.cylinder.location_name || "Location pending"}<br />{slot.cylinder.lifecycle_status || slot.cylinder.status}</div>
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-sm text-slate-500">No new cylinder is required unless this color has no reusable physical cylinder.</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {slot.cylinder?.is_draft ? (
-                      <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-bold text-amber-700">
-                        Draft covered by common finalize
-                      </div>
-                    ) : slot.cylinder ? (
-                      <Button variant="outline" className="w-full" onClick={() => onEditCylinder(slot.cylinder as Cylinder)}>
-                        <Pencil className="mr-2 h-4 w-4" /> Edit cylinder
-                      </Button>
-                    ) : (
-                      <>
-                        <Select value={selected || "__NONE__"} onValueChange={(value) => setSelectedBySlot((current) => ({ ...current, [slot.key]: value === "__NONE__" ? "" : value }))}>
-                          <SelectTrigger className="bg-white" data-testid={`cylinder-reuse-${slot.side}-${slot.slot}`}>
-                            <SelectValue placeholder="Reuse existing cylinder" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__NONE__">Select matching cylinder</SelectItem>
-                            {reuseCandidates.map((candidate) => (
-                              <SelectItem key={candidate.id} value={candidate.id}>
-                                {candidate.code} · {candidate.color_name || "Color"} · {candidate.artwork_name || "Unlinked"} · {candidate.circumference}×{candidate.width_mm}mm
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          disabled={!selected || assignMutation.isPending}
-                          onClick={() => assignMutation.mutate({ slot, cylinderId: selected })}
-                        >
-                          Use
-                        </Button>
-                      </>
-                    )}
+
+                    <div className="space-y-2">
+                      {!cylinder ? (
+                        <>
+                          <Button
+                            className="w-full"
+                            disabled={busy || repeat <= 0 || length <= 0}
+                            onClick={() => generateMutation.mutate(slot)}
+                            data-testid={`cylinder-generate-slot-${slot.side}-${slot.slot}`}
+                          >
+                            {generateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                            Generate new for this color
+                          </Button>
+                          <div className="grid grid-cols-[1fr_auto] gap-2">
+                            <Select value={selected || "__NONE__"} onValueChange={(value) => setSelectedBySlot((current) => ({ ...current, [slot.key]: value === "__NONE__" ? "" : value }))}>
+                              <SelectTrigger className="bg-white" data-testid={`cylinder-reuse-${slot.side}-${slot.slot}`}>
+                                <SelectValue placeholder="Reuse matching cylinder" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__NONE__">Select matching cylinder</SelectItem>
+                                {reuseCandidates.map((candidate) => (
+                                  <SelectItem key={candidate.id} value={candidate.id}>
+                                    {candidate.code} · {candidate.color_name || "Color"} · {candidate.artwork_name || "Unlinked"} · {fmtMm(candidate.circumference)}×{fmtMm(candidate.width_mm)} mm
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="outline"
+                              disabled={!selected || assignMutation.isPending}
+                              onClick={() => assignMutation.mutate({ slot, cylinderId: selected })}
+                              data-testid={`cylinder-use-slot-${slot.side}-${slot.slot}`}
+                            >
+                              Use
+                            </Button>
+                          </div>
+                          {selectedCandidate ? (
+                            <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+                              Selected {selectedCandidate.code} from {selectedCandidate.artwork_name || "catalog"}.
+                            </div>
+                          ) : null}
+                        </>
+                      ) : isDraft ? (
+                        <>
+                          <Button
+                            className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                            disabled={busy || !vendor || !location || repeat <= 0 || length <= 0}
+                            onClick={() => finalizeSlotMutation.mutate(slot)}
+                            data-testid={`cylinder-finalize-slot-${slot.side}-${slot.slot}`}
+                          >
+                            {finalizeSlotMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                            Finalize this cylinder
+                          </Button>
+                          <Button variant="outline" className="w-full" onClick={() => onEditCylinder(cylinder)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit draft details
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-emerald-700">
+                            Slot complete
+                          </div>
+                          <Button variant="outline" className="w-full" onClick={() => onEditCylinder(cylinder)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit cylinder
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )

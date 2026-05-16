@@ -79,6 +79,7 @@ export interface Cylinder {
 
     engraving_vendor?: string | null; // ID
     engraving_vendor_name?: string;
+    vendor_name?: string;
 
     storage_location?: string | null; // ID
     location_name?: string;

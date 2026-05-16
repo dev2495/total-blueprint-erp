@@ -1,11 +1,13 @@
 from rest_framework import viewsets
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Cylinder, CylinderSlotAssignment, ToolAsset
 from .serializers import CylinderSerializer, CylinderSlotAssignmentSerializer, ToolAssetSerializer
 from .services import CylinderService
 
 class CylinderViewSet(viewsets.ModelViewSet):
     serializer_class = CylinderSerializer
+    filter_backends = [DjangoFilterBackend]
     search_fields = ['code', 'name', 'artwork__name', 'engraving_vendor__name']
     filterset_fields = ['status', 'engraving_vendor', 'artwork', 'side', 'is_draft', 'lifecycle_status']
 
@@ -47,6 +49,7 @@ class CylinderViewSet(viewsets.ModelViewSet):
 
 class CylinderSlotAssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = CylinderSlotAssignmentSerializer
+    filter_backends = [DjangoFilterBackend]
     filterset_fields = ["artwork", "cylinder", "side"]
 
     def get_queryset(self):

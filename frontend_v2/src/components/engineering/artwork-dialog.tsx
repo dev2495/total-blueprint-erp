@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { artworkImageUrls, engineeringService, isPdfMediaUrl, Artwork, type Cylinder } from "@/services/engineering"
+import { artworkImageUrls, engineeringService, isPdfMediaUrl, Artwork } from "@/services/engineering"
 import { masterDataService } from "@/services/master-data"
 
 const artworkSchema = z.object({
@@ -105,21 +105,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
     const [selectedImages, setSelectedImages] = useState<File[]>([])
     const [activeArtworkId, setActiveArtworkId] = useState<string | null>(artwork?.id || null)
     const [generatingSlotKey, setGeneratingSlotKey] = useState<string | null>(null)
-    const [finalizeVendor, setFinalizeVendor] = useState("")
-    const [finalizeLocation, setFinalizeLocation] = useState("")
-    const [finalizeStatus, setFinalizeStatus] = useState<"ACTIVE" | "MAINTENANCE" | "SCRAP">("ACTIVE")
 
     const { data: inks } = useQuery({
         queryKey: ["inks"],
         queryFn: () => masterDataService.getInks()
-    })
-    const { data: vendors = [] } = useQuery({
-        queryKey: ["vendors"],
-        queryFn: () => masterDataService.getVendors(),
-    })
-    const { data: toolingLocations = [] } = useQuery({
-        queryKey: ["locations", "TOOLING"],
-        queryFn: () => masterDataService.getLocations("TOOLING"),
     })
 
     const form = useForm<ArtworkFormValues>({
@@ -214,6 +203,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             formData.append("ink_gsm_color_percentages", JSON.stringify(values.ink_gsm_color_percentages || {}))
             formData.append("cylinder_circumference_mm", String(values.cylinder_circumference_mm || 0))
             formData.append("cylinder_length_mm", String(values.cylinder_length_mm || 0))
+            if (artwork?.id && artwork.status !== "APPROVED") {
+                formData.append("update_in_place", "true")
+            }
 
             const imageFiles = Array.isArray(values.image)
                 ? values.image.filter((file): file is File => file instanceof File)
@@ -299,49 +291,6 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
             })
         },
     })
-    const finalizeDraftCylindersMutation = useMutation({
-        mutationFn: async () => {
-            const repeat = Number(form.getValues("cylinder_circumference_mm") || 0)
-            const length = Number(form.getValues("cylinder_length_mm") || 0)
-            if (repeat <= 0) throw new Error("Enter cylinder circumference before finalizing.")
-            if (length <= 0) throw new Error("Enter cylinder length before finalizing.")
-            if (!finalizeVendor) throw new Error("Select engraving vendor before finalizing.")
-            if (!finalizeLocation) throw new Error("Select storage location before finalizing.")
-            const drafts = (artworkCylinders || []).filter(
-                (row: any) => Boolean(row?.is_draft) && String(row?.artwork || "") === String(activeArtworkId || "")
-            ) as Cylinder[]
-            if (!drafts.length) throw new Error("No generated draft cylinders are waiting.")
-            await Promise.all(
-                drafts.map((row) =>
-                    engineeringService.updateCylinder(row.id, {
-                        circumference: repeat,
-                        width_mm: length,
-                        engraving_vendor: finalizeVendor,
-                        storage_location: finalizeLocation,
-                        is_draft: false,
-                        lifecycle_status: finalizeStatus,
-                        status: finalizeStatus,
-                    })
-                )
-            )
-            return drafts.length
-        },
-        onSuccess: (count) => {
-            queryClient.invalidateQueries({ queryKey: ["artworks"] })
-            queryClient.invalidateQueries({ queryKey: ["cylinders"] })
-            queryClient.invalidateQueries({ queryKey: ["artwork-cylinders"] })
-            queryClient.invalidateQueries({ queryKey: ["cylinder-slot-assignments"] })
-            toast({ title: "Cylinders finalized", description: `${count} generated cylinder${count === 1 ? "" : "s"} moved to production-ready.` })
-        },
-        onError: (err: any) => {
-            toast({
-                title: "Cylinder finalization blocked",
-                description: err?.response?.data?.detail || err?.message || "Could not finalize generated cylinders.",
-                variant: "destructive",
-            })
-        },
-    })
-
     const sourceIsApproved = artwork?.status === "APPROVED"
     const printType = String(form.watch("print_type") || "FLEXO").toUpperCase()
     const substrateMode = String(form.watch("substrate_mode") || "SHEET").toUpperCase()
@@ -640,6 +589,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
         }
         return map
     }, [artworkCylinders, cylinderAssignments])
+    const draftSlotCoverageCount = useMemo(
+        () => Array.from(slotCoverage.values()).filter((row) => row.state === "draft").length,
+        [slotCoverage]
+    )
     const rotoColorSlots = useMemo(() => {
         const front = frontColors.map((color, index) => ({ side: "FRONT" as const, slot: index + 1, color: String(color || "").toUpperCase() }))
         const back = hasBackSide
@@ -1193,12 +1146,12 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                             type="button"
                                                             size="sm"
                                                             variant={coverage ? "outline" : "default"}
-                                                            data-testid={!coverage && canGenerateCylinders ? "artwork-generate-cylinders" : undefined}
+                                                            data-testid={!coverage && canGenerateCylinders ? `artwork-generate-cylinder-${slot.side}-${slot.slot}` : undefined}
                                                             disabled={Boolean(coverage) || !canGenerateCylinders || mutation.isPending || generateCylindersMutation.isPending}
                                                             onClick={form.handleSubmit(() => generateCylinderForSlot({ side: slot.side, slot: slot.slot }))}
                                                         >
                                                             {isBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-2 h-3.5 w-3.5" />}
-                                                            {coverage ? "Covered" : "Generate this slot"}
+                                                            {coverage ? "Covered" : `Generate ${slot.side} ${slot.slot}`}
                                                         </Button>
                                                     </div>
                                                 )
@@ -1208,61 +1161,17 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                 </div>
                                             )}
                                         </div>
-                                        {generatedDraftCylinders.length > 0 ? (
-                                            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3" data-testid="artwork-finalize-generated-cylinders">
+                                        {Math.max(generatedDraftCylinders.length, draftSlotCoverageCount) > 0 ? (
+                                            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3" data-testid="artwork-cylinder-catalog-handoff">
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">Finalize generated cylinders</p>
-                                                        <p className="mt-1 text-[10px] text-emerald-700/80">
-                                                            Applies the same repeat, vendor, location, and status to all {generatedDraftCylinders.length} draft slot{generatedDraftCylinders.length === 1 ? "" : "s"}.
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-700">Finish generated drafts in Cylinder Catalog</p>
+                                                        <p className="mt-1 text-[10px] text-blue-700/80">
+                                                            {Math.max(generatedDraftCylinders.length, draftSlotCoverageCount)} generated draft slot{Math.max(generatedDraftCylinders.length, draftSlotCoverageCount) === 1 ? "" : "s"} now need vendor, location, and final status in the cylinder map.
                                                         </p>
                                                     </div>
                                                     <Badge variant="outline" className="bg-white">{cylinderCircumference || 0} × {cylinderLength || 0} mm</Badge>
                                                 </div>
-                                                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                                                    <Select value={finalizeVendor || "__NONE__"} onValueChange={(value) => setFinalizeVendor(value === "__NONE__" ? "" : value)}>
-                                                        <SelectTrigger className="h-9 bg-white text-xs" data-testid="artwork-cylinder-vendor">
-                                                            <SelectValue placeholder="Vendor" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="__NONE__">Select vendor</SelectItem>
-                                                            {(vendors || []).map((vendor: any) => (
-                                                                <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Select value={finalizeLocation || "__NONE__"} onValueChange={(value) => setFinalizeLocation(value === "__NONE__" ? "" : value)}>
-                                                        <SelectTrigger className="h-9 bg-white text-xs" data-testid="artwork-cylinder-location">
-                                                            <SelectValue placeholder="Location" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="__NONE__">Select location</SelectItem>
-                                                            {(toolingLocations || []).map((location: any) => (
-                                                                <SelectItem key={location.id} value={location.id}>{location.name} ({location.code})</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Select value={finalizeStatus} onValueChange={(value) => setFinalizeStatus(value as "ACTIVE" | "MAINTENANCE" | "SCRAP")}>
-                                                        <SelectTrigger className="h-9 bg-white text-xs" data-testid="artwork-cylinder-status">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                                                            <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                                                            <SelectItem value="SCRAP">SCRAP</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    className="mt-3 w-full bg-emerald-600 text-white hover:bg-emerald-700"
-                                                    disabled={finalizeDraftCylindersMutation.isPending || cylinderCircumference <= 0 || cylinderLength <= 0 || !finalizeVendor || !finalizeLocation}
-                                                    onClick={() => finalizeDraftCylindersMutation.mutate()}
-                                                    data-testid="artwork-finalize-generated-cylinders-button"
-                                                >
-                                                    {finalizeDraftCylindersMutation.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
-                                                    Finalize all generated cylinders
-                                                </Button>
                                             </div>
                                         ) : null}
                                     </div>
