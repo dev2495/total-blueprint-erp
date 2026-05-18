@@ -39,6 +39,8 @@ export interface LayerTemplateRow {
     thickness_options?: number[];
     default_grade?: string;
     grade_options?: string[];
+    grade_apportion?: "fixed" | "variable";
+    grade_mode?: string;
     thickness_apportion?: "fixed_um" | "per_layer";
     default_input_roll_width_mm?: number | null;
     notes?: string;
@@ -1147,6 +1149,9 @@ export const productMasterService = {
         inventoryMaterialId: string | null,
         podSkuVariantId?: string | null,
     ) => {
+        const payload = podSkuVariantId
+            ? { inventory_material_id: null, pod_sku_variant_id: podSkuVariantId }
+            : { inventory_material_id: inventoryMaterialId, pod_sku_variant_id: null }
         const { data } = await api.post<{
             variant_id: string
             inventory_link: {
@@ -1159,10 +1164,7 @@ export const productMasterService = {
             } | null
         }>(
             `/api/master/products/${productId}/variants/${variantId}/link-inventory/`,
-            {
-                inventory_material_id: inventoryMaterialId,
-                pod_sku_variant_id: podSkuVariantId || null,
-            },
+            payload,
         )
         return data
     },

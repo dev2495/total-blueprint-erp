@@ -82,16 +82,22 @@ export function thicknessOptionsForLayer(layer: LayerTemplateRow, films: Materia
 export function gradeOptionsForLayer(layer: LayerTemplateRow, films: Material[], grades: RecipeGrade[], recipes: ExtrusionRecipe[]) {
     const film = filmForLayer(layer, films)
     if (isPurchasedOnlyFilm(film)) return []
+    const defaults = layer.default_grade ? [String(layer.default_grade).trim()].filter(Boolean) : []
     const explicit = (layer.grade_options || []).map((g) => String(g).trim()).filter(Boolean)
-    if (explicit.length) return Array.from(new Set([...(layer.default_grade ? [String(layer.default_grade)] : []), ...explicit]))
+    const activeGradeMasterNames = grades
+        .filter((grade) => (grade as any).is_active !== false)
+        .map((grade) => String(grade.name || "").trim())
+        .filter(Boolean)
+    if (activeGradeMasterNames.length) return Array.from(new Set([...defaults, ...explicit, ...activeGradeMasterNames]))
+    if (explicit.length) return Array.from(new Set([...defaults, ...explicit]))
     if (film?.id) {
         const recipeGrades = recipes
             .filter((recipe) => String(recipe.film_variant) === String(film.id) && recipe.is_active !== false)
             .map((recipe) => recipe.grade_name)
             .filter(Boolean)
-        if (recipeGrades.length) return Array.from(new Set([...(layer.default_grade ? [String(layer.default_grade)] : []), ...recipeGrades]))
+        if (recipeGrades.length) return Array.from(new Set([...defaults, ...recipeGrades]))
     }
-    return grades.map((grade) => grade.name).filter(Boolean)
+    return defaults
 }
 
 export function sanitizeLayerForFilm(
@@ -117,8 +123,9 @@ export function sanitizeLayerForFilm(
 
     const gradeOptions = gradeOptionsForLayer(next, film ? [film] : [], grades, recipes)
     if (gradeOptions.length) {
-        next.grade_options = gradeOptions
         if (!next.default_grade || !gradeOptions.includes(next.default_grade)) next.default_grade = gradeOptions[0]
+        next.grade_apportion = next.grade_apportion || "fixed"
+        next.grade_options = next.grade_apportion === "variable" ? gradeOptions : [next.default_grade]
     }
     return next
 }
@@ -255,7 +262,10 @@ export function LayerAllowedGradePicker({
         return <div className="text-[11px] font-semibold text-slate-500">Purchased-only film: no grade selection appears in sales.</div>
     }
     const options = gradeOptionsForLayer({ ...layer, grade_options: [] }, films, grades, recipes)
-    const selected = new Set(layer.grade_options || (layer.default_grade ? [layer.default_grade] : []))
+    const selected = new Set([
+        ...(layer.default_grade ? [layer.default_grade] : []),
+        ...(Array.isArray(layer.grade_options) ? layer.grade_options : []),
+    ])
     if (!options.length) {
         return <div className="text-[11px] font-semibold text-amber-700">No active grade choices found for this film.</div>
     }
@@ -274,7 +284,7 @@ export function LayerAllowedGradePicker({
                                 if (active) next.delete(grade)
                                 else next.add(grade)
                                 if (layer.default_grade) next.add(layer.default_grade)
-                                onChange({ grade_options: Array.from(next) })
+                                onChange({ grade_apportion: "variable", grade_options: Array.from(next) })
                             }}
                             className={cn(
                                 "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition",

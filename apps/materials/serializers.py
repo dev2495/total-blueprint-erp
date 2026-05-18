@@ -40,6 +40,16 @@ LAYER_MATERIAL_OPTION_KEYS = {
 }
 
 
+def _product_master_physical_fg_type(product_kind, packaging_kind=None):
+    normalized = str(product_kind or "").upper()
+    pack_kind = str(packaging_kind or "").upper()
+    if normalized in {"ROLL", "POD"}:
+        return "ROLL"
+    if normalized == "PACKAGING" and pack_kind == "SHEET":
+        return "ROLL"
+    return "POUCH"
+
+
 def _material_codes_from_options(value):
     if value in (None, ""):
         return set()
@@ -248,16 +258,33 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         if not attrs.get("canonical_layer_stack") and attrs.get("layer_template"):
             attrs["canonical_layer_stack"] = attrs.get("layer_template")
         product_kind = str(attrs.get("product_kind") or getattr(self.instance, "product_kind", "POUCH") or "POUCH").upper()
-        fixed_attributes = attrs.get("fixed_attributes")
+        raw_packaging_kind = attrs.get("packaging_kind") if "packaging_kind" in attrs else getattr(self.instance, "packaging_kind", None)
+        packaging_kind = str(raw_packaging_kind or "").upper()
+        fixed_attributes_supplied = "fixed_attributes" in attrs
+        existing_fixed_attributes = getattr(self.instance, "fixed_attributes", None) if self.instance else None
+        fixed_payload_source = attrs.get("fixed_attributes") if fixed_attributes_supplied else existing_fixed_attributes
+        fixed_payload = fixed_payload_source if isinstance(fixed_payload_source, dict) else {}
+        fixed_fg_hint = str(fixed_payload.get("fg_type") or "").upper()
+        if product_kind == "PACKAGING":
+            if packaging_kind not in {"INNER_POUCH", "SHEET"}:
+                packaging_kind = "SHEET" if fixed_fg_hint == "ROLL" else "INNER_POUCH"
+            attrs["packaging_kind"] = packaging_kind
+        else:
+            packaging_kind = None
+            attrs["packaging_kind"] = None
+        fixed_attributes = fixed_payload_source
+        should_write_fixed_attributes = fixed_attributes_supplied or self.instance is None or "product_kind" in attrs or "packaging_kind" in attrs
+        physical_fg_type = _product_master_physical_fg_type(product_kind, packaging_kind)
         if not fixed_attributes:
-            physical_fg_type = "ROLL" if product_kind == "ROLL" else "POUCH"
-            attrs["fixed_attributes"] = {"fg_type": physical_fg_type, "print_capable": True}
+            if should_write_fixed_attributes:
+                attrs["fixed_attributes"] = {"fg_type": physical_fg_type, "print_capable": True}
         elif isinstance(fixed_attributes, dict):
             fixed = dict(fixed_attributes)
             raw_fg_type = str(fixed.get("fg_type") or "").upper()
-            if raw_fg_type not in {"POUCH", "ROLL"}:
-                fixed["fg_type"] = "ROLL" if product_kind == "ROLL" else "POUCH"
-            attrs["fixed_attributes"] = fixed
+            if raw_fg_type not in {"POUCH", "ROLL"} or product_kind in {"ROLL", "POD", "PACKAGING"}:
+                fixed["fg_type"] = physical_fg_type
+            if should_write_fixed_attributes or fixed != fixed_attributes:
+                attrs["fixed_attributes"] = fixed
         layer_template = attrs.get("layer_template")
         if layer_template is None and self.instance:
             layer_template = getattr(self.instance, "layer_template", None)
@@ -304,6 +331,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                 if can_skip_grade:
                     row["default_grade"] = ""
                     row["grade_options"] = []
+                    row["grade_apportion"] = "fixed"
                 elif not str(grade or "").strip():
                     if not has_layer_grade_axis:
                         raise serializers.ValidationError({"layer_template": f"Layer {index + 1} grade is required unless the selected film variant is purchasable-only or grade is a per-layer axis."})
@@ -325,6 +353,14 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                         raise serializers.ValidationError({"layer_template": f"Layer {index + 1} has invalid grade options: {', '.join(invalid_grades)}."})
                     row["default_grade"] = grade
                     row["grade_options"] = list(dict.fromkeys(options))
+                if not can_skip_grade:
+                    raw_grade_mode = str(row.get("grade_apportion") or row.get("grade_mode") or "").strip().lower()
+                    if raw_grade_mode == "variable" or (not raw_grade_mode and len(row.get("grade_options") or []) >= 2):
+                        row["grade_apportion"] = "variable"
+                    else:
+                        row["grade_apportion"] = "fixed"
+                        if row.get("default_grade"):
+                            row["grade_options"] = [row["default_grade"]]
                 raw_share = row.get("thickness_share", row.get("percent_of_total"))
                 if raw_share not in (None, ""):
                     try:

@@ -48,12 +48,26 @@ def _safe_uuid(value):
         return None
 
 
+def _effective_packaging_kind(product):
+    kind = str(getattr(product, "packaging_kind", "") or "").upper()
+    if kind in {"INNER_POUCH", "SHEET"}:
+        return kind
+    fixed = getattr(product, "fixed_attributes", None) or {}
+    if isinstance(fixed, dict):
+        fg_type = str(fixed.get("fg_type") or "").upper()
+        if fg_type == "ROLL":
+            return "SHEET"
+        if fg_type == "POUCH":
+            return "INNER_POUCH"
+    return ""
+
+
 def _variant_inventory_link_error(product, target):
     product_kind = str(getattr(product, "product_kind", "") or "").upper()
     target_category = str(getattr(target, "category", "") or "").upper()
 
     if product_kind == "PACKAGING":
-        expected_kind = str(getattr(product, "packaging_kind", "") or "").upper()
+        expected_kind = _effective_packaging_kind(product)
         if expected_kind not in {"INNER_POUCH", "SHEET"}:
             return "PACKAGING masters must set packaging_kind to INNER_POUCH or SHEET before linking catalog SKUs."
         if target_category != "PACKAGING":

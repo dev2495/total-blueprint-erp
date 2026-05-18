@@ -59,6 +59,7 @@ import {
     LayerAllowedGradePicker,
     LayerDefaultGradeSelect,
     LayerThicknessSelect,
+    gradeOptionsForLayer,
     sanitizeLayerForFilm,
 } from "@/components/product-master/layer-master-controls"
 
@@ -444,6 +445,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                         film_variant_code: "",
                         thickness_micron: 0,
                         thickness_apportion: "per_layer",
+                        grade_apportion: "fixed",
                     },
                 ],
             }
@@ -1437,9 +1439,11 @@ function LayerCard({
     onRemove: () => void
 }) {
     const gradeOptions: string[] = Array.isArray((layer as any).grade_options) ? (layer as any).grade_options : []
-    const gradeVariable = gradeOptions.length >= 2
+    const gradeMode = String((layer as any).grade_apportion || (layer as any).grade_mode || "").toLowerCase()
+    const gradeVariable = gradeMode === "variable" || (!gradeMode && gradeOptions.length >= 2)
     const thickVariable = String((layer as any).thickness_apportion || "").toLowerCase() === "variable"
     const [showRollOverride, setShowRollOverride] = React.useState<boolean>(!!(layer as any).default_input_roll_width_mm)
+    const allGradeOptions = gradeOptionsForLayer(layer, filmVariants, grades as any, recipes as any)
 
     return (
         <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/30 to-cyan-50/20 p-4 shadow-sm ring-1 ring-white/40">
@@ -1523,13 +1527,13 @@ function LayerCard({
                         if (!v) {
                             // Variable → Fixed: collapse the allowed list to just the default
                             const def = String((layer as any).default_grade || gradeOptions[0] || "")
-                            onPatch({ grade_options: def ? [def] : [], default_grade: def } as any)
+                            onPatch({ grade_apportion: "fixed", grade_options: def ? [def] : [], default_grade: def } as any)
                         } else {
-                            // Fixed → Variable: keep current default but signal allowed-list intent
-                            // by leaving grade_options as-is; user adds more via picker.
-                            const def = String((layer as any).default_grade || "")
-                            const opts = gradeOptions.length ? gradeOptions : (def ? [def] : [])
-                            onPatch({ grade_options: opts } as any)
+                            // Fixed → Variable: keep the current default and expose the full
+                            // active Grade Master list as allowed choices.
+                            const def = String((layer as any).default_grade || allGradeOptions[0] || "")
+                            const opts = Array.from(new Set([...(def ? [def] : []), ...gradeOptions, ...allGradeOptions]))
+                            onPatch({ grade_apportion: "variable", grade_options: opts, default_grade: def } as any)
                         }
                     }}
                     helperFixed="One grade used by every variant"
@@ -1540,7 +1544,13 @@ function LayerCard({
                             films={filmVariants}
                             grades={grades}
                             recipes={recipes}
-                            onChange={(patch) => onPatch(patch)}
+                            onChange={(patch) => {
+                                if (!gradeVariable && patch.default_grade) {
+                                    onPatch({ ...patch, grade_apportion: "fixed", grade_options: [String(patch.default_grade)] } as any)
+                                    return
+                                }
+                                onPatch(gradeVariable ? ({ ...patch, grade_apportion: "variable" } as any) : patch)
+                            }}
                         />
                     }
                     allowedEditor={

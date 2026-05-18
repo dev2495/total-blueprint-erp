@@ -92,6 +92,51 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(material.packaging_supply_mode, "IN_HOUSE")
         self.assertIsNone(material.production_template_id)
 
+    def test_product_master_packaging_subtype_sets_physical_output_type(self):
+        sheet_response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "PM-PACK-SHEET-FORM",
+                "name": "Packing sheet form",
+                "product_kind": "PACKAGING",
+                "packaging_kind": "SHEET",
+                "default_reporting_group": "PACKAGING",
+                "fixed_attributes": {"fg_type": "POUCH", "print_capable": True},
+            },
+            format="json",
+        )
+        inferred_response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "PM-PACK-INFER-ROLL",
+                "name": "Packing inferred roll form",
+                "product_kind": "PACKAGING",
+                "default_reporting_group": "PACKAGING",
+                "fixed_attributes": {"fg_type": "ROLL", "print_capable": True},
+            },
+            format="json",
+        )
+        pod_response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "PM-POD-ROLL-FORM",
+                "name": "POD roll form",
+                "product_kind": "POD",
+                "default_reporting_group": "POD",
+            },
+            format="json",
+        )
+
+        self.assertEqual(sheet_response.status_code, 201, sheet_response.data)
+        self.assertEqual(sheet_response.data["packaging_kind"], "SHEET")
+        self.assertEqual(sheet_response.data["fixed_attributes"]["fg_type"], "ROLL")
+        self.assertEqual(inferred_response.status_code, 201, inferred_response.data)
+        self.assertEqual(inferred_response.data["packaging_kind"], "SHEET")
+        self.assertEqual(inferred_response.data["fixed_attributes"]["fg_type"], "ROLL")
+        self.assertEqual(pod_response.status_code, 201, pod_response.data)
+        self.assertIsNone(pod_response.data["packaging_kind"])
+        self.assertEqual(pod_response.data["fixed_attributes"]["fg_type"], "ROLL")
+
     def test_variant_inventory_link_requires_matching_packaging_subtype(self):
         master = ProductMaster.objects.create(
             code="PM-PACK-INNER-LINK",
@@ -162,6 +207,93 @@ class ProductMasterApiTests(TestCase):
         inner.refresh_from_db()
         self.assertEqual(inner.produced_by_product_variant_id, variant.id)
         self.assertEqual(inner.packaging_supply_mode, "BOTH")
+
+    def test_variant_inventory_link_allows_sheet_packaging_subtype_only(self):
+        master = ProductMaster.objects.create(
+            code="PM-PACK-SHEET-LINK",
+            name="PM sheet packing link",
+            product_kind="PACKAGING",
+            packaging_kind="SHEET",
+            default_reporting_group="PACKAGING",
+            fixed_attributes={"fg_type": "ROLL"},
+        )
+        variant = ProductVariant.objects.create(
+            master=master,
+            code="PM-PACK-SHEET-LINK-V1",
+            bom_signature="pm-pack-sheet-link-v1",
+            axis_values={"size": "ROLL"},
+        )
+        sheet = InventoryMaterial.objects.create(
+            code="PK-SHEET-LINK-OK",
+            name="Sheet link OK",
+            category="PACKAGING",
+            base_uom="KG",
+            packaging_kind="SHEET",
+            packaging_supply_mode="PURCHASED",
+            status="ACTIVE",
+        )
+        inner = InventoryMaterial.objects.create(
+            code="PK-INNER-SHEET-BAD",
+            name="Inner pouch bad for sheet master",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="INNER_POUCH",
+            packaging_supply_mode="PURCHASED",
+            status="ACTIVE",
+        )
+
+        wrong_kind = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(inner.id)},
+            format="json",
+        )
+        ok = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(sheet.id)},
+            format="json",
+        )
+
+        self.assertEqual(wrong_kind.status_code, 400, wrong_kind.data)
+        self.assertIn("packaging_kind", str(wrong_kind.data).lower())
+        self.assertEqual(ok.status_code, 200, ok.data)
+        sheet.refresh_from_db()
+        self.assertEqual(sheet.produced_by_product_variant_id, variant.id)
+        self.assertEqual(sheet.packaging_supply_mode, "BOTH")
+
+    def test_variant_inventory_link_infers_sheet_for_legacy_roll_packaging_master(self):
+        master = ProductMaster.objects.create(
+            code="PM-PACK-LEGACY-ROLL",
+            name="PM legacy roll packing",
+            product_kind="PACKAGING",
+            packaging_kind=None,
+            default_reporting_group="PACKAGING",
+            fixed_attributes={"fg_type": "ROLL"},
+        )
+        variant = ProductVariant.objects.create(
+            master=master,
+            code="PM-PACK-LEGACY-ROLL-V1",
+            bom_signature="pm-pack-legacy-roll-v1",
+            axis_values={"size": "ROLL"},
+        )
+        sheet = InventoryMaterial.objects.create(
+            code="PK-SHEET-LEGACY-OK",
+            name="Sheet legacy OK",
+            category="PACKAGING",
+            base_uom="KG",
+            packaging_kind="SHEET",
+            packaging_supply_mode="IN_HOUSE",
+            status="ACTIVE",
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(sheet.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        sheet.refresh_from_db()
+        self.assertEqual(sheet.produced_by_product_variant_id, variant.id)
 
     def test_variant_inventory_link_requires_pod_catalog_for_pod_master(self):
         master = ProductMaster.objects.create(

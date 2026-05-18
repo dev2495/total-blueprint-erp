@@ -1220,28 +1220,39 @@ function VariantInventoryLinkPanel({ variant, master, link }: {
     const { toast } = useToast()
     const kind = String(master.product_kind || "").toUpperCase()
     const expectedCategory = kind === "PACKAGING" ? "PACKAGING" : "POD"
-    const expectedPackagingKind = kind === "PACKAGING" ? String(master.packaging_kind || "").toUpperCase() : ""
+    const fixedFgType = String((master.fixed_attributes as any)?.fg_type || "").toUpperCase()
+    const expectedPackagingKind = kind === "PACKAGING"
+        ? (String(master.packaging_kind || "").toUpperCase() || (fixedFgType === "ROLL" ? "SHEET" : "INNER_POUCH"))
+        : ""
     const [pickerOpen, setPickerOpen] = React.useState(false)
     const [picker, setPicker] = React.useState("")
+    const scalarId = React.useCallback((value: any) => {
+        if (value && typeof value === "object") return String(value.id || value.uuid || "")
+        return value == null ? "" : String(value)
+    }, [])
 
     // Pool of candidate catalog rows the admin can link to. Packaging links
     // direct InventoryMaterial rows; POD links through PodSkuVariant so this
     // picker shows the same fixed POD SKU catalog used by sales/planner.
     const { data: pool = [] } = useQuery({
-        queryKey: ["catalog-pool", expectedCategory],
+        queryKey: ["catalog-pool", expectedCategory, expectedPackagingKind],
         queryFn: () =>
             expectedCategory === "PACKAGING"
                 ? masterDataService.getPackaging()
                 : masterDataService.getPodSkuVariants({ active: true }).then((rows: PodSkuVariant[]) =>
-                    rows.map((row) => ({
-                        ...row,
-                        id: row.material,
-                        pod_sku_variant_id: row.id,
-                        code: row.code,
-                        name: row.name || row.material_name || row.pod_sku_name || row.code,
-                        base_uom: row.material_base_uom || "KG",
-                        product_master_link: row.material_product_master_link || null,
-                    }) as any),
+                    rows.map((row) => {
+                        const materialId = scalarId((row as any).material)
+                        return {
+                            ...row,
+                            id: materialId || row.id,
+                            material_id: materialId,
+                            pod_sku_variant_id: row.id,
+                            code: row.code,
+                            name: row.name || row.material_name || row.pod_sku_name || row.code,
+                            base_uom: row.material_base_uom || "KG",
+                            product_master_link: row.material_product_master_link || null,
+                        } as any
+                    }),
                 ),
         enabled: pickerOpen,
         staleTime: 60_000,
@@ -1344,9 +1355,15 @@ function VariantInventoryLinkPanel({ variant, master, link }: {
                             </div>
                         ) : filtered.map((m: any) => (
                             <button
-                                key={m.id}
+                                key={m.pod_sku_variant_id || m.id}
                                 type="button"
-                                onClick={() => linkMut.mutate({ inventoryMaterialId: String(m.id), podSkuVariantId: m.pod_sku_variant_id || null })}
+                                onClick={() => {
+                                    const podSkuVariantId = m.pod_sku_variant_id ? String(m.pod_sku_variant_id) : null
+                                    linkMut.mutate({
+                                        inventoryMaterialId: podSkuVariantId ? null : String(m.id),
+                                        podSkuVariantId,
+                                    })
+                                }}
                                 disabled={linkMut.isPending}
                                 className={cn(
                                     "flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left hover:border-emerald-300 hover:bg-emerald-50/40",
