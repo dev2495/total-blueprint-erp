@@ -1,6 +1,8 @@
 from rest_framework import viewsets, serializers
 from rest_framework.decorators import action
+from rest_framework import status
 from rest_framework.response import Response
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from datetime import timedelta
 from .models import Plant, Process, WorkCenter, Machine, PlantShiftDefinition, MachineShiftOverride
@@ -41,7 +43,16 @@ class ProcessViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         if getattr(instance, "is_system", False):
             return Response({"error": "System processes cannot be deleted."}, status=400)
-        return super().destroy(request, *args, **kwargs)
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {
+                    "error": "Process is used by existing templates or jobs and cannot be deleted.",
+                    "detail": "Mark the process inactive instead, or remove the dependent template steps first.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
 
 class WorkCenterViewSet(viewsets.ModelViewSet):
     queryset = WorkCenter.objects.all()
