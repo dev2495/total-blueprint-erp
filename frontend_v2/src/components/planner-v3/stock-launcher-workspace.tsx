@@ -394,25 +394,39 @@ export function StockLauncherV3Workspace() {
     return (
         <div className="space-y-6">
             <GradientHero
-                eyebrow={`Master · Planner · Stock Launcher · v3`}
-                title="Planner stock launcher"
-                subtitle="Create generic WIP, customer stock, artwork-committed stock, packaging stock, or POD stock from Product Master axes."
+                eyebrow="PLANNER · STOCK LAUNCHER"
+                title="Launch stock from any Product Master"
+                subtitle="Choose a mode → pick a master → set axes → preview math → launch. Generic mode tags rolls for any matching order; Customer/Artwork modes pre-commit; Packaging/POD build in-house bridge stock."
                 palette="indigo"
-                tone="subtle"
                 chips={[
-                    { label: "Selected master", value: master?.code || "None", icon: <Package className="h-3.5 w-3.5" /> },
-                    { label: "Route steps", value: String(steps.length || 0), icon: <Workflow className="h-3.5 w-3.5" /> },
-                    { label: "Sizes", value: String(sizes.length || 0), icon: <Database className="h-3.5 w-3.5" /> },
-                    { label: "Layers", value: String(master?.layer_template.length || 0), icon: <Layers className="h-3.5 w-3.5" /> },
-                    { label: "Scope", value: scope, icon: <UserSquare className="h-3.5 w-3.5" /> },
+                    { label: "Master", value: master?.code || "None", icon: <Package className="h-3.5 w-3.5" />, tone: master ? "info" : undefined },
+                    { label: "Layers", value: String(master?.layer_template.length || 0), icon: <Layers className="h-3.5 w-3.5" />, tone: "violet" },
+                    { label: "Sizes", value: String(sizes.length || 0), icon: <Database className="h-3.5 w-3.5" />, tone: "info" },
+                    { label: "Route steps", value: String(steps.length || 0), icon: <Workflow className="h-3.5 w-3.5" />, tone: "info" },
+                    { label: "Scope", value: scope, icon: <UserSquare className="h-3.5 w-3.5" />, tone: scope === "GENERIC" ? "violet" : "ok" },
                     {
                         label: "Validation",
                         value: validation?.valid ? "Ready" : validate.isError ? "Blocked" : "Pending",
-                        tone: validation?.valid ? "ok" : undefined,
+                        tone: validation?.valid ? "ok" : validate.isError ? "error" : "warn",
                         icon: validation?.valid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />,
                     },
                 ]}
-            />
+            >
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="rounded-xl bg-white/10 px-3 py-2 backdrop-blur ring-1 ring-white/20">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/80">Step 1 · Mode</div>
+                        <div className="mt-0.5 text-sm font-semibold text-white">{mode === "GENERIC" ? "Generic / Jumbo" : mode === "POD" ? "POD stock" : mode === "PACKAGING" ? "Packaging stock" : mode === "CUSTOMER" ? "Customer-committed" : mode === "ARTWORK" ? "Artwork-committed" : "Customer + Artwork"}</div>
+                    </div>
+                    <div className="rounded-xl bg-white/10 px-3 py-2 backdrop-blur ring-1 ring-white/20">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/80">Step 4 · Stop</div>
+                        <div className="mt-0.5 text-sm font-semibold text-white">{startStep > 0 && stopStep > 0 ? `Step ${startStep} → ${stopStep}` : "Pick build stop"}</div>
+                    </div>
+                    <div className="rounded-xl bg-white/10 px-3 py-2 backdrop-blur ring-1 ring-white/20">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/80">Step 6 · Quantity</div>
+                        <div className="mt-0.5 text-sm font-semibold text-white">{quantity > 0 ? `${quantity.toLocaleString()} ${qtyUom}` : "Set quantity"}</div>
+                    </div>
+                </div>
+            </GradientHero>
 
             <StepStrip steps={STEPS} currentId={stepId} completedIds={completed} onStepClick={setStepId} />
 
@@ -420,6 +434,7 @@ export function StockLauncherV3Workspace() {
                 <div className="space-y-5">
                     <SectionCardV3 index={1} title="Launch mode" description="What kind of stock to build." accent="blue">
                         <LaunchModeGrid value={mode} onChange={setMode} />
+                        <ModeFlowCallout mode={mode} layerCount={master?.layer_template?.length || 0} />
                     </SectionCardV3>
 
                     <SectionCardV3 index={2} title="Product Master" description="Master & template" accent="violet">
@@ -969,4 +984,85 @@ function computeCompleted({
     if (sizeCode) out.push("axes")
     if (quantity > 0) out.push("preview")
     return out
+}
+
+interface ModeFlowCalloutProps {
+    mode: LaunchMode
+    layerCount: number
+}
+
+function ModeFlowCallout({ mode, layerCount }: ModeFlowCalloutProps) {
+    const cfg: Record<LaunchMode, {
+        tone: string
+        title: string
+        whatHappens: string
+        whereUsed: string
+        rollTag: string
+    }> = {
+        GENERIC: {
+            tone: "bg-blue-50/80 ring-blue-200 text-blue-900",
+            title: "Generic / Jumbo stock",
+            whatHappens: `Output rolls tagged GENERIC_JUMBO with a layer signature${layerCount ? ` over ${layerCount} layer${layerCount > 1 ? "s" : ""}` : ""}. No customer or artwork commitment. Stop mid-route (e.g. after lamination) so an order can resume the rest of the steps.`,
+            whereUsed: "Any matching sales order can claim these rolls via WCM Roll Picker · tier 3 (wider, will slit) or tier 4 (remainder pool).",
+            rollTag: "roll_role = GENERIC_JUMBO · meta_json.layer_signature_hash set",
+        },
+        CUSTOMER: {
+            tone: "bg-amber-50/80 ring-amber-200 text-amber-900",
+            title: "Customer-committed stock",
+            whatHappens: "Output rolls tagged with the customer. Allocator will prefer these for that customer's orders. Stop before artwork step if artwork unknown.",
+            whereUsed: "Pulled automatically when the chosen customer places an order matching this master.",
+            rollTag: "committed_customer set · layer_signature_hash set",
+        },
+        ARTWORK: {
+            tone: "bg-fuchsia-50/80 ring-fuchsia-200 text-fuchsia-900",
+            title: "Artwork-committed stock",
+            whatHappens: "Output rolls already printed with the chosen artwork. Skip to post-print steps for any order that matches the artwork.",
+            whereUsed: "Pulled by orders whose artwork id matches the committed artwork.",
+            rollTag: "committed_artwork set · layer_signature_hash set",
+        },
+        CUSTOMER_ARTWORK: {
+            tone: "bg-rose-50/80 ring-rose-200 text-rose-900",
+            title: "Customer + artwork stock",
+            whatHappens: "Most-locked stock kind. Both customer and artwork are pinned at launch.",
+            whereUsed: "Reserved exclusively for that customer + artwork combination.",
+            rollTag: "committed_customer + committed_artwork both set",
+        },
+        PACKAGING: {
+            tone: "bg-emerald-50/80 ring-emerald-200 text-emerald-900",
+            title: "Packaging stock",
+            whatHappens: "Build in-house packaging products (inner pouch or sheet). Variant links manually to a fixed catalog SKU at /master/packaging.",
+            whereUsed: "Drawn at the packing yard when an order's BOM lists this packaging item.",
+            rollTag: "produced_by_product_variant linkage on InventoryMaterial",
+        },
+        POD: {
+            tone: "bg-violet-50/80 ring-violet-200 text-violet-900",
+            title: "POD stock",
+            whatHappens: "Pre-positioned POD inventory pinned to defined POD SKU variants. Same manual-link model as Packaging.",
+            whereUsed: "Drawn for pre-bound POD orders during fulfilment.",
+            rollTag: "produced_by_product_variant linkage on InventoryMaterial",
+        },
+    }
+    const c = cfg[mode] || cfg.GENERIC
+    return (
+        <div className={cn("mt-4 rounded-2xl px-4 py-3 ring-1", c.tone)}>
+            <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-wider">
+                <Sparkles className="h-3.5 w-3.5" />
+                {c.title} · what happens next
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-3">
+                <div className="rounded-lg bg-white/60 p-2 ring-1 ring-white/40">
+                    <div className="text-[10px] font-black uppercase tracking-wider opacity-70">What happens</div>
+                    <p className="mt-1 leading-4">{c.whatHappens}</p>
+                </div>
+                <div className="rounded-lg bg-white/60 p-2 ring-1 ring-white/40">
+                    <div className="text-[10px] font-black uppercase tracking-wider opacity-70">Where used</div>
+                    <p className="mt-1 leading-4">{c.whereUsed}</p>
+                </div>
+                <div className="rounded-lg bg-white/60 p-2 ring-1 ring-white/40">
+                    <div className="text-[10px] font-black uppercase tracking-wider opacity-70">Roll metadata</div>
+                    <p className="mt-1 font-mono text-[10px] leading-4">{c.rollTag}</p>
+                </div>
+            </div>
+        </div>
+    )
 }

@@ -52,6 +52,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { describeApiError } from "@/lib/api"
 import {
@@ -70,6 +71,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
@@ -167,6 +169,16 @@ export function PmDetailV37({ productId }: Props) {
         staleTime: 60_000,
     })
 
+    // PACKAGING + POD = production masters → hide Customer overlays tab.
+    // Computed up front (hooks must run before any early return).
+    const _earlyMasterKind = String(master?.product_kind || "").toUpperCase()
+    const _earlyIsProductionMaster = _earlyMasterKind === "PACKAGING" || _earlyMasterKind === "POD"
+    const _earlyHiddenTabs: Set<TabKey> = _earlyIsProductionMaster ? new Set<TabKey>(["overlays"]) : new Set<TabKey>()
+    React.useEffect(() => {
+        if (_earlyHiddenTabs.has(tab)) setTab("overview")
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [_earlyIsProductionMaster, tab])
+
     if (masterLoading) {
         return (
             <div className="flex h-[60vh] items-center justify-center text-sm text-slate-500">
@@ -194,10 +206,14 @@ export function PmDetailV37({ productId }: Props) {
         artworks: master.artworks_count ?? 0,
     }
 
+    // Use the early-computed hidden tab set (declared before early-returns
+    // so the useEffect hook order is stable).
+    const hiddenTabs = _earlyHiddenTabs
+
     return (
         <div className="space-y-4 pb-12">
             <TopBar master={master} onEdit={() => router.push(`/master/products/${productId}/edit`)} />
-            <Tabs tab={tab} setTab={setTab} counts={counts} />
+            <Tabs tab={tab} setTab={setTab} counts={counts} hiddenTabs={hiddenTabs} />
 
             {tab === "overview" ? (
                 <OverviewTab
@@ -250,27 +266,34 @@ export function PmDetailV37({ productId }: Props) {
 
 function TopBar({ master, onEdit }: { master: ProductMaster; onEdit: () => void }) {
     return (
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
-            <div className="flex items-center gap-3 min-w-0">
-                <Link href="/master/products" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700" title="Back to list">
+        <header className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-white via-indigo-50/40 to-violet-50/40 px-5 py-3 shadow-sm ring-1 ring-white/40 backdrop-blur">
+            <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500" />
+            <div className="relative flex items-center gap-3 min-w-0 pl-2">
+                <Link href="/master/products" className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 text-indigo-600 ring-1 ring-indigo-100 hover:bg-white hover:text-indigo-700 hover:ring-indigo-200 transition" title="Back to list">
                     <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div className="min-w-0">
-                    <div className="text-[10px] font-black tracking-[0.22em] text-slate-500 uppercase">Master data › Product master</div>
-                    <div className="font-display text-sm font-bold text-slate-900 truncate">{master.name}</div>
+                    <div className="text-[10px] font-black tracking-[0.22em] text-indigo-600 uppercase">Master data › Product master</div>
+                    <div className="font-display text-base font-black text-slate-900 truncate tracking-tight">{master.name}</div>
                 </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold ring-1", master.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
-                    {master.active ? "● ACTIVE" : "● INACTIVE"}
+            <div className="relative flex items-center gap-2 flex-wrap">
+                <span className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wide ring-1 shadow-sm",
+                    master.active
+                        ? "bg-gradient-to-r from-emerald-50 to-emerald-100/60 text-emerald-800 ring-emerald-200"
+                        : "bg-gradient-to-r from-rose-50 to-rose-100/60 text-rose-800 ring-rose-200",
+                )}>
+                    <span className={cn("inline-block h-1.5 w-1.5 rounded-full", master.active ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
+                    {master.active ? "ACTIVE" : "INACTIVE"}
                 </span>
-                <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+                <button className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-white hover:ring-indigo-300 hover:text-indigo-700 transition">
                     <Copy className="h-3.5 w-3.5" /> Duplicate
                 </button>
-                <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+                <button className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-white hover:ring-amber-300 hover:text-amber-700 transition">
                     <Archive className="h-3.5 w-3.5" /> Archive
                 </button>
-                <button onClick={onEdit} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[11px] font-bold text-white shadow-sm hover:bg-indigo-700">
+                <button onClick={onEdit} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-3.5 text-[11px] font-black text-white shadow-md hover:shadow-lg hover:from-indigo-700 hover:via-violet-700 hover:to-fuchsia-700 transition">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                 </button>
             </div>
@@ -282,21 +305,61 @@ function TopBar({ master, onEdit }: { master: ProductMaster; onEdit: () => void 
 // Tab strip
 // ──────────────────────────────────────────────────────────────────
 
-function Tabs({ tab, setTab, counts }: { tab: TabKey; setTab: (k: TabKey) => void; counts: { variants: number; sizes: number; overlays: number; artworks: number } }) {
+const TAB_TONES: Record<TabKey, { active: string; hover: string; chip: string }> = {
+    overview: {
+        active: "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-md ring-1 ring-violet-300/50",
+        hover: "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700",
+        chip: "bg-white/25 text-white",
+    },
+    layer: {
+        active: "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md ring-1 ring-blue-300/50",
+        hover: "text-slate-600 hover:bg-blue-50 hover:text-blue-700",
+        chip: "bg-white/25 text-white",
+    },
+    variants: {
+        active: "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md ring-1 ring-violet-300/50",
+        hover: "text-slate-600 hover:bg-violet-50 hover:text-violet-700",
+        chip: "bg-white/25 text-white",
+    },
+    sizes: {
+        active: "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md ring-1 ring-emerald-300/50",
+        hover: "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700",
+        chip: "bg-white/25 text-white",
+    },
+    overlays: {
+        active: "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md ring-1 ring-amber-300/50",
+        hover: "text-slate-600 hover:bg-amber-50 hover:text-amber-700",
+        chip: "bg-white/25 text-white",
+    },
+    artworks: {
+        active: "bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-md ring-1 ring-fuchsia-300/50",
+        hover: "text-slate-600 hover:bg-fuchsia-50 hover:text-fuchsia-700",
+        chip: "bg-white/25 text-white",
+    },
+    audit: {
+        active: "bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-md ring-1 ring-slate-700/50",
+        hover: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+        chip: "bg-white/25 text-white",
+    },
+}
+
+function Tabs({ tab, setTab, counts, hiddenTabs }: { tab: TabKey; setTab: (k: TabKey) => void; counts: { variants: number; sizes: number; overlays: number; artworks: number }; hiddenTabs?: Set<TabKey> }) {
+    const visible = TABS.filter((t) => !hiddenTabs?.has(t.id))
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm overflow-x-auto">
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-1.5 shadow-sm backdrop-blur overflow-x-auto ring-1 ring-white/40">
             <div className="inline-flex gap-1 min-w-max">
-                {TABS.map((t) => {
+                {visible.map((t) => {
                     const active = t.id === tab
                     const count = t.id === "variants" ? counts.variants : t.id === "sizes" ? counts.sizes : t.id === "overlays" ? counts.overlays : t.id === "artworks" ? counts.artworks : undefined
+                    const tone = TAB_TONES[t.id]
                     return (
                         <button key={t.id} onClick={() => setTab(t.id)} className={cn(
-                            "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold",
-                            active ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                            "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition",
+                            active ? tone.active : tone.hover,
                         )}>
                             {t.label}
                             {typeof count === "number" ? (
-                                <span className={cn("ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-black tabular-nums", active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>
+                                <span className={cn("ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-black tabular-nums ring-1 ring-inset", active ? `${tone.chip} ring-white/30` : "bg-slate-100 text-slate-600 ring-slate-200")}>
                                     {count}
                                 </span>
                             ) : null}
@@ -313,30 +376,45 @@ function Tabs({ tab, setTab, counts }: { tab: TabKey; setTab: (k: TabKey) => voi
 // ──────────────────────────────────────────────────────────────────
 
 function OverviewTab({ master, sizes, variants, overlays, routeInfo, templateName, artworks, packagingMaterials, podVariants, addons }: { master: ProductMaster; sizes: ProductMasterSize[]; variants: ProductVariant[]; overlays: CustomerProductOverlay[]; routeInfo: any; templateName: string; artworks: Artwork[]; packagingMaterials: PackagingMaterial[]; podVariants: PodSkuVariant[]; addons: Addon[] }) {
+    const kind = String(master.product_kind || "").toUpperCase()
+    const isProductionMaster = kind === "PACKAGING" || kind === "POD"
     return (
         <div className="space-y-4">
-            {/* Subtle hero + 4-KPI strip side-by-side */}
+            {/* Rich gradient hero + 4-KPI strip side-by-side */}
             <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50/40 to-indigo-50/30 px-5 py-4 shadow-sm">
-                    <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-indigo-400 via-violet-400 to-fuchsia-400" />
-                    <div className="relative pl-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Product kind · {master.product_kind}</div>
-                        <h1 className="font-display text-2xl font-black text-slate-900 mt-0.5 tracking-tight">{master.name}</h1>
-                        {master.description ? <p className="mt-1 text-xs text-slate-600 max-w-3xl">{master.description}</p> : null}
-                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                            <FactCell label="Master code" value={<span className="font-mono font-bold text-slate-900">{master.code}</span>} />
-                            <FactCell label="Family" value={<span className="font-bold text-slate-900">{master.default_reporting_group} · {master.product_kind}</span>} />
-                            <FactCell label="Reusable policy" value={<span className="font-bold text-slate-900 capitalize">{master.reusable_policy.toLowerCase()}</span>} />
-                            <FactCell label="Template" value={<span className="font-bold text-slate-900 truncate">{templateName}</span>} />
+                <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 via-white to-fuchsia-50/60 px-6 py-5 shadow-lg ring-1 ring-white/40">
+                    {/* Decorative blurred blobs */}
+                    <div aria-hidden className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-fuchsia-300/30 blur-3xl" />
+                    <div aria-hidden className="pointer-events-none absolute -bottom-24 left-10 h-56 w-56 rounded-full bg-indigo-300/30 blur-3xl" />
+                    <div aria-hidden className="pointer-events-none absolute top-10 right-1/3 h-32 w-32 rounded-full bg-violet-200/40 blur-2xl" />
+                    {/* Left accent stripe */}
+                    <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500 shadow-[0_0_18px_2px_rgba(139,92,246,0.45)]" />
+                    <div className="relative pl-3">
+                        <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-100 to-violet-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-violet-800 ring-1 ring-violet-200 shadow-sm">
+                                <Sparkles className="h-3 w-3" />
+                                {master.product_kind}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">· Product master</span>
+                        </div>
+                        <h1 className="font-display text-3xl sm:text-4xl font-black text-slate-900 mt-2 tracking-tight bg-gradient-to-br from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-transparent">
+                            {master.name}
+                        </h1>
+                        {master.description ? <p className="mt-2 text-sm text-slate-700 max-w-3xl leading-relaxed">{master.description}</p> : null}
+                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                            <FactCell label="Master code" tone="indigo" value={<span className="font-mono font-black text-indigo-900">{master.code}</span>} />
+                            <FactCell label="Family" tone="violet" value={<span className="font-bold text-violet-900">{master.default_reporting_group} · {master.product_kind}</span>} />
+                            <FactCell label="Reusable policy" tone="emerald" value={<span className="font-bold text-emerald-900 capitalize">{master.reusable_policy.toLowerCase()}</span>} />
+                            <FactCell label="Template" tone="fuchsia" value={<span className="font-bold text-fuchsia-900 truncate">{templateName}</span>} />
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                    <KpiTile label="Variants" value={variants.length} sub={`${variants.filter((v) => v.active).length} active`} icon="🌀" />
-                    <KpiTile label="Sizes" value={sizes.length} sub={sizes.length ? `${sizes[0].code} → ${sizes[sizes.length - 1].code}` : "—"} icon="📐" />
-                    <KpiTile label="Overlays" value={overlays.length} sub={`${overlays.filter((o) => o.active).length} active`} icon="👥" />
-                    <KpiTile label="Artworks" value={artworks.length} sub={artworks.length ? `${artworks.length} approved` : "—"} icon="🎨" />
+                <div className="grid grid-cols-2 gap-2.5">
+                    <KpiTile label="Variants" value={variants.length} sub={`${variants.filter((v) => v.active).length} active`} icon="🌀" tone="violet" />
+                    <KpiTile label="Sizes" value={sizes.length} sub={sizes.length ? `${sizes[0].code} → ${sizes[sizes.length - 1].code}` : "—"} icon="📐" tone="emerald" />
+                    <KpiTile label="Overlays" value={overlays.length} sub={`${overlays.filter((o) => o.active).length} active`} icon="👥" tone="amber" />
+                    <KpiTile label="Artworks" value={artworks.length} sub={artworks.length ? `${artworks.length} approved` : "—"} icon="🎨" tone="fuchsia" />
                 </div>
             </section>
 
@@ -349,8 +427,15 @@ function OverviewTab({ master, sizes, variants, overlays, routeInfo, templateNam
                     <LayerTemplateCard master={master} />
                     {master.layer_template.length > 1 ? <ChemistryDefaultsCard master={master} /> : null}
                     <VariantAxesCard master={master} sizes={sizes} packagingMaterials={packagingMaterials} podVariants={podVariants} addons={addons} />
-                    <PackagingContractCard master={master} packagingMaterials={packagingMaterials} podVariants={podVariants} />
-                    <AddonsContractCard master={master} addons={addons} />
+                    {(() => {
+                        // PACKAGING + POD = production masters → no sales-pickable section.
+                        // Instead surface the Catalog map (variant ↔ /master/packaging|/master/pod row).
+                        if (isProductionMaster) {
+                            return <ProductionCatalogMapCard master={master} variants={variants} />
+                        }
+                        return <PackagingContractCard master={master} packagingMaterials={packagingMaterials} podVariants={podVariants} />
+                    })()}
+                    {!isProductionMaster ? <AddonsContractCard master={master} addons={addons} /> : null}
                     <RecentVariantsCard variants={variants} master={master} />
                 </div>
                 <aside className="space-y-3">
@@ -363,24 +448,80 @@ function OverviewTab({ master, sizes, variants, overlays, routeInfo, templateNam
     )
 }
 
-function FactCell({ label, value }: { label: string; value: React.ReactNode }) {
+const FACT_TONES: Record<string, { bg: string; ring: string; label: string }> = {
+    indigo: { bg: "bg-gradient-to-br from-white to-indigo-50/80", ring: "ring-indigo-200", label: "text-indigo-600" },
+    violet: { bg: "bg-gradient-to-br from-white to-violet-50/80", ring: "ring-violet-200", label: "text-violet-600" },
+    emerald: { bg: "bg-gradient-to-br from-white to-emerald-50/80", ring: "ring-emerald-200", label: "text-emerald-600" },
+    fuchsia: { bg: "bg-gradient-to-br from-white to-fuchsia-50/80", ring: "ring-fuchsia-200", label: "text-fuchsia-600" },
+    slate: { bg: "bg-white/90", ring: "ring-slate-200", label: "text-slate-500" },
+}
+
+function FactCell({ label, value, tone = "slate" }: { label: string; value: React.ReactNode; tone?: keyof typeof FACT_TONES }) {
+    const t = FACT_TONES[tone] || FACT_TONES.slate
     return (
-        <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-            <div className="text-[9px] font-black uppercase text-slate-500">{label}</div>
+        <div className={cn("rounded-xl px-3 py-2 ring-1 shadow-sm backdrop-blur", t.bg, t.ring)}>
+            <div className={cn("text-[9px] font-black uppercase tracking-[0.16em]", t.label)}>{label}</div>
             <div className="mt-0.5 truncate">{value}</div>
         </div>
     )
 }
 
-function KpiTile({ label, value, sub, icon }: { label: string; value: number | string; sub?: string; icon?: string }) {
+const KPI_TONES: Record<string, { wrap: string; iconBg: string; label: string; value: string; sub: string; stripe: string }> = {
+    violet: {
+        wrap: "border-violet-200 bg-gradient-to-br from-violet-50 via-white to-purple-50/60",
+        iconBg: "bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-md",
+        label: "text-violet-700",
+        value: "text-violet-900",
+        sub: "text-violet-700/70",
+        stripe: "bg-gradient-to-r from-violet-500 to-purple-500",
+    },
+    emerald: {
+        wrap: "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50/60",
+        iconBg: "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md",
+        label: "text-emerald-700",
+        value: "text-emerald-900",
+        sub: "text-emerald-700/70",
+        stripe: "bg-gradient-to-r from-emerald-500 to-teal-500",
+    },
+    amber: {
+        wrap: "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50/60",
+        iconBg: "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md",
+        label: "text-amber-700",
+        value: "text-amber-900",
+        sub: "text-amber-700/70",
+        stripe: "bg-gradient-to-r from-amber-500 to-orange-500",
+    },
+    fuchsia: {
+        wrap: "border-fuchsia-200 bg-gradient-to-br from-fuchsia-50 via-white to-pink-50/60",
+        iconBg: "bg-gradient-to-br from-fuchsia-500 to-pink-500 text-white shadow-md",
+        label: "text-fuchsia-700",
+        value: "text-fuchsia-900",
+        sub: "text-fuchsia-700/70",
+        stripe: "bg-gradient-to-r from-fuchsia-500 to-pink-500",
+    },
+    indigo: {
+        wrap: "border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-blue-50/60",
+        iconBg: "bg-gradient-to-br from-indigo-500 to-blue-500 text-white shadow-md",
+        label: "text-indigo-700",
+        value: "text-indigo-900",
+        sub: "text-indigo-700/70",
+        stripe: "bg-gradient-to-r from-indigo-500 to-blue-500",
+    },
+}
+
+function KpiTile({ label, value, sub, icon, tone = "indigo" }: { label: string; value: number | string; sub?: string; icon?: string; tone?: keyof typeof KPI_TONES }) {
+    const t = KPI_TONES[tone] || KPI_TONES.indigo
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className={cn("relative overflow-hidden rounded-2xl border p-3 shadow-sm ring-1 ring-white/40", t.wrap)}>
+            <div className={cn("absolute inset-x-0 top-0 h-1", t.stripe)} />
             <div className="flex items-start justify-between">
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</div>
-                {icon ? <span className="text-base">{icon}</span> : null}
+                <div className={cn("text-[10px] font-black uppercase tracking-[0.16em]", t.label)}>{label}</div>
+                {icon ? (
+                    <span className={cn("flex h-7 w-7 items-center justify-center rounded-xl text-sm", t.iconBg)}>{icon}</span>
+                ) : null}
             </div>
-            <div className="mt-1 font-display text-2xl font-black text-slate-900 tabular-nums">{value}</div>
-            {sub ? <div className="text-[10px] text-slate-500 truncate">{sub}</div> : null}
+            <div className={cn("mt-1.5 font-display text-3xl font-black tabular-nums tracking-tight", t.value)}>{value}</div>
+            {sub ? <div className={cn("text-[10px] font-bold truncate", t.sub)}>{sub}</div> : null}
         </div>
     )
 }
@@ -511,7 +652,21 @@ function FieldSlot({ label, children }: { label: string; children: React.ReactNo
 // ─── Overview · Variant axes card ─────────────────────────────────
 
 function VariantAxesCard({ master, sizes, packagingMaterials, podVariants, addons }: { master: ProductMaster; sizes: ProductMasterSize[]; packagingMaterials: PackagingMaterial[]; podVariants: PodSkuVariant[]; addons: Addon[] }) {
-    const axes = master.variant_axes || []
+    const kind = String(master.product_kind || "").toUpperCase()
+    const isProductionMaster = kind === "PACKAGING" || kind === "POD"
+    // Filter out deprecated axes for the v37 model:
+    //   - packaging_outer: outer packing (gunny/sheet/tape/etc) is no longer on
+    //     the master — packing yard ticks per order at EOD.
+    //   - packaging_inner: only meaningful for POUCH masters.
+    //   - artwork_mode: derived from the Printing 2-knob contract.
+    const axes = (master.variant_axes || []).filter((a) => {
+        const key = canonicalAxisKey(String(a.axis || ""))
+        if (isProductionMaster && PRODUCTION_MASTER_CATALOG_AXES.has(key)) return false
+        if (key === "packaging_outer" || key === "packaging_inner" && kind !== "POUCH") return false
+        if (key === "packaging_inner") return kind === "POUCH"
+        if (key === "artwork_mode") return false
+        return true
+    })
     return (
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
@@ -519,7 +674,9 @@ function VariantAxesCard({ master, sizes, packagingMaterials, podVariants, addon
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><Workflow className="h-4 w-4" /></span>
                     <div>
                         <h3 className="font-display text-sm font-bold text-slate-900">Variant axes · {axes.length} axes</h3>
-                        <div className="text-[10px] text-slate-500">Each axis becomes one dropdown sales/planner sees while configuring</div>
+                        <div className="text-[10px] text-slate-500">
+                            {isProductionMaster ? "These axes define produced variants; catalog SKU is linked manually after variant creation" : "Each axis becomes one dropdown sales/planner sees while configuring"}
+                        </div>
                     </div>
                 </div>
             </header>
@@ -744,6 +901,20 @@ function normalizeCode(value: unknown) {
     return String(value || "").trim().toUpperCase()
 }
 
+const AXIS_ALIAS: Record<string, string> = {
+    pod: "pod_variant",
+    pod_ref: "pod_variant",
+    packaging: "packaging_inner",
+    packaging_ref: "packaging_inner",
+}
+
+const PRODUCTION_MASTER_CATALOG_AXES = new Set(["packaging_inner", "packaging_outer", "pod_variant", "addons"])
+
+function canonicalAxisKey(value: unknown) {
+    const key = String(value || "").trim().toLowerCase()
+    return AXIS_ALIAS[key] || key
+}
+
 function axisValuePresent(value: any): boolean {
     if (Array.isArray(value)) return value.length > 0
     if (value && typeof value === "object") return Object.values(value).some((nested) => nested !== "" && nested !== null && nested !== undefined)
@@ -956,6 +1127,12 @@ function RoutePreviewCard({ master, routeInfo, templateName }: { master: Product
 
 function RecentVariantsCard({ variants, master }: { variants: ProductVariant[]; master: ProductMaster }) {
     const recent = variants.slice(0, 6)
+    const kind = String(master.product_kind || "").toUpperCase()
+    const isPackOrPod = kind === "PACKAGING" || kind === "POD"
+    const totalStockQty = isPackOrPod
+        ? variants.reduce((sum, v) => sum + Number(v.inventory_link?.stock_qty || 0), 0)
+        : 0
+    const linkedVariants = isPackOrPod ? variants.filter((v) => v.inventory_link).length : 0
     return (
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
@@ -966,6 +1143,16 @@ function RecentVariantsCard({ variants, master }: { variants: ProductVariant[]; 
                         <div className="text-[10px] text-slate-500">Open Variants tab for matrix / cards / table views</div>
                     </div>
                 </div>
+                {isPackOrPod ? (
+                    <div className="flex items-center gap-2 text-[10px]">
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">
+                            {linkedVariants}/{variants.length} linked
+                        </span>
+                        <span className="rounded-full bg-violet-50 px-2 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">
+                            {totalStockQty.toLocaleString()} in stock
+                        </span>
+                    </div>
+                ) : null}
             </header>
             {recent.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400 italic">No variants yet — they appear as sales/planner configures axis tuples.</div>
@@ -987,6 +1174,12 @@ function VariantPeekCard({ variant, master }: { variant: ProductVariant; master:
     const unitG = Number((variant as any).geometry_snapshot?.unit_weight_g || (variant as any).unit_weight_g || 0)
     const layers = (variant as any).layer_snapshot
     const matCount = Array.isArray(layers) ? layers.length : (master.layer_template?.length || 0)
+    // For PACKAGING + POD masters the variant is manually linked to a fixed
+    // catalog row. Surface the link + stock count so the admin sees "this
+    // variant -> SKU X · Y units in stock" at a glance.
+    const link = variant.inventory_link || null
+    const kind = String(master.product_kind || "").toUpperCase()
+    const isPackOrPod = kind === "PACKAGING" || kind === "POD"
     return (
         <div className="rounded-xl border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:shadow-md">
             <div className="flex items-center justify-between">
@@ -1005,7 +1198,190 @@ function VariantPeekCard({ variant, master }: { variant: ProductVariant; master:
                 {unitG > 0 ? <><span className="font-bold">{unitG}g</span> per pouch</> : "—"}
                 <span className="ml-2 text-slate-500">· {matCount} layer{matCount === 1 ? "" : "s"}</span>
             </div>
+            {/* ── Inventory linkage · PACKAGING + POD masters only ──── */}
+            {isPackOrPod ? (
+                <VariantInventoryLinkPanel variant={variant} master={master} link={link} />
+            ) : null}
         </div>
+    )
+}
+
+/**
+ * VariantInventoryLinkPanel — surfaces the current catalog link + stock and
+ * provides a manual "Change link" dialog so admin can repoint this variant
+ * to a different existing catalog row (in /master/packaging or /master/pod).
+ */
+function VariantInventoryLinkPanel({ variant, master, link }: {
+    variant: ProductVariant
+    master: ProductMaster
+    link: ProductVariant["inventory_link"] | null | undefined
+}) {
+    const queryClient = useQueryClient()
+    const { toast } = useToast()
+    const kind = String(master.product_kind || "").toUpperCase()
+    const expectedCategory = kind === "PACKAGING" ? "PACKAGING" : "POD"
+    const expectedPackagingKind = kind === "PACKAGING" ? String(master.packaging_kind || "").toUpperCase() : ""
+    const [pickerOpen, setPickerOpen] = React.useState(false)
+    const [picker, setPicker] = React.useState("")
+
+    // Pool of candidate catalog rows the admin can link to. Packaging links
+    // direct InventoryMaterial rows; POD links through PodSkuVariant so this
+    // picker shows the same fixed POD SKU catalog used by sales/planner.
+    const { data: pool = [] } = useQuery({
+        queryKey: ["catalog-pool", expectedCategory],
+        queryFn: () =>
+            expectedCategory === "PACKAGING"
+                ? masterDataService.getPackaging()
+                : masterDataService.getPodSkuVariants({ active: true }).then((rows: PodSkuVariant[]) =>
+                    rows.map((row) => ({
+                        ...row,
+                        id: row.material,
+                        pod_sku_variant_id: row.id,
+                        code: row.code,
+                        name: row.name || row.material_name || row.pod_sku_name || row.code,
+                        base_uom: row.material_base_uom || "KG",
+                        product_master_link: row.material_product_master_link || null,
+                    }) as any),
+                ),
+        enabled: pickerOpen,
+        staleTime: 60_000,
+    })
+
+    const filtered = (pool as any[]).filter((m) => {
+        if (String(m.status || m.material_status || "ACTIVE").toUpperCase() === "INACTIVE") return false
+        const linked = m.product_master_link || m.material_product_master_link
+        const linkedVariantId = String(linked?.variant_id || "")
+        if (linkedVariantId && linkedVariantId !== variant.id) return false
+        if (expectedCategory === "PACKAGING") {
+            const rowKind = String(m.packaging_kind || "").toUpperCase()
+            if (expectedPackagingKind && rowKind !== expectedPackagingKind) return false
+        }
+        if (!picker.trim()) return true
+        const q = picker.trim().toLowerCase()
+        return (
+            String(m.code || "").toLowerCase().includes(q) ||
+            String(m.name || "").toLowerCase().includes(q) ||
+            String(m.material_code || "").toLowerCase().includes(q) ||
+            String(m.pod_sku_code || "").toLowerCase().includes(q)
+        )
+    }).slice(0, 30)
+
+    const linkMut = useMutation({
+        mutationFn: (payload: { inventoryMaterialId: string | null; podSkuVariantId?: string | null }) =>
+            productMasterService.linkVariantInventory(master.id, variant.id, payload.inventoryMaterialId, payload.podSkuVariantId),
+        onSuccess: () => {
+            toast({ title: "Catalog link updated", description: variant.code })
+            queryClient.invalidateQueries({ queryKey: ["product-master-variants", master.id] })
+            setPickerOpen(false)
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Could not relink",
+                description: err?.response?.data?.error || err?.message || "Try again",
+                variant: "destructive",
+            })
+        },
+    })
+
+    return (
+        <>
+            {link ? (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 px-2 py-1.5 ring-1 ring-emerald-100">
+                    <div className="min-w-0">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Catalog SKU</div>
+                        <div className="font-mono text-[10px] font-bold text-emerald-900 truncate">{link.pod_sku_variant_code || link.code}</div>
+                        {link.pod_sku_variant_code ? <div className="font-mono text-[9px] text-emerald-700 truncate">{link.code}</div> : null}
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">In stock</div>
+                        <div className="font-mono text-[11px] font-black text-emerald-900 tabular-nums">
+                            {Number(link.stock_qty || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                            <span className="ml-0.5 text-[9px] font-medium text-emerald-700">{link.base_uom || ""}</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setPickerOpen(true)}
+                        className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 hover:bg-emerald-100"
+                        title="Change which catalog SKU this variant maps to"
+                    >
+                        Change
+                    </button>
+                </div>
+            ) : (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50/60 px-2 py-1.5 ring-1 ring-amber-100 text-[10px] text-amber-900">
+                    <span><span className="font-bold">No catalog link.</span> Pick an existing fixed SKU.</span>
+                    <button
+                        type="button"
+                        onClick={() => setPickerOpen(true)}
+                        className="rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white hover:bg-amber-600"
+                    >
+                        Link SKU
+                    </button>
+                </div>
+            )}
+
+            <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="font-display text-base font-black">
+                            Link variant <span className="font-mono text-violet-700">{variant.code}</span>
+                        </DialogTitle>
+                        <DialogDescription className="text-[11px]">
+                            Pick an unlinked fixed SKU in <strong>{expectedCategory === "PACKAGING" ? "/master/packaging" : "/master/pod"}</strong>, or keep the current link. {expectedPackagingKind ? `This master only accepts ${expectedPackagingKind.replaceAll("_", " ")} rows. ` : ""}No SKU is created automatically.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Input
+                        value={picker}
+                        onChange={(e) => setPicker(e.target.value)}
+                        placeholder="Search code or name…"
+                        className="h-9 rounded-xl"
+                    />
+                    <div className="max-h-[300px] overflow-y-auto space-y-1">
+                        {filtered.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-3 text-center text-xs text-slate-500">
+                                No unlinked matching catalog rows.
+                            </div>
+                        ) : filtered.map((m: any) => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => linkMut.mutate({ inventoryMaterialId: String(m.id), podSkuVariantId: m.pod_sku_variant_id || null })}
+                                disabled={linkMut.isPending}
+                                className={cn(
+                                    "flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left hover:border-emerald-300 hover:bg-emerald-50/40",
+                                    link?.id === m.id ? "border-emerald-400 bg-emerald-50 ring-1 ring-emerald-200" : "border-slate-200 bg-white",
+                                )}
+                            >
+                                <div className="min-w-0">
+                                    <div className="font-mono text-xs font-black text-slate-900 truncate">{m.code}</div>
+                                    {m.name && m.name !== m.code ? <div className="text-[10px] text-slate-500 truncate">{m.name}</div> : null}
+                                </div>
+                                <div className="text-right text-[10px] text-slate-500">
+                                    {m.packaging_kind || m.pod_sku_code || m.pod_type || ""}<br />
+                                    {m.material_code ? `${m.material_code} · ` : ""}{m.base_uom || ""}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                    <DialogFooter className="gap-2">
+                        {link ? (
+                            <Button
+                                variant="outline"
+                                onClick={() => linkMut.mutate({ inventoryMaterialId: null })}
+                                disabled={linkMut.isPending}
+                                className="rounded-xl text-rose-700 hover:bg-rose-50"
+                            >
+                                Unlink
+                            </Button>
+                        ) : null}
+                        <Button variant="outline" onClick={() => setPickerOpen(false)} className="rounded-xl">
+                            Cancel
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     )
 }
 
@@ -1058,17 +1434,31 @@ function formatRelative(iso: string): string {
 // ─── Side rail · Quick links ──────────────────────────────────────
 
 function QuickLinksCard({ master }: { master: ProductMaster }) {
+    // Production masters (PACKAGING / POD) don't surface "Open in Sales create"
+    // because sales never sells these — the Stock Launcher launches them. We
+    // also surface a direct link to the catalog page for the linked SKU pool.
+    const kind = String(master.product_kind || "").toUpperCase()
+    const isProductionMaster = kind === "PACKAGING" || kind === "POD"
     return (
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <header className="border-b border-slate-100 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Quick links</div>
             </header>
             <div className="p-4 space-y-2 text-[11px]">
-                <Link href={`/sales/orders/create?master=${master.id}`} className="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700">
-                    Open in Sales create <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
+                {!isProductionMaster ? (
+                    <Link href={`/sales/orders/create?master=${master.id}`} className="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700">
+                        Open in Sales create <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                ) : (
+                    <Link
+                        href={kind === "PACKAGING" ? "/master/packaging" : "/master/pod"}
+                        className="flex items-center justify-between rounded-lg bg-gradient-to-r from-violet-50 to-fuchsia-50 hover:from-violet-100 hover:to-fuchsia-100 px-3 py-2 font-bold text-violet-700 ring-1 ring-violet-100"
+                    >
+                        Open catalog · {kind === "PACKAGING" ? "/master/packaging" : "/master/pod"} <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                )}
                 <Link href={`/production/planner/stock-launcher?master=${master.id}`} className="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700">
-                    Launch planner stock <ArrowRight className="h-3.5 w-3.5" />
+                    {isProductionMaster ? "Launch in-house production" : "Launch planner stock"} <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
                 <Link href="/engineering/routing" className="flex items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100 px-3 py-2 font-bold text-slate-700">
                     Open Routing studio <ArrowRight className="h-3.5 w-3.5" />
@@ -1117,12 +1507,107 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function LayerTab({ master }: { master: ProductMaster }) {
     return (
         <div className="space-y-4">
+            <TabBanner
+                tone="blue"
+                eyebrow="Layer template"
+                title="Engineering stack · identity, thickness & grade"
+                subtitle={`${(master.layer_template || []).length} layers · identity locked at master · thickness/grade can be fixed or variable`}
+                icon={<Layers className="h-5 w-5" />}
+            />
             <LayerTemplateCard master={master} />
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 text-[11px] text-blue-900">
-                <div className="font-bold mb-1">How thickness &amp; grade work</div>
-                Layer identity (film) is fixed. Thickness is fixed unless declared variable. Grade options apply only to extruded layers; purchased films skip grade input. Per-layer values for variable layers are picked while creating an order.
+            <div className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50/50 p-5 text-[12px] text-blue-900 shadow-sm">
+                <div aria-hidden className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-cyan-200/40 blur-3xl" />
+                <div className="relative flex items-start gap-3">
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-md"><BookOpen className="h-4 w-4" /></span>
+                    <div>
+                        <div className="font-display font-black text-sm text-blue-900 mb-1">How thickness &amp; grade work</div>
+                        <p className="leading-relaxed text-blue-900/80">
+                            Layer identity (film) is fixed. Thickness is fixed unless declared variable. Grade options apply only to extruded layers; purchased films skip grade input. Per-layer values for variable layers are picked while creating an order.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
+    )
+}
+
+type BannerTone = "blue" | "violet" | "emerald" | "amber" | "fuchsia" | "slate"
+
+function TabBanner({ tone, eyebrow, title, subtitle, icon, right }: {
+    tone: BannerTone
+    eyebrow: string
+    title: string
+    subtitle?: string
+    icon: React.ReactNode
+    right?: React.ReactNode
+}) {
+    const BANNER: Record<BannerTone, { wrap: string; stripe: string; iconBg: string; eyebrow: string; subtitle: string; blob: string }> = {
+        blue: {
+            wrap: "border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/60",
+            stripe: "bg-gradient-to-b from-blue-500 to-cyan-500",
+            iconBg: "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-md",
+            eyebrow: "text-blue-700",
+            subtitle: "text-blue-900/70",
+            blob: "bg-cyan-200/30",
+        },
+        violet: {
+            wrap: "border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-purple-50/60",
+            stripe: "bg-gradient-to-b from-violet-500 to-purple-500",
+            iconBg: "bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-md",
+            eyebrow: "text-violet-700",
+            subtitle: "text-violet-900/70",
+            blob: "bg-violet-200/30",
+        },
+        emerald: {
+            wrap: "border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60",
+            stripe: "bg-gradient-to-b from-emerald-500 to-teal-500",
+            iconBg: "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md",
+            eyebrow: "text-emerald-700",
+            subtitle: "text-emerald-900/70",
+            blob: "bg-emerald-200/30",
+        },
+        amber: {
+            wrap: "border-amber-100 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/60",
+            stripe: "bg-gradient-to-b from-amber-500 to-orange-500",
+            iconBg: "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md",
+            eyebrow: "text-amber-700",
+            subtitle: "text-amber-900/70",
+            blob: "bg-amber-200/30",
+        },
+        fuchsia: {
+            wrap: "border-fuchsia-100 bg-gradient-to-br from-fuchsia-50/80 via-white to-pink-50/60",
+            stripe: "bg-gradient-to-b from-fuchsia-500 to-pink-500",
+            iconBg: "bg-gradient-to-br from-fuchsia-500 to-pink-500 text-white shadow-md",
+            eyebrow: "text-fuchsia-700",
+            subtitle: "text-fuchsia-900/70",
+            blob: "bg-fuchsia-200/30",
+        },
+        slate: {
+            wrap: "border-slate-200 bg-gradient-to-br from-slate-50/80 via-white to-slate-50/60",
+            stripe: "bg-gradient-to-b from-slate-600 to-slate-800",
+            iconBg: "bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md",
+            eyebrow: "text-slate-700",
+            subtitle: "text-slate-700/70",
+            blob: "bg-slate-300/30",
+        },
+    }
+    const t = BANNER[tone]
+    return (
+        <section className={cn("relative overflow-hidden rounded-2xl border px-5 py-4 shadow-sm ring-1 ring-white/40", t.wrap)}>
+            <div aria-hidden className={cn("pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-3xl", t.blob)} />
+            <div className={cn("absolute inset-y-0 left-0 w-1.5", t.stripe)} />
+            <div className="relative flex items-start justify-between gap-3 pl-2">
+                <div className="flex items-start gap-3 min-w-0">
+                    <span className={cn("flex h-10 w-10 flex-none items-center justify-center rounded-xl", t.iconBg)}>{icon}</span>
+                    <div className="min-w-0">
+                        <div className={cn("text-[10px] font-black uppercase tracking-[0.22em]", t.eyebrow)}>{eyebrow}</div>
+                        <div className="font-display text-lg font-black text-slate-900 tracking-tight">{title}</div>
+                        {subtitle ? <div className={cn("mt-0.5 text-[11px]", t.subtitle)}>{subtitle}</div> : null}
+                    </div>
+                </div>
+                {right ? <div className="flex-none">{right}</div> : null}
+            </div>
+        </section>
     )
 }
 
@@ -1130,31 +1615,248 @@ function LayerTab({ master }: { master: ProductMaster }) {
 // VARIANTS TAB
 // ──────────────────────────────────────────────────────────────────
 
-function VariantsTab({ master, variants, sizes: _sizes, routeInfo, templateName }: { master: ProductMaster; variants: ProductVariant[]; sizes: ProductMasterSize[]; routeInfo?: any; templateName?: string }) {
+function VariantsTab({ master, variants, sizes, routeInfo, templateName }: { master: ProductMaster; variants: ProductVariant[]; sizes: ProductMasterSize[]; routeInfo?: any; templateName?: string }) {
     const activeCount = variants.filter((v) => v.active).length
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">🌀</span>
-                    <div>
-                        <h3 className="font-display text-sm font-bold text-slate-900">Variants · {variants.length}</h3>
-                        <div className="text-[10px] text-slate-500">{activeCount} active · auto-deduped axis tuples · pivot any 2 axes · click a cell for live BOM</div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" /> live preview
-                    </span>
-                    <Link href={`/master/products/${master.id}/variants/new`} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-violet-600 px-3 text-[11px] font-bold text-white shadow-sm hover:bg-violet-700">
-                        <Plus className="h-3.5 w-3.5" /> Create variant
-                    </Link>
-                </div>
+        <div className="space-y-4">
+        <TabBanner
+            tone="violet"
+            eyebrow={`Variants · ${variants.length}`}
+            title="Axis tuples — every shippable configuration"
+            subtitle={`${activeCount} active · pivot any 2 axes · click a cell for live BOM`}
+            icon={<Workflow className="h-5 w-5" />}
+            right={(
+                <Link href={`/master/products/${master.id}/variants/new`} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-3.5 text-[11px] font-black text-white shadow-md hover:shadow-lg hover:from-violet-700 hover:to-purple-700 transition">
+                    <Plus className="h-3.5 w-3.5" /> Create variant
+                </Link>
+            )}
+        />
+        <MaterialBreakdownBoundary master={master} variants={variants} sizes={sizes} />
+        <section className="rounded-2xl border border-violet-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+            <header className="flex items-center justify-end gap-2 border-b border-violet-100 bg-gradient-to-r from-white via-violet-50/40 to-purple-50/30 px-5 py-2.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> live preview
+                </span>
             </header>
             <div className="p-5">
                 <VariantsMatrixV37 productMasterId={master.id} rows={variants} axes={master.variant_axes || []} master={master} routeSteps={routeInfo?.route_steps || []} templateName={templateName || master.template_name || undefined} />
             </div>
         </section>
+        </div>
+    )
+}
+
+class MaterialBreakdownBoundary extends React.Component<
+    { master: ProductMaster; variants: ProductVariant[]; sizes: ProductMasterSize[] },
+    { failed: boolean }
+> {
+    constructor(props: any) {
+        super(props)
+        this.state = { failed: false }
+    }
+    static getDerivedStateFromError() {
+        return { failed: true }
+    }
+    componentDidCatch(error: any) {
+        if (typeof console !== "undefined") console.error("MaterialBreakdown error:", error)
+    }
+    render() {
+        if (this.state.failed) return null
+        try {
+            return <MaterialBreakdownSection {...this.props} />
+        } catch (err) {
+            return null
+        }
+    }
+}
+
+function MaterialBreakdownSection({ master, variants, sizes }: { master: ProductMaster; variants: ProductVariant[]; sizes: ProductMasterSize[] }) {
+    const safeVariants = Array.isArray(variants) ? variants : []
+    const safeSizes = Array.isArray(sizes) ? sizes : []
+    const top = safeVariants.slice(0, 4)
+    if (!top.length) return null
+    const kind = String(master?.product_kind || "").toUpperCase()
+    const isPackOrPod = kind === "PACKAGING" || kind === "POD"
+    return (
+        <section className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 shadow-sm overflow-hidden ring-1 ring-white/40">
+            <header className="flex items-center justify-between border-b border-emerald-100 px-5 py-3">
+                <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">📊</span>
+                    <div>
+                        <h3 className="font-display text-sm font-bold text-slate-900">Material breakdown · top {top.length} variant{top.length === 1 ? "" : "s"}</h3>
+                        <p className="text-[10px] text-slate-500">Per-variant layer table · pouch math · roll math · live stock chip</p>
+                    </div>
+                </div>
+                {variants.length > top.length ? (
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">
+                        +{variants.length - top.length} more in matrix
+                    </Badge>
+                ) : null}
+            </header>
+            <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-2">
+                {top.map((v) => (
+                    <MaterialBreakdownCard
+                        key={v.id}
+                        master={master}
+                        variant={v}
+                        sizes={safeSizes}
+                        showLink={isPackOrPod}
+                    />
+                ))}
+            </div>
+        </section>
+    )
+}
+
+function MaterialBreakdownCard({ master, variant, sizes, showLink }: {
+    master: ProductMaster
+    variant: ProductVariant
+    sizes: ProductMasterSize[]
+    showLink: boolean
+}) {
+    const safeSizes = Array.isArray(sizes) ? sizes : []
+    const layerSnapshot = (variant as any)?.layer_snapshot
+    const masterLayers = Array.isArray((master as any)?.layer_template) ? (master as any).layer_template : []
+    const layers: any[] = Array.isArray(layerSnapshot) && layerSnapshot.length
+        ? layerSnapshot
+        : masterLayers.map((row: any, i: number) => ({
+            role: row?.role,
+            film_variant_code: row?.film_variant_code,
+            thickness_micron: row?.thickness_micron,
+            grade: row?.default_grade,
+            layer_index: i + 1,
+        }))
+    const totalThickness = layers.reduce((s, l) => s + Number(l?.thickness_micron || 0), 0)
+    const geom = (variant as any)?.geometry_snapshot || {}
+    const axisValues = (variant as any)?.axis_values || {}
+    const unitG = Number(geom?.unit_weight_g || (variant as any)?.unit_weight_g || 0)
+    const sizeRow = safeSizes.find((s) => String(axisValues?.size || "") === s?.code) || safeSizes[0]
+    const rollWidth = Number(sizeRow?.roll_width_mm || geom?.roll_width_mm || 0)
+    const widthMm = Number(sizeRow?.width_mm || geom?.width_mm || 0)
+    const heightMm = Number(sizeRow?.height_mm || geom?.height_mm || 0)
+    const gussetMm = Number(sizeRow?.gusset_mm || geom?.gusset_mm || 0)
+    // jumbos per 1000 pouches: assume 1000 pouches × unitG / typical jumbo kg (50kg default)
+    const standardOrderKg = 500
+    const expectedKgFor1000 = (unitG * 1000) / 1000
+    const expectedJumbos = unitG > 0 ? Math.max(1, Math.ceil(standardOrderKg / 50)) : 0
+    const layerToneList = [
+        "bg-indigo-50 text-indigo-700 border-indigo-200",
+        "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+        "bg-emerald-50 text-emerald-700 border-emerald-200",
+        "bg-amber-50 text-amber-700 border-amber-200",
+        "bg-sky-50 text-sky-700 border-sky-200",
+        "bg-rose-50 text-rose-700 border-rose-200",
+    ]
+    const link = variant.inventory_link || null
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                    <span className="font-mono text-[11px] font-bold text-indigo-700">{variant.code}</span>
+                    <span className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1",
+                        variant.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                    )}>
+                        {variant.active ? "active" : "inactive"}
+                    </span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                    <span>{totalThickness} µ total</span>
+                    {unitG > 0 ? (<><span>·</span><span>{unitG.toFixed(2)} g/pouch</span></>) : null}
+                </div>
+            </header>
+
+            {/* Layer table */}
+            <div className="px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Layer stack (top → bottom)</div>
+                <div className="space-y-1.5">
+                    {layers.map((l, idx) => {
+                        const tone = layerToneList[idx % layerToneList.length]
+                        const thk = Number(l.thickness_micron || 0)
+                        const widthPct = totalThickness > 0 ? Math.max(8, (thk / totalThickness) * 100) : 0
+                        return (
+                            <div key={idx} className={cn("flex items-center gap-2 rounded-lg border px-2 py-1.5", tone)}>
+                                <span className="font-mono text-[10px] font-bold">L{l.layer_index || idx + 1}</span>
+                                <span className="font-mono text-[10px]">{l.film_variant_code || l.role || "?"}</span>
+                                <span className="text-[10px] opacity-70">{l.role}</span>
+                                {l.grade ? <span className="text-[10px] opacity-70">· {l.grade}</span> : null}
+                                <div className="ml-auto flex items-center gap-2">
+                                    <div className="h-1 w-16 overflow-hidden rounded-full bg-white/70">
+                                        <div className="h-full bg-current opacity-60" style={{ width: `${widthPct}%` }} />
+                                    </div>
+                                    <span className="font-mono text-[10px] font-bold">{thk} µ</span>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
+            {/* Geometry */}
+            <div className="border-t border-slate-100 bg-slate-50/40 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Geometry preview</div>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white">
+                        {widthMm && heightMm ? (
+                            <div
+                                className="bg-gradient-to-br from-indigo-100 to-violet-100 ring-1 ring-indigo-300"
+                                style={{
+                                    width: `${Math.min(48, widthMm / 6)}px`,
+                                    height: `${Math.min(54, heightMm / 6)}px`,
+                                }}
+                            />
+                        ) : (
+                            <span className="text-[10px] text-slate-400">—</span>
+                        )}
+                    </div>
+                    <div className="grid flex-1 grid-cols-2 gap-1 text-[10px]">
+                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                            <div className="font-bold text-slate-700">W × H</div>
+                            <div className="font-mono">{widthMm || "—"} × {heightMm || "—"} mm</div>
+                        </div>
+                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                            <div className="font-bold text-slate-700">Gusset</div>
+                            <div className="font-mono">{gussetMm || "—"} mm</div>
+                        </div>
+                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                            <div className="font-bold text-slate-700">Roll width</div>
+                            <div className="font-mono">{rollWidth || "—"} mm</div>
+                        </div>
+                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                            <div className="font-bold text-slate-700">Jumbos / {standardOrderKg}kg</div>
+                            <div className="font-mono">{expectedJumbos || "—"}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Stock linkage */}
+            {showLink ? (
+                <div className="border-t border-slate-100 bg-emerald-50/30 px-4 py-2.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Catalog link</span>
+                            {link ? (
+                                <span className="font-mono text-[11px] font-bold text-emerald-800">{link.code}</span>
+                            ) : (
+                                <span className="text-[10px] text-amber-700">unlinked</span>
+                            )}
+                        </div>
+                        {link?.stock_qty != null ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                {Number(link.stock_qty).toLocaleString()} in stock
+                            </span>
+                        ) : null}
+                    </div>
+                </div>
+            ) : (
+                <div className="border-t border-slate-100 bg-violet-50/30 px-4 py-2.5">
+                    <div className="text-[11px] text-violet-800">
+                        <span className="font-bold">Auto-generated</span> on order confirm — InventoryMaterial code derived from variant
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -1165,57 +1867,62 @@ function VariantsTab({ master, variants, sizes: _sizes, routeInfo, templateName 
 function SizesTab({ sizes, master }: { sizes: ProductMasterSize[]; master: ProductMaster }) {
     const isRoll = master.product_kind === "ROLL" || master.product_kind === "POD"
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">📐</span>
-                    <div>
-                        <h3 className="font-display text-sm font-bold text-slate-900">Sizes · {sizes.length}</h3>
-                        <div className="text-[10px] text-slate-500">{isRoll ? "Roll geometry · roll width + faces + trim + form" : "Pouch geometry · W × H + gusset + faces + style"}</div>
+        <div className="space-y-4">
+            <TabBanner
+                tone="emerald"
+                eyebrow={`Sizes · ${sizes.length}`}
+                title={isRoll ? "Roll geometry catalog" : "Pouch geometry catalog"}
+                subtitle={isRoll ? "Roll width + faces + trim + form" : "W × H + gusset + faces + pouch style"}
+                icon={<span className="text-lg">📐</span>}
+            />
+            <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+                {sizes.length === 0 ? (
+                    <div className="p-10 text-center">
+                        <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-2xl">📐</div>
+                        <div className="mt-3 text-sm font-bold text-slate-700">No sizes defined yet</div>
+                        <div className="mt-1 text-xs text-slate-500">Add sizes from PM Edit to surface them here.</div>
                     </div>
-                </div>
-            </header>
-            {sizes.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 italic">No sizes defined yet.</div>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-xs">
-                        <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500">
-                            <tr>
-                                <th className="px-4 py-2 text-left font-bold uppercase tracking-wider text-[9px]">Code</th>
-                                <th className="px-4 py-2 text-left font-bold uppercase tracking-wider text-[9px]">Label</th>
-                                <th className="px-4 py-2 text-right font-bold uppercase tracking-wider text-[9px]">W (mm)</th>
-                                <th className="px-4 py-2 text-right font-bold uppercase tracking-wider text-[9px]">H (mm)</th>
-                                <th className="px-4 py-2 text-right font-bold uppercase tracking-wider text-[9px]">Gusset</th>
-                                <th className="px-4 py-2 text-right font-bold uppercase tracking-wider text-[9px]">Roll W</th>
-                                <th className="px-4 py-2 text-left font-bold uppercase tracking-wider text-[9px]">{isRoll ? "Form" : "Style"}</th>
-                                <th className="px-4 py-2 text-right font-bold uppercase tracking-wider text-[9px]">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {sizes.map((s: any) => (
-                                <tr key={s.id || s.code} className="hover:bg-slate-50/40">
-                                    <td className="px-4 py-2 font-mono font-bold text-slate-900">{s.code}</td>
-                                    <td className="px-4 py-2 text-slate-700">{s.label}</td>
-                                    <td className="px-4 py-2 text-right font-mono">{s.width_mm}</td>
-                                    <td className="px-4 py-2 text-right font-mono">{s.height_mm || (isRoll ? "—" : 0)}</td>
-                                    <td className="px-4 py-2 text-right font-mono text-slate-700">{s.gusset_mm || "—"}</td>
-                                    <td className="px-4 py-2 text-right font-mono text-slate-700">{s.roll_width_mm || "auto"}</td>
-                                    <td className="px-4 py-2 text-[10px]">
-                                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-700">{isRoll ? (s.roll_form || "—") : (s.pouch_style || "—")}</span>
-                                    </td>
-                                    <td className="px-4 py-2 text-right">
-                                        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", s.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
-                                            {s.active ? "active" : "inactive"}
-                                        </span>
-                                    </td>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs">
+                            <thead className="border-b border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50/40 to-cyan-50/30 text-emerald-800">
+                                <tr>
+                                    <th className="px-4 py-3 text-left font-black uppercase tracking-[0.14em] text-[9px]">Code</th>
+                                    <th className="px-4 py-3 text-left font-black uppercase tracking-[0.14em] text-[9px]">Label</th>
+                                    <th className="px-4 py-3 text-right font-black uppercase tracking-[0.14em] text-[9px]">W (mm)</th>
+                                    <th className="px-4 py-3 text-right font-black uppercase tracking-[0.14em] text-[9px]">H (mm)</th>
+                                    <th className="px-4 py-3 text-right font-black uppercase tracking-[0.14em] text-[9px]">Gusset</th>
+                                    <th className="px-4 py-3 text-right font-black uppercase tracking-[0.14em] text-[9px]">Roll W</th>
+                                    <th className="px-4 py-3 text-left font-black uppercase tracking-[0.14em] text-[9px]">{isRoll ? "Form" : "Style"}</th>
+                                    <th className="px-4 py-3 text-right font-black uppercase tracking-[0.14em] text-[9px]">Status</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </section>
+                            </thead>
+                            <tbody className="divide-y divide-emerald-50">
+                                {sizes.map((s: any, idx: number) => (
+                                    <tr key={s.id || s.code} className={cn("transition-colors hover:bg-emerald-50/40", idx % 2 === 1 ? "bg-slate-50/30" : "bg-white")}>
+                                        <td className="px-4 py-2.5 font-mono font-black text-emerald-900">{s.code}</td>
+                                        <td className="px-4 py-2.5 text-slate-700">{s.label}</td>
+                                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900">{s.width_mm}</td>
+                                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900">{s.height_mm || (isRoll ? "—" : 0)}</td>
+                                        <td className="px-4 py-2.5 text-right font-mono text-slate-700">{s.gusset_mm || "—"}</td>
+                                        <td className="px-4 py-2.5 text-right font-mono text-slate-700">{s.roll_width_mm || <span className="italic text-slate-400">auto</span>}</td>
+                                        <td className="px-4 py-2.5 text-[10px]">
+                                            <span className="rounded-md bg-gradient-to-r from-teal-50 to-cyan-50 px-2 py-0.5 font-bold text-teal-800 ring-1 ring-teal-200">{isRoll ? (s.roll_form || "—") : (s.pouch_style || "—")}</span>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-right">
+                                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1", s.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
+                                                <span className={cn("inline-block h-1 w-1 rounded-full", s.active ? "bg-emerald-500" : "bg-rose-500")} />
+                                                {s.active ? "active" : "inactive"}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+        </div>
     )
 }
 
@@ -1237,17 +1944,24 @@ function OverlaysTab({ master, variants, overlays, routeInfo, templateName, onAd
     }, [selected, variants])
 
     return (
+        <div className="space-y-4">
+        <TabBanner
+            tone="amber"
+            eyebrow={`Customer overlays · ${overlays.length}`}
+            title="Customer-specific defaults for sales entry"
+            subtitle="Still uses master's engineering BOM · click a card for the live preview"
+            icon={<Users className="h-5 w-5" />}
+            right={(
+                <button onClick={onAdd} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3.5 text-[11px] font-black text-white shadow-md hover:shadow-lg hover:from-amber-600 hover:to-orange-600 transition">
+                    <Plus className="h-3.5 w-3.5" /> Add overlay
+                </button>
+            )}
+        />
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
-            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-                    <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Users className="h-4 w-4" /></span>
-                        <div>
-                            <h3 className="font-display text-sm font-bold text-slate-900">Customer overlays · {overlays.length}</h3>
-                            <div className="text-[10px] text-slate-500">Customer-facing defaults · still uses master&apos;s engineering BOM · click a card for live preview</div>
-                        </div>
-                    </div>
-                    <button onClick={onAdd} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-[11px] font-bold text-white shadow-sm hover:bg-blue-700">
+            <section className="rounded-2xl border border-amber-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+                <header className="flex items-center justify-between border-b border-amber-100 bg-gradient-to-r from-amber-50/40 via-white to-orange-50/30 px-5 py-2.5">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Cards · click for live BOM preview</div>
+                    <button onClick={onAdd} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-[11px] font-bold text-white shadow-sm hover:shadow-md transition">
                         <Plus className="h-3.5 w-3.5" /> Add overlay
                     </button>
                 </header>
@@ -1308,6 +2022,7 @@ function OverlaysTab({ master, variants, overlays, routeInfo, templateName, onAd
                 />
             </div>
         </div>
+        </div>
     )
 }
 
@@ -1325,39 +2040,52 @@ function axisValueMatch(v: ProductVariant, axis: string, want: string): boolean 
 function ArtworksTab({ artworks, master }: { artworks: Artwork[]; master: ProductMaster }) {
     if (!master.fixed_attributes?.print_capable) {
         return (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
-                This master is not print-capable. Enable printing on the master to surface approved artworks.
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 p-10 text-center shadow-sm">
+                <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-slate-200/40 blur-3xl" />
+                <Palette className="relative mx-auto h-10 w-10 text-slate-300" />
+                <div className="relative mt-3 font-display text-sm font-bold text-slate-700">Not print-capable</div>
+                <p className="relative mt-1 text-xs text-slate-500 max-w-md mx-auto">Enable printing on the master to surface approved artworks.</p>
             </div>
         )
     }
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-fuchsia-50 text-fuchsia-600"><Palette className="h-4 w-4" /></span>
-                    <div>
-                        <h3 className="font-display text-sm font-bold text-slate-900">Approved artworks · {artworks.length}</h3>
-                        <div className="text-[10px] text-slate-500">Live colorways assignable to this master&apos;s print orders</div>
+        <div className="space-y-4">
+            <TabBanner
+                tone="fuchsia"
+                eyebrow={`Approved artworks · ${artworks.length}`}
+                title="Live colorways for this master"
+                subtitle="Sales can pick any of these on print-capable orders"
+                icon={<Palette className="h-5 w-5" />}
+            />
+            <section className="rounded-2xl border border-fuchsia-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+                {artworks.length === 0 ? (
+                    <div className="p-10 text-center">
+                        <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-fuchsia-100 to-pink-100 flex items-center justify-center"><Palette className="h-5 w-5 text-fuchsia-600" /></div>
+                        <div className="mt-3 text-sm font-bold text-slate-700">No approved artworks yet</div>
+                        <div className="mt-1 text-xs text-slate-500">Approved artworks from Engineering will surface here.</div>
                     </div>
-                </div>
-            </header>
-            {artworks.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 italic">No approved artworks yet.</div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-5">
-                    {artworks.map((a) => (
-                        <div key={a.id} className="rounded-xl border border-slate-200 bg-white p-3 hover:shadow-md">
-                            <div className="flex items-center justify-between">
-                                <span className="font-mono text-xs font-bold text-fuchsia-700 truncate">{(a as any).design_code || a.id}</span>
-                                <span className="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">approved</span>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-5">
+                        {artworks.map((a) => (
+                            <div key={a.id} className="group relative overflow-hidden rounded-2xl border border-fuchsia-100 bg-gradient-to-br from-white via-fuchsia-50/40 to-pink-50/40 p-4 shadow-sm transition hover:shadow-lg hover:border-fuchsia-300 hover:-translate-y-0.5">
+                                <div aria-hidden className="pointer-events-none absolute -top-10 -right-10 h-24 w-24 rounded-full bg-pink-200/30 blur-2xl transition group-hover:bg-pink-300/40" />
+                                <div className="relative flex items-center justify-between">
+                                    <span className="font-mono text-xs font-black text-fuchsia-800 truncate">{(a as any).design_code || a.id}</span>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                                        <span className="inline-block h-1 w-1 rounded-full bg-emerald-500" /> approved
+                                    </span>
+                                </div>
+                                <div className="relative mt-1.5 text-sm font-bold text-slate-800 truncate">{a.name || "—"}</div>
+                                <div className="relative mt-2 flex flex-wrap gap-1">
+                                    {(a as any).print_type ? <span className="rounded-md bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">{(a as any).print_type}</span> : null}
+                                    {(a as any).substrate_mode ? <span className="rounded-md bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold text-pink-800 ring-1 ring-pink-200">{(a as any).substrate_mode}</span> : null}
+                                </div>
                             </div>
-                            <div className="mt-1 text-[11px] text-slate-700 truncate">{a.name || "—"}</div>
-                            <div className="mt-1 text-[10px] text-slate-500 truncate">{(a as any).print_type || "—"} · {(a as any).substrate_mode || "—"}</div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </section>
+                        ))}
+                    </div>
+                )}
+            </section>
+        </div>
     )
 }
 
@@ -1367,14 +2095,29 @@ function ArtworksTab({ artworks, master }: { artworks: Artwork[]; master: Produc
 
 function AuditPlaceholder({ masterId }: { masterId: string }) {
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <ShieldCheck className="mx-auto h-8 w-8 text-slate-300" />
-            <div className="mt-3 font-display text-sm font-bold text-slate-900">Audit trail</div>
-            <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">All master/variant/overlay changes for this product master are logged in the system audit centre with before/after diffs and user.</p>
-            <Link href={`/system/audit?ref=product-master&id=${masterId}`} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white">
-                Open audit centre <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-        </section>
+        <div className="space-y-4">
+            <TabBanner
+                tone="slate"
+                eyebrow="Audit trail"
+                title="Every change · with who, when & diff"
+                subtitle="Master / variant / overlay edits all stream into the system audit centre"
+                icon={<ShieldCheck className="h-5 w-5" />}
+            />
+            <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 p-10 text-center shadow-sm ring-1 ring-white/40">
+                <div aria-hidden className="pointer-events-none absolute -top-16 -left-16 h-48 w-48 rounded-full bg-indigo-200/30 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-slate-300/30 blur-3xl" />
+                <div className="relative">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md">
+                        <ShieldCheck className="h-6 w-6" />
+                    </div>
+                    <div className="mt-4 font-display text-base font-black text-slate-900">Audit trail</div>
+                    <p className="mt-1 text-xs text-slate-600 max-w-md mx-auto leading-relaxed">All master/variant/overlay changes for this product master are logged in the system audit centre with before/after diffs, actor and timestamp.</p>
+                    <Link href={`/system/audit?ref=product-master&id=${masterId}`} className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-2 text-[11px] font-black text-white shadow-md hover:shadow-lg hover:from-slate-900 hover:to-black transition">
+                        Open audit centre <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                </div>
+            </section>
+        </div>
     )
 }
 
@@ -1382,150 +2125,190 @@ function AuditPlaceholder({ masterId }: { masterId: string }) {
 // PACKAGING CONTRACT CARD (Overview)
 // ──────────────────────────────────────────────────────────────────
 
-function PackagingContractCard({ master, packagingMaterials, podVariants }: { master: ProductMaster; packagingMaterials: PackagingMaterial[]; podVariants: PodSkuVariant[] }) {
-    const fixed: any = master.fixed_attributes || {}
-    const packagingLines: any[] = Array.isArray(fixed.packaging_lines) ? fixed.packaging_lines : []
-    // POD is only locked when BOTH pod_enabled is true (or absent — default-on for legacy)
-    // AND a code is set. If the admin toggled "POD required" off in section 6, pod_enabled
-    // is false → no lock.
-    const podEnabled = fixed.pod_enabled !== false && (fixed.pod_variant_code || fixed.pod_variant)
-    const podCode = podEnabled ? (fixed.pod_variant_code || fixed.pod_variant) : null
-    const podMeta = podVariants.find((v: any) => v.code === podCode || v.id === podCode)
-    const printCapable = Boolean(fixed.print_capable)
-    const PACKAGING_ROLE_META: Record<string, { label: string; basis: string; tone: string }> = {
-        PRIMARY_INNER: { label: "Inner pouch", basis: "auto · ceil(total / pcs_per_inner)", tone: "bg-amber-50 ring-amber-200 text-amber-900" },
-        FINAL_GUNNY: { label: "Gunny / outer", basis: "Packing Yard seal count", tone: "bg-violet-50 ring-violet-200 text-violet-900" },
-        ROLL_DISPATCH: { label: "Sheet / roll wrap", basis: "EOD packing count", tone: "bg-blue-50 ring-blue-200 text-blue-900" },
-        EXTRA: { label: "Other EOD items", basis: "EOD packing count", tone: "bg-slate-50 ring-slate-200 text-slate-900" },
+/**
+ * ProductionCatalogMapCard — shown on PM Detail Overview for PACKAGING + POD
+ * (production) masters instead of the sales-pickable PackagingContractCard.
+ *
+     * Surfaces the manual variant <-> catalog-row map the production-master
+     * model relies on. Every variant should be linked by an admin to one fixed
+     * SKU in `/master/packaging` or `/master/pod`.
+ */
+function ProductionCatalogMapCard({ master, variants }: { master: ProductMaster; variants: ProductVariant[] }) {
+    const kind = String(master.product_kind || "").toUpperCase()
+    const catalogHref = kind === "PACKAGING" ? "/master/packaging" : "/master/pod"
+    const linked = variants.filter((v) => v.inventory_link && v.inventory_link.id)
+    const totalStock = linked.reduce((s, v) => s + Number(v.inventory_link?.stock_qty || 0), 0)
+    const uomCounts: Record<string, number> = {}
+    for (const v of linked) {
+        const u = String(v.inventory_link?.base_uom || "").toUpperCase() || "PCS"
+        uomCounts[u] = (uomCounts[u] || 0) + Number(v.inventory_link?.stock_qty || 0)
     }
-    // Pull axis-driven allowed codes too — masters using variant_axes.options for
-    // packaging/POD instead of fixed_attributes.packaging_lines show their codes
-    // here so the user has one consolidated view of "what flows into BOM".
+    const stockSummary = Object.entries(uomCounts)
+        .map(([uom, qty]) => `${Number(qty).toLocaleString("en-IN", { maximumFractionDigits: 0 })} ${uom}`)
+        .join(" · ") || "—"
+    const sample = linked.slice(0, 4)
+    return (
+        <section className="rounded-2xl border border-violet-100 bg-white shadow-sm overflow-hidden">
+            <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50/40 px-5 py-3">
+                <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-sm">
+                        <Database className="h-4 w-4" />
+                    </span>
+                    <div>
+                        <h3 className="font-display text-sm font-bold text-slate-900">Catalog map · variant ↔ SKU</h3>
+                        <div className="text-[10px] text-slate-500">
+                            Every variant of this {kind} master must be manually linked to one fixed catalog row in <Link href={catalogHref} className="font-bold text-violet-700 underline-offset-2 hover:underline">{catalogHref}</Link> — that row is the stock, purchase, and consumption identity.
+                        </div>
+                    </div>
+                </div>
+                <Link href={catalogHref} className="inline-flex h-8 items-center gap-1 rounded-lg bg-white px-2.5 text-[10px] font-black text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50">
+                    Open catalog <ArrowRight className="h-3 w-3" />
+                </Link>
+            </header>
+            <div className="p-5 space-y-3">
+                {/* KPI strip */}
+                <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50/60 to-white px-3 py-2">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-violet-700">Variants</div>
+                        <div className="mt-0.5 font-display text-lg font-black text-slate-900 tabular-nums">{variants.length}</div>
+                    </div>
+                    <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-white px-3 py-2">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Linked SKUs</div>
+                        <div className="mt-0.5 font-display text-lg font-black text-slate-900 tabular-nums">{linked.length}</div>
+                    </div>
+                    <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/60 to-white px-3 py-2">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-amber-700">Total stock</div>
+                        <div className="mt-0.5 font-display text-sm font-black text-slate-900 tabular-nums">{stockSummary}</div>
+                    </div>
+                </div>
+
+                {/* Sample of linked variants */}
+                {sample.length > 0 ? (
+                    <div className="space-y-1.5">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Sample · first {sample.length} of {linked.length}</div>
+                        {sample.map((v) => (
+                            <div key={v.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:border-violet-200 hover:bg-violet-50/30">
+                                <div className="min-w-0 flex-1">
+                                    <div className="font-mono text-[11px] font-black text-violet-800 truncate">{v.code}</div>
+                                </div>
+                                <ArrowRight className="h-3 w-3 text-slate-300 flex-none" />
+                                <div className="min-w-0 text-right">
+                                    <div className="font-mono text-[11px] font-black text-emerald-800 truncate">{v.inventory_link?.pod_sku_variant_code || v.inventory_link?.code}</div>
+                                    <div className="text-[10px] font-mono text-slate-500">
+                                        {Number(v.inventory_link?.stock_qty || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })} {v.inventory_link?.base_uom || ""}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : variants.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 text-[11px] text-slate-500">
+                        No variants yet. Create the production variants first, then link each one to an existing fixed SKU in <Link href={catalogHref} className="font-bold text-violet-700 underline-offset-2 hover:underline">{catalogHref}</Link>.
+                    </div>
+                ) : (
+                    <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/30 px-3 py-2.5 text-[11px] text-amber-900">
+                        Variants exist but are not linked to catalog SKUs yet. Use the variant card&apos;s Link SKU action and choose an existing unlinked row.
+                    </div>
+                )}
+
+                <div className="rounded-xl bg-slate-50/60 px-3 py-2 text-[10px] text-slate-600">
+                    <strong>How it works:</strong> The Product Master variant is the in-house production contract. The catalog SKU is created and maintained separately in <code className="font-mono bg-white px-1 py-0.5 rounded ring-1 ring-slate-200">{catalogHref}</code>. Manual linking joins the two; production runs and consumption use the linked catalog row.
+                </div>
+            </div>
+        </section>
+    )
+}
+
+function PackagingContractCard({ master, packagingMaterials, podVariants }: { master: ProductMaster; packagingMaterials: PackagingMaterial[]; podVariants: PodSkuVariant[] }) {
+    const kind = String(master.product_kind || "").toUpperCase()
     const variantAxes = master.variant_axes || []
-    const packagingAxes = variantAxes.filter((a) => {
-        const k = String(a.axis).toUpperCase()
-        return a.master_data_source === "packaging_material" || ["PACKAGING", "PACKAGING_INNER", "PACKAGING_OUTER"].includes(k)
-    })
-    const podAxes = variantAxes.filter((a) => {
-        const k = String(a.axis).toUpperCase()
-        return a.master_data_source === "pod_sku_variant" || ["POD", "POD_VARIANT", "POD_SKU_VARIANT"].includes(k)
-    })
     const axisAllowedCodes = (a: VariantAxisDef): string[] => {
         const opts = (a as any).options as any[] | undefined
         if (!Array.isArray(opts)) return []
         return opts.map((o) => typeof o === "string" || typeof o === "number" ? String(o) : String(o?.code || o?.value || o?.id || "")).filter(Boolean)
     }
-    const PACKAGING_AXIS_META: Record<string, { label: string; tone: string }> = {
-        PACKAGING_INNER: { label: "Inner pouch · axis-pickable", tone: "bg-amber-50 ring-amber-200 text-amber-900" },
-        PACKAGING: { label: "Inner pouch · axis-pickable", tone: "bg-amber-50 ring-amber-200 text-amber-900" },
-        PACKAGING_OUTER: { label: "Outer / gunny · axis-pickable", tone: "bg-violet-50 ring-violet-200 text-violet-900" },
-    }
-    const podAllowed = podAxes.flatMap(axisAllowedCodes)
-    const hasAnyContent = packagingLines.length > 0 || podCode || packagingAxes.some((a) => axisAllowedCodes(a).length > 0) || podAllowed.length > 0
+    // Inner pouch — POUCH masters only, sales-pickable axis.
+    const innerAxis = kind === "POUCH"
+        ? variantAxes.find((a) => {
+            const k = String(a.axis).toUpperCase()
+            return k === "PACKAGING_INNER" || k === "PACKAGING"
+        })
+        : undefined
+    const innerCodes = innerAxis ? axisAllowedCodes(innerAxis) : []
+    // POD axis — applies to all kinds.
+    const podAxis = variantAxes.find((a) => {
+        const k = String(a.axis).toUpperCase()
+        return a.master_data_source === "pod_sku_variant" || ["POD", "POD_VARIANT", "POD_SKU_VARIANT"].includes(k)
+    })
+    const podCodes = podAxis ? axisAllowedCodes(podAxis) : []
+    const printCapable = Boolean((master.fixed_attributes as any)?.print_capable)
+
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+        <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm overflow-hidden">
+            <header className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 px-5 py-3">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Package className="h-4 w-4" /></span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-sm"><Package className="h-4 w-4" /></span>
                     <div>
-                        <h3 className="font-display text-sm font-bold text-slate-900">Packaging &amp; POD contract</h3>
-                        <div className="text-[10px] text-slate-500">Locked SKUs + axis-pickable catalog codes · consumption rules · no manual per-order qty here</div>
+                        <h3 className="font-display text-sm font-bold text-slate-900">Inner pouch &amp; POD · sales-pickable</h3>
+                        <div className="text-[10px] text-slate-500">All outer packing (gunny / sheet / tape / label / tag) is tagged per order at EOD — not on this master.</div>
                     </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                     {printCapable ? <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[10px] font-bold text-fuchsia-700 ring-1 ring-fuchsia-200">print capable</span> : null}
-                    {podCode ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">POD locked</span> : null}
                 </div>
             </header>
             <div className="p-5 space-y-3">
-                {!hasAnyContent ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-6 text-center text-xs text-slate-500">
-                        No packaging SKUs, POD lock, or axis-allowed options yet. Add inner-pouch / gunny / sheet / tape options on the edit page or set up packaging/POD axes.
-                    </div>
-                ) : null}
-
-                {packagingLines.length > 0 || podCode ? (
-                    <div className="space-y-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Locked at master · consumed every order</div>
-                        {packagingLines.map((line: any, i: number) => {
-                            const role = String(line.role || "EXTRA").toUpperCase()
-                            const meta = PACKAGING_ROLE_META[role] || PACKAGING_ROLE_META.EXTRA
-                            const code = String(line.material_code || line.code || line.material || "")
-                            const material = packagingMaterials.find((m: any) => m.code === code || m.id === code)
-                            return (
-                                <div key={i} className={cn("rounded-xl ring-1 px-3 py-2.5 flex items-center justify-between gap-3", meta.tone)}>
-                                    <div className="min-w-0">
-                                        <div className="text-[10px] font-black uppercase tracking-wider opacity-80">{meta.label}</div>
-                                        <div className="font-mono font-bold text-slate-900 mt-0.5 text-sm">{code || "—"}</div>
-                                        {material?.name && material.name !== code ? <div className="text-[10px] opacity-70 truncate">{material.name}</div> : null}
-                                    </div>
-                                    <div className="text-right text-[10px]">
-                                        <div className="font-bold opacity-80">{meta.basis}</div>
-                                        {line.pcs_per_pack ? <div className="font-mono opacity-70 mt-0.5">{line.pcs_per_pack} pcs / pack</div> : null}
-                                        {line.uom ? <div className="font-mono opacity-70">UOM · {line.uom}</div> : null}
-                                    </div>
+                {/* Inner pouch — POUCH only */}
+                {kind === "POUCH" ? (
+                    innerCodes.length > 0 ? (
+                        <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/30 px-3 py-2.5 ring-1 ring-amber-100">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                                    Inner pouch · axis-pickable
                                 </div>
-                            )
-                        })}
-                        {podCode ? (
-                            <div className="rounded-xl ring-1 ring-fuchsia-200 bg-fuchsia-50/40 px-3 py-2.5 flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-fuchsia-700">POD lock</div>
-                                    <div className="font-mono font-bold text-slate-900 mt-0.5 text-sm">{podCode}</div>
-                                    {podMeta?.name && podMeta.name !== podCode ? <div className="text-[10px] text-fuchsia-700/80 truncate">{podMeta.name}</div> : null}
-                                </div>
-                                <div className="text-right text-[10px]">
-                                    <div className="font-bold text-fuchsia-700/80">1 per pouch · same on every order</div>
-                                    {podMeta?.pod_is_inhouse_produced ? <div className="mt-0.5"><span className="rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-700 ring-1 ring-fuchsia-200">in-house</span></div> : null}
-                                </div>
+                                <span className="text-[10px] font-bold text-amber-700/80">
+                                    {innerAxis?.required ? "required" : "optional"}
+                                    {(innerAxis as any)?.auto_demand_in_house ? " · auto-demand" : ""}
+                                    {" · "}{innerCodes.length} allowed
+                                </span>
                             </div>
-                        ) : null}
-                    </div>
-                ) : null}
-
-                {packagingAxes.some((a) => axisAllowedCodes(a).length > 0) ? (
-                    <div className="space-y-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Axis-pickable · sales picks one per order</div>
-                        {packagingAxes.map((axis) => {
-                            const codes = axisAllowedCodes(axis)
-                            if (codes.length === 0) return null
-                            const axisKey = String(axis.axis).toUpperCase()
-                            const meta = PACKAGING_AXIS_META[axisKey] || { label: `${axis.label || axis.axis} · axis-pickable`, tone: "bg-slate-50 ring-slate-200 text-slate-800" }
-                            return (
-                                <div key={String(axis.axis)} className={cn("rounded-xl ring-1 px-3 py-2.5", meta.tone)}>
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="text-[10px] font-black uppercase tracking-wider opacity-80">{meta.label}</div>
-                                        <span className="text-[10px] font-bold opacity-70">
-                                            {axis.required ? "required" : "optional"}
-                                            {axis.auto_demand_in_house ? " · auto-demand" : ""}
-                                            {" · "}{codes.length} allowed
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                                {innerCodes.map((code) => {
+                                    const material = packagingMaterials.find((m: any) => m.code === code || m.id === code)
+                                    return (
+                                        <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-900 ring-1 ring-amber-200">
+                                            {code}
+                                            {material?.name && material.name !== code ? <span className="text-[9px] font-medium text-amber-700/80">· {material.name}</span> : null}
                                         </span>
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                        {codes.map((code) => {
-                                            const material = packagingMaterials.find((m: any) => m.code === code || m.id === code)
-                                            return (
-                                                <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-mono font-bold ring-1 ring-white">
-                                                    {code}
-                                                    {material?.name && material.name !== code ? <span className="text-[9px] font-medium opacity-70">· {material.name}</span> : null}
-                                                </span>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
+                                    )
+                                })}
+                            </div>
+                            <div className="mt-1.5 text-[10px] text-amber-700/80">
+                                Sales picks 1 per order · BOM = ceil(total_pouches / pcs_per_inner) · customer overlay can override pcs_per_inner.
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/30 px-3 py-2 text-[11px] text-amber-800">
+                            Inner pouch axis not configured on this POUCH master. Open <strong>Edit → Sales-pickable menu</strong> to allow inner-pouch SKUs.
+                        </div>
+                    )
                 ) : null}
 
-                {!podCode && podAllowed.length > 0 ? (
-                    <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/30 p-3">
+                {/* POD — all kinds */}
+                {podCodes.length > 0 ? (
+                    <div className="rounded-xl border border-fuchsia-200 bg-gradient-to-br from-fuchsia-50/60 via-white to-pink-50/30 px-3 py-2.5 ring-1 ring-fuchsia-100">
                         <div className="flex items-center justify-between gap-2">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-fuchsia-700">POD · axis-pickable · sales picks per order</div>
-                            <span className="text-[10px] font-bold text-fuchsia-700/80">{podAllowed.length} allowed</span>
+                            <div className="text-[10px] font-black uppercase tracking-wider text-fuchsia-800">
+                                POD · axis-pickable · sales picks per order
+                            </div>
+                            <span className="text-[10px] font-bold text-fuchsia-700/80">
+                                {podAxis?.required ? "required" : "optional"}
+                                {(podAxis as any)?.auto_demand_in_house ? " · auto-demand" : ""}
+                                {" · "}{podCodes.length} allowed
+                            </span>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                            {podAllowed.map((code) => {
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                            {podCodes.map((code) => {
                                 const meta = podVariants.find((v: any) => v.code === code || v.id === code)
                                 return (
                                     <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-mono font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">
@@ -1535,6 +2318,27 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
                                 )
                             })}
                         </div>
+                    </div>
+                ) : null}
+
+                {/* Outer / EOD-tagged · informational, never editable from this page */}
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/80 via-white to-slate-50/50 px-3 py-2.5">
+                    <div className="flex items-start gap-2">
+                        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white">
+                            <Package className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="min-w-0">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-600">Outer + EOD extras · packing yard tags per order</div>
+                            <div className="mt-0.5 text-[11px] text-slate-600">
+                                Gunny / sheet / tape / label / tag are not on the master. Each order&apos;s actual consumption is captured at end of day via the <Link href="/logistics/packing/order-ticks" className="font-bold text-violet-700 underline-offset-2 hover:underline">per-order tick</Link> flow and shown in the <Link href="/logistics/packing/audit" className="font-bold text-violet-700 underline-offset-2 hover:underline">audit trail</Link>.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {kind !== "POUCH" && podCodes.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-3 text-center text-[11px] text-slate-500">
+                        No sales-pickable inner-pouch or POD options on this master.
                     </div>
                 ) : null}
             </div>
@@ -1634,6 +2438,10 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
     const [defaultArtwork, setDefaultArtwork] = React.useState("")
     const [defaultPod, setDefaultPod] = React.useState("")
     const [packingDefaults, setPackingDefaults] = React.useState<Record<string, string>>({})
+    // Customer-specific override for pcs-per-inner-pouch. Only takes effect
+    // when an inner-pouch default is also picked. Empty = use the master's
+    // fallback (from packaging material's packaging_defaults_json.pcs_per_pack).
+    const [pcsPerInnerOverride, setPcsPerInnerOverride] = React.useState<string>("")
     const [defaultSizeCode, setDefaultSizeCode] = React.useState("")
     const [defaultAddons, setDefaultAddons] = React.useState<string[]>([])
     const [notes, setNotes] = React.useState("")
@@ -1647,6 +2455,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
         setDefaultArtwork("")
         setDefaultPod("")
         setPackingDefaults({})
+        setPcsPerInnerOverride("")
         setDefaultSizeCode("")
         setDefaultAddons([])
         setNotes("")
@@ -1655,7 +2464,12 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
 
     // Which catalog rows are even allowed by this master?
     const catalogAxes = (master.variant_axes || []).filter((a) => axisCatalogSource(a))
-    const packagingAxes = catalogAxes.filter((a) => axisCatalogSource(a) === "packaging_material")
+    // Only INNER-pouch packaging axes appear in customer overlays now. Outer
+    // packing (gunny / sheet / tape / label / tag) is no longer on the master
+    // — packing yard ticks it per order at EOD via /logistics/packing/order-ticks.
+    const packagingAxes = catalogAxes
+        .filter((a) => axisCatalogSource(a) === "packaging_material")
+        .filter((a) => packagingAxisRole(a, master) === "inner")
     const podAxis = catalogAxes.find((a) => axisCatalogSource(a) === "pod_sku_variant" && ["POD_VARIANT", "POD", "POD_REF", "POD_SKU_VARIANT"].includes(normalizeCode(a.axis)))
     const addonsAxis = (master.variant_axes || []).find((a) => {
         const k = String(a.axis).toUpperCase()
@@ -1675,17 +2489,28 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
         setDefaultAddons((prev) => prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code])
     }, [])
 
-    // Any axes left that aren't already covered by the size lock / POD / inner / outer / addons / artwork rows?
+    // Any axes left that aren't already covered by the size lock / POD / inner / addons / artwork rows?
+    // Deprecated axes are explicitly excluded so they never surface as "Other axis defaults":
+    //   - packaging_outer / packaging: outer packing is no longer on the master
+    //     (packing yard tags it at EOD per order)
+    //   - artwork_mode: derived from the Printing 2-knob contract
+    //   - per-layer μ + grade + roll widths: engineering specs, not customer
+    //     preferences — handled by the variant tuple system (see overlay
+    //     design doc). Customer overrides happen on the order line.
     const handledAxisKeys = new Set([
         "size",
         "pod_variant", "pod",
         "addons", "addon",
         "artwork_mode",
+        "packaging_outer", "packaging",   // dropped from PM model
     ])
     packagingAxes.forEach((axis) => handledAxisKeys.add(String(axis.axis)))
     const otherAxes = (master.variant_axes || []).filter((a) => !handledAxisKeys.has(String(a.axis)))
-    // For per-layer numeric/enum axes, we show an info chip (they vary per-layer, defaults stay at master)
+    // For per-layer numeric/enum axes, we show an info chip only (engineering
+    // specs vary per-variant — customer doesn't get a master-level override).
     const perLayerAxes = otherAxes.filter((a) => a.type === "per_layer_number" || a.type === "per_layer_enum")
+    // Genuine "other" axes the overlay can override — anything left after
+    // dropping handled + per-layer.
     const overrideAxes = otherAxes.filter((a) => a.type !== "per_layer_number" && a.type !== "per_layer_enum")
     const [overrideValues, setOverrideValues] = React.useState<Record<string, string>>({})
     const patchOverride = React.useCallback((key: string, value: string) => {
@@ -1696,6 +2521,18 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
         mutationFn: () => {
             const packingAxisValues = Object.fromEntries(Object.entries(packingDefaults).filter(([, v]) => v && v.length))
             const defaultPackingRecipe = buildOverlayPackingRecipe(packingAxisValues, packagingMaterials, master, packagingAxes)
+            // Apply the customer-specific pcs_per_inner override if set.
+            // Wins over the master fallback when the recipe BOM is computed
+            // (auto · ceil(total_pouches / pcs_per_inner)).
+            const overridePcs = Number(pcsPerInnerOverride || 0)
+            if (overridePcs > 0 && defaultPackingRecipe?.primary_inner_pack?.enabled) {
+                defaultPackingRecipe.primary_inner_pack.pcs_per_pack = overridePcs
+                if (Array.isArray(defaultPackingRecipe.packaging_lines)) {
+                    defaultPackingRecipe.packaging_lines = defaultPackingRecipe.packaging_lines.map((ln: any) =>
+                        ln?.role === "PRIMARY_INNER" ? { ...ln, pcs_per_pack: overridePcs } : ln,
+                    )
+                }
+            }
             return productMasterService.createOverlay(master.id, {
                 customer,
                 customer_item_code: customerItemCode || undefined,
@@ -1875,8 +2712,8 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                             </div>
                         </OverlaySection>
 
-                        {/* 2. Engineering defaults */}
-                        <OverlaySection eyebrow="2 · Engineering defaults" title="What does this customer pick by default?">
+                        {/* 2. Customer order defaults — only the master's enabled axes show below. */}
+                        <OverlaySection eyebrow="2 · Customer order defaults" title="What sales auto-picks for this customer">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Default size lock</Label>
@@ -1904,18 +2741,33 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                 ) : null}
                             </div>
                             {packagingAxes.length > 0 ? (
-                                <div className="mt-3">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 mb-1.5">Packaging defaults</div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {packagingAxes.map((axis) => {
-                                            const allowed = resolveAxisValues(axis, master, sizes, packagingMaterials, podVariants, [] as any)
-                                            const key = String(axis.axis)
-                                            const value = packingDefaults[key] || ""
-                                            return (
-                                                <div key={key}>
-                                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{overlayPackagingLabel(axis, master)}</Label>
-                                                    <Select value={value || "__none"} onValueChange={(v) => patchPackingDefault(key, v === "__none" ? "" : v)}>
-                                                        <SelectTrigger className="mt-1 h-10 rounded-xl"><SelectValue placeholder="No customer default" /></SelectTrigger>
+                                <div className="mt-3 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/30 p-3 shadow-sm">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Inner pouch (only packing on master)</div>
+                                        <span className="text-[10px] text-slate-500">Outer / sheet / tape / label / tag → packing yard EOD ticks</span>
+                                    </div>
+                                    {packagingAxes.map((axis) => {
+                                        const allowed = resolveAxisValues(axis, master, sizes, packagingMaterials, podVariants, [] as any)
+                                        const key = String(axis.axis)
+                                        const value = packingDefaults[key] || ""
+                                        // Resolve the master fallback pcs_per_inner from the selected material's
+                                        // packaging_defaults_json so we can show it as a "default" hint.
+                                        const pickedMaterial = packagingMaterials.find((m) => normalizeCode(m.code) === normalizeCode(value))
+                                        const masterPcsPerInner = Number(
+                                            (pickedMaterial?.packaging_defaults_json as any)?.pcs_per_pack
+                                            ?? (pickedMaterial?.packaging_defaults_json as any)?.pcs_per_inner
+                                            ?? 0,
+                                        )
+                                        return (
+                                            <div key={key} className="space-y-2">
+                                                <div>
+                                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Default inner pouch SKU</Label>
+                                                    <Select value={value || "__none"} onValueChange={(v) => {
+                                                        patchPackingDefault(key, v === "__none" ? "" : v)
+                                                        // Reset override when changing SKU so the master default reapplies.
+                                                        setPcsPerInnerOverride("")
+                                                    }}>
+                                                        <SelectTrigger className="mt-1 h-10 rounded-xl bg-white"><SelectValue placeholder="No customer default" /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="__none">— Sales picks on order —</SelectItem>
                                                             {allowed.map((opt) => <SelectItem key={opt.code} value={opt.code}>{opt.label}</SelectItem>)}
@@ -1923,9 +2775,43 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                                     </Select>
                                                     <div className="mt-1 text-[10px] text-slate-500">{allowed.length} allowed from this master</div>
                                                 </div>
-                                            )
-                                        })}
-                                    </div>
+                                                {value ? (
+                                                    <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <Label className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                                                                pcs_per_inner override for this customer
+                                                            </Label>
+                                                            <span className="text-[10px] text-slate-500 font-mono">
+                                                                master default · {masterPcsPerInner > 0 ? `${masterPcsPerInner} pcs` : "not set"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
+                                                            <Input
+                                                                type="number"
+                                                                min={1}
+                                                                placeholder={masterPcsPerInner > 0 ? `e.g. ${masterPcsPerInner}` : "e.g. 50"}
+                                                                value={pcsPerInnerOverride}
+                                                                onChange={(e) => setPcsPerInnerOverride(e.target.value)}
+                                                                className="h-10 rounded-xl font-mono"
+                                                            />
+                                                            {pcsPerInnerOverride && Number(pcsPerInnerOverride) > 0 ? (
+                                                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
+                                                                    OVERRIDE WINS
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600 ring-1 ring-slate-200">
+                                                                    USING MASTER
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-1 text-[10px] text-slate-500">
+                                                            BOM uses <strong>ceil(total_pouches / pcs_per_inner)</strong>. Leave blank to inherit the master default.
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             ) : null}
                             {addonsAxis ? (
@@ -1998,28 +2884,27 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                             ) : null}
                         </OverlaySection>
 
-                        {/* 3. Artwork */}
-                        <OverlaySection eyebrow="3 · Artwork" title="Customer-facing approved artwork">
-                            {master.fixed_attributes?.print_capable ? (
-                                <div>
-                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Default approved artwork</Label>
-                                    <Select value={defaultArtwork || "__none"} onValueChange={(v) => setDefaultArtwork(v === "__none" ? "" : v)}>
-                                        <SelectTrigger className="mt-1 h-10 rounded-xl"><SelectValue placeholder="No default · sales must pick on each order" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__none">— No default —</SelectItem>
-                                            {artworks.map((a: any) => (
-                                                <SelectItem key={a.id} value={a.id}>{a.design_code || a.id}{a.name ? ` · ${a.name}` : ""}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <div className="mt-1 text-[10px] text-slate-500">{artworks.length} approved artworks available for this master</div>
+                        {/* 3. Artwork — only when master is print-capable. */}
+                        {master.fixed_attributes?.print_capable ? (
+                            <OverlaySection eyebrow="3 · Artwork" title="Customer-facing approved artwork">
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Default approved artwork</Label>
+                                <Select value={defaultArtwork || "__none"} onValueChange={(v) => setDefaultArtwork(v === "__none" ? "" : v)}>
+                                    <SelectTrigger className="mt-1 h-10 rounded-xl"><SelectValue placeholder="No default · sales must pick on each order" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="__none">— No default —</SelectItem>
+                                        {artworks.map((a: any) => (
+                                            <SelectItem key={a.id} value={a.id}>{a.design_code || a.id}{a.name ? ` · ${a.name}` : ""}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <div className="mt-1 text-[10px] text-slate-500">
+                                    {artworks.length} approved artwork{artworks.length === 1 ? "" : "s"} available for this master ·{" "}
+                                    {master.fixed_attributes?.artwork_required
+                                        ? <span className="font-bold text-fuchsia-700">artwork REQUIRED · default pre-fills the line</span>
+                                        : <span className="font-bold text-amber-700">artwork OPTIONAL · warning-print run when not picked</span>}
                                 </div>
-                            ) : (
-                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2 text-[11px] text-slate-500">
-                                    This master is not print-capable. Artwork doesn&apos;t apply.
-                                </div>
-                            )}
-                        </OverlaySection>
+                            </OverlaySection>
+                        ) : null}
 
                         {/* 4. Internal notes */}
                         <OverlaySection eyebrow="4 · Internal" title="Staff-only notes" optional>

@@ -165,8 +165,15 @@ class BOMResolverService:
         printing = template_snapshot.get('printing', {})
         if not isinstance(printing, dict):
             printing = {}
-        
-        is_printing = printing.get('enabled', False)
+
+        # Ink BOM is gated on TWO conditions:
+        #   (1) printing.enabled is true (master is print-capable + sales picked print)
+        #   (2) an approved artwork is assigned on the line (provides ink GSM + colors)
+        # Without an artwork there is no authoritative ink GSM — we refuse to
+        # invent one. The line still goes to production as unprinted unless
+        # the master's artwork_required flag forces a block upstream.
+        artwork_id = printing.get('artwork_id') or printing.get('approved_artwork_id') or printing.get('artwork')
+        is_printing = bool(printing.get('enabled', False)) and bool(artwork_id)
         if is_printing:
             ink_gsm_total = Decimal(str(printing.get('ink_gsm_total') or printing.get('ink_gsm') or 0))
             front_colors = [str(c).strip().upper() for c in (printing.get('front_colors') or []) if str(c).strip()]

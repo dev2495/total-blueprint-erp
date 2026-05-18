@@ -1,17 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import Link from "next/link"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as z from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Plus, Loader2 } from "lucide-react"
+import { Factory, Loader2, Package, PackageOpen, Plus, Radio } from "lucide-react"
 
-import { masterDataService, Material } from "@/services/master-data"
-import { PageHeader } from "@/components/ui-custom/page-header"
-import { DataTable } from "@/components/ui/data-table"
-import { getColumns } from "./columns"
+import { masterDataService, type Material, type PodSkuVariant } from "@/services/master-data"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
     Dialog,
     DialogContent,
@@ -34,6 +33,7 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 
 const podFormSchema = z.object({
     code: z.string().min(1, "Code is required"),
@@ -247,7 +247,10 @@ function PODForm({
                     name="pod_is_inhouse_produced"
                     render={({ field }) => (
                         <FormItem className="flex items-center justify-between rounded-lg border px-3 py-2">
-                            <FormLabel>In-house Produced</FormLabel>
+                            <div>
+                                <FormLabel>In-house capable</FormLabel>
+                                <div className="mt-0.5 text-[11px] text-slate-500">Manual Product Master link supplies the production contract.</div>
+                            </div>
                             <FormControl>
                                 <Switch checked={field.value} onCheckedChange={field.onChange} disabled={isLoading} />
                             </FormControl>
@@ -273,16 +276,57 @@ export default function PODPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<Material | null>(null)
     const [itemToDelete, setItemToDelete] = useState<Material | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
 
-    const { data: podMaterials } = useQuery({
+    const { data: podMaterials = [] } = useQuery({
         queryKey: ["pod-materials"],
         queryFn: masterDataService.getPODMaterials,
     })
+    const { data: podSkuVariants = [] } = useQuery({
+        queryKey: ["master-pod-sku-variants", "active"],
+        queryFn: () => masterDataService.getPodSkuVariants({ active: true }),
+        staleTime: 60_000,
+    })
+
+    const podVariantsByMaterial = useMemo(() => {
+        const map = new Map<string, PodSkuVariant[]>()
+        for (const variant of podSkuVariants) {
+            const list = map.get(variant.material) || []
+            list.push(variant)
+            map.set(variant.material, list)
+        }
+        return map
+    }, [podSkuVariants])
+
+    const filtered = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase()
+        if (!q) return podMaterials
+        return podMaterials.filter((row) => {
+            const skuRows = podVariantsByMaterial.get(row.id) || []
+            const hay = [
+                row.code,
+                row.name,
+                row.pod_type,
+                row.product_master_link?.master_code,
+                row.product_master_link?.variant_code,
+                ...skuRows.flatMap((sku) => [sku.code, sku.name, sku.pod_sku_code, sku.material_code]),
+            ].map((value) => String(value || "").toLowerCase()).join(" ")
+            return hay.includes(q)
+        })
+    }, [podMaterials, podVariantsByMaterial, searchQuery])
+
+    const stats = useMemo(() => {
+        const total = filtered.length
+        const pmBacked = filtered.filter((row) => !!row.product_master_link).length
+        const unlinkedInHouse = filtered.filter((row) => row.pod_is_inhouse_produced && !row.product_master_link).length
+        return { total, pmBacked, unlinkedInHouse, skuVariants: podSkuVariants.length }
+    }, [filtered, podSkuVariants.length])
 
     const createMutation = useMutation({
         mutationFn: masterDataService.createPODMaterial,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["pod-materials"] })
+            queryClient.invalidateQueries({ queryKey: ["master-pod-sku-variants"] })
             toast({ title: "POD profile created." })
             setIsCreateOpen(false)
         },
@@ -299,6 +343,7 @@ export default function PODPage() {
         mutationFn: ({ id, data }: { id: string; data: z.infer<typeof podFormSchema> }) => masterDataService.updatePODMaterial(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["pod-materials"] })
+            queryClient.invalidateQueries({ queryKey: ["master-pod-sku-variants"] })
             toast({ title: "POD profile updated." })
             setEditingItem(null)
         },
@@ -315,6 +360,7 @@ export default function PODPage() {
         mutationFn: masterDataService.deletePODMaterial,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["pod-materials"] })
+            queryClient.invalidateQueries({ queryKey: ["master-pod-sku-variants"] })
             toast({ title: "POD profile deleted." })
             setItemToDelete(null)
         },
@@ -328,42 +374,144 @@ export default function PODPage() {
     })
 
     return (
-        <div className="space-y-6 px-6 pb-20">
-            <PageHeader
-                title="POD Materials"
-                description="Master POD profiles drive pouch POD film consumption by formula."
-                actions={
+        <MasterRegistryShell
+            title="POD Master"
+            description="Fixed POD roll SKUs. Product Master variants link here manually for in-house production; SKU rows are created only from this master page."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search POD code, SKU variant, roll profile, or linked PM variant"
+            actions={
+                <div className="flex items-center gap-2">
+                    <Link
+                        href="/master/products?kind=POD"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-violet-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-3 text-[11px] font-bold text-violet-700 hover:from-violet-100 hover:to-fuchsia-100 transition"
+                        title="Create a POD Product Master variant, then manually link it to an existing fixed POD SKU"
+                    >
+                        <Plus className="h-3.5 w-3.5" /> Build production master
+                    </Link>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
                             <Button>
                                 <Plus className="h-4 w-4 mr-2" />
-                                Add POD Profile
+                                Add POD Roll
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Create POD Profile</DialogTitle>
+                                <DialogTitle>Create POD Roll SKU</DialogTitle>
                             </DialogHeader>
                             <PODForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
                         </DialogContent>
                     </Dialog>
-                }
-            />
+                </div>
+            }
+            stats={[
+                { label: "POD Rolls", value: stats.total, icon: Radio, toneClassName: "bg-fuchsia-50 text-fuchsia-600" },
+                { label: "SKU Variants", value: stats.skuVariants, icon: Package, toneClassName: "bg-blue-50 text-blue-600" },
+                { label: "PM-Linked", value: stats.pmBacked, subLabel: "manual links", icon: PackageOpen, toneClassName: "bg-emerald-50 text-emerald-600" },
+                { label: "Unlinked In-House", value: stats.unlinkedInHouse, subLabel: "needs PM link", icon: Factory, toneClassName: "bg-rose-50 text-rose-600" },
+            ]}
+        >
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((row) => {
+                    const link = row.product_master_link
+                    const skuRows = podVariantsByMaterial.get(row.id) || []
+                    const unlinkedInHouse = row.pod_is_inhouse_produced && !link
+                    return (
+                        <Card key={row.id} className="border-0 shadow-sm ring-1 ring-slate-100">
+                            <CardContent className="space-y-4 p-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-black tracking-tight text-slate-900">{row.name}</div>
+                                        <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.code}</div>
+                                    </div>
+                                    <span className="inline-flex rounded-full bg-fuchsia-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200">
+                                        POD roll
+                                    </span>
+                                </div>
 
-            <DataTable
-                columns={getColumns({
-                    onEdit: setEditingItem,
-                    onDelete: (row) => setItemToDelete(row),
+                                <div className="flex flex-wrap gap-2">
+                                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                                        row.pod_is_inhouse_produced ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-600 ring-slate-200"
+                                    }`}>
+                                        {row.pod_is_inhouse_produced ? "In-house capable" : "Catalog only"}
+                                    </span>
+                                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                                        link ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : unlinkedInHouse ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-slate-50 text-slate-600 ring-slate-200"
+                                    }`}>
+                                        {link ? "PM-linked" : unlinkedInHouse ? "Needs PM link" : "Unlinked"}
+                                    </span>
+                                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                                        row.status === "ACTIVE" ? "bg-blue-50 text-blue-700 ring-blue-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                                    }`}>
+                                        {row.status}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Base UOM</div>
+                                        <div className="mt-1 font-bold text-slate-900">{row.base_uom || "KG"}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Roll profile</div>
+                                        <div className="mt-1 font-bold text-slate-900">{row.pod_type || "SINGLE"} · {row.pod_panel_count || 1} panel</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Fixed height</div>
+                                        <div className="mt-1 font-bold text-slate-900">{Number(row.pod_fixed_height_mm || 0).toLocaleString("en-IN")} mm</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Thickness</div>
+                                        <div className="mt-1 font-bold text-slate-900">{Number(row.pod_thickness_micron || 0).toLocaleString("en-IN")} μ</div>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Product Master Link</div>
+                                        <div className={`mt-1 rounded-xl px-3 py-2 text-sm ${
+                                            link ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100" : unlinkedInHouse ? "bg-rose-50 text-rose-900 ring-1 ring-rose-100" : "bg-white text-slate-700 ring-1 ring-slate-100"
+                                        }`}>
+                                            {link ? (
+                                                <>
+                                                    <div className="font-black">{link.master_code} · {link.master_name}</div>
+                                                    <div className="mt-0.5 font-mono text-[11px] font-bold">{link.variant_code}</div>
+                                                </>
+                                            ) : unlinkedInHouse ? (
+                                                <span className="font-bold">In-house capable but not linked to a POD Product Master variant</span>
+                                            ) : (
+                                                <span>Fixed POD catalog row</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">POD SKU Variants</div>
+                                        <div className="mt-1 flex flex-wrap gap-1.5">
+                                            {skuRows.length ? skuRows.map((sku) => (
+                                                <span key={sku.id} className="inline-flex rounded-full bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                                    {sku.pod_sku_code} · {sku.code}
+                                                </span>
+                                            )) : (
+                                                <span className="text-sm text-slate-500">No POD SKU variant row yet</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3">
+                                    <Button size="sm" variant="outline" onClick={() => setEditingItem(row)}>Edit</Button>
+                                    {!row.code?.startsWith("POD-") ? (
+                                        <Button size="sm" variant="destructive" onClick={() => setItemToDelete(row)}>Delete</Button>
+                                    ) : null}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )
                 })}
-                data={podMaterials || []}
-                filterColumn="name"
-                filterPlaceholder="Filter materials..."
-            />
+            </div>
 
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit POD Profile</DialogTitle>
+                        <DialogTitle>Edit POD Roll SKU</DialogTitle>
                     </DialogHeader>
                     {editingItem ? (
                         <PODForm
@@ -378,7 +526,7 @@ export default function PODPage() {
             <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete POD Profile?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete POD Roll SKU?</AlertDialogTitle>
                         <AlertDialogDescription>
                             This will permanently delete <strong>{itemToDelete?.code}</strong>.
                         </AlertDialogDescription>
@@ -396,6 +544,6 @@ export default function PODPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </MasterRegistryShell>
     )
 }

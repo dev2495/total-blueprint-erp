@@ -28,7 +28,63 @@ export function defaultGussetRule(pouchStyle?: string): { applyTo: DimensionImpa
     if (style === "STAND_UP") return { applyTo: "HEIGHT", factor: 1 }
     if (style === "QUAD_SEAL" || style === "FLAT_BOTTOM") return { applyTo: "WIDTH", factor: 2 }
     if (style === "SIDE_GUSSET" || style === "SPOUT") return { applyTo: "WIDTH", factor: 1 }
+    if (style === "CENTER_SEAL") return { applyTo: "NONE", factor: 0 }
     return { applyTo: "NONE", factor: 1 }
+}
+
+/**
+ * CENTER_SEAL (form-fill-seal pillow) wraps around the H axis, so the roll
+ * width must come from H — not W. Other styles use W. Anywhere we compute
+ * roll-width or print the formula chip, this gate decides which dimension
+ * to use.
+ */
+export function pouchUsesHeightForRoll(pouchStyle?: string) {
+    return String(pouchStyle || "").toUpperCase() === "CENTER_SEAL"
+}
+
+/**
+ * Geometry-field visibility per pouch style. Hides fields that don't apply so
+ * the size editor stays minimal — gusset isn't shown on flat pouches, flap/tape
+ * is only relevant where there's a closure tape, etc.
+ */
+export function pouchStyleFields(pouchStyle: string | undefined): {
+    gusset: boolean
+    gussetFactor: boolean
+    gussetAffects: boolean
+    flapTape: boolean
+    trimLoss: boolean
+} {
+    const s = String(pouchStyle || "").toUpperCase()
+    // No gusset: pillow, 3-side seal, centre seal, sachet, stick pack, plain
+    if (s === "PILLOW" || s === "THREE_SIDE_SEAL" || s === "CENTER_SEAL" || s === "SACHET" || s === "STICK_PACK") {
+        return { gusset: false, gussetFactor: false, gussetAffects: false, flapTape: false, trimLoss: true }
+    }
+    // Has gusset + factor + direction
+    if (s === "STAND_UP" || s === "SIDE_GUSSET" || s === "QUAD_SEAL" || s === "FLAT_BOTTOM" || s === "SPOUT") {
+        return { gusset: true, gussetFactor: true, gussetAffects: true, flapTape: s === "STAND_UP" || s === "SPOUT", trimLoss: true }
+    }
+    // SHAPED / fallback — show everything so admin can configure
+    return { gusset: true, gussetFactor: true, gussetAffects: true, flapTape: true, trimLoss: true }
+}
+
+/**
+ * Plain-English roll-width formula per pouch style — what Auto roll width
+ * resolves to before any override. Surfaced as a chip under the pouch style
+ * dropdown so the operator can sanity-check the math (and override it via
+ * `roll_width_mm` if the press needs a different feed).
+ */
+export function rollWidthFormula(pouchStyle: string | undefined, faces: number): string {
+    const style = String(pouchStyle || "").toUpperCase()
+    const f = Math.max(1, Number(faces) || 2)
+    const mul = f === 1 ? "" : ` × ${f}`
+    if (style === "CENTER_SEAL") return `H${mul}  (uses height — form-fill-seal)`
+    if (style === "STAND_UP" || style === "SPOUT") return `W${mul}  (gusset adds to H)`
+    if (style === "QUAD_SEAL" || style === "FLAT_BOTTOM") return `(W + 2 × gusset)${mul}`
+    if (style === "SIDE_GUSSET") return `(W + gusset)${mul}`
+    if (style === "PILLOW" || style === "THREE_SIDE_SEAL") return `W${mul}`
+    if (style === "SACHET" || style === "STICK_PACK") return `W${mul}`
+    if (style === "SHAPED") return `W${mul}  (set roll width manually)`
+    return `W${mul}`
 }
 
 function applyDelta(width: number, height: number, value: number, impact: DimensionImpact) {
@@ -88,9 +144,20 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
         }
     }
 
+    // Effective per-face geometry = the actual product (pouch) dimensions
+    // including width / height adjustments + flap-tape + gusset.
+    //
+    // IMPORTANT: trim_loss is NOT added to the per-face dimensions. Trim is
+    // edge waste at the slitter / pouching press and gets applied ONCE at
+    // the roll-level — adding it to each face would double-count it when
+    // we then multiply by `faces` to get roll width. The industry-standard
+    // formula is:
+    //     roll_width = (face_width × faces) + trim_loss
+    //                                          ^^^^^^^^^^ added once
+    // (or per-height equivalent for center-seal / form-fill-seal pouches
+    //  where the roll runs in the H direction).
     let effectiveWidthMm = width + widthAdjustment
     let effectiveHeightMm = isRollOutput ? 0 : height + heightAdjustment + flapTape
-    ;({ width: effectiveWidthMm, height: effectiveHeightMm } = applyDelta(effectiveWidthMm, effectiveHeightMm, trimLoss, trimApplyTo))
     if (!isRollOutput) {
         ;({ width: effectiveWidthMm, height: effectiveHeightMm } = applyDelta(
             effectiveWidthMm,
@@ -100,7 +167,21 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
         ))
     }
 
-    const fallbackRollWidthMm = width > 0 ? effectiveWidthMm * faces : 0
+    // Center-seal pouches wrap around the H axis, so Auto roll width comes
+    // from the effective HEIGHT (not WIDTH). Every other style stays on W.
+    // Manual override (`roll_width_mm`) still wins downstream.
+    const usesHeightForRoll = pouchUsesHeightForRoll(pouchStyle)
+    const rollAxis = usesHeightForRoll ? effectiveHeightMm : effectiveWidthMm
+    const rollAxisBase = usesHeightForRoll ? height : width
+    // Add trim only on the axis it applies to (matches user's trim_affects pick).
+    // BOTH applies trim to both axes; NONE doesn't add anywhere.
+    const trimOnRollAxis = (() => {
+        if (trimApplyTo === "BOTH") return trimLoss
+        if (trimApplyTo === "WIDTH" && !usesHeightForRoll) return trimLoss
+        if (trimApplyTo === "HEIGHT" && usesHeightForRoll) return trimLoss
+        return 0
+    })()
+    const fallbackRollWidthMm = rollAxisBase > 0 ? rollAxis * faces + trimOnRollAxis : 0
     const explicitRollWidthMm = asNumber(source.roll_width_mm)
 
     return {

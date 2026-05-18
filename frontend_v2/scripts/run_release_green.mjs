@@ -154,6 +154,8 @@ const strictEnv = {
   UI_E2E_LABEL_PREFIX: process.env.UI_E2E_LABEL_PREFIX || "UAT-GREEN",
   UI_E2E_RUN_TAG: runTag,
   UI_E2E_GREEN_RUN: "1",
+  UI_BASE_URL: process.env.UI_BASE_URL || "http://127.0.0.1:3001",
+  UI_E2E_API_PORT: process.env.UI_E2E_API_PORT || "8000",
   UI_E2E_FRONTEND_MODE: process.env.UI_E2E_FRONTEND_MODE || "prod",
   FRONTEND_MODE: process.env.FRONTEND_MODE || process.env.UI_E2E_FRONTEND_MODE || "prod",
   BACKEND_SERVER_MODE: "gunicorn",

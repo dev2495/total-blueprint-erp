@@ -94,6 +94,9 @@ function GlobalClientErrorListeners() {
 }
 
 export default function Providers({ children }: { children: React.ReactNode }) {
+    const showReactQueryDevtools =
+        process.env.NODE_ENV === "development" &&
+        process.env.NEXT_PUBLIC_ENABLE_REACT_QUERY_DEVTOOLS === "1"
     const [queryClient] = useState(
         () =>
             new QueryClient({
@@ -145,7 +148,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 {children}
                 <Toaster />
             </AuthProvider>
-            <ReactQueryDevtools initialIsOpen={false} />
+            {showReactQueryDevtools ? <ReactQueryDevtools initialIsOpen={false} /> : null}
         </QueryClientProvider>
     )
 }

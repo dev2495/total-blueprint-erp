@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PM Edit · redesigned · V3.7 mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: {
+    display: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui'],
+    sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+    mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+  } } } }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%); color: #0f172a; }
+  .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .scroll-card { content-visibility: auto; contain-intrinsic-size: 1px 480px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<main class="mx-auto max-w-screen-xl px-6 py-5 space-y-4">
+
+  <!-- ╔════════════════════════════════════════════════════════════════╗ -->
+  <!-- ║ LOCKED-IN MODEL · what changed and why                          ║ -->
+  <!-- ╚════════════════════════════════════════════════════════════════╝ -->
+  <section class="rounded-2xl border-2 border-slate-300 bg-white shadow-sm overflow-hidden">
+    <header class="bg-slate-900 px-5 py-3 text-white">
+      <div class="font-display text-base font-black">Model locked · what this redesign decides</div>
+      <div class="text-[11px] text-slate-300 mt-0.5">Based on the answers you confirmed. Engineering knobs on master · customer choices via overlay or order line · EOD-consumed packing tagged not calculated.</div>
+    </header>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 px-5 py-4 text-[12px]">
+      <Lock title="Center-seal uses H as roll width" body="System derives roll_width from pouch style. Stand-up: (W+g)×2. Pillow: W×2. Center-seal: H. Quad/side-gusset: (W+2g)×2. Roll FG: W. POD: W. User can manually override and the override wins for allocation + matching." />
+      <Lock title="Per-layer Fixed / Variable replaces Optional / Required" body="Each layer's thickness and grade carries one of two flags: Fixed (locked at master value) or Variable (sales picks per order). No tri-state, no OPTIONAL. Both are always required to be decided." />
+      <Lock title="Sales picks: inner pouch · POD · add-ons" body="Master gives a menu of allowed codes for each. Sales picks 1 inner pouch, 1 POD, 0-many add-ons per order. Customer overlay pre-fills defaults (incl. pcs_per_inner override per inner pouch)." />
+      <Lock title="PM-locked (no sales choice): outer packing + EOD extras" body="Master ticks a checklist: which gunny for pouches, which sheet for rolls/POD, which EOD extras (tape · label · tag) get consumed at packing. Sales sees nothing. EOD posts actual counts and tags them to the SO." />
+      <Lock title="No 'always-consumed packaging' block" body="Dropped entirely. Every packing item is EOD-consumed via tagging — no formula on the master, no math on the order, no fake 'consumed every order' lock." />
+      <Lock title="Section order: Identity → Axes → Layers → Sizes → Packing → Printing → Advanced" body="Reordered so the natural flow is: declare what axes this product has, then fill in layer-axis and size-axis details. Less cognitive load — same mental model as building a recipe top-down." />
+    </div>
+  </section>
+
+  <!-- ╔════════════════════════════════════════════════════════════════╗ -->
+  <!-- ║ NEW PM EDIT · top to bottom                                     ║ -->
+  <!-- ╚════════════════════════════════════════════════════════════════╝ -->
+
+  <!-- HERO (subtle V37) -->
+  <section class="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-violet-50/60 via-white to-emerald-50/30 px-5 py-4 shadow-sm">
+    <div class="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500"></div>
+    <div class="relative pl-3 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Master · Edit · PM-CODEX-INNER-POUCH-PACK</div>
+        <h1 class="font-display text-2xl font-black tracking-tight text-slate-900 mt-1">Codex Inner Pouch Packaging Product</h1>
+        <p class="mt-1 max-w-xl text-xs text-slate-600">Engineering contract: route, layers, sizes, customer-pickable axes, packing items. Sales reads this immediately on save.</p>
+        <div class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+          <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200">Active</span>
+          <span class="rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 ring-1 ring-blue-200">POUCH</span>
+          <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">3 layers · 104μ total</span>
+          <span class="rounded-full bg-violet-50 px-2.5 py-0.5 text-violet-700 ring-1 ring-violet-200">3 sales axes on</span>
+        </div>
+      </div>
+      <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50">← Back</button>
+    </div>
+  </section>
+
+  <!-- 1 · IDENTITY (compact, collapsible once filled) -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <header class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 text-xs font-black ring-1 ring-blue-200">1</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Identity</div>
+          <div class="font-display text-sm font-bold text-slate-900">Master code · name · kind · template</div>
+        </div>
+      </div>
+      <span class="text-[10px] font-bold text-slate-500">collapse ↑</span>
+    </header>
+    <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-[12px]">
+      <div><Label>Master code</Label><div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-bold text-slate-800">PM-CODEX-INNER-POUCH-PACK</div></div>
+      <div><Label>Name</Label><div class="rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold text-slate-800">Codex Inner Pouch Packaging Product</div></div>
+      <div><Label>Product kind</Label><div class="rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold text-slate-800">PACKAGING</div></div>
+      <div><Label>Live template</Label><div class="rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold text-slate-800">CODEX_SAMPLE_POUCH_TEMPLATE_V36</div></div>
+    </div>
+  </section>
+
+  <!-- 2 · VARIANT AXES (moved to top per your direction — declares the shape first) -->
+  <section class="rounded-2xl border border-violet-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <header class="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50/50 via-white to-white px-5 py-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 text-xs font-black ring-1 ring-violet-200">2</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Variant axes</div>
+          <div class="font-display text-sm font-bold text-slate-900">Which knobs vary on this product · what sales picks per order</div>
+          <div class="text-[11px] text-slate-500">Set this first — the rest of the page collects details for each axis.</div>
+        </div>
+      </div>
+    </header>
+    <div class="p-5 space-y-3">
+      <!-- Inner pouch axis · ON/OFF + menu + fallback pcs_per_inner -->
+      <article class="rounded-xl border border-amber-200 bg-amber-50/40 px-4 py-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <Icon emoji="🛍" />
+              <h3 class="font-display text-sm font-bold text-slate-900">Inner pouch · sales picks 1 per order</h3>
+              <span class="rounded-full bg-amber-200 px-2 py-0.5 text-[9px] font-black text-amber-900">on</span>
+            </div>
+            <div class="text-[11px] text-slate-600 mt-0.5">Master lists allowed inner pouches. Customer overlay can override <code>pcs_per_inner</code> per customer.</div>
+          </div>
+          <div class="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-amber-200 text-[11px] font-bold">
+            <button class="h-7 rounded-md px-2.5 bg-amber-500 text-white">ON</button>
+            <button class="h-7 rounded-md px-2.5 text-slate-600">OFF</button>
+          </div>
+        </div>
+        <div class="mt-3 space-y-1">
+          <Label class="text-amber-800">Allowed inner pouches · 2</Label>
+          <div class="flex flex-wrap gap-1.5">
+            <Chip code="INNER-POUCH-24-CODEX" name="Purchased inner pouch 24 pcs" def="pcs_per_inner: 24" tone="amber" />
+            <Chip code="INNER-POUCH-IH-CODEX" name="In-house inner pouch" def="pcs_per_inner: 24" tone="amber" />
+            <button class="rounded-md border border-dashed border-amber-300 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 hover:bg-amber-50">+ Add from catalog · 5 available</button>
+          </div>
+        </div>
+        <div class="mt-2 text-[10px] text-slate-500"><strong>Fallback pcs_per_inner:</strong> 24 (customer overlay can override per inner-pouch code)</div>
+      </article>
+
+      <!-- POD axis · ON/OFF + menu -->
+      <article class="rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 px-4 py-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <Icon emoji="🔖" />
+              <h3 class="font-display text-sm font-bold text-slate-900">POD · sales picks 1 per order</h3>
+              <span class="rounded-full bg-fuchsia-200 px-2 py-0.5 text-[9px] font-black text-fuchsia-900">on</span>
+            </div>
+            <div class="text-[11px] text-slate-600 mt-0.5">Allowed POD SKU variants. In-house POD fires auto-demand if short on stock.</div>
+          </div>
+          <div class="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-fuchsia-200 text-[11px] font-bold">
+            <button class="h-7 rounded-md px-2.5 bg-fuchsia-600 text-white">ON</button>
+            <button class="h-7 rounded-md px-2.5 text-slate-600">OFF</button>
+          </div>
+        </div>
+        <div class="mt-3 space-y-1">
+          <Label class="text-fuchsia-800">Allowed POD codes · 2</Label>
+          <div class="flex flex-wrap gap-1.5">
+            <Chip code="CODEX-POD-220" name="220 mm POD · 30μ glossy" tone="fuchsia" />
+            <Chip code="CODEX-POD-260" name="260 mm POD · 30μ glossy" tone="fuchsia" />
+            <button class="rounded-md border border-dashed border-fuchsia-300 bg-white px-2 py-1 text-[10px] font-bold text-fuchsia-700 hover:bg-fuchsia-50">+ Add from catalog · 6 available</button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Add-ons axis · ON/OFF + multi-pick menu -->
+      <article class="rounded-xl border border-rose-200 bg-rose-50/40 px-4 py-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <Icon emoji="✨" />
+              <h3 class="font-display text-sm font-bold text-slate-900">Add-ons · sales picks any number per order</h3>
+              <span class="rounded-full bg-rose-200 px-2 py-0.5 text-[9px] font-black text-rose-900">on</span>
+            </div>
+            <div class="text-[11px] text-slate-600 mt-0.5">Per-piece optional items (zipper, valve, slip additive). Multiplied by order qty.</div>
+          </div>
+          <div class="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-rose-200 text-[11px] font-bold">
+            <button class="h-7 rounded-md px-2.5 bg-rose-500 text-white">ON</button>
+            <button class="h-7 rounded-md px-2.5 text-slate-600">OFF</button>
+          </div>
+        </div>
+        <div class="mt-3 space-y-1">
+          <Label class="text-rose-800">Allowed add-ons · 1</Label>
+          <div class="flex flex-wrap gap-1.5">
+            <Chip code="ZIP-PCS-CODEX" name="Purchased zipper add-on" tone="rose" />
+            <button class="rounded-md border border-dashed border-rose-300 bg-white px-2 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-50">+ Add from catalog · 4 available</button>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- 3 · LAYERS (per-layer with Fixed/Variable replacing Optional/Required) -->
+  <section class="rounded-2xl border border-blue-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <header class="flex items-center justify-between border-b border-blue-100 bg-gradient-to-r from-blue-50/50 via-white to-white px-5 py-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 text-xs font-black ring-1 ring-blue-200">3</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Layers</div>
+          <div class="font-display text-sm font-bold text-slate-900">Films · thickness · grade — Fixed or Variable per layer</div>
+          <div class="text-[11px] text-slate-500">Total thickness <span class="font-mono font-bold text-emerald-700">104 μ</span> · derived from layer sum.</div>
+        </div>
+      </div>
+      <button class="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-50">+ Add layer</button>
+    </header>
+    <div class="divide-y divide-slate-100">
+      <LayerRow idx="1" film="PET-12-CODEX" thickness="12" tFlag="fixed" gFlag="fixed" grade="GP" />
+      <LayerRow idx="2" film="VMPET-12-CODEX" thickness="12" tFlag="fixed" gFlag="fixed" grade="GP" />
+      <LayerRow idx="3" film="LDPE-FOOD-CODEX" thickness="80" tFlag="variable" gFlag="variable" grade="CODEX FOOD GRADE" allowedGrades="CODEX FOOD GRADE · CODEX GP · ML" />
+    </div>
+    <div class="bg-slate-50/40 border-t border-slate-100 px-5 py-2 text-[10px] text-slate-500">
+      <strong>Fixed</strong> = master locks the value · <strong>Variable</strong> = sales picks per order (and customer overlay can default).
+    </div>
+  </section>
+
+  <!-- 4 · SIZES — pouch style picker + simplified per-size editor -->
+  <section class="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <header class="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50/50 via-white to-white px-5 py-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 text-xs font-black ring-1 ring-emerald-200">4</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Sizes &amp; pouch style</div>
+          <div class="font-display text-sm font-bold text-slate-900">W × H + gusset · roll width derived from style (or override)</div>
+        </div>
+      </div>
+      <button class="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50">+ Add size</button>
+    </header>
+
+    <!-- Pouch style picker -->
+    <div class="border-b border-slate-100 px-5 py-4 bg-slate-50/30">
+      <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Pouch style — drives roll width formula</div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+        <StyleTile glyph="▭" label="Pillow" formula="W × 2" />
+        <StyleTile glyph="◰" label="Stand-up" formula="(W + g) × 2" active />
+        <StyleTile glyph="▤" label="Center seal" formula="H" warn />
+        <StyleTile glyph="◳" label="Quad seal" formula="(W + 2g) × 2" />
+        <StyleTile glyph="⬓" label="Side gusset" formula="(W + 2g) × 2" />
+        <StyleTile glyph="⊓" label="Spout" formula="(W + g) × 2" />
+        <StyleTile glyph="▥" label="3-side seal" formula="W × 2" />
+        <StyleTile glyph="⬚" label="Roll / POD" formula="W" />
+      </div>
+      <div class="mt-2 text-[10px] text-slate-500">Selected: <strong>Stand-up</strong> · Roll width = (W + gusset) × 2 + trim · <span class="font-bold text-amber-700">center-seal uses H instead — flagged in the picker</span>.</div>
+    </div>
+
+    <!-- One size card (compact) -->
+    <div class="px-5 py-4">
+      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="font-mono font-black text-slate-900 text-sm">INNER-100X120</span>
+            <span class="text-[11px] text-slate-500 truncate">Inner pouch 100 × 120</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">active</span>
+            <button class="rounded-md p-1 text-rose-600 hover:bg-rose-50" title="Delete size">✕</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+          <SizeField label="W (mm)" value="100" />
+          <SizeField label="H (mm)" value="120" />
+          <SizeField label="Gusset (mm)" value="0" hint="stand-up needs gusset" />
+          <SizeField label="Faces" value="2" hint="from style" readOnly />
+        </div>
+        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+          <div class="rounded-lg bg-emerald-50/60 ring-1 ring-emerald-200 px-3 py-2 flex items-center justify-between">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Auto roll width</div>
+              <div class="font-mono text-base font-black text-emerald-900">200 mm</div>
+              <div class="text-[10px] text-emerald-700/80">= (100 + 0) × 2 + 0 trim</div>
+            </div>
+            <button class="rounded-md bg-white px-2 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-100">Override</button>
+          </div>
+          <div class="rounded-lg bg-amber-50/40 ring-1 ring-amber-200 px-3 py-2 flex items-center justify-between">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-wider text-amber-700">Manual roll width override</div>
+              <div class="font-mono text-base font-black text-amber-900">220 mm</div>
+              <div class="text-[10px] text-amber-700/80">Manual wins · roll allocation + matching use this.</div>
+            </div>
+            <button class="rounded-md bg-white px-2 py-1 text-[10px] font-bold text-amber-700 ring-1 ring-amber-300 hover:bg-amber-100">Clear</button>
+          </div>
+        </div>
+        <details class="mt-3">
+          <summary class="cursor-pointer text-[10px] font-bold text-slate-500 hover:text-slate-900">Advanced · trim loss · flap/tape · custom W/H adjustments ▾</summary>
+          <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+            <SizeField label="Trim loss (mm)" value="0" />
+            <SizeField label="Flap/tape (mm)" value="0" />
+            <SizeField label="Std qty" value="500" />
+            <SizeField label="UOM" value="KG" readOnly />
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · PM-LOCKED PACKING (no sales choice, EOD-consumed) -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden scroll-card">
+    <header class="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-50/60 via-white to-white px-5 py-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 text-xs font-black ring-1 ring-slate-300">5</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-700">Outer &amp; EOD packing — PM locked</div>
+          <div class="font-display text-sm font-bold text-slate-900">What gets consumed when packing this product · sales has no choice here</div>
+          <div class="text-[11px] text-slate-500">Pick the actual items used. EOD posts the count when each unit is packed and tags it to the SO. No math, no per-order qty.</div>
+        </div>
+      </div>
+    </header>
+    <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <!-- Outer packing -->
+      <div class="rounded-xl border border-violet-200 bg-violet-50/40 px-4 py-3">
+        <div class="flex items-center gap-2 mb-2">
+          <Icon emoji="📦" />
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-violet-700">Outer packing — pouches</div>
+            <div class="text-[11px] text-slate-600">Gunny + sheet allowed</div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <Chip code="GUNNY-50KG-CODEX" name="Gunny bag 50 kg" tone="violet" />
+          <Chip code="SHEET-OUTER-LDPE-100" name="Outer sheet · LDPE 100 μ" tone="violet" />
+          <button class="rounded-md border border-dashed border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-700 hover:bg-violet-50">+ Add gunny / sheet · 3 available</button>
+        </div>
+      </div>
+
+      <!-- EOD extras -->
+      <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
+        <div class="flex items-center gap-2 mb-2">
+          <Icon emoji="🏷" />
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-700">Other EOD packing</div>
+            <div class="text-[11px] text-slate-600">Tape · label · tag — anything counted at end of day</div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <Chip code="TAPE-STICKY-50MM" name="Sticky tape 50 mm" tone="slate" />
+          <Chip code="LABEL-BARCODE-A" name="Barcode label A" tone="slate" />
+          <button class="rounded-md border border-dashed border-slate-300 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-50">+ Add EOD item · 8 available</button>
+        </div>
+      </div>
+    </div>
+    <div class="bg-slate-50/40 border-t border-slate-100 px-5 py-2.5 flex items-start gap-2 text-[10px] text-slate-600">
+      <span class="text-amber-600 mt-0.5">ℹ</span>
+      <span><strong>How this is consumed:</strong> When the operator packs a unit, EOD picks up the actual count from inventory transactions and tags the consumption to the SO. No formula on the master, no qty on the order, no auto-math. The SO BOM report shows "for SO-1483, 28 gunny bags + 1,500 tape strips were consumed".</span>
+    </div>
+  </section>
+
+  <!-- 6 · PRINTING -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <header class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-fuchsia-50 text-fuchsia-700 text-xs font-black ring-1 ring-fuchsia-200">6</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-700">Printing</div>
+          <div class="font-display text-sm font-bold text-slate-900">Whether printing is possible and whether artwork is mandatory</div>
+        </div>
+      </div>
+    </header>
+    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+      <ToggleBlock title="Print capable" sub="Sales can attach artwork or warning-print." on />
+      <ToggleBlock title="Artwork required" sub="Block production release until approved artwork is selected." on />
+      <div class="sm:col-span-2 rounded-xl bg-emerald-50/40 ring-1 ring-emerald-200 px-3 py-2 text-[11px] text-emerald-900">
+        <strong>Artwork-driven:</strong> method, sheet/tubing form, ink mapping, and cylinder gate come from the approved artwork/colorway chosen on the order. Artwork mode axis is auto-synced and not a separate switch.
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · ADVANCED (collapsed by default) -->
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <header class="px-5 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 text-xs font-black ring-1 ring-slate-300">7</span>
+        <div>
+          <div class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-700">Advanced</div>
+          <div class="font-display text-sm font-bold text-slate-900">Invariant signature · reusable policy · per-layer roll width override</div>
+        </div>
+      </div>
+      <button class="text-[10px] font-bold text-slate-500">expand ▾</button>
+    </header>
+  </section>
+
+  <!-- VALIDATION FOOTER preview -->
+  <section class="sticky bottom-0 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_-12px_30px_-22px_rgba(15,23,42,0.5)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+      <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200">✓ All validations passed</span>
+      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">draft synced</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+      <button class="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-md">Save master</button>
+    </div>
+  </section>
+
+  <!-- ╔════════════════════════════════════════════════════════════════╗ -->
+  <!-- ║ POD + Packaging master question                                  ║ -->
+  <!-- ╚════════════════════════════════════════════════════════════════╝ -->
+  <section class="rounded-2xl border-2 border-slate-300 bg-white shadow-sm overflow-hidden mt-6">
+    <header class="bg-slate-900 px-5 py-3 text-white">
+      <div class="font-display text-base font-black">POD + Packaging masters — do them next, not now</div>
+      <div class="text-[11px] text-slate-300 mt-0.5">Honest recommendation on sequencing.</div>
+    </header>
+    <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-[12px]">
+      <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2.5">
+        <div class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Do first · PM Edit (this redesign)</div>
+        <div class="text-[12px] font-bold text-emerald-900 mt-1">Highest leverage</div>
+        <div class="text-[11px] text-emerald-800/80 mt-0.5">Touched every time a new product gets added. Pain compounds daily. Fixing this unblocks the rest of the model.</div>
+      </div>
+      <div class="rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2.5">
+        <div class="text-[10px] font-black uppercase tracking-wider text-amber-700">Do next · Packaging master</div>
+        <div class="text-[12px] font-bold text-amber-900 mt-1">Medium leverage</div>
+        <div class="text-[11px] text-amber-800/80 mt-0.5">Inner pouch / gunny / sheet / tape / label / tag — kind bifurcation needs to flow through to the PM Edit's filter chips. Easier to redo after PM Edit lands so we know what the consumer page needs.</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-700">Do third · POD master</div>
+        <div class="text-[12px] font-bold text-slate-900 mt-1">Lower leverage</div>
+        <div class="text-[11px] text-slate-600 mt-0.5">POD SKU variants are flat catalog rows — current UI is decent. Touch only when packaging master is done and we have a consistent catalog-card pattern.</div>
+      </div>
+    </div>
+    <div class="bg-slate-50/40 border-t border-slate-200 px-5 py-3 text-[11px] text-slate-700">
+      <strong>Why not all three at once?</strong> Two reasons. (1) Risk: changing 3 connected masters at the same time means more places for state to drift while we&apos;re mid-fix. (2) Feedback: the PM Edit redesign tells us what the consumer pages actually need. After you use the new PM Edit for a day, you&apos;ll know exactly what's missing from Packaging master and POD master — saving design rework on those.
+    </div>
+  </section>
+
+</main>
+
+<!-- Inline helpers rendered as custom tags -->
+<script>
+  function el(tag, attrs, ...children) {
+    const n = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === "class") n.className = v
+      else if (k === "style") n.style.cssText = v
+      else n.setAttribute(k, v)
+    }
+    for (const c of children) {
+      if (c == null) continue
+      n.append(typeof c === "string" ? document.createTextNode(c) : c)
+    }
+    return n
+  }
+
+  document.querySelectorAll("Lock").forEach((src) => {
+    const div = el("div", { class: "rounded-xl border border-slate-200 bg-white px-3 py-2.5" })
+    div.innerHTML = `
+      <div class="flex items-baseline gap-2">
+        <span class="text-emerald-600 text-sm">✓</span>
+        <span class="text-[12px] font-bold text-slate-900">${src.getAttribute("title") || ""}</span>
+      </div>
+      <p class="mt-1 text-[11px] text-slate-600 leading-relaxed">${src.getAttribute("body") || ""}</p>
+    `
+    src.replaceWith(div)
+  })
+
+  document.querySelectorAll("Label").forEach((src) => {
+    const cls = src.getAttribute("class") || ""
+    const div = el("div", { class: `text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 ${cls}` })
+    div.textContent = src.textContent
+    src.replaceWith(div)
+  })
+
+  document.querySelectorAll("Icon").forEach((src) => {
+    const e = src.getAttribute("emoji") || "•"
+    const span = el("span", { class: "flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-white text-base shadow-sm ring-1 ring-slate-200" })
+    span.textContent = e
+    src.replaceWith(span)
+  })
+
+  document.querySelectorAll("Chip").forEach((src) => {
+    const code = src.getAttribute("code") || ""
+    const name = src.getAttribute("name") || ""
+    const def = src.getAttribute("def") || ""
+    const tone = src.getAttribute("tone") || "slate"
+    const toneMap = {
+      amber: "bg-white text-amber-900 ring-amber-300",
+      fuchsia: "bg-white text-fuchsia-900 ring-fuchsia-300",
+      rose: "bg-white text-rose-900 ring-rose-300",
+      violet: "bg-white text-violet-900 ring-violet-300",
+      slate: "bg-white text-slate-800 ring-slate-300",
+    }
+    const span = el("span", { class: `inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-mono font-bold ring-1 ${toneMap[tone]}` })
+    span.innerHTML = `<span class="font-black">${code}</span>${name ? `<span class="text-[9px] font-medium opacity-70">· ${name}</span>` : ""}${def ? `<span class="text-[9px] font-bold opacity-80 ml-1 rounded bg-slate-100 px-1.5 py-0.5">${def}</span>` : ""}<button class="ml-0.5 rounded-full p-0.5 text-rose-600 opacity-70 hover:opacity-100" title="Remove">✕</button>`
+    src.replaceWith(span)
+  })
+
+  document.querySelectorAll("LayerRow").forEach((src) => {
+    const idx = src.getAttribute("idx") || "1"
+    const film = src.getAttribute("film") || ""
+    const thickness = src.getAttribute("thickness") || ""
+    const tFlag = src.getAttribute("tFlag") || "fixed"
+    const gFlag = src.getAttribute("gFlag") || "fixed"
+    const grade = src.getAttribute("grade") || ""
+    const allowedGrades = src.getAttribute("allowedGrades") || ""
+
+    const tFixedActive = tFlag === "fixed"
+    const tVarActive = tFlag === "variable"
+    const gFixedActive = gFlag === "fixed"
+    const gVarActive = gFlag === "variable"
+
+    const div = el("div", { class: "px-5 py-3 grid grid-cols-1 lg:grid-cols-[4rem_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_3rem] gap-3 items-start" })
+    div.innerHTML = `
+      <div class="font-mono font-black text-blue-700 text-sm">L${idx}</div>
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Film</div>
+        <div class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-[11px] font-bold text-slate-800">${film}</div>
+      </div>
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Thickness</div>
+        <div class="flex items-center gap-1.5">
+          <div class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-[12px] font-black text-slate-900 w-20">${thickness} μ</div>
+          <div class="inline-flex rounded-md bg-slate-100 p-0.5 ring-1 ring-slate-200 text-[10px] font-bold">
+            <button class="${tFixedActive ? "bg-blue-600 text-white" : "text-slate-600"} h-6 rounded px-2">Fixed</button>
+            <button class="${tVarActive ? "bg-amber-500 text-white" : "text-slate-600"} h-6 rounded px-2">Variable</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Grade</div>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <div class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-[11px] font-bold text-slate-800 truncate max-w-[160px]">${grade}</div>
+          <div class="inline-flex rounded-md bg-slate-100 p-0.5 ring-1 ring-slate-200 text-[10px] font-bold">
+            <button class="${gFixedActive ? "bg-blue-600 text-white" : "text-slate-600"} h-6 rounded px-2">Fixed</button>
+            <button class="${gVarActive ? "bg-amber-500 text-white" : "text-slate-600"} h-6 rounded px-2">Variable</button>
+          </div>
+        </div>
+        ${gVarActive && allowedGrades ? `<div class="mt-1 text-[10px] text-amber-700"><strong>Allowed:</strong> ${allowedGrades}</div>` : ""}
+      </div>
+      <div class="flex justify-end">
+        <button class="rounded-md p-1.5 text-rose-600 hover:bg-rose-50">✕</button>
+      </div>
+    `
+    src.replaceWith(div)
+  })
+
+  document.querySelectorAll("StyleTile").forEach((src) => {
+    const glyph = src.getAttribute("glyph") || "▭"
+    const label = src.getAttribute("label") || ""
+    const formula = src.getAttribute("formula") || ""
+    const active = src.hasAttribute("active")
+    const warn = src.hasAttribute("warn")
+    const div = el("button", { class: `flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-center transition ${active ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200" : warn ? "border-amber-300 bg-amber-50/40 hover:bg-amber-50" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"}` })
+    div.innerHTML = `
+      <span class="text-2xl leading-none ${active ? "text-emerald-600" : warn ? "text-amber-600" : "text-slate-500"}">${glyph}</span>
+      <span class="text-[11px] font-bold text-slate-900">${label}</span>
+      <span class="text-[9px] font-mono text-slate-500">${formula}</span>
+      ${warn ? `<span class="text-[8px] font-black uppercase text-amber-700">uses H</span>` : ""}
+    `
+    src.replaceWith(div)
+  })
+
+  document.querySelectorAll("SizeField").forEach((src) => {
+    const label = src.getAttribute("label") || ""
+    const value = src.getAttribute("value") || ""
+    const hint = src.getAttribute("hint") || ""
+    const readOnly = src.hasAttribute("readOnly")
+    const div = el("div", {})
+    div.innerHTML = `
+      <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">${label}</div>
+      <div class="rounded-lg border border-slate-200 ${readOnly ? "bg-slate-50" : "bg-white"} px-2.5 py-1.5 font-mono text-[12px] font-black ${readOnly ? "text-slate-500" : "text-slate-900"}">${value}</div>
+      ${hint ? `<div class="text-[9px] text-slate-500 mt-0.5">${hint}</div>` : ""}
+    `
+    src.replaceWith(div)
+  })
+
+  document.querySelectorAll("ToggleBlock").forEach((src) => {
+    const title = src.getAttribute("title") || ""
+    const sub = src.getAttribute("sub") || ""
+    const on = src.hasAttribute("on")
+    const div = el("div", { class: "flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5" })
+    div.innerHTML = `
+      <div>
+        <div class="text-sm font-bold text-slate-900">${title}</div>
+        <div class="text-[11px] text-slate-500">${sub}</div>
+      </div>
+      <div class="inline-flex h-7 items-center rounded-full ${on ? "bg-blue-600" : "bg-slate-200"} px-0.5 w-12">
+        <span class="h-6 w-6 rounded-full bg-white shadow ${on ? "ml-auto" : ""}"></span>
+      </div>
+    `
+    src.replaceWith(div)
+  })
+</script>
+
+</body>
+</html>

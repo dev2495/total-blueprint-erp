@@ -93,8 +93,17 @@ function timeAgo(iso?: string): string {
 // ─── Workspace ───────────────────────────────────────────────────
 
 export function ProductMasterListWorkspace() {
+    // Honour ?kind=PACKAGING|POD|POUCH|ROLL|OTHER deep-link from the master
+    // hub so the page lands pre-filtered on the right product family.
+    const initialKind = ((): "ALL" | ProductKind => {
+        if (typeof window === "undefined") return "ALL"
+        const raw = new URLSearchParams(window.location.search).get("kind") || ""
+        const valid: ProductKind[] = ["POUCH", "ROLL", "PACKAGING", "POD", "OTHER"]
+        const upper = raw.trim().toUpperCase()
+        return valid.includes(upper as ProductKind) ? (upper as ProductKind) : "ALL"
+    })()
     const [search, setSearch] = React.useState("")
-    const [kind, setKind] = React.useState<"ALL" | ProductKind>("ALL")
+    const [kind, setKind] = React.useState<"ALL" | ProductKind>(initialKind)
     const [reporting, setReporting] = React.useState<string>("ALL")
     const [showInactive, setShowInactive] = React.useState(false)
     const [printOnly, setPrintOnly] = React.useState(false)

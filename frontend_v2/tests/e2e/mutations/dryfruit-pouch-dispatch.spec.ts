@@ -106,8 +106,10 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
     .sort((left: any, right: any) => String(right.id || "").localeCompare(String(left.id || "")))[0]
   expect(sealedGonny, "sealed gonny should be awaiting release to dispatch").toBeTruthy()
 
-  const releaseResponse = page.waitForResponse((response) => response.url().includes(`/api/production/packing/${sealedGonny.id}/release/`) && response.request().method() === "POST")
   await page.getByTestId(`packing-release-gonny-${sealedGonny.id}`).click()
+  await page.getByTestId("packing-gonny-release-submit").waitFor({ state: "visible", timeout: 15_000 })
+  const releaseResponse = page.waitForResponse((response) => response.url().includes(`/api/production/packing/${sealedGonny.id}/release/`) && response.request().method() === "POST")
+  await page.getByTestId("packing-gonny-release-submit").click()
   expect((await releaseResponse).status()).toBe(200)
 
   await page.screenshot({ path: reportPath("dryfruit-packing-yard.png"), fullPage: true })

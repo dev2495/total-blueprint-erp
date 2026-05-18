@@ -11,6 +11,16 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
 }
 
 // Common types
+export interface ProductMasterCatalogLink {
+    variant_id: string;
+    variant_code: string;
+    master_id: string;
+    master_code: string;
+    master_name: string;
+    product_kind: string;
+    packaging_kind?: string | null;
+}
+
 export interface Material {
     id: string;
     code: string;
@@ -40,6 +50,7 @@ export interface Material {
     pod_panel_count?: number | null;
     pod_is_inhouse_produced?: boolean;
     density_gcm3?: number | null;
+    product_master_link?: ProductMasterCatalogLink | null;
     quality_codes?: GranuleQualityCode[];
     quality_code_count?: number;
 }
@@ -73,6 +84,7 @@ export interface PackagingMaterial extends Material {
     production_template_name?: string | null;
     packaging_defaults_json?: Record<string, any>;
     per_sheet_base_qty?: number | null;
+    product_master_link?: ProductMasterCatalogLink | null;
 }
 
 export interface PodSkuVariant {
@@ -86,6 +98,8 @@ export interface PodSkuVariant {
     material_code: string;
     material_name: string;
     material_status?: string;
+    material_base_uom?: string;
+    material_product_master_link?: ProductMasterCatalogLink | null;
     pod_type?: "SINGLE" | "DOUBLE" | null;
     pod_fixed_height_mm?: number | null;
     pod_thickness_micron?: number | null;

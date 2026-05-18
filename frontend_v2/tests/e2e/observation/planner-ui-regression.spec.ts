@@ -12,7 +12,7 @@ async function attachPageShot(testInfo: TestInfo, page: Parameters<typeof assert
 
 async function ensurePlannerPageVisible(page: Parameters<typeof assertHealthyPage>[0]) {
   const sheet = page.getByRole("heading", { name: /command/i })
-  const tab = page.getByRole("heading", { name: /completed trace|plan queue|planner stock launcher/i })
+  const tab = page.getByRole("heading", { name: /completed trace|plan queue|Launch stock from any Product Master/i })
   const isVisible = async () =>
     (await sheet.isVisible().catch(() => false)) || (await tab.isVisible().catch(() => false))
 
@@ -55,7 +55,7 @@ test.describe.serial("planner live ui regression", () => {
   test("create stock order is compact, sku-first, and batch ready", async ({ page }, testInfo) => {
     await page.goto("/production/planner/stock-launcher", { waitUntil: "domcontentloaded" })
     await assertHealthyPage(page, { requireAuth: false })
-    await expect(page.getByRole("heading", { name: /planner stock launcher/i })).toBeVisible({ timeout: 120_000 })
+    await expect(page.getByRole("heading", { name: /Launch stock from any Product Master/i })).toBeVisible({ timeout: 120_000 })
     await expect(page.locator("body")).toContainText(/Product Master/i)
     await expect(page.locator("body")).toContainText(/Commitment/i)
     await expect(page.locator("body")).toContainText(/Route stop/i)
@@ -76,7 +76,7 @@ test.describe.serial("planner live ui regression", () => {
     await expect(page.locator("body")).toContainText(/FG|WIP|Packaging|POD/i)
     await page.goto("/production/planner/stock-launcher?mode=pod", { waitUntil: "domcontentloaded" })
     await assertHealthyPage(page, { requireAuth: false })
-    await expect(page.getByRole("heading", { name: /planner stock launcher/i })).toBeVisible({ timeout: 120_000 })
+    await expect(page.getByRole("heading", { name: /Launch stock from any Product Master/i })).toBeVisible({ timeout: 120_000 })
     await expect(page.locator("body")).toContainText(/POD/i)
     await expect(page.locator("body")).toContainText(/Per-layer axes/i)
 

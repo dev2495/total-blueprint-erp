@@ -770,6 +770,13 @@ class JobService:
                     to_loc = wip_loc
 
             base_job_number = f"{so_item.sales_order.order_number}-{so_item.id.hex[:4]}-{index+1}"
+            layer_sig_hash = ""
+            try:
+                bs = getattr(so_item, "bom_snapshot", None) or {}
+                if isinstance(bs, dict):
+                    layer_sig_hash = str(bs.get("layer_signature_hash") or "")
+            except Exception:
+                layer_sig_hash = ""
             job = ProductionJob.objects.create(
                 job_number=cls._next_unique_job_number(base_job_number),
                 origin='MTO',
@@ -794,6 +801,7 @@ class JobService:
                     if planner_note_prefix
                     else None
                 ),
+                meta_json={"layer_signature_hash": layer_sig_hash} if layer_sig_hash else {},
             )
             
             # Phase 71: Explode BOM into Requirements
@@ -901,6 +909,23 @@ class JobService:
                     to_loc = _pick_loc(plant_locations.filter(type='WIP'))
 
             base_job_number = f"{planned_order.order_number}-{index+1}"
+            stock_meta = {}
+            try:
+                from apps.production.services.roll_allocation_service import layer_signature_hash
+                bs = getattr(planned_order, "bom_snapshot", None) or {}
+                layer_sig = ""
+                if isinstance(bs, dict):
+                    layer_sig = str(bs.get("layer_signature_hash") or "")
+                if not layer_sig:
+                    layer_sig = layer_signature_hash(getattr(planned_order, "layer_snapshot", None) or [])
+                if layer_sig:
+                    stock_meta["layer_signature_hash"] = layer_sig
+                commitment_scope = str(getattr(planned_order, "commitment_scope", "") or "").upper()
+                if commitment_scope == "GENERIC":
+                    stock_meta["roll_role"] = "GENERIC_JUMBO"
+                    stock_meta["is_generic_stock"] = True
+            except Exception:
+                pass
             job = ProductionJob.objects.create(
                 job_number=cls._next_unique_job_number(base_job_number),
                 origin='STOCK',
@@ -920,7 +945,8 @@ class JobService:
                 uom=target_uom,
                 status='QUEUED',
                 source_type='STOCK',
-                job_state='PLANNED' if index == start_index else 'WAITING'
+                job_state='PLANNED' if index == start_index else 'WAITING',
+                meta_json=stock_meta,
             )
             
             # Phase 71: Explode BOM into Requirements
@@ -1021,7 +1047,29 @@ class JobService:
         job = ProductionJob.objects.get(id=job_id)
         if job.job_state not in ['PLANNED', 'WAITING']:
             raise ValueError(f"Can only release PLANNED or WAITING jobs. Current state: {job.job_state}")
-        
+
+        # ── Artwork gate at release ────────────────────────────────────
+        # If the linked sales-order item OR stock order requires an artwork
+        # (artwork_assignment_required=true) AND no artwork has been assigned
+        # yet (assigned_artwork_id is empty), block the release with a clear
+        # error. Planner / sales must assign an approved artwork first.
+        #
+        # When print_capable=true but artwork is OPTIONAL on the master,
+        # artwork_assignment_required is false and the release proceeds as
+        # a warning-print run (no ink in BOM). This branch only blocks the
+        # hard-required case.
+        source_obj = getattr(job, "sales_order_item", None) or getattr(job, "mts_order", None)
+        if source_obj is not None:
+            requires_artwork = bool(getattr(source_obj, "artwork_assignment_required", False))
+            assigned_artwork_id = str(getattr(source_obj, "assigned_artwork_id", "") or "").strip()
+            if requires_artwork and not assigned_artwork_id:
+                label = getattr(source_obj, "order_number", None) or getattr(source_obj, "internal_name", None) or job.job_number
+                raise ValueError(
+                    f"Cannot release {job.job_number}: master requires an approved artwork "
+                    f"and none is assigned on {label}. "
+                    f"Assign an artwork in the sales order or planner artwork-picker first."
+                )
+
         with transaction.atomic():
             job.job_state = 'RELEASED'
             job.save()

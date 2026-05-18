@@ -71,6 +71,339 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(sizes_response.status_code, 200)
         self.assertEqual(sizes_response.data[0]["code"], "SNK-100")
 
+    def test_packaging_catalog_create_allows_in_house_row_without_direct_template(self):
+        response = self.client.post(
+            "/api/master/packaging/",
+            {
+                "code": "PK-INNER-PM-LINK",
+                "name": "Inner pouch catalog row for PM link",
+                "category": "PACKAGING",
+                "base_uom": "PCS",
+                "packaging_kind": "INNER_POUCH",
+                "packaging_supply_mode": "IN_HOUSE",
+                "production_template": None,
+                "status": "ACTIVE",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        material = InventoryMaterial.objects.get(code="PK-INNER-PM-LINK")
+        self.assertEqual(material.packaging_supply_mode, "IN_HOUSE")
+        self.assertIsNone(material.production_template_id)
+
+    def test_variant_inventory_link_requires_matching_packaging_subtype(self):
+        master = ProductMaster.objects.create(
+            code="PM-PACK-INNER-LINK",
+            name="PM inner pouch link",
+            product_kind="PACKAGING",
+            packaging_kind="INNER_POUCH",
+            default_reporting_group="PACKAGING",
+        )
+        variant = ProductVariant.objects.create(
+            master=master,
+            code="PM-PACK-INNER-LINK-V1",
+            bom_signature="pm-pack-inner-link-v1",
+            axis_values={"size": "100"},
+        )
+        inner = InventoryMaterial.objects.create(
+            code="PK-INNER-LINK-OK",
+            name="Inner pouch link OK",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="INNER_POUCH",
+            packaging_supply_mode="PURCHASED",
+            status="ACTIVE",
+        )
+        sheet = InventoryMaterial.objects.create(
+            code="PK-SHEET-LINK-BAD",
+            name="Sheet link bad",
+            category="PACKAGING",
+            base_uom="KG",
+            packaging_kind="SHEET",
+            packaging_supply_mode="IN_HOUSE",
+            status="ACTIVE",
+        )
+        pod = InventoryMaterial.objects.create(
+            code="POD-LINK-BAD",
+            name="POD link bad",
+            category="POD",
+            base_uom="KG",
+            pod_type="SINGLE",
+            pod_fixed_height_mm=200,
+            pod_thickness_micron=30,
+            pod_panel_count=1,
+            pod_is_inhouse_produced=True,
+            density_gcm3="0.9200",
+            status="ACTIVE",
+        )
+
+        wrong_kind = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(sheet.id)},
+            format="json",
+        )
+        wrong_category = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(pod.id)},
+            format="json",
+        )
+        ok = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(inner.id)},
+            format="json",
+        )
+
+        self.assertEqual(wrong_kind.status_code, 400, wrong_kind.data)
+        self.assertIn("packaging_kind", str(wrong_kind.data).lower())
+        self.assertEqual(wrong_category.status_code, 400, wrong_category.data)
+        self.assertIn("category", str(wrong_category.data).lower())
+        self.assertEqual(ok.status_code, 200, ok.data)
+        inner.refresh_from_db()
+        self.assertEqual(inner.produced_by_product_variant_id, variant.id)
+        self.assertEqual(inner.packaging_supply_mode, "BOTH")
+
+    def test_variant_inventory_link_requires_pod_catalog_for_pod_master(self):
+        master = ProductMaster.objects.create(
+            code="PM-POD-LINK",
+            name="PM POD link",
+            product_kind="POD",
+            default_reporting_group="POD",
+        )
+        variant = ProductVariant.objects.create(
+            master=master,
+            code="PM-POD-LINK-V1",
+            bom_signature="pm-pod-link-v1",
+            axis_values={"size": "200"},
+        )
+        packaging = InventoryMaterial.objects.create(
+            code="PK-INNER-POD-BAD",
+            name="Packaging is not POD",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="INNER_POUCH",
+            packaging_supply_mode="IN_HOUSE",
+            status="ACTIVE",
+        )
+        pod = InventoryMaterial.objects.create(
+            code="POD-LINK-OK",
+            name="POD link OK",
+            category="POD",
+            base_uom="KG",
+            pod_type="SINGLE",
+            pod_fixed_height_mm=200,
+            pod_thickness_micron=30,
+            pod_panel_count=1,
+            pod_is_inhouse_produced=True,
+            density_gcm3="0.9200",
+            status="ACTIVE",
+        )
+
+        wrong_category = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(packaging.id)},
+            format="json",
+        )
+        ok = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"inventory_material_id": str(pod.id)},
+            format="json",
+        )
+
+        self.assertEqual(wrong_category.status_code, 400, wrong_category.data)
+        self.assertIn("category", str(wrong_category.data).lower())
+        self.assertEqual(ok.status_code, 200, ok.data)
+        pod.refresh_from_db()
+        self.assertEqual(pod.produced_by_product_variant_id, variant.id)
+
+    def test_pod_variant_can_link_by_pod_sku_variant_id(self):
+        master = ProductMaster.objects.create(
+            code="PM-POD-SKU-LINK",
+            name="PM POD SKU link",
+            product_kind="POD",
+            default_reporting_group="POD",
+        )
+        variant = ProductVariant.objects.create(
+            master=master,
+            code="PM-POD-SKU-LINK-V1",
+            bom_signature="pm-pod-sku-link-v1",
+            axis_values={"size": "200"},
+        )
+        pod = InventoryMaterial.objects.create(
+            code="POD-SKU-LINK-MAT",
+            name="POD SKU link material",
+            category="POD",
+            base_uom="KG",
+            pod_type="SINGLE",
+            pod_fixed_height_mm=200,
+            pod_thickness_micron=30,
+            pod_panel_count=1,
+            pod_is_inhouse_produced=True,
+            density_gcm3="0.9200",
+            status="ACTIVE",
+        )
+        pod_sku = PodSku.objects.create(code="POD-SKU-LINK", name="POD SKU Link")
+        pod_sku_variant = PodSkuVariant.objects.create(
+            pod_sku=pod_sku,
+            material=pod,
+            code="POD-SKU-LINK-200",
+            name="POD SKU Link 200",
+            active=True,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/variants/{variant.id}/link-inventory/",
+            {"pod_sku_variant_id": str(pod_sku_variant.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        pod.refresh_from_db()
+        self.assertEqual(pod.produced_by_product_variant_id, variant.id)
+        self.assertEqual(response.data["inventory_link"]["id"], str(pod.id))
+        self.assertEqual(response.data["inventory_link"]["pod_sku_variant_code"], pod_sku_variant.code)
+
+    def test_packaging_and_pod_catalogs_expose_product_master_link_summary(self):
+        packaging_master = ProductMaster.objects.create(
+            code="PM-PACK-LINK-SUMMARY",
+            name="PM Packaging Link Summary",
+            product_kind="PACKAGING",
+            packaging_kind="SHEET",
+            default_reporting_group="PACKAGING",
+        )
+        packaging_variant = ProductVariant.objects.create(
+            master=packaging_master,
+            code="PM-PACK-LINK-SUMMARY-V1",
+            bom_signature="pm-pack-link-summary-v1",
+            axis_values={"size": "ROLL"},
+        )
+        packaging = InventoryMaterial.objects.create(
+            code="PK-LINK-SUMMARY",
+            name="Packaging Link Summary",
+            category="PACKAGING",
+            base_uom="KG",
+            packaging_kind="SHEET",
+            packaging_supply_mode="IN_HOUSE",
+            produced_by_product_variant=packaging_variant,
+            status="ACTIVE",
+        )
+        pod_master = ProductMaster.objects.create(
+            code="PM-POD-LINK-SUMMARY",
+            name="PM POD Link Summary",
+            product_kind="POD",
+            default_reporting_group="POD",
+        )
+        pod_variant = ProductVariant.objects.create(
+            master=pod_master,
+            code="PM-POD-LINK-SUMMARY-V1",
+            bom_signature="pm-pod-link-summary-v1",
+            axis_values={"size": "200"},
+        )
+        pod = InventoryMaterial.objects.create(
+            code="POD-LINK-SUMMARY",
+            name="POD Link Summary",
+            category="POD",
+            base_uom="KG",
+            pod_type="SINGLE",
+            pod_fixed_height_mm=200,
+            pod_thickness_micron=30,
+            pod_panel_count=1,
+            pod_is_inhouse_produced=True,
+            density_gcm3="0.9200",
+            produced_by_product_variant=pod_variant,
+            status="ACTIVE",
+        )
+        pod_sku = PodSku.objects.create(code="POD-LINK-SUMMARY-SKU", name="POD Link Summary SKU")
+        pod_sku_variant = PodSkuVariant.objects.create(
+            pod_sku=pod_sku,
+            material=pod,
+            code="POD-LINK-SUMMARY-VAR",
+            name="POD Link Summary Variant",
+            active=True,
+        )
+
+        packaging_response = self.client.get("/api/master/packaging/")
+        pod_response = self.client.get("/api/master/pod/")
+
+        self.assertEqual(packaging_response.status_code, 200, packaging_response.data)
+        packaging_row = next(row for row in packaging_response.data if row["id"] == str(packaging.id))
+        self.assertEqual(packaging_row["product_master_link"]["variant_code"], packaging_variant.code)
+        self.assertEqual(packaging_row["product_master_link"]["master_code"], packaging_master.code)
+        self.assertEqual(packaging_row["product_master_link"]["packaging_kind"], "SHEET")
+
+        self.assertEqual(pod_response.status_code, 200, pod_response.data)
+        pod_row = next(row for row in pod_response.data if row["id"] == str(pod.id))
+        self.assertEqual(pod_row["base_uom"], "KG")
+        self.assertEqual(pod_row["product_master_link"]["variant_code"], pod_variant.code)
+        self.assertEqual(pod_row["product_master_link"]["master_code"], pod_master.code)
+        self.assertEqual(pod_row["product_master_link"]["product_kind"], "POD")
+
+        pod_sku_response = self.client.get("/api/master/pod-sku-variants/")
+        self.assertEqual(pod_sku_response.status_code, 200, pod_sku_response.data)
+        pod_sku_row = next(row for row in pod_sku_response.data if row["id"] == str(pod_sku_variant.id))
+        self.assertEqual(pod_sku_row["material_product_master_link"]["variant_code"], pod_variant.code)
+        self.assertEqual(pod_sku_row["material_base_uom"], "KG")
+
+    def test_pod_product_master_variant_does_not_create_catalog_row_without_manual_link(self):
+        family = InventoryMaterial.objects.create(
+            code="POD-PM-FAM",
+            name="POD PM family",
+            category="FILM_FAMILY",
+            base_uom="KG",
+            density_gcm3="0.9200",
+            status="ACTIVE",
+        )
+        InventoryMaterial.objects.create(
+            code="POD-PM-LD",
+            name="POD PM LD",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            density_gcm3="0.9200",
+            is_extrudable=True,
+            status="ACTIVE",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-POD-SYNC",
+            name="PM POD Sync",
+            product_kind="POD",
+            default_reporting_group="POD",
+            layer_template=[
+                {"role": "pod-web", "material_code": "POD-PM-LD", "thickness_micron": 30, "default_grade": "GP"},
+            ],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True, "options": ["POD-200"]}],
+            fixed_attributes={
+                "fg_type": "ROLL",
+                "layer_count": 1,
+                "pod_type": "SINGLE",
+                "pod_fixed_height_mm": 200,
+                "pod_thickness_micron": 30,
+                "pod_panel_count": 1,
+                "density_gcm3": 0.92,
+            },
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="POD-200",
+            label="POD 200",
+            width_mm=200,
+            height_mm=0,
+            roll_width_mm=200,
+            active=True,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/variants/find-or-create/",
+            {"axis_values": {"size": "POD-200"}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        variant_code = response.data["variant"]["code"]
+        self.assertFalse(InventoryMaterial.objects.filter(code=variant_code, category="POD").exists())
+        self.assertFalse(PodSkuVariant.objects.filter(code=variant_code).exists())
+        self.assertIsNone(response.data["variant"]["inventory_link"])
+
     def test_product_master_write_normalizes_adhesive_and_solvent_defaults(self):
         pet = InventoryMaterial.objects.create(
             code="PET-CHEM-API-T",
@@ -338,9 +671,9 @@ class ProductMasterApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         variant = response.data["variant"]
-        self.assertEqual(variant["geometry_snapshot"]["roll_width_mm"], 220.0)
+        self.assertEqual(variant["geometry_snapshot"]["roll_width_mm"], 210.0)
         self.assertEqual(variant["geometry_snapshot"]["effective_height_mm"], 180.0)
-        self.assertEqual(variant["layer_snapshot"][0]["roll_width_mm"], 220.0)
+        self.assertEqual(variant["layer_snapshot"][0]["roll_width_mm"], 210.0)
 
     def test_product_master_blank_reporting_group_defaults_to_fg(self):
         response = self.client.post(

@@ -26,6 +26,12 @@ BACKEND_SERVER_MODE="${BACKEND_SERVER_MODE:-}"
 
 export SKIP_DOTENV_IMPORT="${SKIP_DOTENV_IMPORT:-1}"
 export SKIP_CELERY_IMPORT="${SKIP_CELERY_IMPORT:-1}"
+# macOS local gunicorn uses a prefork worker model. Some Python/Objective-C
+# dependencies can trip Apple's fork-safety guard under long UI sweeps unless
+# this is set before workers fork. Linux/Render ignore this environment value.
+if [ "$(uname -s)" = "Darwin" ]; then
+  export OBJC_DISABLE_INITIALIZE_FORK_SAFETY="${OBJC_DISABLE_INITIALIZE_FORK_SAFETY:-YES}"
+fi
 # Local runserver creates short-lived request threads while WCM/machine pages poll.
 # Closing DB connections after each request prevents local Postgres slot exhaustion.
 export DB_CONN_MAX_AGE="${DB_CONN_MAX_AGE:-0}"

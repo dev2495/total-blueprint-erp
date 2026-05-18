@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/table"
 import {
     Loader2, CheckCircle2, AlertCircle,
-    ArrowUpRight, Activity, ArrowDownRight, Trash2, Search, History
+    ArrowUpRight, Activity, ArrowDownRight, Trash2, Search, History, Scissors
 } from "lucide-react"
+import { WcmRollPickerDialog } from "@/components/wcm/roll-picker-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import {
@@ -288,6 +289,7 @@ export default function WCMTerminal() {
     const [activeMainTab, setActiveMainTab] = useState<"terminal" | "running" | "history">("terminal")
     const [selectedMachineId, setSelectedMachineId] = useState<string>("")
     const [manualOverrideEnabled, setManualOverrideEnabled] = useState(false)
+    const [tieredPickerOpen, setTieredPickerOpen] = useState(false)
     const [overrideReason, setOverrideReason] = useState("")
     const [stepPolicyDrafts, setStepPolicyDrafts] = useState<Record<string, StepPolicyDraft>>({})
     const [activeStepPolicyOverrides, setActiveStepPolicyOverrides] = useState<Record<string, boolean>>({})
@@ -2153,6 +2155,17 @@ export default function WCMTerminal() {
                                             </div>
                                         )}
                                         <div className="mt-4 flex flex-wrap items-center gap-2">
+                                            {selectedJobId && showRollAllocator ? (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100"
+                                                    onClick={() => setTieredPickerOpen(true)}
+                                                >
+                                                    <Scissors className="mr-1.5 h-3.5 w-3.5" /> Pick with tiers
+                                                </Button>
+                                            ) : null}
                                             {showRollAllocator ? (
                                                 <RollAssignmentModal
                                                     activeAssignment={activeAssignment}
@@ -3938,6 +3951,18 @@ export default function WCMTerminal() {
                     </TabsContent>
                 </Tabs>
             </div>
+            {selectedJobId ? (
+                <WcmRollPickerDialog
+                    jobId={selectedJobId}
+                    open={tieredPickerOpen}
+                    onOpenChange={setTieredPickerOpen}
+                    onAssigned={() => {
+                        refetchContext()
+                        refetchSatisfaction()
+                        queryClient.invalidateQueries({ queryKey: ["wip-pool-grouped", selectedJobId] })
+                    }}
+                />
+            ) : null}
         </div >
     )
 }

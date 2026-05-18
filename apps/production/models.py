@@ -103,6 +103,11 @@ class ProductionJob(models.Model):
     is_on_hold = models.BooleanField(default=False)
     hold_reason = models.CharField(max_length=255, null=True, blank=True)
     planner_notes = models.TextField(null=True, blank=True)
+    meta_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Planner/runtime metadata such as layer signatures, gang groups, and stock-launch provenance.",
+    )
     current_step_issue_policy_overrides = models.JSONField(
         default=list,
         blank=True,

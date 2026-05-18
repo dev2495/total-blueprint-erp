@@ -86,6 +86,39 @@ function fmtQty(v: number | undefined | null): string {
     return n.toFixed(3)
 }
 
+/**
+ * fmtWeightSmart — display weight in the most readable unit.
+ *
+ * Used in BOM rail rows + totals where the underlying number is always kg
+ * but very small layers (adhesive, ink, solvent) read as 0.000 KG and look
+ * empty. We convert to g (or mg) on display only — the actual stored unit
+ * stays KG.
+ *
+ * Returns the full label including unit (e.g. "500 g", "1.2 kg", "12 mg").
+ */
+function fmtWeightSmart(kg: number | undefined | null, baseUom?: string): string {
+    const u = String(baseUom || "KG").toUpperCase()
+    // Non-weight UOMs (PCS, METER) just pass through the existing qty formatter.
+    if (u !== "KG") {
+        const n = Number(kg || 0)
+        return `${fmtQty(n)} ${u.toLowerCase()}`
+    }
+    const n = Number(kg || 0)
+    if (!Number.isFinite(n) || n === 0) return "0 g"
+    const abs = Math.abs(n)
+    if (abs >= 1) return `${fmtQty(n)} kg`
+    // < 1 kg → grams. Sub-gram → milligrams.
+    const grams = n * 1000
+    if (Math.abs(grams) >= 1) {
+        // 1 g and above — show 1 decimal up to 10g, integer after.
+        if (Math.abs(grams) >= 100) return `${grams.toFixed(0)} g`
+        if (Math.abs(grams) >= 10) return `${grams.toFixed(1)} g`
+        return `${grams.toFixed(2)} g`
+    }
+    const mg = grams * 1000
+    return `${mg.toFixed(1)} mg`
+}
+
 function fmtCurrency(v: number | undefined | null): string {
     const n = Number(v)
     if (!Number.isFinite(n) || n <= 0) return "—"
@@ -457,11 +490,16 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
 
 function matchCategory(cat: string, code = "", name = ""): string {
     const hay = `${cat} ${code} ${name}`.toUpperCase()
+    // POD first — it's the main customer-visible BOM item and must sit at top.
+    if (/^POD$|POD[_-]/.test(hay)) return "POD"
     if (/INK|PIGMENT|COLOR/.test(hay)) return "INK"
     if (/ADHESIVE|GLUE|SOLVENT|THINNER|CHEM/.test(hay)) return "CHEMICAL"
     if (/ADDON/.test(hay)) return "ADDON"
-    if (/INNER|GUNNY|GONNY|SHEET|CARTON|BOX|TAPE|LABEL|TAG|PACKAGING/.test(hay)) return "PACKAGING"
-    if (/^POD$|POD[_-]/.test(hay)) return "POD"
+    // Inner pouch deserves its own bucket — it's a sales-pickable axis at
+    // master level and never affects per-pouch weight (it's the OUTER carrier
+    // for the pouches). The remaining packing terms stay generic.
+    if (/INNER[_-]?POUCH|INNER\s+POUCH|PRIMARY\s+INNER|^IP[_-]/.test(hay)) return "INNER_POUCH"
+    if (/GUNNY|GONNY|SHEET|CARTON|BOX|TAPE|LABEL|TAG|PACKAGING/.test(hay)) return "PACKAGING"
     if (/FILM|RESIN|PE\b|PET\b|HDPE|LDPE|PP\b|BOPP|LAMINATE/.test(hay)) return "FILM"
     return "OTHER"
 }
@@ -500,14 +538,27 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
         }))
     }
 
-    // ─── Inject "resolved-on-order" placeholder rows when scope = "variant" ─
+    // ─── Inject placeholder rows for "this could resolve later" categories.
+    // Variant scope: show every master capability the user could opt into.
+    // Order scope: show INK placeholder if print-capable but no artwork is
+    //   attached yet (so planner sees "ink is pending an artwork", not "no
+    //   ink at all"). This matches the warning-print model — printing route
+    //   runs, but ink is zero in BOM until artwork lands.
+    const hasCat = (cat: string) => rows.some((r) => r.category === cat || matchCategory(r.category, r.code, r.name) === cat)
+    const printCapable = !!masterFlags?.print_capable
     if (scope === "variant") {
-        const printCapable = !!masterFlags?.print_capable
         const podLocked = !!masterFlags?.pod_locked
         const addonsAxis = masterFlags?.addons_axis || "off"
-        const hasCat = (cat: string) => rows.some((r) => r.category === cat || matchCategory(r.category, r.code, r.name) === cat)
         if (printCapable && !hasCat("INK")) {
-            rows.push({ category: "INK", code: "INK-SET", name: "ink — set by approved artwork", qty: 0, uom: "KG", placeholder: true })
+            rows.push({
+                category: "INK",
+                code: "INK-PENDING",
+                // Explicit: no fake ink GSM until artwork is on the line.
+                name: "ink + GSM come from approved artwork — no weight added until assigned",
+                qty: 0,
+                uom: "KG",
+                placeholder: true,
+            })
         }
         if (addonsAxis !== "off" && !hasCat("ADDON")) {
             rows.push({ category: "ADDON", code: "ADDONS", name: addonsAxis === "required" ? "required — picked on order" : "optional — picked on order", qty: 0, uom: "KG", placeholder: true })
@@ -515,18 +566,41 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
         if (!podLocked && !hasCat("POD")) {
             rows.push({ category: "POD", code: "POD-?", name: "POD variant picked on order line", qty: 0, uom: "KG", placeholder: true })
         }
+    } else if (scope === "order" && printCapable && !hasCat("INK")) {
+        // Order-scope warning-print state: master is print-capable but the
+        // line has no artwork attached yet, so the BOM resolver emitted zero
+        // ink rows. Surface a clear placeholder so the planner sees "ink
+        // pending" rather than silence.
+        rows.push({
+            category: "INK",
+            code: "INK-PENDING",
+            name: "warning-print run · no ink in BOM until an approved artwork is attached on this line",
+            qty: 0,
+            uom: "KG",
+            placeholder: true,
+        })
     }
 
     if (rows.length === 0) return null
 
-    const groups: Array<{ key: string; label: string; eyebrow: string; tile: string; chip: string }> = [
-        { key: "FILM", label: "Film", eyebrow: "text-blue-700", tile: "bg-blue-50/50", chip: "bg-blue-50 text-blue-800 ring-blue-200" },
-        { key: "INK", label: "Ink", eyebrow: "text-rose-700", tile: "bg-rose-50/40", chip: "bg-rose-50 text-rose-800 ring-rose-200" },
-        { key: "CHEMICAL", label: "Adhesive / solvent", eyebrow: "text-cyan-700", tile: "bg-cyan-50/40", chip: "bg-cyan-50 text-cyan-800 ring-cyan-200" },
-        { key: "ADDON", label: "Add-ons", eyebrow: "text-amber-700", tile: "bg-amber-50/40", chip: "bg-amber-50 text-amber-800 ring-amber-200" },
-        { key: "PACKAGING", label: "Packaging", eyebrow: "text-violet-700", tile: "bg-violet-50/40", chip: "bg-violet-50 text-violet-800 ring-violet-200" },
-        { key: "POD", label: "POD", eyebrow: "text-fuchsia-700", tile: "bg-fuchsia-50/40", chip: "bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200" },
-        { key: "OTHER", label: "Other", eyebrow: "text-slate-600", tile: "bg-slate-50/40", chip: "bg-slate-100 text-slate-800 ring-slate-200" },
+    // BOM groups for the customer/planner BOM rail. PACKAGING (outer/gunny/sheet/
+    // tape/label/tag) + the OTHER fallback bucket are intentionally NOT shown
+    // here — they're EOD-tagged at packing yard release, not part of the
+    // engineering BOM at order time. They live in /logistics/packing/audit.
+    //   1. Film — the pouch substrate (weight)
+    //   2. Ink — set by artwork (weight, gated)
+    //   3. Adhesive / solvent (weight)
+    //   4. Add-ons — per-piece extras (weight)
+    //   5. POD — second-last, weight-neutral attached item
+    //   6. Inner pouch — last, weight-neutral carrier
+    const WEIGHT_NEUTRAL_KEYS = new Set(["POD", "INNER_POUCH"])
+    const groups: Array<{ key: string; label: string; eyebrow: string; tile: string; chip: string; note?: string }> = [
+        { key: "FILM",        label: "Film",                 eyebrow: "text-blue-700",    tile: "bg-blue-50/50",     chip: "bg-blue-50 text-blue-800 ring-blue-200" },
+        { key: "INK",         label: "Ink",                  eyebrow: "text-violet-700",  tile: "bg-violet-50/40",   chip: "bg-violet-50 text-violet-800 ring-violet-200" },
+        { key: "CHEMICAL",    label: "Adhesive / solvent",   eyebrow: "text-cyan-700",    tile: "bg-cyan-50/40",     chip: "bg-cyan-50 text-cyan-800 ring-cyan-200" },
+        { key: "ADDON",       label: "Add-ons",              eyebrow: "text-rose-700",    tile: "bg-rose-50/40",     chip: "bg-rose-50 text-rose-800 ring-rose-200" },
+        { key: "POD",         label: "POD",                  eyebrow: "text-fuchsia-700", tile: "bg-fuchsia-50/50",  chip: "bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200", note: "doesn't change per-pouch weight" },
+        { key: "INNER_POUCH", label: "Inner pouch",          eyebrow: "text-amber-700",   tile: "bg-amber-50/50",    chip: "bg-amber-50 text-amber-800 ring-amber-200",       note: "carrier · doesn't change per-pouch weight" },
     ]
     const bucketed: Record<string, typeof rows> = {}
     for (const r of rows) {
@@ -550,11 +624,21 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
                 {populated.map((g) => {
                     const list = bucketed[g.key]
                     const total = totals[g.key]
+                    const weightNeutral = WEIGHT_NEUTRAL_KEYS.has(g.key)
                     return (
                         <section key={g.key} className={cn("px-3 py-2", g.tile)}>
                             <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider mb-1">
-                                <span className={g.eyebrow}>{g.label} · {list.length} {list.length === 1 ? "line" : "lines"}</span>
-                                {total ? <span className={g.eyebrow}>Σ {fmtQty(total.qty)} {total.uom}</span> : null}
+                                <span className={cn("flex items-center gap-1.5", g.eyebrow)}>
+                                    {g.label} · {list.length} {list.length === 1 ? "line" : "lines"}
+                                    {g.note ? <span className="rounded-full bg-white/70 px-1.5 py-0.5 text-[8px] font-bold normal-case tracking-normal opacity-80 ring-1 ring-white/40">{g.note}</span> : null}
+                                </span>
+                                {total ? (
+                                    <span className={g.eyebrow}>
+                                        {weightNeutral
+                                            ? <>{list.length} pc{list.length === 1 ? "" : "s"}</>
+                                            : <>Σ {fmtWeightSmart(total.qty, total.uom)}</>}
+                                    </span>
+                                ) : null}
                             </div>
                             <table className="w-full text-[11px]">
                                 <tbody className="divide-y divide-slate-100/60">
@@ -570,10 +654,9 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
                                                 )}
                                                 {r.name ? <div className={cn("mt-0.5 text-[10px] truncate max-w-[180px]", r.placeholder ? "text-slate-400 italic" : "text-slate-500")}>{r.name}</div> : null}
                                             </td>
-                                            <td className={cn("py-1 text-right font-mono font-bold tabular-nums", r.placeholder ? "text-slate-400" : "text-slate-800")}>
-                                                {r.placeholder ? "—" : fmtQty(r.qty)}
+                                            <td className={cn("py-1 text-right font-mono font-bold tabular-nums", r.placeholder ? "text-slate-400" : "text-slate-800")} colSpan={2}>
+                                                {r.placeholder ? "—" : fmtWeightSmart(r.qty, r.uom)}
                                             </td>
-                                            <td className="py-1 pl-1 text-right font-mono text-[10px] text-slate-500">{r.placeholder ? "" : r.uom}</td>
                                         </tr>
                                     ))}
                                     {list.length > 8 ? (

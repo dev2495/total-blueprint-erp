@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, BarChart3, ClipboardCheck, History, Sparkles } from "lucide-react";
+import { Activity, BarChart3, ClipboardCheck, History, Sparkles, Combine } from "lucide-react";
 
 const TABS: Array<{
     key: string;
@@ -18,6 +18,7 @@ const TABS: Array<{
     { key: "live-production", label: "Live Production", href: "/dashboard/planner/control-tower/live-production", icon: Activity, eyebrow: "Tab 3" },
     { key: "completed-trace", label: "Completed Trace", href: "/dashboard/planner/control-tower/completed-trace", icon: History, eyebrow: "Tab 4" },
     { key: "stock-intelligence", label: "Stock Intelligence", href: "/dashboard/planner/control-tower/stock-intelligence", icon: BarChart3, eyebrow: "Tab 5" },
+    { key: "gang-builder", label: "Combine Orders", href: "/dashboard/planner/control-tower/gang-builder", icon: Combine, eyebrow: "Tab 6" },
 ];
 
 export default function ControlTowerLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +33,7 @@ export default function ControlTowerLayout({ children }: { children: React.React
             if (target && /input|textarea|select/i.test(target.tagName)) return;
             if (target && target.isContentEditable) return;
             if (event.metaKey || event.ctrlKey || event.altKey) return;
-            const idx = "12345".indexOf(event.key);
+            const idx = "123456".indexOf(event.key);
             if (idx >= 0) {
                 event.preventDefault();
                 router.push(TABS[idx].href);

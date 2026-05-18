@@ -127,6 +127,31 @@ def _geometry_roll_width_mm(geometry):
     return _numeric(base.get("roll_width_mm") or base.get("width_mm") or base.get("effective_width_mm"))
 
 
+def _job_layer_signature(job) -> str:
+    try:
+        meta = getattr(job, "meta_json", None) or {}
+        sig = str(meta.get("layer_signature_hash") or "")
+        if sig:
+            return sig
+        src_item = getattr(job, "sales_order_item", None)
+        if src_item is not None:
+            bs = getattr(src_item, "bom_snapshot", None) or {}
+            if isinstance(bs, dict):
+                sig = str(bs.get("layer_signature_hash") or "")
+                if sig:
+                    return sig
+        mts = getattr(job, "mts_order", None)
+        if mts is not None:
+            bs = getattr(mts, "bom_snapshot", None) or {}
+            if isinstance(bs, dict):
+                sig = str(bs.get("layer_signature_hash") or "")
+                if sig:
+                    return sig
+    except Exception:
+        return ""
+    return ""
+
+
 def _stock_pool_structure_reasons(product_master, geometry_snapshot, layer_snapshot, *, stock_purpose="PRODUCT", bom_by_step=None):
     if str(stock_purpose or "PRODUCT").upper() != "PRODUCT":
         return []
@@ -331,6 +356,147 @@ class PlannerViewSet(viewsets.ViewSet):
             return Response({"status": "updated", "priority": job.priority})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["get"], url_path="gang-candidates")
+    def gang_candidates(self, request):
+        """
+        Group open production jobs by layer_signature_hash to surface ganging
+        candidates — jobs that could share a single jumbo roll if combined.
+
+        Returns: {groups: [{layer_signature_hash, jobs: [...], total_qty, eligible_for_ganging}]}
+        """
+        from collections import defaultdict
+        from apps.production.services.roll_allocation_service import RollAllocationService
+
+        open_states = ["PLANNED", "WAITING", "RELEASED", "QUEUED"]
+        jobs = (
+            ProductionJob.objects.filter(job_state__in=open_states)
+            .exclude(status__in=["COMPLETED", "CANCELLED"])
+            .select_related("template", "sales_order_item__sales_order", "mts_order", "current_process")
+            .order_by("-created_at")[:300]
+        )
+
+        groups_map = defaultdict(list)
+        for j in jobs:
+            sig = _job_layer_signature(j)
+            if not sig:
+                continue
+            step_index = int(getattr(j, "current_step_index", 0) or 0)
+            process_code = str(getattr(getattr(j, "current_process", None), "code", "") or "")
+            process_id = str(getattr(j, "current_process_id", "") or "")
+            groups_map[(sig, step_index, process_id or process_code)].append(j)
+
+        groups_payload = []
+        for (sig, step_index, process_key), job_list in groups_map.items():
+            if len(job_list) < 1:
+                continue
+            jobs_meta = []
+            total_qty = 0.0
+            for j in job_list:
+                soi = getattr(j, "sales_order_item", None)
+                so = getattr(soi, "sales_order", None) if soi else None
+                cust = getattr(so, "customer", None) if so else None
+                target_width_mm = 0.0
+                try:
+                    target_width_mm = float(RollAllocationService.target_child_width(j) or 0)
+                except Exception:
+                    target_width_mm = 0.0
+                jobs_meta.append({
+                    "job_id": str(j.id),
+                    "job_number": j.job_number,
+                    "job_state": j.job_state,
+                    "quantity": float(j.quantity or 0),
+                    "remaining_qty": float(j.remaining_qty or 0),
+                    "uom": j.uom,
+                    "target_width_mm": target_width_mm,
+                    "process_name": getattr(j.current_process, "name", "") if j.current_process_id else "",
+                    "process_code": getattr(j.current_process, "code", "") if j.current_process_id else "",
+                    "step_index": int(j.current_step_index or 0),
+                    "template_name": j.template.name if j.template_id else "",
+                    "sales_order_number": getattr(so, "order_number", "") if so else "",
+                    "customer_name": getattr(cust, "name", "") if cust else "",
+                    "origin": j.origin,
+                    "is_generic_stock": bool(((getattr(j, "meta_json", None) or {}).get("is_generic_stock"))),
+                })
+                total_qty += float(j.quantity or 0)
+            process_code = str(jobs_meta[0].get("process_code") or process_key or "") if jobs_meta else ""
+            groups_payload.append({
+                "group_key": f"{sig}:{step_index}:{process_key}",
+                "layer_signature_hash": sig,
+                "step_index": int(step_index or 0),
+                "process_code": process_code,
+                "jobs": jobs_meta,
+                "job_count": len(jobs_meta),
+                "total_qty_kg": total_qty,
+                "eligible_for_ganging": len(jobs_meta) >= 2 and all((row.get("target_width_mm") or 0) > 0 for row in jobs_meta),
+            })
+
+        groups_payload.sort(key=lambda g: (-int(g["eligible_for_ganging"]), -g["job_count"], -g["total_qty_kg"]))
+        return Response({"groups": groups_payload, "total_groups": len(groups_payload)})
+
+    @action(detail=False, methods=["post"], url_path="commit-gang")
+    def commit_gang(self, request):
+        """
+        Mark the selected jobs as part of a ganged batch by stamping a shared
+        gang_group_id on their meta_json. This is the lightweight commitment —
+        actual roll-level slit happens at WCM time via allocate-with-slit/.
+        """
+        import uuid as _uuid
+        job_ids = request.data.get("job_ids") or []
+        layer_sig = str(request.data.get("layer_signature_hash") or "").strip()
+        if not job_ids or not isinstance(job_ids, list):
+            return Response({"error": "job_ids list required"}, status=status.HTTP_400_BAD_REQUEST)
+        unique_ids = list(dict.fromkeys(str(jid) for jid in job_ids if str(jid or "").strip()))
+        if len(unique_ids) < 2:
+            return Response({"error": "Select at least 2 jobs to commit a gang."}, status=status.HTTP_400_BAD_REQUEST)
+        open_states = ["PLANNED", "WAITING", "RELEASED", "QUEUED"]
+        jobs = list(
+            ProductionJob.objects.filter(id__in=unique_ids, job_state__in=open_states)
+            .exclude(status__in=["COMPLETED", "CANCELLED"])
+            .select_related("current_process", "sales_order_item__sales_order", "mts_order")
+        )
+        if len(jobs) != len(unique_ids):
+            found = {str(j.id) for j in jobs}
+            missing = [jid for jid in unique_ids if jid not in found]
+            return Response(
+                {"error": "Some selected jobs are not open or do not exist.", "missing_job_ids": missing},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        resolved_sigs = {_job_layer_signature(j) for j in jobs}
+        resolved_sigs.discard("")
+        if len(resolved_sigs) != 1:
+            return Response(
+                {"error": "Selected jobs must have one shared layer signature.", "layer_signatures": sorted(resolved_sigs)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        resolved_sig = next(iter(resolved_sigs))
+        if layer_sig and layer_sig != resolved_sig:
+            return Response(
+                {"error": "Selected jobs do not match the requested layer signature."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        layer_sig = resolved_sig
+        route_keys = {(int(j.current_step_index or 0), str(j.current_process_id or "")) for j in jobs}
+        if len(route_keys) != 1:
+            return Response(
+                {"error": "Selected jobs must be at the same route step and process before they can share one jumbo."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        gang_id = str(_uuid.uuid4())[:8]
+        affected = 0
+        with transaction.atomic():
+            for j in jobs:
+                meta = dict(j.meta_json or {})
+                meta["layer_signature_hash"] = layer_sig
+                meta["gang_group_id"] = gang_id
+                meta["gang_layer_sig"] = layer_sig
+                meta["gang_committed_at"] = timezone.now().isoformat()
+                if getattr(request, "user", None) and getattr(request.user, "is_authenticated", False):
+                    meta["gang_committed_by"] = str(request.user.id)
+                j.meta_json = meta
+                j.save(update_fields=["meta_json"])
+                affected += 1
+        return Response({"gang_group_id": gang_id, "affected_jobs": affected})
 
     @action(detail=False, methods=["post"], url_path="stock-pools/validate")
     def validate_stock_pool(self, request):
@@ -1184,6 +1350,13 @@ class PlannerViewSet(viewsets.ViewSet):
             planner_stock_class=requested_planner_stock_class,
         )
         bom_snapshot = _jsonify(preview.get("bom") or {})
+        try:
+            from apps.production.services.roll_allocation_service import layer_signature_hash
+            sig = layer_signature_hash(layer_snapshot or [])
+            if isinstance(bom_snapshot, dict) and sig:
+                bom_snapshot["layer_signature_hash"] = sig
+        except Exception:
+            pass
         planner_origin_meta = {}
         if planner_variant:
             planner_origin_meta = {

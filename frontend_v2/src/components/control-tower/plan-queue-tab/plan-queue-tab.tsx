@@ -866,6 +866,23 @@ function OrderDetailPanel({ order, onOpenRelease, onOpenArtwork, onInvalidate }:
                                 {factSheet.print_profile_label && Number(factSheet.front_colors_count || 0) > 0 && (
                                     <Chip kind="print">{factSheet.print_profile_label}</Chip>
                                 )}
+                                {/* Explicit print-state chip so planner sees release-ability + ink state at a glance.
+                                    - artwork required + assigned   → "ready"   "Artwork ✓"
+                                    - artwork required + missing    → "blocked" "Artwork REQUIRED · cannot release"
+                                    - artwork optional + assigned   → "ready"   "Artwork ✓"
+                                    - artwork optional + missing    → "paused"  "Warning print · zero ink in BOM" (releasable)
+                                    Skip when printing is OFF entirely. */}
+                                {(() => {
+                                    const printingOn = Boolean((printingSnap as any)?.enabled) || Number(factSheet.front_colors_count || 0) > 0 || Boolean((order as any).print_capable)
+                                    if (!printingOn) return null
+                                    if (artworkAssigned) {
+                                        return <Chip kind="ready">Artwork ✓</Chip>
+                                    }
+                                    if (artworkRequired) {
+                                        return <Chip kind="blocked">Artwork REQUIRED · cannot release</Chip>
+                                    }
+                                    return <Chip kind="paused">Warning print · zero ink in BOM</Chip>
+                                })()}
                                 <Chip kind="tpl">{order.template_name}</Chip>
                             </div>
                         </div>

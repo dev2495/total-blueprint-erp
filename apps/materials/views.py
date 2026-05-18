@@ -48,6 +48,29 @@ def _safe_uuid(value):
         return None
 
 
+def _variant_inventory_link_error(product, target):
+    product_kind = str(getattr(product, "product_kind", "") or "").upper()
+    target_category = str(getattr(target, "category", "") or "").upper()
+
+    if product_kind == "PACKAGING":
+        expected_kind = str(getattr(product, "packaging_kind", "") or "").upper()
+        if expected_kind not in {"INNER_POUCH", "SHEET"}:
+            return "PACKAGING masters must set packaging_kind to INNER_POUCH or SHEET before linking catalog SKUs."
+        if target_category != "PACKAGING":
+            return f"category mismatch: PACKAGING masters can only link to PACKAGING catalog SKUs, not {target.category or 'blank'}."
+        target_kind = str(getattr(target, "packaging_kind", "") or "").upper()
+        if target_kind != expected_kind:
+            return f"packaging_kind mismatch: this master is {expected_kind}, but catalog SKU {target.code} is {target_kind or 'blank'}."
+        return None
+
+    if product_kind == "POD":
+        if target_category != "POD":
+            return f"category mismatch: POD masters can only link to POD catalog SKUs, not {target.category or 'blank'}."
+        return None
+
+    return "Only PACKAGING and POD Product Masters can link variants to catalog SKUs."
+
+
 def _catalog_ref(axis_values, axis_def):
     key = str((axis_def or {}).get("axis") or "").strip()
     if not key:
@@ -295,6 +318,113 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if active is not None:
             queryset = queryset.filter(active=str(active).lower() not in {"0", "false", "no"})
         return Response(ProductVariantSerializer(queryset, many=True).data)
+
+    @action(detail=True, methods=["post"], url_path=r"variants/(?P<variant_id>[^/.]+)/link-inventory")
+    def link_variant_inventory(self, request, pk=None, variant_id=None):
+        """
+        Manually link a ProductVariant to a specific InventoryMaterial row in
+        the packaging or POD catalog. PACKAGING/POD variants never create
+        catalog SKUs automatically; the admin must point each variant to an
+        existing fixed catalog row.
+
+        Body:
+          {"inventory_material_id": "uuid"}  -- the catalog row to link to
+          {"inventory_material_id": null}    -- unlink (won't unlink another variant's link)
+
+        Side effect: if there was already an inventory row linked to this
+        variant, it is unlinked first so we keep the 1:1 invariant.
+        """
+        product = self.get_object()
+        try:
+            variant = ProductVariant.objects.get(id=variant_id, master=product)
+        except ProductVariant.DoesNotExist:
+            return Response({"error": "Variant not found on this master."}, status=404)
+
+        product_kind = str(product.product_kind or "").upper()
+        target_id = request.data.get("inventory_material_id") or None
+        pod_sku_variant_id = request.data.get("pod_sku_variant_id") or None
+        new_link = None
+        pod_sku_variant = None
+        if target_id or pod_sku_variant_id:
+            if pod_sku_variant_id:
+                if product_kind != "POD":
+                    return Response({"error": "pod_sku_variant_id can only be used for POD Product Masters."}, status=400)
+                try:
+                    pod_sku_variant = PodSkuVariant.objects.select_related("material", "pod_sku").get(id=pod_sku_variant_id, active=True)
+                except PodSkuVariant.DoesNotExist:
+                    return Response({"error": "PodSkuVariant not found."}, status=404)
+                target = pod_sku_variant.material
+            else:
+                try:
+                    target = InventoryMaterial.objects.get(id=target_id)
+                except InventoryMaterial.DoesNotExist:
+                    return Response({"error": "InventoryMaterial not found."}, status=404)
+            validation_error = _variant_inventory_link_error(product, target)
+            if validation_error:
+                return Response({"error": validation_error}, status=400)
+            # Don't yank a target that's already linked to another variant of
+            # a different master — would silently break that master's audit.
+            existing = target.produced_by_product_variant
+            if existing and existing.id != variant.id:
+                return Response(
+                    {"error": f"Catalog SKU {target.code} is already linked to variant {existing.code} on master {existing.master.code}. Unlink there first."},
+                    status=400,
+                )
+            InventoryMaterial.objects.filter(produced_by_product_variant=variant).exclude(id=target.id).update(produced_by_product_variant=None)
+            target.produced_by_product_variant = variant
+            target.status = "ACTIVE"
+            update_fields = ["produced_by_product_variant", "status"]
+            if product_kind == "PACKAGING" and str(target.packaging_supply_mode or "").upper() == "PURCHASED":
+                # Preserve the fact that this fixed SKU can still be bought.
+                # Manual PM link adds in-house capability; it should not turn a
+                # purchased SKU into in-house-only.
+                target.packaging_supply_mode = "BOTH"
+                update_fields.append("packaging_supply_mode")
+            if product_kind == "POD":
+                if target.base_uom != "KG":
+                    target.base_uom = "KG"
+                    update_fields.append("base_uom")
+                if not target.pod_is_inhouse_produced:
+                    target.pod_is_inhouse_produced = True
+                    update_fields.append("pod_is_inhouse_produced")
+                if not target.pod_type:
+                    target.pod_type = "SINGLE"
+                    update_fields.append("pod_type")
+                if target.pod_fixed_height_mm is None:
+                    target.pod_fixed_height_mm = 200
+                    update_fields.append("pod_fixed_height_mm")
+                if target.pod_thickness_micron is None:
+                    target.pod_thickness_micron = 30
+                    update_fields.append("pod_thickness_micron")
+                if target.pod_panel_count is None:
+                    target.pod_panel_count = 1
+                    update_fields.append("pod_panel_count")
+                if target.density_gcm3 is None:
+                    target.density_gcm3 = 0.92
+                    update_fields.append("density_gcm3")
+            target.save(update_fields=update_fields + ["updated_at"])
+            new_link = target
+            if product_kind == "POD" and pod_sku_variant is None:
+                pod_sku_variant = PodSkuVariant.objects.select_related("pod_sku").filter(material_id=target.id, active=True).order_by("pod_sku__code", "code").first()
+        else:
+            InventoryMaterial.objects.filter(produced_by_product_variant=variant).update(produced_by_product_variant=None)
+        return Response({
+            "variant_id": str(variant.id),
+            "inventory_link": (
+                {
+                    "id": str(new_link.id),
+                    "code": new_link.code,
+                    "name": new_link.name or "",
+                    "category": new_link.category,
+                    "packaging_kind": new_link.packaging_kind or "",
+                    "base_uom": new_link.base_uom,
+                    "pod_sku_variant_id": str(pod_sku_variant.id) if pod_sku_variant else None,
+                    "pod_sku_variant_code": pod_sku_variant.code if pod_sku_variant else None,
+                    "pod_sku_code": pod_sku_variant.pod_sku.code if pod_sku_variant else None,
+                }
+                if new_link else None
+            ),
+        })
 
     @action(detail=True, methods=["post"], url_path="variants/find-or-create")
     def find_or_create_variant(self, request, pk=None):
@@ -589,7 +719,7 @@ class CustomerProductOverlayViewSet(MasterDataAuditMixin, viewsets.ModelViewSet)
 
 
 class PODViewSet(viewsets.ModelViewSet):
-    queryset = InventoryMaterial.objects.filter(category='POD').order_by('name')
+    queryset = InventoryMaterial.objects.filter(category='POD').select_related('produced_by_product_variant__master').order_by('name')
     serializer_class = PODSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
@@ -694,7 +824,7 @@ class AddonViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
 class PackagingViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_PACKAGING"
-    queryset = InventoryMaterial.objects.filter(category='PACKAGING').order_by('name')
+    queryset = InventoryMaterial.objects.filter(category='PACKAGING').select_related('produced_by_product_variant__master').order_by('name')
     serializer_class = PackagingSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['packaging_kind', 'packaging_supply_mode', 'base_uom', 'status']
@@ -718,7 +848,11 @@ class PodSkuVariantViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'pod_sku__name', 'pod_sku__code', 'material__name', 'material__code']
 
     def get_queryset(self):
-        queryset = PodSkuVariant.objects.select_related('pod_sku', 'material').order_by('pod_sku__name', 'name', 'code')
+        queryset = PodSkuVariant.objects.select_related(
+            'pod_sku',
+            'material',
+            'material__produced_by_product_variant__master',
+        ).order_by('pod_sku__name', 'name', 'code')
         pod_sku_id = str(
             self.request.query_params.get('pod_sku')
             or self.request.query_params.get('pod_sku_id')

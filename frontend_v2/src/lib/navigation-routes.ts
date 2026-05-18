@@ -25,6 +25,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/dashboard/planner/control-tower/live-production",
   "/dashboard/planner/control-tower/completed-trace",
   "/dashboard/planner/control-tower/stock-intelligence",
+  "/dashboard/planner/control-tower/gang-builder",
   "/dashboard/sales",
   "/dashboard/work-center",
   "/engineering/artworks",
@@ -56,6 +57,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/logistics",
   "/logistics/dispatch",
   "/logistics/packing",
+  "/logistics/packing/audit",
   "/logistics/packing/consumption",
   "/master",
   "/master/add-ons",
@@ -64,6 +66,9 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/master/film-variants",
   "/master/granules",
   "/master/inks",
+  // Catalog pages — full lists of all packing + POD SKUs (purchased + in-house).
+  // In-house production masters are created at /master/products?kind=PACKAGING|POD;
+  // each variant is manually linked to one fixed catalog row here.
   "/master/packaging",
   "/master/pod",
   "/master/products",
@@ -71,6 +76,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/master/vendors",
   "/production/machine-selector",
   "/production/planner",
+  "/production/planner/gang-builder",
   "/production/planner/heatmap",
   "/production/planner/stock-launcher",
   "/production/work-center",

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
     AlertTriangle,
     ArrowLeft,
+    ArrowRight,
     Boxes,
     CheckCircle2,
     Disc,
@@ -33,15 +34,15 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
-import { SectionCardV3 } from "@/components/erp-v3/section-card-v3"
 import { ValidationFooter, type CheckLine } from "@/components/erp-v3/validation-footer"
+import { RichHero, RichSection, PouchStylePicker, LayerStatePill } from "@/components/product-master/pm-edit-shell"
 import { LiveBomRail } from "@/components/erp-v3/live-bom-rail"
 import { ProductVisual } from "@/components/erp-v3/product-visual"
 import { RouteTimeline } from "@/components/erp-v3/route-timeline"
 import { templateService } from "@/services/templates"
 import { masterDataService, type Material, type PackagingMaterial, type PodSkuVariant, type Addon } from "@/services/master-data"
 import { recipeService } from "@/services/recipes"
+import { engineeringService, type Artwork } from "@/services/engineering"
 import { autoRollWidthMm } from "@/lib/product-geometry"
 import { SizeGeometryEditor } from "@/components/product-master/size-geometry-editor"
 import {
@@ -76,42 +77,6 @@ const REPORTING_GROUPS: ReportingGroup[] = [
     "OTHER",
 ]
 
-const PACKAGING_ROLES = ["PRIMARY_INNER", "FINAL_GUNNY", "ROLL_DISPATCH", "EXTRA"] as const
-const LEGACY_PACKAGING_ROLE_ALIASES: Record<string, typeof PACKAGING_ROLES[number]> = {
-    FINAL_CARTON: "EXTRA",
-    FINAL_OUTER: "EXTRA",
-    TAPE: "EXTRA",
-}
-const PACKAGING_ROLE_RULES: Record<string, { label: string; menuLabel: string; hint: string; basis: string; qtySource: string }> = {
-    PRIMARY_INNER: {
-        label: "Auto by packed pcs",
-        menuLabel: "Inner pouch (pouch only)",
-        hint: "Consumes ceil(total finished pcs / pcs per inner).",
-        basis: "PCS_PER_PACK",
-        qtySource: "AUTO_TOTAL_PCS",
-    },
-    FINAL_GUNNY: {
-        label: "Packing Yard seal count",
-        menuLabel: "Outer · gunny / sheet (pouch)",
-        hint: "Gunny is counted by Packing Yard; pouch sheet/wrap is posted by EOD count.",
-        basis: "COUNTED_AT_PACKING",
-        qtySource: "PACKING_YARD_SEAL_COUNT",
-    },
-    ROLL_DISPATCH: {
-        label: "Evening open-close",
-        menuLabel: "Outer · sheet (roll)",
-        hint: "Roll dispatch accepts sheet/wrap SKUs only; stock issue is posted by EOD packing count.",
-        basis: "PACKING_EOD_COUNT",
-        qtySource: "EOD_OPEN_CLOSE",
-    },
-    EXTRA: {
-        label: "Evening open-close",
-        menuLabel: "Other EOD packing",
-        hint: "Allowed labels/tags/sheets; stock issue is posted by EOD packing count.",
-        basis: "PACKING_EOD_COUNT",
-        qtySource: "EOD_OPEN_CLOSE",
-    },
-}
 const AXIS_DEFS: VariantAxisDef[] = [
     { axis: "size", type: "geometry", required: true, label: "Size / geometry" },
     { axis: "layer_thicknesses", type: "per_layer_number", label: "Per-layer thickness" },
@@ -119,7 +84,7 @@ const AXIS_DEFS: VariantAxisDef[] = [
     { axis: "layer_widths", type: "per_layer_number", label: "Roll width override" },
     { axis: "addons", type: "multi_enum", label: "Add-ons" },
     { axis: "packaging_inner", type: "catalog_ref", label: "Inner packaging", master_data_source: "packaging_material", master_data_filter: { packaging_kind: "INNER_POUCH" } },
-    { axis: "packaging_outer", type: "catalog_ref", label: "Outer packaging", master_data_source: "packaging_material", master_data_filter: { packaging_kind: ["GONNY", "SHEET"] } },
+    // packaging_outer dropped — outer packing is no longer on the master; packing yard ticks it per order at EOD.
     { axis: "pod_variant", type: "catalog_ref", label: "POD variant", master_data_source: "pod_sku_variant" },
     { axis: "artwork_mode", type: "enum", label: "Artwork mode" },
 ]
@@ -142,6 +107,31 @@ function canonicalAxisKey(axisKey: string): string {
     return AXIS_ALIAS[axisKey] || axisKey
 }
 
+const PRODUCTION_MASTER_CATALOG_AXES = new Set(["packaging_inner", "packaging_outer", "packaging", "pod_variant", "addons"])
+
+function isProductionMasterKind(kind?: string | null): boolean {
+    const normalized = String(kind || "").toUpperCase()
+    return normalized === "PACKAGING" || normalized === "POD"
+}
+
+function isRollLikeOutput(kind?: string | null, packagingKind?: string | null): boolean {
+    const normalized = String(kind || "").toUpperCase()
+    const packKind = String(packagingKind || "").toUpperCase()
+    return normalized === "ROLL" || normalized === "POD" || (normalized === "PACKAGING" && packKind === "SHEET")
+}
+
+function variantAxesForProductKind(kind: string | undefined | null, axes: VariantAxisDef[] | undefined): VariantAxisDef[] {
+    const rows = axes || []
+    const normalized = String(kind || "").toUpperCase()
+    if (isProductionMasterKind(normalized)) {
+        return rows.filter((axis) => !PRODUCTION_MASTER_CATALOG_AXES.has(canonicalAxisKey(String(axis.axis))))
+    }
+    if (normalized !== "POUCH") {
+        return rows.filter((axis) => canonicalAxisKey(String(axis.axis)) !== "packaging_inner")
+    }
+    return rows
+}
+
 function findAxisOnDraft(axes: VariantAxisDef[] | undefined, canonical: string): VariantAxisDef | undefined {
     if (!axes) return undefined
     return axes.find((a) => canonicalAxisKey(String(a.axis)) === canonical)
@@ -156,70 +146,6 @@ function axisModeCopy(mode: "off" | "optional" | "required") {
     if (mode === "required") return "Required in sales/planner before submit."
     if (mode === "optional") return "Can be skipped; if entered it becomes part of matching and BOM."
     return "Not part of this master’s final product tuple."
-}
-
-function packagingRuleForRole(role?: string) {
-    const canonical = canonicalPackagingRole(role)
-    return PACKAGING_ROLE_RULES[canonical] || PACKAGING_ROLE_RULES.EXTRA
-}
-
-function canonicalPackagingRole(role?: string): typeof PACKAGING_ROLES[number] {
-    const raw = String(role || "PRIMARY_INNER").toUpperCase()
-    return LEGACY_PACKAGING_ROLE_ALIASES[raw] || (PACKAGING_ROLES.includes(raw as any) ? raw as typeof PACKAGING_ROLES[number] : "EXTRA")
-}
-
-function packagingKind(material?: PackagingMaterial | null) {
-    const raw = String(material?.packaging_kind || "").toUpperCase()
-    if (raw === "GUNNY") return "GONNY"
-    if (raw === "CARTON") return "BOX"
-    return raw
-}
-
-function packagingRolesForProduct(productKind?: ProductKind | string) {
-    const kind = String(productKind || "POUCH").toUpperCase()
-    if (kind === "ROLL" || kind === "POD") return PACKAGING_ROLES.filter((role) => role === "ROLL_DISPATCH" || role === "EXTRA")
-    if (kind === "POUCH") return [...PACKAGING_ROLES]
-    return PACKAGING_ROLES.filter((role) => role === "ROLL_DISPATCH" || role === "EXTRA")
-}
-
-function packagingMaterialAllowed(material: PackagingMaterial, role?: string, productKind?: ProductKind | string) {
-    const canonical = canonicalPackagingRole(role)
-    const kind = packagingKind(material)
-    const product = String(productKind || "POUCH").toUpperCase()
-    if (canonical === "PRIMARY_INNER") return product === "POUCH" && kind === "INNER_POUCH"
-    if (canonical === "FINAL_GUNNY") return product === "POUCH" && ["GONNY", "SHEET"].includes(kind)
-    if (canonical === "ROLL_DISPATCH") return kind === "SHEET"
-    return ["TAPE", "LABEL", "TAG", "OTHER", "BOX", "OUTER_BAG"].includes(kind)
-}
-
-function defaultPcsPerPack(material?: PackagingMaterial | null, line?: Record<string, any>) {
-    const defaults = (material?.packaging_defaults_json || {}) as Record<string, any>
-    const raw = defaults.pcs_per_pack ?? defaults.pcs_per_inner ?? line?.pcs_per_pack ?? line?.qty
-    const value = Number(raw || 0)
-    return Number.isFinite(value) && value > 0 ? value : undefined
-}
-
-function normalizePackagingLine(line: Record<string, any>, role?: string, material?: PackagingMaterial | null) {
-    const nextRole = canonicalPackagingRole(role || line.role)
-    const rule = packagingRuleForRole(nextRole)
-    const normalized: Record<string, any> = {
-        ...line,
-        role: nextRole,
-        material: material ? material.id || null : line.material,
-        material_code: material ? (material.code || "").toUpperCase() : line.material_code,
-        uom: material?.base_uom || line.uom || "PCS",
-        supply_mode: material?.packaging_supply_mode ?? line.supply_mode,
-        kind: material?.packaging_kind ?? line.kind,
-        qty: 0,
-        basis: rule.basis,
-        qty_source: rule.qtySource,
-    }
-    if (nextRole === "PRIMARY_INNER") {
-        normalized.pcs_per_pack = defaultPcsPerPack(material, line)
-    } else {
-        normalized.pcs_per_pack = undefined
-    }
-    return normalized
 }
 
 function firstAxisOption(axis?: VariantAxisDef): string {
@@ -255,6 +181,7 @@ function previewAxisValuesForDraft(master: ProductMaster | null, sizes: ProductM
         const key = String(axis.axis || "")
         const canonical = canonicalAxisKey(key)
         if (!key || canonical === "size") continue
+        if (isProductionMasterKind(master.product_kind) && PRODUCTION_MASTER_CATALOG_AXES.has(canonical)) continue
         if (canonical === "layer_thicknesses") {
             values[key] = Object.fromEntries(master.layer_template.map((row, idx) => [String(idx + 1), row.thickness_micron]))
             continue
@@ -359,6 +286,15 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
         queryFn: () => masterDataService.getAdhesivesSolvents(),
         staleTime: 60_000,
     })
+    // Approved artworks — surfaced as Default fallback artwork picker on the
+    // Printing 2-knob card when print_capable=true. Optional; sets
+    // fixed_attributes.default_artwork_id which the order flow uses when no
+    // customer overlay default and no per-line artwork is provided.
+    const { data: approvedArtworks = [] } = useQuery<Artwork[]>({
+        queryKey: ["pm-edit-approved-artworks"],
+        queryFn: () => engineeringService.getArtworks({ status: "APPROVED" }),
+        staleTime: 60_000,
+    })
 
     const [draft, setDraft] = React.useState<ProductMaster | null>(null)
     const [draftSizes, setDraftSizes] = React.useState<ProductMasterSize[]>([])
@@ -370,23 +306,28 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
         if (sizes) setDraftSizes(sizes)
     }, [sizes])
 
+    const visibleVariantAxes = React.useMemo(
+        () => variantAxesForProductKind(draft?.product_kind, draft?.variant_axes),
+        [draft?.product_kind, draft?.variant_axes],
+    )
     const previewAxisValues = React.useMemo(() => previewAxisValuesForDraft(draft, draftSizes), [draft, draftSizes])
     const livePreviewPayload = React.useMemo<PreviewBomRequest | null>(() => {
         if (!draft || !draftSizes.length || !draft.template) return null
+        const rollLike = isRollLikeOutput(draft.product_kind, draft.packaging_kind)
         return {
             product_master: draft.id,
             template_id: draft.template,
             axis_values: previewAxisValues,
             quantity: String(draft.product_kind || "").toUpperCase() === "ROLL" ? 1000 : 1000,
-            quantity_uom: String(draft.product_kind || "").toUpperCase() === "ROLL" ? "KG" : "PCS",
+            quantity_uom: rollLike ? "KG" : "PCS",
             printing: { enabled: false },
             packaging_snapshot: previewPackagingSnapshotFromFixed(draft.fixed_attributes || {}),
         }
     }, [draft, draftSizes.length, previewAxisValues])
     const livePreviewAxesReady = React.useMemo(() => {
         if (!draft) return false
-        return (draft.variant_axes || []).every((axis) => !axis.required || axisValuePresent(previewAxisValues[String(axis.axis || "")]))
-    }, [draft, previewAxisValues])
+        return visibleVariantAxes.every((axis) => !axis.required || axisValuePresent(previewAxisValues[String(axis.axis || "")]))
+    }, [draft, previewAxisValues, visibleVariantAxes])
     const { data: livePreview, isFetching: livePreviewLoading, error: livePreviewError } = useQuery({
         queryKey: ["product-master-edit-live-preview", productId, livePreviewPayload],
         queryFn: () => productMasterService.previewBom(livePreviewPayload!),
@@ -401,12 +342,13 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                 code: draft?.code,
                 name: draft?.name,
                 product_kind: draft?.product_kind,
+                packaging_kind: draft?.packaging_kind ?? null,
                 template: draft?.template,
                 default_template: draft?.template || draft?.default_template || null,
                 default_reporting_group: draft?.default_reporting_group,
                 reusable_policy: draft?.reusable_policy,
                 layer_template: draft?.layer_template,
-                variant_axes: draft?.variant_axes,
+                variant_axes: variantAxesForProductKind(draft?.product_kind, draft?.variant_axes),
                 fixed_attributes: draft?.fixed_attributes,
                 description: draft?.description,
                 active: draft?.active,
@@ -589,7 +531,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
         })
     }
     function addSize() {
-        const isRoll = String(draft?.product_kind || "").toUpperCase() === "ROLL" || String(draft?.product_kind || "").toUpperCase() === "POD"
+        const isRoll = isRollLikeOutput(draft?.product_kind, draft?.packaging_kind)
         setDraftSizes((arr) => [
             ...arr,
             {
@@ -625,31 +567,6 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     function removeSize(idx: number) {
         setDraftSizes((arr) => arr.filter((_, i) => i !== idx))
     }
-    function patchPackagingLine(idx: number, patch: Record<string, any>) {
-        const lines = [...((draft?.fixed_attributes?.packaging_lines || []) as any[])]
-        lines[idx] = { ...lines[idx], ...patch }
-        patchFixed({ packaging_lines: lines })
-    }
-    function addPackagingLine() {
-        const role = packagingRolesForProduct(draft?.product_kind)[0]
-        const material = packagingMaterials.find((m: PackagingMaterial) => packagingMaterialAllowed(m, role, draft?.product_kind)) || null
-        patchFixed({
-            packaging_lines: [
-                ...((draft?.fixed_attributes?.packaging_lines || []) as any[]),
-                normalizePackagingLine({
-                    role,
-                    material: material?.id || null,
-                    material_code: material?.code || "",
-                    uom: material?.base_uom || "PCS",
-                }, role, material),
-            ],
-        })
-    }
-    function removePackagingLine(idx: number) {
-        patchFixed({
-            packaging_lines: ((draft?.fixed_attributes?.packaging_lines || []) as any[]).filter((_, i) => i !== idx),
-        })
-    }
     function patchChemistryMaterial(kind: "adhesive" | "solvent", value: string) {
         const options = kind === "adhesive" ? adhesiveOptions : solventOptions
         const picked = options.find((m: Material) => m.id === value || m.code === value)
@@ -671,140 +588,255 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     }
 
     return (
-        <div className="space-y-6">
-            <GradientHero
-                eyebrow={`Master · Edit · ${draft.code}`}
-                title={draft.name || "Untitled product master"}
-                subtitle="The full engineering contract — route, sizes, layers, axes, printing, packaging. Sales & planner read every change immediately."
-                palette="violet"
-                tone="subtle"
-                chips={[
-                    { label: "Layers", value: `${draft.layer_template.length}`, icon: <Boxes className="h-3.5 w-3.5" /> },
-                    { label: "Sizes", value: `${draftSizes.length}` },
-                    { label: "Axes", value: `${draft.variant_axes.length}`, icon: <Workflow className="h-3.5 w-3.5" /> },
-                    { label: "Total thickness", value: `${totalThickness} μ` },
-                    {
-                        label: "Active",
-                        value: draft.active ? "Yes" : "No",
-                        tone: draft.active ? "ok" : "warn",
-                    },
-                ]}
-                actions={
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/master/products/${productId}`)}
-                        className="gap-1 rounded-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    >
-                        <ArrowLeft className="h-3.5 w-3.5" /> Back
-                    </Button>
-                }
-            />
+        <div className="relative space-y-6">
+            {/* Ambient color blobs — purely decorative, soften the canvas */}
+            <div aria-hidden className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-indigo-200/25 blur-3xl -z-10" />
+            <div aria-hidden className="pointer-events-none absolute top-40 -right-32 h-80 w-80 rounded-full bg-fuchsia-200/20 blur-3xl -z-10" />
+            <div aria-hidden className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-emerald-200/20 blur-3xl -z-10" />
+            {(() => {
+                const kind = String(draft.product_kind || "").toUpperCase()
+                const isProductionMaster = kind === "PACKAGING" || kind === "POD"
+                return (
+                    <>
+                        <RichHero
+                            eyebrow={isProductionMaster ? `Production master · Edit · ${draft.code}` : `Master · Edit · ${draft.code}`}
+                            title={draft.name || "Untitled product master"}
+                            subtitle={
+                                isProductionMaster
+                                    ? `${kind} production master · launched by the Stock Launcher (not sold to customers). Each variant must be manually linked to an existing fixed SKU in /master/${kind === "PACKAGING" ? "packaging" : "pod"} before in-house consumption can use it.`
+                                    : "The full engineering contract — route, sizes, layers, axes, printing. Sales & planner read every change immediately. Packing (gunny/sheet/tape/etc) is no longer on the master — packing yard ticks it per order at EOD."
+                            }
+                            chips={[
+                                { label: "Layers", value: `${draft.layer_template.length}`, icon: <Boxes className="h-3.5 w-3.5" /> },
+                                { label: "Sizes", value: `${draftSizes.length}` },
+                                { label: "Axes", value: `${visibleVariantAxes.length}`, icon: <Workflow className="h-3.5 w-3.5" /> },
+                                { label: "Total μ", value: `${totalThickness}` },
+                                {
+                                    label: "Active",
+                                    value: draft.active ? "Yes" : "No",
+                                    tone: draft.active ? "ok" : "warn",
+                                },
+                            ]}
+                            actions={
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => router.push(`/master/products/${productId}`)}
+                                    className="gap-1 rounded-xl border-slate-200 bg-white/80 text-slate-700 hover:bg-white"
+                                >
+                                    <ArrowLeft className="h-3.5 w-3.5" /> Back
+                                </Button>
+                            }
+                        />
+                        {/* Production-master banner — surfaces the manual
+                            catalog-link model and reminds the admin this isn't
+                            a sales master. */}
+                        {isProductionMaster ? (
+                            <div className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50/40 px-4 py-3 shadow-sm ring-1 ring-violet-100">
+                                <div className="flex flex-wrap items-start gap-3">
+                                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-md">
+                                        <Workflow className="h-4 w-4" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">
+                                            Production master · stock launcher only
+                                        </div>
+                                        <div className="font-display text-sm font-black text-slate-900 mt-0.5">
+                                            Sales doesn&apos;t pick this · planner launches in-house production after manual SKU link
+                                        </div>
+                                        <div className="mt-1 text-[11px] text-slate-700 leading-relaxed">
+                                            Each variant of this {kind} master is a production contract. It does not create a SKU. Link it manually to an existing fixed row in <a href={`/master/${kind === "PACKAGING" ? "packaging" : "pod"}`} className="font-bold text-violet-700 underline-offset-2 hover:underline">{kind === "PACKAGING" ? "/master/packaging" : "/master/pod"}</a>; that row remains the stock, purchase, and consumption identity.
+                                            {kind === "POD" ? " POD is roll-form output, so sizes use roll geometry and KG stock." : " INNER_POUCH stays PCS; SHEET stays roll-form/KG."}
+                                        </div>
+                                    </div>
+                                    <a
+                                        href={`/master/${kind === "PACKAGING" ? "packaging" : "pod"}`}
+                                        className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50"
+                                    >
+                                        Open catalog <ArrowRight className="h-3.5 w-3.5" />
+                                    </a>
+                                </div>
+                            </div>
+                        ) : null}
+                    </>
+                )
+            })()}
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
                 <div className="space-y-6">
-                    <SectionCardV3 index={1} title="Header & live route" description="The stable identity that sales & planner read." accent="blue">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                    Master code
-                                </Label>
-                                <Input
-                                    value={draft.code}
-                                    onChange={(e) => patchDraft({ code: e.target.value.toUpperCase() })}
-                                    className="mt-1 h-10 rounded-xl"
-                                />
+                    <RichSection index={1} tone="indigo" icon={<Workflow className="h-5 w-5" />} eyebrow="Identity" title="Header & live route" subtitle="The stable identity that sales & planner read.">
+                        <div className="space-y-4">
+                            {/* Top row · code + reporting group as tonal cards */}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <FormField label="Master code" tone="indigo">
+                                    <Input
+                                        value={draft.code}
+                                        onChange={(e) => patchDraft({ code: e.target.value.toUpperCase() })}
+                                        className="h-10 rounded-xl font-mono font-bold bg-white/80"
+                                    />
+                                </FormField>
+                                <FormField label="Reporting group" tone="violet">
+                                    <Select
+                                        value={draft.default_reporting_group}
+                                        onValueChange={(v) => patchDraft({ default_reporting_group: v as ReportingGroup })}
+                                    >
+                                        <SelectTrigger className="h-10 rounded-xl bg-white/80">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {REPORTING_GROUPS.map((g) => (
+                                                <SelectItem key={g} value={g}>{g}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormField>
                             </div>
-                            <div>
-                                <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                    Reporting group
-                                </Label>
-                                <Select
-                                    value={draft.default_reporting_group}
-                                    onValueChange={(v) => patchDraft({ default_reporting_group: v as ReportingGroup })}
-                                >
-                                    <SelectTrigger className="mt-1 h-10 rounded-xl">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {REPORTING_GROUPS.map((g) => (
-                                            <SelectItem key={g} value={g}>
-                                                {g}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="sm:col-span-2">
-                                <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                    Master name
-                                </Label>
+
+                            {/* Master name — full width hero field */}
+                            <FormField label="Master name" tone="indigo" prominent>
                                 <Input
                                     value={draft.name}
                                     onChange={(e) => patchDraft({ name: e.target.value })}
-                                    className="mt-1 h-10 rounded-xl"
+                                    className="h-12 rounded-xl text-base font-bold bg-white/80"
                                 />
+                            </FormField>
+
+                            {/* Product kind + template */}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <FormField label="Product kind" tone="emerald">
+                                    <Select
+                                        value={draft.product_kind}
+                                        onValueChange={(v) => {
+                                            const next = v as ProductKind
+                                            // Reset packaging_kind when switching away from PACKAGING; default it
+                                            // to INNER_POUCH when switching INTO PACKAGING (admin can change to SHEET).
+                                            const patch: Partial<ProductMaster> = {
+                                                product_kind: next,
+                                                variant_axes: variantAxesForProductKind(next, draft.variant_axes),
+                                                fixed_attributes: {
+                                                    ...(draft.fixed_attributes || {}),
+                                                    fg_type: next === "ROLL" || next === "POD" ? "ROLL" : "POUCH",
+                                                },
+                                            }
+                                            if (next === "PACKAGING" && !draft.packaging_kind) {
+                                                patch.packaging_kind = "INNER_POUCH"
+                                            } else if (next !== "PACKAGING") {
+                                                patch.packaging_kind = null
+                                            }
+                                            patchDraft(patch)
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-10 rounded-xl bg-white/80">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(["POUCH", "ROLL", "PACKAGING", "POD", "OTHER"] as ProductKind[]).map((k) => (
+                                                <SelectItem key={k} value={k}>{k}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormField>
+                                <FormField label="Live route / template" tone="fuchsia">
+                                    <Select
+                                        value={draft.template || ""}
+                                        onValueChange={(v) =>
+                                            patchDraft({
+                                                template: v,
+                                                template_name: templates.find((t: any) => t.id === v)?.name,
+                                            })
+                                        }
+                                    >
+                                        <SelectTrigger className="h-10 rounded-xl bg-white/80">
+                                            <SelectValue placeholder="Pick a live template" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {templates.map((t: any) => (
+                                                <SelectItem key={t.id} value={t.id}>{t.name || t.code}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormField>
                             </div>
-                            <div>
-                                <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                    Product kind
-                                </Label>
-                                <Select
-                                    value={draft.product_kind}
-                                    onValueChange={(v) => patchDraft({ product_kind: v as ProductKind })}
-                                >
-                                    <SelectTrigger className="mt-1 h-10 rounded-xl">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(["POUCH", "ROLL", "PACKAGING", "POD", "OTHER"] as ProductKind[]).map((k) => (
-                                            <SelectItem key={k} value={k}>
-                                                {k}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                    Live route / template
-                                </Label>
-                                <Select
-                                    value={draft.template || ""}
-                                    onValueChange={(v) =>
-                                        patchDraft({
-                                            template: v,
-                                            template_name: templates.find((t: any) => t.id === v)?.name,
-                                        })
-                                    }
-                                >
-                                    <SelectTrigger className="mt-1 h-10 rounded-xl">
-                                        <SelectValue placeholder="Pick a live template" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {templates.map((t: any) => (
-                                            <SelectItem key={t.id} value={t.id}>
-                                                {t.name || t.code}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="sm:col-span-2">
-                                <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                    Description
-                                </Label>
+
+                            {/* Packaging sub-type — only when product_kind=PACKAGING.
+                                Drives which sales axis the master's variants surface in
+                                (INNER_POUCH → inner-pouch axis · SHEET → roll-form
+                                packing). POD masters are always roll-form, no extra
+                                knob. POUCH/ROLL masters skip this entirely. */}
+                            {String(draft.product_kind || "").toUpperCase() === "PACKAGING" ? (
+                                <FormField label="Packing sub-type · what does this master produce?" tone="amber" prominent>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        {[
+                                            { value: "INNER_POUCH" as const, label: "Inner pouch carrier", hint: "Goes inside a gunny / outer · sales picks per order from this master's variants" },
+                                            { value: "SHEET" as const, label: "Sheet / Roll for packing", hint: "Roll-form film used as wrap or outer sheet" },
+                                        ].map((opt) => {
+                                            const active = (draft.packaging_kind || "INNER_POUCH") === opt.value
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => patchDraft({
+                                                        packaging_kind: opt.value,
+                                                        fixed_attributes: {
+                                                            ...(draft.fixed_attributes || {}),
+                                                            fg_type: opt.value === "SHEET" ? "ROLL" : "POUCH",
+                                                        },
+                                                    })}
+                                                    className={cn(
+                                                        "rounded-2xl border bg-white px-3.5 py-3 text-left shadow-sm transition",
+                                                        active
+                                                            ? "border-amber-400 ring-2 ring-amber-200 bg-gradient-to-br from-amber-50 to-orange-50"
+                                                            : "border-slate-200 hover:border-amber-300 hover:bg-amber-50/40",
+                                                    )}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                                        <span className={cn(
+                                                            "font-display text-sm font-black",
+                                                            active ? "text-amber-900" : "text-slate-900",
+                                                        )}>{opt.label}</span>
+                                                        {active ? (
+                                                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black text-white shadow ring-2 ring-white">
+                                                                ✓
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className={cn("text-[11px] leading-snug", active ? "text-amber-800" : "text-slate-600")}>
+                                                        {opt.hint}
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </FormField>
+                            ) : null}
+
+                            <FormField label="Description" tone="slate">
                                 <Textarea
                                     value={draft.description || ""}
                                     onChange={(e) => patchDraft({ description: e.target.value })}
-                                    className="mt-1 min-h-[64px] rounded-xl"
+                                    className="min-h-[64px] rounded-xl bg-white/80"
                                 />
-                            </div>
-                            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 sm:col-span-2">
-                                <div>
-                                    <div className="text-sm font-bold text-slate-900">Active</div>
-                                    <div className="text-[11px] text-slate-500">
-                                        Sales and planner can pick this master right after save.
+                            </FormField>
+
+                            {/* Active toggle — vibrant card */}
+                            <div className={cn(
+                                "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm ring-1 transition",
+                                draft.active
+                                    ? "border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 ring-emerald-100"
+                                    : "border-rose-200 bg-gradient-to-r from-rose-50 via-white to-orange-50/40 ring-rose-100",
+                            )}>
+                                <div className="flex items-center gap-3">
+                                    <span className={cn(
+                                        "flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-md",
+                                        draft.active ? "bg-gradient-to-br from-emerald-500 to-teal-500" : "bg-gradient-to-br from-rose-500 to-orange-500",
+                                    )}>
+                                        {draft.active ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                                    </span>
+                                    <div>
+                                        <div className={cn("font-display text-sm font-black", draft.active ? "text-emerald-900" : "text-rose-900")}>
+                                            {draft.active ? "Active — sales & planner can pick" : "Inactive — hidden from sales & planner"}
+                                        </div>
+                                        <div className="text-[11px] text-slate-600">Saved as part of the master record.</div>
                                     </div>
                                 </div>
                                 <Switch checked={draft.active} onCheckedChange={(v) => patchDraft({ active: v })} />
@@ -836,14 +868,225 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                 </div>
                             )}
                         </div>
-                    </SectionCardV3>
+                    </RichSection>
+
+                    <RichSection
+                        index={2}
+                        tone="violet"
+                        icon={<Workflow className="h-5 w-5" />}
+                        eyebrow="Variant axes"
+                        title={isProductionMasterKind(draft.product_kind) ? "What defines produced variants" : "What sales picks per order"}
+                        subtitle={isProductionMasterKind(draft.product_kind) ? "Catalog SKU is linked manually after variant creation" : "Off = never asked · Optional = skippable · Required = sales must enter"}
+                    >
+                        {(() => {
+                            const kind = String(draft.product_kind || "").toUpperCase()
+                            if (kind === "POUCH") {
+                                return (
+                                    <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50/40 px-3 py-2 text-[11px] text-amber-900">
+                                        <Package className="mt-0.5 h-4 w-4 flex-none text-amber-600" />
+                                        <span>
+                                            <strong>Inner pouch axis</strong> below lets sales pick which inner-pouch SKU goes with this pouch. Customer overlay can override <code className="rounded bg-amber-100 px-1 font-mono text-[10px] text-amber-900">pcs_per_inner</code>. All other packing (gunny, sheet, tape, label, tag) is ticked at <a href="/logistics/packing/order-ticks" className="font-bold underline-offset-2 hover:underline">EOD per order</a>.
+                                        </span>
+                                    </div>
+                                )
+                            }
+                            if (kind === "PACKAGING" || kind === "POD") {
+                                return (
+                                    <div className="mb-3 flex items-start gap-2 rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50/40 px-3 py-2 text-[11px] text-violet-900">
+                                        <Workflow className="mt-0.5 h-4 w-4 flex-none text-violet-600" />
+                                        <span>
+                                            This is a <strong>{kind}</strong> production master. It does not pick Packaging/POD catalog values as inputs and it does not create SKUs. Use size/layer axes to create the variant, then manually link that variant to one existing catalog SKU.
+                                        </span>
+                                    </div>
+                                )
+                            }
+                            return null
+                        })()}
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {AXIS_DEFS.filter((d) => d.axis !== "artwork_mode").filter((d) => {
+                                // Inner pouch is POUCH-only — hide for rolls/POD/other.
+                                // Outer-packaging axis is dropped entirely (PM no longer carries packing).
+                                if (d.axis === "packaging_outer") return false
+                                if (isProductionMasterKind(draft.product_kind) && PRODUCTION_MASTER_CATALOG_AXES.has(canonicalAxisKey(String(d.axis)))) {
+                                    return false
+                                }
+                                if (d.axis === "packaging_inner") {
+                                    return String(draft.product_kind || "").toUpperCase() === "POUCH"
+                                }
+                                return true
+                            }).map((def) => {
+                                // Alias-aware: a master storing the legacy `pod` / `packaging`
+                                // axis name still resolves to the canonical `pod_variant` /
+                                // `packaging_inner` card so the tri-state reflects reality.
+                                // artwork_mode is hidden here because it's a derived axis —
+                                // its required/optional/off state always mirrors the Printing
+                                // contract toggles in section 5. We keep them in sync in patchFixed.
+                                const found = findAxisOnDraft(draft.variant_axes, String(def.axis))
+                                const mode = axisMode(found)
+                                return (
+                                    <div
+                                        key={def.axis}
+                                        className={cn(
+                                            "rounded-xl border bg-white px-3 py-2.5",
+                                            mode === "required" && "border-blue-300 ring-1 ring-blue-100",
+                                            mode === "optional" && "border-violet-200 ring-1 ring-violet-50",
+                                            mode === "off" && "border-slate-200"
+                                        )}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-sm font-bold text-slate-900">{def.label || def.axis}</div>
+                                                <div className="text-[11px] text-slate-500">{def.type.replaceAll("_", " ")}</div>
+                                            </div>
+                                            <span className={cn(
+                                                "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset",
+                                                mode === "required" && "bg-blue-600 text-white ring-blue-700",
+                                                mode === "optional" && "bg-violet-50 text-violet-700 ring-violet-200",
+                                                mode === "off" && "bg-slate-50 text-slate-500 ring-slate-200"
+                                            )}>{mode}</span>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-3 gap-1 rounded-full bg-slate-100 p-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => patchAxis(def.axis, false, false)}
+                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "off" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                                            >
+                                                Off
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => patchAxis(def.axis, false, true)}
+                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "optional" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500")}
+                                            >
+                                                Optional
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => patchAxis(def.axis, true, true)}
+                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "required" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500")}
+                                            >
+                                                Required
+                                            </button>
+                                        </div>
+                                        <div className="mt-2 text-[11px] text-slate-500">{axisModeCopy(mode as "off" | "optional" | "required")}</div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </RichSection>
+
+                    <RichSection
+                        index={3}
+                        tone="blue"
+                        icon={<Boxes className="h-5 w-5" />}
+                        eyebrow="Layer template"
+                        title="Per layer — film identity locked, μ + grade Fixed/Variable"
+                        subtitle="Default thickness + default grade are always required. 2+ allowed grades = Variable (picked per variant). Grade list is the full catalog."
+                        actions={
+                            <Button size="sm" variant="outline" className="rounded-xl" onClick={addLayer}>
+                                <Plus className="mr-1 h-3.5 w-3.5" /> Add layer
+                            </Button>
+                        }
+                    >
+                        <div className="space-y-3">
+                            {draft.layer_template.map((row, i) => (
+                                <LayerCard
+                                    key={i}
+                                    index={i}
+                                    layer={row}
+                                    filmVariants={filmVariants}
+                                    grades={grades}
+                                    recipes={recipes}
+                                    onPatch={(patch) => patchLayer(i, patch)}
+                                    onPickFilm={(picked) => patchLayer(i, sanitizeLayerForFilm(row, picked, grades, recipes))}
+                                    onRemove={() => removeLayer(i)}
+                                />
+                            ))}
+                            {draft.layer_template.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/30 p-6 text-center text-xs text-blue-900">
+                                    No layers yet. Click <strong>Add layer</strong> above.
+                                </div>
+                            ) : null}
+                        </div>
+                        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            Total default thickness <strong className="ml-1 text-slate-700">{totalThickness} μ</strong>. No global thickness or grade — per-layer only.
+                        </p>
+                    </RichSection>
+
+                    <RichSection
+                        index={4}
+                        tone="emerald"
+                        icon={<span className="text-lg leading-none">📐</span>}
+                        eyebrow="Sizes & geometry"
+                        title="Final W/H/Gusset · roll-width per pouch style"
+                        subtitle="Total thickness comes from layers. Roll width derives from the active pouch-style formula — manual override wins when set."
+                        actions={
+                            <Button size="sm" variant="outline" className="rounded-xl" onClick={addSize}>
+                                <Plus className="mr-1 h-3.5 w-3.5" /> Add size
+                            </Button>
+                        }
+                    >
+                        {draftSizes.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-6 text-center text-sm text-slate-500">
+                                No sizes yet. Add at least one for sales/planner to use this master.
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {draftSizes.map((row, i) => (
+                                    <div key={row.id || i} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-sm font-black text-slate-900">{row.code || `Size ${i + 1}`}</div>
+                                                <div className="text-xs text-slate-500">Final size plus exact geometry math for BOM, roll width, and stock matching.</div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                                                    <Switch checked={row.active} onCheckedChange={(v) => patchSize(i, { active: v })} />
+                                                    {row.active ? "Active" : "Inactive"}
+                                                </div>
+                                                <button type="button" onClick={() => removeSize(i)} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <SizeGeometryEditor row={row} kind={draft.product_kind} packagingKind={draft.packaging_kind ?? null} onPatch={(patch) => patchSize(i, patch)} />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </RichSection>
+
+                    <RichSection
+                        index={5}
+                        tone="fuchsia"
+                        icon={<Palette className="h-5 w-5" />}
+                        eyebrow="Printing"
+                        title="2 knobs — print capable + artwork compulsory"
+                        subtitle="Together they decide whether printing is possible and whether artwork blocks production release."
+                    >
+                        <PrintingTwoKnob
+                            printCapable={!!draft.fixed_attributes?.print_capable}
+                            artworkRequired={!!draft.fixed_attributes?.artwork_required}
+                            defaultArtworkId={String(draft.fixed_attributes?.default_artwork_id || "")}
+                            artworks={approvedArtworks}
+                            productionMaster={
+                                String(draft.product_kind || "").toUpperCase() === "PACKAGING"
+                                || String(draft.product_kind || "").toUpperCase() === "POD"
+                            }
+                            onChange={(p) => patchFixed(p)}
+                            onChangeDefaultArtwork={(id) => patchFixed({ default_artwork_id: id || null } as any)}
+                        />
+                    </RichSection>
 
                     {isMultiLayer ? (
-                        <SectionCardV3
-                            index={2}
+                        <RichSection
+                            index={6}
+                            tone="amber"
+                            icon={<Package className="h-5 w-5" />}
+                            eyebrow="Advanced · chemistry"
                             title="Adhesive & solvent defaults"
-                            description="One adhesive and one solvent per master. GSM is fixed here and flows into live BOM, sales orders, WIP, and dispatch consumption."
-                            accent="emerald"
+                            subtitle="One adhesive + one solvent per master. GSM × area flows into live BOM, sales orders, WIP, and dispatch consumption."
                         >
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                                 <div className="rounded-xl border border-slate-200 bg-white p-3">
@@ -940,419 +1183,71 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                     ) : null}
                                 </div>
                             </div>
-                        </SectionCardV3>
+                        </RichSection>
                     ) : null}
 
-                    <SectionCardV3
-                        index={3}
-                        title="Size / geometry axis"
-                        description="Final product W/H/Gusset only. Total thickness comes from layers; roll width comes from override or the custom geometry rule."
-                        accent="emerald"
-                        actions={
-                            <Button size="sm" variant="outline" className="rounded-full" onClick={addSize}>
-                                <Plus className="mr-1 h-3.5 w-3.5" /> Add size
-                            </Button>
-                        }
-                    >
-                        {draftSizes.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-6 text-center text-sm text-slate-500">
-                                No sizes yet. Add at least one for sales/planner to use this master.
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {draftSizes.map((row, i) => (
-                                    <div key={row.id || i} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-black text-slate-900">{row.code || `Size ${i + 1}`}</div>
-                                                <div className="text-xs text-slate-500">Final size plus exact geometry math for BOM, roll width, and stock matching.</div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                                                    <Switch checked={row.active} onCheckedChange={(v) => patchSize(i, { active: v })} />
-                                                    {row.active ? "Active" : "Inactive"}
-                                                </div>
-                                                <button type="button" onClick={() => removeSize(i)} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50">
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <SizeGeometryEditor row={row} kind={draft.product_kind} onPatch={(patch) => patchSize(i, patch)} />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </SectionCardV3>
-
-                    <SectionCardV3
-                        index={4}
-                        title="Layer template (per layer, not global)"
-                        description="Fixed layer structure for this master. Thickness and allowed grades are per layer; no global thickness or grade."
-                        accent="blue"
-                        actions={
-                            <Button size="sm" variant="outline" className="rounded-full" onClick={addLayer}>
-                                <Plus className="mr-1 h-3.5 w-3.5" /> Add layer
-                            </Button>
-                        }
-                    >
-                        <div className="overflow-hidden rounded-xl border border-slate-200">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                    <tr>
-                                        <th className="px-3 py-2 text-left">Layer</th>
-                                        <th className="px-3 py-2 text-left">Film variant</th>
-                                        <th className="px-3 py-2 text-left">Thickness (μ)</th>
-                                        <th className="px-3 py-2 text-left">Default grade</th>
-                                        <th className="px-3 py-2 text-left">Allowed grades</th>
-                                        <th className="px-3 py-2 text-right">Layer roll W override</th>
-                                        <th className="px-3 py-2" />
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {draft.layer_template.map((row, i) => (
-                                        <tr key={i} className="bg-white">
-                                            <td className="px-3 py-2 font-bold text-slate-800">L{i + 1}</td>
-                                            <td className="px-2 py-1">
-                                                {filmVariants.length ? (
-                                                    <Select
-                                                        value={row.film_variant_id || row.film_variant_code || ""}
-                                                        onValueChange={(v) => {
-                                                            const picked = filmVariants.find((m: Material) => m.id === v || m.code === v)
-                                                            patchLayer(i, sanitizeLayerForFilm(row, picked, grades, recipes))
-                                                        }}
-                                                    >
-                                                        <SelectTrigger className="h-8 rounded-md text-xs">
-                                                            <SelectValue placeholder="Select film" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {filmVariants.map((m: Material) => (
-                                                                <SelectItem key={m.id || m.code} value={m.id || m.code}>
-                                                                    {m.code} · {m.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                ) : (
-                                                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                                                        Add film variants first
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-2 py-1">
-                                                <LayerThicknessSelect
-                                                    layer={row}
-                                                    films={filmVariants}
-                                                    recipes={recipes}
-                                                    onChange={(patch) => patchLayer(i, patch)}
-                                                />
-                                            </td>
-                                            <td className="px-2 py-1">
-                                                <LayerDefaultGradeSelect
-                                                    layer={row}
-                                                    films={filmVariants}
-                                                    grades={grades}
-                                                    recipes={recipes}
-                                                    onChange={(patch) => patchLayer(i, patch)}
-                                                />
-                                            </td>
-                                            <td className="px-2 py-1">
-                                                <LayerAllowedGradePicker
-                                                    layer={row}
-                                                    films={filmVariants}
-                                                    grades={grades}
-                                                    recipes={recipes}
-                                                    onChange={(patch) => patchLayer(i, patch)}
-                                                />
-                                            </td>
-                                            <td className="px-2 py-1">
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 rounded-md text-right text-xs"
-                                                    placeholder="fallback"
-                                                    value={row.default_input_roll_width_mm || ""}
-                                                    onChange={(e) => patchLayer(i, { default_input_roll_width_mm: e.target.value ? Number(e.target.value) : null })}
-                                                />
-                                            </td>
-                                            <td className="px-2 py-1 text-right">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeLayer(i)}
-                                                    className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                            Total default thickness <strong className="ml-1 text-slate-700">{totalThickness} μ</strong>. No global thickness or grade — per-layer only.
-                        </p>
-                    </SectionCardV3>
-
-                    <SectionCardV3
-                        index={5}
-                        title="Variant axes"
-                        description="Off = never asked. Optional = can be skipped; if used it affects matching/BOM. Required = sales/planner must enter it."
-                        accent="violet"
-                    >
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            {AXIS_DEFS.filter((d) => d.axis !== "artwork_mode").map((def) => {
-                                // Alias-aware: a master storing the legacy `pod` / `packaging`
-                                // axis name still resolves to the canonical `pod_variant` /
-                                // `packaging_inner` card so the tri-state reflects reality.
-                                // artwork_mode is hidden here because it's a derived axis —
-                                // its required/optional/off state always mirrors the Printing
-                                // contract toggles in section 5. We keep them in sync in patchFixed.
-                                const found = findAxisOnDraft(draft.variant_axes, String(def.axis))
-                                const mode = axisMode(found)
-                                return (
-                                    <div
-                                        key={def.axis}
-                                        className={cn(
-                                            "rounded-xl border bg-white px-3 py-2.5",
-                                            mode === "required" && "border-blue-300 ring-1 ring-blue-100",
-                                            mode === "optional" && "border-violet-200 ring-1 ring-violet-50",
-                                            mode === "off" && "border-slate-200"
-                                        )}
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-bold text-slate-900">{def.label || def.axis}</div>
-                                                <div className="text-[11px] text-slate-500">{def.type.replaceAll("_", " ")}</div>
-                                            </div>
-                                            <span className={cn(
-                                                "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset",
-                                                mode === "required" && "bg-blue-600 text-white ring-blue-700",
-                                                mode === "optional" && "bg-violet-50 text-violet-700 ring-violet-200",
-                                                mode === "off" && "bg-slate-50 text-slate-500 ring-slate-200"
-                                            )}>{mode}</span>
-                                        </div>
-                                        <div className="mt-2 grid grid-cols-3 gap-1 rounded-full bg-slate-100 p-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => patchAxis(def.axis, false, false)}
-                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "off" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
-                                            >
-                                                Off
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => patchAxis(def.axis, false, true)}
-                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "optional" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500")}
-                                            >
-                                                Optional
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => patchAxis(def.axis, true, true)}
-                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "required" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500")}
-                                            >
-                                                Required
-                                            </button>
-                                        </div>
-                                        <div className="mt-2 text-[11px] text-slate-500">{axisModeCopy(mode as "off" | "optional" | "required")}</div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </SectionCardV3>
-
-                    <SectionCardV3 index={6} title="Printing contract" description="Only controls whether printing is possible and whether approved artwork is mandatory." accent="violet">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <ToggleRow
-                                label="Print capable"
-                                description="Sales can attach artwork/colorway or warning-print instructions."
-                                checked={!!draft.fixed_attributes?.print_capable}
-                                onChange={(v) => patchFixed({ print_capable: v })}
-                            />
-                            <ToggleRow
-                                label="Artwork required"
-                                description="Block production release until an approved artwork/colorway is selected."
-                                checked={!!draft.fixed_attributes?.artwork_required}
-                                onChange={(v) => patchFixed({ artwork_required: v })}
-                            />
-                        </div>
-                        <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                            <Disc className="mt-0.5 h-4 w-4 flex-none" />
-                            <span>
-                                <strong>Artwork-driven:</strong> method, sheet/tubing form, colors, ink mapping, and cylinder gate come from the approved artwork/colorway selected on the order or before planner release.
-                            </span>
-                        </div>
-                    </SectionCardV3>
-
-                    <SectionCardV3
-                        index={7}
-                        title="Always-consumed packaging & POD"
-                        description="Locked at master — consumed on every order automatically, no sales decision. Use this for packaging that never varies by customer or order."
-                        accent="emerald"
-                        actions={
-                            <Button size="sm" variant="outline" className="rounded-full" onClick={addPackagingLine}>
-                                <Plus className="mr-1 h-3.5 w-3.5" /> Add packaging
-                            </Button>
-                        }
-                    >
-                        <div className="space-y-3">
-                            {((draft.fixed_attributes?.packaging_lines || []) as any[]).length ? (
-                                ((draft.fixed_attributes?.packaging_lines || []) as any[]).map((line, i) => (
-                                    <div key={i} className="rounded-xl border border-slate-200 bg-white p-3">
-                                        <div className="mb-2 flex items-center justify-between">
-                                            <span className="text-xs font-bold text-slate-700">Packaging line {i + 1}</span>
-                                            <button type="button" onClick={() => removePackagingLine(i)} className="rounded-md p-1 text-rose-600 hover:bg-rose-50">
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                                            <div>
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Role</Label>
-                                                <Select value={canonicalPackagingRole(line.role)} onValueChange={(v) => patchPackagingLine(i, normalizePackagingLine(line, v))}>
-                                                    <SelectTrigger className="mt-1 h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {packagingRolesForProduct(draft.product_kind).map((r) => (
-                                                            <SelectItem key={r} value={r}>{PACKAGING_ROLE_RULES[r].menuLabel}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="lg:col-span-2">
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Packaging SKU</Label>
-                                                {packagingMaterials.length ? (
-                                                    <Select
-                                                        value={line.material || line.material_code || ""}
-                                                        onValueChange={(v) => {
-                                                            const picked = packagingMaterials.find((m: PackagingMaterial) => m.id === v || m.code === v)
-                                                            patchPackagingLine(i, normalizePackagingLine({
-                                                                ...line,
-                                                                material: picked?.id || null,
-                                                                material_code: (picked?.code || v).toUpperCase(),
-                                                                uom: picked?.base_uom || line.uom || "PCS",
-                                                                supply_mode: picked?.packaging_supply_mode,
-                                                                kind: picked?.packaging_kind,
-                                                            }, line.role, picked))
-                                                        }}
-                                                    >
-                                                        <SelectTrigger className="mt-1 h-8 rounded-lg text-xs"><SelectValue placeholder="Select packaging SKU" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {packagingMaterials
-                                                                .filter((m: PackagingMaterial) => packagingMaterialAllowed(m, line.role, draft.product_kind))
-                                                                .map((m: PackagingMaterial) => (
-                                                                <SelectItem key={m.id || m.code} value={m.id || m.code}>{m.code} · {m.name}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                ) : (
-                                                    <Input className="mt-1 h-8 rounded-lg text-xs" value={line.material_code || ""} onChange={(e) => patchPackagingLine(i, { material_code: e.target.value.toUpperCase() })} />
-                                                )}
-                                            </div>
-                                            <div>
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                                    {canonicalPackagingRole(line.role) === "PRIMARY_INNER" ? "Pcs per inner" : "Consumption"}
-                                                </Label>
-                                                {canonicalPackagingRole(line.role) === "PRIMARY_INNER" ? (
-                                                    <Input
-                                                        type="number"
-                                                        min="1"
-                                                        className="mt-1 h-8 rounded-lg text-xs"
-                                                        value={line.pcs_per_pack || ""}
-                                                        placeholder="e.g. 100"
-                                                        onChange={(e) => patchPackagingLine(i, normalizePackagingLine({ ...line, pcs_per_pack: Number(e.target.value) }, "PRIMARY_INNER"))}
-                                                    />
-                                                ) : (
-                                                    <div className="mt-1 flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-bold text-slate-600">
-                                                        {packagingRuleForRole(line.role).label}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Rule</Label>
-                                                <div className="mt-1 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold leading-4 text-emerald-800">
-                                                    {packagingRuleForRole(line.role).hint}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-5 text-sm text-slate-500">
-                                    No allowed packing SKUs yet. Add inner-pouch options, gonny options, or tape/sheet/tag SKUs here only as allowed materials; consumption is automatic from packing flow or evening open-close.
-                                </div>
-                            )}
-
-                            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3">
-                                <ToggleRow
-                                    label="POD required"
-                                    description="Links a POD SKU variant as a BOM item; POD stock can be produced in-house from its own Product Master."
-                                    checked={!!draft.fixed_attributes?.pod_enabled}
-                                    onChange={(v) => patchFixed({ pod_enabled: v })}
+                    {/* Sales-pickable menu — only for sales-facing masters
+                        (POUCH / ROLL / OTHER). PACKAGING + POD masters are
+                        production masters, not sales masters: sales never picks
+                        them, the stock launcher launches them. Hiding this
+                        section keeps the surface honest. */}
+                    {String(draft.product_kind || "").toUpperCase() === "PACKAGING"
+                        || String(draft.product_kind || "").toUpperCase() === "POD"
+                        ? null
+                        : (
+                            <RichSection
+                                index={7}
+                                tone="violet"
+                                icon={<Workflow className="h-5 w-5" />}
+                                eyebrow="Advanced · catalog allow-list"
+                                title="Sales-pickable menu"
+                                subtitle={
+                                    String(draft.product_kind || "").toUpperCase() === "POUCH"
+                                        ? "Pick which Inner pouch + POD + Add-on catalog SKUs sales can choose from. Outer (gunny/sheet/tape/etc) is no longer here — packing yard ticks at EOD."
+                                        : "Pick which POD + Add-on catalog SKUs sales can choose from. Outer packing isn't on the master — packing yard ticks at EOD. Inner pouch axis is POUCH-only."
+                                }
+                            >
+                                <AxisAllowedRegistry
+                                    draft={draft}
+                                    packagingMaterials={packagingMaterials}
+                                    podVariants={podVariants}
+                                    addonCatalog={addonCatalog}
+                                    onToggleCode={toggleAxisOptionCode}
+                                    onSetAxisFlags={setAxisFlags}
+                                    onPatchOptions={patchAxisOptions}
                                 />
-                                {draft.fixed_attributes?.pod_enabled ? (
-                                    <div className="mt-3">
-                                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">POD SKU variant</Label>
-                                        {podVariants.length ? (
-                                            <Select
-                                                value={draft.fixed_attributes?.pod_variant || draft.fixed_attributes?.pod_variant_code || ""}
-                                                onValueChange={(v) => {
-                                                    const picked = podVariants.find((p: PodSkuVariant) => p.id === v || p.code === v)
-                                                    patchFixed({
-                                                        pod_variant: picked?.id || null,
-                                                        pod_variant_code: picked?.code || v,
-                                                        pod_material: picked?.material || null,
-                                                        pod_material_code: picked?.material_code,
-                                                        pod_profile: picked?.name || picked?.code || v,
-                                                    })
-                                                }}
-                                            >
-                                                <SelectTrigger className="mt-1 h-9 rounded-xl text-xs"><SelectValue placeholder="Select POD SKU variant" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {podVariants.map((p: PodSkuVariant) => (
-                                                        <SelectItem key={p.id || p.code} value={p.id || p.code}>{p.code} · {p.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        ) : (
-                                            <Input className="mt-1 h-9 rounded-xl text-xs" value={draft.fixed_attributes?.pod_profile || ""} onChange={(e) => patchFixed({ pod_profile: e.target.value })} />
-                                        )}
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                    </SectionCardV3>
-
-                    <SectionCardV3
-                        index={8}
-                        title="Sales-pickable menu (customer/order choice)"
-                        description="Catalog SKUs sales is allowed to pick from when building an order. Pick-1 axes (inner, gunny, POD) — sales must choose one. Pick-many axes (sheets/EOD extras, add-ons) — sales may pick zero or more."
-                        accent="violet"
-                    >
-                        <AxisAllowedRegistry
-                            draft={draft}
-                            packagingMaterials={packagingMaterials}
-                            podVariants={podVariants}
-                            addonCatalog={addonCatalog}
-                            onToggleCode={toggleAxisOptionCode}
-                            onSetAxisFlags={setAxisFlags}
-                            onPatchOptions={patchAxisOptions}
-                        />
-                    </SectionCardV3>
+                            </RichSection>
+                        )}
                 </div>
 
                 <aside className="space-y-4">
-                    <SectionCardV3 title="Live anatomy" description="Visualises your draft in real time." accent="emerald">
-                        <ProductVisual
-                            kind={draft.product_kind}
-                            layers={draft.layer_template}
-                            width_mm={draftSizes[0]?.width_mm}
-                            height_mm={draftSizes[0]?.height_mm}
-                            gusset_mm={draftSizes[0]?.gusset_mm}
-                            roll_width_mm={draftSizes[0]?.roll_width_mm || autoRollWidthMm(draftSizes[0] || {}, draft.product_kind)}
-                            addons={draft.fixed_attributes?.print_capable ? ["PRINT"] : []}
-                            title="Draft"
-                            subtitle={`${draft.layer_template.length} layers · ${totalThickness}μ`}
-                        />
-                    </SectionCardV3>
+                    {(() => {
+                        const kind = String(draft.product_kind || "").toUpperCase()
+                        // ROLL and POUCH render their proper shape via ProductVisual.
+                        // PACKAGING masters (inner-pouches / sheets / gunnies / tape rolls)
+                        // and OTHER are themselves packing SKUs — render a flat film stack
+                        // instead of a roll.
+                        const usesProductVisual = kind === "POUCH" || kind === "ROLL"
+                        return (
+                            <RichSection tone="emerald" icon={<span className="text-sm">🧪</span>} title="Live anatomy" subtitle={`${kind} · ${draft.layer_template.length} layers · ${totalThickness}μ`}>
+                                {usesProductVisual ? (
+                                    <ProductVisual
+                                        kind={draft.product_kind}
+                                        layers={draft.layer_template}
+                                        width_mm={draftSizes[0]?.width_mm}
+                                        height_mm={draftSizes[0]?.height_mm}
+                                        gusset_mm={draftSizes[0]?.gusset_mm}
+                                        roll_width_mm={draftSizes[0]?.roll_width_mm || autoRollWidthMm(draftSizes[0] || {}, draft.product_kind)}
+                                        addons={draft.fixed_attributes?.print_capable ? ["PRINT"] : []}
+                                        title="Draft"
+                                        subtitle={`${draft.layer_template.length} layers · ${totalThickness}μ`}
+                                    />
+                                ) : (
+                                    <FlatFilmVisual layers={draft.layer_template} sizeRow={draftSizes[0]} kind={kind} />
+                                )}
+                            </RichSection>
+                        )
+                    })()}
 
                     <LiveBomRail
                         title="Live preview"
@@ -1418,6 +1313,357 @@ function computeChecks(draft: ProductMaster, sizes: ProductMasterSize[], films: 
     return out
 }
 
+/**
+ * FormField — vibrant label + field wrapper for PM Edit. Each field gets a
+ * tone-tinted label background so the form reads as a polished spec card
+ * instead of stacked plain inputs. Children are the actual input/select.
+ */
+const FORM_FIELD_TONE: Record<string, { label: string; ring: string; dot: string; bg: string }> = {
+    indigo:  { label: "text-indigo-700",  ring: "ring-indigo-200",  dot: "bg-indigo-500",  bg: "bg-gradient-to-br from-indigo-50/60 to-white" },
+    violet:  { label: "text-violet-700",  ring: "ring-violet-200",  dot: "bg-violet-500",  bg: "bg-gradient-to-br from-violet-50/60 to-white" },
+    emerald: { label: "text-emerald-700", ring: "ring-emerald-200", dot: "bg-emerald-500", bg: "bg-gradient-to-br from-emerald-50/60 to-white" },
+    amber:   { label: "text-amber-700",   ring: "ring-amber-200",   dot: "bg-amber-500",   bg: "bg-gradient-to-br from-amber-50/60 to-white" },
+    fuchsia: { label: "text-fuchsia-700", ring: "ring-fuchsia-200", dot: "bg-fuchsia-500", bg: "bg-gradient-to-br from-fuchsia-50/60 to-white" },
+    blue:    { label: "text-blue-700",    ring: "ring-blue-200",    dot: "bg-blue-500",    bg: "bg-gradient-to-br from-blue-50/60 to-white" },
+    slate:   { label: "text-slate-600",   ring: "ring-slate-200",   dot: "bg-slate-400",   bg: "bg-gradient-to-br from-slate-50/60 to-white" },
+}
+function FormField({ label, tone = "slate", prominent, children }: {
+    label: string
+    tone?: keyof typeof FORM_FIELD_TONE
+    prominent?: boolean
+    children: React.ReactNode
+}) {
+    const t = FORM_FIELD_TONE[tone] || FORM_FIELD_TONE.slate
+    return (
+        <div className={cn("rounded-2xl ring-1 p-3 shadow-sm", t.ring, t.bg, prominent && "p-4")}>
+            <div className="flex items-center gap-1.5 mb-1.5">
+                <span className={cn("inline-block h-1.5 w-1.5 rounded-full", t.dot)} />
+                <Label className={cn("text-[10px] font-black uppercase tracking-[0.22em]", t.label)}>{label}</Label>
+            </div>
+            {children}
+        </div>
+    )
+}
+
+/**
+ * FlatFilmVisual — rendered for PACKAGING / OTHER masters in place of the
+ * roll/pouch ProductVisual. Shows a stacked-layer flat film representation
+ * (which is what an inner-pouch / sheet / gunny actually is at master level).
+ */
+function FlatFilmVisual({ layers, sizeRow, kind }: { layers: LayerTemplateRow[]; sizeRow?: ProductMasterSize; kind: string }) {
+    const total = layers.reduce((s, l) => s + (l.thickness_micron || 0), 0)
+    const COLORS = ["bg-blue-400", "bg-cyan-400", "bg-emerald-400", "bg-amber-400", "bg-fuchsia-400", "bg-rose-400"]
+    return (
+        <div className="space-y-3">
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 mb-2">Flat film stack · {kind}</div>
+                {/* Layer stack — proportional thickness bars */}
+                {layers.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-emerald-200 bg-white/60 p-6 text-center text-xs text-emerald-900">
+                        No layers yet
+                    </div>
+                ) : (
+                    <div className="space-y-1.5">
+                        {layers.map((l, i) => {
+                            const pct = total > 0 ? Math.max(2, ((l.thickness_micron || 0) / total) * 100) : 100 / layers.length
+                            return (
+                                <div key={i} className="flex items-center gap-2">
+                                    <span className="font-mono text-[10px] font-black text-slate-600 w-6">L{i + 1}</span>
+                                    <div className="flex-1 h-5 rounded-md bg-slate-100 overflow-hidden ring-1 ring-slate-200">
+                                        <div className={cn("h-full shadow-inner", COLORS[i % COLORS.length])} style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <span className="font-mono text-[10px] font-bold text-slate-700 w-14 text-right">
+                                        {l.thickness_micron || 0}μ
+                                    </span>
+                                    <span className="font-mono text-[9px] text-slate-500 w-20 truncate">
+                                        {l.film_variant_code || "—"}
+                                    </span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+                <div className="mt-3 flex items-center justify-between rounded-lg bg-white px-3 py-1.5 ring-1 ring-emerald-200">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Total thickness</span>
+                    <span className="font-mono font-black text-emerald-800">{total} μ</span>
+                </div>
+                {sizeRow ? (
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                        <div className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-200">
+                            <div className="font-black uppercase tracking-wider text-slate-500">Width</div>
+                            <div className="font-mono font-bold text-slate-900">{sizeRow.width_mm || 0} mm</div>
+                        </div>
+                        <div className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-200">
+                            <div className="font-black uppercase tracking-wider text-slate-500">Height</div>
+                            <div className="font-mono font-bold text-slate-900">{sizeRow.height_mm || 0} mm</div>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    )
+}
+
+/**
+ * LayerCard — per-layer rich editor. Replaces the old table row with a
+ * proper card that separates:
+ *   - Film identity (locked, single picker)
+ *   - μ thickness · Fixed / Variable toggle. When Variable, surfaces an
+ *     allowed-thicknesses picker. When Fixed, just one default.
+ *   - Grade · Fixed / Variable toggle. When Variable, surfaces the allowed
+ *     grades multi-select from the full catalog. When Fixed, one default.
+ *   - Optional roll-width override (rare; advanced)
+ *
+ * The user can flip the toggle and the previously-set "default" stays —
+ * we only toggle whether more than one option is allowed.
+ */
+function LayerCard({
+    index,
+    layer,
+    filmVariants,
+    grades,
+    recipes,
+    onPatch,
+    onPickFilm,
+    onRemove,
+}: {
+    index: number
+    layer: LayerTemplateRow
+    filmVariants: Material[]
+    grades: any[]
+    recipes: any[]
+    onPatch: (patch: Partial<LayerTemplateRow>) => void
+    onPickFilm: (picked: Material | undefined) => void
+    onRemove: () => void
+}) {
+    const gradeOptions: string[] = Array.isArray((layer as any).grade_options) ? (layer as any).grade_options : []
+    const gradeVariable = gradeOptions.length >= 2
+    const thickVariable = String((layer as any).thickness_apportion || "").toLowerCase() === "variable"
+    const [showRollOverride, setShowRollOverride] = React.useState<boolean>(!!(layer as any).default_input_roll_width_mm)
+
+    return (
+        <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/30 to-cyan-50/20 p-4 shadow-sm ring-1 ring-white/40">
+            <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-500 to-cyan-500" />
+            <div className="relative pl-2">
+                {/* Header — layer number + Fixed/Variable summary pills + delete */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-md font-black text-sm">
+                            L{index + 1}
+                        </span>
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Layer {index + 1}</div>
+                            <div className="font-display text-sm font-black text-slate-900">{layer.role || `Layer ${index + 1}`}</div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <LayerStatePill axis="μ thickness" variable={thickVariable} />
+                        <LayerStatePill axis="G grade" variable={gradeVariable} />
+                        <button
+                            type="button"
+                            onClick={onRemove}
+                            className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
+                            title="Remove layer"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Film picker */}
+                <div className="mb-3">
+                    <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Film variant · locked at master</Label>
+                    {filmVariants.length ? (
+                        <Select
+                            value={layer.film_variant_id || layer.film_variant_code || ""}
+                            onValueChange={(v) => {
+                                const picked = filmVariants.find((m) => m.id === v || m.code === v)
+                                onPickFilm(picked)
+                            }}
+                        >
+                            <SelectTrigger className="mt-1 h-10 rounded-xl bg-white"><SelectValue placeholder="Select film" /></SelectTrigger>
+                            <SelectContent>
+                                {filmVariants.map((m) => (
+                                    <SelectItem key={m.id || m.code} value={m.id || m.code}>{m.code} · {m.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                            Add film variants first
+                        </div>
+                    )}
+                </div>
+
+                {/* μ thickness — toggle + default + (variable) allowed */}
+                <LayerAxisBlock
+                    title="μ thickness"
+                    axisColor="blue"
+                    variable={thickVariable}
+                    onToggle={(v) => onPatch({ thickness_apportion: v ? "variable" : "per_layer" } as any)}
+                    helperFixed="One thickness used by every variant"
+                    helperVariable="Default + allowed list — sales/planner pick per variant"
+                    defaultEditor={
+                        <LayerThicknessSelect
+                            layer={layer}
+                            films={filmVariants}
+                            recipes={recipes}
+                            onChange={(patch) => onPatch(patch)}
+                        />
+                    }
+                    allowedEditor={null /* current model stores allowed thicknesses implicitly via recipe range */}
+                />
+
+                {/* Grade — toggle + default + (variable) allowed list from full catalog */}
+                <LayerAxisBlock
+                    title="Grade"
+                    axisColor="emerald"
+                    variable={gradeVariable}
+                    onToggle={(v) => {
+                        if (!v) {
+                            // Variable → Fixed: collapse the allowed list to just the default
+                            const def = String((layer as any).default_grade || gradeOptions[0] || "")
+                            onPatch({ grade_options: def ? [def] : [], default_grade: def } as any)
+                        } else {
+                            // Fixed → Variable: keep current default but signal allowed-list intent
+                            // by leaving grade_options as-is; user adds more via picker.
+                            const def = String((layer as any).default_grade || "")
+                            const opts = gradeOptions.length ? gradeOptions : (def ? [def] : [])
+                            onPatch({ grade_options: opts } as any)
+                        }
+                    }}
+                    helperFixed="One grade used by every variant"
+                    helperVariable="Default + allowed grades from the full catalog — sales/planner pick per variant"
+                    defaultEditor={
+                        <LayerDefaultGradeSelect
+                            layer={layer}
+                            films={filmVariants}
+                            grades={grades}
+                            recipes={recipes}
+                            onChange={(patch) => onPatch(patch)}
+                        />
+                    }
+                    allowedEditor={
+                        <LayerAllowedGradePicker
+                            layer={layer}
+                            films={filmVariants}
+                            grades={grades}
+                            recipes={recipes}
+                            onChange={(patch) => onPatch(patch)}
+                        />
+                    }
+                />
+
+                {/* Advanced — roll-width override (rare) */}
+                <div className="mt-3 rounded-xl bg-slate-50/60 px-3 py-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowRollOverride((v) => !v)}
+                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 hover:text-slate-900"
+                    >
+                        <span className={cn("inline-block h-1.5 w-1.5 rounded-full", showRollOverride ? "bg-rose-500" : "bg-slate-400")} />
+                        Advanced · per-layer roll-width override
+                        <span className="text-[9px] text-slate-500 normal-case font-normal">
+                            {showRollOverride ? "(hide)" : "(rare — click to show)"}
+                        </span>
+                    </button>
+                    {showRollOverride ? (
+                        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_140px] gap-2 items-end">
+                            <div className="text-[11px] text-slate-600">
+                                Fallback input roll width for BOM, used when no size-level override is set on the order.
+                            </div>
+                            <Input
+                                type="number"
+                                placeholder="auto"
+                                value={(layer as any).default_input_roll_width_mm || ""}
+                                onChange={(e) => onPatch({ default_input_roll_width_mm: e.target.value ? Number(e.target.value) : null } as any)}
+                                className="h-9 rounded-lg text-right text-xs"
+                            />
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/**
+ * LayerAxisBlock — per-axis (μ thickness, grade) wrapper inside LayerCard
+ * with a Fixed/Variable segmented toggle, contextual helper line, and
+ * editors that swap based on the toggle state.
+ */
+function LayerAxisBlock({
+    title,
+    axisColor,
+    variable,
+    onToggle,
+    helperFixed,
+    helperVariable,
+    defaultEditor,
+    allowedEditor,
+}: {
+    title: string
+    axisColor: "blue" | "emerald"
+    variable: boolean
+    onToggle: (variable: boolean) => void
+    helperFixed: string
+    helperVariable: string
+    defaultEditor: React.ReactNode
+    allowedEditor: React.ReactNode
+}) {
+    const toneActive = axisColor === "blue"
+        ? "bg-blue-600 text-white ring-blue-700"
+        : "bg-emerald-600 text-white ring-emerald-700"
+    const toneInactive = "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+    return (
+        <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                    <span className={cn(
+                        "text-[10px] font-black uppercase tracking-[0.18em]",
+                        axisColor === "blue" ? "text-blue-700" : "text-emerald-700",
+                    )}>{title}</span>
+                    <span className="text-[10px] text-slate-500">{variable ? helperVariable : helperFixed}</span>
+                </div>
+                <div className="inline-flex gap-1 rounded-full bg-slate-100 p-1 ring-1 ring-slate-200">
+                    <button
+                        type="button"
+                        onClick={() => onToggle(false)}
+                        className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition",
+                            !variable ? toneActive : toneInactive,
+                        )}
+                    >
+                        Fixed
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onToggle(true)}
+                        className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition",
+                            variable ? toneActive : toneInactive,
+                        )}
+                    >
+                        Variable
+                    </button>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
+                <div>
+                    <div className="text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1">Default {variable ? "(required)" : ""}</div>
+                    {defaultEditor}
+                </div>
+                {variable && allowedEditor ? (
+                    <div>
+                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700 mb-1">Allowed list · sales/planner picks one per variant</div>
+                        {allowedEditor}
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    )
+}
+
 function ToggleRow({
     label,
     description,
@@ -1436,6 +1682,235 @@ function ToggleRow({
                 {description ? <div className="text-[11px] text-slate-500">{description}</div> : null}
             </div>
             <Switch checked={checked} onCheckedChange={onChange} />
+        </div>
+    )
+}
+
+/**
+ * PrintingTwoKnob — the 2 printing knobs (`print_capable`, `artwork_required`)
+ * with a live state badge explaining exactly what happens for the current combo.
+ *
+ *   print_capable=false                            → "No printing" (plain master)
+ *   print_capable=true,  artwork_required=false    → "Print capable · artwork OPTIONAL"
+ *                                                    Ink GSM is NOT counted in BOM
+ *                                                    until an artwork is assigned
+ *                                                    on the order. Can dispatch
+ *                                                    without artwork.
+ *   print_capable=true,  artwork_required=true     → "Print compulsory · artwork REQUIRED"
+ *                                                    Block production release
+ *                                                    until artwork is selected.
+ */
+function PrintingTwoKnob({
+    printCapable,
+    artworkRequired,
+    defaultArtworkId,
+    artworks,
+    productionMaster = false,
+    onChange,
+    onChangeDefaultArtwork,
+}: {
+    printCapable: boolean
+    artworkRequired: boolean
+    defaultArtworkId: string
+    artworks: Artwork[]
+    /** True for PACKAGING + POD masters — copy talks about stock launcher/planner instead of sales. */
+    productionMaster?: boolean
+    onChange: (patch: { print_capable?: boolean; artwork_required?: boolean }) => void
+    onChangeDefaultArtwork: (id: string) => void
+}) {
+    type State = "OFF" | "CAPABLE_OPTIONAL" | "REQUIRED"
+    const state: State = !printCapable ? "OFF" : artworkRequired ? "REQUIRED" : "CAPABLE_OPTIONAL"
+
+    // For production masters (PACKAGING / POD) the artwork picker is the
+    // Stock Launcher (or planner before release) — not sales. Same 3-state
+    // model, mode-aware copy.
+    const STATE_META: Record<State, { tone: string; ring: string; title: string; eyebrow: string; body: string; bom: string }> = productionMaster ? {
+        OFF: {
+            tone: "bg-gradient-to-br from-slate-50 to-slate-100",
+            ring: "ring-slate-200",
+            title: "No printing",
+            eyebrow: "Plain production master",
+            body: "This stock launches as unprinted production runs. No artwork ever attached. Routes skip print step.",
+            bom: "BOM has no ink rows. Weight = layers + chemistry only.",
+        },
+        CAPABLE_OPTIONAL: {
+            tone: "bg-gradient-to-br from-amber-50 to-orange-50",
+            ring: "ring-amber-200",
+            title: "Print capable · artwork OPTIONAL",
+            eyebrow: "Stock launcher / planner decides per run · ships without artwork allowed",
+            body: "When the Stock Launcher creates a production run, the launcher may attach an approved artwork. If not, the planner can still attach one before release. If neither does, production runs as a warning-print job (date stamps, batch codes, plain) — no artwork ID required.",
+            bom: "Ink rows in BOM = ZERO until an artwork is attached on the production order. No fake GSM. Once attached, ink + per-color breakdown appear.",
+        },
+        REQUIRED: {
+            tone: "bg-gradient-to-br from-violet-50 to-fuchsia-50",
+            ring: "ring-violet-200",
+            title: "Print compulsory · artwork REQUIRED",
+            eyebrow: "Artwork-gated production · launcher must pick (default below)",
+            body: "Stock Launcher MUST pick an approved artwork at launch time (or planner attaches one before release). The Default fallback below pre-fills the launch form so the launcher just confirms (or overrides). Planner blocks release until an artwork ID is on the production order.",
+            bom: "Ink GSM, color list, and ink mapping pulled from the approved artwork and added to BOM weight.",
+        },
+    } : {
+        OFF: {
+            tone: "bg-gradient-to-br from-slate-50 to-slate-100",
+            ring: "ring-slate-200",
+            title: "No printing",
+            eyebrow: "Plain master",
+            body: "Sales cannot attach artwork. Master ships unprinted. Saves an artwork-gate step at planning.",
+            bom: "BOM has no ink rows. Weight = layers + chemistry only.",
+        },
+        CAPABLE_OPTIONAL: {
+            tone: "bg-gradient-to-br from-amber-50 to-orange-50",
+            ring: "ring-amber-200",
+            title: "Print capable · artwork OPTIONAL",
+            eyebrow: "Warning-print mode · ships without artwork",
+            body: "Sales MAY attach an approved artwork. If they don't, the order still goes to production as a warning-print run (date stamps, batch codes, plain) — no artwork ID required. No master-level default needed: each order decides.",
+            bom: "Ink rows in BOM = ZERO until an artwork is attached on the line. No fake GSM. When an artwork is attached, ink + per-color breakdown appear.",
+        },
+        REQUIRED: {
+            tone: "bg-gradient-to-br from-violet-50 to-fuchsia-50",
+            ring: "ring-violet-200",
+            title: "Print compulsory · artwork REQUIRED",
+            eyebrow: "Artwork-gated production · default fallback shown below",
+            body: "Sales MUST pick an approved artwork before submit. The Default fallback artwork below pre-fills the line so sales just confirms (or overrides). Planner blocks release until an artwork ID is on the line.",
+            bom: "Ink GSM, color list, and ink mapping are pulled from the approved artwork and added to BOM weight.",
+        },
+    }
+    const meta = STATE_META[state]
+
+    return (
+        <div className="space-y-4">
+            {/* The 2 knobs */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                    type="button"
+                    onClick={() => onChange({ print_capable: !printCapable })}
+                    className={cn(
+                        "group relative flex items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition hover:shadow-md",
+                        printCapable ? "border-violet-300 ring-2 ring-violet-200" : "border-slate-200",
+                    )}
+                >
+                    <span className={cn(
+                        "flex h-9 w-9 flex-none items-center justify-center rounded-xl",
+                        printCapable ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-md" : "bg-slate-100 text-slate-500",
+                    )}>
+                        <Palette className="h-4 w-4" />
+                    </span>
+                    <div className="flex-1">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-600">Knob 1</div>
+                        <div className="text-sm font-black text-slate-900">Print capable</div>
+                        <div className="text-[11px] text-slate-600">Can this master carry artwork at all? Off = plain unprinted master.</div>
+                    </div>
+                    <span className={cn(
+                        "ml-2 inline-flex h-6 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-wider ring-1",
+                        printCapable ? "bg-violet-600 text-white ring-violet-700 shadow-sm" : "bg-slate-100 text-slate-600 ring-slate-200",
+                    )}>
+                        {printCapable ? "ON" : "OFF"}
+                    </span>
+                </button>
+
+                <button
+                    type="button"
+                    disabled={!printCapable}
+                    onClick={() => onChange({ artwork_required: !artworkRequired })}
+                    className={cn(
+                        "group relative flex items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition",
+                        !printCapable && "opacity-60 cursor-not-allowed",
+                        printCapable && "hover:shadow-md",
+                        printCapable && artworkRequired ? "border-fuchsia-300 ring-2 ring-fuchsia-200" : "border-slate-200",
+                    )}
+                >
+                    <span className={cn(
+                        "flex h-9 w-9 flex-none items-center justify-center rounded-xl",
+                        printCapable && artworkRequired ? "bg-gradient-to-br from-fuchsia-500 to-pink-500 text-white shadow-md" : "bg-slate-100 text-slate-500",
+                    )}>
+                        <CheckCircle2 className="h-4 w-4" />
+                    </span>
+                    <div className="flex-1">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-600">Knob 2</div>
+                        <div className="text-sm font-black text-slate-900">Artwork compulsory</div>
+                        <div className="text-[11px] text-slate-600">{printCapable ? "Block release until artwork is on the line. Off = can dispatch unprinted." : "Enable Knob 1 first."}</div>
+                    </div>
+                    <span className={cn(
+                        "ml-2 inline-flex h-6 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-wider ring-1",
+                        printCapable && artworkRequired ? "bg-fuchsia-600 text-white ring-fuchsia-700 shadow-sm" : "bg-slate-100 text-slate-600 ring-slate-200",
+                    )}>
+                        {printCapable && artworkRequired ? "ON" : "OFF"}
+                    </span>
+                </button>
+            </div>
+
+            {/* Live combo state — what happens in BOM + sales/planner today */}
+            <div className={cn("rounded-2xl border px-4 py-3 ring-1 shadow-sm", meta.tone, meta.ring)}>
+                <div className="flex items-start gap-3">
+                    <span className={cn(
+                        "flex h-9 w-9 flex-none items-center justify-center rounded-xl text-white shadow-md",
+                        state === "OFF" && "bg-gradient-to-br from-slate-500 to-slate-700",
+                        state === "CAPABLE_OPTIONAL" && "bg-gradient-to-br from-amber-500 to-orange-500",
+                        state === "REQUIRED" && "bg-gradient-to-br from-violet-600 to-fuchsia-600",
+                    )}>
+                        <Disc className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">{meta.eyebrow}</div>
+                        <div className="font-display text-sm font-black text-slate-900">{meta.title}</div>
+                        <div className="mt-1 text-[12px] text-slate-700">{meta.body}</div>
+                        <div className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-white/40">
+                            <span className="font-black uppercase text-[9px] tracking-wider text-slate-500">BOM</span>
+                            <span>{meta.bom}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Default fallback artwork — shown ONLY when BOTH knobs are on
+                (artwork is required). When artwork is optional we don't surface
+                a default: each order decides whether to attach an artwork or
+                run as a warning-print order, so a master-level default would be
+                misleading. Until any artwork is on the line, the BOM resolver
+                writes ZERO ink rows — no fake GSM. */}
+            {printCapable && artworkRequired ? (
+                <div className="rounded-2xl border border-fuchsia-100 bg-gradient-to-br from-fuchsia-50/60 via-white to-pink-50/30 p-3 shadow-sm ring-1 ring-fuchsia-50">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-700">
+                            Default fallback artwork (optional pre-fill)
+                        </Label>
+                        <span className="text-[10px] font-bold text-slate-500">
+                            {artworks.length} approved artworks
+                        </span>
+                    </div>
+                    <Select
+                        value={defaultArtworkId || "__none"}
+                        onValueChange={(v) => onChangeDefaultArtwork(v === "__none" ? "" : v)}
+                    >
+                        <SelectTrigger className="h-10 rounded-xl bg-white">
+                            <SelectValue placeholder="— No default · sales picks per order —" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__none">— No default · sales picks per order —</SelectItem>
+                            {artworks.map((a) => (
+                                <SelectItem key={a.id} value={String(a.id)}>
+                                    {(a as any).design_code || a.id}{a.name ? ` · ${a.name}` : ""}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <div className="mt-1.5 text-[10px] text-slate-600">
+                        Pre-fills the sales line so the packer/planner sees an artwork as soon as the order is created. Sales can override per order. Customer overlay also overrides this. <strong>BOM ink stays at zero</strong> until an artwork is actually on the line.
+                    </div>
+                </div>
+            ) : null}
+
+            {/* When print-capable but artwork is OPTIONAL we explicitly DON'T
+                surface a master-level default artwork. Tell the admin why so
+                they don't go hunting for it. */}
+            {printCapable && !artworkRequired ? (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2 text-[11px] text-amber-900">
+                    <Disc className="mt-0.5 h-3.5 w-3.5 flex-none text-amber-600" />
+                    <span>
+                        No master-level default artwork because artwork is <strong>optional</strong> for this master. Each order decides at sales time: attach an artwork → ink + colors come from it · skip → warning-print run with <strong>zero ink</strong> in BOM. Turn on Knob 2 above if you want to set a default pre-fill.
+                    </span>
+                </div>
+            ) : null}
         </div>
     )
 }
@@ -1462,6 +1937,10 @@ type RegistryEntry = {
     consumption: string
 }
 
+// PM-locked packing rows (gunny/sheet/EOD extras) intentionally dropped — those
+// are now tagged by packing yard at EOD per order (see /logistics/packing).
+// Only inner-pouch (POUCH-only, has real per-customer pcs_per_inner variance),
+// POD, and add-ons live on the master.
 const AXIS_REGISTRY: RegistryEntry[] = [
     {
         axis: "packaging_inner",
@@ -1473,28 +1952,6 @@ const AXIS_REGISTRY: RegistryEntry[] = [
         multiplicityCopy: "Sales picks 1 per order",
         tone: { bg: "bg-amber-50/60", ring: "ring-amber-200", text: "text-amber-900" },
         consumption: "auto · ceil(total_pouches / pcs_per_inner)",
-    },
-    {
-        axis: "packaging_outer",
-        label: "Gunny / outer (pouch only)",
-        productKinds: ["POUCH"],
-        source: "packaging_material",
-        packagingKind: "GONNY",
-        multiplicity: "one",
-        multiplicityCopy: "Sales picks 1 per order",
-        tone: { bg: "bg-violet-50/60", ring: "ring-violet-200", text: "text-violet-900" },
-        consumption: "Packing Yard seal count · no math",
-    },
-    {
-        axis: "packaging_outer",
-        label: "Sheet wrap (roll / POD)",
-        productKinds: ["ROLL", "POD"],
-        source: "packaging_material",
-        packagingKind: "SHEET",
-        multiplicity: "many",
-        multiplicityCopy: "Sales picks one or more per order",
-        tone: { bg: "bg-blue-50/60", ring: "ring-blue-200", text: "text-blue-900" },
-        consumption: "EOD packing count · no math",
     },
     {
         axis: "pod_variant",

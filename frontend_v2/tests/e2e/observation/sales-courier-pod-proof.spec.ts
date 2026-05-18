@@ -66,7 +66,7 @@ test("sales Product Master proof flows from create to production handoff", async
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText(createdOrder.order_number)
   await expect(page.locator("body")).toContainText(orderName)
-  await expect(page.locator("body")).toContainText("Remaining")
+  await expect(page.locator("body")).toContainText(/remaining/i)
 
   await page.goto(`/sales/orders/${createdOrder.id}/tracking`)
   await assertHealthyPage(page)
@@ -75,7 +75,7 @@ test("sales Product Master proof flows from create to production handoff", async
   await expect(page.getByRole("tab", { name: /jobs/i })).toBeVisible()
   await expect(page.locator("body")).toContainText(/work center|no active jobs/i)
 
-  const plannerPayload = await fetchJson<any>(page, "/api/production/planner/control-hub/")
+  const plannerPayload = await fetchJson<any>(page, "/api/production/planner/control-hub/?planning_limit=60&active_limit=12&history_limit=0")
   expect(plannerPayload.status).toBe(200)
   expect(JSON.stringify(plannerPayload.data)).toContain(createdOrder.order_number)
 

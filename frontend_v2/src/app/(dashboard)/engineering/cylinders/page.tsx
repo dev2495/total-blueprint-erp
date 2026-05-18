@@ -59,8 +59,10 @@ function ArtworkCardMedia({ src, name }: { src?: string | null; name: string }) 
 }
 
 function artworkSlots(artwork: Artwork, cylinders: Cylinder[], assignments: CylinderSlotAssignment[]): CylinderSlotView[] {
-  const frontColors = (artwork.front_colors || []).map((value) => String(value || "").trim().toUpperCase())
+  const legacyColors = (artwork.color_list || []).map((value) => String(value || "").trim().toUpperCase()).filter(Boolean)
+  const explicitFrontColors = (artwork.front_colors || []).map((value) => String(value || "").trim().toUpperCase()).filter(Boolean)
   const backColors = (artwork.back_colors || []).map((value) => String(value || "").trim().toUpperCase())
+  const frontColors = explicitFrontColors.length ? explicitFrontColors : (backColors.length ? [] : legacyColors)
   const directBySlot = new Map<string, Cylinder>()
   const assignmentBySlot = new Map<string, CylinderSlotAssignment>()
   cylinders
@@ -87,9 +89,20 @@ function artworkSlots(artwork: Artwork, cylinders: Cylinder[], assignments: Cyli
       })
     }
   }
-  pushRows("FRONT", Number(artwork.front_colors_count || frontColors.length || 0), frontColors)
-  if (String(artwork.substrate_mode || "SHEET").toUpperCase() === "TUBING") {
-    pushRows("BACK", Number(artwork.back_colors_count || backColors.length || 0), backColors)
+  const maxSlotForSide = (side: "FRONT" | "BACK") => {
+    const prefix = `${side}:`
+    const keys = [...directBySlot.keys(), ...assignmentBySlot.keys()].filter((key) => key.startsWith(prefix))
+    return keys.reduce((max, key) => Math.max(max, Number(key.split(":")[1] || 0)), 0)
+  }
+  const legacyColorCount = Number(artwork.colors_count || legacyColors.length || 0)
+  const frontCount = Math.max(
+    Number(artwork.front_colors_count || frontColors.length || (backColors.length ? 0 : legacyColorCount) || 0),
+    maxSlotForSide("FRONT"),
+  )
+  const backCount = Math.max(Number(artwork.back_colors_count || backColors.length || 0), maxSlotForSide("BACK"))
+  pushRows("FRONT", frontCount, frontColors)
+  if (String(artwork.substrate_mode || "SHEET").toUpperCase() === "TUBING" || backCount > 0) {
+    pushRows("BACK", backCount, backColors)
   }
   return rows
 }

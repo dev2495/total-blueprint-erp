@@ -1183,7 +1183,22 @@ class FGDispatchService:
 
     @staticmethod
     @transaction.atomic
-    def release_gonny_to_dispatch(gonny_id: str, user=None) -> PackingUnit:
+    def release_gonny_to_dispatch(gonny_id: str, user=None, lines: list | None = None) -> PackingUnit:
+        """
+        Release a sealed gonny to Dispatch Bay.
+
+        ``lines`` accepts the same simple shape as ``release_roll_to_dispatch``
+        — a list of ``{material_id, qty, uom?, notes?}`` dicts describing any
+        extra packing items consumed AT the release-to-dispatch moment (sheet
+        wrap, tape, label, tag). Each line creates a per-order
+        ``PackagingTransaction(type=CONSUME, sales_order_item=...)`` row so
+        the consumption shows up in /logistics/packing/audit.
+
+        Gonny SKU itself + inner-pouch SKU are auto-consumed at gonny CREATE
+        and don't need to be passed here.
+        """
+        from apps.inventory.services.packaging_service import PackagingService
+
         try:
             gonny = PackingUnit.objects.select_related("sales_order_item", "sales_order_item__sales_order").get(id=gonny_id)
         except PackingUnit.DoesNotExist:
@@ -1194,8 +1209,49 @@ class FGDispatchService:
         if getattr(gonny, "gross_weight_kg", None) is None:
             raise ValueError(f"Gonny {gonny.label_id} has no actual sealed gross weight.")
 
+        # Tag any release-time extras to this gonny's order. These don't
+        # affect tare (the gonny is already sealed); they're recorded for
+        # the per-order audit trail only.
+        tx_ids: list[str] = []
+        consumed_lines: list[dict] = []
+        for line in (lines or []):
+            if not isinstance(line, dict):
+                continue
+            material_id = line.get("material_id")
+            qty = line.get("qty")
+            if not material_id or qty is None or float(qty or 0) <= 0:
+                continue
+            reference = f"GONNY_RELEASE_EXTRA:{gonny.label_id}"
+            tx = PackagingService.consume_packaging_stock(
+                material_id=str(material_id),
+                qty=qty,
+                input_uom=(str(line.get("uom") or "").upper() or None),
+                location_id=gonny.location_id,
+                job_id=getattr(gonny.fg_batch, "production_job_id", None) if gonny.fg_batch_id else None,
+                sales_order_item_id=getattr(gonny, "sales_order_item_id", None),
+                reference=reference,
+                basis="PER_GONNY_RELEASE",
+                meta_json={
+                    "gonny_id": str(gonny.id),
+                    "fg_batch_id": str(gonny.fg_batch_id) if gonny.fg_batch_id else None,
+                    "tagged_by": str(getattr(user, "username", "") or ""),
+                    "notes": str(line.get("notes") or ""),
+                },
+            )
+            tx_ids.append(str(tx.id))
+            consumed_lines.append({
+                "tx_id": str(tx.id),
+                "material_id": str(material_id),
+                "qty": float(qty),
+                "uom": str(line.get("uom") or "") or None,
+                "basis": "PER_GONNY_RELEASE",
+            })
+
         gonny.meta_json = FGDispatchService._mark_release_meta(gonny.meta_json, user=user, release_mode="GONNY")
         gonny.meta_json["dispatch_unit_no"] = gonny.meta_json.get("dispatch_unit_no") or gonny.label_id
+        if consumed_lines:
+            gonny.meta_json["release_extras"] = consumed_lines
+            gonny.meta_json["release_extras_tx_ids"] = tx_ids
         gonny.save(update_fields=["meta_json"])
         FGDispatchService._set_sales_order_status(
             getattr(getattr(gonny, "sales_order_item", None), "sales_order", None),

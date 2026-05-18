@@ -1427,16 +1427,15 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         printing["front_colors_count"] = max(0, front_count)
         printing["back_colors_count"] = max(0, back_count)
 
-        ink_gsm = Decimal(str(
-            printing.get("ink_gsm_total")
-            or printing.get("ink_gsm")
-            or fixed_attrs.get("default_ink_gsm_total")
-            or fixed_attrs.get("ink_gsm_total")
-            or fixed_attrs.get("ink_gsm")
-            or 0
-        ))
-        if ink_gsm <= 0:
-            ink_gsm = Decimal("1.2")
+        # Authoritative ink GSM comes from the approved artwork ONLY. No
+        # PM-level default-ink-gsm fallback any more — that would create
+        # phantom ink rows for warning-print orders. If `printing.enabled`
+        # is true here, an artwork must be on the line (or the PM
+        # default-artwork fallback resolved below) and the artwork itself
+        # supplies the GSM via the upstream `_printing_from_payload`. If no
+        # GSM is present we leave it at the snapshot's current value
+        # (likely 0) and let the downstream artwork lookup populate it.
+        ink_gsm = Decimal(str(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0))
         printing["ink_gsm_total"] = float(ink_gsm)
         printing["ink_gsm"] = float(ink_gsm)
 
@@ -1456,10 +1455,25 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         raise ValidationError(f"Item {_item_label(item)}: at least one color is required when printing is enabled.")
     if substrate_mode == "SHEET" and back_count > 0:
         raise ValidationError(f"Item {_item_label(item)}: sheet film supports front colors only.")
-    if Decimal(str(printing.get("ink_gsm_total") or 0)) <= 0:
-        raise ValidationError(f"Item {_item_label(item)}: total ink GSM must be greater than zero.")
-
+    # Ink GSM is only required once an artwork is actually attached. Until
+    # then the BOM resolver treats the line as unprinted (no ink rows). If
+    # the master forces artwork_required, the missing-artwork branch below
+    # will block the confirm. We don't manufacture a placeholder ink_gsm here.
     artwork_id = printing.get("artwork_id")
+    # PM-level default-fallback: if the order line has no artwork and no
+    # customer-overlay artwork resolved it, fall back to the master's
+    # fixed_attributes.default_artwork_id (optional · set on PM Edit).
+    if not artwork_id and isinstance(fixed_attrs, dict):
+        fallback_artwork_id = fixed_attrs.get("default_artwork_id")
+        if fallback_artwork_id:
+            artwork_id = fallback_artwork_id
+            printing["artwork_id"] = fallback_artwork_id
+            printing.setdefault("artwork_source", "PM_DEFAULT_FALLBACK")
+    if artwork_id and Decimal(str(printing.get("ink_gsm_total") or 0)) <= 0:
+        raise ValidationError(
+            f"Item {_item_label(item)}: total ink GSM must be greater than zero "
+            f"when an approved artwork is attached."
+        )
     if not artwork_id:
         if not allow_missing_artwork:
             raise ValidationError(f"Item {_item_label(item)}: approved artwork is required when printing is enabled.")
@@ -2188,6 +2202,13 @@ class SalesOrderService:
                         raise ValidationError(f"Item {item.template.name}: printing enabled but no inks resolved.")
 
                 item.bom_snapshot = _make_json_serializable(preview["bom"])
+                try:
+                    from apps.production.services.roll_allocation_service import layer_signature_hash
+                    sig = layer_signature_hash(item.layer_snapshot or [])
+                    if isinstance(item.bom_snapshot, dict):
+                        item.bom_snapshot["layer_signature_hash"] = sig
+                except Exception:
+                    pass
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))
                 item.save(

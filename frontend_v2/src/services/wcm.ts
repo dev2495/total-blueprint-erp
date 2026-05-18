@@ -99,6 +99,47 @@ export const wcmService = {
         return data;
     },
 
+    getTieredRolls: async (jobId: string) => {
+        const { data } = await api.get<{
+            candidates: Array<{
+                roll_id: string;
+                label_id: string;
+                width_mm: number;
+                thickness_micron: number;
+                weight_kg: number;
+                material_code: string;
+                material_name: string;
+                stage_index: number;
+                tier: "ORDER_BOUND" | "EXACT" | "WIDER_OK_WITH_SLIT" | "REMAINDER_POOL";
+                slit_preview: {
+                    child_widths_mm: number[];
+                    remainder_mm: number;
+                    trim_mm: number;
+                    gang_group_id?: string;
+                    gang_job_count?: number;
+                    assign_job_ids?: string[];
+                } | null;
+                meta: Record<string, any>;
+            }>;
+            target_width_mm: number | null;
+        }>(`/api/production/jobs/${jobId}/tiered-rolls/`);
+        return data;
+    },
+
+    allocateWithSlit: async (jobId: string, rollId: string, childWidthsMm: number[], reason?: string) => {
+        const { data } = await api.post<{
+            child_ids: string[];
+            remainder_id: string | null;
+            waste_mm: number;
+            gang_group_id?: string;
+            assigned_jobs?: Array<{ job_id: string; job_number: string; child_roll_id: string }>;
+        }>(
+            `/api/production/jobs/${jobId}/allocate-with-slit/`,
+            { roll_id: rollId, child_widths_mm: childWidthsMm, reason: reason || "" },
+        );
+        return data;
+    },
+
     getForWCM: async (params: any) => {
         const { data } = await api.get<any[]>(`/api/inventory/rolls/for-wcm/`, { params });
         return data;

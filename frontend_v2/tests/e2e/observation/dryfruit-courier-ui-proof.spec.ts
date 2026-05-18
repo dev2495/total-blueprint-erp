@@ -81,7 +81,7 @@ test("dry-fruit courier route, invariant continuation, pod, packaging, and machi
   await page.goto("/production/planner/stock-launcher", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
   await assertNoHorizontalOverflow(page)
-  await expect(page.getByRole("heading", { name: /planner stock launcher/i })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole("heading", { name: /Launch stock from any Product Master/i })).toBeVisible({ timeout: 30_000 })
   await expect(page.locator("body")).toContainText(/Product Master/i)
   await expect(page.locator("body")).toContainText(/Live BOM|Stock pool/i)
   await expect(page.locator("body")).toContainText(/Route start/i)

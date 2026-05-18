@@ -470,7 +470,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                 ) : null}
                                                             </div>
                                                             <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
-                                                                <span>{shortRule(draft.width_rule)} width</span>
+                                                                <span>Width · auto from order size</span>
                                                                 <span>·</span>
                                                                 <span>{shortRule(draft.thickness_rule)} thickness</span>
                                                                 <span>·</span>
@@ -503,7 +503,10 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                         {isSaving ? "Saving..." : "Save policy"}
                                                                     </Button>
                                                                 </div>
-                                                                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                                                                <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-[11px] text-indigo-900">
+                                                                    <b>Width is derived automatically.</b> The final pouching feed comes from the order size&apos;s roll-width axis; upstream steps add their own edge-trim allowance back through the route. Operator enters width only at extrusion start or stock launch.
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                                                                     <div>
                                                                         <Label className="text-[10px] text-slate-500">Input rolls</Label>
                                                                         <Input
@@ -527,21 +530,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                                         </Select>
                                                                     </div>
                                                                     <div>
-                                                                        <Label className="text-[10px] text-slate-500">Width</Label>
-                                                                        <Select value={String(draft.width_rule || "TEMPLATE_DEFAULT")} onValueChange={(value) => setDraft(step.id, { width_rule: value as any })}>
-                                                                            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
-                                                                            <SelectContent>
-                                                                                <SelectItem value="LOCK_INPUT">Lock input</SelectItem>
-                                                                                <SelectItem value="MIN_INPUT">Smallest input</SelectItem>
-                                                                                <SelectItem value="FIXED">Fixed</SelectItem>
-                                                                                <SelectItem value="OPERATOR">Operator</SelectItem>
-                                                                                <SelectItem value="OPERATOR_GRID">Operator grid</SelectItem>
-                                                                                <SelectItem value="TEMPLATE_DEFAULT">Template default</SelectItem>
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
-                                                                    <div>
-                                                                        <Label className="text-[10px] text-slate-500">Machine entry</Label>
+                                                                        <Label className="text-[10px] text-slate-500">Output capture</Label>
                                                                         <Select value={String(draft.operator_entry_mode || "PROCESS_DEFAULT")} onValueChange={(value) => setDraft(step.id, { operator_entry_mode: value as any })}>
                                                                             <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                                                                             <SelectContent>

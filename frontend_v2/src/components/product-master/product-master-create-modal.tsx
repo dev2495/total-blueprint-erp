@@ -320,8 +320,8 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                             <div className="mt-3 flex items-start gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs text-violet-800 ring-1 ring-violet-100">
                                 <PackageCheck className="mt-0.5 h-3.5 w-3.5 flex-none text-violet-600" />
                                 <div>
-                                    <div className="font-bold text-violet-900">POD recipe — variants resolve at order time</div>
-                                    <div className="text-violet-700">Define axes (width, thickness, grade) once. Variants like <span className="font-mono font-bold">POD-LDNAT-220-30U-GP</span> auto-materialize when a pouch order resolves a POD catalog axis. No SKU pre-registration needed.</div>
+                                    <div className="font-bold text-violet-900">POD recipe — manual fixed-SKU link</div>
+                                    <div className="text-violet-700">Define axes (width, thickness, grade) once. Create the POD variant here, then manually link it to an existing fixed POD roll SKU in <span className="font-mono font-bold">/master/pod</span>.</div>
                                 </div>
                             </div>
                         )}
@@ -329,8 +329,8 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                             <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 ring-1 ring-amber-100">
                                 <Boxes className="mt-0.5 h-3.5 w-3.5 flex-none text-amber-600" />
                                 <div>
-                                    <div className="font-bold text-amber-900">Packaging recipe — variants resolve at order time</div>
-                                    <div className="text-amber-700">Define axes (capacity, thickness, grade). Inner-pack variants resolve from the consumer pouch&apos;s catalog axis. Auto-demand fires for in-house packaging when stock is short.</div>
+                                    <div className="font-bold text-amber-900">Packaging recipe — manual fixed-SKU link</div>
+                                    <div className="text-amber-700">Define axes (capacity, thickness, grade). Create the packaging variant here, then manually link it to an existing fixed packaging SKU in <span className="font-mono font-bold">/master/packaging</span>.</div>
                                 </div>
                             </div>
                         )}

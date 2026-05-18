@@ -372,7 +372,7 @@ function EmptyState() {
     return (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 p-10 text-center">
             <div className="mt-3 text-sm font-semibold text-slate-700">No variants match</div>
-            <div className="mt-1 text-xs text-slate-500">Variants auto-create when sales or planner uses a new axis combination. Try clearing filters or search.</div>
+            <div className="mt-1 text-xs text-slate-500">Create a variant or clear filters to see existing rows.</div>
         </div>
     )
 }

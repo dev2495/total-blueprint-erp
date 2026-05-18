@@ -59,11 +59,31 @@ class ProductMaster(models.Model):
         ("PRESET_ONLY", "Saved Presets Only"),
         ("CUSTOMER_SPECIFIC", "Customer Specific"),
     ]
+    # Subtype for PACKAGING masters. Only INNER_POUCH (inner-pouch carriers)
+    # and SHEET (roll-form packing sheet/wrap, "roll for packing" in the new
+    # model) are valid choices — packaging masters are in-house produced
+    # items only. Purchased packing items (gunny, tape, label, tag) stay as
+    # plain InventoryMaterial rows and don't get a ProductMaster.
+    # Null for non-PACKAGING masters.
+    PACKAGING_KIND_CHOICES = [
+        ("INNER_POUCH", "Inner Pouch"),
+        ("SHEET", "Sheet / Roll for packing"),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=80, unique=True, db_index=True)
     name = models.CharField(max_length=255)
     product_kind = models.CharField(max_length=20, choices=PRODUCT_KIND_CHOICES, default="POUCH")
+    # Subtype indicator — only set when product_kind=PACKAGING. It constrains
+    # which fixed catalog SKU kind an admin may manually link to this master's
+    # variants.
+    packaging_kind = models.CharField(
+        max_length=20,
+        choices=PACKAGING_KIND_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Only set for PACKAGING masters. INNER_POUCH = inner pouch carrier · SHEET = roll for packing.",
+    )
     default_template = models.ForeignKey(
         "templates.TemplateBlueprint",
         on_delete=models.SET_NULL,
@@ -379,6 +399,20 @@ class InventoryMaterial(models.Model):
     pod_panel_count = models.PositiveIntegerField(null=True, blank=True)
     pod_is_inhouse_produced = models.BooleanField(default=False)
 
+    # ── ProductMaster ↔ InventoryMaterial bridge ────────────────────
+    # Manual ProductMaster <-> catalog bridge for PACKAGING/POD. Catalog SKUs
+    # stay fixed rows; admins link an existing row to the PM variant that can
+    # produce it in-house. Null = purchased/manual catalog row not tied to a
+    # PM variant.
+    produced_by_product_variant = models.ForeignKey(
+        "materials.ProductVariant",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_links",
+        help_text="Manual back-link to the ProductVariant that can produce this fixed catalog row (PACKAGING / POD masters). Null for purchased/manual SKUs.",
+    )
+
     status = models.CharField(max_length=10, default='ACTIVE', choices=[('ACTIVE', 'Active'), ('INACTIVE', 'Inactive')])
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -427,15 +461,11 @@ class InventoryMaterial(models.Model):
                 raise ValidationError({'packaging_kind': "Packaging material must have a packaging kind."})
             if not self.packaging_supply_mode:
                 raise ValidationError({'packaging_supply_mode': "Packaging material must have a packaging supply mode."})
-            in_house_kinds = {"INNER_POUCH", "OUTER_BAG", "SHEET"}
+            in_house_kinds = {"INNER_POUCH", "SHEET"}
             if self.packaging_supply_mode in {"IN_HOUSE", "BOTH"}:
                 if self.packaging_kind not in in_house_kinds:
                     raise ValidationError(
                         {"packaging_supply_mode": f"{self.packaging_kind} cannot be produced in house in this phase."}
-                    )
-                if not self.production_template:
-                    raise ValidationError(
-                        {"production_template": "In-house packaging materials must be linked to a production template."}
                     )
             elif self.production_template_id:
                 raise ValidationError(

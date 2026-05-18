@@ -390,6 +390,11 @@ class InHouseDemandService:
         if not code:
             return None
         try:
+            linked_variant = getattr(material, "produced_by_product_variant", None)
+            if linked_variant and getattr(linked_variant, "master", None):
+                master = linked_variant.master
+                if str(getattr(master, "product_kind", "") or "").upper() == "PACKAGING":
+                    return master
             defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
             explicit = InHouseDemandService._product_master_from_defaults(defaults, product_kind="PACKAGING")
             if explicit:

@@ -171,6 +171,93 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['get'], url_path='tiered-rolls')
+    def tiered_rolls(self, request, pk=None):
+        """Return ranked roll candidates with tier labels for the WCM picker."""
+        from apps.production.services.roll_allocation_service import RollAllocationService
+        from apps.production.models import ProductionJob
+        try:
+            job = ProductionJob.objects.get(pk=pk)
+        except ProductionJob.DoesNotExist:
+            return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            tiered = RollAllocationService.allocate_tiered(job)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        payload = []
+        for entry in tiered:
+            roll = entry["roll"]
+            payload.append({
+                "roll_id": str(roll.id),
+                "label_id": roll.label_id,
+                "width_mm": float(roll.width_mm or 0),
+                "thickness_micron": float(roll.thickness_micron or 0),
+                "weight_kg": float(roll.weight_kg or 0),
+                "material_code": getattr(roll.material, "code", "") if roll.material else "",
+                "material_name": getattr(roll.material, "name", "") if roll.material else "",
+                "stage_index": int(roll.stage_index or 0),
+                "tier": entry["tier"],
+                "slit_preview": entry["slit_preview"],
+                "meta": (roll.meta_json or {}),
+            })
+        target_w = None
+        try:
+            target_w = float(RollAllocationService.derive_step_target_width(job, getattr(job, "current_process", None) or getattr(job, "process", None)))
+        except Exception:
+            target_w = None
+        return Response({
+            "candidates": payload,
+            "target_width_mm": target_w,
+        })
+
+    @action(detail=True, methods=['post'], url_path='allocate-with-slit')
+    def allocate_with_slit(self, request, pk=None):
+        """
+        Body: {roll_id, child_widths_mm: [620], reason?: str}
+        Splits the parent jumbo, links via RollLink(SPLIT), and assigns child
+        rolls. For a committed gang, child widths and target jobs are resolved
+        server-side so the UI cannot accidentally create a partial gang.
+        """
+        from apps.production.services.roll_allocation_service import RollAllocationService
+        from apps.production.models import ProductionJob
+        from apps.inventory.models import InventoryRoll
+        try:
+            job = ProductionJob.objects.get(pk=pk)
+        except ProductionJob.DoesNotExist:
+            return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        roll_id = request.data.get('roll_id')
+        widths = request.data.get('child_widths_mm') or []
+        reason = (request.data.get('reason') or '').strip()
+        if not roll_id:
+            return Response({"error": "roll_id required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            parent = InventoryRoll.objects.get(pk=roll_id)
+        except (InventoryRoll.DoesNotExist, ValueError, Exception) as exc:
+            if isinstance(exc, InventoryRoll.DoesNotExist):
+                return Response({"error": "Roll not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": f"Invalid roll_id: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            assign_jobs = None
+            gang_group_id = ""
+            gang_jobs, gang_widths = RollAllocationService.committed_gang_child_plan(job, strict=True)
+            if len(gang_jobs) >= 2:
+                assign_jobs = gang_jobs
+                widths = [float(w) for w in gang_widths]
+                gang_group_id = str(((job.meta_json or {}).get("gang_group_id") or "")).strip()
+            if not widths:
+                return Response({"error": "child_widths_mm required"}, status=status.HTTP_400_BAD_REQUEST)
+            out = RollAllocationService.perform_slit_assign(
+                job, parent, widths, user=request.user, reason=reason, assign_jobs=assign_jobs,
+            )
+            if gang_group_id:
+                out["gang_group_id"] = gang_group_id
+            return Response(out)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = WorkCenterAssignmentSerializer
 
@@ -247,6 +334,7 @@ class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
             return Response(WorkCenterAssignmentSerializer(assignment).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class OperatorViewSet(viewsets.ViewSet):
     """
@@ -601,17 +689,33 @@ class PackingViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='release')
     def release(self, request, pk=None):
-        """Release a sealed gonny to Dispatch Bay."""
+        """
+        Release a sealed gonny to Dispatch Bay.
+
+        Optional body:
+          { "lines": [{ "material_id": "uuid", "qty": 2, "uom": "PCS", "notes": "" }, ...] }
+
+        Each line tags an extra packing item (sheet wrap / tape / label / tag)
+        consumed at release time against this gonny's sales order — same shape
+        as ``/api/production/packing/release-roll/``. Gonny SKU + inner pouch
+        are auto-consumed at gonny CREATE and don't need to be passed here.
+        """
         from .services.dispatch_service import FGDispatchService
 
+        lines = request.data.get('lines') if isinstance(request.data.get('lines'), list) else []
         try:
-            gonny = FGDispatchService.release_gonny_to_dispatch(pk, request.user)
+            gonny = FGDispatchService.release_gonny_to_dispatch(pk, request.user, lines=lines)
+            extras = (gonny.meta_json or {}).get("release_extras") or []
             return Response({
                 "id": str(gonny.id),
                 "label_id": gonny.label_id,
                 "status": gonny.status,
                 "released_to_dispatch": True,
-                "message": f"Gonny {gonny.label_id} sent to Dispatch Bay",
+                "extras": extras,
+                "tx_ids": (gonny.meta_json or {}).get("release_extras_tx_ids") or [],
+                "message": f"Gonny {gonny.label_id} sent to Dispatch Bay" + (
+                    f" · tagged {len(extras)} extra(s)" if extras else ""
+                ),
             })
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -763,6 +867,107 @@ class PackingViewSet(viewsets.ViewSet):
                 }
             )
         return Response(data)
+
+    # ─────────────────────────────────────────────────────────────
+    # Audit trail of per-order packing consumption.
+    #
+    # READ-ONLY. Returns every PackagingTransaction(type=CONSUME) that is
+    # linked to a SalesOrderItem. These rows are written automatically by:
+    #
+    #   - PackingService.create_gonny       basis=PER_GONNY            (gonny SKU auto-consumed at create)
+    #   - PackingService.create_gonny       basis=PER_PRIMARY_PACK     (inner pouch SKU auto-consumed at create)
+    #   - PackingService.seal_gonny         basis=PER_GONNY            (extras taped to gonny at seal time)
+    #   - FGDispatchService.release_gonny_to_dispatch
+    #                                       basis=PER_GONNY_RELEASE    (extras tagged at release-to-dispatch)
+    #   - FGDispatchService.release_roll_to_dispatch
+    #                                       basis=PER_ROLL_RELEASE     (extras tagged at roll release)
+    #   - PackingCountService.post_count    basis=PACKING_EOD_COUNT    (EOD open-close diff allocated back to orders)
+    #
+    # There is no standalone "per-order tick" page any more — everything is
+    # captured at the packing-yard moment (auto-consume on create, tag on
+    # release) or via the EOD count.
+    # ─────────────────────────────────────────────────────────────
+
+    @action(detail=False, methods=['get'], url_path='order-consumption')
+    def order_consumption_list(self, request):
+        """
+        Audit view of per-order packing consumption.
+
+        Query params:
+          - sales_order_id   (filter to one SO)
+          - sales_order_no   (filter to one SO by number)
+          - customer_id      (filter by customer)
+          - material_id      (filter to one packing SKU)
+          - date_from / date_to (ISO yyyy-mm-dd, inclusive)
+          - limit            (default 200, max 1000)
+        """
+        from apps.inventory.models import PackagingTransaction
+        from datetime import datetime, timedelta
+
+        qs = (
+            PackagingTransaction.objects.filter(type='CONSUME')
+            .filter(sales_order_item__isnull=False)
+            .select_related('material', 'location', 'sales_order_item', 'sales_order_item__sales_order')
+            .order_by('-created_at')
+        )
+
+        so_id = request.query_params.get('sales_order_id')
+        so_no = request.query_params.get('sales_order_no')
+        customer_id = request.query_params.get('customer_id')
+        material_id = request.query_params.get('material_id')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+
+        if so_id:
+            qs = qs.filter(sales_order_item__sales_order_id=so_id)
+        if so_no:
+            qs = qs.filter(sales_order_item__sales_order__order_number=so_no)
+        if customer_id:
+            qs = qs.filter(sales_order_item__sales_order__customer_id=customer_id)
+        if material_id:
+            qs = qs.filter(material_id=material_id)
+        if date_from:
+            try:
+                d = datetime.fromisoformat(date_from)
+                qs = qs.filter(created_at__gte=d)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                d = datetime.fromisoformat(date_to) + timedelta(days=1)
+                qs = qs.filter(created_at__lt=d)
+            except ValueError:
+                pass
+
+        # Optional limit (default 200, ceiling 1000)
+        try:
+            limit = max(1, min(1000, int(request.query_params.get('limit') or 200)))
+        except (TypeError, ValueError):
+            limit = 200
+
+        rows = []
+        for tx in qs[:limit]:
+            so = getattr(tx.sales_order_item, 'sales_order', None) if tx.sales_order_item else None
+            rows.append({
+                "id": str(tx.id),
+                "created_at": tx.created_at.isoformat(),
+                "sales_order_id": str(so.id) if so else None,
+                "sales_order_no": so.order_number if so else "",
+                "customer_id": str(so.customer_id) if so and so.customer_id else None,
+                "customer_name": getattr(so, 'customer_name', '') if so else "",
+                "material_id": str(tx.material_id),
+                "material_code": tx.material.code,
+                "material_name": tx.material.name,
+                "packaging_kind": getattr(tx.material, 'packaging_kind', '') or '',
+                "qty": float(tx.qty),
+                "uom": tx.material.base_uom,
+                "location_id": str(tx.location_id),
+                "location_name": tx.location.name,
+                "reference": tx.reference or "",
+                "ticked_by": (tx.meta_json or {}).get("ticked_by") or "",
+                "notes": (tx.meta_json or {}).get("notes") or "",
+            })
+        return Response({"count": len(rows), "rows": rows})
 
 
 class DeliveryChallanViewSet(viewsets.ViewSet):

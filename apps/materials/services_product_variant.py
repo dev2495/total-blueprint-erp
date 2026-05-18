@@ -359,11 +359,32 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
     normalized["size_code"] = size["size_code"]
     normalized["size_label"] = size["size_label"]
     normalized["axis_values"] = canonical_axis_values(axis_values)
+    # Roll-width math — trim is applied once at the roll level, not per-face.
+    # PhysicsEngine.effective_width_mm already includes trim (used for the
+    # film-area / weight calc since trim is real material consumed). For the
+    # ROLL-WIDTH spec we want trim added once, not once-per-face — that's
+    # the industry-standard slitter convention.
+    #
+    #   roll_width = (effective_W − trim_in_W) × faces + trim_in_W
+    #
+    # When trim_apply_to is HEIGHT or NONE, no W-axis trim was added in the
+    # first place so the subtraction is a no-op. Same idea for the
+    # center-seal / form-fill-seal H-axis (uses height for the roll). The
+    # explicit per-size roll_width_mm override still wins.
+    def _roll_axis_value(effective_axis: Decimal, trim_loss: Decimal, trim_apply_to: str, axis: str, faces_d: Decimal) -> Decimal:
+        applies = trim_apply_to == "BOTH" or trim_apply_to == axis
+        trim_on_axis = trim_loss if applies else Decimal("0")
+        per_face = effective_axis - trim_on_axis
+        return per_face * faces_d + trim_on_axis
+
     if fg_type == "ROLL":
         dims = PhysicsEngine._effective_pouch_dimensions(normalized)
         faces = Decimal(str(dims.get("faces") or 1))
         explicit_width = Decimal(str(size.get("roll_width_mm") or 0))
-        normalized["roll_width_mm"] = float(explicit_width if explicit_width > 0 else dims["effective_width_mm"] * faces)
+        trim_loss = Decimal(str(dims.get("trim_loss_mm") or 0))
+        trim_apply_to = str(dims.get("trim_apply_to") or "WIDTH").upper()
+        auto_roll = _roll_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH", faces)
+        normalized["roll_width_mm"] = float(explicit_width if explicit_width > 0 else auto_roll)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
         normalized["effective_height_mm"] = 0.0
         normalized["roll_form"] = str(fixed.get("roll_form") or "FLAT").upper()
@@ -371,7 +392,16 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
         dims = PhysicsEngine._effective_pouch_dimensions(normalized)
         faces = Decimal(str(dims.get("faces") or 1))
         explicit_width = Decimal(str(size.get("roll_width_mm") or 0))
-        normalized["roll_width_mm"] = float(explicit_width if explicit_width > 0 else dims["effective_width_mm"] * faces)
+        trim_loss = Decimal(str(dims.get("trim_loss_mm") or 0))
+        trim_apply_to = str(dims.get("trim_apply_to") or "WIDTH").upper()
+        # Center-seal / form-fill-seal pouches feed the roll along H, every
+        # other style uses W. pouch_style is on the normalized geometry.
+        uses_height = str(normalized.get("pouch_style") or "").upper() == "CENTER_SEAL"
+        if uses_height:
+            auto_roll = _roll_axis_value(dims["effective_height_mm"], trim_loss, trim_apply_to, "HEIGHT", faces)
+        else:
+            auto_roll = _roll_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH", faces)
+        normalized["roll_width_mm"] = float(explicit_width if explicit_width > 0 else auto_roll)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
         normalized["effective_height_mm"] = float(dims["effective_height_mm"])
     return normalized
@@ -661,4 +691,9 @@ def find_or_create_product_variant(master: ProductMaster, axis_values: dict[str,
         if not variant.code:
             variant.code = code or auto_variant_code(master, axis_values, geometry=geometry, layers=layers)
         variant.save(update_fields=["axis_values", "geometry_snapshot", "layer_snapshot", "code"])
+
+    # PACKAGING + POD masters deliberately do not create catalog SKUs here.
+    # Their variants are production contracts only; an admin must manually link
+    # each variant to an existing fixed Packaging/POD catalog SKU.
+
     return variant, created

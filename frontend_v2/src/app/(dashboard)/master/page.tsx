@@ -127,11 +127,16 @@ export default function MasterDataPage() {
             bg: "bg-rose-50"
         },
         {
+            // Catalog of all packing SKUs (purchased via GRN + in-house produced
+            // via PACKAGING product masters). This page stays the source-of-truth
+            // pool that the packing yard, sales axis resolver, and customer
+            // overlays read from. To create an in-house production master, the
+            // page has a "+ Create production master" link → /master/products?kind=PACKAGING.
             title: "Packaging",
             href: "/master/packaging",
             icon: Package,
             count: count(packaging),
-            description: "Inner packs, gonnies, sheets, tape and dispatch consumables",
+            description: "All packing SKUs · inner-pouch, gunny, sheet, tape, label, tag · build in-house masters from here",
             color: "text-blue-600",
             bg: "bg-blue-50"
         },
@@ -140,7 +145,7 @@ export default function MasterDataPage() {
             href: "/master/pod",
             icon: ShieldCheck,
             count: count(pod),
-            description: "Proof of delivery and logistical assets",
+            description: "All POD SKUs · in-house POD masters + variants link back here for stock tracking",
             color: "text-orange-600",
             bg: "bg-orange-50"
         },

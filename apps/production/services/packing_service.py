@@ -240,17 +240,19 @@ class PackingService:
             meta_json={"fg_batch_id": str(fg_batch.id)},
         )
 
+        # Inner-pouch SKU is consumed at FG batch CREATION (last production
+        # step, where pouches are actually filled into inner packs) — see
+        # apps/production/services/services_execution.py:8364-8389. We do NOT
+        # consume it here. If the FG batch never marked consumed_at_fg=true
+        # for a PRIMARY_PACKS gonny, treat that as a config error and surface
+        # it loudly instead of silently double-counting at this stage.
         if resolved_content_mode == "PRIMARY_PACKS" and resolved_primary_pack_count and not primary_pack_consumed_at_fg:
-            PackagingService.consume_packaging_stock(
-                material_id=resolved_primary_cfg.get("material_id"),
-                qty=resolved_primary_pack_count,
-                input_uom="PCS",
-                location_id=location.id,
-                job_id=getattr(fg_batch, "production_job_id", None),
-                sales_order_item_id=getattr(fg_batch, "sales_order_item_id", None),
-                reference=f"PRIMARY_PACK_CREATE:{fg_batch.batch_number}",
-                basis="PER_PRIMARY_PACK",
-                meta_json={"fg_batch_id": str(fg_batch.id)},
+            raise ValueError(
+                "Inner-pouch SKU was not consumed at FG batch creation but this "
+                "gonny is PRIMARY_PACKS — the FG terminal step must record the "
+                "inner-pack consumption (basis=PER_PACK, applied_at=FG_CREATION). "
+                "Re-run the FG capture with output_pcs set so the inner-pouch "
+                "transaction is created at the source."
             )
         
         # Generate unique label - include count of existing packing units

@@ -177,10 +177,18 @@ export default function PackingYardPage() {
         onError: (error) => toast({ title: "Seal failed", description: err(error), variant: "destructive" }),
     })
 
+    // Optional extras tagged at gonny release-to-dispatch (sheet wrap / tape /
+    // label / tag). Gonny SKU + inner pouch SKU are auto-consumed at gonny
+    // CREATE — only "anything else" gets ticked here.
+    const [releaseGonnyTarget, setReleaseGonnyTarget] = useState<Gonny | null>(null)
+    const [releaseGonnyExtras, setReleaseGonnyExtras] = useState<Array<{ id: string; material_id: string; qty: string; notes: string }>>([])
     const releaseGonnyMutation = useMutation({
-        mutationFn: (gonnyId: string) => logisticsService.releaseGonny(gonnyId),
+        mutationFn: ({ gonnyId, lines }: { gonnyId: string; lines: Array<{ material_id: string; qty: number; uom?: string; notes?: string }> }) =>
+            logisticsService.releaseGonny(gonnyId, lines),
         onSuccess: (data) => {
             toast({ title: "Released to dispatch", description: data.message })
+            setReleaseGonnyTarget(null)
+            setReleaseGonnyExtras([])
             invalidate()
         },
         onError: (error) => toast({ title: "Release failed", description: err(error), variant: "destructive" }),
@@ -387,6 +395,13 @@ export default function PackingYardPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Link
+                            href="/logistics/packing/audit"
+                            data-testid="packing-audit-link"
+                            className="inline-flex items-center rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/20"
+                        >
+                            <History className="mr-1.5 h-3.5 w-3.5" /> Audit
+                        </Link>
+                        <Link
                             href="/logistics/packing/consumption"
                             data-testid="packing-evening-count-link"
                             className="inline-flex items-center rounded-full border border-white/25 bg-white px-3 py-1.5 text-xs font-black text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50"
@@ -545,7 +560,17 @@ export default function PackingYardPage() {
                     ) : (
                         <>
                             <div className="rounded-[18px] border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-5 shadow-sm">
-                                <div className="text-[10px] font-black uppercase tracking-[0.28em] text-violet-700">Selected · order-aware specs</div>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.28em] text-violet-700">Selected · order-aware specs</div>
+                                    <Link
+                                        href={`/logistics/packing/audit?sales_order_id=${selected.sales_order.id}`}
+                                        data-testid="packing-audit-this-order"
+                                        className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-700 shadow-md ring-1 ring-slate-200 hover:shadow-lg hover:text-slate-900 transition"
+                                        title="See every packing material consumed for this order"
+                                    >
+                                        <History className="h-3 w-3" /> Audit this order
+                                    </Link>
+                                </div>
                                 <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div>
                                         <div className="flex flex-wrap items-center gap-2">
@@ -680,14 +705,42 @@ export default function PackingYardPage() {
                                                         <SelectContent>{gonnies.map((item: PackagingMaterial) => <SelectItem key={item.id} value={item.id}>{item.code} • {item.name}</SelectItem>)}</SelectContent>
                                                     </Select>
                                                 </div>
-                                                <div><Label>Pouches to pack</Label><Input type="number" min="1" value={createQty} onChange={(event) => setCreateQty(event.target.value)} placeholder={selectedBatch ? String(selectedBatch.qty_pcs) : "Qty pcs"} /></div>
-                                                <div>
-                                                    <Label>Content mode</Label>
-                                                    <Select value={contentMode} onValueChange={(value) => setContentMode(value as any)}>
-                                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                                        <SelectContent><SelectItem value="LOOSE_POUCHES">Loose pouches</SelectItem><SelectItem value="PRIMARY_PACKS">Inner packs</SelectItem></SelectContent>
-                                                    </Select>
-                                                </div>
+                                                {(() => {
+                                                    const b = selectedBatch as any
+                                                    const innerEnabled = !!b?.primary_pack_enabled
+                                                    const pcsPerPack = Number(b?.pcs_per_pack || 0)
+                                                    return (
+                                                        <>
+                                                            <div>
+                                                                <Label>
+                                                                    {innerEnabled
+                                                                        ? (contentMode === "PRIMARY_PACKS" ? `Inner packs to put in gonny  (× ${pcsPerPack} pcs)` : "Pouches to pack")
+                                                                        : "Pouches to pack"}
+                                                                </Label>
+                                                                <Input type="number" min="1" value={createQty} onChange={(event) => setCreateQty(event.target.value)} placeholder={selectedBatch ? String(selectedBatch.qty_pcs) : "Qty pcs"} />
+                                                            </div>
+                                                            {/* Content mode only matters when the master has an inner-pouch axis
+                                                                (selectedBatch.primary_pack_enabled). For loose-only masters the
+                                                                select is hidden — we just pack pouches direct. */}
+                                                            {innerEnabled ? (
+                                                                <div>
+                                                                    <Label>Content mode</Label>
+                                                                    <Select value={contentMode} onValueChange={(value) => setContentMode(value as any)}>
+                                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                        <SelectContent><SelectItem value="LOOSE_POUCHES">Loose pouches</SelectItem><SelectItem value="PRIMARY_PACKS">Inner packs</SelectItem></SelectContent>
+                                                                    </Select>
+                                                                    <div className="mt-1 text-[10px] text-slate-500">
+                                                                        Inner packs = the inner-pouch SKU is the unit · pcs_per_inner = {pcsPerPack || "n/a"}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                                                                    <span className="font-bold">Loose-only</span> — this master has no inner-pouch axis. Enter pcs directly above.
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )
+                                                })()}
                                                 <Button className="w-full" disabled={!createBatchId || !createQty || !gonnyMaterialId || createMutation.isPending} onClick={() => createMutation.mutate()}>
                                                     {createMutation.isPending ? "Creating..." : "Create gonny"}
                                                 </Button>
@@ -707,7 +760,7 @@ export default function PackingYardPage() {
                                                     </div>
                                                     <div className="mt-4 flex flex-wrap gap-2">
                                                         {!gonny.gross_weight_kg && <Button size="sm" variant="outline" data-testid={`packing-seal-gonny-${gonny.id}`} onClick={() => setSealGonny(gonny)}><Scale className="mr-1 h-3 w-3" /> Seal weight</Button>}
-                                                        {gonny.gross_weight_kg && !gonny.released_to_dispatch && <Button size="sm" data-testid={`packing-release-gonny-${gonny.id}`} onClick={() => releaseGonnyMutation.mutate(gonny.id)}>Send to dispatch</Button>}
+                                                        {gonny.gross_weight_kg && !gonny.released_to_dispatch && <Button size="sm" data-testid={`packing-release-gonny-${gonny.id}`} onClick={() => { setReleaseGonnyTarget(gonny); setReleaseGonnyExtras([]) }}>Send to dispatch</Button>}
                                                     </div>
                                                 </div>
                                             ))}
@@ -993,24 +1046,48 @@ export default function PackingYardPage() {
                     <DialogHeader><DialogTitle>Seal gonny with actual gross weight</DialogTitle></DialogHeader>
                     {sealGonny && (
                         <div className="space-y-4">
-                            <div className="rounded-3xl bg-slate-50 p-4">
+                            <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/60 via-white to-blue-50/40 p-4 shadow-sm">
                                 <div className="flex items-center justify-between gap-3">
-                                    <div className="font-black">{sealGonny.label_id}</div>
+                                    <div className="font-mono text-sm font-black text-slate-900">{sealGonny.label_id}</div>
                                     <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200">
                                         {n(sealGonny.qty_pcs || 0, 0)} pouches inside
                                     </span>
                                 </div>
-                                <div className="mt-2 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
-                                    <div><b>{kg(sealGonny.net_product_weight_kg)}</b><br />product net</div>
-                                    <div><b>{n(sealGonny.inner_pack_tare_kg)}</b><br />inner tare</div>
-                                    <div><b>{n(sealGonny.secondary_pack_tare_kg)}</b><br />gonny tare</div>
-                                    <div><b>{kg(expected)}</b><br />expected gross</div>
-                                </div>
-                                {(sealGonny as any).primary_pack_count ? (
-                                    <div className="mt-2 text-[11px] font-semibold text-slate-500">
-                                        Inner packs: {n((sealGonny as any).primary_pack_count, 0)} · content mode: {(sealGonny as any).content_mode || "LOOSE_POUCHES"}
+                                {/* Per-source tare breakdown — net (from FG batch × unit_weight),
+                                    inner tare (from inner-pouch master) × N inner packs,
+                                    gonny tare (from gonny master), expected gross = sum. */}
+                                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    <div className="rounded-xl bg-white px-2 py-1.5 ring-1 ring-blue-100">
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-blue-700">Product net</div>
+                                        <div className="font-mono text-sm font-black text-slate-900">{kg(sealGonny.net_product_weight_kg)}</div>
+                                        <div className="text-[10px] text-slate-500">from FG × unit wt</div>
                                     </div>
-                                ) : null}
+                                    <div className="rounded-xl bg-white px-2 py-1.5 ring-1 ring-amber-100">
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-amber-700">Inner tare</div>
+                                        <div className="font-mono text-sm font-black text-slate-900">{n(sealGonny.inner_pack_tare_kg)} kg</div>
+                                        <div className="text-[10px] text-slate-500">
+                                            {(sealGonny as any).primary_pack_count
+                                                ? `${n((sealGonny as any).primary_pack_count, 0)} × inner master`
+                                                : "loose · no inner"}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-xl bg-white px-2 py-1.5 ring-1 ring-violet-100">
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-violet-700">Gonny tare</div>
+                                        <div className="font-mono text-sm font-black text-slate-900">{n(sealGonny.secondary_pack_tare_kg)} kg</div>
+                                        <div className="text-[10px] text-slate-500">from gonny master</div>
+                                    </div>
+                                    <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 px-2 py-1.5 ring-1 ring-emerald-200">
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-800">Expected gross</div>
+                                        <div className="font-mono text-sm font-black text-emerald-900">{kg(expected)}</div>
+                                        <div className="text-[10px] text-emerald-700/70">net + tare</div>
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
+                                    <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 font-bold text-emerald-700">
+                                        AUTO-CONSUMED
+                                    </span>
+                                    <span>Gonny SKU + inner pouch SKU posted to PackagingTransaction at create — visible in <strong>/logistics/packing/audit</strong>.</span>
+                                </div>
                             </div>
                             <div>
                                 <Label>Actual gonny gross weight (kg)</Label>
@@ -1035,6 +1112,141 @@ export default function PackingYardPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Release gonny to dispatch — with optional extras tagging.
+                Gonny SKU + inner pouch SKU are auto-consumed at gonny CREATE.
+                Sheet / tape / label / tag are ticked here per order. */}
+            <ReleaseGonnyDialog
+                gonny={releaseGonnyTarget}
+                extras={releaseGonnyExtras}
+                setExtras={setReleaseGonnyExtras}
+                packagingMaterials={packaging.data || []}
+                onCancel={() => { setReleaseGonnyTarget(null); setReleaseGonnyExtras([]) }}
+                onSubmit={(lines) => releaseGonnyMutation.mutate({ gonnyId: releaseGonnyTarget!.id, lines })}
+                submitting={releaseGonnyMutation.isPending}
+            />
         </div>
+    )
+}
+
+// ────────────────────────────────────────────────────────────────────
+// ReleaseGonnyDialog — inline extras tagger for the gonny release step.
+//
+// Replaces the now-deleted standalone /logistics/packing/order-ticks page.
+// Per-order audit (in /logistics/packing/audit) is fed by the same backend
+// endpoint — extras here become PackagingTransaction rows linked to this
+// gonny's sales_order_item via basis=PER_GONNY_RELEASE.
+// ────────────────────────────────────────────────────────────────────
+
+type GonnyReleaseExtra = { id: string; material_id: string; qty: string; notes: string }
+
+function ReleaseGonnyDialog({
+    gonny,
+    extras,
+    setExtras,
+    packagingMaterials,
+    onCancel,
+    onSubmit,
+    submitting,
+}: {
+    gonny: Gonny | null
+    extras: GonnyReleaseExtra[]
+    setExtras: (next: GonnyReleaseExtra[]) => void
+    packagingMaterials: PackagingMaterial[]
+    onCancel: () => void
+    onSubmit: (lines: Array<{ material_id: string; qty: number; uom?: string; notes?: string }>) => void
+    submitting: boolean
+}) {
+    const open = Boolean(gonny)
+    // Only show non-auto SKUs (drop GONNY + INNER_POUCH — those are auto-consumed at create).
+    const allowed = packagingMaterials.filter((m: any) => {
+        const k = String(m.packaging_kind || "").toUpperCase()
+        return !["GONNY", "GUNNY", "INNER_POUCH"].includes(k)
+    })
+    const addExtra = () => setExtras([
+        ...extras,
+        { id: `tmp-${Math.random().toString(36).slice(2, 8)}`, material_id: "", qty: "", notes: "" },
+    ])
+    const patchExtra = (idx: number, patch: Partial<GonnyReleaseExtra>) => {
+        const next = [...extras]
+        next[idx] = { ...next[idx], ...patch }
+        setExtras(next)
+    }
+    const removeExtra = (idx: number) => setExtras(extras.filter((_, i) => i !== idx))
+    const validLines = extras
+        .filter((l) => l.material_id && Number(l.qty) > 0)
+        .map((l) => ({
+            material_id: l.material_id,
+            qty: Number(l.qty),
+            uom: packagingMaterials.find((m) => m.id === l.material_id)?.base_uom || "PCS",
+            notes: l.notes || undefined,
+        }))
+    return (
+        <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+            <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden">
+                <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-amber-50/40 px-5 py-3">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-sm">
+                                <PackageCheck className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Release to dispatch</div>
+                                <DialogTitle className="text-base font-black">
+                                    {gonny?.label_id || "—"}
+                                </DialogTitle>
+                                <div className="text-[11px] text-slate-600 mt-0.5">
+                                    Tag any extras (sheet / tape / label / tag) used on this gonny.
+                                    <span className="ml-1 text-emerald-700 font-bold">Gonny + inner pouch are already auto-consumed.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </DialogHeader>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                    {extras.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-xs text-slate-500">
+                            No extras to tag. Press <strong>Release</strong> to send to dispatch, or add a line if you used sheet / tape / label / tag.
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {extras.map((ln, idx) => (
+                                <div key={ln.id} className="grid grid-cols-[minmax(0,1fr)_96px_minmax(0,160px)_32px] gap-2 items-center">
+                                    <Select value={ln.material_id} onValueChange={(v) => patchExtra(idx, { material_id: v })}>
+                                        <SelectTrigger className="h-9 rounded-lg text-xs bg-white"><SelectValue placeholder="Pick packing SKU" /></SelectTrigger>
+                                        <SelectContent>
+                                            {allowed.length === 0 ? (
+                                                <div className="px-3 py-2 text-xs text-slate-500 italic">No catalog SKUs</div>
+                                            ) : allowed.map((m) => (
+                                                <SelectItem key={m.id} value={m.id!}>{m.code}{m.name && m.name !== m.code ? ` · ${m.name}` : ""}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="qty" value={ln.qty} onChange={(e) => patchExtra(idx, { qty: e.target.value })} className="h-9 rounded-lg text-right text-xs" />
+                                    <Input value={ln.notes} placeholder="notes (optional)" onChange={(e) => patchExtra(idx, { notes: e.target.value })} className="h-9 rounded-lg text-xs" />
+                                    <button type="button" onClick={() => removeExtra(idx)} className="flex h-9 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Remove">
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <Button type="button" size="sm" variant="outline" onClick={addExtra} className="rounded-xl">
+                        + Add extra
+                    </Button>
+                </div>
+                <DialogFooter className="border-t border-slate-100 bg-slate-50/40 px-5 py-3">
+                    <Button variant="outline" onClick={onCancel}>Cancel</Button>
+                    <Button
+                        data-testid="packing-gonny-release-submit"
+                        disabled={submitting}
+                        onClick={() => onSubmit(validLines)}
+                        className="bg-gradient-to-r from-violet-600 to-amber-500 text-white shadow-md hover:shadow-lg"
+                    >
+                        {submitting ? "Releasing..." : validLines.length > 0 ? `Release · tag ${validLines.length} extra(s)` : "Release"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

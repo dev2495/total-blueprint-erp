@@ -87,5 +87,6 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
   await page.goto("/master/packaging")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Packaging Master")
-  await expect(page.locator("body")).toContainText("Linked Production Template")
+  await expect(page.locator("body")).toContainText("Product Master Link")
+  await expect(page.locator("body")).toContainText("Unlinked In-House")
 })

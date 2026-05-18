@@ -23,6 +23,11 @@ function unwrap<T>(data: MaybePaginated<T>): T[] {
 // ---------- Types -----------------------------------------------------------
 
 export type ProductKind = "POUCH" | "ROLL" | "PACKAGING" | "POD" | "OTHER";
+
+// Subtype for PACKAGING masters only. INNER_POUCH = inner pouch carrier
+// (lives in the sales-pickable axis pool with kind=INNER_POUCH).
+// SHEET = roll-form packing sheet/wrap. Null for non-PACKAGING masters.
+export type PackagingMasterKind = "INNER_POUCH" | "SHEET" | null;
 export type ReportingGroup = "FILM" | "PRINTED" | "LAMINATED" | "SEMI_FG" | "FG" | "PACKAGING" | "POD" | "OTHER";
 export type ReusablePolicy = "CONFIGURABLE" | "PRESET_ONLY" | "CUSTOMER_SPECIFIC";
 
@@ -102,6 +107,8 @@ export interface ProductMaster {
     code: string;
     name: string;
     product_kind: ProductKind;
+    /** Sub-type when product_kind=PACKAGING. INNER_POUCH or SHEET (= "roll for packing"). Null otherwise. */
+    packaging_kind?: PackagingMasterKind;
     template?: string | null;
     template_name?: string | null;
     default_template?: string | null;
@@ -221,6 +228,23 @@ export interface ProductVariant {
     bom_signature: string;
     invariant_signature?: string;
     active: boolean;
+    /**
+     * For PACKAGING + POD masters: the manually linked fixed catalog SKU plus
+     * its current stock total. Null until an admin links this variant to an
+     * existing Packaging/POD catalog row.
+     */
+    inventory_link?: {
+        id: string;
+        code: string;
+        name: string;
+        category: "PACKAGING" | "POD" | string;
+        packaging_kind: string;
+        base_uom: "KG" | "PCS" | "METER" | string;
+        stock_qty: number;
+        pod_sku_variant_id?: string | null;
+        pod_sku_variant_code?: string | null;
+        pod_sku_code?: string | null;
+    } | null;
 }
 
 export interface PreviewBomRequest {
@@ -477,8 +501,8 @@ const MOCK_MASTERS: ProductMaster[] = [
                 thickness_apportion: "per_layer",
             },
         ],
-        // V3.2: POD masters use normal axes — variants like POD-LDNAT-220-30U-GP
-        // auto-materialize when a pouch order resolves a POD requirement rule.
+        // POD masters use normal roll axes, but the produced variant must be
+        // manually linked to one fixed POD SKU row before stock/consumption.
         variant_axes: [
             { axis: "layer_widths", type: "per_layer_number", required: true, label: "Width (mm)" },
             { axis: "layer_thicknesses", type: "per_layer_number", required: false, label: "Thickness (μ)" },
@@ -491,7 +515,7 @@ const MOCK_MASTERS: ProductMaster[] = [
             consumes_as: "POD",
         },
         invariant_signature: "INV-PM-POD-LDNAT",
-        description: "Stable POD recipe. Variants like POD-LDNAT-220-30U-GP materialize on demand from pouch orders or planner stock launches. No catalog pre-registration.",
+        description: "Stable POD roll recipe. Create the variant in Product Master, then manually link it to an existing fixed POD SKU row before using it for stock or consumption.",
         active: true,
         sizes_count: 0,
         variants_count: 0,
@@ -514,8 +538,8 @@ const MOCK_MASTERS: ProductMaster[] = [
         layer_template: [
             { role: "sealant", film_variant_code: "LD-PE-60", thickness_micron: 60, default_grade: "GP", grade_options: ["GP"], thickness_apportion: "per_layer" },
         ],
-        // V3.2: Packaging masters use normal axes — variants like PM-INNER-PACK-LD-24-60U-GP
-        // auto-materialize at order time. No master-data catalog pre-registration.
+        // Packaging masters use normal axes, but the produced variant must be
+        // manually linked to one fixed packaging SKU row before stock/consumption.
         variant_axes: [
             { axis: "addons", type: "multi_enum", required: true, label: "Inner capacity (pcs)" },
             { axis: "layer_thicknesses", type: "per_layer_number", required: false, label: "Thickness (μ)" },
@@ -1110,6 +1134,37 @@ export const productMasterService = {
             payload
         );
         return (data as any)?.variant || data;
+    },
+
+    /**
+     * Manually link (or unlink) a ProductVariant of a PACKAGING / POD master
+     * to a specific fixed InventoryMaterial row in /master/packaging or /master/pod.
+     * This call never creates a catalog SKU; pass `inventory_material_id: null` to unlink.
+     */
+    linkVariantInventory: async (
+        productId: string,
+        variantId: string,
+        inventoryMaterialId: string | null,
+        podSkuVariantId?: string | null,
+    ) => {
+        const { data } = await api.post<{
+            variant_id: string
+            inventory_link: {
+                id: string
+                code: string
+                name: string
+                category: string
+                packaging_kind: string
+                base_uom: string
+            } | null
+        }>(
+            `/api/master/products/${productId}/variants/${variantId}/link-inventory/`,
+            {
+                inventory_material_id: inventoryMaterialId,
+                pod_sku_variant_id: podSkuVariantId || null,
+            },
+        )
+        return data
     },
 
     previewBom: async (payload: PreviewBomRequest) => {

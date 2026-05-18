@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Factory, Package, PackageOpen, Plus, ShoppingBag, Ticket } from "lucide-react"
+import { AlertTriangle, Factory, Package, PackageOpen, Plus, ShoppingBag } from "lucide-react"
 
 import { masterDataService, type PackagingMaterial } from "@/services/master-data"
-import { templateService, type TemplateBlueprint } from "@/services/templates"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,12 +30,10 @@ function describeError(err: any) {
 
 function PackagingForm({
   initial,
-  templates,
   onSubmit,
   busy,
 }: {
   initial?: PackagingMaterial | null
-  templates: TemplateBlueprint[]
   onSubmit: (payload: any) => void
   busy: boolean
 }) {
@@ -46,7 +44,6 @@ function PackagingForm({
   const [supplyMode, setSupplyMode] = useState<PackagingSupplyMode>((initial?.packaging_supply_mode as PackagingSupplyMode) || "PURCHASED")
   const [perSheet, setPerSheet] = useState(initial?.per_sheet_base_qty ? String(initial.per_sheet_base_qty) : "")
   const [status, setStatus] = useState(initial?.status || "ACTIVE")
-  const [productionTemplate, setProductionTemplate] = useState(initial?.production_template || "__NONE__")
   const [brandName, setBrandName] = useState(String(initial?.packaging_defaults_json?.brand_name || ""))
   const [defaultPcsPerPack, setDefaultPcsPerPack] = useState(initial?.packaging_defaults_json?.pcs_per_pack != null ? String(initial.packaging_defaults_json?.pcs_per_pack) : "")
   const [weightPerBaseUnit, setWeightPerBaseUnit] = useState(
@@ -60,24 +57,13 @@ function PackagingForm({
   const usesUnitBasedConsumption = kind !== "TAPE"
   const needsUnitConversion = usesUnitBasedConsumption && baseUom !== "PCS"
   const showUnitWeight = usesUnitBasedConsumption && baseUom === "PCS" && kind !== "SHEET"
-  const showProductionTemplate = allowInHouse && supplyMode !== "PURCHASED"
   const unitLabel = kind.replaceAll("_", " ").toLowerCase()
-  const visibleTemplates = templates.filter((template) => {
-    if (kind === "INNER_POUCH") return template.fg_type === "POUCH"
-    return true
-  })
 
   useEffect(() => {
     if (!allowInHouse && supplyMode !== "PURCHASED") {
       setSupplyMode("PURCHASED")
     }
   }, [allowInHouse, supplyMode])
-
-  useEffect(() => {
-    if (supplyMode === "PURCHASED") {
-      setProductionTemplate("__NONE__")
-    }
-  }, [supplyMode])
 
   useEffect(() => {
     if (kind !== "INNER_POUCH") {
@@ -118,7 +104,7 @@ function PackagingForm({
           base_uom: baseUom,
           packaging_kind: kind,
           packaging_supply_mode: supplyMode,
-          production_template: supplyMode === "PURCHASED" || productionTemplate === "__NONE__" ? null : productionTemplate,
+          production_template: null,
           packaging_defaults_json: packagingDefaults,
           per_sheet_base_qty: needsUnitConversion && perSheet ? Number(perSheet) : null,
           status,
@@ -212,30 +198,13 @@ function PackagingForm({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>{showProductionTemplate ? "Linked Production Template" : "Production Template"}</Label>
-          {showProductionTemplate ? (
-            <>
-              <Select value={productionTemplate || "__NONE__"} onValueChange={setProductionTemplate}>
-                <SelectTrigger><SelectValue placeholder="No template" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__NONE__">No template</SelectItem>
-                  {visibleTemplates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="mt-1 text-xs text-slate-500">
-                This packaging SKU owns its production template. Planner stock orders only choose this SKU and the qty to make.
-              </div>
-            </>
-          ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              Purchased packaging is bought directly. No in-house production template is used for this SKU.
-            </div>
-          )}
+      {supplyMode !== "PURCHASED" ? (
+        <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-900">
+          In-house production is controlled by a linked Product Master variant. Save the catalog row here, then link it from the matching PACKAGING variant if it is not already PM-backed.
         </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Brand / Pack Label</Label>
           <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Optional branded pack name" />
@@ -264,30 +233,26 @@ export default function PackagingMasterPage() {
   const [searchQuery, setSearchQuery] = useState("")
 
   const { data = [], isError, error } = useQuery({ queryKey: ["master-packaging"], queryFn: masterDataService.getPackaging })
-  const { data: templates = [] } = useQuery({
-    queryKey: ["template-options", "packaging-live"],
-    queryFn: async () => {
-      try {
-        return await templateService.getTemplates({ status: "LIVE" })
-      } catch {
-        return []
-      }
-    },
-    staleTime: 60_000,
-  })
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return data
-    return data.filter((row: PackagingMaterial) => [row.code, row.name, row.packaging_kind, row.packaging_supply_mode].map((value) => String(value || "").toLowerCase()).join(" ").includes(q))
+    return data.filter((row: PackagingMaterial) => [
+      row.code,
+      row.name,
+      row.packaging_kind,
+      row.packaging_supply_mode,
+      row.product_master_link?.master_code,
+      row.product_master_link?.variant_code,
+    ].map((value) => String(value || "").toLowerCase()).join(" ").includes(q))
   }, [data, searchQuery])
 
   const stats = useMemo(() => {
     const total = filtered.length
-    const inHouse = filtered.filter((row) => row.packaging_supply_mode === "IN_HOUSE").length
-    const both = filtered.filter((row) => row.packaging_supply_mode === "BOTH").length
     const purchased = filtered.filter((row) => row.packaging_supply_mode === "PURCHASED").length
-    return { total, inHouse, both, purchased }
+    const pmBacked = filtered.filter((row) => !!row.product_master_link).length
+    const unlinkedInHouse = filtered.filter((row) => row.packaging_supply_mode !== "PURCHASED" && !row.product_master_link).length
+    return { total, purchased, pmBacked, unlinkedInHouse }
   }, [filtered])
 
   const createMutation = useMutation({
@@ -322,26 +287,38 @@ export default function PackagingMasterPage() {
   return (
     <MasterRegistryShell
       title="Packaging Master"
-      description="Control inner pouch/gonny auto-posted SKUs plus sheet, tape, label, tag, and other EOD-counted packing SKUs."
+      description="Control fixed inner pouch/gonny SKUs plus sheet, tape, label, tag, and other EOD-counted packing SKUs."
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search packaging code, name, kind, or supply mode"
       actions={
-        <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Add Packaging</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle>Create Packaging Material</DialogTitle></DialogHeader>
-            <PackagingForm templates={templates} onSubmit={(payload) => createMutation.mutate(payload)} busy={createMutation.isPending} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          {/* In-house production masters live on /master/products with kind=PACKAGING.
+              Each variant must be manually linked to one fixed row in this
+              catalog for stock + consumption tracking. */}
+          <Link
+            href="/master/products?kind=PACKAGING"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-violet-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-3 text-[11px] font-bold text-violet-700 hover:from-violet-100 hover:to-fuchsia-100 transition"
+            title="Create an in-house production master that produces packing SKUs into this catalog"
+          >
+            <Plus className="h-3.5 w-3.5" /> Build production master
+          </Link>
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button><Plus className="mr-2 h-4 w-4" /> Add Packaging</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader><DialogTitle>Create Packaging Material</DialogTitle></DialogHeader>
+              <PackagingForm onSubmit={(payload) => createMutation.mutate(payload)} busy={createMutation.isPending} />
+            </DialogContent>
+          </Dialog>
+        </div>
       }
       stats={[
         { label: "Total SKUs", value: stats.total, icon: Package, toneClassName: "bg-blue-50 text-blue-600" },
+        { label: "PM-Backed", value: stats.pmBacked, subLabel: "linked variant", icon: PackageOpen, toneClassName: "bg-emerald-50 text-emerald-600" },
+        { label: "Unlinked In-House", value: stats.unlinkedInHouse, subLabel: "needs PM link", icon: Factory, toneClassName: "bg-rose-50 text-rose-600" },
         { label: "Purchased", value: stats.purchased, icon: ShoppingBag, toneClassName: "bg-amber-50 text-amber-600" },
-        { label: "In-House", value: stats.inHouse, icon: Factory, toneClassName: "bg-emerald-50 text-emerald-600" },
-        { label: "Dual Supply", value: stats.both, icon: PackageOpen, toneClassName: "bg-blue-50 text-blue-600" },
       ]}
       chips={[
         { kind: "packagingKind", value: "INNER_POUCH" },
@@ -361,7 +338,10 @@ export default function PackagingMasterPage() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((row) => (
+        {filtered.map((row) => {
+          const link = row.product_master_link
+          const unlinkedInHouse = row.packaging_supply_mode !== "PURCHASED" && !link
+          return (
           <Card key={row.id} className="border-0 shadow-sm ring-1 ring-slate-100">
             <CardContent className="space-y-4 p-5">
               <div className="flex items-start justify-between gap-3">
@@ -375,6 +355,15 @@ export default function PackagingMasterPage() {
               <div className="flex flex-wrap gap-2">
                 <SemanticBadge kind="jobState" value={row.packaging_supply_mode === "IN_HOUSE" ? "READY" : row.packaging_supply_mode === "BOTH" ? "ASSIGNED" : "PENDING"} label={row.packaging_supply_mode.replaceAll("_", " ")} />
                 <SemanticBadge kind="approval" value={row.status === "ACTIVE" ? "APPROVED" : "REJECTED"} label={row.status} />
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                  link
+                    ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                    : unlinkedInHouse
+                      ? "bg-rose-50 text-rose-700 ring-rose-200"
+                      : "bg-slate-50 text-slate-600 ring-slate-200"
+                }`}>
+                  {link ? "PM-backed" : unlinkedInHouse ? "Needs PM link" : "Catalog row"}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
@@ -393,8 +382,25 @@ export default function PackagingMasterPage() {
                 </div>
               </div>
               <div className="col-span-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Linked Production Template</div>
-                <div className="mt-1 font-bold text-slate-900">{row.production_template_name || "Purchased-only / no template"}</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Product Master Link</div>
+                <div className={`mt-1 rounded-xl px-3 py-2 text-sm ${
+                  link
+                    ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100"
+                    : unlinkedInHouse
+                      ? "bg-rose-50 text-rose-900 ring-1 ring-rose-100"
+                      : "bg-white text-slate-700 ring-1 ring-slate-100"
+                }`}>
+                  {link ? (
+                    <>
+                      <div className="font-black">{link.master_code} · {link.master_name}</div>
+                      <div className="mt-0.5 font-mono text-[11px] font-bold">{link.variant_code}</div>
+                    </>
+                  ) : unlinkedInHouse ? (
+                    <span className="font-bold">In-house row not linked to a Product Master variant</span>
+                  ) : (
+                    <span>Purchased/manual catalog row</span>
+                  )}
+                </div>
               </div>
               <div className="col-span-2">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Default Brand / Pack Config</div>
@@ -412,14 +418,15 @@ export default function PackagingMasterPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+          )
+        })}
       </div>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>Edit Packaging Material</DialogTitle></DialogHeader>
           {editing ? (
-            <PackagingForm initial={editing} templates={templates} busy={updateMutation.isPending} onSubmit={(payload) => updateMutation.mutate({ id: editing.id, payload })} />
+            <PackagingForm initial={editing} busy={updateMutation.isPending} onSubmit={(payload) => updateMutation.mutate({ id: editing.id, payload })} />
           ) : null}
         </DialogContent>
       </Dialog>

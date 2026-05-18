@@ -588,10 +588,54 @@ export interface ClaimStockPayload {
     claim_qty_kg: number;
 }
 
+export interface GangCandidateJob {
+    job_id: string;
+    job_number: string;
+    job_state: string;
+    quantity: number;
+    remaining_qty: number;
+    uom: string;
+    target_width_mm: number;
+    process_name: string;
+    process_code: string;
+    step_index: number;
+    template_name: string;
+    sales_order_number: string;
+    customer_name: string;
+    origin: string;
+    is_generic_stock: boolean;
+}
+
+export interface GangCandidateGroup {
+    group_key: string;
+    layer_signature_hash: string;
+    step_index: number;
+    process_code: string;
+    jobs: GangCandidateJob[];
+    job_count: number;
+    total_qty_kg: number;
+    eligible_for_ganging: boolean;
+}
+
 export const plannerService = {
     getDemand: async () => {
         const { data } = await api.get<MaybePaginated<SalesDemand>>('/api/production/planner/demand/');
         return unwrapList<SalesDemand>(data);
+    },
+
+    getGangCandidates: async () => {
+        const { data } = await api.get<{ groups: GangCandidateGroup[]; total_groups: number }>(
+            '/api/production/planner/gang-candidates/'
+        );
+        return data;
+    },
+
+    commitGang: async (layerSig: string, jobIds: string[]) => {
+        const { data } = await api.post<{ gang_group_id: string; affected_jobs: number }>(
+            '/api/production/planner/commit-gang/',
+            { layer_signature_hash: layerSig, job_ids: jobIds }
+        );
+        return data;
     },
 
     getStock: async () => {

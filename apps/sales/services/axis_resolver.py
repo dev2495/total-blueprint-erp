@@ -94,8 +94,26 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
     artwork = None
     if artwork_id:
         artwork = Artwork.objects.filter(id=artwork_id).first()
-    print_capable = bool(fixed.get("print_capable", False) or fixed.get("artwork_required", False) or artwork)
-    printing.setdefault("enabled", print_capable)
+    # `printing.enabled` is the BOM-resolver gate: it decides whether ink
+    # rows + colors get computed for this line. It is TRUE only when:
+    #   (a) an artwork is actually attached on the line / overlay, OR
+    #   (b) the master forces artwork (artwork_required=true) — confirm-time
+    #       validation will then either resolve a PM default or block the
+    #       confirm with a clear error.
+    # If the master is merely print_capable with optional artwork AND no
+    # artwork is on the line, enabled stays FALSE → the line is a
+    # warning-print run (date stamps / batch codes / plain) and the BOM
+    # carries ZERO ink rows. Production routing still hits the printing
+    # step because routing is template-driven, not `enabled`-driven.
+    artwork_required = bool(fixed.get("artwork_required", False))
+    incoming_enabled = printing.get("enabled")
+    if incoming_enabled is None:
+        printing["enabled"] = bool(artwork) or artwork_required
+    else:
+        # Explicit caller-supplied enabled flag wins (e.g. preview flows that
+        # want enabled=false). But never force it ON without an artwork or
+        # artwork_required — that's the "fake ink" trap we just designed out.
+        printing["enabled"] = bool(incoming_enabled) and (bool(artwork) or artwork_required)
     printing.setdefault("defer_artwork_to_planner", bool(payload.get("defer_artwork_to_planner", False)))
     if artwork:
         artwork_mapping = getattr(artwork, "color_mapping", {}) if isinstance(getattr(artwork, "color_mapping", {}), dict) else {}

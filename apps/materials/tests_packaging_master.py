@@ -22,7 +22,7 @@ class PackagingMasterValidationTests(SimpleTestCase):
 
         self.assertIn("cannot be produced in house", str(exc.exception))
 
-    def test_convertible_packaging_kind_requires_template_when_in_house(self):
+    def test_in_house_product_master_packaging_can_wait_for_variant_link(self):
         material = InventoryMaterial(
             code="PK-INNER-001",
             name="Inner Pack",
@@ -33,10 +33,7 @@ class PackagingMasterValidationTests(SimpleTestCase):
             status="ACTIVE",
         )
 
-        with self.assertRaises(ValidationError) as exc:
-            material.clean()
-
-        self.assertIn("production template", str(exc.exception).lower())
+        material.clean()
 
     def test_purchased_packaging_without_template_is_valid(self):
         material = InventoryMaterial(

@@ -17,10 +17,19 @@ export const test = base.extend<{ autoAuth: boolean }>({
   page: async ({ page, baseURL, autoAuth }, use, testInfo) => {
     const issues: RuntimeIssue[] = []
     const ensureAuthenticatedSession = async () => {
+      if (testInfo.timeout < 150_000) {
+        testInfo.setTimeout(150_000)
+      }
       const identifier = process.env.UI_E2E_ADMIN_USER || "admin"
       const password = process.env.UI_E2E_ADMIN_PASSWORD || "admin123"
       const backendOrigin = resolveApiOrigin(String(baseURL || "http://127.0.0.1:3000"))
       const requestContext = page.context().request
+      const authRequestTimeout = 25_000
+      const authAttempts = 5
+      const authRetryDelay = async (attempt: number) => {
+        await page.waitForTimeout(Math.min(2_000 * (attempt + 1), 8_000))
+      }
+      const describeAuthError = (error: unknown) => (error instanceof Error ? error.message : String(error))
       const waitForShell = async (timeout = 10_000) => {
         await Promise.any([
           page.getByTestId("sidebar-nav").waitFor({ state: "visible", timeout }),
@@ -45,58 +54,75 @@ export const test = base.extend<{ autoAuth: boolean }>({
       await page.goto("/login", { waitUntil: "domcontentloaded" })
       await clearRoleOverride(page)
       let sessionProbe: { ok: boolean; status: number; detail: string } | undefined
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const csrfResponse = await requestContext.get(`${backendOrigin}/api/users/csrf/`, {
-          failOnStatusCode: false,
-        })
-        const csrfPayload = await csrfResponse.json().catch(() => ({}))
-        const requestStateBefore = await requestContext.storageState()
-        const cookieToken = requestStateBefore.cookies.find((cookie) => cookie.name === "csrftoken")?.value
-        const csrfToken = String(cookieToken || (csrfPayload as any)?.csrfToken || (csrfPayload as any)?.csrf_token || "")
-
-        await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
-          failOnStatusCode: false,
-          headers: {
-            "Content-Type": "application/json",
-            ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
-          },
-          data: {},
-        }).catch(() => undefined)
-
-        let meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
-          failOnStatusCode: false,
-        })
-
-        if (!meResponse.ok()) {
-          await requestContext.post(`${backendOrigin}/api/users/login/`, {
+      for (let attempt = 0; attempt < authAttempts; attempt += 1) {
+        try {
+          const csrfResponse = await requestContext.get(`${backendOrigin}/api/users/csrf/`, {
             failOnStatusCode: false,
+            timeout: authRequestTimeout,
+          })
+          const csrfPayload = await csrfResponse.json().catch(() => ({}))
+          const requestStateBefore = await requestContext.storageState()
+          const cookieToken = requestStateBefore.cookies.find((cookie) => cookie.name === "csrftoken")?.value
+          const csrfToken = String(cookieToken || (csrfPayload as any)?.csrfToken || (csrfPayload as any)?.csrf_token || "")
+
+          await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
+            failOnStatusCode: false,
+            timeout: authRequestTimeout,
             headers: {
               "Content-Type": "application/json",
               ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
             },
-            data: { identifier, password },
-          })
-          meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
+            data: {},
+          }).catch(() => undefined)
+
+          let meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
             failOnStatusCode: false,
+            timeout: authRequestTimeout,
           })
+
+          if (!meResponse.ok()) {
+            await requestContext.post(`${backendOrigin}/api/users/login/`, {
+              failOnStatusCode: false,
+              timeout: authRequestTimeout,
+              headers: {
+                "Content-Type": "application/json",
+                ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
+              },
+              data: { identifier, password },
+            })
+            meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
+              failOnStatusCode: false,
+              timeout: authRequestTimeout,
+            })
+          }
+
+          const mePayload = await meResponse.json().catch(() => ({}))
+          sessionProbe = {
+            ok: meResponse.ok(),
+            status: meResponse.status(),
+            detail:
+              (mePayload as any)?.detail ||
+              (mePayload as any)?.message ||
+              (mePayload as any)?.username ||
+              `session probe returned ${meResponse.status()}`,
+          }
+
+          if (sessionProbe.ok || sessionProbe.status !== 429) {
+            break
+          }
+        } catch (error) {
+          sessionProbe = {
+            ok: false,
+            status: 0,
+            detail: `auth probe attempt ${attempt + 1} failed: ${describeAuthError(error)}`,
+          }
         }
 
-        const mePayload = await meResponse.json().catch(() => ({}))
-        sessionProbe = {
-          ok: meResponse.ok(),
-          status: meResponse.status(),
-          detail:
-            (mePayload as any)?.detail ||
-            (mePayload as any)?.message ||
-            (mePayload as any)?.username ||
-            `session probe returned ${meResponse.status()}`,
-        }
-
-        if (sessionProbe.ok || sessionProbe.status !== 429) {
+        if (attempt === authAttempts - 1) {
           break
         }
 
-        await page.waitForTimeout(Math.min(2_000 * (attempt + 1), 6_000))
+        await authRetryDelay(attempt)
       }
 
       if (sessionProbe?.ok) {
@@ -183,7 +209,8 @@ export const test = base.extend<{ autoAuth: boolean }>({
     }
 
     page.on("pageerror", (error) => {
-      issues.push({ type: "pageerror", message: error.stack || error.message })
+      const detail = error.stack || error.message
+      issues.push({ type: "pageerror", message: `${page.url()}: ${detail}` })
     })
 
     page.on("response", (response) => {

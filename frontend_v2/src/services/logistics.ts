@@ -360,8 +360,19 @@ export const logisticsService = {
         return response.data;
     },
 
-    async releaseGonny(gonnyId: string): Promise<{ id: string; label_id: string; message: string }> {
-        const response = await api.post(`/api/production/packing/${gonnyId}/release/`);
+    async releaseGonny(
+        gonnyId: string,
+        lines: Array<{ material_id: string; qty: number; uom?: string; notes?: string }> = [],
+    ): Promise<{
+        id: string
+        label_id: string
+        status: string
+        released_to_dispatch: boolean
+        extras: Array<{ tx_id: string; material_id: string; qty: number; uom?: string | null; basis: string }>
+        tx_ids: string[]
+        message: string
+    }> {
+        const response = await api.post(`/api/production/packing/${gonnyId}/release/`, { lines });
         return response.data;
     },
 
@@ -426,6 +437,49 @@ export const logisticsService = {
     }): Promise<PackingMaterialCountResult> {
         const response = await api.post('/api/production/packing/material-count/', payload);
         return response.data as PackingMaterialCountResult;
+    },
+
+    // ─── Per-order packing consumption · READ-ONLY audit trail ───────
+    // Standalone tick page is gone. Per-order consumption is now captured
+    // at the packing-yard moment:
+    //   - gonny SKU + inner pouch SKU → auto-consumed at gonny CREATE
+    //   - extras (tape/label/tag/sheet) → tagged inline at gonny/roll RELEASE
+    //   - EOD open-close diff → allocated to same-day orders via
+    //     /api/production/packing/material-count/
+    // The endpoint below feeds /logistics/packing/audit.
+
+    async listOrderPackingConsumption(params: {
+        sales_order_id?: string   // deep-link from packing yard
+        sales_order_no?: string
+        customer_id?: string
+        material_id?: string
+        date_from?: string
+        date_to?: string
+        limit?: number
+    } = {}) {
+        const response = await api.get('/api/production/packing/order-consumption/', { params })
+        return response.data as {
+            count: number
+            rows: Array<{
+                id: string
+                created_at: string
+                sales_order_id: string | null
+                sales_order_no: string
+                customer_id: string | null
+                customer_name: string
+                material_id: string
+                material_code: string
+                material_name: string
+                packaging_kind: string
+                qty: number
+                uom: string
+                location_id: string
+                location_name: string
+                reference: string
+                ticked_by: string
+                notes: string
+            }>
+        }
     },
 
     // Dispatch

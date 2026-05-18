@@ -132,6 +132,24 @@ class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
         fields = ['id', 'code', 'name', 'category', 'status']
 
 
+def _product_master_link_summary(obj):
+    variant = getattr(obj, "produced_by_product_variant", None)
+    if not variant:
+        return None
+    master = getattr(variant, "master", None)
+    if not master:
+        return None
+    return {
+        "variant_id": str(variant.id),
+        "variant_code": variant.code,
+        "master_id": str(master.id),
+        "master_code": master.code,
+        "master_name": master.name,
+        "product_kind": master.product_kind,
+        "packaging_kind": master.packaging_kind,
+    }
+
+
 class CommercialFamilySerializer(serializers.ModelSerializer):
     class Meta:
         model = CommercialFamily
@@ -173,6 +191,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             'code',
             'name',
             'product_kind',
+            'packaging_kind',
             'default_template',
             'default_template_name',
             'template',
@@ -438,6 +457,12 @@ class ProductMasterSerializer(serializers.ModelSerializer):
 class ProductVariantSerializer(serializers.ModelSerializer):
     master_code = serializers.CharField(source='master.code', read_only=True)
     master_name = serializers.CharField(source='master.name', read_only=True)
+    # ── ProductMaster ↔ InventoryMaterial bridge ──────────────────────
+    # For PACKAGING + POD masters the variant is linked manually to an
+    # existing fixed catalog SKU. These fields surface that linkage so the PM
+    # detail UI can show "this variant -> SKU X · Y pcs in stock" without a
+    # second roundtrip.
+    inventory_link = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductVariant
@@ -452,9 +477,46 @@ class ProductVariantSerializer(serializers.ModelSerializer):
             'layer_snapshot',
             'bom_signature',
             'active',
+            'inventory_link',
             'created_at',
         ]
-        read_only_fields = ['id', 'master_code', 'master_name', 'created_at']
+        read_only_fields = ['id', 'master_code', 'master_name', 'inventory_link', 'created_at']
+
+    def get_inventory_link(self, obj):
+        # Cheap path — InventoryMaterial.produced_by_product_variant has a
+        # related_name='inventory_links'. We take the first ACTIVE row
+        # (there should be exactly one for the new model). Stock total is
+        # summed across all PackagingStock rows for that material.
+        link = obj.inventory_links.filter(status='ACTIVE').only('id', 'code', 'name', 'category', 'packaging_kind', 'base_uom').first()
+        if not link:
+            return None
+        try:
+            from apps.inventory.models import PackagingStock
+            from django.db.models import Sum
+            agg = PackagingStock.objects.filter(material_id=link.id).aggregate(total=Sum('qty'))
+            stock_qty = float(agg['total'] or 0)
+        except Exception:
+            stock_qty = 0.0
+        pod_sku_variant = None
+        if str(link.category or "").upper() == "POD":
+            pod_sku_variant = (
+                PodSkuVariant.objects.select_related("pod_sku")
+                .filter(material_id=link.id, active=True)
+                .order_by("pod_sku__code", "code")
+                .first()
+            )
+        return {
+            'id': str(link.id),
+            'code': link.code,
+            'name': link.name or '',
+            'category': link.category,
+            'packaging_kind': link.packaging_kind or '',
+            'base_uom': link.base_uom,
+            'stock_qty': stock_qty,
+            'pod_sku_variant_id': str(pod_sku_variant.id) if pod_sku_variant else None,
+            'pod_sku_variant_code': pod_sku_variant.code if pod_sku_variant else None,
+            'pod_sku_code': pod_sku_variant.pod_sku.code if pod_sku_variant else None,
+        }
 
 
 class ProductMasterSizeSerializer(serializers.ModelSerializer):
@@ -584,6 +646,8 @@ class CustomerProductOverlaySerializer(serializers.ModelSerializer):
 class InventoryMaterialSerializer(serializers.ModelSerializer):
     category_display = serializers.CharField(source='get_category_display', read_only=True)
     commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
+    product_master_link = serializers.SerializerMethodField()
+
     class Meta:
         model = InventoryMaterial
         fields = [
@@ -593,7 +657,11 @@ class InventoryMaterialSerializer(serializers.ModelSerializer):
             'weight_mode', 'weight_value', 'addon_is_purchased', 'addon_purchase_uom',
             'packaging_defaults_json', 'production_template',
             'commercial_family', 'commercial_family_name',
+            'product_master_link',
         ]
+
+    def get_product_master_link(self, obj):
+        return _product_master_link_summary(obj)
 
 class FilmFamilySerializer(serializers.ModelSerializer):
     commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
@@ -749,6 +817,8 @@ class AddonSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class PODSerializer(serializers.ModelSerializer):
+    product_master_link = serializers.SerializerMethodField()
+
     class Meta:
         model = InventoryMaterial
         fields = [
@@ -762,9 +832,14 @@ class PODSerializer(serializers.ModelSerializer):
             'pod_is_inhouse_produced',
             'density_gcm3',
             'status',
+            'base_uom',
+            'product_master_link',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def get_product_master_link(self, obj):
+        return _product_master_link_summary(obj)
 
     def create(self, validated_data):
         validated_data['category'] = 'POD'
@@ -789,6 +864,7 @@ class PODSerializer(serializers.ModelSerializer):
 
 class PackagingSerializer(serializers.ModelSerializer):
     production_template_name = serializers.CharField(source="production_template.name", read_only=True, allow_null=True)
+    product_master_link = serializers.SerializerMethodField()
 
     class Meta:
         model = InventoryMaterial
@@ -804,9 +880,13 @@ class PackagingSerializer(serializers.ModelSerializer):
             'packaging_defaults_json',
             'per_sheet_base_qty',
             'status',
+            'product_master_link',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def get_product_master_link(self, obj):
+        return _product_master_link_summary(obj)
 
     def validate(self, attrs):
         kind = attrs.get('packaging_kind', getattr(self.instance, 'packaging_kind', None))
@@ -816,11 +896,9 @@ class PackagingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'packaging_kind': 'packaging_kind is required for packaging materials.'})
         if not supply_mode:
             raise serializers.ValidationError({'packaging_supply_mode': 'packaging_supply_mode is required for packaging materials.'})
-        in_house_kinds = {"INNER_POUCH", "OUTER_BAG", "SHEET"}
+        in_house_kinds = {"INNER_POUCH", "SHEET"}
         if supply_mode in {'IN_HOUSE', 'BOTH'} and kind not in in_house_kinds:
             raise serializers.ValidationError({'packaging_supply_mode': f'{kind} cannot be IN_HOUSE in this phase.'})
-        if supply_mode in {'IN_HOUSE', 'BOTH'} and not production_template:
-            raise serializers.ValidationError({'production_template': 'In-house packaging materials require a linked production template.'})
         if supply_mode == 'PURCHASED' and production_template:
             raise serializers.ValidationError({'production_template': 'Purchased-only packaging must not carry a production template.'})
         return attrs
@@ -842,6 +920,8 @@ class PodSkuVariantSerializer(serializers.ModelSerializer):
     pod_panel_count = serializers.IntegerField(source='material.pod_panel_count', read_only=True)
     pod_is_inhouse_produced = serializers.BooleanField(source='material.pod_is_inhouse_produced', read_only=True)
     density_gcm3 = serializers.DecimalField(source='material.density_gcm3', max_digits=6, decimal_places=4, read_only=True)
+    material_base_uom = serializers.CharField(source='material.base_uom', read_only=True)
+    material_product_master_link = serializers.SerializerMethodField()
 
     class Meta:
         model = PodSkuVariant
@@ -854,6 +934,8 @@ class PodSkuVariantSerializer(serializers.ModelSerializer):
             'material_code',
             'material_name',
             'material_status',
+            'material_base_uom',
+            'material_product_master_link',
             'code',
             'name',
             'active',
@@ -869,6 +951,9 @@ class PodSkuVariantSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_material_product_master_link(self, obj):
+        return _product_master_link_summary(obj.material)
 
 
 class PodSkuSerializer(serializers.ModelSerializer):

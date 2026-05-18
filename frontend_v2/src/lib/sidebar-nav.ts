@@ -26,6 +26,7 @@ import {
   Disc,
   CalendarRange,
   Smartphone,
+  Combine,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -86,6 +87,13 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Stock Launcher",
         href: "/production/planner/stock-launcher",
         icon: Package,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["production.view", "production.manage"],
+      },
+      {
+        title: "Combine Orders",
+        href: "/production/planner/gang-builder",
+        icon: Combine,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
         permissions: ["production.view", "production.manage"],
       },
@@ -221,6 +229,7 @@ export const NAV_ITEMS: NavItem[] = [
     permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"],
     children: [
       { title: "Packing Yard", href: "/logistics/packing", icon: Package, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
+      { title: "Packing audit trail", href: "/logistics/packing/audit", icon: ShieldCheck, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
       { title: "Packing EOD Count", href: "/logistics/packing/consumption", icon: ClipboardList, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
       {
         title: "Dispatch Bay",

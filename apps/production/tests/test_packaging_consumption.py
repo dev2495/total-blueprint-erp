@@ -82,6 +82,15 @@ class PackagingConsumptionTests(SimpleTestCase):
                 }
             ),
             sales_order_item_id="so-item-2",
+            meta_json={
+                "primary_inner_pack": {
+                    "enabled": True,
+                    "material_id": "inner-1",
+                    "pcs_per_pack": 50,
+                    "pack_count": 4,
+                    "consumed_at_fg": True,
+                }
+            },
             save=MagicMock(),
         )
         created = SimpleNamespace(id="gonny-2", label_id="G-B-2-001", qty_pcs=125, status="OPEN")
@@ -120,6 +129,15 @@ class PackagingConsumptionTests(SimpleTestCase):
                 }
             ),
             sales_order_item_id="so-item-2",
+            meta_json={
+                "primary_inner_pack": {
+                    "enabled": True,
+                    "material_id": "inner-1",
+                    "pcs_per_pack": 50,
+                    "pack_count": 4,
+                    "consumed_at_fg": True,
+                }
+            },
             save=MagicMock(),
         )
         created = SimpleNamespace(id="gonny-2", label_id="G-B-2-001", qty_pcs=125, status="OPEN")
