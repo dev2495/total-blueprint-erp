@@ -20,6 +20,11 @@ from .serializers import (
 from .services import TemplateGovernanceService
 
 
+def _is_admin_actor(user) -> bool:
+    role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+    return bool(getattr(user, "is_authenticated", False) and (getattr(user, "is_superuser", False) or getattr(user, "is_owner", False) or role_code in {"ADMIN", "SUPER_ADMIN", "OWNER"}))
+
+
 def _template_bad_request(message, *, field_errors=None, detail=None):
     payload = {
         "status": "error",
@@ -43,17 +48,19 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        status_param = self.request.query_params.get("status")
+        status_param = str(self.request.query_params.get("status") or "").upper()
         include_obsolete = str(self.request.query_params.get("include_obsolete") or "").lower() in {"1", "true", "yes"}
         if getattr(self, "action", None) == "retrieve":
             return qs
         if status_param:
             qs = qs.filter(status=status_param)
+            if status_param == "OBSOLETE" and not include_obsolete:
+                qs = qs.none()
+        elif not include_obsolete:
+            qs = qs.exclude(status="OBSOLETE")
         fg_type = str(self.request.query_params.get("fg_type") or "").upper()
         if fg_type in {"POUCH", "ROLL"}:
             qs = qs.filter(fg_type=fg_type)
-        elif not include_obsolete:
-            qs = qs.exclude(status="OBSOLETE")
         return qs
 
     def get_serializer_class(self):
@@ -154,8 +161,15 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="retire")
     def retire(self, request, pk=None):
+        if not _is_admin_actor(request.user):
+            return Response({"detail": "Only admin users can disable templates."}, status=status.HTTP_403_FORBIDDEN)
         template = TemplateGovernanceService.retire_template(pk)
-        return Response({"status": "template retired", "id": template.id, "template_status": template.status})
+        return Response({
+            "status": "template disabled",
+            "id": template.id,
+            "template_status": template.status,
+            "message": "Template is obsolete and no longer blocks route or process deletion.",
+        })
 
     @action(detail=True, methods=["post"], url_path="clone")
     def clone(self, request, pk=None):

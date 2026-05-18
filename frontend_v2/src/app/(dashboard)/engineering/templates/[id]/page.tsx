@@ -14,8 +14,9 @@ import { templateService, type TemplateProcessStep } from "@/services/templates"
 import { routingService } from "@/services/routing"
 import { TemplateBomEditor } from "@/components/engineering/template-bom-editor"
 import { commercialFamilyService } from "@/services/commercial-families"
+import { useAuth } from "@/components/auth-provider"
 
-const err = (error: any) => error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Request failed."
+const err = (error: any) => error?.response?.data?.detail || error?.response?.data?.error || error?.response?.data?.message || error?.message || "Request failed."
 
 function StatusPill({ label, active }: { label: string; active: boolean }) {
     return <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{label}</span>
@@ -205,6 +206,8 @@ export default function TemplateStudioPage() {
     const router = useRouter()
     const { toast } = useToast()
     const queryClient = useQueryClient()
+    const { effectiveRole, user } = useAuth()
+    const isAdminActor = Boolean(user?.is_owner || user?.is_superuser || ["ADMIN", "SUPER_ADMIN", "OWNER"].includes(String(effectiveRole || user?.role_info?.code || "").toUpperCase()))
     const [routingRuleId, setRoutingRuleId] = useState("")
     const [commercialFamilyId, setCommercialFamilyId] = useState("")
 
@@ -269,6 +272,16 @@ export default function TemplateStudioPage() {
         },
         onError: (error) => toast({ title: "Clone failed", description: err(error), variant: "destructive" }),
     })
+    const retireMutation = useMutation({
+        mutationFn: () => templateService.retireTemplate(id),
+        onSuccess: () => {
+            invalidate()
+            queryClient.invalidateQueries({ queryKey: ["templates"] })
+            queryClient.invalidateQueries({ queryKey: ["templates", "admin-registry"] })
+            toast({ title: "Template disabled", description: "It is hidden from live selectors and no longer blocks route/process cleanup." })
+        },
+        onError: (error) => toast({ title: "Disable failed", description: err(error), variant: "destructive" }),
+    })
 
     const template = templateQuery.data
     const steps = stepsQuery.data || template?.process_steps || []
@@ -278,7 +291,8 @@ export default function TemplateStudioPage() {
     if (templateQuery.isLoading) return <div className="p-8 text-sm text-slate-500">Loading template studio...</div>
     if (templateQuery.isError || !template) return <div className="p-8 text-sm text-rose-600">{err(templateQuery.error) || "Template not found."}</div>
 
-    const isReadOnly = template.status === "LIVE" || template.status === "OBSOLETE"
+    const isDisabled = template.status === "OBSOLETE"
+    const isReadOnly = template.status === "LIVE" || isDisabled
     const nextLabel = template.status === "DRAFT" ? "Send for review" : template.status === "ENGINEERING" ? "Approve" : template.status === "APPROVED" ? "Publish LIVE" : template.status === "LIVE" ? "LIVE" : "Clone new version"
 
     return (
@@ -296,8 +310,23 @@ export default function TemplateStudioPage() {
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-600">{template.fg_type || "Template"}</span>
                         <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700">{template.commercial_family_name || "Family unlinked"}</span>
-                        <span className={`rounded-full border px-3 py-1 text-[11px] font-bold ${isReadOnly ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>{isReadOnly ? "Live / locked" : "Editable"}</span>
+                        <span className={`rounded-full border px-3 py-1 text-[11px] font-bold ${isDisabled ? "border-slate-200 bg-slate-50 text-slate-500" : isReadOnly ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>{isDisabled ? "Disabled" : isReadOnly ? "Live / locked" : "Editable"}</span>
                         <Button variant="outline" size="sm" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending} className="h-9 rounded-xl bg-white"><Copy className="mr-2 h-4 w-4" /> Duplicate</Button>
+                        {isAdminActor && !isDisabled ? (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                    if (window.confirm("Disable this template? It will be hidden from live selectors and release route/process references.")) {
+                                        retireMutation.mutate()
+                                    }
+                                }}
+                                disabled={retireMutation.isPending}
+                                className="h-9 rounded-xl"
+                            >
+                                <XCircle className="mr-2 h-4 w-4" /> Disable
+                            </Button>
+                        ) : null}
                     </div>
                 </div>
                 <div className="mt-3">
@@ -408,6 +437,20 @@ export default function TemplateStudioPage() {
                             }}>
                                 <CheckCircle2 className="mr-2 h-4 w-4" /> {nextLabel}
                             </Button>
+                            {isAdminActor && !isDisabled ? (
+                                <Button
+                                    variant="outline"
+                                    className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
+                                    disabled={retireMutation.isPending}
+                                    onClick={() => {
+                                        if (window.confirm("Disable this template? It will not appear in sales, planner, or product-master selectors.")) {
+                                            retireMutation.mutate()
+                                        }
+                                    }}
+                                >
+                                    <XCircle className="mr-2 h-4 w-4" /> Disable template
+                                </Button>
+                            ) : null}
                         </CardContent>
                     </Card>
                 </aside>

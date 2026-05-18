@@ -363,12 +363,13 @@ class TemplateGovernanceService:
         return template
 
     @staticmethod
+    @transaction.atomic
     def retire_template(template_id: str):
-        template = TemplateBlueprint.objects.get(id=template_id)
-        if template.status == "OBSOLETE":
-            return template
+        template = TemplateBlueprint.objects.select_for_update().get(id=template_id)
         template.status = "OBSOLETE"
-        template.save(update_fields=["status", "updated_at"])
+        template.routing_rule = None
+        template.process_steps.all().delete()
+        template.save(update_fields=["status", "routing_rule", "updated_at"])
         return template
 
     @staticmethod

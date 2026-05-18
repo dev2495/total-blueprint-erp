@@ -40,9 +40,32 @@ class ProcessViewSet(viewsets.ModelViewSet):
         super().perform_update(serializer)
 
     def destroy(self, request, *args, **kwargs):
+        if not _is_admin_actor(request.user):
+            return Response({"detail": "Only admin users can delete processes."}, status=status.HTTP_403_FORBIDDEN)
         instance = self.get_object()
         if getattr(instance, "is_system", False):
             return Response({"error": "System processes cannot be deleted."}, status=400)
+        from apps.routing.models import RoutingRule
+
+        route_refs = RoutingRule.objects.filter(ordered_processes__contains=[instance.code]).order_by("name")
+        if route_refs.exists():
+            return Response(
+                {
+                    "error": "Process is still used by routing rules.",
+                    "detail": f"Delete or edit linked routing rules first: {', '.join(route_refs.values_list('name', flat=True)[:5])}.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        active_template_steps = instance.template_steps.exclude(template__status="OBSOLETE")
+        if active_template_steps.exists():
+            return Response(
+                {
+                    "error": "Process is still used by active templates.",
+                    "detail": "Disable linked templates first. Disabled templates release their process references.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        instance.template_steps.filter(template__status="OBSOLETE").delete()
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:

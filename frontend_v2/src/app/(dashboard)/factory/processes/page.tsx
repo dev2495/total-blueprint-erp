@@ -37,6 +37,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAuth } from "@/components/auth-provider"
+
+const apiErr = (err: AxiosError<{ detail?: string; error?: string; message?: string }>) =>
+    err.response?.data?.detail || err.response?.data?.error || err.response?.data?.message || err.message
 
 // --- Form Schema (Phase 53.5 - Physical Only) ---
 const formSchema = z.object({
@@ -243,6 +247,8 @@ function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Proce
 export default function ProcessesPage() {
     const { toast } = useToast()
     const queryClient = useQueryClient()
+    const { effectiveRole, user } = useAuth()
+    const isAdminActor = Boolean(user?.is_owner || user?.is_superuser || ["ADMIN", "SUPER_ADMIN", "OWNER"].includes(String(effectiveRole || user?.role_info?.code || "").toUpperCase()))
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<Process | null>(null)
     const [itemToDelete, setItemToDelete] = useState<Process | null>(null)
@@ -263,7 +269,7 @@ export default function ProcessesPage() {
             toast({ title: "Success", description: "Process created." })
             setIsCreateOpen(false)
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: AxiosError<{ detail?: string; error?: string; message?: string }>) => toast({ title: "Error", description: apiErr(err), variant: "destructive" })
     })
 
     const updateMutation = useMutation({
@@ -276,7 +282,7 @@ export default function ProcessesPage() {
             toast({ title: "Success", description: "Process updated." })
             setEditingItem(null)
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: AxiosError<{ detail?: string; error?: string; message?: string }>) => toast({ title: "Error", description: apiErr(err), variant: "destructive" })
     })
 
     const deleteMutation = useMutation({
@@ -285,7 +291,7 @@ export default function ProcessesPage() {
             queryClient.invalidateQueries({ queryKey: ["processes"] })
             toast({ title: "Success", description: "Process deleted." })
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: AxiosError<{ detail?: string; error?: string; message?: string }>) => toast({ title: "Error", description: apiErr(err), variant: "destructive" })
     })
 
     const processList = Array.isArray(processes) ? processes : []
@@ -351,14 +357,16 @@ export default function ProcessesPage() {
                                     >
                                         <Settings2 className="h-4 w-4" />
                                     </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 hover:text-red-600"
-                                        onClick={() => setItemToDelete(process)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {isAdminActor ? (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 hover:text-red-600"
+                                            onClick={() => setItemToDelete(process)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    ) : null}
                                 </div>
                             </CardHeader>
                             <CardContent className="pt-6">
@@ -428,8 +436,7 @@ export default function ProcessesPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will permanently delete <strong>{itemToDelete?.code}</strong>.
-                            This action cannot be undone.
+                            This will permanently delete <strong>{itemToDelete?.code}</strong>. Delete linked routing rules first; active jobs still protect process history.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

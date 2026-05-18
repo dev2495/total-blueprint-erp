@@ -8,6 +8,7 @@ from apps.factory.views import ProcessViewSet
 from apps.routing.models import RoutingRule
 from apps.routing.views import RoutingRuleViewSet
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
+from apps.templates.views import TemplateBlueprintViewSet
 from apps.users.models import Role
 
 
@@ -24,6 +25,17 @@ class ProtectedMasterDeleteTests(TestCase):
             email="protected_delete_admin@example.com",
             password="pass1234",
             role=role,
+        )
+        engineering_role = Role.objects.create(
+            code="ENGINEERING",
+            name="Engineering",
+            default_permissions=["factory.manage", "templates.manage"],
+        )
+        self.engineering_user = get_user_model().objects.create_user(
+            username="protected_delete_engineering",
+            email="protected_delete_engineering@example.com",
+            password="pass1234",
+            role=engineering_role,
         )
         self.process = Process.objects.create(
             code="PROTECTED_PROC",
@@ -55,7 +67,7 @@ class ProtectedMasterDeleteTests(TestCase):
         response = view(request, pk=self.process.id)
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("cannot be deleted", response.data["error"])
+        self.assertIn("routing rules", response.data["error"])
         self.assertTrue(Process.objects.filter(id=self.process.id).exists())
 
     def test_routing_rule_delete_returns_conflict_when_used_by_template(self):
@@ -66,5 +78,72 @@ class ProtectedMasterDeleteTests(TestCase):
         response = view(request, pk=self.route.id)
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("cannot be deleted", response.data["error"])
+        self.assertIn("active templates", response.data["error"])
         self.assertTrue(RoutingRule.objects.filter(id=self.route.id).exists())
+
+    def test_non_admin_cannot_disable_template_or_delete_route_process(self):
+        template_view = TemplateBlueprintViewSet.as_view({"post": "retire"})
+        template_request = self.factory.post(f"/api/templates/{self.template.id}/retire/")
+        force_authenticate(template_request, user=self.engineering_user)
+
+        template_response = template_view(template_request, pk=self.template.id)
+
+        self.assertEqual(template_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        route_view = RoutingRuleViewSet.as_view({"delete": "destroy"})
+        route_request = self.factory.delete(f"/api/routing/rules/{self.route.id}/")
+        force_authenticate(route_request, user=self.engineering_user)
+
+        route_response = route_view(route_request, pk=self.route.id)
+
+        self.assertEqual(route_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        process_view = ProcessViewSet.as_view({"delete": "destroy"})
+        process_request = self.factory.delete(f"/api/factory/processes/{self.process.id}/")
+        force_authenticate(process_request, user=self.engineering_user)
+
+        process_response = process_view(process_request, pk=self.process.id)
+
+        self.assertEqual(process_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_disable_template_then_delete_route_and_process(self):
+        retire_view = TemplateBlueprintViewSet.as_view({"post": "retire"})
+        retire_request = self.factory.post(f"/api/templates/{self.template.id}/retire/")
+        force_authenticate(retire_request, user=self.user)
+
+        retire_response = retire_view(retire_request, pk=self.template.id)
+
+        self.assertEqual(retire_response.status_code, status.HTTP_200_OK)
+        self.template.refresh_from_db()
+        self.assertEqual(self.template.status, "OBSOLETE")
+        self.assertIsNone(self.template.routing_rule_id)
+        self.assertFalse(TemplateProcessStep.objects.filter(template=self.template).exists())
+
+        list_view = TemplateBlueprintViewSet.as_view({"get": "list"})
+        default_list_request = self.factory.get("/api/templates/")
+        force_authenticate(default_list_request, user=self.user)
+        default_list_response = list_view(default_list_request)
+        self.assertNotIn(str(self.template.id), {str(row["id"]) for row in default_list_response.data})
+
+        admin_list_request = self.factory.get("/api/templates/?include_obsolete=1")
+        force_authenticate(admin_list_request, user=self.user)
+        admin_list_response = list_view(admin_list_request)
+        self.assertIn(str(self.template.id), {str(row["id"]) for row in admin_list_response.data})
+
+        route_view = RoutingRuleViewSet.as_view({"delete": "destroy"})
+        route_request = self.factory.delete(f"/api/routing/rules/{self.route.id}/")
+        force_authenticate(route_request, user=self.user)
+
+        route_response = route_view(route_request, pk=self.route.id)
+
+        self.assertEqual(route_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(RoutingRule.objects.filter(id=self.route.id).exists())
+
+        process_view = ProcessViewSet.as_view({"delete": "destroy"})
+        process_request = self.factory.delete(f"/api/factory/processes/{self.process.id}/")
+        force_authenticate(process_request, user=self.user)
+
+        process_response = process_view(process_request, pk=self.process.id)
+
+        self.assertEqual(process_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Process.objects.filter(id=self.process.id).exists())

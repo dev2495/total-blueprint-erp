@@ -1140,6 +1140,7 @@ export default function MachineExecutionPage() {
                 {activeTab === 'history' ? (
                     <HistoryPanel
                         historyRows={historyRows}
+                        historySummary={(historyData as any)?.summary}
                         historyLoading={historyLoading}
                         historyDateFrom={historyDateFrom}
                         historyDateTo={historyDateTo}
@@ -2051,13 +2052,20 @@ function LiveEventsCard({ events, loading }: { events: MachineJobEvent[]; loadin
     );
 }
 
-function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDateTo, historyStatus, setHistoryDateFrom, setHistoryDateTo, setHistoryStatus }: any) {
+function HistoryPanel({ historyRows, historySummary: rawHistorySummary, historyLoading, historyDateFrom, historyDateTo, historyStatus, setHistoryDateFrom, setHistoryDateTo, setHistoryStatus }: any) {
     const rows = Array.isArray(historyRows) ? historyRows : [];
-    const historySummary = rows.reduce((summary: { jobs: number; producedKg: number; varianceKg: number }, row: any) => ({
+    const rowSummary = rows.reduce((summary: { jobs: number; producedKg: number; varianceKg: number }, row: any) => ({
         jobs: summary.jobs + 1,
         producedKg: summary.producedKg + Number(row?.produced_kg || 0),
         varianceKg: summary.varianceKg + Number(row?.variance_kg || 0),
     }), { jobs: 0, producedKg: 0, varianceKg: 0 });
+    const apiSummary = rawHistorySummary && typeof rawHistorySummary === 'object' ? rawHistorySummary : null;
+    const historySummary = {
+        jobs: Number(apiSummary?.jobs_completed ?? rowSummary.jobs),
+        producedKg: Number(apiSummary?.produced_kg ?? rowSummary.producedKg),
+        varianceKg: Number(apiSummary?.variance_kg ?? rowSummary.varianceKg),
+    };
+    const showLoading = Boolean(historyLoading && rows.length === 0 && !apiSummary);
     const fixed2 = (value: number) => Number(value || 0).toFixed(2);
 
     return (
@@ -2084,15 +2092,15 @@ function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDat
             <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <div className={cn(labelClass, 'text-slate-500')}>Jobs completed</div>
-                    <div className="mt-1 font-mono text-2xl font-black text-slate-950">{historySummary.jobs}</div>
+                    <div className="mt-1 font-mono text-2xl font-black text-slate-950">{showLoading ? '...' : historySummary.jobs}</div>
                 </div>
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
                     <div className={cn(labelClass, 'text-emerald-700')}>Produced</div>
-                    <div className="mt-1 font-mono text-2xl font-black text-emerald-900">{fixed2(historySummary.producedKg)} kg</div>
+                    <div className="mt-1 font-mono text-2xl font-black text-emerald-900">{showLoading ? '...' : `${fixed2(historySummary.producedKg)} kg`}</div>
                 </div>
                 <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
                     <div className={cn(labelClass, 'text-amber-700')}>Variance</div>
-                    <div className="mt-1 font-mono text-2xl font-black text-amber-900">{fixed2(historySummary.varianceKg)} kg</div>
+                    <div className="mt-1 font-mono text-2xl font-black text-amber-900">{showLoading ? '...' : `${fixed2(historySummary.varianceKg)} kg`}</div>
                 </div>
             </div>
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
@@ -2100,7 +2108,7 @@ function HistoryPanel({ historyRows, historyLoading, historyDateFrom, historyDat
                     <div>Product</div><div>Completed</div><div>Output</div><div>Variance</div><div>Status</div>
                 </div>
                 <div className="overflow-x-auto">
-                    {historyLoading ? (
+                    {showLoading ? (
                         <div className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Loading history...</div>
                     ) : rows.length ? rows.map((row: any) => (
                         <div key={row.job_id} className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] border-t border-slate-100 px-4 py-3 text-sm">

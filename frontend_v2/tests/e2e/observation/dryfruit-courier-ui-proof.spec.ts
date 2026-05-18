@@ -105,6 +105,7 @@ test("dry-fruit courier route, invariant continuation, pod, packaging, and machi
   await page.getByTestId("machine-execution-page").waitFor({ state: "visible", timeout: 30_000 })
   await page.getByRole("button", { name: /Past Jobs|History/i }).click()
   await expect(page.locator("body")).toContainText(/Machine History/i)
+  await expect(page.getByText("Loading history...")).toBeHidden({ timeout: 30_000 })
   await expect(page.locator("body")).toContainText(String(proof.machine_history.summary.jobs_completed))
   await expect(page.locator("body")).toContainText(proof.machine_history.summary.produced_kg.toFixed(2))
   await expect(page.locator("body")).toContainText(proof.machine_history.completed_job_number)

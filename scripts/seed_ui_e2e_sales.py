@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 
 from apps.analytics.models import ReportDistributionProfile
 from apps.factory.models import Plant, PlantLegalProfile, Process
-from apps.materials.models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
+from apps.materials.models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, Quotation, SalesOrder, SalesSku, SalesSkuVariant
 from apps.sales.services.quotation_service import QuotationService
@@ -175,12 +175,107 @@ if template is None:
         },
     )
 
+product_master, _ = ProductMaster.objects.update_or_create(
+    code="PM-UAT-GREEN-DRYFRUIT",
+    defaults={
+        "name": "UAT-GREEN Dry Fruit Product Master",
+        "product_kind": "POUCH",
+        "template": template,
+        "default_template": template,
+        "commercial_family": commercial_family,
+        "default_reporting_group": "FG",
+        "reusable_policy": "CONFIGURABLE",
+        "layer_template": [
+            {
+                "role": "outer",
+                "name": "PET 12u outer",
+                "film_variant_code": film_variant.code,
+                "thickness_micron": 12,
+                "thickness_options": [12],
+            },
+            {
+                "role": "sealant",
+                "name": "PE 40u sealant",
+                "film_variant_code": sealant_variant.code,
+                "thickness_micron": 40,
+                "thickness_options": [40],
+            },
+        ],
+        "canonical_layer_stack": [
+            {
+                "role": "outer",
+                "name": "PET 12u outer",
+                "film_variant_code": film_variant.code,
+                "thickness_micron": 12,
+                "thickness_options": [12],
+            },
+            {
+                "role": "sealant",
+                "name": "PE 40u sealant",
+                "film_variant_code": sealant_variant.code,
+                "thickness_micron": 40,
+                "thickness_options": [40],
+            },
+        ],
+        "variant_axes": [
+            {
+                "axis": "size",
+                "label": "Size",
+                "type": "geometry",
+                "required": True,
+                "scope": "geometry",
+                "options": ["DRYFRUIT-200X200", "DRYFRUIT-240X300", "DRYFRUIT-300X400"],
+            }
+        ],
+        "fixed_attributes": {
+            "fg_type": "POUCH",
+            "layer_count": 2,
+            "print_capable": False,
+            "pouch_style": "THREE_SIDE_SEAL",
+            "multipliers": {"faces": 2},
+            "trim_loss_mm": 10,
+            "trim_apply_to": "WIDTH",
+        },
+        "description": "UAT-GREEN reset-safe Product Master used by Sales manual Product Master order E2E.",
+        "active": True,
+    },
+)
+for sort_order, (size_code, label, width_mm, height_mm) in enumerate(
+    [
+        ("DRYFRUIT-200X200", "Dry Fruit 200 x 200", 200, 200),
+        ("DRYFRUIT-240X300", "Dry Fruit 240 x 300", 240, 300),
+        ("DRYFRUIT-300X400", "Dry Fruit 300 x 400", 300, 400),
+    ],
+    start=1,
+):
+    ProductMasterSize.objects.update_or_create(
+        product_master=product_master,
+        code=size_code,
+        defaults={
+            "label": label,
+            "width_mm": Decimal(str(width_mm)),
+            "height_mm": Decimal(str(height_mm)),
+            "roll_width_mm": Decimal(str(width_mm * 2 + 10)),
+            "qty_uom": "PCS",
+            "geometry_config": {
+                "pouch_style": "THREE_SIDE_SEAL",
+                "trim_loss_mm": 10,
+                "trim_apply_to": "WIDTH",
+                "multipliers": {"faces": 2},
+            },
+            "active": True,
+            "sort_order": sort_order,
+        },
+    )
+
 sku, _ = SalesSku.objects.update_or_create(
     code="UAT-GREEN-DRYFRUIT",
     defaults={
         "name": "UAT-GREEN Dry Fruit Pouch",
         "template": template,
         "commercial_family": commercial_family,
+        "product_master": product_master,
+        "axis_values_template": {"size": "DRYFRUIT-200X200"},
         "default_line_name": "UAT-GREEN Dry Fruit Pouch",
         "active": True,
     },
@@ -211,12 +306,16 @@ for code, name, width_mm, height_mm in variant_specs:
                 {
                     "family_id": str(film_family.id),
                     "variant_id": str(film_variant.id),
+                    "film_variant_code": film_variant.code,
+                    "material_code": film_variant.code,
                     "thickness_micron": 12,
                     "density_g_cm3": 1.38,
                 },
                 {
                     "family_id": str(sealant_family.id),
                     "variant_id": str(sealant_variant.id),
+                    "film_variant_code": sealant_variant.code,
+                    "material_code": sealant_variant.code,
                     "thickness_micron": 40,
                     "density_g_cm3": 0.92,
                 },
@@ -299,6 +398,8 @@ payload = {
     "plant_id": str(plant.id),
     "plant_name": plant.name,
     "commercial_family_code": commercial_family.code,
+    "product_master_id": str(product_master.id),
+    "product_master_code": product_master.code,
     "sku_id": str(sku.id),
     "sku_code": sku.code,
     "shared_sku_code": sku.code,

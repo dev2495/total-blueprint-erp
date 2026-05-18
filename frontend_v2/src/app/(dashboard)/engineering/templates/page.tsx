@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { commercialFamilyService } from "@/services/commercial-families"
+import { useAuth } from "@/components/auth-provider"
 
 type DraftPouchStyle = NonNullable<TemplateBlueprint["pouch_style"]>
 
@@ -27,6 +28,8 @@ export default function EngineeringTemplatesPage() {
     const router = useRouter()
     const queryClient = useQueryClient()
     const { toast } = useToast()
+    const { effectiveRole, user } = useAuth()
+    const isAdminActor = Boolean(user?.is_owner || user?.is_superuser || ["ADMIN", "SUPER_ADMIN", "OWNER"].includes(String(effectiveRole || user?.role_info?.code || "").toUpperCase()))
     const [searchTerm, setSearchTerm] = useState("")
     const [statusFilter, setStatusFilter] = useState<string>("ALL")
     const [createOpen, setCreateOpen] = useState(false)
@@ -37,8 +40,8 @@ export default function EngineeringTemplatesPage() {
     const [draftCommercialFamily, setDraftCommercialFamily] = useState<string>("__NONE__")
 
     const { data: templates, isLoading, isError, error } = useQuery({
-        queryKey: ["templates"],
-        queryFn: () => templateService.getTemplates(),
+        queryKey: ["templates", "admin-registry"],
+        queryFn: () => templateService.getTemplates({ include_obsolete: "1" }),
     })
     const { data: schemaHealth } = useQuery({
         queryKey: ["templates-schema-health"],
@@ -124,11 +127,12 @@ export default function EngineeringTemplatesPage() {
                         </h1>
                         <p className="mt-2 text-sm font-semibold text-slate-500">Build reusable route templates with clear stages, material issue rules, and review gates before planner use.</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[540px]">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[640px]">
                         {[
                             ["Total", templateList.length],
                             ["Live", statusCounts.LIVE || 0],
                             ["Engineering", statusCounts.ENGINEERING || 0],
+                            ["Disabled", statusCounts.OBSOLETE || 0],
                             ["Family linked", linkedFamilies],
                         ].map(([label, value]) => (
                             <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -242,7 +246,7 @@ export default function EngineeringTemplatesPage() {
                         />
                     </div>
                     <div className="flex flex-wrap items-center gap-2 xl:border-l xl:border-slate-100 xl:pl-4">
-                        {['ALL', 'DRAFT', 'ENGINEERING', 'LIVE'].map((status) => (
+                        {['ALL', 'DRAFT', 'ENGINEERING', 'LIVE', 'OBSOLETE'].map((status) => (
                             <Button
                                 key={status}
                                 variant={statusFilter === status ? "default" : "ghost"}
@@ -274,7 +278,7 @@ export default function EngineeringTemplatesPage() {
                         <div>
                             <CardTitle className="text-lg font-black tracking-tight text-slate-950">Template registry</CardTitle>
                             <p className="mt-1 text-xs font-semibold text-slate-500">
-                                Showing {visibleTemplates.length} of {filtered.length} matching template{filtered.length === 1 ? "" : "s"}
+                                Showing {visibleTemplates.length} of {filtered.length} matching template{filtered.length === 1 ? "" : "s"}{isAdminActor ? " including disabled admin-only rows" : ""}
                             </p>
                         </div>
                     </div>

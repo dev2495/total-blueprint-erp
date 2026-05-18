@@ -513,9 +513,6 @@ export function SalesOrdersListWorkspace() {
                                 Showing {filtered.length} of {queueRows.length} orders
                                 {selected.size > 0 ? ` · ${selected.size} selected` : ""}
                             </div>
-                            <Link href="/sales/orders/create" className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1 text-[11px] font-bold text-white shadow-md">
-                                <Plus className="h-3.5 w-3.5" /> New order
-                            </Link>
                         </div>
                     </>
                 )}

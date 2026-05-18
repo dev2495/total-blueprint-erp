@@ -27,6 +27,20 @@ Verified flows:
 - POD fixed SKU catalog visibility and manual Product Master linkage.
 - Template UI compatibility: route/template data remains supported, but removed UI copy that implied packaging/POD SKU auto-sync.
 
+## Template Governance
+
+Added the final admin-only template disable path.
+
+- Only admin actors can disable templates.
+- Disabling a template marks it `OBSOLETE`, clears the linked route, and removes its process steps in one backend transaction.
+- Disabled templates are hidden from live template selectors and normal template API responses.
+- Template Studio is the only UI/API surface that can request `include_obsolete=1` to inspect disabled templates.
+- Route deletion is admin-only and blocks while active templates still reference the route.
+- Process deletion is admin-only and blocks while active routing rules or active template steps still reference the process.
+- After a template is disabled, admins can delete the now-unlinked route/process without breaking protected references.
+
+This gives operations a clean retirement workflow: disable the template first, then delete route/process records only when no active template still depends on them.
+
 ## Local Reset
 
 Applied with:
@@ -76,9 +90,19 @@ Passed:
   - Gate: 221/221 passed
   - Mutations: 13/13 passed
   - Observations: 8/8 passed
+  - Final release runner total: 242/242 passed, 0 failed, 0 skipped
   - UAT manifest: `.runtime/ui-e2e/uat-green-manifest.json`
+- Admin governance tests:
+  - `apps.templates.test_protected_master_deletes`: 4/4 passed
 - Post-reset deep route/static verification passed on the rebuilt local production stack.
 - Fresh runtime log scan found no `objc`, fork-safety, SIGKILL, proxy socket hang-up, or closed-browser-context signatures.
+
+Final polish included:
+
+- Removed the duplicate Sales "New order" link that made Playwright strict locators ambiguous.
+- Seeded the UAT Sales SKU through Product Master, so the green proof path still works after product/sales/planner resets.
+- Added readable film/material identity into seeded layer snapshots for Product Master stock validation.
+- Fixed the machine history page to wait for backend summary data instead of showing misleading zero-count cards during load.
 
 ## Residual Risk
 

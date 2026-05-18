@@ -47,6 +47,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/components/auth-provider"
+
+const apiErr = (err: AxiosError<{ detail?: string; error?: string; message?: string }>) =>
+    err.response?.data?.detail || err.response?.data?.error || err.response?.data?.message || err.message
 
 // --- Form Component ---
 const formSchema = z.object({
@@ -162,6 +166,8 @@ function RoutingRuleForm({ initialData, allProcesses, onSubmit, isLoading }: { i
 export default function RoutingRulesPage() {
     const { toast } = useToast()
     const queryClient = useQueryClient()
+    const { effectiveRole, user } = useAuth()
+    const isAdminActor = Boolean(user?.is_owner || user?.is_superuser || ["ADMIN", "SUPER_ADMIN", "OWNER"].includes(String(effectiveRole || user?.role_info?.code || "").toUpperCase()))
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<RoutingRule | null>(null)
     const [itemToDelete, setItemToDelete] = useState<RoutingRule | null>(null)
@@ -183,7 +189,7 @@ export default function RoutingRulesPage() {
             toast({ title: "Success", description: "Routing Rule created." })
             setIsCreateOpen(false)
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: AxiosError<{ detail?: string; error?: string; message?: string }>) => toast({ title: "Error", description: apiErr(err), variant: "destructive" })
     })
 
     const updateMutation = useMutation({
@@ -193,7 +199,7 @@ export default function RoutingRulesPage() {
             toast({ title: "Success", description: "Routing Rule updated." })
             setEditingItem(null)
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: AxiosError<{ detail?: string; error?: string; message?: string }>) => toast({ title: "Error", description: apiErr(err), variant: "destructive" })
     })
 
     const deleteMutation = useMutation({
@@ -202,7 +208,7 @@ export default function RoutingRulesPage() {
             queryClient.invalidateQueries({ queryKey: ["routing-rules"] })
             toast({ title: "Success", description: "Routing Rule deleted." })
         },
-        onError: (err: AxiosError<{ detail: string }>) => toast({ title: "Error", description: err.response?.data?.detail || err.message, variant: "destructive" })
+        onError: (err: AxiosError<{ detail?: string; error?: string; message?: string }>) => toast({ title: "Error", description: apiErr(err), variant: "destructive" })
     })
 
     return (
@@ -254,7 +260,9 @@ export default function RoutingRulesPage() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                         <DropdownMenuItem onClick={() => setEditingItem(rule)}><Edit2 className="h-3.5 w-3.5 mr-2" /> Edit</DropdownMenuItem>
-                                        <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setItemToDelete(rule)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete</DropdownMenuItem>
+                                        {isAdminActor ? (
+                                            <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setItemToDelete(rule)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete</DropdownMenuItem>
+                                        ) : null}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </CardHeader>
@@ -265,7 +273,7 @@ export default function RoutingRulesPage() {
 
                                     <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide mask-linear-fade">
                                         {rule.ordered_processes?.map((procId: string, i: number, arr: string[]) => {
-                                            const proc = processes?.find((p: any) => p.id === procId)
+                                            const proc = processes?.find((p: any) => p.id === procId || p.code === procId)
                                             return (
                                                 <div key={i} className="flex items-center shrink-0">
                                                     <div className={cn(
@@ -321,7 +329,7 @@ export default function RoutingRulesPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Delete Route?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will remove the sequence <strong>{itemToDelete?.name}</strong>. Production orders already using this route will not be affected.
+                            This will remove the sequence <strong>{itemToDelete?.name}</strong>. Disable linked templates first; active jobs still protect their route history.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
