@@ -61,12 +61,31 @@ test("stock lifecycle workspace combines period close audit count and opening wi
   const inventoryWorkspaceIcon = page.getByTestId("sidebar-link-inventory").first()
   await expect(inventoryWorkspaceIcon).toBeVisible()
   await expect(page.locator("main").getByRole("link", { name: /Stock Lifecycle/i })).toBeVisible()
-  await expect(page.getByTestId("sidebar-link-inventory-stock-lifecycle")).toHaveCount(0)
+  expect(await page.getByTestId("sidebar-link-inventory-stock-lifecycle").count()).toBeGreaterThan(0)
   await expect(page.getByTestId("sidebar-link-inventory-opening-stock")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-stock-count")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-year-close")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-fy-correction")).toHaveCount(0)
   await expect(page.getByTestId("sidebar-link-inventory-stock-card")).toHaveCount(0)
+})
+
+test("stock lifecycle current workspace loads open count and close flow", async ({ page }, testInfo) => {
+  annotate(testInfo, {
+    module: "Inventory",
+    severity: "high",
+    role: "STORE",
+    feature: "Current stock lifecycle workspace",
+    expected: "The new stock lifecycle workspace should load with open, count, and close tabs without overflow.",
+  })
+
+  await switchRole(page, "Store", "/inventory/stock-lifecycle", { allowCookieFallback: true })
+  await page.goto("/inventory/stock-lifecycle", { waitUntil: "domcontentloaded" })
+  await assertHealthyPage(page, { requireAuth: true })
+  await expect(page.getByTestId("stock-lifecycle-v4-workspace")).toBeVisible()
+  await expectNoPageOverflow(page)
+  await expect(page.locator("body")).toContainText("Open Stock")
+  await expect(page.locator("body")).toContainText("Stock Count")
+  await expect(page.locator("body")).toContainText("Close Stock")
 })
 
 test("stock lifecycle canonical tabs load inside the unified workspace", async ({ page }, testInfo) => {

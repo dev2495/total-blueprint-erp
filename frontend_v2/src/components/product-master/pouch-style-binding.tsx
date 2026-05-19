@@ -34,17 +34,50 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
 
     const selectedId = String(row.pouch_style_master || "")
     const selected: PouchStyle | undefined = styles.find((s) => s.id === selectedId)
+    const geometryConfig = row.geometry_config && typeof row.geometry_config === "object" ? row.geometry_config : {}
+    const customFormulaInputs = geometryConfig.pouch_formula_inputs && typeof geometryConfig.pouch_formula_inputs === "object"
+        ? geometryConfig.pouch_formula_inputs as Record<string, any>
+        : {}
 
     // Build the input dict from the row (W, H, gusset, flap, …)
     const previewInputs = React.useMemo(() => {
         const out: Record<string, number> = {}
         if (row.width_mm != null) out.W = Number(row.width_mm)
         if (row.height_mm != null) out.H = Number(row.height_mm)
-        if (row.gusset_mm != null) out.gusset = Number(row.gusset_mm)
-        if (row.flap_tape_mm != null) out.flap = Number(row.flap_tape_mm)
+        if (row.gusset_mm != null) {
+            out.gusset = Number(row.gusset_mm)
+            out.G = Number(row.gusset_mm)
+        }
+        if (row.flap_tape_mm != null) {
+            out.flap = Number(row.flap_tape_mm)
+            out.flap_mm = Number(row.flap_tape_mm)
+        }
         if (row.child_target_width_mm != null) out.override_width = Number(row.child_target_width_mm)
+        for (const [key, value] of Object.entries(customFormulaInputs)) {
+            const numeric = Number(value)
+            if (Number.isFinite(numeric)) out[key] = numeric
+        }
+        for (const [key, def] of Object.entries(selected?.allowed_fields || {})) {
+            if (out[key] != null) continue
+            if (def && def.default != null && def.default !== "") {
+                const numeric = Number(def.default)
+                if (Number.isFinite(numeric)) out[key] = numeric
+            }
+        }
         return out
-    }, [row.width_mm, row.height_mm, row.gusset_mm, row.flap_tape_mm, row.child_target_width_mm])
+    }, [row.width_mm, row.height_mm, row.gusset_mm, row.flap_tape_mm, row.child_target_width_mm, customFormulaInputs, selected])
+
+    const patchFormulaInput = (key: string, value: string) => {
+        const nextInputs = { ...customFormulaInputs }
+        if (value === "") delete nextInputs[key]
+        else nextInputs[key] = Number(value)
+        onPatch({
+            geometry_config: {
+                ...geometryConfig,
+                pouch_formula_inputs: nextInputs,
+            },
+        })
+    }
 
     const liveTarget = React.useMemo(() => {
         if (!selected) return null
@@ -149,6 +182,11 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                                 ))}
                             </div>
                             <div className="mt-1 font-mono text-[10px] text-slate-600">{selected.formula_expression || ""}</div>
+                            <FormulaInputGrid
+                                style={selected}
+                                values={previewInputs}
+                                onPatch={patchFormulaInput}
+                            />
                         </div>
                     ) : null}
                 </div>
@@ -229,5 +267,47 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                 </div>
             </div>
         </section>
+    )
+}
+
+const STANDARD_FORMULA_FIELDS = new Set(["W", "H", "G", "gusset", "gusset_mm", "flap", "flap_mm", "override_width"])
+
+function FormulaInputGrid({
+    style,
+    values,
+    onPatch,
+}: {
+    style: PouchStyle
+    values: Record<string, number>
+    onPatch: (key: string, value: string) => void
+}) {
+    const extras = Object.entries(style.allowed_fields || {}).filter(([key]) => !STANDARD_FORMULA_FIELDS.has(key))
+    if (extras.length === 0) return null
+
+    return (
+        <div className="mt-2 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/30 p-2">
+            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Formula extras</div>
+            <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                {extras.map(([key, def]) => (
+                    <label key={key} className="block">
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{def.label || key}</span>
+                            <span className="font-mono text-[9px] text-slate-400">{key}</span>
+                        </div>
+                        <Input
+                            type="number"
+                            step="any"
+                            value={values[key] ?? ""}
+                            onChange={(event) => onPatch(key, event.target.value)}
+                            placeholder={def.default != null ? String(def.default) : "0"}
+                            className="h-8 bg-white font-mono text-xs"
+                        />
+                    </label>
+                ))}
+            </div>
+            <div className="mt-1 text-[10px] text-indigo-700/80">
+                These values are saved on this size and feed the pouch-style formula together with W/H/gusset/flap.
+            </div>
+        </div>
     )
 }

@@ -99,8 +99,8 @@ class RollService:
             raise ValueError("Roll weight must be positive")
         if material is None:
             raise ValueError("Material is required for roll creation")
-        if getattr(material, "category", None) != "FILM_VARIANT":
-            raise ValueError("Roll material must be a FILM_VARIANT")
+        if getattr(material, "category", None) not in {"FILM_VARIANT", "POD"}:
+            raise ValueError("Roll material must be a FILM_VARIANT or POD")
         if Decimal(str(width_mm or 0)) <= 0:
             raise ValueError("Roll width must be positive")
         if Decimal(str(thickness_micron or 0)) <= 0:

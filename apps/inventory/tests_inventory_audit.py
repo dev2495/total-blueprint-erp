@@ -4,6 +4,7 @@ from datetime import date
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
 from apps.inventory.models import (
@@ -613,6 +614,65 @@ class InventoryAuditServiceTests(TestCase):
         self.assertTrue(sample_name.endswith(".xlsx"))
         self.assertGreater(len(content), 100)
         self.assertGreater(len(sample_content), 100)
+
+    def test_pod_material_can_open_as_roll_stock_and_catalog_classifies_it_as_roll(self):
+        pod = InventoryMaterial.objects.create(code="POD-ROLL", name="POD roll stock", category="POD", base_uom="KG")
+        batch = self._batch()
+        InventoryAuditService.import_lines(
+            batch=batch,
+            rows=[
+                {
+                    "stock_class": "ROLL",
+                    "material": str(pod.id),
+                    "location": str(self.fg_location.id),
+                    "quantity": "18",
+                    "label_id": "POD-OPEN-001",
+                    "width_mm": "440",
+                    "thickness_micron": "65",
+                }
+            ],
+        )
+        InventoryAuditService.post_batch(batch=batch, user=self.user)
+        self.assertTrue(InventoryRoll.objects.filter(material=pod, label_id="POD-OPEN-001").exists())
+
+        client = APIClient()
+        client.force_authenticate(self.user)
+        response = client.get("/api/inventory/audit/master-catalog/", {"plant": str(self.plant.id)})
+        self.assertEqual(response.status_code, 200)
+        pod_row = next(row for row in response.data["rows"] if row["id"] == str(pod.id))
+        self.assertEqual(pod_row["stock_class"], "ROLL")
+        self.assertFalse(pod_row["is_extrudable"])
+        self.assertEqual(pod_row["system_qty"], 18.0)
+
+    def test_manual_opening_stock_posts_extrudable_roll_with_grade_from_ui_payload(self):
+        client = APIClient()
+        client.force_authenticate(self.user)
+
+        response = client.post(
+            "/api/inventory/opening-stock/manual/",
+            {
+                "plant_id": str(self.plant.id),
+                "lines": [
+                    {
+                        "stock_class": "ROLL",
+                        "material": str(self.variant.id),
+                        "location": str(self.fg_location.id),
+                        "qty": "27.5",
+                        "grade_id": str(self.grade.id),
+                        "label_id": "OPEN-EXTRUDE-001",
+                        "width_mm": "880",
+                        "thickness_micron": "52",
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        roll = InventoryRoll.objects.get(label_id="OPEN-EXTRUDE-001")
+        self.assertEqual(roll.material, self.variant)
+        self.assertEqual(roll.grade, self.grade)
+        self.assertEqual(roll.weight_kg, Decimal("27.5000"))
 
 
 class InventoryAuditPermissionTests(TestCase):

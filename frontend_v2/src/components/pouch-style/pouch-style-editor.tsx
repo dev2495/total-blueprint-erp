@@ -51,12 +51,12 @@ const AXIS_OPTS: Array<{ value: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"; label: str
 ]
 
 const FIELD_PRESETS = [
-    { key: "gusset", label: "Gusset", suggested_axis: "WIDTH", suggested_coeff: 2 },
-    { key: "flap", label: "Flap reach", suggested_axis: "WIDTH", suggested_coeff: 1 },
-    { key: "overlap", label: "Seal overlap", suggested_axis: "HEIGHT", suggested_coeff: 1 },
-    { key: "bottom_factor", label: "Bottom factor", suggested_axis: "WIDTH", suggested_coeff: 0 },
-    { key: "stick_factor", label: "Stick factor", suggested_axis: "WIDTH", suggested_coeff: 0 },
-    { key: "override_width", label: "Direct roll width", suggested_axis: "NONE", suggested_coeff: 0 },
+    { key: "gusset", label: "Gusset", suggested_axis: "WIDTH", suggested_coeff: 2, suggested_default: 0 },
+    { key: "flap", label: "Flap reach", suggested_axis: "WIDTH", suggested_coeff: 1, suggested_default: 0 },
+    { key: "overlap", label: "Seal overlap", suggested_axis: "HEIGHT", suggested_coeff: 1, suggested_default: 10 },
+    { key: "bottom_factor", label: "Bottom factor", suggested_axis: "WIDTH", suggested_coeff: 0, suggested_default: 1 },
+    { key: "stick_factor", label: "Stick factor", suggested_axis: "WIDTH", suggested_coeff: 0, suggested_default: 1.05 },
+    { key: "override_width", label: "Direct roll width", suggested_axis: "NONE", suggested_coeff: 0, suggested_default: 0 },
 ] as const
 
 const FIELD_TONE: Record<string, string> = {
@@ -114,6 +114,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
     const allowedFields: Record<string, PouchFieldDef> = (draft.allowed_fields as any) || {}
     const formulaParams = (draft.formula_params as Record<string, any>) || {}
+    const fieldAdjustments = (draft.field_adjustments as Record<string, any>) || {}
     const terms: PouchFormulaTerm[] = Array.isArray(formulaParams.terms) ? formulaParams.terms : []
     const trim = Number(formulaParams.trim_mm ?? 0)
     const isLocked = !!draft.locked
@@ -122,8 +123,12 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
         setDraft((d) => ({ ...d, [key]: v as any }))
 
     const setParams = (next: Record<string, any>) => set("formula_params", next as any)
+    const setFieldAdjustments = (patch: Record<string, any>) => set("field_adjustments", { ...fieldAdjustments, ...patch } as any)
     const setTerms = (next: PouchFormulaTerm[]) => setParams({ ...formulaParams, terms: next })
-    const setTrim = (v: number) => setParams({ ...formulaParams, trim_mm: v })
+    const setTrim = (v: number) => {
+        setParams({ ...formulaParams, trim_mm: v })
+        setFieldAdjustments({ trim_default_mm: v })
+    }
 
     const liveTarget = React.useMemo(() => {
         try {
@@ -396,6 +401,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                                 label: p.label,
                                                 applies_to: p.suggested_axis as any,
                                                 default_coefficient: p.suggested_coeff,
+                                                default: p.suggested_default,
                                             })
                                         }
                                         className="rounded-md bg-white px-2 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50"
@@ -439,11 +445,30 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                             label: guess?.label || f,
                                             applies_to: (guess?.suggested_axis as any) || "WIDTH",
                                             default_coefficient: guess?.suggested_coeff ?? 1,
+                                            default: guess?.suggested_default ?? 0,
                                         }
                                     }
                                 }
                                 set("allowed_fields", nextFields as any)
                                 setParams({ ...formulaParams, terms: preset.terms, trim_mm: preset.trim })
+                                if (preset.rollAxis) set("default_roll_axis", preset.rollAxis as any)
+                                setFieldAdjustments({
+                                    trim_default_mm: preset.trim,
+                                    ...(preset.rollAxis ? { trim_axis: preset.rollAxis } : {}),
+                                })
+                            }}
+                        />
+
+                        <FormulaPolicyPanel
+                            rollAxis={(draft.default_roll_axis || "WIDTH") as any}
+                            trimAxis={(fieldAdjustments.trim_axis || "WIDTH") as any}
+                            defaultLaneCount={Number(fieldAdjustments.default_lane_count || 1)}
+                            onPatch={(patch) => {
+                                if (patch.default_roll_axis) {
+                                    set("default_roll_axis", patch.default_roll_axis as any)
+                                }
+                                const { default_roll_axis, ...rest } = patch
+                                if (Object.keys(rest).length > 0) setFieldAdjustments(rest)
                             }}
                         />
 
@@ -701,16 +726,17 @@ interface FormulaPreset {
     fields: string[]   // fields to ensure present
     terms: PouchFormulaTerm[]
     trim: number
+    rollAxis?: "WIDTH" | "HEIGHT" | "BOTH"
 }
 
 const FORMULA_PRESETS: FormulaPreset[] = [
     {
-        code: "PILLOW", emoji: "📦", label: "Pillow / 3-side", formula: "2W + trim", fields: ["W"],
+        code: "PILLOW", emoji: "📦", label: "Pillow / 3-side", formula: "2W + trim", fields: ["W"], rollAxis: "WIDTH",
         terms: [{ factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "W" }] }],
         trim: 5,
     },
     {
-        code: "STAND_UP_K", emoji: "🛍", label: "Stand-up · K-bottom", formula: "2W + G + trim", fields: ["W", "gusset"],
+        code: "STAND_UP_K", emoji: "🛍", label: "Stand-up · K-bottom", formula: "2W + G + trim", fields: ["W", "gusset"], rollAxis: "WIDTH",
         terms: [
             { factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "W" }] },
             { factors: [{ kind: "NUMBER", value: 1 }, { kind: "FIELD", field: "gusset" }] },
@@ -718,7 +744,7 @@ const FORMULA_PRESETS: FormulaPreset[] = [
         trim: 5,
     },
     {
-        code: "SIDE_GUSSET", emoji: "📁", label: "Side gusset", formula: "2W + 2G + trim", fields: ["W", "gusset"],
+        code: "SIDE_GUSSET", emoji: "📁", label: "Side gusset", formula: "2W + 2G + trim", fields: ["W", "gusset"], rollAxis: "WIDTH",
         terms: [
             { factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "W" }] },
             { factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "gusset" }] },
@@ -726,7 +752,7 @@ const FORMULA_PRESETS: FormulaPreset[] = [
         trim: 5,
     },
     {
-        code: "QUAD_SEAL", emoji: "🟦", label: "Quad seal", formula: "2W + 2G + trim", fields: ["W", "gusset"],
+        code: "QUAD_SEAL", emoji: "🟦", label: "Quad seal", formula: "2W + 2G + trim", fields: ["W", "gusset"], rollAxis: "WIDTH",
         terms: [
             { factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "W" }] },
             { factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "gusset" }] },
@@ -734,7 +760,7 @@ const FORMULA_PRESETS: FormulaPreset[] = [
         trim: 5,
     },
     {
-        code: "CENTER_SEAL", emoji: "↕️", label: "Center seal · H-axis", formula: "H + overlap + trim", fields: ["H", "overlap"],
+        code: "CENTER_SEAL", emoji: "↕️", label: "Center seal · H-axis", formula: "H + overlap + trim", fields: ["H", "overlap"], rollAxis: "HEIGHT",
         terms: [
             { factors: [{ kind: "NUMBER", value: 1 }, { kind: "FIELD", field: "H" }] },
             { factors: [{ kind: "NUMBER", value: 1 }, { kind: "FIELD", field: "overlap" }] },
@@ -742,14 +768,27 @@ const FORMULA_PRESETS: FormulaPreset[] = [
         trim: 5,
     },
     {
-        code: "STICK_PACK", emoji: "📏", label: "Stick pack", formula: "W × stick_factor + trim", fields: ["W", "stick_factor"],
+        code: "DOUBLE_H", emoji: "↕️", label: "2H feed", formula: "2H + trim", fields: ["H"], rollAxis: "HEIGHT",
+        terms: [{ factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "H" }] }],
+        trim: 5,
+    },
+    {
+        code: "W_PLUS_H", emoji: "⊞", label: "W + H", formula: "W + H + trim", fields: ["W", "H"], rollAxis: "BOTH",
+        terms: [
+            { factors: [{ kind: "NUMBER", value: 1 }, { kind: "FIELD", field: "W" }] },
+            { factors: [{ kind: "NUMBER", value: 1 }, { kind: "FIELD", field: "H" }] },
+        ],
+        trim: 5,
+    },
+    {
+        code: "STICK_PACK", emoji: "📏", label: "Stick pack", formula: "W × stick_factor + trim", fields: ["W", "stick_factor"], rollAxis: "WIDTH",
         terms: [
             { factors: [{ kind: "FIELD", field: "W" }, { kind: "FIELD", field: "stick_factor" }] },
         ],
         trim: 3,
     },
     {
-        code: "K_WITH_FACTOR", emoji: "🏷", label: "K-bottom × factor", formula: "2W + G × bottom_factor + trim", fields: ["W", "gusset", "bottom_factor"],
+        code: "K_WITH_FACTOR", emoji: "🏷", label: "K-bottom × factor", formula: "2W + G × bottom_factor + trim", fields: ["W", "gusset", "bottom_factor"], rollAxis: "WIDTH",
         terms: [
             { factors: [{ kind: "NUMBER", value: 2 }, { kind: "FIELD", field: "W" }] },
             { factors: [{ kind: "FIELD", field: "gusset" }, { kind: "FIELD", field: "bottom_factor" }] },
@@ -883,6 +922,72 @@ function VisualLinearBuilder({
                     <Eraser className="mr-1 h-3 w-3" /> Reset to defaults
                 </Button>
             </div>
+        </div>
+    )
+}
+
+function FormulaPolicyPanel({
+    rollAxis,
+    trimAxis,
+    defaultLaneCount,
+    onPatch,
+}: {
+    rollAxis: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"
+    trimAxis: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"
+    defaultLaneCount: number
+    onPatch: (patch: Record<string, any>) => void
+}) {
+    return (
+        <div className="mt-3 grid gap-3 rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50/60 via-white to-sky-50/50 p-3 lg:grid-cols-[1.2fr_1fr_130px]">
+            <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-cyan-800">Roll axis policy</div>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    {(["WIDTH", "HEIGHT", "BOTH"] as const).map((axis) => (
+                        <button
+                            key={axis}
+                            type="button"
+                            onClick={() => onPatch({ default_roll_axis: axis })}
+                            className={cn(
+                                "rounded-lg px-2 py-2 text-[11px] font-black ring-1 transition",
+                                rollAxis === axis
+                                    ? "bg-cyan-700 text-white ring-cyan-800"
+                                    : "bg-white text-cyan-900 ring-cyan-200 hover:bg-cyan-50",
+                            )}
+                        >
+                            {axis === "WIDTH" ? "From W" : axis === "HEIGHT" ? "From H" : "W + H"}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-1 text-[10px] text-cyan-800/75">
+                    This labels the style&apos;s normal feed direction. The formula above remains the source of truth.
+                </div>
+            </div>
+            <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-cyan-800">Trim rule</div>
+                <Select value={trimAxis} onValueChange={(value) => onPatch({ trim_axis: value })}>
+                    <SelectTrigger className="mt-2 h-9 bg-white text-xs">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {AXIS_OPTS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <div className="mt-1 text-[10px] text-cyan-800/75">
+                    Use this to document whether trim belongs to W, H, both, or neither.
+                </div>
+            </div>
+            <Field label="Default lanes">
+                <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={Number(defaultLaneCount || 1)}
+                    onChange={(event) => onPatch({ default_lane_count: Number(event.target.value || 1) })}
+                    className="h-9 bg-white text-right text-xs"
+                />
+            </Field>
         </div>
     )
 }

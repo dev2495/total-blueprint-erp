@@ -22,6 +22,7 @@ from .views_audit import (
     OpeningStockCsvView,
     OpeningStockManualView,
     OpeningStockFromCountView,
+    MasterCatalogView,
 )
 
 router = OptionalSlashRouter()
@@ -59,6 +60,7 @@ urlpatterns = [
     path('packaging/export/', InventoryV36ExportView.as_view(), {'klass': 'packaging'}, name='inventory-v36-packaging-export'),
     path('addons/export/', InventoryV36ExportView.as_view(), {'klass': 'addons'}, name='inventory-v36-addons-export'),
     path('ledger/', InventoryLedgerView.as_view(), name='inventory-ledger'),
+    path('audit/master-catalog/', MasterCatalogView.as_view(), name='inventory-audit-master-catalog'),
     path('audit/closing-preview/', ClosingPreviewView.as_view(), name='inventory-audit-closing-preview'),
     path('audit/stock-card/', StockCardView.as_view(), name='inventory-audit-stock-card'),
     path('audit/stock-snapshot/', StockSnapshotView.as_view(), name='inventory-audit-stock-snapshot'),

@@ -260,8 +260,8 @@ class InventoryAuditService:
         if stock_class == "PACKAGING" and category != "PACKAGING":
             errors.append("Packaging audit lines require a PACKAGING material.")
         if stock_class == "ROLL":
-            if category != "FILM_VARIANT":
-                errors.append("Roll audit lines require a FILM_VARIANT material.")
+            if category not in {"FILM_VARIANT", "POD"}:
+                errors.append("Roll audit lines require a FILM_VARIANT or POD material.")
             if _dec(line.opening_qty) <= 0 and line.batch.type == "OPENING_STOCK":
                 errors.append("Roll opening weight is required.")
             if _dec(line.width_mm) <= 0:

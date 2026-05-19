@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import FileResponse
 from io import BytesIO, TextIOWrapper
 import csv
+import uuid
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -30,6 +31,14 @@ from apps.users.permission_service import PermissionService
 def _error_response(exc, http_status=status.HTTP_400_BAD_REQUEST):
     detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
     return Response({"detail": detail}, status=http_status)
+
+
+def _uuid_like(value):
+    try:
+        uuid.UUID(str(value))
+        return True
+    except Exception:
+        return False
 
 
 def _require_permission(request, permission: str):
@@ -770,30 +779,36 @@ def _resolve_opening_row(row, default_plant=None):
     if not plant:
         raise DjangoValidationError("plant_code is required or no default plant is available.")
 
-    location_id = str(row.get("location_id") or "").strip()
-    location = InventoryLocation.objects.filter(plant=plant, id=location_id).first() if location_id else None
-    location_code = str(row.get("location_code") or row.get("location") or "").strip()
+    location_lookup = str(row.get("location_id") or row.get("location") or "").strip()
+    location = InventoryLocation.objects.filter(plant=plant, id=location_lookup).first() if _uuid_like(location_lookup) else None
+    location_code = str(row.get("location_code") or ("" if _uuid_like(row.get("location")) else row.get("location")) or "").strip()
     location_name = str(row.get("location_name") or "").strip()
     if not location and location_code:
         location = InventoryLocation.objects.filter(plant=plant, code__iexact=location_code).first()
     if not location and location_name:
         location = InventoryLocation.objects.filter(plant=plant, name__iexact=location_name).first()
     if not location:
-        label = location_code or location_name or location_id
+        label = location_code or location_name or location_lookup
         raise DjangoValidationError(f"Location {label} was not found for plant {plant.code}.")
 
-    material_id = str(row.get("material_id") or row.get("material") or "").strip()
-    material = InventoryMaterial.objects.filter(id=material_id).first() if material_id else None
-    material_code = str(row.get("product_code") or row.get("material_code") or row.get("variant_code") or "").strip()
+    material_lookup = str(row.get("material_id") or row.get("material") or "").strip()
+    material = InventoryMaterial.objects.filter(id=material_lookup).first() if _uuid_like(material_lookup) else None
+    material_code = str(
+        row.get("product_code")
+        or row.get("material_code")
+        or row.get("variant_code")
+        or ("" if _uuid_like(row.get("material")) else row.get("material"))
+        or ""
+    ).strip()
     if not material and material_code:
         material = InventoryMaterial.objects.filter(code__iexact=material_code).first()
     if not material:
-        label = material_code or material_id
+        label = material_code or material_lookup
         raise DjangoValidationError(f"Material {label} was not found.")
 
     klass = str(row.get("klass") or row.get("stock_class") or "").upper().strip()
     if not klass:
-        klass = "PACKAGING" if material.category == "PACKAGING" else ("ROLL" if material.category == "FILM_VARIANT" else "BULK")
+        klass = "PACKAGING" if material.category == "PACKAGING" else ("ROLL" if material.category in {"FILM_VARIANT", "POD"} else "BULK")
     qty = row.get("qty") or row.get("weight_kg") or row.get("quantity") or row.get("opening_qty")
     return plant, {
         "stock_class": klass,
@@ -802,6 +817,7 @@ def _resolve_opening_row(row, default_plant=None):
         "quantity": qty,
         "counted_qty": qty,
         "uom": row.get("uom") or material.base_uom or "KG",
+        "grade": row.get("grade") or row.get("grade_id") or "",
         "label_id": row.get("label") or row.get("label_id") or "",
         "batch_no": row.get("lot_no") or row.get("batch_no") or "",
         "width_mm": row.get("width_mm") or "",
@@ -946,3 +962,135 @@ class OpeningStockFromCountView(APIView):
             return Response({"batch_id": str(batch.id), "rows_committed": len(rows), "opening_value_inr": float((batch.summary_json or {}).get("value", 0))}, status=status.HTTP_201_CREATED)
         except DjangoValidationError as exc:
             return _error_response(exc)
+
+
+# Stock class derivation per InventoryMaterial.category
+_STOCK_CLASS_BY_CATEGORY = {
+    "FILM_VARIANT": "ROLL",
+    "PACKAGING": "PACKAGING",
+    "FILM_FAMILY": "BULK",
+    "GRANULE": "BULK",
+    "SOLVENT": "BULK",
+    "INK": "BULK",
+    "ADHESIVE": "BULK",
+    "ADDON": "BULK",
+    "POD": "ROLL",
+}
+
+
+class MasterCatalogView(APIView):
+    """Stock Lifecycle workspace master catalog.
+
+    Returns every InventoryMaterial along with the current system quantity in
+    the requested plant (summed across locations) and a per-location breakdown.
+    Unlike the current_stock_snapshot, this includes materials with zero stock
+    so the lifecycle workspace can offer them for opening / counting.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        guard = _require_permission(request, "inventory.audit.view")
+        if guard:
+            return guard
+
+        plant_qs = Plant.objects.all().order_by("code", "name")
+        plant_arg = request.query_params.get("plant")
+        plant = None
+        if plant_arg and plant_arg != "any":
+            plant = plant_qs.filter(id=plant_arg).first()
+        if plant is None:
+            plant = plant_qs.first()
+
+        if plant is None:
+            return Response({"plant": None, "rows": [], "by_category": {}})
+
+        # Pre-fetch location names for this plant
+        plant_locations = {
+            str(loc.id): loc
+            for loc in InventoryLocation.objects.filter(plant=plant)
+        }
+
+        # Aggregate quantities by (material_id, location_id)
+        agg: dict = {}
+
+        # BULK qty (qty_kg)
+        for bulk in InventoryBulk.objects.select_related("material", "location").filter(plant=plant):
+            mid = str(bulk.material_id)
+            lid = str(bulk.location_id) if bulk.location_id else None
+            qty = float(bulk.qty_kg or 0)
+            if qty == 0:
+                continue
+            entry = agg.setdefault(mid, {})
+            entry[lid] = entry.get(lid, 0.0) + qty
+
+        # ROLL qty (weight_kg) - filter by location.plant, exclude CONSUMED/SCRAPPED
+        for roll in InventoryRoll.objects.select_related("material", "location").filter(
+            location__plant=plant
+        ).exclude(status__in=["CONSUMED", "SCRAPPED"]):
+            if not roll.material_id:
+                continue
+            mid = str(roll.material_id)
+            lid = str(roll.location_id) if roll.location_id else None
+            qty = float(roll.weight_kg or 0)
+            if qty == 0:
+                continue
+            entry = agg.setdefault(mid, {})
+            entry[lid] = entry.get(lid, 0.0) + qty
+
+        # PACKAGING qty
+        for stock in PackagingStock.objects.select_related("material", "location").filter(plant=plant):
+            mid = str(stock.material_id)
+            lid = str(stock.location_id) if stock.location_id else None
+            qty = float(stock.qty or 0)
+            if qty == 0:
+                continue
+            entry = agg.setdefault(mid, {})
+            entry[lid] = entry.get(lid, 0.0) + qty
+
+        rows: list = []
+        by_category: dict = {}
+
+        for material in InventoryMaterial.objects.select_related("grade").all().order_by("category", "code"):
+            mid = str(material.id)
+            loc_map = agg.get(mid, {})
+            locations = []
+            system_qty = 0.0
+            for lid, qty in loc_map.items():
+                if lid and lid in plant_locations:
+                    locations.append({
+                        "id": lid,
+                        "name": plant_locations[lid].name,
+                        "qty": round(qty, 4),
+                    })
+                elif lid is None:
+                    locations.append({"id": None, "name": "(unassigned)", "qty": round(qty, 4)})
+                system_qty += qty
+
+            stock_class = _STOCK_CLASS_BY_CATEGORY.get(str(material.category or ""), "BULK")
+
+            row = {
+                "id": mid,
+                "code": material.code,
+                "name": material.name or material.code,
+                "category": material.category,
+                "stock_class": stock_class,
+                "base_uom": material.base_uom or "KG",
+                "is_extrudable": bool(getattr(material, "is_extrudable", False)),
+                "default_grade_id": str(material.grade_id) if getattr(material, "grade_id", None) else None,
+                "default_grade_name": material.grade.name if getattr(material, "grade_id", None) else None,
+                "system_qty": round(system_qty, 4),
+                "locations": locations,
+            }
+            rows.append(row)
+            by_category.setdefault(material.category, []).append(row)
+
+        return Response({
+            "plant": {
+                "id": str(plant.id),
+                "name": plant.name,
+                "code": plant.code,
+            },
+            "rows": rows,
+            "by_category": by_category,
+        })

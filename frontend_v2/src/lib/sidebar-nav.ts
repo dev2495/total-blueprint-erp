@@ -178,7 +178,7 @@ export const NAV_ITEMS: NavItem[] = [
       },
       {
         title: "Stock Lifecycle",
-        href: "/inventory/period",
+        href: "/inventory/stock-lifecycle",
         icon: CalendarRange,
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
         permissions: ["inventory.audit.view", "inventory.manage"],

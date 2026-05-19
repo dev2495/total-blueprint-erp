@@ -639,6 +639,82 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def validate_code(self, value):
         return normalize_code(value, max_length=80)
 
+    def _value_from_attrs_or_instance(self, attrs, field):
+        if field in attrs:
+            return attrs.get(field)
+        if self.instance is not None:
+            return getattr(self.instance, field, None)
+        return None
+
+    def _formula_inputs(self, attrs, style):
+        geometry = self._value_from_attrs_or_instance(attrs, "geometry_config")
+        if not isinstance(geometry, dict):
+            geometry = {}
+        custom_inputs = geometry.get("pouch_formula_inputs") if isinstance(geometry.get("pouch_formula_inputs"), dict) else {}
+
+        width = self._value_from_attrs_or_instance(attrs, "width_mm")
+        height = self._value_from_attrs_or_instance(attrs, "height_mm")
+        gusset = self._value_from_attrs_or_instance(attrs, "gusset_mm")
+        child_target = self._value_from_attrs_or_instance(attrs, "child_target_width_mm")
+
+        inputs = {}
+        if width not in (None, ""):
+            inputs["W"] = width
+            inputs["width"] = width
+            inputs["width_mm"] = width
+        if height not in (None, ""):
+            inputs["H"] = height
+            inputs["height"] = height
+            inputs["height_mm"] = height
+        if gusset not in (None, ""):
+            inputs["G"] = gusset
+            inputs["gusset"] = gusset
+            inputs["gusset_mm"] = gusset
+        flap = geometry.get("flap_tape_mm")
+        if flap not in (None, ""):
+            inputs["flap"] = flap
+            inputs["flap_mm"] = flap
+        if child_target not in (None, ""):
+            inputs["override_width"] = child_target
+
+        inputs.update({str(k): v for k, v in custom_inputs.items() if v not in (None, "")})
+
+        allowed = style.allowed_fields if isinstance(style.allowed_fields, dict) else {}
+        for key, definition in allowed.items():
+            if key in inputs:
+                continue
+            if isinstance(definition, dict) and definition.get("default") not in (None, ""):
+                inputs[key] = definition.get("default")
+        return inputs
+
+    def _apply_pouch_style_target(self, attrs):
+        style = attrs.get("pouch_style_master")
+        if style is None and self.instance is not None:
+            style = self.instance.pouch_style_master
+        if not style:
+            return attrs
+
+        override = attrs.get("child_target_override")
+        if override is None and self.instance is not None:
+            override = bool(getattr(self.instance, "child_target_override", False))
+        if bool(override):
+            return attrs
+
+        try:
+            from .services_pouch_style import compute_child_target_width_mm
+
+            value = compute_child_target_width_mm(style, self._formula_inputs(attrs, style))
+        except Exception as exc:
+            raise serializers.ValidationError({"pouch_style_master": f"Could not compute child target width: {exc}"}) from exc
+        if value > 0:
+            attrs["child_target_width_mm"] = value
+            attrs["pouch_style_version"] = getattr(style, "version", 1) or 1
+        return attrs
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        return self._apply_pouch_style_target(attrs)
+
 
 class CustomerProductOverlaySerializer(serializers.ModelSerializer):
     product_master_name = serializers.CharField(source='product_master.name', read_only=True)
