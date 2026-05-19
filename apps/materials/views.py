@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 import uuid
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
 from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -29,6 +29,9 @@ from .serializers import (
     ProductMasterSizeSerializer,
     ProductVariantSerializer,
     CustomerProductOverlaySerializer,
+    PouchStyleSerializer,
+    PouchStylePreviewSerializer,
+    WebWidthPolicySerializer,
 )
 
 
@@ -875,3 +878,192 @@ class PodSkuVariantViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if pod_sku_id:
             queryset = queryset.filter(pod_sku_id=pod_sku_id)
         return queryset
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pouch style master
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    """CRUD + preview endpoint for PouchStyleMaster.
+
+    Versioning:
+      - PATCH on a `locked` style creates a NEW row with `version + 1`
+        (same code) and returns it. Original stays unchanged so old sizes
+        keep their snapshot.
+      - PATCH on an unlocked style updates in place.
+
+    Disable instead of delete:
+      - DELETE just sets `deprecated = True` so historical FKs survive.
+    """
+
+    audit_area = "MASTER_POUCH_STYLE"
+    serializer_class = PouchStyleSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["formula_kind", "deprecated", "locked"]
+    search_fields = ["code", "name", "description", "notes"]
+
+    def get_queryset(self):
+        qs = PouchStyleMaster.objects.all().order_by("sort_order", "name", "-version")
+        # For detail/update/destroy/custom-action calls (`pk` in URL kwargs),
+        # never filter — every version must be reachable by id.
+        if self.kwargs.get("pk"):
+            return qs
+        # On list endpoints, show only the latest version per code unless the
+        # caller passes ?all_versions=1.
+        if str(self.request.query_params.get("all_versions") or "").strip() not in {"1", "true", "yes"}:
+            latest_ids = []
+            seen_codes = set()
+            for row in qs:
+                if row.code in seen_codes:
+                    continue
+                seen_codes.add(row.code)
+                latest_ids.append(row.id)
+            qs = PouchStyleMaster.objects.filter(id__in=latest_ids).order_by("sort_order", "name")
+        return qs
+
+    def perform_create(self, serializer):
+        instance = serializer.save(
+            created_by=self.request.user if self.request.user.is_authenticated else None,
+            updated_by=self.request.user if self.request.user.is_authenticated else None,
+        )
+        return instance
+
+    def update(self, request, *args, **kwargs):
+        """If the target style is locked, spawn a new version instead of mutating it."""
+        instance = self.get_object()
+        if instance.locked:
+            return self._spawn_new_version(instance, request)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.locked:
+            return self._spawn_new_version(instance, request)
+        return super().partial_update(request, *args, **kwargs)
+
+    def _spawn_new_version(self, instance, request):
+        """
+        Build a new PouchStyleMaster row directly from the existing instance +
+        the incoming PATCH payload. Bypasses the serializer's
+        UniqueTogetherValidator on (code, version) which would falsely flag
+        the spawn during validation.
+        """
+        from django.db.models import Max
+        latest_v = (
+            PouchStyleMaster.objects.filter(code=instance.code).aggregate(Max("version"))["version__max"]
+            or instance.version
+        )
+        body = dict(request.data or {})
+
+        def pick(field, fallback):
+            v = body.get(field, None)
+            return fallback if v is None else v
+
+        new_instance = PouchStyleMaster.objects.create(
+            code=instance.code,
+            name=pick("name", instance.name),
+            description=pick("description", instance.description),
+            version=int(latest_v) + 1,
+            locked=False,
+            visual_emoji=pick("visual_emoji", instance.visual_emoji),
+            visual_svg=pick("visual_svg", instance.visual_svg),
+            faces=int(pick("faces", instance.faces) or instance.faces or 2),
+            default_roll_axis=pick("default_roll_axis", instance.default_roll_axis),
+            allowed_fields=pick("allowed_fields", instance.allowed_fields),
+            field_adjustments=pick("field_adjustments", instance.field_adjustments),
+            formula_kind=pick("formula_kind", instance.formula_kind),
+            formula_params=pick("formula_params", instance.formula_params),
+            formula_ast=pick("formula_ast", instance.formula_ast),
+            formula_expression=pick("formula_expression", instance.formula_expression),
+            deprecated=bool(pick("deprecated", instance.deprecated)),
+            sort_order=int(pick("sort_order", instance.sort_order) or 0),
+            notes=pick("notes", instance.notes),
+            created_by=request.user if request.user.is_authenticated else None,
+            updated_by=request.user if request.user.is_authenticated else None,
+        )
+        return Response(PouchStyleSerializer(new_instance).data, status=status.HTTP_201_CREATED)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(
+            updated_by=self.request.user if self.request.user.is_authenticated else None,
+        )
+        return instance
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft-delete via deprecated flag — preserves historical FKs."""
+        instance = self.get_object()
+        instance.deprecated = True
+        instance.save(update_fields=["deprecated", "updated_at"])
+        return Response(PouchStyleSerializer(instance).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="reactivate")
+    def reactivate(self, request, pk=None):
+        instance = self.get_object()
+        instance.deprecated = False
+        instance.save(update_fields=["deprecated", "updated_at"])
+        return Response(PouchStyleSerializer(instance).data)
+
+    @action(detail=False, methods=["get"], url_path="by-code/(?P<code>[^/.]+)")
+    def by_code(self, request, code=None):
+        rows = PouchStyleMaster.objects.filter(code__iexact=code).order_by("-version")
+        return Response(PouchStyleSerializer(rows, many=True).data)
+
+    @action(detail=False, methods=["post"], url_path="preview")
+    def preview(self, request):
+        """Live preview — compute child_target_width_mm without persisting.
+
+        Body:
+            {
+              "formula_kind": "GUSSETED_BOTTOM",
+              "formula_params": {"trim_mm": 5, "bottom_factor": 1.0},
+              "formula_ast": {},
+              "field_adjustments": {},
+              "inputs": {"W": 127, "H": 203, "gusset": 80}
+            }
+        """
+        from .services_pouch_style import compute_child_target_width_mm
+
+        body = PouchStylePreviewSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        payload = body.validated_data
+
+        class _StyleStub:
+            formula_kind = (payload.get("formula_kind") or "SIMPLE_DOUBLE").upper()
+            formula_params = payload.get("formula_params") or {}
+            formula_ast = payload.get("formula_ast") or {}
+            field_adjustments = payload.get("field_adjustments") or {}
+
+        try:
+            value = compute_child_target_width_mm(_StyleStub, payload.get("inputs") or {})
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"child_target_width_mm": float(value)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Web-width policy
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class WebWidthPolicyViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
+    """CRUD endpoints for WebWidthPolicy + helper to fetch the default."""
+
+    audit_area = "MASTER_WEB_WIDTH_POLICY"
+    serializer_class = WebWidthPolicySerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["is_default", "deprecated"]
+    search_fields = ["code", "name", "description", "notes"]
+
+    def get_queryset(self):
+        return WebWidthPolicy.objects.all().order_by("-is_default", "name")
+
+    @action(detail=False, methods=["get"], url_path="default")
+    def get_default(self, request):
+        instance = WebWidthPolicy.objects.filter(is_default=True).first()
+        if instance is None:
+            instance = WebWidthPolicy.objects.first()
+        if instance is None:
+            return Response({"error": "No web-width policy configured yet."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(WebWidthPolicySerializer(instance).data)

@@ -46,6 +46,9 @@ export interface SalesOrderLine {
     /** Quantity + UOM for this line. */
     qty_value: number
     qty_uom: "KG" | "PCS"
+    /** Production lane count for N-up parent web planning. */
+    preferred_lane_count: number
+    lane_count_source: "REPEAT_DEFAULT" | "OPERATOR_CHOICE" | "POLICY_DEFAULT"
     /** Pricing. */
     unit_price: string
     price_basis: "KG" | "PCS"
@@ -123,6 +126,8 @@ export function freshLine(seed?: Partial<SalesOrderLine>): SalesOrderLine {
         film_type: "SHEET",
         qty_value: qtyValue,
         qty_uom: "KG",
+        preferred_lane_count: 1,
+        lane_count_source: "POLICY_DEFAULT",
         unit_price: "0.00",
         price_basis: "KG",
         remarks: "",

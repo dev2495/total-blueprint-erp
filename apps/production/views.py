@@ -201,13 +201,20 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                 "meta": (roll.meta_json or {}),
             })
         target_w = None
+        child_w = None
+        lane_count = 1
         try:
-            target_w = float(RollAllocationService.derive_step_target_width(job, getattr(job, "current_process", None) or getattr(job, "process", None)))
+            target_w = float(RollAllocationService.planned_parent_width(job))
+            child_w = float(RollAllocationService.target_child_width(job))
+            lane_count = RollAllocationService.preferred_lane_count(job)
         except Exception:
             target_w = None
         return Response({
             "candidates": payload,
             "target_width_mm": target_w,
+            "planned_parent_width_mm": target_w,
+            "child_target_width_mm": child_w,
+            "preferred_lane_count": lane_count,
         })
 
     @action(detail=True, methods=['post'], url_path='allocate-with-slit')

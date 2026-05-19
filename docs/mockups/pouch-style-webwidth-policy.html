@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pouch Style Master · Web Width Policy</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #dbe3ef;
+    --paper: #f6f8fb;
+    --panel: #ffffff;
+    --accent: #0f766e;
+    --accent-2: #2563eb;
+    --warn: #b45309;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, rgba(15, 118, 110, 0.08), transparent 360px),
+      var(--paper);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .shell { width: min(1740px, calc(100vw - 48px)); margin: 0 auto; }
+  .hair { border-color: var(--line); }
+  .soft { box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06); }
+  .mono { font-variant-numeric: tabular-nums; }
+  .btn {
+    border: 1px solid var(--line);
+    background: #fff;
+    color: #334155;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    transition: 160ms ease;
+  }
+  .btn:hover { border-color: #99f6e4; color: #0f766e; transform: translateY(-1px); }
+  .btn.active { background: #0f766e; color: #fff; border-color: #0f766e; }
+  .seg button {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 900;
+    border: 1px solid var(--line);
+    color: #475569;
+    background: white;
+  }
+  .seg button:first-child { border-radius: 12px 0 0 12px; }
+  .seg button:last-child { border-radius: 0 12px 12px 0; }
+  .seg button.active { background: #0f172a; color: white; border-color: #0f172a; }
+  .field {
+    height: 42px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0 12px;
+    background: #fff;
+    font-weight: 800;
+    color: #0f172a;
+    outline: none;
+  }
+  .field:focus { border-color: #14b8a6; box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12); }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: white;
+    padding: 6px 9px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #475569;
+  }
+  .token {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0 11px;
+    font-size: 12px;
+    font-weight: 900;
+    color: #0f172a;
+  }
+  .op { border-color: #99f6e4; background: #f0fdfa; color: #0f766e; }
+  .dim { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+  .waste { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+  .lane {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    position: relative;
+    overflow: hidden;
+  }
+  .lane b {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--w);
+    background: linear-gradient(90deg, #14b8a6, #2563eb);
+  }
+  .lane span { position: relative; z-index: 1; display: flex; height: 100%; align-items: center; padding-left: 12px; font-size: 12px; font-weight: 900; }
+  .rail {
+    background:
+      linear-gradient(90deg, rgba(15, 118, 110, .08), rgba(37, 99, 235, .08)),
+      #ffffff;
+  }
+  .step-dot {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: #0f172a;
+    color: white;
+    font-size: 11px;
+    font-weight: 900;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(15, 23, 42, .05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 23, 42, .05) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+</style>
+</head>
+<body>
+  <header class="sticky top-0 z-20 border-b hair bg-white/84 backdrop-blur">
+    <div class="shell flex h-16 items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="grid h-9 w-9 place-items-center rounded-xl bg-slate-900 text-xs font-black text-white">PM</div>
+        <div>
+          <div class="text-sm font-black tracking-tight">Pouch Style Master</div>
+          <div class="text-[11px] font-bold text-slate-500">Formula builder · web-width policy · WCM slit plan</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="pill">Draft model</span>
+        <button class="btn active">Save style</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell py-8">
+    <section class="grid grid-cols-[330px_minmax(0,1fr)_410px] gap-5">
+      <aside class="space-y-4">
+        <div class="rounded-2xl border hair bg-white p-4 soft">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-black">Style Library</h2>
+            <button class="btn !py-2">New</button>
+          </div>
+          <div class="mt-4 space-y-2">
+            <button class="w-full rounded-xl border border-teal-200 bg-teal-50 p-3 text-left">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-black text-teal-950">Stand-up pouch</span>
+                <span class="text-[10px] font-black uppercase text-teal-700">Active</span>
+              </div>
+              <div class="mt-1 text-xs font-semibold text-teal-800">W based · gusset affects H · 2 faces</div>
+            </button>
+            <button class="w-full rounded-xl border hair bg-white p-3 text-left hover:border-slate-300">
+              <div class="text-sm font-black">Center seal</div>
+              <div class="mt-1 text-xs font-semibold text-slate-500">H based · form-fill-seal</div>
+            </button>
+            <button class="w-full rounded-xl border hair bg-white p-3 text-left hover:border-slate-300">
+              <div class="text-sm font-black">Side gusset</div>
+              <div class="mt-1 text-xs font-semibold text-slate-500">W + gusset · carton-like side fold</div>
+            </button>
+            <button class="w-full rounded-xl border hair bg-white p-3 text-left hover:border-slate-300">
+              <div class="text-sm font-black">Shaped pouch</div>
+              <div class="mt-1 text-xs font-semibold text-slate-500">Manual web width required</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border hair bg-slate-950 p-4 text-white soft">
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-teal-300">Model rule</div>
+          <div class="mt-2 text-xl font-black leading-tight">Target web and parent jumbo are different facts.</div>
+          <p class="mt-3 text-sm font-semibold leading-6 text-slate-300">
+            Product Master stores the child web needed by the product. WCM decides whether the floor uses an exact roll, a wider parent, or a ganged parent.
+          </p>
+        </div>
+      </aside>
+
+      <section class="space-y-5">
+        <div class="rounded-3xl border hair bg-white p-5 soft">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">Geometry formula</div>
+              <h1 class="mt-1 text-3xl font-black tracking-tight">Stand-up pouch web width</h1>
+              <p class="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                Define which fields the style exposes, then build a locked formula used by Product Master size rows and planning.
+              </p>
+            </div>
+            <div class="seg flex">
+              <button class="active">Builder</button>
+              <button>Preview</button>
+              <button>Versions</button>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-4 gap-3">
+            <label class="space-y-1">
+              <span class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Width W</span>
+              <input id="w" class="field w-full mono" value="210" inputmode="decimal" />
+            </label>
+            <label class="space-y-1">
+              <span class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Height H</span>
+              <input id="h" class="field w-full mono" value="300" inputmode="decimal" />
+            </label>
+            <label class="space-y-1">
+              <span class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Faces</span>
+              <input id="faces" class="field w-full mono" value="2" inputmode="decimal" />
+            </label>
+            <label class="space-y-1">
+              <span class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Trim</span>
+              <input id="trim" class="field w-full mono" value="20" inputmode="decimal" />
+            </label>
+          </div>
+
+          <div class="mt-5 rounded-2xl border hair bg-slate-50 p-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="token dim">W</span>
+              <span class="token op">×</span>
+              <span class="token dim">faces</span>
+              <span class="token op">+</span>
+              <span class="token waste">trim</span>
+              <span class="token op">=</span>
+              <span class="token min-w-[120px] !justify-start"><span id="formulaOut">440 mm</span></span>
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-3">
+              <label class="flex items-center justify-between rounded-xl border hair bg-white px-3 py-2 text-xs font-bold">
+                Gusset field visible <input checked type="checkbox" class="h-4 w-4 accent-teal-700" />
+              </label>
+              <label class="flex items-center justify-between rounded-xl border hair bg-white px-3 py-2 text-xs font-bold">
+                Flap/tape field visible <input checked type="checkbox" class="h-4 w-4 accent-teal-700" />
+              </label>
+              <label class="flex items-center justify-between rounded-xl border hair bg-white px-3 py-2 text-xs font-bold">
+                Manual override allowed <input checked type="checkbox" class="h-4 w-4 accent-teal-700" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-3xl border hair bg-white p-5 soft">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Web-width policy</div>
+              <h2 class="mt-1 text-xl font-black">Allowed parent widths are planned at allocation time</h2>
+            </div>
+            <span class="pill border-blue-200 bg-blue-50 text-blue-800">Policy: child target stays fixed</span>
+          </div>
+
+          <div class="mt-5 grid grid-cols-[1fr_300px] gap-5">
+            <div class="space-y-3">
+              <div class="grid grid-cols-4 gap-2">
+                <button data-lanes="1" class="laneBtn btn active">1 lane</button>
+                <button data-lanes="2" class="laneBtn btn">2 lanes</button>
+                <button data-lanes="3" class="laneBtn btn">3 lanes</button>
+                <button data-lanes="manual" class="laneBtn btn">Manual</button>
+              </div>
+              <div class="rounded-2xl border hair bg-slate-50 p-4">
+                <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                  <span>Parent roll simulator</span>
+                  <span id="parentLabel" class="text-slate-900">440 mm parent</span>
+                </div>
+                <div id="laneStack" class="mt-4 space-y-2"></div>
+                <div class="mt-4 grid grid-cols-3 gap-3">
+                  <div class="rounded-xl border hair bg-white p-3">
+                    <div class="text-[10px] font-black uppercase text-slate-500">Child target</div>
+                    <div id="childTarget" class="mt-1 text-2xl font-black mono">440</div>
+                  </div>
+                  <div class="rounded-xl border hair bg-white p-3">
+                    <div class="text-[10px] font-black uppercase text-slate-500">Parent width</div>
+                    <div id="parentWidth" class="mt-1 text-2xl font-black mono">440</div>
+                  </div>
+                  <div class="rounded-xl border hair bg-white p-3">
+                    <div class="text-[10px] font-black uppercase text-slate-500">Remainder</div>
+                    <div id="remainder" class="mt-1 text-2xl font-black mono">0</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border hair bg-white p-4">
+              <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Policy fields</div>
+              <div class="mt-3 space-y-3 text-sm">
+                <div class="flex items-center justify-between border-b hair pb-2">
+                  <span class="font-bold text-slate-600">Allowed lanes</span>
+                  <span class="font-black">1, 2, 3</span>
+                </div>
+                <div class="flex items-center justify-between border-b hair pb-2">
+                  <span class="font-bold text-slate-600">Min remainder</span>
+                  <span class="font-black">200 mm</span>
+                </div>
+                <div class="flex items-center justify-between border-b hair pb-2">
+                  <span class="font-bold text-slate-600">Decision owner</span>
+                  <span class="font-black">WCM operator</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-600">Override reason</span>
+                  <span class="font-black text-amber-700">Required</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="space-y-5">
+        <div class="rounded-3xl border hair rail p-5 soft">
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">WCM allocation preview</div>
+          <h2 class="mt-1 text-xl font-black">Pick parent, then choose slit intent</h2>
+          <div class="mt-4 space-y-3">
+            <button class="w-full rounded-2xl border border-teal-200 bg-white p-4 text-left">
+              <div class="flex items-center justify-between">
+                <span class="font-black">Use exact 440</span>
+                <span class="pill border-teal-200 bg-teal-50 text-teal-800">Exact</span>
+              </div>
+              <div class="mt-2 text-xs font-semibold text-slate-500">Assign directly, no slit genealogy needed.</div>
+            </button>
+            <button class="w-full rounded-2xl border border-amber-200 bg-white p-4 text-left">
+              <div class="flex items-center justify-between">
+                <span class="font-black">Use 880, slit one child</span>
+                <span class="pill border-amber-200 bg-amber-50 text-amber-800">Balance</span>
+              </div>
+              <div class="mt-2 text-xs font-semibold text-slate-500">Create 440 for job + balance roll for future order.</div>
+            </button>
+            <button class="w-full rounded-2xl border border-blue-200 bg-white p-4 text-left">
+              <div class="flex items-center justify-between">
+                <span class="font-black">Use 1320, slit gang</span>
+                <span class="pill border-blue-200 bg-blue-50 text-blue-800">3 lanes</span>
+              </div>
+              <div class="mt-2 text-xs font-semibold text-slate-500">Assign one child per committed job; remainder/waste returned to pool.</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-3xl border hair bg-white p-5 soft">
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Route interpretation</div>
+          <div class="mt-4 space-y-4">
+            <div class="grid grid-cols-[28px_1fr] gap-3">
+              <div class="step-dot">1</div>
+              <div>
+                <div class="font-black">Extrusion</div>
+                <p class="text-xs font-semibold leading-5 text-slate-500">Can output child 440 or planned jumbo 880/1320 depending stock-launch policy.</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-[28px_1fr] gap-3">
+              <div class="step-dot">2</div>
+              <div>
+                <div class="font-black">Printing / Lamination</div>
+                <p class="text-xs font-semibold leading-5 text-slate-500">Uses whatever physical parent exists. If 880 was made, print 880 then slit later.</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-[28px_1fr] gap-3">
+              <div class="step-dot">3</div>
+              <div>
+                <div class="font-black">Slit / Pouching</div>
+                <p class="text-xs font-semibold leading-5 text-slate-500">Final child web stays 440. Children are job-bound; balance remains traceable WIP.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const number = (value, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  let lanes = 1;
+
+  function recompute() {
+    const w = number($("w").value, 210);
+    const faces = Math.max(1, number($("faces").value, 2));
+    const trim = number($("trim").value, 20);
+    const child = Math.max(0, Math.round(w * faces + trim));
+    $("formulaOut").textContent = `${child} mm`;
+    $("childTarget").textContent = child;
+    renderLanes(child);
+  }
+
+  function renderLanes(child) {
+    const count = lanes === "manual" ? 2 : lanes;
+    const parent = lanes === "manual" ? child * 2 : child * count;
+    const remainder = lanes === "manual" ? child : 0;
+    $("parentLabel").textContent = lanes === "manual" ? `${parent} mm parent · one child now` : `${parent} mm parent`;
+    $("parentWidth").textContent = parent;
+    $("remainder").textContent = remainder;
+    const stack = $("laneStack");
+    stack.innerHTML = "";
+    for (let i = 0; i < count; i++) {
+      const row = document.createElement("div");
+      row.className = "lane";
+      row.style.setProperty("--w", `${Math.max(8, Math.min(100, (child / parent) * 100))}%`);
+      const isBalance = lanes === "manual" && i === 1;
+      row.innerHTML = `<b></b><span>${isBalance ? "Balance roll" : `Child ${i + 1}`} · ${child} mm</span>`;
+      stack.appendChild(row);
+    }
+  }
+
+  document.querySelectorAll("input").forEach((input) => input.addEventListener("input", recompute));
+  document.querySelectorAll(".laneBtn").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".laneBtn").forEach((b) => b.classList.remove("active"));
+      button.classList.add("active");
+      lanes = button.dataset.lanes === "manual" ? "manual" : number(button.dataset.lanes, 1);
+      recompute();
+    });
+  });
+  recompute();
+</script>
+</body>
+</html>

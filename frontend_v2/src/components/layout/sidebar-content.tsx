@@ -123,6 +123,8 @@ export function SidebarNavContent({
 
           if (item.children && authorizedChildren?.length === 0 && !isAuthorized(item)) return null;
 
+          const parentAuthorized = isAuthorized(item);
+          const parentHref = parentAuthorized ? item.href : authorizedChildren?.[0]?.href || item.href;
           const isDirectLink = !item.children;
           const routeIsActive = (href: string) => {
             const normalizedHref = String(href || "");
@@ -132,8 +134,8 @@ export function SidebarNavContent({
               : pathname === normalizedHref || pathname.startsWith(normalizedHref + "/");
           };
           const isActive = isDirectLink
-            ? pathname === item.href
-            : pathname === item.href || Boolean(authorizedChildren?.some((child) => routeIsActive(child.href)));
+            ? pathname === parentHref
+            : pathname === parentHref || Boolean(authorizedChildren?.some((child) => routeIsActive(child.href)));
 
           if (compact && !mobile) {
             const childLinks = (authorizedChildren || []).map((child) => {
@@ -147,7 +149,6 @@ export function SidebarNavContent({
               };
             });
             const linkActive = isDirectLink ? isActive : childLinks.some((link) => link.active) || isActive;
-            const parentHref = item.href;
             const ParentIcon = item.icon;
             const flyoutPlacement = index >= authorizedItems.length - 3 ? "bottom-0" : "top-0";
 
@@ -270,10 +271,10 @@ export function SidebarNavContent({
                     {sectionTitle}
                   </div>
                   <Link
-                    href={item.href}
+                    href={parentHref}
                     onClick={onNavigate}
                     data-testid={`sidebar-workspace-${navTestId(item.href || item.title)}`}
-                    data-route={item.href}
+                    data-route={parentHref}
                     data-active={isActive ? "true" : undefined}
                     className={cn(
                       "group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-bold transition-all duration-150",

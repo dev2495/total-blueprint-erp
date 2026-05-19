@@ -154,6 +154,24 @@ class GangRollAllocationTests(TestCase):
         self.assertEqual(preview["gang_job_count"], 2)
         self.assertEqual(preview["assign_job_ids"], [str(self.job_a.id), str(self.job_b.id)])
 
+    def test_remainder_roll_wider_than_planned_parent_is_slit_again(self):
+        self.job_a.meta_json.update({"planned_parent_width_mm": 600, "layer_signature_hash": "sig-gang"})
+        self.job_a.save(update_fields=["meta_json"])
+        self.roll.width_mm = Decimal("900.00")
+        self.roll.meta_json = {"layer_signature_hash": "sig-gang", "roll_role": "REMAINDER", "is_remainder": True}
+        self.roll.save(update_fields=["width_mm", "meta_json"])
+
+        with patch.object(
+            RollAllocationService,
+            "get_eligible_rolls",
+            return_value=InventoryRoll.objects.filter(id=self.roll.id),
+        ):
+            tiered = RollAllocationService.allocate_tiered(self.job_a)
+
+        self.assertEqual(tiered[0]["tier"], "WIDER_OK_WITH_SLIT")
+        self.assertEqual(tiered[0]["slit_preview"]["child_widths_mm"], [600.0])
+        self.assertEqual(tiered[0]["slit_preview"]["remainder_mm"], 295.0)
+
     def test_perform_slit_assign_assigns_one_child_per_gang_job(self):
         self.job_a.meta_json.update({"gang_group_id": "gang-2", "gang_layer_sig": "sig-gang"})
         self.job_b.meta_json.update({"gang_group_id": "gang-2", "gang_layer_sig": "sig-gang"})
@@ -190,4 +208,38 @@ class GangRollAllocationTests(TestCase):
         self.assertEqual(children[0].meta_json["assigned_job_id"], str(self.job_a.id))
         self.assertEqual(children[1].meta_json["assigned_job_id"], str(self.job_b.id))
         self.assertEqual(children[0].meta_json["gang_group_id"], "gang-2")
+        self.assertEqual(RollLink.objects.filter(parent_roll=self.roll).count(), 3)
+
+    def test_perform_slit_assign_multi_slit_keeps_extra_children_available(self):
+        def fake_assign(job_id, roll_id, **_kwargs):
+            InventoryRoll.objects.filter(id=roll_id).update(status="RESERVED")
+            return {"job_id": job_id}
+
+        with patch(
+            "apps.production.services.services_execution.ExecutionService.assign_roll_to_job",
+            side_effect=fake_assign,
+        ) as assign_mock:
+            out = RollAllocationService.perform_slit_assign(
+                self.job_a,
+                self.roll,
+                [Decimal("300.00"), Decimal("300.00")],
+                reason="operator max slit",
+            )
+
+        self.assertEqual(len(out["child_ids"]), 2)
+        self.assertEqual(len(out["assigned_jobs"]), 1)
+        self.assertEqual(assign_mock.call_count, 1)
+        self.assertIsNotNone(out["remainder_id"])
+        self.roll.refresh_from_db()
+        self.assertEqual(self.roll.status, "CONSUMED")
+
+        first_child = InventoryRoll.objects.get(id=out["child_ids"][0])
+        second_child = InventoryRoll.objects.get(id=out["child_ids"][1])
+        remainder = InventoryRoll.objects.get(id=out["remainder_id"])
+        self.assertEqual(first_child.status, "RESERVED")
+        self.assertEqual(second_child.status, "AVAILABLE")
+        self.assertEqual(second_child.width_mm, Decimal("300.00"))
+        self.assertEqual(remainder.status, "AVAILABLE")
+        self.assertEqual(remainder.width_mm, Decimal("390.00"))
+        self.assertEqual(remainder.meta_json["roll_role"], "REMAINDER")
         self.assertEqual(RollLink.objects.filter(parent_roll=self.roll).count(), 3)

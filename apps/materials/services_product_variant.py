@@ -292,6 +292,10 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "height_mm": float(size_row.height_mm or 0),
             "gusset_mm": float(size_row.gusset_mm or 0),
             "roll_width_mm": float(size_row.roll_width_mm or 0),
+            "child_target_width_mm": float(size_row.child_target_width_mm or 0),
+            "child_target_override": bool(getattr(size_row, "child_target_override", False)),
+            "pouch_style_master": str(size_row.pouch_style_master_id) if getattr(size_row, "pouch_style_master_id", None) else "",
+            "pouch_style_version": int(getattr(size_row, "pouch_style_version", 0) or 0),
             "trim_loss_mm": geometry_defaults.get("trim_loss_mm") if "trim_loss_mm" in geometry_defaults else None,
             "trim_apply_to": geometry_defaults.get("trim_apply_to") or "",
             "flap_tape_mm": geometry_defaults.get("flap_tape_mm") if "flap_tape_mm" in geometry_defaults else None,
@@ -320,6 +324,10 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
         "height_mm": float(height or 0),
         "gusset_mm": float(src.get("gusset_mm") or 0),
         "roll_width_mm": float(src.get("roll_width_mm") or 0),
+        "child_target_width_mm": float(src.get("child_target_width_mm") or 0),
+        "child_target_override": bool(src.get("child_target_override") or False),
+        "pouch_style_master": str(src.get("pouch_style_master") or ""),
+        "pouch_style_version": int(src.get("pouch_style_version") or 0),
         "trim_loss_mm": src.get("trim_loss_mm"),
         "trim_apply_to": src.get("trim_apply_to") or "",
         "flap_tape_mm": src.get("flap_tape_mm"),
@@ -359,6 +367,14 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
     normalized["size_code"] = size["size_code"]
     normalized["size_label"] = size["size_label"]
     normalized["axis_values"] = canonical_axis_values(axis_values)
+    child_target_width = Decimal(str(size.get("child_target_width_mm") or 0))
+    if child_target_width > 0:
+        normalized["child_target_width_mm"] = float(child_target_width)
+        normalized["target_child_width_mm"] = float(child_target_width)
+    if size.get("pouch_style_master"):
+        normalized["pouch_style_master"] = size.get("pouch_style_master")
+        normalized["pouch_style_version"] = size.get("pouch_style_version") or 0
+    normalized["child_target_override"] = bool(size.get("child_target_override"))
     # Roll-width math — trim is applied once at the roll level, not per-face.
     # PhysicsEngine.effective_width_mm already includes trim (used for the
     # film-area / weight calc since trim is real material consumed). For the
@@ -384,7 +400,8 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
         trim_loss = Decimal(str(dims.get("trim_loss_mm") or 0))
         trim_apply_to = str(dims.get("trim_apply_to") or "WIDTH").upper()
         auto_roll = _roll_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH", faces)
-        normalized["roll_width_mm"] = float(explicit_width if explicit_width > 0 else auto_roll)
+        resolved_roll_width = explicit_width if explicit_width > 0 else (child_target_width if child_target_width > 0 else auto_roll)
+        normalized["roll_width_mm"] = float(resolved_roll_width)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
         normalized["effective_height_mm"] = 0.0
         normalized["roll_form"] = str(fixed.get("roll_form") or "FLAT").upper()
@@ -401,7 +418,8 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
             auto_roll = _roll_axis_value(dims["effective_height_mm"], trim_loss, trim_apply_to, "HEIGHT", faces)
         else:
             auto_roll = _roll_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH", faces)
-        normalized["roll_width_mm"] = float(explicit_width if explicit_width > 0 else auto_roll)
+        resolved_roll_width = explicit_width if explicit_width > 0 else (child_target_width if child_target_width > 0 else auto_roll)
+        normalized["roll_width_mm"] = float(resolved_roll_width)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
         normalized["effective_height_mm"] = float(dims["effective_height_mm"])
     return normalized

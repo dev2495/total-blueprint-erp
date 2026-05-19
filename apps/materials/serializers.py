@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from apps.inventory.models import InkMaterial
@@ -591,6 +591,10 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
             "notes",
             "active",
             "sort_order",
+            "pouch_style_master",
+            "pouch_style_version",
+            "child_target_width_mm",
+            "child_target_override",
             "created_at",
             "updated_at",
         ]
@@ -1013,3 +1017,176 @@ class PodSkuSerializer(serializers.ModelSerializer):
 
     def get_active_variant_count(self, obj):
         return obj.variants.filter(active=True).count()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pouch style master
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class PouchStyleSerializer(serializers.ModelSerializer):
+    """Serializer for PouchStyleMaster. Supports CRUD + locked-edit versioning."""
+
+    created_by_name = serializers.CharField(source="created_by.username", read_only=True, default="")
+    updated_by_name = serializers.CharField(source="updated_by.username", read_only=True, default="")
+    sizes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PouchStyleMaster
+        fields = [
+            "id",
+            "code",
+            "name",
+            "description",
+            "version",
+            "locked",
+            "visual_emoji",
+            "visual_svg",
+            "faces",
+            "default_roll_axis",
+            "allowed_fields",
+            "field_adjustments",
+            "formula_kind",
+            "formula_params",
+            "formula_ast",
+            "formula_expression",
+            "deprecated",
+            "sort_order",
+            "notes",
+            "sizes_count",
+            "created_by_name",
+            "updated_by_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "version",
+            "locked",
+            "sizes_count",
+            "created_by_name",
+            "updated_by_name",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_sizes_count(self, obj):
+        return obj.sizes.count()
+
+    def validate_code(self, value):
+        return normalize_code(value, max_length=80).upper()
+
+    def validate_allowed_fields(self, value):
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("allowed_fields must be an object.")
+        return value
+
+    def validate_field_adjustments(self, value):
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("field_adjustments must be an object.")
+        return value
+
+    def validate_formula_params(self, value):
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("formula_params must be an object.")
+        return value
+
+    def validate_formula_ast(self, value):
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("formula_ast must be an object.")
+        return value
+
+    def validate(self, attrs):
+        # AST mode requires a non-empty AST.
+        kind = (attrs.get("formula_kind") or getattr(self.instance, "formula_kind", "") or "").upper()
+        ast = attrs.get("formula_ast", getattr(self.instance, "formula_ast", {}) or {})
+        if kind == "CUSTOM_AST" and not ast:
+            raise serializers.ValidationError({"formula_ast": "Custom AST mode requires a non-empty AST."})
+        return super().validate(attrs)
+
+
+class PouchStylePreviewSerializer(serializers.Serializer):
+    """POST body for live formula preview without persisting."""
+
+    formula_kind = serializers.CharField()
+    formula_params = serializers.JSONField(required=False, default=dict)
+    formula_ast = serializers.JSONField(required=False, default=dict)
+    field_adjustments = serializers.JSONField(required=False, default=dict)
+    inputs = serializers.JSONField(required=False, default=dict)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Web-width policy
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class WebWidthPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WebWidthPolicy
+        fields = [
+            "id",
+            "code",
+            "name",
+            "description",
+            "is_default",
+            "allowed_lanes",
+            "allowed_parent_widths",
+            "slitting_waste_rule",
+            "min_remainder_mm",
+            "prefer_remainder_first",
+            "deprecated",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_code(self, value):
+        return normalize_code(value, max_length=80).upper()
+
+    def validate_allowed_lanes(self, value):
+        if value in (None, ""):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("allowed_lanes must be a list of integers.")
+        out = []
+        for v in value:
+            try:
+                n = int(v)
+            except Exception:
+                raise serializers.ValidationError("allowed_lanes entries must be integers.")
+            if n < 1 or n > 12:
+                raise serializers.ValidationError("Lane count must be between 1 and 12.")
+            out.append(n)
+        return sorted(set(out))
+
+    def validate_allowed_parent_widths(self, value):
+        if value in (None, ""):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("allowed_parent_widths must be a list of numbers.")
+        out = []
+        for v in value:
+            try:
+                n = float(v)
+            except Exception:
+                raise serializers.ValidationError("allowed_parent_widths entries must be numeric.")
+            if n <= 0:
+                continue
+            out.append(round(n, 2))
+        return sorted(set(out))
+
+    def validate_slitting_waste_rule(self, value):
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("slitting_waste_rule must be an object.")
+        return value

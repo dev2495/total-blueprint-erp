@@ -248,6 +248,24 @@ class SalesOrderItem(models.Model):
     sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name='items')
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT)
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='TEMPLATE')
+
+    # ─ Final-model production-lane fields ────────────────────────────────
+    preferred_lane_count = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="How many lanes (N-up) this order runs at. Defaults to last successful order for same customer + size.",
+    )
+    planned_parent_width_mm = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Derived from child_target × preferred_lane + policy trim. Set at order confirm.",
+    )
+    lane_count_source = models.CharField(
+        max_length=24,
+        default="POLICY_DEFAULT",
+        help_text="REPEAT_DEFAULT | OPERATOR_CHOICE | POLICY_DEFAULT",
+    )
     product_master = models.ForeignKey(
         'materials.ProductMaster',
         on_delete=models.SET_NULL,

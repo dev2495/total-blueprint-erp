@@ -16,12 +16,13 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SalesOrderItem
         fields = [
-            'id', 'template', 'template_name', 'template_status', 
+            'id', 'template', 'template_name', 'template_status',
             'qty_value', 'qty_uom', 'unit_weight_g', 'total_weight_kg',
             'line_name', 'price_basis', 'unit_price',
             'artwork_assignment_required', 'assigned_artwork',
             'geometry_snapshot', 'layer_snapshot', 'printing_snapshot', 'addons_snapshot', 'packaging_snapshot',
-            'bom_snapshot', 'routing_assigned', 'has_stock_claims', 'claimed_stock_order_nos'
+            'bom_snapshot', 'routing_assigned', 'has_stock_claims', 'claimed_stock_order_nos',
+            'preferred_lane_count', 'planned_parent_width_mm', 'lane_count_source',
         ]
 
     def get_routing_assigned(self, obj):

@@ -256,6 +256,8 @@ export const NAV_ITEMS: NavItem[] = [
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
       { title: "Product Master", href: "/master/products", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
+      { title: "Pouch Styles", href: "/master/pouch-styles", icon: Palette, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
+      { title: "Web-Width Policies", href: "/master/web-width-policies", icon: MoveRight, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["sales.manage", "production.manage"] },
       { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
     ],

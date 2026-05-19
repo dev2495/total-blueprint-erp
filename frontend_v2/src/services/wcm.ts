@@ -122,6 +122,9 @@ export const wcmService = {
                 meta: Record<string, any>;
             }>;
             target_width_mm: number | null;
+            planned_parent_width_mm?: number | null;
+            child_target_width_mm?: number | null;
+            preferred_lane_count?: number | null;
         }>(`/api/production/jobs/${jobId}/tiered-rolls/`);
         return data;
     },

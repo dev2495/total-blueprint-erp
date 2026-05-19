@@ -71,6 +71,10 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   // each variant is manually linked to one fixed catalog row here.
   "/master/packaging",
   "/master/pod",
+  "/master/pouch-styles",
+  "/master/pouch-styles/new",
+  "/master/web-width-policies",
+  "/master/web-width-policies/new",
   "/master/products",
   "/master/recipes",
   "/master/vendors",
@@ -99,6 +103,8 @@ const DYNAMIC_ROUTE_PATTERNS: RegExp[] = [
   /^\/sales\/orders\/[^/]+\/tracking$/,
   /^\/master\/products\/[^/]+$/,
   /^\/master\/products\/[^/]+\/edit$/,
+  /^\/master\/pouch-styles\/[^/]+$/,
+  /^\/master\/web-width-policies\/[^/]+$/,
 ];
 
 function normalizePath(path: string): string {

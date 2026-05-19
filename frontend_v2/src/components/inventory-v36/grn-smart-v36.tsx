@@ -66,6 +66,14 @@ interface ItemDraft {
     core_size_inch?: string
 }
 
+interface PostedReceipt {
+    grn_no: string
+    klass: ClassKind
+    total_qty: number
+    uom: string
+    movement_count: number
+}
+
 const FRESH_ITEM = (): ItemDraft => ({
     id: `it-${Math.random().toString(36).slice(2, 8)}`,
     material_code: "",
@@ -150,6 +158,7 @@ export function GrnSmartV36() {
     const [otherCharges, setOtherCharges] = React.useState("0")
     const [gstPct, setGstPct] = React.useState("18")
     const [remarks, setRemarks] = React.useState("")
+    const [lastPosted, setLastPosted] = React.useState<PostedReceipt | null>(null)
 
     const vendorsQ = useQuery({ queryKey: ["vendors"], queryFn: () => inventoryService.getVendors(), staleTime: 60_000 })
     const locationsQ = useQuery({ queryKey: ["locations"], queryFn: () => inventoryService.getLocations(), staleTime: 60_000 })
@@ -174,6 +183,30 @@ export function GrnSmartV36() {
         setKlass(next)
         setItems([FRESH_ITEM()])
         if (next !== "BULK") setBulkMaterialFilter("ALL")
+        setLastPosted(null)
+    }, [])
+
+    const resetDraftAfterPost = React.useCallback(() => {
+        setSourceType("PO")
+        setPoId("")
+        setVendorId("")
+        setVendorInvoiceNo("")
+        setVendorInvoiceDate("")
+        setLrVehicle("")
+        setWarehouseId("")
+        setReceiptDate(new Date().toISOString().slice(0, 10))
+        setItems([FRESH_ITEM()])
+        setCoaAttached(true)
+        setShowQualityDetails(false)
+        setQcRequired(false)
+        setDensity("")
+        setMfi("")
+        setMoisture("")
+        setQcInspector("")
+        setFreight("0")
+        setOtherCharges("0")
+        setGstPct("18")
+        setRemarks("")
     }, [])
 
     const submitMutation = useMutation({
@@ -223,13 +256,22 @@ export function GrnSmartV36() {
             }
             return inventoryService.createUnifiedGRN(basePayload)
         },
-        onSuccess: () => {
+        onSuccess: (receipt: any) => {
+            const posted: PostedReceipt = {
+                grn_no: String(receipt?.grn_no || "GRN posted"),
+                klass,
+                total_qty: Number(receipt?.totals?.qty ?? totalQty) || 0,
+                uom: items[0]?.uom || "units",
+                movement_count: Array.isArray(receipt?.stock_movements) ? receipt.stock_movements.length : items.length,
+            }
             queryClient.invalidateQueries({ queryKey: ["inventory-v36-snapshot"] })
             queryClient.invalidateQueries({ queryKey: ["inventory-bulk"] })
             queryClient.invalidateQueries({ queryKey: ["inventory-rolls"] })
             queryClient.invalidateQueries({ queryKey: ["inventory-packaging"] })
             queryClient.invalidateQueries({ queryKey: ["grn-history"] })
-            toast({ title: "GRN posted", description: `${klass} receipt of ${totalQty} ${items[0]?.uom || "units"} added to ledger` })
+            setLastPosted(posted)
+            resetDraftAfterPost()
+            toast({ title: "GRN posted", description: `${posted.grn_no} · ${posted.total_qty} ${posted.uom} added to ledger` })
         },
         onError: (err: any) => toast({ title: "Could not post GRN", description: describeApiError(err, "Try again"), variant: "destructive" }),
     })
@@ -245,6 +287,33 @@ export function GrnSmartV36() {
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
                     <div className="font-bold">Master data did not load.</div>
                     <div className="mt-0.5">{describeApiError(queryError, "Check backend and retry.")}</div>
+                </div>
+            )}
+            {lastPosted && (
+                <div
+                    data-testid="smart-grn-confirmation"
+                    className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm ring-1 ring-emerald-100"
+                >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-start gap-2">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-emerald-600" />
+                            <div>
+                                <div className="font-bold">Posted {lastPosted.grn_no}</div>
+                                <div className="mt-0.5 text-xs text-emerald-800">
+                                    {lastPosted.klass} inward saved · {lastPosted.total_qty.toLocaleString()} {lastPosted.uom} · {lastPosted.movement_count} stock movement{lastPosted.movement_count === 1 ? "" : "s"}. The form below is reset for the next receipt.
+                                </div>
+                            </div>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLastPosted(null)}
+                            className="h-8 rounded-lg border-emerald-200 bg-white text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                        >
+                            Clear
+                        </Button>
+                    </div>
                 </div>
             )}
 

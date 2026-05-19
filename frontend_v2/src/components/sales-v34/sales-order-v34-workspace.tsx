@@ -49,6 +49,7 @@ import { salesService } from "@/services/sales"
 import { useSalesDraft } from "./use-sales-draft"
 import { Cart } from "./cart"
 import { QuickStartBand } from "./quick-start-band"
+import { CustomerContextPanel } from "./customer-context-panel"
 
 export function SalesOrderV34Workspace() {
     const router = useRouter()
@@ -136,6 +137,8 @@ export function SalesOrderV34Workspace() {
                         axis_values,
                         qty_value: line.qty_value,
                         qty_uom: line.qty_uom,
+                        preferred_lane_count: line.preferred_lane_count,
+                        lane_count_source: line.lane_count_source,
                         price_basis: line.price_basis,
                         unit_price: line.unit_price,
                         printing: m?.fixed_attributes?.print_capable
@@ -197,6 +200,11 @@ export function SalesOrderV34Workspace() {
                 onSetOrderName={setOrderName}
                 onSetDeliveryDate={setDeliveryDate}
             />
+
+            {/* Customer context — overlays + recent orders + repeat-lane hint */}
+            {draft.customer ? (
+                <CustomerContextPanel customerId={draft.customer} customerName={customer?.name} />
+            ) : null}
 
             {/* Quick Start band — only when customer is set */}
             {draft.customer ? (

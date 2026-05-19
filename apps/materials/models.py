@@ -210,6 +210,183 @@ class ProductVariant(models.Model):
         super().save(*args, **kwargs)
 
 
+class WebWidthPolicy(models.Model):
+    """
+    Production-side policy declaring how a sales-order's `preferred_lane_count`
+    is allowed to translate into actual production. Attached as a default to
+    `RoutingRule` (one policy per route). Optional override per Machine.
+
+    Fields:
+      - allowed_lanes: which N-up runs are permitted (e.g. [1, 2, 3])
+      - allowed_parent_widths: optional hint list (e.g. [440, 880, 1320]);
+        null = "any width ≥ child × lanes + trim is fine"
+      - slitting_waste_rule: { inter_cut_mm, edge_trim_mm, formula }
+      - min_remainder_mm: remainder rolls smaller than this go to scrap
+      - prefer_remainder_first: if true, allocator scores remainder rolls
+        ahead of fresh rolls within the same tier
+    """
+
+    FORMULA_CHOICES = [
+        ("PER_CUT", "Per cut"),
+        ("PER_LANE", "Per lane"),
+        ("FIXED", "Fixed amount"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=80, unique=True, db_index=True)
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True, default="")
+
+    is_default = models.BooleanField(
+        default=False,
+        help_text="True for the global fallback policy used when a route has none attached.",
+    )
+
+    allowed_lanes = models.JSONField(default=list, blank=True)
+    allowed_parent_widths = models.JSONField(default=list, blank=True)
+
+    slitting_waste_rule = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="JSON: { inter_cut_mm, edge_trim_mm, formula: PER_CUT|PER_LANE|FIXED }",
+    )
+
+    min_remainder_mm = models.PositiveIntegerField(
+        default=50,
+        help_text="Remainder rolls below this width go straight to scrap.",
+    )
+    prefer_remainder_first = models.BooleanField(default=True)
+
+    deprecated = models.BooleanField(default=False)
+    notes = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "web_width_policies"
+        ordering = ["-is_default", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80).upper()
+        super().save(*args, **kwargs)
+
+
+class PouchStyleMaster(models.Model):
+    """
+    Pouch style master — declares which input fields apply, how they affect the
+    web axis (per-side adjustments), and the formula that computes
+    target_child_width_mm.
+
+    Two formula modes:
+      * One of the closed-set `formula_kind` values (safe, fast, pre-baked).
+      * `CUSTOM_AST` mode — operator builds an expression tree by hand.
+
+    Version-pinned: ProductMasterSize stores both pouch_style_id and the version
+    snapshot at the time it was bound, so historical sizes keep their math even
+    when ops tunes the style going forward.
+    """
+
+    FORMULA_KIND_CHOICES = [
+        ("LINEAR", "Linear formula · Σ (coefficient × field) + trim"),
+        ("SHAPED_OVERRIDE", "Operator enters target directly"),
+        ("CUSTOM_AST", "Custom expression tree (advanced)"),
+    ]
+
+    AXIS_CHOICES = [
+        ("WIDTH", "Width axis"),
+        ("HEIGHT", "Height axis"),
+        ("BOTH", "Both axes"),
+        ("NONE", "None"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=80, db_index=True)
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True, default="")
+
+    version = models.PositiveIntegerField(default=1)
+    locked = models.BooleanField(
+        default=False,
+        help_text="Set true once first ProductMasterSize binds. Editing then spawns a new version.",
+    )
+
+    visual_emoji = models.CharField(max_length=8, blank=True, default="🛍️")
+    visual_svg = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional inline SVG cheat-sheet of the pouch shape.",
+    )
+
+    faces = models.PositiveSmallIntegerField(default=2)
+    default_roll_axis = models.CharField(max_length=10, choices=AXIS_CHOICES, default="WIDTH")
+
+    # Which input fields the size editor will surface for this style.
+    # JSON shape:
+    #   {
+    #     "W":      {"required": true,  "label": "Width",  "min": 1,    "max": 2000},
+    #     "H":      {"required": true,  "label": "Height", "min": 1,    "max": 2000},
+    #     "gusset": {"required": false, "label": "Gusset"},
+    #     "flap":   {"required": false, "label": "Flap"},
+    #     "factor": {"required": false, "default": 1.0},
+    #   }
+    allowed_fields = models.JSONField(default=dict, blank=True)
+
+    # How allowed fields affect the roll-width math when the closed-set
+    # formula is used. Per-side adjustments live here.
+    # JSON shape:
+    #   {
+    #     "gusset_axis":   "BOTH" | "WIDTH" | "HEIGHT" | "NONE",
+    #     "trim_axis":     "WIDTH" | "HEIGHT" | "BOTH" | "NONE",
+    #     "trim_default_mm": 5,
+    #     "default_lane_count": 1
+    #   }
+    field_adjustments = models.JSONField(default=dict, blank=True)
+
+    formula_kind = models.CharField(
+        max_length=24,
+        choices=FORMULA_KIND_CHOICES,
+        default="LINEAR",
+    )
+    formula_params = models.JSONField(default=dict, blank=True)
+    formula_ast = models.JSONField(default=dict, blank=True)
+    formula_expression = models.TextField(
+        blank=True,
+        default="",
+        help_text="Human-readable mirror of the AST/kind for display only.",
+    )
+
+    deprecated = models.BooleanField(default=False)
+    sort_order = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True, default="")
+
+    created_by = models.ForeignKey(
+        "users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="pouch_styles_created"
+    )
+    updated_by = models.ForeignKey(
+        "users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="pouch_styles_updated"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pouch_styles"
+        ordering = ["sort_order", "name", "-version"]
+        constraints = [
+            models.UniqueConstraint(fields=["code", "version"], name="pouchstyle_code_version_unique"),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.code}) v{self.version}"
+
+    def save(self, *args, **kwargs):
+        self.code = normalize_code(self.code, max_length=80).upper()
+        super().save(*args, **kwargs)
+
+
 class ProductMasterSize(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product_master = models.ForeignKey(ProductMaster, on_delete=models.CASCADE, related_name="sizes")
@@ -227,6 +404,32 @@ class ProductMasterSize(models.Model):
     notes = models.TextField(blank=True, default="")
     active = models.BooleanField(default=True)
     sort_order = models.PositiveIntegerField(default=0)
+
+    # ── Pouch-style binding (new final model) ────────────────────────────
+    pouch_style_master = models.ForeignKey(
+        PouchStyleMaster,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sizes",
+        help_text="Pouch style master defining formula + allowed fields for this size.",
+    )
+    pouch_style_version = models.PositiveIntegerField(
+        default=0,
+        help_text="Snapshot of the bound pouch style's version at the time of binding.",
+    )
+    child_target_width_mm = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="The pouch's finished web requirement. Auto-computed by the pouch style formula, with optional manual override.",
+    )
+    child_target_override = models.BooleanField(
+        default=False,
+        help_text="True when child_target_width_mm was set manually instead of computed.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -253,6 +456,16 @@ class ProductMasterSize(models.Model):
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80)
         super().save(*args, **kwargs)
+        # Auto-lock the bound pouch style so future edits spawn a new version.
+        if self.pouch_style_master_id:
+            try:
+                style = self.pouch_style_master
+                if style and not style.locked:
+                    style.locked = True
+                    style.save(update_fields=["locked", "updated_at"])
+            except Exception:
+                # Locking is opportunistic — never fail the size save.
+                pass
 
 
 class InventoryMaterial(models.Model):

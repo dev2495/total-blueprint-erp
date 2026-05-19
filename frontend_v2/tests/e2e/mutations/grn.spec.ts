@@ -40,6 +40,9 @@ test("store can inward bulk stock through GRN and update inventory ledger state"
   const bulkSubmit = page.waitForResponse((response) => response.url().includes("/api/inventory/grn/create/") && response.request().method() === "POST")
   await page.getByTestId("smart-grn-submit").click()
   expect((await bulkSubmit).status()).toBe(201)
+  await expect(page.getByTestId("smart-grn-confirmation")).toContainText("Posted GRN/")
+  await expect(page.getByTestId("smart-grn-line-0-qty")).toHaveValue("")
+  await expect(page.getByTestId("smart-grn-submit")).toBeDisabled()
 
   await page.waitForTimeout(1000)
   const after = await fetchJson<any>(page, `/api/inventory/stock/bulk/?plant=${seed.grn.plant_id}&location=${seed.grn.bulk_location_id}`)

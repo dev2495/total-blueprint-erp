@@ -81,12 +81,14 @@ interface SavedView {
         widthMm: string
         heightMm: string
         thicknessUm: string
+        pouchStyle: string
     }
 }
 
 const DEFAULT_FILTERS: SavedView["filters"] = {
     status: "ALL", age: "ALL", customer: "", master: "",
     searchText: "", fgType: "", widthMm: "", heightMm: "", thicknessUm: "",
+    pouchStyle: "",
 }
 
 const STATUS_PILL_TONE: Record<StatusKey, string> = {
@@ -287,6 +289,19 @@ export function SalesOrdersListWorkspace() {
             const h = Number(filters.heightMm) || 0
             const itemH = Number((order.item_summary as any)?.size?.heightMm || 0)
             if (!h || !itemH || Math.abs(itemH - h) > 25) return false
+        }
+        if (filters.pouchStyle) {
+            // Filter by pouch style id OR code across any item in the order
+            const itemSummary = order.item_summary as any
+            const styleHits: string[] = []
+            const ps = itemSummary?.pouch_style || itemSummary?.pouch_style_master || itemSummary?.pouch_style_code
+            if (ps) styleHits.push(String(ps))
+            const items: any[] = (order as any).items || []
+            for (const it of items) {
+                const v = it?.pouch_style_master || it?.pouch_style_code || it?.pouch_style
+                if (v) styleHits.push(String(v))
+            }
+            if (!styleHits.some((s) => s === filters.pouchStyle || s.toUpperCase() === filters.pouchStyle.toUpperCase())) return false
         }
         return true
     }), [queueRows, filters, masters])
@@ -651,6 +666,7 @@ function FilterBand({
         activeFilterChips.push({ key: "master", label: `master · ${m?.code || filters.master}`, clear: () => onPatch("master", "") })
     }
     if (filters.fgType) activeFilterChips.push({ key: "fg", label: `fg · ${filters.fgType}`, clear: () => onPatch("fgType", "") })
+    if (filters.pouchStyle) activeFilterChips.push({ key: "pouchStyle", label: `pouch · ${filters.pouchStyle}`, clear: () => onPatch("pouchStyle", "") })
     if (filters.widthMm) activeFilterChips.push({ key: "w", label: `width · ${filters.widthMm} mm`, clear: () => onPatch("widthMm", "") })
     if (filters.heightMm) activeFilterChips.push({ key: "h", label: `height · ${filters.heightMm} mm`, clear: () => onPatch("heightMm", "") })
     if (filters.thicknessUm) activeFilterChips.push({ key: "t", label: `thickness · ${filters.thicknessUm} μ`, clear: () => onPatch("thicknessUm", "") })
@@ -743,6 +759,13 @@ function FilterBand({
                     <div>
                         <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Thickness (μ)</Label>
                         <Input value={filters.thicknessUm} onChange={(e) => onPatch("thicknessUm", e.target.value)} placeholder="e.g. 80" className="h-9 rounded-lg text-xs mt-1 font-mono" />
+                    </div>
+                    <div>
+                        <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pouch style</Label>
+                        <PouchStyleFilterPicker
+                            value={filters.pouchStyle}
+                            onChange={(v) => onPatch("pouchStyle", v)}
+                        />
                     </div>
                 </div>
             ) : null}
@@ -1129,5 +1152,31 @@ function CancelOrderDialog({ order, onClose, onConfirm, pending }: { order: Sale
                 </div>
             </DialogContent>
         </Dialog>
+    )
+}
+
+// ─── Pouch-style filter picker ───────────────────────────────────────────────
+
+function PouchStyleFilterPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const { data: styles = [] } = useQuery({
+        queryKey: ["pouch-styles-for-filter"],
+        queryFn: async () => {
+            const { pouchStyleService } = await import("@/services/pouch-style")
+            return pouchStyleService.list({ page_size: 200 })
+        },
+        staleTime: 60_000,
+    })
+    return (
+        <Select value={value || "__all"} onValueChange={(v) => onChange(v === "__all" ? "" : v)}>
+            <SelectTrigger className="h-9 rounded-lg text-xs mt-1"><SelectValue placeholder="Any pouch style" /></SelectTrigger>
+            <SelectContent>
+                <SelectItem value="__all">Any pouch style</SelectItem>
+                {styles.map((s: any) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                        <span className="mr-1">{s.visual_emoji || "🛍️"}</span> {s.code} · {s.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     )
 }

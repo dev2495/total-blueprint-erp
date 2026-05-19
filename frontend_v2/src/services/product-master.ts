@@ -183,6 +183,14 @@ export interface ProductMasterSize {
     standard_qty?: number | null;
     qty_uom?: "KG" | "PCS" | "METER";
     pouch_style?: string;
+    /** UUID of the PouchStyleMaster bound to this size (final model). */
+    pouch_style_master?: string | null;
+    /** Snapshot of the bound pouch style's version at the time of binding. */
+    pouch_style_version?: number;
+    /** Final pouch web requirement. Auto-computed from formula, optionally overridden. */
+    child_target_width_mm?: number | null;
+    /** True when the operator manually set child_target_width_mm. */
+    child_target_override?: boolean;
     roll_form?: string;
     faces?: number;
     flap_tape_mm?: number;

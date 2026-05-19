@@ -17,6 +17,8 @@ from .views import (
     ProductMasterViewSet,
     ProductMasterSizeViewSet,
     CustomerProductOverlayViewSet,
+    PouchStyleMasterViewSet,
+    WebWidthPolicyViewSet,
 )
 
 router = OptionalSlashRouter()
@@ -35,6 +37,8 @@ router.register(r'library', MaterialLibraryViewSet, basename='material-library')
 router.register(r'commercial-families', CommercialFamilyViewSet, basename='commercial-family')
 router.register(r'products', ProductMasterViewSet, basename='product-master')
 router.register(r'product-sizes', ProductMasterSizeViewSet, basename='product-master-size')
+router.register(r'pouch-styles', PouchStyleMasterViewSet, basename='pouch-style')
+router.register(r'web-width-policies', WebWidthPolicyViewSet, basename='web-width-policy')
 router.register(r'customer-product-overlays', CustomerProductOverlayViewSet, basename='customer-product-overlay')
 
 urlpatterns = [

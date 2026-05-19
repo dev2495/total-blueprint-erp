@@ -59,6 +59,7 @@ import {
     type PodSkuVariant,
 } from "@/services/master-data"
 import { engineeringService, type Artwork } from "@/services/engineering"
+import { computePlannedParentWidth, webWidthPolicyService } from "@/services/web-width-policy"
 
 import type { SalesOrderLine } from "./types"
 
@@ -132,6 +133,12 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const { data: routeInfo } = useQuery({
         queryKey: ["product-master-template", line.product_master],
         queryFn: () => productMasterService.getTemplate(line.product_master),
+        enabled: !!line.product_master,
+        staleTime: 60_000,
+    })
+    const { data: webWidthPolicy } = useQuery({
+        queryKey: ["web-width-policy", "default"],
+        queryFn: webWidthPolicyService.getDefault,
         enabled: !!line.product_master,
         staleTime: 60_000,
     })
@@ -259,6 +266,22 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         }
         return { ...livePreview, geometry_snapshot: merged }
     }, [livePreview, selectedSize, line.size_code, master?.product_kind])
+    const allowedLaneCounts = React.useMemo(() => {
+        const lanes = (webWidthPolicy?.allowed_lanes || []).map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)
+        return lanes.length ? lanes : [1, 2, 3]
+    }, [webWidthPolicy?.allowed_lanes])
+    const childTargetWidthMm = Number(
+        (augmentedPreview?.geometry_snapshot as any)?.child_target_width_mm ||
+        (augmentedPreview?.geometry_snapshot as any)?.target_child_width_mm ||
+        selectedSize?.child_target_width_mm ||
+        (augmentedPreview?.geometry_snapshot as any)?.roll_width_mm ||
+        selectedSize?.roll_width_mm ||
+        0
+    )
+    const activeLaneCount = allowedLaneCounts.includes(Number(line.preferred_lane_count || 1))
+        ? Number(line.preferred_lane_count || 1)
+        : allowedLaneCounts[0] || 1
+    const plannedParentWidthMm = computePlannedParentWidth(childTargetWidthMm, activeLaneCount, webWidthPolicy)
 
     return (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
@@ -365,6 +388,42 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                     <AddonPicker addons={allowedAddonMasters} selected={line.addons} onChange={(addons) => onPatch({ addons })} />
                                 </FieldGroup>
                             ) : null}
+
+                            <FieldGroup label="Production lane" hint="sets parent web for WCM allocation">
+                                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-3">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {allowedLaneCounts.map((lane) => (
+                                            <Button
+                                                key={lane}
+                                                type="button"
+                                                size="sm"
+                                                variant={activeLaneCount === lane ? "default" : "outline"}
+                                                onClick={() => onPatch({ preferred_lane_count: lane, lane_count_source: "OPERATOR_CHOICE" })}
+                                                className={cn(
+                                                    "h-8 rounded-lg px-3 text-xs font-black",
+                                                    activeLaneCount === lane ? "bg-indigo-600 text-white hover:bg-indigo-700" : "border-indigo-200 bg-white text-indigo-700"
+                                                )}
+                                            >
+                                                {lane}-up
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
+                                            <div className="font-black uppercase tracking-widest text-indigo-500">Child target</div>
+                                            <div className="font-mono font-bold text-slate-900">{childTargetWidthMm ? `${Math.round(childTargetWidthMm)} mm` : "—"}</div>
+                                        </div>
+                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
+                                            <div className="font-black uppercase tracking-widest text-indigo-500">Lane count</div>
+                                            <div className="font-mono font-bold text-slate-900">{activeLaneCount}-up</div>
+                                        </div>
+                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
+                                            <div className="font-black uppercase tracking-widest text-indigo-500">Planned parent</div>
+                                            <div className="font-mono font-bold text-slate-900">{plannedParentWidthMm ? `${Math.round(plannedParentWidthMm)} mm` : "—"}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </FieldGroup>
 
                             {/* Artwork + film type (print-capable masters only) */}
                             {master.fixed_attributes?.print_capable ? (

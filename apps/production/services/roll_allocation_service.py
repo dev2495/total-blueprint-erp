@@ -312,6 +312,39 @@ class RollAllocationService:
         return Decimal("0")
 
     @classmethod
+    def planned_parent_width(cls, job) -> Decimal:
+        """
+        Return the order-level parent web width WCM should allocate against.
+
+        The final model keeps finished child width on the Product/Sales geometry
+        and stores the production run width on SalesOrderItem. Older jobs and
+        stock orders do not have that field, so they fall back to the legacy
+        target_child_width from the execution context.
+        """
+        soi = getattr(job, "sales_order_item", None)
+        for value in (
+            getattr(soi, "planned_parent_width_mm", None) if soi else None,
+            (getattr(job, "meta_json", None) or {}).get("planned_parent_width_mm"),
+            cls.target_child_width(job),
+        ):
+            try:
+                width = Decimal(str(value or 0))
+            except Exception:
+                width = Decimal("0")
+            if width > 0:
+                return width
+        return Decimal("0")
+
+    @classmethod
+    def preferred_lane_count(cls, job) -> int:
+        soi = getattr(job, "sales_order_item", None)
+        try:
+            lane = int(getattr(soi, "preferred_lane_count", None) or (getattr(job, "meta_json", None) or {}).get("preferred_lane_count") or 1)
+        except Exception:
+            lane = 1
+        return max(1, lane)
+
+    @classmethod
     def committed_gang_jobs(cls, job):
         """
         Return active jobs committed to the same gang as `job`, ordered with the
@@ -364,11 +397,11 @@ class RollAllocationService:
 
         widths = []
         for target_job in jobs:
-            width = cls.target_child_width(target_job)
+            width = cls.planned_parent_width(target_job)
             if width <= 0:
                 if strict:
                     raise ValueError(
-                        f"Gang job {target_job.job_number} has no target roll width; fix the Product Master/step target before slitting."
+                        f"Gang job {target_job.job_number} has no planned parent roll width; fix the Product Master/order lane before slitting."
                     )
                 return [job], []
             widths.append(width)
@@ -401,12 +434,7 @@ class RollAllocationService:
         except Exception:
             specs = []
 
-        target_min_w = Decimal("0")
-        for spec in specs:
-            w = spec.get("min_width_mm") if isinstance(spec, dict) else None
-            if w:
-                target_min_w = Decimal(str(w))
-                break
+        target_min_w = cls.planned_parent_width(job)
 
         auto_max = target_min_w * Decimal("1.10") if target_min_w else Decimal("0")
         process_trim = resolve_process_trim_mm(process)
@@ -448,12 +476,8 @@ class RollAllocationService:
             )
             if committed_for_this_job and target_min_w and roll_w >= target_min_w:
                 tier = "ORDER_BOUND"
-            elif is_remainder:
-                if not target_min_w or roll_w < target_min_w:
-                    continue
-                tier = "REMAINDER_POOL"
             elif target_min_w and roll_w >= target_min_w and roll_w <= auto_max:
-                tier = "EXACT"
+                tier = "REMAINDER_POOL" if is_remainder else "EXACT"
             elif target_min_w and roll_w > auto_max:
                 if job_layer_sig and roll_sig and roll_sig != job_layer_sig:
                     continue
@@ -490,10 +514,11 @@ class RollAllocationService:
                 "roll": roll,
                 "tier": tier,
                 "slit_preview": slit_preview,
+                "is_remainder": is_remainder,
             })
 
         tier_order = {"ORDER_BOUND": 0, "EXACT": 1, "REMAINDER_POOL": 2, "WIDER_OK_WITH_SLIT": 3}
-        results.sort(key=lambda r: (tier_order.get(r["tier"], 9), -float(getattr(r["roll"], "weight_kg", 0) or 0)))
+        results.sort(key=lambda r: (tier_order.get(r["tier"], 9), 0 if r.get("is_remainder") else 1, -float(getattr(r["roll"], "weight_kg", 0) or 0)))
 
         if not include_pool:
             results = [r for r in results if r["tier"] in {"ORDER_BOUND", "EXACT"}]
@@ -600,7 +625,15 @@ class RollAllocationService:
                 )
                 out["child_ids"].append(str(child.id))
 
-            if remainder_w >= Decimal("200"):
+            min_remainder = Decimal("50")
+            try:
+                from apps.materials.models import WebWidthPolicy
+                policy = WebWidthPolicy.objects.filter(is_default=True).first()
+                if policy and policy.min_remainder_mm:
+                    min_remainder = Decimal(str(policy.min_remainder_mm))
+            except Exception:
+                pass
+            if remainder_w >= min_remainder:
                 ratio = remainder_w / parent_w if parent_w > 0 else Decimal("0")
                 rem_weight = (parent_weight * ratio).quantize(Decimal("0.001"))
                 remainder = InventoryRoll.objects.create(

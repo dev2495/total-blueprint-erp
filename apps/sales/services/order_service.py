@@ -53,6 +53,22 @@ def _make_json_serializable(obj):
     return obj
 
 
+def _planned_parent_width(child_w: float, lane_count: int, rule: dict | None = None) -> float:
+    if not child_w or lane_count < 1:
+        return 0.0
+    rule = rule if isinstance(rule, dict) else {}
+    inter_cut = float(rule.get("inter_cut_mm", 5) or 0)
+    edge_trim = float(rule.get("edge_trim_mm", 2) or 0)
+    formula = str(rule.get("formula") or "PER_CUT").upper()
+    if formula == "PER_LANE":
+        trim = lane_count * inter_cut + 2 * edge_trim
+    elif formula == "FIXED":
+        trim = inter_cut + 2 * edge_trim
+    else:
+        trim = max(0, lane_count - 1) * inter_cut + 2 * edge_trim
+    return round(float(child_w) * lane_count + trim, 2)
+
+
 def _item_label(item):
     try:
         return item.template.name
@@ -462,6 +478,8 @@ def _dedupe_packaging_lines(lines):
 
 _COMPUTED_GEOMETRY_KEYS = {
     "axis_values",
+    "child_target_override",
+    "child_target_width_mm",
     "effective_height_mm",
     "effective_width_mm",
     "input_roll_width_mm",
@@ -470,10 +488,13 @@ _COMPUTED_GEOMETRY_KEYS = {
     "pod_height_mm",
     "pod_summary",
     "pod_type",
+    "pouch_style_master",
+    "pouch_style_version",
     "product_variant_code",
     "roll_width_mm",
     "size_code",
     "size_label",
+    "target_child_width_mm",
     "thickness_um",
 }
 
@@ -486,7 +507,16 @@ def _preserve_computed_geometry(base_geometry, source_geometry):
             merged[key] = deepcopy(source.get(key))
     source_base = source.get("base") if isinstance(source.get("base"), dict) else {}
     merged_base = merged.get("base") if isinstance(merged.get("base"), dict) else {}
-    for key in ("roll_width_mm", "effective_width_mm", "effective_height_mm", "size_code", "size_label", "thickness_um"):
+    for key in (
+        "child_target_width_mm",
+        "effective_width_mm",
+        "effective_height_mm",
+        "roll_width_mm",
+        "size_code",
+        "size_label",
+        "target_child_width_mm",
+        "thickness_um",
+    ):
         if key in source_base and source_base.get(key) not in (None, ""):
             merged_base[key] = deepcopy(source_base.get(key))
     if merged_base:
@@ -1763,6 +1793,15 @@ class SalesOrderService:
                 unit_price = Decimal(str(item_data.get("unit_price", payload.get("unit_price", 0)) or 0))
                 if unit_price <= 0:
                     raise ValidationError(f"Item {template.name}: unit_price must be greater than zero.")
+                try:
+                    preferred_lane_count = int(item_data.get("preferred_lane_count") or item_data.get("lane_count") or 1)
+                except Exception:
+                    preferred_lane_count = 1
+                if preferred_lane_count < 1:
+                    preferred_lane_count = 1
+                lane_count_source = str(item_data.get("lane_count_source") or "POLICY_DEFAULT").upper()
+                if lane_count_source not in {"REPEAT_DEFAULT", "OPERATOR_CHOICE", "POLICY_DEFAULT"}:
+                    lane_count_source = "OPERATOR_CHOICE"
                 spec_payload = build_spec_payload(
                     fg_type=fg_type,
                     roll_form=normalized_geometry.get("roll_form"),
@@ -1799,6 +1838,8 @@ class SalesOrderService:
                     packaging_snapshot=packaging_snapshot,
                     spec_signature=spec_signature,
                     invariant_signature=build_invariant_signature(inv_payload),
+                    preferred_lane_count=preferred_lane_count,
+                    lane_count_source=lane_count_source,
                 )
 
                 preview_data = {
@@ -2147,7 +2188,10 @@ class SalesOrderService:
                 else:
                     normalized_geometry.pop("roll_form", None)
 
-                item.geometry_snapshot = normalized_geometry
+                item.geometry_snapshot = _preserve_computed_geometry(
+                    normalized_geometry,
+                    item.geometry_snapshot or order.geometry_override,
+                )
                 item.layer_snapshot = _normalize_layer_snapshot(item.layer_snapshot or [])
                 _validate_template_film_constraints(item.template, item.layer_snapshot, item.template.name)
                 item.packaging_snapshot = _normalize_packaging_snapshot(item.packaging_snapshot or {})
@@ -2209,6 +2253,43 @@ class SalesOrderService:
                         item.bom_snapshot["layer_signature_hash"] = sig
                 except Exception:
                     pass
+
+                # Compute planned_parent_width_mm from lane count + policy + child target.
+                try:
+                    from apps.materials.models import WebWidthPolicy
+                    lane_count = int(getattr(item, "preferred_lane_count", None) or 1)
+                    if lane_count < 1:
+                        lane_count = 1
+                    child_w = 0.0
+                    geom = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+                    for key in ("child_target_width_mm", "target_child_width_mm", "roll_width_mm", "effective_roll_width_mm"):
+                        if geom.get(key):
+                            child_w = float(geom.get(key) or 0)
+                            break
+                    policy = WebWidthPolicy.objects.filter(is_default=True).first()
+                    rule = {"inter_cut_mm": 5, "edge_trim_mm": 2, "formula": "PER_CUT"}
+                    if policy:
+                        allowed_lanes = []
+                        for raw_lane in policy.allowed_lanes or []:
+                            try:
+                                lane = int(raw_lane)
+                            except Exception:
+                                continue
+                            if lane > 0:
+                                allowed_lanes.append(lane)
+                        if allowed_lanes and lane_count not in allowed_lanes:
+                            raise ValidationError(
+                                f"Lane count {lane_count}-up is not allowed by web-width policy {policy.code}."
+                            )
+                        rule = policy.slitting_waste_rule or rule
+                    planned = _planned_parent_width(child_w, lane_count, rule)
+                    item.preferred_lane_count = lane_count
+                    item.planned_parent_width_mm = Decimal(str(round(planned, 2))) if planned else None
+                except ValidationError:
+                    raise
+                except Exception:
+                    pass
+
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))
                 item.save(
@@ -2226,6 +2307,9 @@ class SalesOrderService:
                         "bom_snapshot",
                         "unit_weight_g",
                         "total_weight_kg",
+                        "preferred_lane_count",
+                        "planned_parent_width_mm",
+                        "lane_count_source",
                     ]
                 )
 

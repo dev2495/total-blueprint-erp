@@ -15,6 +15,7 @@ import {
 import type { DimensionImpact } from "@/lib/product-geometry"
 import { computeProductGeometry, defaultGussetRule, pouchUsesHeightForRoll, pouchStyleFields } from "@/lib/product-geometry"
 import { PouchStylePicker } from "@/components/product-master/pm-edit-shell"
+import { PouchStyleBinding } from "@/components/product-master/pouch-style-binding"
 import type { ProductKind, ProductMasterSize } from "@/services/product-master"
 import { cn } from "@/lib/utils"
 
@@ -106,6 +107,7 @@ export function SizeGeometryEditor({ row, kind, packagingKind, onPatch, classNam
 
     return (
         <div className={cn("space-y-4", className)}>
+            <PouchStyleBinding row={row} onPatch={onPatch} />
             {packagingSubtypeMissing ? (
                 <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50/40 px-3 py-2 text-[11px] text-amber-900">
                     <span className="font-bold">Pick a packing sub-type first.</span> Go to <em>Identity → Packing sub-type</em> in section 1 and choose <strong>Inner pouch</strong> or <strong>Sheet</strong>. Geometry fields below default to inner-pouch shape until you pick.
