@@ -90,27 +90,3 @@ test("store can inward roll stock through GRN and create a traceable new roll", 
   expect(created).toBeTruthy()
   expect(Math.abs(Number(created.net_weight_kg || created.weight_kg || 0) - 3.25)).toBeLessThan(0.001)
 })
-
-test("store can pick packaging from the GRN material category rail", async ({ page }, testInfo) => {
-  annotate(testInfo, {
-    module: "Store / GRN",
-    severity: "high",
-    role: "STORE",
-    feature: "Packaging GRN category filter",
-    expected: "Packaging should be visible in the material type rail and switch the receipt to packaging stock without relying on the top class card.",
-  })
-
-  const seed = readMutationSeed()
-  await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
-  await page.goto("/inventory/grn-v36")
-  await page.getByTestId("smart-grn-v36").waitFor({ state: "visible", timeout: 30_000 })
-  await assertHealthyPage(page)
-
-  await expect(page.getByTestId("smart-grn-filter-packaging")).toBeVisible()
-  await page.getByTestId("smart-grn-filter-packaging").click()
-  await expect(page.getByTestId("smart-grn-class-PACKAGING")).toHaveClass(/ring-2/)
-  await selectByTestId(page, "smart-grn-line-0-material", new RegExp(seed.dispatch.packaging_material_code, "i"))
-  await expect(page.locator("body")).toContainText("Packaging kind")
-  await expect(page.locator("body")).toContainText(seed.dispatch.packaging_material_code)
-})

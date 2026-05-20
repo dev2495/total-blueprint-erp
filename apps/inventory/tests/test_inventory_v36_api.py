@@ -46,13 +46,6 @@ class InventoryV36ApiTests(TestCase):
             base_uom="PCS",
             is_purchasable=True,
         )
-        self.pod_material = InventoryMaterial.objects.create(
-            code="V36-POD",
-            name="V36 POD roll",
-            category="POD",
-            base_uom="KG",
-            is_purchasable=True,
-        )
 
     def test_unified_bulk_grn_posts_to_snapshot(self):
         response = self.client.post(
@@ -135,35 +128,6 @@ class InventoryV36ApiTests(TestCase):
         )
         self.assertEqual(bad.status_code, 400)
         self.assertIn("gross weight", str(bad.json()).lower())
-
-    def test_unified_pod_grn_posts_as_roll_stock(self):
-        response = self.client.post(
-            "/api/inventory/grn/create/",
-            {
-                "klass": "ROLL",
-                "vendor_id": str(self.vendor.id),
-                "store_location_id": str(self.location.id),
-                "vendor_invoice_no": "V36-POD-INV",
-                "lines": [
-                    {
-                        "material_code": self.pod_material.code,
-                        "roll_label": "V36-POD-001",
-                        "qty": "18",
-                        "net_weight_kg": "18",
-                        "width_mm": "420",
-                        "thickness_um": "30",
-                        "length_m": "2500",
-                    }
-                ],
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, 201, response.json())
-        self.assertEqual(response.json()["klass"], "ROLL")
-        roll = InventoryRoll.objects.get(label_id="V36-POD-001")
-        self.assertEqual(roll.material, self.pod_material)
-        self.assertEqual(roll.net_weight_kg, Decimal("18"))
 
     def test_unified_packaging_grn_posts_to_packaging_stock(self):
         response = self.client.post(

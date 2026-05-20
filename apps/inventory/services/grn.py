@@ -78,7 +78,7 @@ class GRNService:
         cls._validate_vendor(vendor)
         
         # Validate material is a bulk type
-        bulk_categories = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'ADDON']
+        bulk_categories = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD', 'ADDON']
         if material.category not in bulk_categories:
             raise ValidationError(
                 f"Bulk GRN requires bulk material type. Got: {material.category}"
@@ -156,11 +156,10 @@ class GRNService:
         cls._validate_location(location, plant)
         cls._validate_vendor(vendor)
         
-        # Validate material is a physical roll currency. POD is roll-form stock in
-        # the current model, while ordinary packaging goes through PackagingStock.
-        if material.category not in {'FILM_VARIANT', 'POD'}:
+        # Validate material is a film variant (physical roll currency must always be a variant).
+        if material.category != 'FILM_VARIANT':
             raise ValidationError(
-                f"Roll GRN requires FILM_VARIANT or POD material. Got: {material.category}"
+                f"Roll GRN requires FILM_VARIANT material. Got: {material.category}"
             )
 
         created_rolls = []

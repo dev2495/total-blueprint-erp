@@ -43,7 +43,7 @@ import { recipeService, type RecipeGrade } from "@/services/recipes"
 import { MaterialPicker } from "@/components/inventory/material-picker"
 
 type ClassKind = "BULK" | "ROLL" | "PACKAGING"
-type MaterialTypeFilter = "ALL" | "GRANULE" | "INK" | "ADHESIVE" | "SOLVENT" | "ADDON" | "PACKAGING" | "ROLL" | "POD"
+type BulkMaterialFilter = "ALL" | "GRANULE" | "INK" | "ADHESIVE" | "SOLVENT" | "ADDON" | "POD"
 
 interface ItemDraft {
     id: string
@@ -91,16 +91,14 @@ function locationLabel(location: Location) {
     return [location.plant_name, location.code, location.name].filter(Boolean).join(" · ")
 }
 
-const MATERIAL_TYPE_FILTERS: Array<{ id: MaterialTypeFilter; label: string }> = [
+const BULK_FILTERS: Array<{ id: BulkMaterialFilter; label: string }> = [
     { id: "ALL", label: "All bulk" },
     { id: "GRANULE", label: "Granules" },
     { id: "INK", label: "Inks" },
     { id: "ADHESIVE", label: "Adhesives" },
     { id: "SOLVENT", label: "Solvents" },
     { id: "ADDON", label: "Purchased add-ons" },
-    { id: "PACKAGING", label: "Packaging" },
-    { id: "ROLL", label: "Film rolls" },
-    { id: "POD", label: "POD rolls" },
+    { id: "POD", label: "POD" },
 ]
 
 function materialCategory(material: any) {
@@ -129,15 +127,9 @@ function isPurchasedAddon(material: any) {
 function materialMatchesReceiptClass(material: any, klass: ClassKind) {
     const category = materialCategory(material)
     if (!isActiveMaterial(material)) return false
-    if (klass === "ROLL") return category === "FILM_VARIANT" || category === "POD"
+    if (klass === "ROLL") return category === "FILM_VARIANT"
     if (klass === "PACKAGING") return category === "PACKAGING"
-    return ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON"].includes(category) && isPurchasedAddon(material)
-}
-
-function classForMaterialFilter(filter: MaterialTypeFilter): ClassKind {
-    if (filter === "PACKAGING") return "PACKAGING"
-    if (filter === "ROLL" || filter === "POD") return "ROLL"
-    return "BULK"
+    return ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "POD", "ADDON"].includes(category) && isPurchasedAddon(material)
 }
 
 export function GrnSmartV36() {
@@ -154,7 +146,7 @@ export function GrnSmartV36() {
     const [warehouseId, setWarehouseId] = React.useState("")
     const [receiptDate, setReceiptDate] = React.useState(new Date().toISOString().slice(0, 10))
     const [items, setItems] = React.useState<ItemDraft[]>([FRESH_ITEM()])
-    const [materialTypeFilter, setMaterialTypeFilter] = React.useState<MaterialTypeFilter>("ALL")
+    const [bulkMaterialFilter, setBulkMaterialFilter] = React.useState<BulkMaterialFilter>("ALL")
     const [coaAttached, setCoaAttached] = React.useState(true)
     const [showQualityDetails, setShowQualityDetails] = React.useState(false)
     const [qcRequired, setQcRequired] = React.useState(false)
@@ -190,19 +182,9 @@ export function GrnSmartV36() {
     const handleClassChange = React.useCallback((next: ClassKind) => {
         setKlass(next)
         setItems([FRESH_ITEM()])
-        setMaterialTypeFilter(next === "BULK" ? "ALL" : next === "PACKAGING" ? "PACKAGING" : "ROLL")
+        if (next !== "BULK") setBulkMaterialFilter("ALL")
         setLastPosted(null)
     }, [])
-
-    const handleMaterialTypeFilterChange = React.useCallback((next: MaterialTypeFilter) => {
-        const nextKlass = classForMaterialFilter(next)
-        setMaterialTypeFilter(next)
-        if (nextKlass !== klass) {
-            setKlass(nextKlass)
-            setItems([FRESH_ITEM()])
-            setLastPosted(null)
-        }
-    }, [klass])
 
     const resetDraftAfterPost = React.useCallback(() => {
         setSourceType("PO")
@@ -408,18 +390,20 @@ export function GrnSmartV36() {
                     <Section idx={3} eyebrow="Items received" title="What did you actually receive?" tone="violet"
                         actions={<Button size="sm" variant="outline" onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>}>
                         <div className="space-y-3">
-                            <MaterialTypeFilterChips
-                                value={materialTypeFilter}
-                                onChange={handleMaterialTypeFilterChange}
-                                materials={materials as any[]}
-                            />
+                            {klass === "BULK" && (
+                                <BulkMaterialFilterChips
+                                    value={bulkMaterialFilter}
+                                    onChange={setBulkMaterialFilter}
+                                    materials={materials as any[]}
+                                />
+                            )}
                             {items.map((it, idx) => (
                                 <ItemEditor
                                     key={it.id}
                                     item={it}
                                     index={idx}
                                     klass={klass}
-                                    materialTypeFilter={materialTypeFilter}
+                                    bulkMaterialFilter={bulkMaterialFilter}
                                     materials={materials as any[]}
                                     locations={locations as Location[]}
                                     grades={(gradesQ.data || []) as RecipeGrade[]}
@@ -621,20 +605,14 @@ function Stat({ label, value, mono, accent }: { label: string; value: string; mo
     )
 }
 
-function MaterialTypeFilterChips({ value, onChange, materials }: { value: MaterialTypeFilter; onChange: (value: MaterialTypeFilter) => void; materials: any[] }) {
+function BulkMaterialFilterChips({ value, onChange, materials }: { value: BulkMaterialFilter; onChange: (value: BulkMaterialFilter) => void; materials: any[] }) {
     const counts = React.useMemo(() => {
-        const next: Record<MaterialTypeFilter, number> = { ALL: 0, GRANULE: 0, INK: 0, ADHESIVE: 0, SOLVENT: 0, ADDON: 0, PACKAGING: 0, ROLL: 0, POD: 0 }
+        const next: Record<BulkMaterialFilter, number> = { ALL: 0, GRANULE: 0, INK: 0, ADHESIVE: 0, SOLVENT: 0, ADDON: 0, POD: 0 }
         for (const material of materials) {
-            const category = materialCategory(material)
-            if (materialMatchesReceiptClass(material, "BULK")) {
-                next.ALL += 1
-                if (["GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON"].includes(category)) {
-                    next[category as MaterialTypeFilter] += 1
-                }
-            }
-            if (materialMatchesReceiptClass(material, "PACKAGING")) next.PACKAGING += 1
-            if (isActiveMaterial(material) && category === "FILM_VARIANT") next.ROLL += 1
-            if (isActiveMaterial(material) && category === "POD") next.POD += 1
+            if (!materialMatchesReceiptClass(material, "BULK")) continue
+            const category = materialCategory(material) as BulkMaterialFilter
+            next.ALL += 1
+            if (category in next) next[category] += 1
         }
         return next
     }, [materials])
@@ -643,7 +621,7 @@ function MaterialTypeFilterChips({ value, onChange, materials }: { value: Materi
         <div className="rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2">
             <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Material type filter</div>
             <div className="flex flex-wrap gap-2">
-                {MATERIAL_TYPE_FILTERS.map((filter) => (
+                {BULK_FILTERS.map((filter) => (
                     <button
                         key={filter.id}
                         type="button"
@@ -667,21 +645,13 @@ function MaterialTypeFilterChips({ value, onChange, materials }: { value: Materi
     )
 }
 
-function ItemEditor({ item, index, klass, materialTypeFilter, materials, locations, grades, granuleCodes, onChange, onRemove }: { item: ItemDraft; index: number; klass: ClassKind; materialTypeFilter: MaterialTypeFilter; materials: any[]; locations: Location[]; grades: RecipeGrade[]; granuleCodes: GranuleQualityCode[]; onChange: (patch: Partial<ItemDraft>) => void; onRemove: () => void }) {
+function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locations, grades, granuleCodes, onChange, onRemove }: { item: ItemDraft; index: number; klass: ClassKind; bulkMaterialFilter: BulkMaterialFilter; materials: any[]; locations: Location[]; grades: RecipeGrade[]; granuleCodes: GranuleQualityCode[]; onChange: (patch: Partial<ItemDraft>) => void; onRemove: () => void }) {
     const filteredMaterials = React.useMemo(() => {
         return materials
             .filter((material) => materialMatchesReceiptClass(material, klass))
-            .filter((material) => {
-                const category = materialCategory(material)
-                if (klass === "BULK") return materialTypeFilter === "ALL" || category === materialTypeFilter
-                if (klass === "ROLL") {
-                    if (materialTypeFilter === "POD") return category === "POD"
-                    if (materialTypeFilter === "ROLL") return category === "FILM_VARIANT"
-                }
-                return true
-            })
+            .filter((material) => klass !== "BULK" || bulkMaterialFilter === "ALL" || materialCategory(material) === bulkMaterialFilter)
             .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")))
-    }, [materialTypeFilter, klass, materials])
+    }, [bulkMaterialFilter, klass, materials])
 
     const selectedMaterial = React.useMemo(
         () => materials.find((material) => String(material.code) === String(item.material_code)),
