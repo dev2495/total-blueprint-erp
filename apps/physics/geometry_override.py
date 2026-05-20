@@ -15,6 +15,13 @@ POD_OVERRIDE_KEYS = {
     "pod_summary",
 }
 
+POUCH_STYLE_MASTER_KEYS = {
+    "pouch_style_master",
+    "pouch_style_master_code",
+    "pouch_style_version",
+    "pouch_style_requires_gusset",
+}
+
 POUCH_STYLE_VALUES = {
     "THREE_SIDE_SEAL",
     "PILLOW",
@@ -213,6 +220,10 @@ def sanitize_geometry_override(override_geometry: Any) -> Dict[str, Any]:
             "faces": int(max(1, faces if faces is not None else 1)),
         }
 
+    for key in POUCH_STYLE_MASTER_KEYS:
+        if key in override_geometry:
+            payload[key] = override_geometry.get(key)
+
     return payload
 
 
@@ -252,6 +263,9 @@ def normalize_geometry_override(template_geometry: Any, override_geometry: Any) 
         normalized["adjustments"] = override.get("adjustments") or []
     if "multipliers" in override:
         normalized["multipliers"] = override.get("multipliers") or {}
+    for key in POUCH_STYLE_MASTER_KEYS:
+        if key in override:
+            normalized[key] = override.get(key)
 
     return normalized
 
@@ -336,7 +350,14 @@ def validate_pouch_geometry_contract(
         errors["pouch_style"] = f"{context_label}: unsupported pouch_style {pouch_style}."
 
     gusset_required_styles = {"STAND_UP", "SIDE_GUSSET", "QUAD_SEAL", "FLAT_BOTTOM", "SPOUT"}
-    if pouch_style in gusset_required_styles and gusset_mm <= 0:
+    style_master_bound = bool(normalized.get("pouch_style_master"))
+    style_master_requires_gusset = (
+        bool(normalized.get("pouch_style_requires_gusset"))
+        if "pouch_style_requires_gusset" in normalized
+        else True
+    )
+    gusset_rule_applies = (not style_master_bound) or style_master_requires_gusset
+    if gusset_rule_applies and pouch_style in gusset_required_styles and gusset_mm <= 0:
         errors["gusset_mm"] = f"{context_label}: {pouch_style.replace('_', ' ').title()} requires gusset_mm > 0."
 
     if pouch_style == "SPOUT":

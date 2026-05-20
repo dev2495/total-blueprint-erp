@@ -125,6 +125,38 @@ class GeometryOverrideTests(SimpleTestCase):
                 context_label="Preview item",
             )
 
+    def test_pouch_style_master_can_make_gusset_non_required(self):
+        out = validate_pouch_geometry_contract(
+            fg_type="POUCH",
+            geometry={
+                "base": {"width_mm": 180, "height_mm": 260},
+                "pouch_style": "STAND_UP",
+                "gusset_mm": 0,
+                "pouch_style_master": "style-id",
+                "pouch_style_requires_gusset": False,
+            },
+            addons=[],
+            context_label="Preview item",
+        )
+
+        self.assertEqual(out["pouch_style"], "STAND_UP")
+        self.assertFalse(out["pouch_style_requires_gusset"])
+
+    def test_pouch_style_master_still_blocks_missing_required_gusset(self):
+        with self.assertRaises(ValidationError):
+            validate_pouch_geometry_contract(
+                fg_type="POUCH",
+                geometry={
+                    "base": {"width_mm": 180, "height_mm": 260},
+                    "pouch_style": "STAND_UP",
+                    "gusset_mm": 0,
+                    "pouch_style_master": "style-id",
+                    "pouch_style_requires_gusset": True,
+                },
+                addons=[],
+                context_label="Preview item",
+            )
+
     def test_positive_spout_contract_is_accepted(self):
         out = validate_pouch_geometry_contract(
             fg_type="POUCH",

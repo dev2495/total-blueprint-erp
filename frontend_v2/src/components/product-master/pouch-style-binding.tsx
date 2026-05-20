@@ -16,6 +16,7 @@ interface PouchStyleBindingProps {
     row: ProductMasterSize
     onPatch: (patch: Partial<ProductMasterSize>) => void
     className?: string
+    fallbackTargetWidthMm?: number | null
 }
 
 /**
@@ -25,15 +26,26 @@ interface PouchStyleBindingProps {
  * - Shows live-computed child_target_width_mm from the formula
  * - Override toggle that lets operator type the target manually
  */
-export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBindingProps) {
-    const { data: styles = [], isLoading } = useQuery({
-        queryKey: ["pouch-styles", "for-size"],
-        queryFn: () => pouchStyleService.list({ page_size: 200 }),
+export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidthMm = null }: PouchStyleBindingProps) {
+    const { data: activeStyles = [], isLoading } = useQuery({
+        queryKey: ["pouch-styles", "for-size", "active"],
+        queryFn: () => pouchStyleService.list({ page_size: 200, deprecated: false }),
         staleTime: 60_000,
     })
 
     const selectedId = String(row.pouch_style_master || "")
-    const selected: PouchStyle | undefined = styles.find((s) => s.id === selectedId)
+    const activeSelected: PouchStyle | undefined = activeStyles.find((s) => s.id === selectedId)
+    const { data: savedSelected } = useQuery({
+        queryKey: ["pouch-style", selectedId],
+        queryFn: () => pouchStyleService.get(selectedId),
+        enabled: !!selectedId && !activeSelected,
+        staleTime: 60_000,
+    })
+    const styles = React.useMemo(() => {
+        if (!savedSelected || activeStyles.some((s) => s.id === savedSelected.id)) return activeStyles
+        return [savedSelected, ...activeStyles]
+    }, [activeStyles, savedSelected])
+    const selected: PouchStyle | undefined = activeSelected || savedSelected
     const geometryConfig = row.geometry_config && typeof row.geometry_config === "object" ? row.geometry_config : {}
     const customFormulaInputs = geometryConfig.pouch_formula_inputs && typeof geometryConfig.pouch_formula_inputs === "object"
         ? geometryConfig.pouch_formula_inputs as Record<string, any>
@@ -96,6 +108,14 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
         }
     }, [selected, previewInputs])
 
+    const fallbackTarget = !selected && fallbackTargetWidthMm != null && Number.isFinite(Number(fallbackTargetWidthMm))
+        ? Number(fallbackTargetWidthMm)
+        : null
+    const displayedAutoTarget = liveTarget ?? fallbackTarget
+    const finalTarget = row.child_target_override
+        ? Number(row.child_target_width_mm || 0)
+        : displayedAutoTarget
+
     // Auto-compute and persist target when not in override mode and any input changes.
     React.useEffect(() => {
         if (!selected) return
@@ -133,10 +153,41 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                                 onPatch({ pouch_style_master: null, pouch_style_version: 0 })
                                 return
                             }
-                            const next = styles.find((s) => s.id === v)
+                            const next = activeStyles.find((s) => s.id === v)
+                            if (!next) return
+                            const fieldAdjustments = next?.field_adjustments && typeof next.field_adjustments === "object" ? next.field_adjustments : {}
+                            const currentMultipliers = geometryConfig.multipliers && typeof geometryConfig.multipliers === "object" ? geometryConfig.multipliers : {}
+                            const nextInputs = { ...customFormulaInputs }
+                            if (next?.allowed_fields && typeof next.allowed_fields === "object") {
+                                for (const key of Object.keys(nextInputs)) {
+                                    if (!(key in next.allowed_fields)) delete nextInputs[key]
+                                }
+                            }
+                            const trimDefault = Number(fieldAdjustments.trim_default_mm ?? 0)
+                            const trimAxis = String(fieldAdjustments.trim_axis || next?.default_roll_axis || "WIDTH").toUpperCase()
+                            const legacyStyle = legacyPouchStyleFor(next)
                             onPatch({
                                 pouch_style_master: v,
                                 pouch_style_version: next?.version || 1,
+                                pouch_style: legacyStyle,
+                                roll_form: "",
+                                faces: next?.faces || row.faces || 2,
+                                gusset_mm: hasAllowedField(next, GUSSET_KEYS) ? row.gusset_mm : 0,
+                                flap_tape_mm: hasAllowedField(next, FLAP_KEYS) ? row.flap_tape_mm : 0,
+                                trim_loss_mm: Number.isFinite(trimDefault) ? trimDefault : row.trim_loss_mm,
+                                trim_apply_to: ["WIDTH", "HEIGHT", "BOTH", "NONE"].includes(trimAxis) ? trimAxis as any : "WIDTH",
+                                geometry_config: {
+                                    ...geometryConfig,
+                                    pouch_style: legacyStyle,
+                                    roll_form: "",
+                                    trim_loss_mm: Number.isFinite(trimDefault) ? trimDefault : row.trim_loss_mm,
+                                    trim_apply_to: ["WIDTH", "HEIGHT", "BOTH", "NONE"].includes(trimAxis) ? trimAxis : "WIDTH",
+                                    flap_tape_mm: hasAllowedField(next, FLAP_KEYS) ? row.flap_tape_mm || 0 : 0,
+                                    gusset_apply_to: fieldAdjustments.gusset_axis || row.gusset_apply_to || "NONE",
+                                    gusset_factor: row.gusset_factor ?? 1,
+                                    pouch_formula_inputs: nextInputs,
+                                    multipliers: { ...currentMultipliers, faces: next?.faces || row.faces || 2 },
+                                },
                             })
                         }}
                     >
@@ -147,7 +198,7 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                             <SelectItem value="__none__">— None (manual entry) —</SelectItem>
                             {styles.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
-                                    <span className="mr-1">{s.visual_emoji}</span> {s.code} · {s.name}
+                                    <span className="mr-1">{s.visual_emoji}</span> {s.code} · {s.name}{s.deprecated ? " · disabled" : ""}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -161,6 +212,11 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                             {selected.locked ? (
                                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[9px] text-emerald-700">
                                     <Lock className="mr-0.5 h-2.5 w-2.5" /> locked
+                                </Badge>
+                            ) : null}
+                            {selected.deprecated ? (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[9px] text-amber-800">
+                                    disabled style
                                 </Badge>
                             ) : null}
                         </div>
@@ -185,22 +241,31 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                             <FormulaInputGrid
                                 style={selected}
                                 values={previewInputs}
+                                row={row}
+                                onPatchRow={onPatch}
                                 onPatch={patchFormulaInput}
                             />
                         </div>
-                    ) : null}
+                    ) : (
+                        <div className="mt-2 rounded-lg border border-dashed border-amber-200 bg-amber-50/40 p-2 text-[11px] text-amber-900">
+                            Pick a pouch style master to show only the exact allowed size inputs and auto child-width formula. Manual fallback keeps only W/H.
+                            <ManualFallbackInputs row={row} onPatchRow={onPatch} />
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-2">
                     {/* AUTO computed (always shown) */}
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Auto child width (from formula)</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            {selected ? "Auto child width (from formula)" : "Current child width (legacy/manual)"}
+                        </div>
                         <div className={cn(
                             "mt-1 rounded-xl p-3 text-white",
                             row.child_target_override ? "bg-slate-400" : "bg-emerald-600",
                         )}>
                             <div className="font-display text-3xl font-extrabold">
-                                {liveTarget != null ? liveTarget.toFixed(2) : "—"}
+                                {displayedAutoTarget != null ? displayedAutoTarget.toFixed(2) : "—"}
                                 <span className="ml-1 text-base font-bold">mm</span>
                             </div>
                             <div className="text-[10px] text-white/90">
@@ -208,7 +273,9 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                                     ? row.child_target_override
                                         ? "auto value · NOT used (override active)"
                                         : "auto value · this is what will be used"
-                                    : "no style picked — pick one above"}
+                                    : fallbackTarget != null
+                                        ? "saved legacy/manual geometry · pick a style to switch to formula"
+                                        : "no style picked — pick one above"}
                             </div>
                         </div>
                     </div>
@@ -255,10 +322,7 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
                     <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50/60 p-2.5">
                         <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Final width used downstream</div>
                         <div className="mt-1 font-mono text-lg font-extrabold text-indigo-900">
-                            {(row.child_target_override
-                                ? Number(row.child_target_width_mm || 0)
-                                : (liveTarget ?? 0)
-                            ).toFixed(2)} mm
+                            {(finalTarget ?? 0).toFixed(2)} mm
                         </div>
                         <div className="mt-0.5 text-[10px] text-indigo-700">
                             Drives lane-up math, planned parent width, allocator tiers, slit confirm.
@@ -270,44 +334,157 @@ export function PouchStyleBinding({ row, onPatch, className }: PouchStyleBinding
     )
 }
 
-const STANDARD_FORMULA_FIELDS = new Set(["W", "H", "G", "gusset", "gusset_mm", "flap", "flap_mm", "override_width"])
+const WIDTH_KEYS = new Set(["W", "width", "width_mm"])
+const HEIGHT_KEYS = new Set(["H", "height", "height_mm"])
+const GUSSET_KEYS = new Set(["G", "gusset", "gusset_mm"])
+const FLAP_KEYS = new Set(["flap", "flap_mm"])
+const OVERRIDE_KEYS = new Set(["override_width", "target_child_width_mm", "child_target_width_mm"])
+
+function numericInputValue(value: unknown) {
+    if (value === null || value === undefined || value === "") return ""
+    const next = Number(value)
+    return Number.isFinite(next) ? String(next) : ""
+}
+
+function fieldIsRequired(def: any) {
+    return Boolean(def && typeof def === "object" && def.required)
+}
+
+function hasAllowedField(style: PouchStyle | undefined, keys: Set<string>) {
+    if (!style || !style.allowed_fields || typeof style.allowed_fields !== "object") return false
+    return Object.keys(style.allowed_fields).some((key) => keys.has(key))
+}
+
+function styleRequiresGusset(style: PouchStyle | undefined) {
+    if (!style || !style.allowed_fields || typeof style.allowed_fields !== "object") return false
+    return Object.entries(style.allowed_fields).some(([key, def]) => GUSSET_KEYS.has(key) && fieldIsRequired(def))
+}
+
+function legacyPouchStyleFor(style: PouchStyle | undefined) {
+    if (!style) return "PILLOW"
+    const code = String(style.code || "").toUpperCase()
+    const kind = String(style.formula_kind || "").toUpperCase()
+    if (code.includes("CENTER") || kind === "CENTER_SEAL_H") return "CENTER_SEAL"
+    if (code.includes("STICK") || kind === "STICK_PACK") return "STICK_PACK"
+    if (code.includes("SACHET") || kind === "SACHET") return "SACHET"
+    if (code.includes("SPOUT") || kind === "SPOUT") return "SPOUT"
+    if (code.includes("QUAD") || kind === "QUAD_SEAL") return "QUAD_SEAL"
+    if (code.includes("FLAT_BOTTOM") || kind === "FLAT_BOTTOM") return "FLAT_BOTTOM"
+    if (code.includes("SIDE") || kind === "GUSSETED_SIDE") return "SIDE_GUSSET"
+    if ((code.includes("STAND") || kind === "GUSSETED_BOTTOM") && styleRequiresGusset(style)) return "STAND_UP"
+    if (code.includes("THREE") || kind === "THREE_SIDE_SEAL") return "THREE_SIDE_SEAL"
+    if (kind === "SHAPED_OVERRIDE" || code.includes("SHAPED")) return "SHAPED"
+    return "PILLOW"
+}
 
 function FormulaInputGrid({
     style,
     values,
+    row,
+    onPatchRow,
     onPatch,
 }: {
     style: PouchStyle
     values: Record<string, number>
+    row: ProductMasterSize
+    onPatchRow: (patch: Partial<ProductMasterSize>) => void
     onPatch: (key: string, value: string) => void
 }) {
-    const extras = Object.entries(style.allowed_fields || {}).filter(([key]) => !STANDARD_FORMULA_FIELDS.has(key))
-    if (extras.length === 0) return null
+    const fields = Object.entries(style.allowed_fields || {})
+    if (fields.length === 0) return null
+
+    const patchAllowedField = (key: string, value: string) => {
+        const numberValue = value === "" ? null : Number(value)
+        if (WIDTH_KEYS.has(key)) {
+            onPatchRow({ width_mm: numberValue as any })
+            return
+        }
+        if (HEIGHT_KEYS.has(key)) {
+            onPatchRow({ height_mm: numberValue as any })
+            return
+        }
+        if (GUSSET_KEYS.has(key)) {
+            onPatchRow({ gusset_mm: numberValue as any })
+            return
+        }
+        if (FLAP_KEYS.has(key)) {
+            onPatchRow({ flap_tape_mm: numberValue as any })
+            return
+        }
+        if (OVERRIDE_KEYS.has(key)) {
+            onPatchRow({ child_target_override: value !== "", child_target_width_mm: numberValue as any })
+            return
+        }
+        onPatch(key, value)
+    }
+
+    const valueForField = (key: string) => {
+        if (WIDTH_KEYS.has(key)) return numericInputValue(row.width_mm)
+        if (HEIGHT_KEYS.has(key)) return numericInputValue(row.height_mm)
+        if (GUSSET_KEYS.has(key)) return numericInputValue(row.gusset_mm)
+        if (FLAP_KEYS.has(key)) return numericInputValue(row.flap_tape_mm)
+        if (OVERRIDE_KEYS.has(key)) return row.child_target_override ? numericInputValue(row.child_target_width_mm) : ""
+        return numericInputValue(values[key])
+    }
 
     return (
         <div className="mt-2 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/30 p-2">
-            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Formula extras</div>
-            <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                {extras.map(([key, def]) => (
-                    <label key={key} className="block">
-                        <div className="mb-0.5 flex items-center justify-between gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{def.label || key}</span>
-                            <span className="font-mono text-[9px] text-slate-400">{key}</span>
-                        </div>
-                        <Input
-                            type="number"
-                            step="any"
-                            value={values[key] ?? ""}
-                            onChange={(event) => onPatch(key, event.target.value)}
-                            placeholder={def.default != null ? String(def.default) : "0"}
-                            className="h-8 bg-white font-mono text-xs"
-                        />
-                    </label>
-                ))}
+            <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Allowed size inputs</div>
+            <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {fields.map(([key, def]) => {
+                    const required = fieldIsRequired(def)
+                    const value = valueForField(key)
+                    const missing = required && Number(value || 0) <= 0
+                    return (
+                        <label key={key} className="block">
+                            <div className="mb-0.5 flex items-center justify-between gap-2">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                                    {def.label || key}{required ? " *" : ""}
+                                </span>
+                                <span className="font-mono text-[9px] text-slate-400">{key}</span>
+                            </div>
+                            <Input
+                                type="number"
+                                step="any"
+                                value={value}
+                                onChange={(event) => patchAllowedField(key, event.target.value)}
+                                placeholder={def.default != null ? String(def.default) : "0"}
+                                className={cn("h-8 bg-white font-mono text-xs", missing && "border-amber-300 bg-amber-50")}
+                            />
+                        </label>
+                    )
+                })}
             </div>
             <div className="mt-1 text-[10px] text-indigo-700/80">
-                These values are saved on this size and feed the pouch-style formula together with W/H/gusset/flap.
+                Only fields allowed by this pouch style are shown. These values feed the formula and are saved on this size.
             </div>
+        </div>
+    )
+}
+
+function ManualFallbackInputs({ row, onPatchRow }: { row: ProductMasterSize; onPatchRow: (patch: Partial<ProductMasterSize>) => void }) {
+    return (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="block">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Final width *</span>
+                <Input
+                    type="number"
+                    step="any"
+                    value={numericInputValue(row.width_mm)}
+                    onChange={(event) => onPatchRow({ width_mm: event.target.value === "" ? null as any : Number(event.target.value) })}
+                    className="mt-0.5 h-8 bg-white font-mono text-xs"
+                />
+            </label>
+            <label className="block">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Final height *</span>
+                <Input
+                    type="number"
+                    step="any"
+                    value={numericInputValue(row.height_mm)}
+                    onChange={(event) => onPatchRow({ height_mm: event.target.value === "" ? null as any : Number(event.target.value) })}
+                    className="mt-0.5 h-8 bg-white font-mono text-xs"
+                />
+            </label>
         </div>
     )
 }

@@ -1,8 +1,29 @@
 import type { ProductKind, ProductMasterSize } from "@/services/product-master"
 
 export type DimensionImpact = "WIDTH" | "HEIGHT" | "BOTH" | "NONE"
+export type ProductOutputKind = "POUCH" | "ROLL" | "OTHER"
 
 const IMPACTS: DimensionImpact[] = ["WIDTH", "HEIGHT", "BOTH", "NONE"]
+
+export function resolveProductOutputKind(
+    kind?: ProductKind | string | null,
+    packagingKind?: string | null,
+    fixedFgType?: string | null,
+): ProductOutputKind {
+    const productKind = String(kind || "").toUpperCase()
+    const packKind = String(packagingKind || "").toUpperCase()
+    const fgType = String(fixedFgType || "").toUpperCase()
+
+    if (fgType === "ROLL" || fgType === "POUCH") return fgType
+    if (productKind === "ROLL" || productKind === "POD") return "ROLL"
+    if (productKind === "POUCH") return "POUCH"
+    if (productKind === "PACKAGING") {
+        if (packKind === "SHEET") return "ROLL"
+        if (packKind === "INNER_POUCH") return "POUCH"
+        return "OTHER"
+    }
+    return "OTHER"
+}
 
 function asNumber(value: unknown, fallback = 0) {
     const next = Number(value)
@@ -120,7 +141,7 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
             : source.geometry_config && typeof source.geometry_config === "object"
               ? (source.geometry_config.multipliers as Record<string, unknown> | undefined)
               : undefined
-    const faces = Math.max(1, asNumber(source.faces ?? multipliers?.faces, isRollOutput ? 1 : 2))
+    const faces = isRollOutput ? 1 : Math.max(1, asNumber(source.faces ?? multipliers?.faces, 2))
     const adjustments = Array.isArray(source.adjustments)
         ? source.adjustments
         : Array.isArray(source.geometry_config?.adjustments)

@@ -261,9 +261,9 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
     default_faces = 1 if fg_type == "ROLL" else 2
     if raw_size not in (None, ""):
         raw = str(raw_size).strip()
-        size_row = ProductMasterSize.objects.filter(product_master=master, code__iexact=raw).first()
+        size_row = ProductMasterSize.objects.select_related("pouch_style_master").filter(product_master=master, code__iexact=raw).first()
         if not size_row:
-            size_row = ProductMasterSize.objects.filter(product_master=master, label__iexact=raw).first()
+            size_row = ProductMasterSize.objects.select_related("pouch_style_master").filter(product_master=master, label__iexact=raw).first()
 
     if size_row:
         geometry_defaults = getattr(size_row, "geometry_config", None) if isinstance(getattr(size_row, "geometry_config", None), dict) else {}
@@ -287,6 +287,16 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
                     )
                     if key in legacy
                 }
+        style_master = getattr(size_row, "pouch_style_master", None)
+        style_allowed_fields = getattr(style_master, "allowed_fields", None) if style_master else {}
+        if not isinstance(style_allowed_fields, dict):
+            style_allowed_fields = {}
+        style_requires_gusset = any(
+            str(key) in {"G", "gusset", "gusset_mm"}
+            and isinstance(definition, dict)
+            and bool(definition.get("required"))
+            for key, definition in style_allowed_fields.items()
+        )
         return {
             "width_mm": float(size_row.width_mm or size_row.roll_width_mm or 0),
             "height_mm": float(size_row.height_mm or 0),
@@ -295,6 +305,8 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "child_target_width_mm": float(size_row.child_target_width_mm or 0),
             "child_target_override": bool(getattr(size_row, "child_target_override", False)),
             "pouch_style_master": str(size_row.pouch_style_master_id) if getattr(size_row, "pouch_style_master_id", None) else "",
+            "pouch_style_master_code": str(getattr(style_master, "code", "") or ""),
+            "pouch_style_requires_gusset": style_requires_gusset,
             "pouch_style_version": int(getattr(size_row, "pouch_style_version", 0) or 0),
             "trim_loss_mm": geometry_defaults.get("trim_loss_mm") if "trim_loss_mm" in geometry_defaults else None,
             "trim_apply_to": geometry_defaults.get("trim_apply_to") or "",
@@ -374,6 +386,8 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
     if size.get("pouch_style_master"):
         normalized["pouch_style_master"] = size.get("pouch_style_master")
         normalized["pouch_style_version"] = size.get("pouch_style_version") or 0
+        normalized["pouch_style_master_code"] = size.get("pouch_style_master_code") or ""
+        normalized["pouch_style_requires_gusset"] = bool(size.get("pouch_style_requires_gusset"))
     normalized["child_target_override"] = bool(size.get("child_target_override"))
     # Roll-width math — trim is applied once at the roll level, not per-face.
     # PhysicsEngine.effective_width_mm already includes trim (used for the

@@ -43,7 +43,7 @@ import { templateService } from "@/services/templates"
 import { masterDataService, type Material, type PackagingMaterial, type PodSkuVariant, type Addon } from "@/services/master-data"
 import { recipeService } from "@/services/recipes"
 import { engineeringService, type Artwork } from "@/services/engineering"
-import { autoRollWidthMm } from "@/lib/product-geometry"
+import { autoRollWidthMm, resolveProductOutputKind } from "@/lib/product-geometry"
 import { SizeGeometryEditor } from "@/components/product-master/size-geometry-editor"
 import {
     productMasterService,
@@ -115,10 +115,8 @@ function isProductionMasterKind(kind?: string | null): boolean {
     return normalized === "PACKAGING" || normalized === "POD"
 }
 
-function isRollLikeOutput(kind?: string | null, packagingKind?: string | null): boolean {
-    const normalized = String(kind || "").toUpperCase()
-    const packKind = String(packagingKind || "").toUpperCase()
-    return normalized === "ROLL" || normalized === "POD" || (normalized === "PACKAGING" && packKind === "SHEET")
+function isRollLikeOutput(kind?: string | null, packagingKind?: string | null, fixedFgType?: string | null): boolean {
+    return resolveProductOutputKind(kind, packagingKind, fixedFgType) === "ROLL"
 }
 
 function variantAxesForProductKind(kind: string | undefined | null, axes: VariantAxisDef[] | undefined): VariantAxisDef[] {
@@ -314,7 +312,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     const previewAxisValues = React.useMemo(() => previewAxisValuesForDraft(draft, draftSizes), [draft, draftSizes])
     const livePreviewPayload = React.useMemo<PreviewBomRequest | null>(() => {
         if (!draft || !draftSizes.length || !draft.template) return null
-        const rollLike = isRollLikeOutput(draft.product_kind, draft.packaging_kind)
+        const rollLike = isRollLikeOutput(draft.product_kind, draft.packaging_kind, draft.fixed_attributes?.fg_type)
         return {
             product_master: draft.id,
             template_id: draft.template,
@@ -397,6 +395,17 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     const adhesiveOptions = adhesiveSolvents.filter((m: Material) => String(m.category || "").toUpperCase() === "ADHESIVE")
     const solventOptions = adhesiveSolvents.filter((m: Material) => String(m.category || "").toUpperCase() === "SOLVENT")
     const addonsAxisMode = axisMode(findAxisOnDraft(draft.variant_axes, "addons")) as "off" | "optional" | "required"
+    const outputKind = resolveProductOutputKind(draft.product_kind, draft.packaging_kind, draft.fixed_attributes?.fg_type)
+    const sizeSectionTitle = outputKind === "ROLL"
+        ? "Roll size · roll width and roll form"
+        : outputKind === "POUCH"
+          ? "Pouch size · style formula and child web width"
+          : "Size setup · choose physical output first"
+    const sizeSectionSubtitle = outputKind === "ROLL"
+        ? "Roll, POD, and packing-sheet masters use roll width directly. No pouch-style or gusset fields are shown."
+        : outputKind === "POUCH"
+          ? "Pouch masters use the selected pouch-style formula. Only fields allowed by that style are shown; manual override wins when set."
+          : "Pick a product output type so the editor can show the correct pouch or roll fields."
 
     function patchDraft(patch: Partial<ProductMaster>) {
         setDraft((d) => (d ? { ...d, ...patch } : d))
@@ -533,7 +542,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
         })
     }
     function addSize() {
-        const isRoll = isRollLikeOutput(draft?.product_kind, draft?.packaging_kind)
+        const isRoll = isRollLikeOutput(draft?.product_kind, draft?.packaging_kind, draft?.fixed_attributes?.fg_type)
         setDraftSizes((arr) => [
             ...arr,
             {
@@ -1021,8 +1030,8 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                         tone="emerald"
                         icon={<span className="text-lg leading-none">📐</span>}
                         eyebrow="Sizes & geometry"
-                        title="Final W/H/Gusset · roll-width per pouch style"
-                        subtitle="Total thickness comes from layers. Roll width derives from the active pouch-style formula — manual override wins when set."
+                        title={sizeSectionTitle}
+                        subtitle={sizeSectionSubtitle}
                         actions={
                             <Button size="sm" variant="outline" className="rounded-xl" onClick={addSize}>
                                 <Plus className="mr-1 h-3.5 w-3.5" /> Add size
@@ -1052,7 +1061,13 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                                 </button>
                                             </div>
                                         </div>
-                                        <SizeGeometryEditor row={row} kind={draft.product_kind} packagingKind={draft.packaging_kind ?? null} onPatch={(patch) => patchSize(i, patch)} />
+                                        <SizeGeometryEditor
+                                            row={row}
+                                            kind={draft.product_kind}
+                                            packagingKind={draft.packaging_kind ?? null}
+                                            fixedFgType={draft.fixed_attributes?.fg_type ?? null}
+                                            onPatch={(patch) => patchSize(i, patch)}
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -1225,21 +1240,18 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                 <aside className="space-y-4">
                     {(() => {
                         const kind = String(draft.product_kind || "").toUpperCase()
-                        // ROLL and POUCH render their proper shape via ProductVisual.
-                        // PACKAGING masters (inner-pouches / sheets / gunnies / tape rolls)
-                        // and OTHER are themselves packing SKUs — render a flat film stack
-                        // instead of a roll.
-                        const usesProductVisual = kind === "POUCH" || kind === "ROLL"
+                        const visualKind = outputKind === "ROLL" || outputKind === "POUCH" ? outputKind : kind
+                        const usesProductVisual = visualKind === "POUCH" || visualKind === "ROLL"
                         return (
-                            <RichSection tone="emerald" icon={<span className="text-sm">🧪</span>} title="Live anatomy" subtitle={`${kind} · ${draft.layer_template.length} layers · ${totalThickness}μ`}>
+                            <RichSection tone="emerald" icon={<span className="text-sm">🧪</span>} title="Live anatomy" subtitle={`${kind} → ${visualKind} · ${draft.layer_template.length} layers · ${totalThickness}μ`}>
                                 {usesProductVisual ? (
                                     <ProductVisual
-                                        kind={draft.product_kind}
+                                        kind={visualKind as ProductKind}
                                         layers={draft.layer_template}
                                         width_mm={draftSizes[0]?.width_mm}
                                         height_mm={draftSizes[0]?.height_mm}
                                         gusset_mm={draftSizes[0]?.gusset_mm}
-                                        roll_width_mm={draftSizes[0]?.roll_width_mm || autoRollWidthMm(draftSizes[0] || {}, draft.product_kind)}
+                                        roll_width_mm={draftSizes[0]?.roll_width_mm || autoRollWidthMm(draftSizes[0] || {}, visualKind)}
                                         addons={draft.fixed_attributes?.print_capable ? ["PRINT"] : []}
                                         title="Draft"
                                         subtitle={`${draft.layer_template.length} layers · ${totalThickness}μ`}

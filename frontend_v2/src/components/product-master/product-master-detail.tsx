@@ -69,7 +69,7 @@ import { masterDataService, type Addon, type Customer, type Material, type Packa
 import { recipeService } from "@/services/recipes"
 import { engineeringService, type Artwork } from "@/services/engineering"
 import { cn } from "@/lib/utils"
-import { autoRollWidthMm } from "@/lib/product-geometry"
+import { autoRollWidthMm, resolveProductOutputKind } from "@/lib/product-geometry"
 import { SizeGeometryEditor } from "@/components/product-master/size-geometry-editor"
 import { VariantsMatrixV37 } from "@/components/product-master/variants-matrix-v37"
 import {
@@ -686,6 +686,8 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
     const startEdit = (section: string) => setEditing(section)
     const cancelEdit = () => { setEditing(null); setDraft(master); setDraftSizes(sizes) }
     const saveEdit = () => updateMutation.mutate()
+    const physicalOutputKind = resolveProductOutputKind(draft.product_kind, draft.packaging_kind, draft.fixed_attributes?.fg_type)
+    const physicalGeometryKind = physicalOutputKind === "ROLL" || physicalOutputKind === "POUCH" ? physicalOutputKind : draft.product_kind
     function patchVariantAxis(axis: string, value: any) {
         setVariantDraft((current) => ({ ...current, [axis]: value }))
     }
@@ -720,7 +722,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
         const first = String(values[0])
         return values.every((value) => String(value) === first) ? first : ""
     })()
-    const variantAutoRollWidth = selectedVariantSize ? autoRollWidthMm(selectedVariantSize, draft.product_kind) : null
+    const variantAutoRollWidth = selectedVariantSize ? autoRollWidthMm(selectedVariantSize, physicalGeometryKind) : null
     const variantRequiredMissing = draft.variant_axes.some((axis) => {
         const key = String(axis.axis)
         if (!axis.required) return false
@@ -838,6 +840,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                 code={draft.code}
                 name={draft.name}
                 kind={draft.product_kind}
+                outputKind={physicalOutputKind}
                 style={draft.fixed_attributes?.default_pouch_style || draft.fixed_attributes?.roll_form || "—"}
                 printType={draft.fixed_attributes?.print_capable ? "Artwork-driven" : undefined}
                 printCapable={Boolean(draft.fixed_attributes?.print_capable)}
@@ -1013,7 +1016,13 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                                 <Trash2 className="h-3.5 w-3.5" />
                                                             </button>
                                                         </div>
-                                                        <SizeGeometryEditor row={row} kind={draft.product_kind} onPatch={(patch) => patchSize(i, patch)} />
+                                                        <SizeGeometryEditor
+                                                            row={row}
+                                                            kind={draft.product_kind}
+                                                            packagingKind={draft.packaging_kind ?? null}
+                                                            fixedFgType={draft.fixed_attributes?.fg_type ?? null}
+                                                            onPatch={(patch) => patchSize(i, patch)}
+                                                        />
                                                         <div className="mt-2 flex items-center gap-3">
                                                             <Switch checked={row.active} onCheckedChange={(v) => patchSize(i, { active: v })} />
                                                             <span className="text-[11px] text-slate-500">{row.active ? "Active — sales can pick" : "Inactive"}</span>
@@ -1024,7 +1033,12 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                         )}
                                     </div>
                                 ) : (
-                                    <SizeTable rows={draftSizes} kind={draft.product_kind} />
+                                    <SizeTable
+                                        rows={draftSizes}
+                                        kind={draft.product_kind}
+                                        packagingKind={draft.packaging_kind ?? null}
+                                        fixedFgType={draft.fixed_attributes?.fg_type ?? null}
+                                    />
                                 )}
                             </SectionCardV3>
 
@@ -1530,13 +1544,13 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                       variant_status: "NEW" as const,
                                       invariant_signature: draft.invariant_signature || "INV-DRAFT",
                                       geometry_snapshot: {
-                                          finished_good_type: draft.product_kind,
+                                          finished_good_type: physicalOutputKind,
                                           size_code: draftSizes[0].code,
                                           size_label: draftSizes[0].label,
                                           width_mm: draftSizes[0].width_mm,
                                           height_mm: draftSizes[0].height_mm,
                                           gusset_mm: draftSizes[0].gusset_mm,
-                                          roll_width_mm: draftSizes[0].roll_width_mm || autoRollWidthMm(draftSizes[0], draft.product_kind),
+                                          roll_width_mm: draftSizes[0].roll_width_mm || autoRollWidthMm(draftSizes[0], physicalGeometryKind),
                                           thickness_um: totalThickness,
                                           faces: draftSizes[0].faces,
                                       },
@@ -1545,7 +1559,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                           film_variant_code: l.film_variant_code,
                                           thickness_micron: l.thickness_micron,
                                           grade: l.default_grade,
-                                          roll_width_mm: l.default_input_roll_width_mm || draftSizes[0].roll_width_mm || autoRollWidthMm(draftSizes[0], draft.product_kind),
+                                          roll_width_mm: l.default_input_roll_width_mm || draftSizes[0].roll_width_mm || autoRollWidthMm(draftSizes[0], physicalGeometryKind),
                                       })),
                                       bom_by_step: [],
                                       blockers: [],
@@ -1608,7 +1622,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                 <SelectContent>
                                                     {draftSizes.filter((s) => s.active).map((s) => (
                                                         <SelectItem key={s.id || s.code} value={s.code}>
-                                                            {s.code} · {s.width_mm}×{s.height_mm} mm · roll {s.roll_width_mm || autoRollWidthMm(s, draft.product_kind)} mm
+                                                            {s.code} · {s.width_mm}×{s.height_mm} mm · roll {s.roll_width_mm || autoRollWidthMm(s, physicalGeometryKind)} mm
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
@@ -2203,7 +2217,20 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
     )
 }
 
-function SizeTable({ rows, kind }: { rows: any[]; kind: string }) {
+function SizeTable({
+    rows,
+    kind,
+    packagingKind,
+    fixedFgType,
+}: {
+    rows: any[]
+    kind: string
+    packagingKind?: string | null
+    fixedFgType?: string | null
+}) {
+    const outputKind = resolveProductOutputKind(kind, packagingKind, fixedFgType)
+    const geometryKind = outputKind === "ROLL" || outputKind === "POUCH" ? outputKind : kind
+    const isRollOutput = outputKind === "ROLL"
     if (!rows.length) {
         return (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-8 text-center">
@@ -2233,7 +2260,7 @@ function SizeTable({ rows, kind }: { rows: any[]; kind: string }) {
                                     )}>{r.active ? "Active" : "Inactive"}</span>
                                 </div>
                                 <div className="mt-0.5 text-[11px] text-slate-500">
-                                    {r.pouch_style || r.roll_form || kind}
+                                    {isRollOutput ? (r.roll_form || "ROLL") : (r.pouch_style || kind)}
                                     {r.standard_qty ? ` · Std qty: ${r.standard_qty} ${r.qty_uom}` : ""}
                                 </div>
                             </div>
@@ -2241,18 +2268,24 @@ function SizeTable({ rows, kind }: { rows: any[]; kind: string }) {
                     </div>
                     <div className="border-t border-slate-100 px-4 py-2.5">
                         <div className="flex flex-wrap gap-2">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
-                                W×H: {r.width_mm}×{r.height_mm} mm
-                            </span>
+                            {isRollOutput ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                                    Roll width: {r.width_mm} mm
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                                    W×H: {r.width_mm}×{r.height_mm} mm
+                                </span>
+                            )}
                             {r.gusset_mm > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-800 ring-1 ring-blue-200">
                                     Gusset: {r.gusset_mm} mm
                                 </span>
                             )}
                             <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-semibold text-violet-800 ring-1 ring-violet-200">
-                                Roll W: {r.roll_width_mm ? `${r.roll_width_mm} mm` : `auto ${autoRollWidthMm(r, kind) || "—"} mm`}
+                                Roll W: {r.roll_width_mm ? `${r.roll_width_mm} mm` : `auto ${autoRollWidthMm(r, geometryKind) || "—"} mm`}
                             </span>
-                            {r.faces && (
+                            {!isRollOutput && r.faces && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-800 ring-1 ring-sky-200">
                                     {r.faces} faces
                                 </span>
@@ -2843,6 +2876,7 @@ function ProductSpecCard(props: {
     code: string
     name: string
     kind: string
+    outputKind?: string
     style: string
     printType?: string
     printCapable: boolean
@@ -2855,7 +2889,8 @@ function ProductSpecCard(props: {
     invariant?: string
     active: boolean
 }) {
-    const { code, name, kind, style, printType, printCapable, layers, sizes, axes, variantsCount, overlaysCount, description, invariant, active } = props
+    const { code, name, kind, outputKind, style, printType, printCapable, layers, sizes, axes, variantsCount, overlaysCount, description, invariant, active } = props
+    const geometryKind = outputKind === "ROLL" || outputKind === "POUCH" ? outputKind : kind
     const totalThickness = layers.reduce((s: number, l: any) => s + (Number(l.thickness_micron) || 0), 0)
     const hasLayerThicknessAxis = axes.some((axis: any) =>
         ["layer_thicknesses", "layer_thickness", "thickness_by_layer", "per_layer_thickness"].includes(String(axis.axis || ""))
@@ -2864,8 +2899,8 @@ function ProductSpecCard(props: {
     const catalogAxes = axes.filter((a: any) => a.master_data_source).length
     const sellableSizes = sizes.filter((s: any) => s.active).length
     const firstSize = sizes.find((s: any) => s.active) || sizes[0]
-    const rollWidth = firstSize?.roll_width_mm || layers[0]?.default_input_roll_width_mm || (firstSize ? autoRollWidthMm(firstSize, kind) : 0)
-    const accent = kind === "POUCH" ? "violet" : kind === "ROLL" ? "emerald" : kind === "POD" ? "fuchsia" : "blue"
+    const rollWidth = firstSize?.roll_width_mm || layers[0]?.default_input_roll_width_mm || (firstSize ? autoRollWidthMm(firstSize, geometryKind) : 0)
+    const accent = geometryKind === "POUCH" ? "violet" : geometryKind === "ROLL" ? "emerald" : kind === "POD" ? "fuchsia" : "blue"
     const ACCENT: Record<string, { ring: string; iconBg: string; gradient: string; bar: string }> = {
         violet:  { ring: "ring-violet-100",  iconBg: "bg-violet-100 text-violet-700",   gradient: "from-blue-50/60 via-white to-violet-50/40",  bar: "border-l-violet-500" },
         emerald: { ring: "ring-emerald-100", iconBg: "bg-emerald-100 text-emerald-700", gradient: "from-emerald-50/60 via-white to-blue-50/40", bar: "border-l-emerald-500" },
@@ -2878,7 +2913,7 @@ function ProductSpecCard(props: {
             <div className="grid grid-cols-1 gap-0 lg:grid-cols-[260px_minmax(0,1fr)]">
                 {/* LEFT: visual silhouette */}
                 <div className="border-b border-slate-200/60 bg-white/60 p-5 flex flex-col items-center justify-center lg:border-b-0 lg:border-r">
-                    <ProductSilhouette kind={kind} firstSize={firstSize} layers={layers} active={active} />
+                    <ProductSilhouette kind={geometryKind} firstSize={firstSize} layers={layers} active={active} />
                     {sizes.length > 0 && (
                         <div className="mt-3 flex flex-wrap justify-center gap-1">
                             {sizes.slice(0, 4).map((s: any, i: number) => (
@@ -2915,6 +2950,7 @@ function ProductSpecCard(props: {
                     {/* Spec grid */}
                     <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                         <SpecCell label="Kind" value={kind} />
+                        <SpecCell label="Output" value={geometryKind} tone={geometryKind === "ROLL" ? "emerald" : "violet"} />
                         <SpecCell label="Style" value={style || "—"} />
                         <SpecCell label="Print" value={printCapable ? `${printType || "Artwork-driven"}` : "—"} tone="fuchsia" />
                         <SpecCell label="Total layers" value={String(layers.length)} />
@@ -3000,7 +3036,7 @@ function ProductSilhouette({ kind, firstSize, layers, active }: { kind: string; 
                 <rect x="30" y="50" width="140" height="120" fill="url(#rollg)" stroke={accent} strokeOpacity="0.5" strokeWidth="1.5"/>
                 <ellipse cx="100" cy="170" rx="70" ry="20" fill="url(#rollg)" stroke={accent} strokeOpacity="0.5" strokeWidth="1.5"/>
                 <ellipse cx="100" cy="50" rx="70" ry="20" fill="white" opacity="0.95" stroke={accent} strokeOpacity="0.5" strokeWidth="1.5"/>
-                <text x="100" y="55" textAnchor="middle" fontFamily="Inter" fontSize="10" fill="#6366f1" fontWeight="700">{firstSize?.roll_width_mm || layers[0]?.default_input_roll_width_mm || (firstSize ? autoRollWidthMm(firstSize, kind) : 1050)} mm</text>
+                <text x="100" y="55" textAnchor="middle" fontFamily="Inter" fontSize="10" fill="#6366f1" fontWeight="700">{firstSize?.roll_width_mm || layers[0]?.default_input_roll_width_mm || (firstSize ? autoRollWidthMm(firstSize, "ROLL") : 1050)} mm</text>
                 <text x="100" y="200" textAnchor="middle" fontFamily="JetBrains Mono" fontSize="9" fill="#475569" fontWeight="700">{layers.length}-layer · {layerThicknessLabel}</text>
             </svg>
         )

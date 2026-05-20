@@ -489,6 +489,8 @@ _COMPUTED_GEOMETRY_KEYS = {
     "pod_summary",
     "pod_type",
     "pouch_style_master",
+    "pouch_style_master_code",
+    "pouch_style_requires_gusset",
     "pouch_style_version",
     "product_variant_code",
     "roll_width_mm",
