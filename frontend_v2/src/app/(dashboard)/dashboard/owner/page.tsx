@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { analyticsApi } from "@/services/analytics";
 import {
     Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
@@ -11,7 +12,7 @@ import {
     AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2,
     Droplets, Factory, IndianRupee, Package, RefreshCw, Shield,
     TrendingUp, Users, Zap, Activity, BarChart3, Clock, Layers,
-    Truck, FileText, Flame, AlertCircle, Cpu,
+    Truck, FileText, Flame, AlertCircle, Cpu, Repeat, Award,
 } from "lucide-react";
 import styles from "./owner.module.css";
 
@@ -167,6 +168,11 @@ export default function OwnerDashboardPage() {
     const invDist: any[] = data.inventory_distribution ?? [];
     const routeReuse: any = data.route_reuse_mix ?? {};
     const podKpis: any = data.pod_kpis ?? {};
+    const trading: any = data.trading ?? {};
+    const tradingSeries: any[] = (trading.trade_revenue_series ?? []).map((r: any) => ({
+        date: String(r.date ?? "").slice(5),
+        revenue_inr: Number(r.revenue_inr || 0),
+    }));
 
     const scrapTrend = useMemo(() =>
         (data.scrap_trend ?? []).map((r: any) => ({
@@ -300,6 +306,74 @@ export default function OwnerDashboardPage() {
                             <div className={styles.overheadChip}><div className={styles.overheadLabel}>📦 Other</div><div className={styles.overheadVal}>{fmtCurr(parseFloat(String(finSum.overheads.other || 0)))}</div></div>
                         </div>
                     </>
+                )}
+            </div>
+
+            {/* ─── TRADING PULSE ─── */}
+            <div className={`${styles.glassCard} ${styles.animUp}`} style={{ marginBottom: 14, animationDelay: "130ms" }}>
+                <div className={styles.tradingHeader}>
+                    <div className={styles.sectionTitle}><Repeat size={13} /> Trading Pulse</div>
+                    <Link href="/analytics/reports/trading" className={styles.tradingLink}>View full report →</Link>
+                </div>
+                <div className={styles.kpiGrid} style={{ marginTop: 6 }}>
+                    <KPICard
+                        label="Trading Stock Value"
+                        value={Number(trading.trading_stock_value_inr || 0)}
+                        icon={<IndianRupee size={17} color="#fff" />}
+                        gradientClass={styles.gradEmerald}
+                        currency
+                        delay="0ms"
+                    />
+                    <KPICard
+                        label="Open Trade Orders"
+                        value={Number(trading.open_trade_orders || 0)}
+                        icon={<Repeat size={17} color="#fff" />}
+                        gradientClass={styles.gradTeal}
+                        delay="40ms"
+                    />
+                    <KPICard
+                        label="Trade Revenue (MTD)"
+                        value={Number(trading.trade_revenue_mtd_inr || 0)}
+                        trend={Number(trading.trade_revenue_delta_pct || 0)}
+                        icon={<TrendingUp size={17} color="#fff" />}
+                        gradientClass={styles.gradCyan}
+                        currency
+                        delay="80ms"
+                    />
+                    <KPICard
+                        label="Trade Margin %"
+                        value={Number(trading.trade_margin_pct || 0)}
+                        suffix="%"
+                        icon={<Award size={17} color="#fff" />}
+                        gradientClass={styles.gradIndigo}
+                        delay="120ms"
+                    />
+                </div>
+                {tradingSeries.length > 0 && (
+                    <div className={styles.trendCard}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>Last 14 days trade revenue</div>
+                        <ResponsiveContainer width="100%" height={140}>
+                            <AreaChart data={tradingSeries} margin={{ top: 5, right: 8, left: -25, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="tradeGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.55} />
+                                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,102,241,0.08)" />
+                                <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtCurr(Number(v))} />
+                                <Tooltip formatter={(v: any) => fmtCurr(Number(v))} />
+                                <Area type="monotone" dataKey="revenue_inr" name="Revenue" stroke="#10b981" strokeWidth={2} fill="url(#tradeGrad)" dot={false} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+                {trading.top_trading_good && (
+                    <div className={styles.tradingHighlight}>
+                        <span>Top trading good · {trading.top_trading_good.name}</span>
+                        <strong>{fmtCurr(Number(trading.top_trading_good.revenue_inr || 0))}</strong>
+                    </div>
                 )}
             </div>
 

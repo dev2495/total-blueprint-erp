@@ -144,7 +144,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                         </div>
                     )}
                     <div className="mt-2 text-[10px] text-slate-400">
-                        Lane is captured per-line at the bottom of each line editor. Validated against the default <Link href="/master/web-width-policies" className="font-bold text-indigo-700 underline">web-width policy</Link>.
+                        Lane is captured per-line at the bottom of each line editor. Validated against the effective <Link href="/master/web-width-policies" className="font-bold text-indigo-700 underline">web-width policy</Link>.
                     </div>
                 </div>
             </div>

@@ -438,6 +438,20 @@ class RollAllocationService:
 
         auto_max = target_min_w * Decimal("1.10") if target_min_w else Decimal("0")
         process_trim = resolve_process_trim_mm(process)
+        min_remainder = Decimal("50")
+        prefer_remainder_first = True
+        policy_code = ""
+        try:
+            from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+
+            policy = resolve_web_width_policy(web_width_context_from_job(job))
+            if policy:
+                policy_code = str(policy.code)
+                if policy.min_remainder_mm:
+                    min_remainder = Decimal(str(policy.min_remainder_mm))
+                prefer_remainder_first = bool(policy.prefer_remainder_first)
+        except Exception:
+            pass
 
         job_layer_sig = str((getattr(job, "meta_json", None) or {}).get("layer_signature_hash") or "")
         gang_jobs, gang_widths = cls.committed_gang_child_plan(job, strict=False)
@@ -499,6 +513,15 @@ class RollAllocationService:
                     "child_widths_mm": [float(c) for c in children],
                     "remainder_mm": float(max(Decimal("0"), remaining)),
                     "trim_mm": float(process_trim),
+                    "min_remainder_mm": float(min_remainder),
+                    "remainder_disposition": (
+                        "KEEP"
+                        if remaining >= min_remainder
+                        else "SCRAP"
+                        if remaining > 0
+                        else "NONE"
+                    ),
+                    "policy_code": policy_code,
                 }
                 if gang_active:
                     slit_preview.update({
@@ -518,7 +541,13 @@ class RollAllocationService:
             })
 
         tier_order = {"ORDER_BOUND": 0, "EXACT": 1, "REMAINDER_POOL": 2, "WIDER_OK_WITH_SLIT": 3}
-        results.sort(key=lambda r: (tier_order.get(r["tier"], 9), 0 if r.get("is_remainder") else 1, -float(getattr(r["roll"], "weight_kg", 0) or 0)))
+        results.sort(
+            key=lambda r: (
+                tier_order.get(r["tier"], 9),
+                0 if prefer_remainder_first and r.get("is_remainder") else 1,
+                -float(getattr(r["roll"], "weight_kg", 0) or 0),
+            )
+        )
 
         if not include_pool:
             results = [r for r in results if r["tier"] in {"ORDER_BOUND", "EXACT"}]
@@ -627,8 +656,8 @@ class RollAllocationService:
 
             min_remainder = Decimal("50")
             try:
-                from apps.materials.models import WebWidthPolicy
-                policy = WebWidthPolicy.objects.filter(is_default=True).first()
+                from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+                policy = resolve_web_width_policy(web_width_context_from_job(job))
                 if policy and policy.min_remainder_mm:
                     min_remainder = Decimal(str(policy.min_remainder_mm))
             except Exception:

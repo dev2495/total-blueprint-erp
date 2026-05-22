@@ -39,6 +39,8 @@ import {
 const formSchema = z.object({
     code: z.string().min(1, "Code is required"),
     name: z.string().min(1, "Name is required"),
+    is_sellable: z.boolean().default(false),
+    default_gst_pct: z.coerce.number().nullable().optional(),
 })
 
 const qualityCodeSchema = z.object({
@@ -53,8 +55,12 @@ function GranuleForm({ initialData, onSubmit, isLoading }: { initialData?: Mater
         defaultValues: {
             code: initialData?.code || "",
             name: initialData?.name || "",
+            is_sellable: initialData?.is_sellable ?? false,
+            default_gst_pct: initialData?.default_gst_pct ?? null,
         },
     })
+
+    const isSellable = form.watch("is_sellable")
 
     return (
         <Form {...form}>
@@ -85,6 +91,53 @@ function GranuleForm({ initialData, onSubmit, isLoading }: { initialData?: Mater
                         </FormItem>
                     )}
                 />
+
+                {/* Sales / Trade Order section */}
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-4 space-y-3">
+                    <div className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Sales · Trade Orders</div>
+                    <FormField
+                        control={form.control}
+                        name="is_sellable"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                <FormControl>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!field.value}
+                                        onChange={(e) => field.onChange(e.target.checked)}
+                                        className="mt-1 h-4 w-4 accent-emerald-600"
+                                    />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel className="text-slate-800">Sellable as trading good</FormLabel>
+                                    <div className="text-[11px] text-slate-500">Enable to make this granule available in Trade Orders.</div>
+                                </div>
+                            </FormItem>
+                        )}
+                    />
+                    {isSellable ? (
+                        <FormField
+                            control={form.control}
+                            name="default_gst_pct"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Default GST %</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="e.g. 18"
+                                            value={(field.value as number | null | undefined) ?? ""}
+                                            onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    ) : null}
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2">
                     <Button type="submit" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

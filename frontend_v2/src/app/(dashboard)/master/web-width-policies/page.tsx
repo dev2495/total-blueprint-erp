@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { webWidthPolicyService, type WebWidthPolicy } from "@/services/web-width-policy"
+import { computeWebWidthPlan, webWidthPolicyService, type WebWidthPolicy } from "@/services/web-width-policy"
 
 export default function WebWidthPolicyListPage() {
     const [q, setQ] = React.useState("")
@@ -33,8 +33,8 @@ export default function WebWidthPolicyListPage() {
             <GradientHero
                 palette="violet"
                 eyebrow="MASTER · WEB-WIDTH POLICIES"
-                title="What production is allowed to do"
-                subtitle="Declares the lane counts, slit trim rules, and remainder thresholds that govern how a sales order's lane choice becomes an actual jumbo on the floor. Attach a policy to a route; the WCM picker reads these rules at allocation time."
+                title="Lane-up and parent-web rules"
+                subtitle="Controls which lane counts are allowed, how child pouch width becomes parent web width, and how WCM treats slit remainders. Scope policies globally or to product kind, product master, pouch style, process, or machine."
                 chips={[
                     { icon: <Scissors className="h-4 w-4" />, label: "Policies", value: String(rows.length), tone: "violet" },
                     { icon: <CheckCircle2 className="h-4 w-4" />, label: "Default", value: rows.find((r) => r.is_default)?.code || "none", tone: "info" },
@@ -50,9 +50,8 @@ export default function WebWidthPolicyListPage() {
 
             <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/40 px-4 py-3 text-[12px] text-indigo-900">
                 <strong>Where this is used:</strong>{" "}
-                Sales-order create page validates lane choice against the default policy. WCM Roll Picker uses these
-                rules to compute slit-confirm previews + decide remainder vs scrap. To change the slitter trim, min
-                remainder, or allowed lanes, edit the default policy below.
+                Sales-order lines use the effective policy to validate lane-up and calculate planned parent width.
+                WCM uses the same policy for remainder keep/scrap decisions and candidate previews.
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -77,10 +76,12 @@ export default function WebWidthPolicyListPage() {
                             <tr>
                                 <th className="px-4 py-2">Code</th>
                                 <th className="px-4 py-2">Name</th>
+                                <th className="px-4 py-2">Scope</th>
                                 <th className="px-4 py-2">Lanes</th>
-                                <th className="px-4 py-2">Trim</th>
-                                <th className="px-4 py-2">Min remainder</th>
-                                <th className="px-4 py-2">Default</th>
+                                <th className="px-4 py-2">Parent strategy</th>
+                                <th className="px-4 py-2">440 mm sample</th>
+                                <th className="px-4 py-2">Remainder</th>
+                                <th className="px-4 py-2">Status</th>
                                 <th className="px-4 py-2"></th>
                             </tr>
                         </thead>
@@ -98,10 +99,16 @@ export default function WebWidthPolicyListPage() {
 
 function Row({ p }: { p: WebWidthPolicy }) {
     const trim = p.slitting_waste_rule || {}
+    const lane = (p.allowed_lanes || [2]).includes(2) ? 2 : (p.allowed_lanes || [1])[0] || 1
+    const plan = computeWebWidthPlan(440, lane, p)
     return (
         <tr className="hover:bg-violet-50/40">
             <td className="px-4 py-2 font-mono font-bold text-violet-700">{p.code}</td>
             <td className="px-4 py-2">{p.name}</td>
+            <td className="px-4 py-2">
+                <div className="font-mono text-[10px] font-bold text-slate-700">{p.scope_type || "GLOBAL"}</div>
+                {p.scope_ref ? <div className="max-w-[130px] truncate font-mono text-[10px] text-slate-400">{p.scope_ref}</div> : null}
+            </td>
             <td className="px-4 py-2">
                 <div className="flex flex-wrap gap-1">
                     {(p.allowed_lanes || []).map((l) => (
@@ -109,16 +116,26 @@ function Row({ p }: { p: WebWidthPolicy }) {
                     ))}
                 </div>
             </td>
-            <td className="px-4 py-2 font-mono text-[10px] text-slate-600">
-                {trim.inter_cut_mm ?? 5} mm cut · {trim.edge_trim_mm ?? 2} mm edge
-            </td>
-            <td className="px-4 py-2 font-mono">{p.min_remainder_mm} mm</td>
             <td className="px-4 py-2">
+                <div className="font-mono text-[10px] font-bold text-slate-700">{p.parent_width_strategy || "CALCULATED"}</div>
+                <div className="font-mono text-[10px] text-slate-500">{trim.inter_cut_mm ?? 5} cut · {trim.edge_trim_mm ?? 2} edge</div>
+            </td>
+            <td className="px-4 py-2">
+                <div className="font-mono text-[11px] font-bold text-slate-900">{lane}-up → {Math.round(plan.planned_parent_width_mm)} mm</div>
+                {plan.selected_standard_parent_width_mm ? <div className="text-[10px] text-violet-600">std width selected</div> : <div className="text-[10px] text-slate-400">calculated parent</div>}
+            </td>
+            <td className="px-4 py-2 font-mono text-[10px]">
+                {p.min_remainder_mm} mm min · {p.prefer_remainder_first ? "prefer rem" : "fresh first"}
+            </td>
+            <td className="px-4 py-2">
+                <div className="flex flex-wrap gap-1">
                 {p.is_default ? (
                     <Badge className="bg-emerald-100 text-[10px] text-emerald-800 hover:bg-emerald-100">default</Badge>
                 ) : (
-                    <span className="text-[10px] text-slate-400">—</span>
+                    null
                 )}
+                {p.deprecated ? <Badge className="bg-rose-100 text-[10px] text-rose-800 hover:bg-rose-100">disabled</Badge> : <Badge className="bg-slate-100 text-[10px] text-slate-700 hover:bg-slate-100">active</Badge>}
+                </div>
             </td>
             <td className="px-4 py-2 text-right">
                 <Link

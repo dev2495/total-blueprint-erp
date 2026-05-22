@@ -2256,9 +2256,13 @@ class SalesOrderService:
                 except Exception:
                     pass
 
-                # Compute planned_parent_width_mm from lane count + policy + child target.
+                # Compute planned_parent_width_mm from lane count + effective web-width policy + child target.
                 try:
-                    from apps.materials.models import WebWidthPolicy
+                    from apps.materials.services_web_width_policy import (
+                        evaluate_web_width_plan,
+                        web_width_context_from_sales_order_item,
+                    )
+
                     lane_count = int(getattr(item, "preferred_lane_count", None) or 1)
                     if lane_count < 1:
                         lane_count = 1
@@ -2268,25 +2272,32 @@ class SalesOrderService:
                         if geom.get(key):
                             child_w = float(geom.get(key) or 0)
                             break
-                    policy = WebWidthPolicy.objects.filter(is_default=True).first()
-                    rule = {"inter_cut_mm": 5, "edge_trim_mm": 2, "formula": "PER_CUT"}
-                    if policy:
-                        allowed_lanes = []
-                        for raw_lane in policy.allowed_lanes or []:
-                            try:
-                                lane = int(raw_lane)
-                            except Exception:
-                                continue
-                            if lane > 0:
-                                allowed_lanes.append(lane)
-                        if allowed_lanes and lane_count not in allowed_lanes:
-                            raise ValidationError(
-                                f"Lane count {lane_count}-up is not allowed by web-width policy {policy.code}."
-                            )
-                        rule = policy.slitting_waste_rule or rule
-                    planned = _planned_parent_width(child_w, lane_count, rule)
+                    plan = evaluate_web_width_plan(
+                        child_w,
+                        lane_count,
+                        context=web_width_context_from_sales_order_item(item),
+                    )
+                    planned = plan.get("planned_parent_width_mm") or 0
                     item.preferred_lane_count = lane_count
                     item.planned_parent_width_mm = Decimal(str(round(planned, 2))) if planned else None
+                    if isinstance(item.geometry_snapshot, dict):
+                        item.geometry_snapshot = {
+                            **item.geometry_snapshot,
+                            "preferred_lane_count": lane_count,
+                            "planned_parent_width_mm": planned,
+                            "web_width_policy": {
+                                "policy_id": plan.get("policy_id"),
+                                "policy_code": plan.get("policy_code"),
+                                "policy_name": plan.get("policy_name"),
+                                "scope_type": plan.get("scope_type"),
+                                "scope_ref": plan.get("scope_ref"),
+                                "parent_width_strategy": plan.get("parent_width_strategy"),
+                                "computed_run_width_mm": plan.get("computed_run_width_mm"),
+                                "trim_mm": plan.get("trim_mm"),
+                                "remainder_mm": plan.get("remainder_mm"),
+                                "remainder_disposition": plan.get("remainder_disposition"),
+                            },
+                        }
                 except ValidationError:
                     raise
                 except Exception:

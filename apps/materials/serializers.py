@@ -804,8 +804,9 @@ class FilmVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
         fields = [
-            'id', 'code', 'name', 'parent_family', 'parent_family_name', 
-            'grade', 'grade_name', 'is_extrudable', 'is_purchasable', 
+            'id', 'code', 'name', 'parent_family', 'parent_family_name',
+            'grade', 'grade_name', 'is_extrudable', 'is_purchasable',
+            'is_sellable', 'default_gst_pct',
             'status', 'created_at', 'commercial_family', 'commercial_family_name'
         ]
         read_only_fields = ['id', 'created_at']
@@ -861,7 +862,8 @@ class GranuleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InventoryMaterial
-        fields = ['id', 'code', 'name', 'status', 'created_at', 'quality_codes', 'quality_code_count']
+        fields = ['id', 'code', 'name', 'status', 'created_at', 'quality_codes', 'quality_code_count',
+                  'is_sellable', 'default_gst_pct']
         read_only_fields = ['id', 'created_at']
 
     def get_quality_code_count(self, obj):
@@ -1213,8 +1215,13 @@ class WebWidthPolicySerializer(serializers.ModelSerializer):
             "name",
             "description",
             "is_default",
+            "scope_type",
+            "scope_ref",
             "allowed_lanes",
             "allowed_parent_widths",
+            "parent_width_strategy",
+            "min_parent_width_mm",
+            "max_parent_width_mm",
             "slitting_waste_rule",
             "min_remainder_mm",
             "prefer_remainder_first",
@@ -1260,9 +1267,55 @@ class WebWidthPolicySerializer(serializers.ModelSerializer):
             out.append(round(n, 2))
         return sorted(set(out))
 
+    def validate_scope_type(self, value):
+        value = str(value or "GLOBAL").upper()
+        allowed = {choice[0] for choice in WebWidthPolicy.SCOPE_CHOICES}
+        if value not in allowed:
+            raise serializers.ValidationError(f"scope_type must be one of {', '.join(sorted(allowed))}.")
+        return value
+
+    def validate_parent_width_strategy(self, value):
+        value = str(value or "CALCULATED").upper()
+        allowed = {choice[0] for choice in WebWidthPolicy.PARENT_WIDTH_STRATEGY_CHOICES}
+        if value not in allowed:
+            raise serializers.ValidationError(f"parent_width_strategy must be one of {', '.join(sorted(allowed))}.")
+        return value
+
     def validate_slitting_waste_rule(self, value):
         if value in (None, ""):
             return {}
         if not isinstance(value, dict):
             raise serializers.ValidationError("slitting_waste_rule must be an object.")
-        return value
+        out = dict(value)
+        formula = str(out.get("formula") or "PER_CUT").upper()
+        if formula not in {"PER_CUT", "PER_LANE", "FIXED"}:
+            raise serializers.ValidationError("slitting_waste_rule.formula must be PER_CUT, PER_LANE or FIXED.")
+        out["formula"] = formula
+        for key in ("inter_cut_mm", "edge_trim_mm"):
+            try:
+                n = float(out.get(key, 0) or 0)
+            except Exception:
+                raise serializers.ValidationError(f"slitting_waste_rule.{key} must be numeric.")
+            if n < 0:
+                raise serializers.ValidationError(f"slitting_waste_rule.{key} cannot be negative.")
+            out[key] = round(n, 2)
+        return out
+
+    def validate(self, attrs):
+        scope_type = attrs.get("scope_type", getattr(self.instance, "scope_type", "GLOBAL"))
+        scope_ref = str(attrs.get("scope_ref", getattr(self.instance, "scope_ref", "")) or "").strip()
+        if scope_type == "GLOBAL":
+            attrs["scope_ref"] = ""
+        elif not scope_ref:
+            raise serializers.ValidationError({"scope_ref": "Scope reference is required for non-global policies."})
+
+        strategy = attrs.get("parent_width_strategy", getattr(self.instance, "parent_width_strategy", "CALCULATED"))
+        widths = attrs.get("allowed_parent_widths", getattr(self.instance, "allowed_parent_widths", []))
+        if strategy == "STRICT_STANDARD" and not widths:
+            raise serializers.ValidationError({"allowed_parent_widths": "Strict standard mode needs at least one parent width."})
+
+        min_parent = attrs.get("min_parent_width_mm", getattr(self.instance, "min_parent_width_mm", None))
+        max_parent = attrs.get("max_parent_width_mm", getattr(self.instance, "max_parent_width_mm", None))
+        if min_parent not in (None, "") and max_parent not in (None, "") and min_parent > max_parent:
+            raise serializers.ValidationError({"max_parent_width_mm": "Max parent width must be greater than min parent width."})
+        return attrs

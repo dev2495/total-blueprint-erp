@@ -1,145 +1,338 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { systemUserService, User, Role } from "@/services/system-users"
-import { DataTable } from "@/components/ui/data-table"
-import { getColumns } from "./columns"
-import { Button } from "@/components/ui/button"
-import { Plus, Users, Shield, ShieldCheck, Activity, Key, UserCheck, Zap } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import * as React from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useQuery } from "@tanstack/react-query"
+import {
+    Activity,
+    Crown,
+    Plus,
+    Search,
+    Shield,
+    ShieldCheck,
+    Sparkles,
+    UserCog,
+} from "lucide-react"
+
+import { GradientHero } from "@/components/erp-v3/gradient-hero"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { systemUserService, type User, type Role } from "@/services/system-users"
+import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
+import { getCanonicalRoleLabel } from "@/lib/roles"
+import { paletteFor } from "@/components/system-users/role-colors"
+
+function userCanManageRbac(user: any): boolean {
+    if (!user) return false
+    if (user.is_superuser || user.is_owner) return true
+    const perms: string[] = user.entitlements?.permissions || []
+    if (perms.includes("*")) return true
+    return perms.includes("rbac.manage")
+}
+
+function userCanViewRbac(user: any): boolean {
+    if (!user) return false
+    if (userCanManageRbac(user)) return true
+    const perms: string[] = user.entitlements?.permissions || []
+    return perms.includes("rbac.view")
+}
+
+function initials(u: User) {
+    const f = (u.first_name || "").trim().charAt(0).toUpperCase()
+    const l = (u.last_name || "").trim().charAt(0).toUpperCase()
+    if (f || l) return `${f}${l}`
+    return (u.username || "?").slice(0, 2).toUpperCase()
+}
 
 export default function UsersPage() {
-    const { toast } = useToast()
-    const queryClient = useQueryClient()
+    const { user: me } = useAuth()
+    const canManage = userCanManageRbac(me)
+    const canView = userCanViewRbac(me)
 
-    // Data Fetching
-    const { data: users, isLoading: usersLoading } = useQuery({ queryKey: ["users"], queryFn: systemUserService.getUsers })
-    const { data: roles } = useQuery({ queryKey: ["roles"], queryFn: systemUserService.getRoles })
-
-    const deleteMutation = useMutation({
-        mutationFn: systemUserService.deleteUser,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["users"] })
-            toast({ title: "Success", description: "User credentials revoked." })
-        }
+    const usersQuery = useQuery({
+        queryKey: ["users"],
+        queryFn: systemUserService.getUsers,
+    })
+    const rolesQuery = useQuery({
+        queryKey: ["roles"],
+        queryFn: systemUserService.getRoles,
     })
 
-    // Stats
-    const activeUsers = users?.filter(u => u.is_active).length || 0
-    const totalRoles = roles?.length || 0
+    const [search, setSearch] = React.useState("")
+    const [roleFilter, setRoleFilter] = React.useState<string>("ALL")
 
-    return (
-        <div className="p-6 lg:p-8 space-y-8 bg-[#f8fafc] min-h-screen">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-600 text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
-                        <ShieldCheck className="h-3 w-3" /> System Governance
-                    </div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                        Identity
-                        <span className="text-slate-300 font-light translate-y-[2px]">/</span>
-                        <span className="text-blue-600 italic">Control</span>
-                    </h1>
-                    <p className="text-slate-500 font-medium text-xs flex items-center gap-2 italic">
-                        Managing {users?.length || 0} authenticated entities across {totalRoles} authority roles <Activity className="h-3.5 w-3.5 text-blue-400" />
+    const users = usersQuery.data || []
+    const roles = rolesQuery.data || []
+
+    const filtered = React.useMemo(() => {
+        const needle = search.trim().toLowerCase()
+        return users.filter((u) => {
+            if (roleFilter !== "ALL") {
+                const code = u.role_info?.code || ""
+                if (code !== roleFilter) return false
+            }
+            if (!needle) return true
+            const hay = [
+                u.username,
+                u.email,
+                u.first_name,
+                u.last_name,
+                u.role_info?.code,
+                u.role_info?.name,
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+            return hay.includes(needle)
+        })
+    }, [users, roleFilter, search])
+
+    const stats = React.useMemo(() => {
+        const total = users.length
+        const active = users.filter((u) => u.is_active).length
+        const owners = users.filter((u) => u.is_owner).length
+        const overrides = users.filter((u) => (u.extra_permissions || []).length > 0).length
+        return { total, active, owners, overrides }
+    }, [users])
+
+    if (!canView) {
+        return (
+            <div className="grid min-h-screen place-items-center bg-slate-50 p-8 text-center">
+                <div className="max-w-md rounded-3xl bg-white p-8 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <ShieldCheck className="mx-auto h-10 w-10 text-slate-400" />
+                    <h2 className="mt-3 font-display text-lg font-bold text-slate-900">Access denied</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                        You need <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px]">rbac.view</code> to see the user registry.
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Link href="/system/role-matrix" className="active-scale">
-                        <Button variant="outline" className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest">
-                            Authority Matrix
-                        </Button>
-                    </Link>
-                    <Link href="/system/users/new" className="active-scale">
-                        <Button className="h-11 px-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 transition-all">
-                            <Plus className="h-4 w-4 mr-2" /> Provision New User
-                        </Button>
-                    </Link>
+            </div>
+        )
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-b from-indigo-50/40 via-white to-fuchsia-50/30 px-4 py-4 sm:px-6">
+            <GradientHero
+                palette="indigo"
+                eyebrow="SYSTEM · GOVERNANCE"
+                title="User Management"
+                subtitle="Roles, access, and overrides — one workspace."
+                actions={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Link href="/system/role-matrix">
+                            <Button variant="secondary" className="bg-white/95 text-indigo-700 hover:bg-white">
+                                <Shield className="mr-1.5 h-4 w-4" /> Role matrix
+                            </Button>
+                        </Link>
+                        {canManage ? (
+                            <Link href="/system/users/new">
+                                <Button className="bg-white text-indigo-700 hover:bg-indigo-50">
+                                    <Plus className="mr-1.5 h-4 w-4" /> Add user
+                                </Button>
+                            </Link>
+                        ) : null}
+                    </div>
+                }
+            />
+
+            {/* KPIs */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <KpiTile icon={UserCog} label="Total users" value={stats.total} palette="indigo" />
+                <KpiTile icon={Activity} label="Active" value={stats.active} palette="emerald" />
+                <KpiTile icon={Crown} label="Owners" value={stats.owners} palette="rose" />
+                <KpiTile icon={Sparkles} label="With overrides" value={stats.overrides} palette="amber" />
+            </div>
+
+            {/* Filter bar */}
+            <section className="mt-6 rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="relative flex-1 min-w-[220px]">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search by name, email or role…"
+                            className="pl-9"
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        <RolePill
+                            label="All"
+                            code="ALL"
+                            active={roleFilter === "ALL"}
+                            onClick={() => setRoleFilter("ALL")}
+                        />
+                        {roles.map((r: Role) => (
+                            <RolePill
+                                key={r.id}
+                                label={getCanonicalRoleLabel(r.code, r.name)}
+                                code={r.code}
+                                active={roleFilter === r.code}
+                                onClick={() => setRoleFilter(r.code)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Cards */}
+            {usersQuery.isLoading ? (
+                <div className="mt-6 grid place-items-center p-16 text-sm text-slate-500">Loading users…</div>
+            ) : filtered.length === 0 ? (
+                <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-white/60 p-12 text-center">
+                    <UserCog className="mx-auto h-8 w-8 text-slate-400" />
+                    <div className="mt-2 font-display text-sm font-bold text-slate-700">No users match</div>
+                    <p className="mt-1 text-xs text-slate-500">Try clearing filters.</p>
+                </div>
+            ) : (
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {filtered.map((u) => (
+                        <UserCard key={u.id} user={u} canManage={canManage} />
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function KpiTile({
+    icon: Icon,
+    label,
+    value,
+    palette,
+}: {
+    icon: React.ComponentType<{ className?: string }>
+    label: string
+    value: number
+    palette: "indigo" | "emerald" | "rose" | "amber"
+}) {
+    const BG: Record<string, string> = {
+        indigo: "from-indigo-500/10 to-indigo-50",
+        emerald: "from-emerald-500/10 to-emerald-50",
+        rose: "from-rose-500/10 to-rose-50",
+        amber: "from-amber-500/10 to-amber-50",
+    }
+    const TEXT: Record<string, string> = {
+        indigo: "text-indigo-700",
+        emerald: "text-emerald-700",
+        rose: "text-rose-700",
+        amber: "text-amber-700",
+    }
+    return (
+        <div
+            className={cn(
+                "rounded-3xl bg-gradient-to-br p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60",
+                BG[palette],
+            )}
+        >
+            <div className="flex items-center justify-between">
+                <div className={cn("grid h-9 w-9 place-items-center rounded-2xl bg-white", TEXT[palette])}>
+                    <Icon className="h-4 w-4" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    {label}
+                </span>
+            </div>
+            <div className="mt-3 font-display text-3xl font-bold tabular-nums text-slate-900">
+                {value}
+            </div>
+        </div>
+    )
+}
+
+function RolePill({
+    label,
+    code,
+    active,
+    onClick,
+}: {
+    label: string
+    code: string
+    active: boolean
+    onClick: () => void
+}) {
+    const palette = paletteFor(code === "ALL" ? "DEFAULT" : code)
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                "rounded-full px-3 py-1 text-[11px] font-bold ring-1 transition",
+                active
+                    ? cn(palette.bg, palette.text, palette.ring)
+                    : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+            )}
+        >
+            {label}
+        </button>
+    )
+}
+
+function UserCard({ user, canManage }: { user: User; canManage: boolean }) {
+    const palette = paletteFor(user.role_info?.code)
+    const overrides = (user.extra_permissions || []).length
+
+    return (
+        <Link
+            href={`/system/users/${user.id}`}
+            className="group relative overflow-hidden rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-[0_30px_80px_-30px_rgba(15,23,42,0.3)]"
+        >
+            <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", palette.stripe)} />
+            <div className="flex items-start gap-3">
+                <div
+                    className={cn(
+                        "grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-2 font-display text-base font-bold",
+                        palette.bg,
+                        palette.text,
+                        palette.ring,
+                    )}
+                >
+                    {initials(user)}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <h3 className="truncate font-display text-base font-bold text-slate-900">
+                            {user.full_name || user.username}
+                        </h3>
+                        {user.is_owner ? (
+                            <span title="Owner" className="text-rose-500">
+                                <Crown className="h-3.5 w-3.5" />
+                            </span>
+                        ) : null}
+                    </div>
+                    <div className="truncate font-mono text-[11px] text-slate-500">
+                        {user.email || "no email"}
+                    </div>
                 </div>
             </div>
 
-            {/* Stats Cards - Recalibrated Scale */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                    { label: "Authenticated", value: users?.length || 0, icon: Users, color: "text-blue-600", bg: "bg-blue-50", desc: "Total system identities" },
-                    { label: "Active Pulse", value: activeUsers, icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50", desc: "Entities with live access" },
-                    { label: "Authority Matrix", value: totalRoles, icon: Shield, color: "text-amber-600", bg: "bg-amber-50", desc: "Defined permission tiers" },
-                    { label: "Recent Activity", value: "Sync OK", icon: Zap, color: "text-rose-600", bg: "bg-rose-50", desc: "Access logs normalized" }
-                ].map((stat, i) => (
-                    <Card key={i} className="border-none shadow-premium rounded-2xl bg-white/70 backdrop-blur-md overflow-hidden group hover:-translate-y-1 transition-all duration-300">
-                        <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between">
-                            <div className={cn("p-2 rounded-xl transition-colors", stat.bg, stat.color)}>
-                                <stat.icon className="h-4 w-4" />
-                            </div>
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest italic">{stat.label}</span>
-                        </CardHeader>
-                        <CardContent className="p-5 pt-1">
-                            <div className="text-2xl font-black text-slate-900 tracking-tighter">{stat.value}</div>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase italic opacity-70">{stat.desc}</p>
-                        </CardContent>
-                    </Card>
-                ))}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <Badge className={cn(palette.bg, palette.text, "ring-1", palette.ring)}>
+                    {user.role_info?.code
+                        ? getCanonicalRoleLabel(user.role_info.code, user.role_info.name)
+                        : "No role"}
+                </Badge>
+                <Badge
+                    className={cn(
+                        "ring-1",
+                        user.is_active
+                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                            : "bg-slate-100 text-slate-500 ring-slate-200",
+                    )}
+                >
+                    {user.is_active ? "Active" : "Inactive"}
+                </Badge>
+                {overrides > 0 ? (
+                    <Badge className="bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                        +{overrides} override{overrides === 1 ? "" : "s"}
+                    </Badge>
+                ) : null}
             </div>
 
-            {/* Main Table - Tactical Modernization */}
-            <Card className="border-none shadow-premium rounded-[2rem] bg-white overflow-hidden">
-                <CardHeader className="p-6 pb-2 border-b border-slate-50 bg-slate-50/30">
-                    <CardTitle className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2 italic uppercase">
-                        <Key className="h-4 w-4 text-blue-500" />
-                        Identity Registry
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <DataTable
-                        columns={getColumns({
-                            onDelete: (user) => {
-                                if (confirm(`Revoke credentials for ${user.username}? This cannot be undone.`)) {
-                                    deleteMutation.mutate(user.id)
-                                }
-                            }
-                        })}
-                        data={users || []}
-                        filterColumn="username"
-                        filterPlaceholder="Identify user..."
-                    />
-                </CardContent>
-            </Card>
-
-            {/* Role Snippets */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="md:col-span-2 border-none shadow-premium rounded-[1.5rem] bg-slate-900 text-white overflow-hidden relative group">
-                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                        <Shield className="h-24 w-24" />
-                    </div>
-                    <CardHeader className="p-6 pb-2">
-                        <CardTitle className="text-sm font-black uppercase tracking-widest italic flex items-center gap-2">
-                            <ShieldCheck className="h-4 w-4 text-blue-400" />
-                            Policy Snapshot
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 pt-0">
-                        <div className="flex flex-wrap gap-2 mt-4">
-                            {roles?.map((r: Role) => (
-                                <Badge key={r.id} className="bg-white/5 hover:bg-white/10 text-white/70 border-white/5 py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest italic transition-colors">
-                                    {r.code}
-                                </Badge>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-premium rounded-[1.5rem] bg-blue-600 text-white overflow-hidden relative flex flex-col justify-center items-center p-6 text-center group">
-                    <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <ShieldCheck className="h-6 w-6 text-white" />
-                    </div>
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] italic">Governance Active</h4>
-                    <p className="text-[11px] font-bold text-blue-100 mt-2 leading-relaxed opacity-70 uppercase">RBAC Synchronized with <br /> Central Authority</p>
-                </Card>
+            <div className="mt-4 flex items-center justify-end text-[11px] font-bold text-indigo-600">
+                {canManage ? "Edit →" : "View →"}
             </div>
-        </div>
+        </Link>
     )
 }

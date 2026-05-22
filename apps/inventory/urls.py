@@ -13,6 +13,7 @@ from .views import (
     InventoryV36CoverageView, InventoryV36SnapshotTrendView, InventoryV36ExportView,
 )
 from .views_masters import VendorViewSet
+from .views_adjustment import StockAdjustmentViewSet
 from .views_audit import (
     InventoryAuditBatchViewSet,
     InventoryFinancialPeriodViewSet,
@@ -40,6 +41,7 @@ router.register(r'alerts', InventoryAlertViewSet, basename='inventory-alert')
 router.register(r'snapshots', InventorySnapshotViewSet, basename='inventory-snapshot')
 router.register(r'audit/periods', InventoryFinancialPeriodViewSet, basename='inventory-audit-period')
 router.register(r'audit/batches', InventoryAuditBatchViewSet, basename='inventory-audit-batch')
+router.register(r'adjustments', StockAdjustmentViewSet, basename='stock-adjustment')
 
 urlpatterns = [
     path('plants/<uuid:pk>/locations/', PlantLocationListView.as_view(), name='plant-location-list'),

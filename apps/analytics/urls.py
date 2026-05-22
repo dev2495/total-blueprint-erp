@@ -41,6 +41,7 @@ urlpatterns = [
     path('reports/material-variance', AnalyticsViewSet.as_view({'get': 'report_material_variance'}), name='report-material-variance'),
     path('reports/ink-intelligence', AnalyticsViewSet.as_view({'get': 'report_ink_intelligence'}), name='report-ink-intelligence'),
     path('reports/shift-performance', AnalyticsViewSet.as_view({'get': 'report_shift_performance'}), name='report-shift-performance'),
+    path('reports/trading', AnalyticsViewSet.as_view({'get': 'report_trading'}), name='report-trading'),
     path('reports/machine/<str:machine_id>/', AnalyticsViewSet.as_view({'get': 'machine_report'}), name='analytics-machine-report'),
     path('reports/workcenter/<str:wc_id>/', AnalyticsViewSet.as_view({'get': 'workcenter_report'}), name='analytics-workcenter-report'),
     path('reports/<str:tab>/', AnalyticsViewSet.as_view({'get': 'report_tab'}), name='analytics-report-tab'),

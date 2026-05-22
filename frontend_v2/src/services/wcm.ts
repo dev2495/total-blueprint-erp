@@ -115,6 +115,9 @@ export const wcmService = {
                     child_widths_mm: number[];
                     remainder_mm: number;
                     trim_mm: number;
+                    min_remainder_mm?: number;
+                    remainder_disposition?: "NONE" | "KEEP" | "SCRAP";
+                    policy_code?: string;
                     gang_group_id?: string;
                     gang_job_count?: number;
                     assign_job_ids?: string[];
@@ -125,6 +128,16 @@ export const wcmService = {
             planned_parent_width_mm?: number | null;
             child_target_width_mm?: number | null;
             preferred_lane_count?: number | null;
+            web_width_policy?: {
+                id: string;
+                code: string;
+                name: string;
+                scope_type: string;
+                scope_ref: string;
+                min_remainder_mm: number;
+                prefer_remainder_first: boolean;
+                parent_width_strategy: string;
+            } | null;
         }>(`/api/production/jobs/${jobId}/tiered-rolls/`);
         return data;
     },

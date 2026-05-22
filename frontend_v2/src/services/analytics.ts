@@ -546,6 +546,10 @@ export const analyticsApi = {
         const { data } = await api.get("/api/analytics/reports/dispatch", { params: filters });
         return data;
     },
+    getReportTrading: async (filters: AnalyticsFilterParams = {}): Promise<any> => {
+        const { data } = await api.get("/api/analytics/reports/trading", { params: filters });
+        return data;
+    },
     getReportDistributions: async (): Promise<ReportDistributionProfile[]> => {
         const { data } = await api.get("/api/analytics/report-distributions/");
         return Array.isArray(data?.profiles) ? data.profiles : [];

@@ -15,6 +15,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/analytics/inventory-health",
   "/analytics/kpis",
   "/analytics/mrp",
+  "/analytics/reports/trading",
   "/dashboard/admin",
   "/dashboard/logistics",
   "/dashboard/owner",
@@ -41,6 +42,8 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/factory/work-centers",
   "/help",
   "/inventory",
+  "/inventory/adjustments",
+  "/inventory/adjustments/new",
   "/inventory/addons-v36",
   "/inventory/bulk-v36",
   "/inventory/count",
@@ -74,6 +77,8 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/master/pod",
   "/master/pouch-styles",
   "/master/pouch-styles/new",
+  "/master/trading-goods",
+  "/master/trading-goods/new",
   "/master/web-width-policies",
   "/master/web-width-policies/new",
   "/master/products",
@@ -89,11 +94,14 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/sales/orders",
   "/sales/orders/create",
   "/sales/quotations",
+  "/sales/trade-orders",
+  "/sales/trade-orders/new",
   "/system/audit",
   "/system/governance",
   "/system/report-center",
   "/system/role-matrix",
   "/system/users",
+  "/system/users/new",
 ]);
 
 const DYNAMIC_ROUTE_PATTERNS: RegExp[] = [
@@ -106,6 +114,11 @@ const DYNAMIC_ROUTE_PATTERNS: RegExp[] = [
   /^\/master\/products\/[^/]+\/edit$/,
   /^\/master\/pouch-styles\/[^/]+$/,
   /^\/master\/web-width-policies\/[^/]+$/,
+  /^\/master\/trading-goods\/[^/]+$/,
+  /^\/inventory\/adjustments\/[^/]+$/,
+  /^\/sales\/trade-orders\/[^/]+$/,
+  /^\/sales\/trade-orders\/[^/]+\/edit$/,
+  /^\/system\/users\/[^/]+$/,
 ];
 
 function normalizePath(path: string): string {

@@ -231,6 +231,19 @@ class WebWidthPolicy(models.Model):
         ("PER_LANE", "Per lane"),
         ("FIXED", "Fixed amount"),
     ]
+    SCOPE_CHOICES = [
+        ("GLOBAL", "Global default"),
+        ("PRODUCT_KIND", "Product kind"),
+        ("PRODUCT_MASTER", "Product master"),
+        ("POUCH_STYLE", "Pouch style"),
+        ("PROCESS", "Process"),
+        ("MACHINE", "Machine"),
+    ]
+    PARENT_WIDTH_STRATEGY_CHOICES = [
+        ("CALCULATED", "Use calculated width"),
+        ("NEAREST_STANDARD", "Use nearest configured parent width"),
+        ("STRICT_STANDARD", "Require configured parent width"),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=80, unique=True, db_index=True)
@@ -241,9 +254,25 @@ class WebWidthPolicy(models.Model):
         default=False,
         help_text="True for the global fallback policy used when a route has none attached.",
     )
+    scope_type = models.CharField(max_length=32, choices=SCOPE_CHOICES, default="GLOBAL", db_index=True)
+    scope_ref = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Code or UUID for the selected scope. Blank for GLOBAL.",
+    )
 
     allowed_lanes = models.JSONField(default=list, blank=True)
     allowed_parent_widths = models.JSONField(default=list, blank=True)
+    parent_width_strategy = models.CharField(
+        max_length=32,
+        choices=PARENT_WIDTH_STRATEGY_CHOICES,
+        default="CALCULATED",
+        help_text="Whether planning uses the calculated web width or snaps to configured parent widths.",
+    )
+    min_parent_width_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    max_parent_width_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     slitting_waste_rule = models.JSONField(
         default=dict,
@@ -266,13 +295,21 @@ class WebWidthPolicy(models.Model):
     class Meta:
         db_table = "web_width_policies"
         ordering = ["-is_default", "name"]
+        indexes = [
+            models.Index(fields=["scope_type", "scope_ref"], name="web_width_policy_scope_idx"),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.code})"
 
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80).upper()
+        self.scope_type = (self.scope_type or "GLOBAL").upper()
+        self.scope_ref = "" if self.scope_type == "GLOBAL" else str(self.scope_ref or "").strip()
+        self.parent_width_strategy = (self.parent_width_strategy or "CALCULATED").upper()
         super().save(*args, **kwargs)
+        if self.is_default:
+            WebWidthPolicy.objects.exclude(pk=self.pk).filter(is_default=True).update(is_default=False)
 
 
 class PouchStyleMaster(models.Model):
@@ -627,7 +664,21 @@ class InventoryMaterial(models.Model):
     )
 
     status = models.CharField(max_length=10, default='ACTIVE', choices=[('ACTIVE', 'Active'), ('INACTIVE', 'Inactive')])
-    
+
+    # Trade-resale flags — granules and film variants flagged TRUE here become
+    # selectable in Trade Orders (resold as-is, no production cycle).
+    is_sellable = models.BooleanField(
+        default=False,
+        help_text="TRUE if this material can be sold as a trading good (granules, film variants resold as-is)",
+    )
+    default_gst_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Default GST % when sold via trade order. Operator can override per-line.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -877,3 +928,69 @@ class ConsumableMaterial(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_category_display()})"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Trading Goods — trade-only items the factory resells (ready-made pouches,
+# outsourced rolls, etc.). Separate stock pool. NOT consumed by production.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TradingGood(models.Model):
+    """Trade-only items the company resells (ready-made pouches, outsourced rolls, etc.)"""
+
+    TRADE_TYPE_CHOICES = [
+        ("READY_POUCH", "Ready pouch"),
+        ("READY_ROLL", "Ready roll"),
+        ("PACKAGING", "Packaging item"),
+        ("RAW_MATERIAL", "Raw material"),
+        ("OTHER", "Other"),
+    ]
+
+    UOM_CHOICES = [
+        ("KG", "Kilograms"),
+        ("PCS", "Pieces"),
+        ("METER", "Meters"),
+        ("ROLL", "Rolls"),
+        ("BOX", "Boxes"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=100, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    trade_type = models.CharField(max_length=20, choices=TRADE_TYPE_CHOICES, default="READY_POUCH")
+    description = models.TextField(blank=True, default="")
+    base_uom = models.CharField(max_length=10, choices=UOM_CHOICES, default="PCS")
+    hsn_code = models.CharField(max_length=20, blank=True, default="")
+    default_gst_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("18.00"))
+    default_sale_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    default_buy_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "materials_trading_good"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} · {self.name}"
+
+
+class TradingGoodStock(models.Model):
+    """Per-plant stock of a TradingGood."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    trading_good = models.ForeignKey(TradingGood, on_delete=models.PROTECT, related_name="stocks")
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="trading_good_stocks")
+    qty = models.DecimalField(max_digits=14, decimal_places=3, default=Decimal("0"))
+    avg_cost = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "materials_trading_good_stock"
+        unique_together = [("trading_good", "plant")]
+
+    def __str__(self):
+        return f"{self.trading_good.code} @ {self.plant.name}: {self.qty}"

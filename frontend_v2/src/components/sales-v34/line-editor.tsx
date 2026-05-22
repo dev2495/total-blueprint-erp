@@ -59,7 +59,7 @@ import {
     type PodSkuVariant,
 } from "@/services/master-data"
 import { engineeringService, type Artwork } from "@/services/engineering"
-import { computePlannedParentWidth, webWidthPolicyService } from "@/services/web-width-policy"
+import { computeWebWidthPlan, webWidthPolicyService } from "@/services/web-width-policy"
 
 import type { SalesOrderLine } from "./types"
 
@@ -281,7 +281,8 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const activeLaneCount = allowedLaneCounts.includes(Number(line.preferred_lane_count || 1))
         ? Number(line.preferred_lane_count || 1)
         : allowedLaneCounts[0] || 1
-    const plannedParentWidthMm = computePlannedParentWidth(childTargetWidthMm, activeLaneCount, webWidthPolicy)
+    const webWidthPlan = computeWebWidthPlan(childTargetWidthMm, activeLaneCount, webWidthPolicy)
+    const plannedParentWidthMm = webWidthPlan.planned_parent_width_mm
 
     return (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
@@ -391,24 +392,30 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
 
                             <FieldGroup label="Production lane" hint="sets parent web for WCM allocation">
                                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-3">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        {allowedLaneCounts.map((lane) => (
-                                            <Button
-                                                key={lane}
-                                                type="button"
-                                                size="sm"
-                                                variant={activeLaneCount === lane ? "default" : "outline"}
-                                                onClick={() => onPatch({ preferred_lane_count: lane, lane_count_source: "OPERATOR_CHOICE" })}
-                                                className={cn(
-                                                    "h-8 rounded-lg px-3 text-xs font-black",
-                                                    activeLaneCount === lane ? "bg-indigo-600 text-white hover:bg-indigo-700" : "border-indigo-200 bg-white text-indigo-700"
-                                                )}
-                                            >
-                                                {lane}-up
-                                            </Button>
-                                        ))}
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {allowedLaneCounts.map((lane) => (
+                                                <Button
+                                                    key={lane}
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={activeLaneCount === lane ? "default" : "outline"}
+                                                    onClick={() => onPatch({ preferred_lane_count: lane, lane_count_source: "OPERATOR_CHOICE" })}
+                                                    className={cn(
+                                                        "h-8 rounded-lg px-3 text-xs font-black",
+                                                        activeLaneCount === lane ? "bg-indigo-600 text-white hover:bg-indigo-700" : "border-indigo-200 bg-white text-indigo-700"
+                                                    )}
+                                                >
+                                                    {lane}-up
+                                                </Button>
+                                            ))}
+                                        </div>
+                                        <div className="rounded-lg bg-white px-2.5 py-1.5 text-right ring-1 ring-indigo-100">
+                                            <div className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Policy</div>
+                                            <div className="font-mono text-[11px] font-bold text-slate-900">{webWidthPolicy?.code || "default"}</div>
+                                        </div>
                                     </div>
-                                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] md:grid-cols-5">
                                         <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
                                             <div className="font-black uppercase tracking-widest text-indigo-500">Child target</div>
                                             <div className="font-mono font-bold text-slate-900">{childTargetWidthMm ? `${Math.round(childTargetWidthMm)} mm` : "—"}</div>
@@ -421,7 +428,22 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                             <div className="font-black uppercase tracking-widest text-indigo-500">Planned parent</div>
                                             <div className="font-mono font-bold text-slate-900">{plannedParentWidthMm ? `${Math.round(plannedParentWidthMm)} mm` : "—"}</div>
                                         </div>
+                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
+                                            <div className="font-black uppercase tracking-widest text-indigo-500">Trim</div>
+                                            <div className="font-mono font-bold text-slate-900">{webWidthPlan.trim_mm ? `${Math.round(webWidthPlan.trim_mm)} mm` : "0 mm"}</div>
+                                        </div>
+                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
+                                            <div className="font-black uppercase tracking-widest text-indigo-500">Std/rem</div>
+                                            <div className="font-mono font-bold text-slate-900">
+                                                {webWidthPlan.selected_standard_parent_width_mm ? `${Math.round(webWidthPlan.selected_standard_parent_width_mm)} mm` : webWidthPlan.remainder_mm ? `${Math.round(webWidthPlan.remainder_mm)} mm ${webWidthPlan.remainder_disposition.toLowerCase()}` : "calc"}
+                                            </div>
+                                        </div>
                                     </div>
+                                    {webWidthPlan.warnings.length ? (
+                                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-900">
+                                            {webWidthPlan.warnings.join(" ")}
+                                        </div>
+                                    ) : null}
                                 </div>
                             </FieldGroup>
 

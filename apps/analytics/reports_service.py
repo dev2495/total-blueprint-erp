@@ -39,6 +39,7 @@ from apps.inventory.models import (
     InterPlantChallanItem,
     InventoryRoll,
     InventoryBulk,
+    PackagingStock,
 )
 
 logger = logging.getLogger(__name__)
@@ -1336,6 +1337,467 @@ class ReportService:
         }
 
     # ═══════════════════════════════════════════════════════════
+    # 5.5 TRADING METRICS — trading goods + sellable materials + trade orders
+    # ═══════════════════════════════════════════════════════════
+    @staticmethod
+    def get_trading_metrics(filters=None):
+        """Aggregate stock + order + revenue metrics for the trading surface.
+
+        Pulls from:
+        - materials.TradingGood / TradingGoodStock for trading-good catalog & stock
+        - materials.InventoryMaterial (is_sellable=True) + inventory bulk/roll/packaging
+          for sellable-material stock value
+        - sales.TradeOrder / TradeOrderItem for order pipeline, revenue, margin
+        """
+        from apps.sales.models_trade import TradeOrder, TradeOrderItem
+        from apps.materials.models import TradingGood, TradingGoodStock, InventoryMaterial
+
+        filters = ReportService._default_date_range(filters or {})
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+        plant_id = filters.get("plant_id")
+
+        # Period length & previous-period bounds (for MoM)
+        try:
+            period_days = max(1, (end_date - start_date).days + 1) if start_date and end_date else 30
+        except Exception:
+            period_days = 30
+        prev_end = (start_date - timedelta(days=1)) if start_date else None
+        prev_start = (prev_end - timedelta(days=period_days - 1)) if prev_end else None
+
+        def _dec(v):
+            try:
+                return Decimal(str(v or 0))
+            except Exception:
+                return Decimal("0")
+
+        # ─── Stock side ──────────────────────────────────────────────
+        trading_goods_qs = TradingGood.objects.filter(is_active=True)
+        trading_goods_count = trading_goods_qs.count()
+
+        sellable_mat_qs = InventoryMaterial.objects.filter(is_sellable=True, status="ACTIVE")
+        sellable_materials_count = sellable_mat_qs.count()
+
+        tg_stock_qs = TradingGoodStock.objects.all()
+        if plant_id:
+            tg_stock_qs = tg_stock_qs.filter(plant_id=plant_id)
+
+        tg_agg = tg_stock_qs.aggregate(
+            qty_total=Sum("qty"),
+            value_total=Sum(
+                ExpressionWrapper(
+                    F("qty") * F("avg_cost"),
+                    output_field=DecimalField(max_digits=20, decimal_places=4),
+                )
+            ),
+        )
+        trading_stock_qty = _dec(tg_agg.get("qty_total"))
+        trading_stock_value = _dec(tg_agg.get("value_total"))
+
+        # Sellable material stock value across bulk + rolls + packaging
+        sellable_mat_ids = list(sellable_mat_qs.values_list("id", flat=True))
+        bulk_qs = InventoryBulk.objects.filter(material_id__in=sellable_mat_ids)
+        roll_qs = InventoryRoll.objects.filter(material_id__in=sellable_mat_ids)
+        pack_qs = PackagingStock.objects.filter(material_id__in=sellable_mat_ids)
+        if plant_id:
+            bulk_qs = bulk_qs.filter(plant_id=plant_id)
+            roll_qs = roll_qs.filter(plant_id=plant_id)
+            pack_qs = pack_qs.filter(plant_id=plant_id)
+
+        bulk_value = _dec(
+            bulk_qs.aggregate(
+                v=Sum(
+                    ExpressionWrapper(
+                        F("qty_kg") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=20, decimal_places=4),
+                    )
+                )
+            )["v"]
+        )
+        pack_value = _dec(
+            pack_qs.aggregate(
+                v=Sum(
+                    ExpressionWrapper(
+                        F("qty") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=20, decimal_places=4),
+                    )
+                )
+            )["v"]
+        )
+        # Rolls don't carry avg_cost directly; rely on bulk-cost proxy via material
+        # (use mean avg_cost from matching bulk rows; fall back to 0)
+        roll_weight = _dec(roll_qs.aggregate(w=Sum("weight_kg"))["w"])
+        avg_bulk_cost_map = {
+            row["material_id"]: row["c"] or 0
+            for row in bulk_qs.values("material_id").annotate(c=Avg("avg_cost"))
+        }
+        roll_value = Decimal("0")
+        for r in roll_qs.values("material_id").annotate(w=Sum("weight_kg")):
+            cost = _dec(avg_bulk_cost_map.get(r["material_id"]) or 0)
+            roll_value += _dec(r["w"]) * cost
+
+        sellable_material_stock_value = bulk_value + pack_value + roll_value
+        total_tradeable_value = trading_stock_value + sellable_material_stock_value
+
+        # ─── Order side (within date range) ──────────────────────────
+        orders_qs = TradeOrder.objects.all()
+        if plant_id:
+            orders_qs = orders_qs.filter(plant_id=plant_id)
+
+        # Pipeline counts use entire pipeline (open across all dates); revenue uses period
+        open_qs = orders_qs.filter(status__in=["DRAFT", "CONFIRMED"])
+        open_trade_orders = open_qs.count()
+
+        status_counts = {row["status"]: row["count"] for row in orders_qs.values("status").annotate(count=Count("id"))}
+
+        period_orders_qs = orders_qs
+        if start_date:
+            period_orders_qs = period_orders_qs.filter(order_date__gte=start_date)
+        if end_date:
+            period_orders_qs = period_orders_qs.filter(order_date__lte=end_date)
+
+        realized_qs = period_orders_qs.filter(status__in=["DISPATCHED", "INVOICED"])
+        rev_agg = realized_qs.aggregate(
+            subtotal=Sum("subtotal"),
+            gst=Sum("gst_total"),
+            grand=Sum("grand_total"),
+            count=Count("id"),
+        )
+        trade_revenue = _dec(rev_agg.get("grand"))
+        trade_revenue_pre_gst = _dec(rev_agg.get("subtotal"))
+        trade_gst_collected = _dec(rev_agg.get("gst"))
+        realized_count = int(rev_agg.get("count") or 0)
+
+        # Previous period revenue for MoM
+        prev_revenue = Decimal("0")
+        if prev_start and prev_end:
+            prev_rev_agg = orders_qs.filter(
+                order_date__gte=prev_start,
+                order_date__lte=prev_end,
+                status__in=["DISPATCHED", "INVOICED"],
+            ).aggregate(grand=Sum("grand_total"))
+            prev_revenue = _dec(prev_rev_agg.get("grand"))
+        revenue_delta_pct = ReportService._delta_pct(float(trade_revenue), float(prev_revenue))
+
+        # COGS proxy — sum qty * avg_cost per line, using current avg_cost lookup
+        # Build cost maps once
+        tg_cost_map = {
+            row["trading_good_id"]: row["c"] or 0
+            for row in TradingGoodStock.objects.values("trading_good_id").annotate(c=Avg("avg_cost"))
+        }
+        # For inventory materials, use bulk avg_cost average per material as proxy
+        mat_cost_map = {
+            row["material_id"]: row["c"] or 0
+            for row in InventoryBulk.objects.values("material_id").annotate(c=Avg("avg_cost"))
+        }
+        pkg_cost_map = {
+            row["material_id"]: row["c"] or 0
+            for row in PackagingStock.objects.values("material_id").annotate(c=Avg("avg_cost"))
+        }
+
+        realized_lines_qs = TradeOrderItem.objects.filter(trade_order__in=realized_qs)
+        cogs = Decimal("0")
+        for line in realized_lines_qs.values("item_type", "trading_good_id", "inventory_material_id", "qty"):
+            qty = _dec(line.get("qty"))
+            if line["item_type"] == "TRADING_GOOD" and line.get("trading_good_id"):
+                cost = _dec(tg_cost_map.get(line["trading_good_id"]) or 0)
+            else:
+                mat_id = line.get("inventory_material_id")
+                cost = _dec(mat_cost_map.get(mat_id) or pkg_cost_map.get(mat_id) or 0)
+            cogs += qty * cost
+
+        trade_gross_margin = trade_revenue_pre_gst - cogs
+        trade_gross_margin_pct = (
+            float((trade_gross_margin / trade_revenue_pre_gst) * 100)
+            if trade_revenue_pre_gst > 0
+            else 0.0
+        )
+
+        unique_customers_count = realized_qs.values("customer_id").distinct().count()
+        avg_order_value = (trade_revenue / realized_count) if realized_count > 0 else Decimal("0")
+
+        # ─── Daily series ────────────────────────────────────────────
+        series_qs = (
+            realized_qs.annotate(d=TruncDate("order_date"))
+            .values("d")
+            .annotate(orders=Count("id"), revenue=Sum("grand_total"))
+            .order_by("d")
+        )
+        qty_by_day_map = {}
+        for row in (
+            realized_lines_qs.annotate(d=TruncDate("trade_order__order_date"))
+            .values("d")
+            .annotate(qty_sum=Sum("qty"))
+        ):
+            qty_by_day_map[row["d"]] = float(row["qty_sum"] or 0)
+        series = []
+        for row in series_qs:
+            d = row["d"]
+            series.append({
+                "date": d.isoformat() if d else None,
+                "orders": int(row["orders"] or 0),
+                "revenue_inr": float(row["revenue"] or 0),
+                "qty": qty_by_day_map.get(d, 0.0),
+            })
+
+        # ─── Breakdowns ──────────────────────────────────────────────
+        # By status (across period — include all statuses in window)
+        by_status_qs = (
+            period_orders_qs.values("status")
+            .annotate(count=Count("id"), value=Sum("grand_total"))
+            .order_by("status")
+        )
+        by_status = [
+            {
+                "status": r["status"],
+                "count": int(r["count"] or 0),
+                "value_inr": float(r["value"] or 0),
+            }
+            for r in by_status_qs
+        ]
+
+        # By item type (only realized lines)
+        by_item_type_qs = (
+            realized_lines_qs.values("item_type")
+            .annotate(
+                lines=Count("id"),
+                qty_sum=Sum("qty"),
+                revenue=Sum("line_total"),
+            )
+        )
+        by_item_type = [
+            {
+                "type": r["item_type"],
+                "lines": int(r["lines"] or 0),
+                "qty": float(r["qty_sum"] or 0),
+                "revenue_inr": float(r["revenue"] or 0),
+            }
+            for r in by_item_type_qs
+        ]
+
+        # Top items — aggregate across trading_good or inventory_material
+        top_items = []
+        tg_lines = (
+            realized_lines_qs.filter(item_type="TRADING_GOOD", trading_good__isnull=False)
+            .values(
+                "trading_good_id",
+                "trading_good__code",
+                "trading_good__name",
+            )
+            .annotate(qty_sum=Sum("qty"), revenue=Sum("line_total"), lines=Count("id"))
+        )
+        for row in tg_lines:
+            top_items.append({
+                "name": row["trading_good__name"] or "—",
+                "code": row["trading_good__code"] or "",
+                "kind": "TRADING_GOOD",
+                "qty": float(row["qty_sum"] or 0),
+                "revenue_inr": float(row["revenue"] or 0),
+                "lines": int(row["lines"] or 0),
+            })
+        im_lines = (
+            realized_lines_qs.filter(item_type="INVENTORY_MATERIAL", inventory_material__isnull=False)
+            .values(
+                "inventory_material_id",
+                "inventory_material__code",
+                "inventory_material__name",
+            )
+            .annotate(qty_sum=Sum("qty"), revenue=Sum("line_total"), lines=Count("id"))
+        )
+        for row in im_lines:
+            top_items.append({
+                "name": row["inventory_material__name"] or "—",
+                "code": row["inventory_material__code"] or "",
+                "kind": "INVENTORY_MATERIAL",
+                "qty": float(row["qty_sum"] or 0),
+                "revenue_inr": float(row["revenue"] or 0),
+                "lines": int(row["lines"] or 0),
+            })
+        top_items.sort(key=lambda r: r["revenue_inr"], reverse=True)
+        top_items = top_items[:10]
+
+        # Top customers (realized orders in period)
+        top_customers_qs = (
+            realized_qs.values("customer_id", "customer__name")
+            .annotate(
+                orders=Count("id"),
+                revenue=Sum("grand_total"),
+                last_order_at=Max("order_date"),
+            )
+            .order_by("-revenue")[:10]
+        )
+        top_customers = [
+            {
+                "customer": str(r["customer_id"]) if r["customer_id"] else None,
+                "customer_name": r["customer__name"] or "—",
+                "orders": int(r["orders"] or 0),
+                "revenue_inr": float(r["revenue"] or 0),
+                "last_order_at": r["last_order_at"].isoformat() if r["last_order_at"] else None,
+            }
+            for r in top_customers_qs
+        ]
+
+        # Slow movers — trading goods with stock>0 but no dispatch in last 60 days
+        slow_cutoff = timezone.now().date() - timedelta(days=60)
+        recent_dispatched_ids = set(
+            TradeOrderItem.objects.filter(
+                item_type="TRADING_GOOD",
+                trading_good__isnull=False,
+                trade_order__status__in=["DISPATCHED", "INVOICED"],
+                trade_order__order_date__gte=slow_cutoff,
+            ).values_list("trading_good_id", flat=True)
+        )
+        last_dispatch_map = {}
+        for row in (
+            TradeOrderItem.objects.filter(
+                item_type="TRADING_GOOD",
+                trading_good__isnull=False,
+                trade_order__status__in=["DISPATCHED", "INVOICED"],
+            )
+            .values("trading_good_id")
+            .annotate(last_at=Max("trade_order__order_date"))
+        ):
+            last_dispatch_map[row["trading_good_id"]] = row["last_at"]
+
+        stock_by_tg = (
+            tg_stock_qs.values("trading_good_id", "trading_good__code", "trading_good__name")
+            .annotate(
+                stock_qty=Sum("qty"),
+                stock_value=Sum(
+                    ExpressionWrapper(
+                        F("qty") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=20, decimal_places=4),
+                    )
+                ),
+            )
+            .filter(stock_qty__gt=0)
+        )
+        slow_moving = []
+        for r in stock_by_tg:
+            tg_id = r["trading_good_id"]
+            if tg_id in recent_dispatched_ids:
+                continue
+            last_at = last_dispatch_map.get(tg_id)
+            slow_moving.append({
+                "code": r["trading_good__code"] or "",
+                "name": r["trading_good__name"] or "—",
+                "stock_qty": float(r["stock_qty"] or 0),
+                "stock_value_inr": float(r["stock_value"] or 0),
+                "last_dispatched_at": last_at.isoformat() if last_at else None,
+            })
+        slow_moving.sort(key=lambda r: r["stock_value_inr"], reverse=True)
+        slow_moving = slow_moving[:10]
+
+        # Stock by plant
+        tg_by_plant = (
+            tg_stock_qs.values("plant_id", "plant__name", "plant__code")
+            .annotate(
+                qty_sum=Sum("qty"),
+                value_sum=Sum(
+                    ExpressionWrapper(
+                        F("qty") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=20, decimal_places=4),
+                    )
+                ),
+            )
+        )
+        plant_map = {}
+        for row in tg_by_plant:
+            pid = row["plant_id"]
+            plant_map[pid] = {
+                "plant_id": str(pid) if pid else None,
+                "plant_name": (
+                    f"{row.get('plant__code') or ''} · {row.get('plant__name') or ''}".strip(" ·")
+                    or "—"
+                ),
+                "trading_goods_qty": float(row["qty_sum"] or 0),
+                "trading_goods_value_inr": float(row["value_sum"] or 0),
+                "sellable_materials_value_inr": 0.0,
+            }
+        # add sellable materials value per plant
+        bulk_by_plant = bulk_qs.values("plant_id", "plant__name", "plant__code").annotate(
+            v=Sum(
+                ExpressionWrapper(
+                    F("qty_kg") * F("avg_cost"),
+                    output_field=DecimalField(max_digits=20, decimal_places=4),
+                )
+            )
+        )
+        pack_by_plant = pack_qs.values("plant_id", "plant__name", "plant__code").annotate(
+            v=Sum(
+                ExpressionWrapper(
+                    F("qty") * F("avg_cost"),
+                    output_field=DecimalField(max_digits=20, decimal_places=4),
+                )
+            )
+        )
+        for src in (bulk_by_plant, pack_by_plant):
+            for row in src:
+                pid = row["plant_id"]
+                if pid not in plant_map:
+                    plant_map[pid] = {
+                        "plant_id": str(pid) if pid else None,
+                        "plant_name": (
+                            f"{row.get('plant__code') or ''} · {row.get('plant__name') or ''}".strip(" ·")
+                            or "—"
+                        ),
+                        "trading_goods_qty": 0.0,
+                        "trading_goods_value_inr": 0.0,
+                        "sellable_materials_value_inr": 0.0,
+                    }
+                plant_map[pid]["sellable_materials_value_inr"] += float(row["v"] or 0)
+        stock_by_plant = sorted(
+            plant_map.values(),
+            key=lambda r: r["trading_goods_value_inr"] + r["sellable_materials_value_inr"],
+            reverse=True,
+        )
+
+        summary = {
+            # Stock
+            "trading_goods_count": trading_goods_count,
+            "sellable_materials_count": sellable_materials_count,
+            "trading_stock_qty": float(trading_stock_qty),
+            "trading_stock_value_inr": float(trading_stock_value),
+            "sellable_material_stock_value_inr": float(sellable_material_stock_value),
+            "total_tradeable_value_inr": float(total_tradeable_value),
+            # Order pipeline
+            "open_trade_orders": open_trade_orders,
+            "draft_count": int(status_counts.get("DRAFT", 0)),
+            "confirmed_count": int(status_counts.get("CONFIRMED", 0)),
+            "dispatched_count": int(status_counts.get("DISPATCHED", 0)),
+            "invoiced_count": int(status_counts.get("INVOICED", 0)),
+            "cancelled_count": int(status_counts.get("CANCELLED", 0)),
+            # Revenue
+            "trade_revenue_inr": float(trade_revenue),
+            "trade_revenue_pre_gst_inr": float(trade_revenue_pre_gst),
+            "trade_gst_collected_inr": float(trade_gst_collected),
+            "trade_cogs_inr": float(cogs),
+            "trade_gross_margin_inr": float(trade_gross_margin),
+            "trade_gross_margin_pct": round(trade_gross_margin_pct, 2),
+            "trade_revenue_prev_period_inr": float(prev_revenue),
+            "trade_revenue_delta_pct": revenue_delta_pct,
+            "unique_customers_count": unique_customers_count,
+            "avg_order_value_inr": float(avg_order_value),
+        }
+
+        return {
+            "summary": summary,
+            "series": series,
+            "breakdowns": {
+                "by_status": by_status,
+                "by_item_type": by_item_type,
+                "top_items": top_items,
+                "top_customers": top_customers,
+                "slow_moving": slow_moving,
+                "stock_by_plant": stock_by_plant,
+            },
+            "rows": [],
+            "coverage": ReportService._coverage(filters),
+            "generated_at": timezone.now().isoformat(),
+            "warnings": [],
+        }
+
+    # ═══════════════════════════════════════════════════════════
     # 6. SALES FULFILLMENT
     # ═══════════════════════════════════════════════════════════
     @staticmethod
@@ -2324,6 +2786,7 @@ class ReportService:
             "material-variance": ReportService.get_material_variance,
             "ink-intelligence": ReportService.get_ink_intelligence,
             "shift-performance": ReportService.get_shift_performance,
+            "trading": ReportService.get_trading_metrics,
         }
 
         resolver = tab_map.get(key)

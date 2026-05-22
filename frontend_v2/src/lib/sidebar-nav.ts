@@ -27,6 +27,8 @@ import {
   CalendarRange,
   Smartphone,
   Combine,
+  Repeat,
+  SlidersHorizontal,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -184,6 +186,13 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.audit.view", "inventory.manage"],
       },
       {
+        title: "Stock Adjustments",
+        href: "/inventory/adjustments",
+        icon: SlidersHorizontal,
+        roles: ["ADMIN", "OWNER"],
+        permissions: ["inventory.manage"],
+      },
+      {
         title: "Mobile Count",
         href: "/inventory/count",
         icon: Smartphone,
@@ -255,6 +264,7 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["sales.view", "sales.manage"],
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
+      { title: "Trade Orders", href: "/sales/trade-orders", icon: Repeat, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
       { title: "Product Master", href: "/master/products", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Pouch Styles", href: "/master/pouch-styles", icon: Palette, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Web-Width Policies", href: "/master/web-width-policies", icon: MoveRight, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["sales.manage", "production.manage"] },
@@ -286,6 +296,7 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["analytics.view", "analytics.manage", "costing.view", "costing.manage"],
       },
       { title: "MRP Center", href: "/analytics/mrp", icon: ClipboardList, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["mrp.view", "mrp.manage"] },
+      { title: "Trading Report", href: "/analytics/reports/trading", icon: Repeat, roles: ["ADMIN", "OWNER", "SALES", "PLANT_MANAGER"], permissions: ["analytics.view", "analytics.manage"] },
     ],
   },
   {

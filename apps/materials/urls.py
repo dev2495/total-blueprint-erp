@@ -20,6 +20,7 @@ from .views import (
     PouchStyleMasterViewSet,
     WebWidthPolicyViewSet,
 )
+from apps.sales.views_trade import TradingGoodViewSet
 
 router = OptionalSlashRouter()
 router.register(r'film-families', FilmFamilyViewSet, basename='film-family')
@@ -40,6 +41,7 @@ router.register(r'product-sizes', ProductMasterSizeViewSet, basename='product-ma
 router.register(r'pouch-styles', PouchStyleMasterViewSet, basename='pouch-style')
 router.register(r'web-width-policies', WebWidthPolicyViewSet, basename='web-width-policy')
 router.register(r'customer-product-overlays', CustomerProductOverlayViewSet, basename='customer-product-overlay')
+router.register(r'trading-goods', TradingGoodViewSet, basename='trading-good')
 
 urlpatterns = [
     path('', include(router.urls)),

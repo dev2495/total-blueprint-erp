@@ -36,6 +36,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuth } from "@/components/auth-provider"
+
+function userCanManageFactory(user: any): boolean {
+    if (!user) return false
+    if (user.is_superuser || user.is_owner) return true
+    const perms: string[] = user.entitlements?.permissions || []
+    if (perms.includes("*")) return true
+    return perms.includes("factory.manage")
+}
 
 // --- Form Component ---
 const formSchema = z.object({
@@ -250,6 +259,8 @@ function PlantForm({ initialData, costGroups, onSubmit, isLoading }: { initialDa
 export default function PlantsPage() {
     const { toast } = useToast()
     const queryClient = useQueryClient()
+    const { user } = useAuth()
+    const canManage = userCanManageFactory(user)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<Plant | null>(null)
     const [itemToDelete, setItemToDelete] = useState<Plant | null>(null)
@@ -327,23 +338,25 @@ export default function PlantsPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search plants..."
             actions={
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button className="rounded-xl shadow-md hover:shadow-lg transition-all" data-testid="plants-add-button">
-                            <Plus className="mr-2 h-4 w-4" /> Add Plant
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent data-testid="plants-dialog" className="sm:max-w-2xl">
-                        <DialogHeader>
-                            <DialogTitle>Create Plant</DialogTitle>
-                        </DialogHeader>
-                        <PlantForm
-                            costGroups={costGroups || []}
-                            onSubmit={(data) => createMutation.mutate(buildPlantPayload(data))}
-                            isLoading={createMutation.isPending}
-                        />
-                    </DialogContent>
-                </Dialog>
+                canManage ? (
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="rounded-xl shadow-md hover:shadow-lg transition-all" data-testid="plants-add-button">
+                                <Plus className="mr-2 h-4 w-4" /> Add Plant
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent data-testid="plants-dialog" className="sm:max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Create Plant</DialogTitle>
+                            </DialogHeader>
+                            <PlantForm
+                                costGroups={costGroups || []}
+                                onSubmit={(data) => createMutation.mutate(buildPlantPayload(data))}
+                                isLoading={createMutation.isPending}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                ) : null
             }
         >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

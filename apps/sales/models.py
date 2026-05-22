@@ -600,3 +600,7 @@ class QuotationItem(models.Model):
 
     def __str__(self):
         return f"{self.quotation.quote_number} - {self.line_name or self.finished_good_type}"
+
+
+# Trade Orders — resale flow, kept separate from manufacturing sales orders.
+from apps.sales.models_trade import *  # noqa: E402,F401,F403

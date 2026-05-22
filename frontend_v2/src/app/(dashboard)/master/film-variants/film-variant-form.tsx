@@ -36,6 +36,8 @@ const formSchema = z.object({
     commercial_family: z.string().optional(),
     is_extrudable: z.boolean().default(false),
     is_purchasable: z.boolean().default(true),
+    is_sellable: z.boolean().default(false),
+    default_gst_pct: z.coerce.number().nullable().optional(),
 })
 
 interface FilmVariantFormProps {
@@ -54,8 +56,11 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
             commercial_family: "",
             is_extrudable: false,
             is_purchasable: true,
+            is_sellable: false,
+            default_gst_pct: null,
         },
     })
+    const isSellable = form.watch("is_sellable")
     // Fetch Families for Dropdown
     const { data: families } = useQuery({
         queryKey: ["film-families"],
@@ -75,6 +80,8 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                 commercial_family: initialData.commercial_family ?? "__NONE__",
                 is_extrudable: initialData.is_extrudable,
                 is_purchasable: initialData.is_purchasable,
+                is_sellable: (initialData as any).is_sellable ?? false,
+                default_gst_pct: (initialData as any).default_gst_pct ?? null,
             })
         }
     }, [initialData, form])
@@ -213,6 +220,49 @@ export function FilmVariantForm({ initialData, onSubmit, isLoading }: FilmVarian
                         </FormItem>
                     )}
                 />
+
+                {/* Sales / Trade Order section */}
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-4 space-y-3">
+                    <div className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Sales · Trade Orders</div>
+                    <FormField
+                        control={form.control}
+                        name="is_sellable"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                <FormControl>
+                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel>Sellable as trading good</FormLabel>
+                                    <FormDescription>
+                                        Enable to make this material available in Trade Orders.
+                                    </FormDescription>
+                                </div>
+                            </FormItem>
+                        )}
+                    />
+                    {isSellable ? (
+                        <FormField
+                            control={form.control}
+                            name="default_gst_pct"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Default GST %</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="e.g. 18"
+                                            value={(field.value as number | null | undefined) ?? ""}
+                                            onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    ) : null}
+                </div>
 
                 <div className="flex justify-end gap-2">
                     <Button type="submit" disabled={isLoading}>

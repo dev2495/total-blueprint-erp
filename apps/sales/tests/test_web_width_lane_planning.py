@@ -149,3 +149,65 @@ class SalesWebWidthLanePlanningTests(TestCase):
         item = confirmed.items.get()
 
         self.assertEqual(item.planned_parent_width_mm, Decimal("1344"))
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_nearest_standard_parent_width_strategy_picks_standard_width(self, preview_sales_item):
+        preview_sales_item.return_value = {
+            "unit_weight_g": Decimal("8.0000"),
+            "total_weight_kg": Decimal("8.0000"),
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+        self.policy.parent_width_strategy = "NEAREST_STANDARD"
+        self.policy.allowed_parent_widths = [880, 1320]
+        self.policy.slitting_waste_rule = {"inter_cut_mm": 0, "edge_trim_mm": 0, "formula": "FIXED"}
+        self.policy.save(update_fields=["parent_width_strategy", "allowed_parent_widths", "slitting_waste_rule"])
+
+        order = SalesOrderService.create_sales_order(self._order_payload(lane_count=2))
+        confirmed = SalesOrderService.confirm_sales_order(order.id)
+        item = confirmed.items.get()
+
+        self.assertEqual(item.planned_parent_width_mm, Decimal("880"))
+        self.assertEqual(item.geometry_snapshot["web_width_policy"]["parent_width_strategy"], "NEAREST_STANDARD")
+        self.assertEqual(item.geometry_snapshot["web_width_policy"]["remainder_disposition"], "NONE")
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_strict_standard_parent_width_rejects_when_no_width_fits(self, preview_sales_item):
+        preview_sales_item.return_value = {
+            "unit_weight_g": Decimal("8.0000"),
+            "total_weight_kg": Decimal("8.0000"),
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+        self.policy.parent_width_strategy = "STRICT_STANDARD"
+        self.policy.allowed_parent_widths = [880]
+        self.policy.slitting_waste_rule = {"inter_cut_mm": 0, "edge_trim_mm": 0, "formula": "FIXED"}
+        self.policy.save(update_fields=["parent_width_strategy", "allowed_parent_widths", "slitting_waste_rule"])
+
+        order = SalesOrderService.create_sales_order(self._order_payload(lane_count=3))
+
+        with self.assertRaisesMessage(ValidationError, "No allowed parent width can fit"):
+            SalesOrderService.confirm_sales_order(order.id)
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_product_kind_scoped_policy_overrides_global_policy(self, preview_sales_item):
+        preview_sales_item.return_value = {
+            "unit_weight_g": Decimal("8.0000"),
+            "total_weight_kg": Decimal("8.0000"),
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+        self.policy.allowed_lanes = [1]
+        self.policy.save(update_fields=["allowed_lanes"])
+        WebWidthPolicy.objects.create(
+            code="POUCH-LANE-SCOPE",
+            name="Pouch scope policy",
+            scope_type="PRODUCT_KIND",
+            scope_ref="POUCH",
+            allowed_lanes=[2],
+            slitting_waste_rule={"inter_cut_mm": 0, "edge_trim_mm": 0, "formula": "FIXED"},
+        )
+
+        order = SalesOrderService.create_sales_order(self._order_payload(lane_count=2))
+        confirmed = SalesOrderService.confirm_sales_order(order.id)
+        item = confirmed.items.get()
+
+        self.assertEqual(item.planned_parent_width_mm, Decimal("880"))
+        self.assertEqual(item.geometry_snapshot["web_width_policy"]["policy_code"], "POUCH-LANE-SCOPE")

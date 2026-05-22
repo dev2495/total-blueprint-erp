@@ -1080,3 +1080,7 @@ class InventoryReservation(models.Model):
     def __str__(self):
         target = self.roll.label_id if self.roll else self.material.code
         return f"RES: {target} -> {self.job.job_number} ({self.quantity} {self.uom})"
+
+
+# Stock Adjustment unified audit models — imported here so Django sees them via apps.inventory.
+from .models_adjustment import StockAdjustment, StockAdjustmentLine  # noqa: F401, E402

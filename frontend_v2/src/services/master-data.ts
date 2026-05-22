@@ -53,6 +53,9 @@ export interface Material {
     product_master_link?: ProductMasterCatalogLink | null;
     quality_codes?: GranuleQualityCode[];
     quality_code_count?: number;
+    // Trade-resale flags (Trade Orders)
+    is_sellable?: boolean;
+    default_gst_pct?: number | null;
 }
 
 export interface GranuleQualityCode {

@@ -12,6 +12,8 @@ export interface FilmVariant {
     commercial_family_name?: string | null;
     is_extrudable: boolean;
     is_purchasable: boolean;
+    is_sellable?: boolean;
+    default_gst_pct?: number | null;
     status: string;
     density_gcm3?: number;
 }
@@ -24,6 +26,8 @@ export interface CreateFilmVariantDto {
     commercial_family?: string | null;
     is_extrudable: boolean;
     is_purchasable: boolean;
+    is_sellable?: boolean;
+    default_gst_pct?: number | null;
 }
 
 export const filmVariantService = {

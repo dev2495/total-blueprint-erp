@@ -66,6 +66,71 @@ def _error_response(
     )
 
 
+def _empty_trading_block():
+    return {
+        "trading_stock_value_inr": 0.0,
+        "open_trade_orders": 0,
+        "trade_revenue_mtd_inr": 0.0,
+        "trade_margin_pct": 0.0,
+        "trade_revenue_delta_pct": 0.0,
+        "top_trading_good": None,
+        "trade_revenue_series": [],
+    }
+
+
+def _build_control_tower_trading_block(timeframe: str = "month"):
+    """Compact trading subset for the owner control tower payload.
+
+    Uses the trading metrics service for the current month so the dashboard
+    avoids a second round-trip.
+    """
+    from datetime import timedelta as _td
+    today = timezone.now().date()
+    if timeframe == "day":
+        start = today
+    elif timeframe == "week":
+        start = today - _td(days=7)
+    elif timeframe == "year":
+        start = today - _td(days=365)
+    else:
+        start = today.replace(day=1)
+
+    filters = {"start_date": start, "end_date": today}
+    data = ReportService.get_trading_metrics(filters)
+    summary = data.get("summary") or {}
+    breakdowns = data.get("breakdowns") or {}
+    top_items = breakdowns.get("top_items") or []
+    top_trading_good = None
+    for item in top_items:
+        if item.get("kind") == "TRADING_GOOD":
+            top_trading_good = {
+                "name": item.get("name") or "—",
+                "code": item.get("code") or "",
+                "revenue_inr": float(item.get("revenue_inr") or 0),
+            }
+            break
+
+    # Last 14 days revenue series — pad missing days with 0.
+    series = data.get("series") or []
+    last_14_start = today - _td(days=13)
+    series_map = {row.get("date"): float(row.get("revenue_inr") or 0) for row in series if row.get("date")}
+    last_14 = []
+    for i in range(14):
+        d = last_14_start + _td(days=i)
+        key = d.isoformat()
+        last_14.append({"date": key, "revenue_inr": series_map.get(key, 0.0)})
+
+    return {
+        "trading_stock_value_inr": float(summary.get("total_tradeable_value_inr") or 0),
+        "open_trade_orders": int(summary.get("open_trade_orders") or 0),
+        "trade_revenue_mtd_inr": float(summary.get("trade_revenue_inr") or 0),
+        "trade_margin_pct": float(summary.get("trade_gross_margin_pct") or 0),
+        "trade_revenue_delta_pct": float(summary.get("trade_revenue_delta_pct") or 0),
+        "top_trading_good": top_trading_good,
+        "trade_revenue_series": last_14,
+    }
+
+
 def _load_capability_registry():
     registry_path = Path(getattr(settings, "BASE_DIR", ".")) / "docs" / "runbooks" / "capability-registry.json"
     with registry_path.open("r", encoding="utf-8") as handle:
@@ -266,6 +331,11 @@ class AnalyticsViewSet(viewsets.ViewSet):
         try:
             timeframe = request.query_params.get('timeframe', 'month')
             stats = AnalyticsService.get_control_tower_stats(timeframe=timeframe)
+            try:
+                stats["trading"] = _build_control_tower_trading_block(timeframe=timeframe)
+            except Exception as trading_exc:
+                logger.warning("Trading block injection failed: %s", str(trading_exc))
+                stats["trading"] = _empty_trading_block()
             return Response(stats)
         except Exception as e:
             logger.error(f"Control tower error: {str(e)}", exc_info=True)
@@ -646,6 +716,12 @@ class AnalyticsViewSet(viewsets.ViewSet):
     def report_shift_performance(self, request):
         filters = request.query_params.dict()
         data = ReportService.get_report_tab("shift-performance", filters)
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='reports/trading')
+    def report_trading(self, request):
+        filters = request.query_params.dict()
+        data = ReportService.get_report_tab("trading", filters)
         return Response(data)
 
     @action(detail=False, methods=['get'], url_path=r'reports/(?P<tab>[^/.]+)/export-pdf')

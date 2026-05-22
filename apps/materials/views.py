@@ -11,6 +11,7 @@ from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
 from apps.users.audit_mixins import MasterDataAuditMixin
+from .services_web_width_policy import evaluate_web_width_plan, resolve_web_width_policy
 from .serializers import (
     FilmFamilySerializer, 
     FilmVariantSerializer, 
@@ -1053,17 +1054,50 @@ class WebWidthPolicyViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_WEB_WIDTH_POLICY"
     serializer_class = WebWidthPolicySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["is_default", "deprecated"]
-    search_fields = ["code", "name", "description", "notes"]
+    filterset_fields = ["is_default", "deprecated", "scope_type", "parent_width_strategy"]
+    search_fields = ["code", "name", "description", "notes", "scope_ref"]
 
     def get_queryset(self):
         return WebWidthPolicy.objects.all().order_by("-is_default", "name")
 
     @action(detail=False, methods=["get"], url_path="default")
     def get_default(self, request):
-        instance = WebWidthPolicy.objects.filter(is_default=True).first()
-        if instance is None:
-            instance = WebWidthPolicy.objects.first()
+        instance = resolve_web_width_policy({})
         if instance is None:
             return Response({"error": "No web-width policy configured yet."}, status=status.HTTP_404_NOT_FOUND)
         return Response(WebWidthPolicySerializer(instance).data)
+
+    @action(detail=False, methods=["get"], url_path="resolve")
+    def resolve(self, request):
+        context = {
+            "product_master_id": request.query_params.get("product_master_id") or request.query_params.get("product_master"),
+            "product_master_code": request.query_params.get("product_master_code"),
+            "product_kind": request.query_params.get("product_kind"),
+            "pouch_style": request.query_params.get("pouch_style"),
+            "process_id": request.query_params.get("process_id") or request.query_params.get("process"),
+            "process_code": request.query_params.get("process_code"),
+            "machine_id": request.query_params.get("machine_id") or request.query_params.get("machine"),
+            "machine_code": request.query_params.get("machine_code"),
+        }
+        context = {k: str(v).strip() for k, v in context.items() if v not in (None, "")}
+        instance = resolve_web_width_policy(context)
+        if instance is None:
+            return Response({"error": "No web-width policy configured yet."}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = {
+            "policy": WebWidthPolicySerializer(instance).data,
+            "context": context,
+        }
+        if request.query_params.get("child_width_mm"):
+            try:
+                plan = evaluate_web_width_plan(
+                    request.query_params.get("child_width_mm"),
+                    request.query_params.get("lane_count") or 1,
+                    policy=instance,
+                    context=context,
+                )
+            except Exception as exc:
+                return Response({"policy": payload["policy"], "context": context, "error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            plan.pop("policy", None)
+            payload["plan"] = plan
+        return Response(payload)

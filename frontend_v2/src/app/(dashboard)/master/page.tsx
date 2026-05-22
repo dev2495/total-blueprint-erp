@@ -6,7 +6,7 @@ import { MasterRegistryShell } from "@/components/master/master-registry-shell"
 import {
     Package, Users, Palette, FlaskConical,
     Layers, Filter, Droplets, Plus, ShieldCheck,
-    Search, ArrowRight, LayoutGrid, Tag, Loader2
+    Search, ArrowRight, LayoutGrid, Tag, Loader2, ShoppingBag
 } from "lucide-react"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -14,6 +14,7 @@ import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
 import { masterDataService } from "@/services/master-data"
 import { commercialFamilyService } from "@/services/commercial-families"
 import { recipeService } from "@/services/recipes"
+import { tradingGoodService } from "@/services/trading-goods"
 
 export default function MasterDataPage() {
     const [searchQuery, setSearchQuery] = useState("")
@@ -31,6 +32,7 @@ export default function MasterDataPage() {
     const { data: addons } = useQuery({ queryKey: ["master-addons"], queryFn: masterDataService.getAddons, staleTime: 60_000 })
     const { data: packaging } = useQuery({ queryKey: ["master-packaging"], queryFn: masterDataService.getPackaging, staleTime: 60_000 })
     const { data: pod } = useQuery({ queryKey: ["master-pod"], queryFn: masterDataService.getPODMaterials, staleTime: 60_000 })
+    const { data: tradingGoods } = useQuery({ queryKey: ["master-trading-goods"], queryFn: () => tradingGoodService.list(), staleTime: 60_000 })
 
     const count = (arr: unknown) => Array.isArray(arr) ? arr.length : null
 
@@ -141,6 +143,15 @@ export default function MasterDataPage() {
             bg: "bg-blue-50"
         },
         {
+            title: "Trading Goods",
+            href: "/master/trading-goods",
+            icon: ShoppingBag,
+            count: count(tradingGoods),
+            description: "Ready pouches, ready rolls, and other resale stock sold directly through trade orders",
+            color: "text-emerald-600",
+            bg: "bg-emerald-50"
+        },
+        {
             title: "POD Materials",
             href: "/master/pod",
             icon: ShieldCheck,
@@ -156,7 +167,7 @@ export default function MasterDataPage() {
         m.description.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
-    const materialCount = (count(filmFamilies) ?? 0) + (count(filmVariants) ?? 0) + (count(inks) ?? 0) + (count(adhesives) ?? 0) + (count(granules) ?? 0)
+    const materialCount = (count(filmFamilies) ?? 0) + (count(filmVariants) ?? 0) + (count(inks) ?? 0) + (count(adhesives) ?? 0) + (count(granules) ?? 0) + (count(tradingGoods) ?? 0)
     const partnerCount = (count(customers) ?? 0) + (count(vendors) ?? 0)
     const recipeCount = count(recipes) ?? 0
 
@@ -168,7 +179,7 @@ export default function MasterDataPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search master data registries..."
             stats={[
-                { label: "Total masters", value: "12", subLabel: "Active registries", icon: LayoutGrid, toneClassName: "bg-blue-50 text-blue-700" },
+                { label: "Total masters", value: "13", subLabel: "Active registries", icon: LayoutGrid, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Materials", value: String(materialCount), subLabel: "Film, ink, adhesive, granule", icon: Layers, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Partners", value: String(partnerCount), subLabel: "Customers and vendors", icon: Users, toneClassName: "bg-emerald-50 text-emerald-700" },
                 { label: "Recipes", value: String(recipeCount), subLabel: "Formulation masters", icon: Palette, toneClassName: "bg-blue-50 text-blue-700" },

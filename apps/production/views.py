@@ -203,10 +203,24 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         target_w = None
         child_w = None
         lane_count = 1
+        web_width_policy = None
         try:
             target_w = float(RollAllocationService.planned_parent_width(job))
             child_w = float(RollAllocationService.target_child_width(job))
             lane_count = RollAllocationService.preferred_lane_count(job)
+            from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+            policy = resolve_web_width_policy(web_width_context_from_job(job))
+            if policy:
+                web_width_policy = {
+                    "id": str(policy.id),
+                    "code": policy.code,
+                    "name": policy.name,
+                    "scope_type": getattr(policy, "scope_type", "GLOBAL"),
+                    "scope_ref": getattr(policy, "scope_ref", ""),
+                    "min_remainder_mm": float(policy.min_remainder_mm or 50),
+                    "prefer_remainder_first": bool(policy.prefer_remainder_first),
+                    "parent_width_strategy": getattr(policy, "parent_width_strategy", "CALCULATED"),
+                }
         except Exception:
             target_w = None
         return Response({
@@ -215,6 +229,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             "planned_parent_width_mm": target_w,
             "child_target_width_mm": child_w,
             "preferred_lane_count": lane_count,
+            "web_width_policy": web_width_policy,
         })
 
     @action(detail=True, methods=['post'], url_path='allocate-with-slit')

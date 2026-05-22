@@ -5,6 +5,7 @@ import { FilmVariant } from "@/services/film-variants"
 import { ActionMenu } from "@/components/ui-custom/action-menu"
 import { StatusBadge } from "@/components/ui-custom/status-badge"
 import { Pencil, Trash2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 interface ColumnsProps {
     onEdit: (variant: FilmVariant) => void
@@ -45,6 +46,23 @@ export const getColumns = ({ onEdit, onDelete }: ColumnsProps): ColumnDef<FilmVa
         cell: ({ row }) => (
             <StatusBadge status={row.getValue("is_purchasable") || false} />
         ),
+    },
+    {
+        id: "trade",
+        header: "Trade sale",
+        cell: ({ row }) => {
+            const sellable = Boolean(row.original.is_sellable)
+            return sellable ? (
+                <div className="space-y-1">
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] font-bold text-emerald-700">
+                        Sellable
+                    </Badge>
+                    <div className="font-mono text-[10px] text-slate-500">GST {row.original.default_gst_pct ?? 0}%</div>
+                </div>
+            ) : (
+                <span className="text-xs font-semibold text-slate-400">Production only</span>
+            )
+        },
     },
     {
         id: "actions",

@@ -44,6 +44,22 @@ export const getColumns = ({ onEdit, onDelete, onManageCodes }: ColumnsProps): C
         },
     },
     {
+        id: "trade_sale",
+        header: "Trade sale",
+        cell: ({ row }) => (
+            row.original.is_sellable ? (
+                <div className="space-y-1">
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] font-black text-emerald-700">
+                        Sellable
+                    </Badge>
+                    <div className="font-mono text-[10px] text-slate-500">GST {row.original.default_gst_pct ?? 0}%</div>
+                </div>
+            ) : (
+                <span className="text-xs font-semibold text-slate-400">Stock use only</span>
+            )
+        ),
+    },
+    {
         id: "actions",
         cell: ({ row }) => (
             <ActionMenu

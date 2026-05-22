@@ -74,6 +74,8 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
     const targetWidth = tieredQuery.data?.planned_parent_width_mm || tieredQuery.data?.target_width_mm || 0
     const childTargetWidth = tieredQuery.data?.child_target_width_mm || targetWidth || 0
     const preferredLaneCount = tieredQuery.data?.preferred_lane_count || 1
+    const policy = tieredQuery.data?.web_width_policy
+    const minRemainder = policy?.min_remainder_mm ?? 50
     const selected = candidates.find((c) => c.roll_id === selectedRollId)
     React.useEffect(() => {
         if (!open) {
@@ -131,7 +133,7 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
                         Pick a roll
                     </DialogTitle>
                     <DialogDescription>
-                        Planned parent <b>{targetWidth ? `${targetWidth.toFixed(0)} mm` : "—"}</b> · ranked by tier · remainders &lt; 50 mm go to scrap.
+                        Planned parent <b>{targetWidth ? `${targetWidth.toFixed(0)} mm` : "—"}</b> · {policy?.code || "default"} policy · remainders &lt; {minRemainder.toFixed(0)} mm go to scrap.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="-mt-2 mb-2 grid grid-cols-4 gap-1.5 text-[10px]">
@@ -148,8 +150,8 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
                         <div className="font-mono font-bold text-violet-900">{targetWidth ? `${targetWidth.toFixed(0)} mm` : "—"}</div>
                     </div>
                     <div className="rounded-lg bg-amber-50 px-2 py-1 ring-1 ring-amber-200">
-                        <div className="font-black uppercase tracking-widest text-amber-700">actual parent</div>
-                        <div className="font-mono font-bold text-amber-900">pick below</div>
+                        <div className="font-black uppercase tracking-widest text-amber-700">policy</div>
+                        <div className="font-mono font-bold text-amber-900">{policy?.code || "default"}</div>
                     </div>
                 </div>
 
@@ -205,6 +207,9 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
                                             Will slit → {childWidthLabel || "child rolls"},
                                             remainder <b>{Math.round(c.slit_preview.remainder_mm)} mm</b> ·
                                             trim <b>{c.slit_preview.trim_mm} mm</b>
+                                            {c.slit_preview.remainder_disposition ? (
+                                                <span> · <b>{c.slit_preview.remainder_disposition === "KEEP" ? "keep remainder" : c.slit_preview.remainder_disposition === "SCRAP" ? "scrap remainder" : "no remainder"}</b></span>
+                                            ) : null}
                                             {c.slit_preview.gang_job_count ? (
                                                 <span> · gang <b>{c.slit_preview.gang_job_count}</b> jobs</span>
                                             ) : null}
