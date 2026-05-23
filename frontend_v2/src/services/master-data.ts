@@ -214,11 +214,11 @@ export const masterDataService = {
         const { data } = await api.get<MaybePaginated<Material>>("/api/master/granules/");
         return unwrapList<Material>(data);
     },
-    createGranule: async (data: { code: string; name: string }) => {
+    createGranule: async (data: { code: string; name: string; is_sellable?: boolean; default_gst_pct?: number | null }) => {
         const { data: res } = await api.post<Material>("/api/master/granules/", data);
         return res;
     },
-    updateGranule: async (id: string, data: { code: string; name: string }) => {
+    updateGranule: async (id: string, data: { code: string; name: string; is_sellable?: boolean; default_gst_pct?: number | null }) => {
         const { data: res } = await api.put<Material>(`/api/master/granules/${id}/`, data);
         return res;
     },
