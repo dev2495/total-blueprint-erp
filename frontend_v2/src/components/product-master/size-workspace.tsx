@@ -4,16 +4,22 @@ import * as React from "react"
 import {
     AlertTriangle,
     CheckCircle2,
+    CheckSquare,
+    Copy,
     Download,
     FileSpreadsheet,
+    MoreHorizontal,
     Plus,
     Search,
     Trash2,
     Upload,
+    X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -27,6 +33,7 @@ import { SizeGeometryEditor } from "@/components/product-master/size-geometry-ed
 
 type OutputKind = "POUCH" | "ROLL" | "OTHER"
 type BulkAction = "create" | "update"
+type FilterMode = "all" | "active" | "inactive" | "overridden"
 
 interface ProductSizeWorkspaceProps {
     rows: ProductMasterSize[]
@@ -38,6 +45,9 @@ interface ProductSizeWorkspaceProps {
     onPatch: (index: number, patch: Partial<ProductMasterSize>) => void
     onRemove: (index: number) => void
     onBulkApply: (rows: ProductMasterSize[]) => void
+    onRequestSave?: () => void
+    canRequestSave?: boolean
+    isSaving?: boolean
 }
 
 interface ReviewRow {
@@ -95,11 +105,17 @@ export function ProductSizeWorkspace({
     onPatch,
     onRemove,
     onBulkApply,
+    onRequestSave,
+    canRequestSave = true,
+    isSaving = false,
 }: ProductSizeWorkspaceProps) {
     const { toast } = useToast()
     const fileInputRef = React.useRef<HTMLInputElement | null>(null)
     const [selectedIndex, setSelectedIndex] = React.useState(0)
     const [search, setSearch] = React.useState("")
+    const [filterMode, setFilterMode] = React.useState<FilterMode>("all")
+    const [bulkMode, setBulkMode] = React.useState(false)
+    const [selectedKeys, setSelectedKeys] = React.useState<Set<string>>(() => new Set())
     const [reviewRows, setReviewRows] = React.useState<ReviewRow[]>([])
     const [reviewOpen, setReviewOpen] = React.useState(false)
     const outputKind = resolveProductOutputKind(kind, packagingKind, fixedFgType)
@@ -108,10 +124,19 @@ export function ProductSizeWorkspace({
     React.useEffect(() => {
         if (!rows.length) {
             setSelectedIndex(0)
+            setSelectedKeys(new Set())
             return
         }
         setSelectedIndex((index) => Math.min(Math.max(index, 0), rows.length - 1))
     }, [rows.length])
+
+    React.useEffect(() => {
+        setSelectedKeys((current) => {
+            const liveKeys = new Set(rows.map((row, index) => sizeRowKey(row, index)))
+            const next = new Set(Array.from(current).filter((key) => liveKeys.has(key)))
+            return next.size === current.size ? current : next
+        })
+    }, [rows])
 
     const selectedRow = rows[selectedIndex] || null
     const visibleRows = React.useMemo(() => {
@@ -119,12 +144,28 @@ export function ProductSizeWorkspace({
         return rows
             .map((row, index) => ({ row, index }))
             .filter(({ row }) => {
+                if (filterMode === "active" && row.active === false) return false
+                if (filterMode === "inactive" && row.active !== false) return false
+                if (filterMode === "overridden" && !isOverriddenSize(row, normalizedOutput)) return false
                 if (!needle) return true
                 return [row.code, row.label, row.notes, row.roll_form, row.pouch_style]
                     .map((value) => String(value || "").toLowerCase())
                     .some((value) => value.includes(needle))
             })
-    }, [rows, search])
+    }, [rows, search, filterMode, normalizedOutput])
+    const selectedVisibleCount = React.useMemo(
+        () => visibleRows.filter(({ row, index }) => selectedKeys.has(sizeRowKey(row, index))).length,
+        [selectedKeys, visibleRows],
+    )
+    const allVisibleSelected = visibleRows.length > 0 && selectedVisibleCount === visibleRows.length
+    const bulkSelectedCount = selectedKeys.size
+
+    function selectedRowIndexes() {
+        return rows
+            .map((row, index) => ({ row, index }))
+            .filter(({ row, index }) => selectedKeys.has(sizeRowKey(row, index)))
+            .map(({ index }) => index)
+    }
 
     function handleAdd() {
         setSelectedIndex(rows.length)
@@ -138,6 +179,109 @@ export function ProductSizeWorkspace({
             if (current === index) return Math.max(0, current - 1)
             return current
         })
+    }
+
+    function handleWorkspaceKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+        if (event.key !== "Enter" || !onRequestSave) return
+        if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+        const target = event.target as HTMLElement | null
+        if (!target?.closest("[data-size-editor]")) return
+        if (target.tagName === "TEXTAREA") return
+        event.preventDefault()
+        if (!canRequestSave || isSaving) {
+            toast({
+                title: isSaving ? "Save already running" : "Cannot save yet",
+                description: isSaving ? "Wait for the current save to finish." : "Fix the validation footer checks first.",
+                variant: "destructive",
+            })
+            return
+        }
+        onRequestSave()
+    }
+
+    function handleListKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+        const target = event.target as HTMLElement | null
+        if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return
+        if (!visibleRows.length) return
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+        event.preventDefault()
+        const currentPosition = Math.max(0, visibleRows.findIndex((item) => item.index === selectedIndex))
+        const nextPosition = event.key === "ArrowDown"
+            ? Math.min(visibleRows.length - 1, currentPosition + 1)
+            : Math.max(0, currentPosition - 1)
+        setSelectedIndex(visibleRows[nextPosition]?.index ?? selectedIndex)
+    }
+
+    function toggleBulkMode() {
+        const next = !bulkMode
+        setBulkMode(next)
+        if (!next) setSelectedKeys(new Set())
+    }
+
+    function toggleRowSelection(row: ProductMasterSize, index: number, checked: boolean) {
+        const key = sizeRowKey(row, index)
+        setSelectedKeys((current) => {
+            const next = new Set(current)
+            if (checked) next.add(key)
+            else next.delete(key)
+            return next
+        })
+    }
+
+    function toggleVisibleSelection(checked: boolean) {
+        setSelectedKeys((current) => {
+            const next = new Set(current)
+            for (const { row, index } of visibleRows) {
+                const key = sizeRowKey(row, index)
+                if (checked) next.add(key)
+                else next.delete(key)
+            }
+            return next
+        })
+    }
+
+    function applyBulkInactive() {
+        const indexes = new Set(selectedRowIndexes())
+        if (!indexes.size) return
+        onBulkApply(rows.map((row, index) => indexes.has(index) ? { ...row, active: false } : row))
+        toast({ title: "Selected sizes deactivated", description: `${indexes.size} rows updated in draft.` })
+    }
+
+    function duplicateSelectedRows() {
+        const indexes = selectedRowIndexes()
+        if (!indexes.length) return
+        const nextRows = [...rows]
+        const duplicateKeys = new Set<string>()
+        for (const index of indexes) {
+            const source = rows[index]
+            if (!source) continue
+            const duplicate = duplicateSizeRow(source, nextRows, nextRows.length + 1)
+            nextRows.push(duplicate)
+            duplicateKeys.add(sizeRowKey(duplicate, nextRows.length - 1))
+        }
+        onBulkApply(reindexSizeRows(nextRows))
+        setSelectedIndex(rows.length)
+        setSelectedKeys(duplicateKeys)
+        toast({ title: "Sizes duplicated", description: `${duplicateKeys.size} copy rows added to draft.` })
+    }
+
+    function deleteSelectedRows() {
+        const keys = selectedKeys
+        if (!keys.size) return
+        const nextRows = rows.filter((row, index) => !keys.has(sizeRowKey(row, index)))
+        onBulkApply(reindexSizeRows(nextRows))
+        setSelectedKeys(new Set())
+        setSelectedIndex(Math.max(0, Math.min(selectedIndex, nextRows.length - 1)))
+        toast({ title: "Selected sizes removed", description: `${keys.size} rows deleted from draft.` })
+    }
+
+    function duplicateSingleRow(index: number) {
+        const source = rows[index]
+        if (!source) return
+        const nextRows = [...rows, duplicateSizeRow(source, rows, rows.length + 1)]
+        onBulkApply(reindexSizeRows(nextRows))
+        setSelectedIndex(rows.length)
+        toast({ title: "Size duplicated", description: "Copy row added to the end of the size list." })
     }
 
     function downloadTemplate() {
@@ -233,7 +377,7 @@ export function ProductSizeWorkspace({
     }
 
     return (
-        <div className="space-y-4" data-testid="product-size-workspace" data-output-kind={normalizedOutput}>
+        <div className="space-y-4" data-testid="product-size-workspace" data-output-kind={normalizedOutput} onKeyDown={handleWorkspaceKeyDown}>
             <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-start gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm">
@@ -256,6 +400,16 @@ export function ProductSizeWorkspace({
                         <Upload className="mr-1.5 h-3.5 w-3.5" />
                         Bulk upload
                     </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant={bulkMode ? "default" : "outline"}
+                        className={cn("rounded-xl", bulkMode && "bg-slate-900 text-white hover:bg-slate-800")}
+                        onClick={toggleBulkMode}
+                    >
+                        {bulkMode ? <X className="mr-1.5 h-3.5 w-3.5" /> : <CheckSquare className="mr-1.5 h-3.5 w-3.5" />}
+                        {bulkMode ? "Exit bulk" : "Bulk mode"}
+                    </Button>
                     <Button type="button" size="sm" className="rounded-xl bg-emerald-700 hover:bg-emerald-800" onClick={handleAdd}>
                         <Plus className="mr-1.5 h-3.5 w-3.5" />
                         Add size
@@ -269,7 +423,12 @@ export function ProductSizeWorkspace({
                 </div>
             ) : (
                 <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.35fr)]">
-                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div
+                        className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                        tabIndex={0}
+                        onKeyDown={handleListKeyDown}
+                        aria-label="Size rows. Use arrow keys to move selection."
+                    >
                         <div className="border-b border-slate-100 p-3">
                             <div className="flex items-center justify-between gap-2">
                                 <div>
@@ -289,6 +448,42 @@ export function ProductSizeWorkspace({
                                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                 <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search code, label, notes..." className="h-9 rounded-xl pl-8 text-xs" />
                             </div>
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                {filterOptions(rows, normalizedOutput).map((item) => (
+                                    <button
+                                        key={item.value}
+                                        type="button"
+                                        onClick={() => setFilterMode(item.value)}
+                                        className={cn(
+                                            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 transition",
+                                            filterMode === item.value
+                                                ? "bg-emerald-600 text-white ring-emerald-600"
+                                                : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                                        )}
+                                    >
+                                        {item.label}
+                                        <span className={cn("font-mono", filterMode === item.value ? "text-white/85" : "text-slate-400")}>{item.count}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            {bulkMode ? (
+                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                    <div className="text-xs font-bold text-slate-700">{bulkSelectedCount} selected</div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={!bulkSelectedCount} onClick={applyBulkInactive}>
+                                            Deactivate
+                                        </Button>
+                                        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={!bulkSelectedCount} onClick={duplicateSelectedRows}>
+                                            <Copy className="mr-1 h-3.5 w-3.5" />
+                                            Duplicate
+                                        </Button>
+                                        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg border-rose-200 text-xs text-rose-700 hover:bg-rose-50" disabled={!bulkSelectedCount} onClick={deleteSelectedRows}>
+                                            <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                            Delete
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
 
                         <ScrollArea className="h-[520px]">
@@ -296,20 +491,32 @@ export function ProductSizeWorkspace({
                                 <Table>
                                     <TableHeader className="sticky top-0 z-10 bg-slate-50">
                                         <TableRow>
+                                            {bulkMode ? (
+                                                <TableHead className="w-[42px]">
+                                                    <Checkbox
+                                                        checked={allVisibleSelected}
+                                                        aria-label="Select visible size rows"
+                                                        onCheckedChange={(checked) => toggleVisibleSelection(checked === true)}
+                                                    />
+                                                </TableHead>
+                                            ) : null}
                                             <TableHead className="w-[180px] text-[10px] uppercase tracking-widest">Code</TableHead>
                                             <TableHead className="text-[10px] uppercase tracking-widest">Size</TableHead>
                                             <TableHead className="text-[10px] uppercase tracking-widest">Web</TableHead>
                                             <TableHead className="text-[10px] uppercase tracking-widest">UOM</TableHead>
                                             <TableHead className="text-[10px] uppercase tracking-widest">State</TableHead>
+                                            <TableHead className="w-[52px] text-right text-[10px] uppercase tracking-widest"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {visibleRows.map(({ row, index }) => {
                                             const selected = index === selectedIndex
                                             const geometry = computeProductGeometry(row, normalizedOutput)
+                                            const rowKey = sizeRowKey(row, index)
+                                            const checked = selectedKeys.has(rowKey)
                                             return (
                                                 <TableRow
-                                                    key={row.id || `${row.code}-${index}`}
+                                                    key={rowKey}
                                                     data-testid={`size-row-${index}`}
                                                     onClick={() => setSelectedIndex(index)}
                                                     className={cn(
@@ -317,6 +524,15 @@ export function ProductSizeWorkspace({
                                                         selected && "bg-emerald-50 ring-1 ring-inset ring-emerald-300",
                                                     )}
                                                 >
+                                                    {bulkMode ? (
+                                                        <TableCell className="align-top" onClick={(event) => event.stopPropagation()}>
+                                                            <Checkbox
+                                                                checked={checked}
+                                                                aria-label={`Select size ${row.code || index + 1}`}
+                                                                onCheckedChange={(value) => toggleRowSelection(row, index, value === true)}
+                                                            />
+                                                        </TableCell>
+                                                    ) : null}
                                                     <TableCell className="align-top">
                                                         <div className="font-mono text-xs font-black text-slate-950">{row.code || `SZ-${index + 1}`}</div>
                                                         <div className="mt-0.5 truncate text-[11px] text-slate-500">{row.label || "No label"}</div>
@@ -324,10 +540,11 @@ export function ProductSizeWorkspace({
                                                     <TableCell className="align-top">
                                                         <div className="font-mono text-xs font-bold text-slate-900">{sizeCopy(row, normalizedOutput)}</div>
                                                         <div className="mt-0.5 text-[10px] text-slate-500">{summaryCopy(row, normalizedOutput)}</div>
+                                                        <FormulaVersionBadge row={row} outputKind={normalizedOutput} className="mt-1" />
                                                     </TableCell>
                                                     <TableCell className="align-top">
                                                         <div className="font-mono text-xs font-black text-emerald-800">{webWidthCopy(row, normalizedOutput, geometry)}</div>
-                                                        <div className="mt-0.5 text-[10px] text-slate-500">{row.child_target_override ? "override" : "auto/default"}</div>
+                                                        <div className="mt-0.5 text-[10px] text-slate-500">{isOverriddenSize(row, normalizedOutput) ? "override" : "auto/default"}</div>
                                                     </TableCell>
                                                     <TableCell className="align-top">
                                                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">{row.qty_uom || "KG"}</span>
@@ -342,12 +559,32 @@ export function ProductSizeWorkspace({
                                                             {row.active === false ? "Inactive" : "Active"}
                                                         </span>
                                                     </TableCell>
+                                                    <TableCell className="align-top text-right" onClick={(event) => event.stopPropagation()}>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label={`Size row actions for ${row.code || index + 1}`}>
+                                                                    <MoreHorizontal className="h-4 w-4" />
+                                                                </button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-44">
+                                                                <DropdownMenuItem onSelect={() => duplicateSingleRow(index)}>
+                                                                    <Copy className="h-4 w-4" />
+                                                                    Duplicate row
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem className="text-rose-700 focus:text-rose-700" onSelect={() => handleRemove(index)}>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                    Delete row
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </TableCell>
                                                 </TableRow>
                                             )
                                         })}
                                         {visibleRows.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="py-8 text-center text-xs font-medium text-slate-500">
+                                                <TableCell colSpan={bulkMode ? 7 : 6} className="py-8 text-center text-xs font-medium text-slate-500">
                                                     No sizes match this search.
                                                 </TableCell>
                                             </TableRow>
@@ -358,7 +595,7 @@ export function ProductSizeWorkspace({
                         </ScrollArea>
                     </div>
 
-                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:self-start">
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:self-start" data-size-editor>
                         {selectedRow ? (
                             <>
                                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
@@ -366,17 +603,22 @@ export function ProductSizeWorkspace({
                                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Selected size</div>
                                         <div className="mt-0.5 font-display text-lg font-black text-slate-950">{selectedRow.code || `Size ${selectedIndex + 1}`}</div>
                                         <div className="text-xs text-slate-500">{selectedRow.label || "No label yet"}</div>
+                                        <FormulaVersionBadge row={selectedRow} outputKind={normalizedOutput} className="mt-2" />
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
                                         <div className="flex h-9 items-center gap-2 rounded-full bg-slate-50 px-3 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
                                             <Switch checked={selectedRow.active !== false} onCheckedChange={(v) => onPatch(selectedIndex, { active: v })} />
                                             {selectedRow.active === false ? "Inactive" : "Active"}
                                         </div>
+                                        <button type="button" onClick={() => duplicateSingleRow(selectedIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100" aria-label="Duplicate selected size">
+                                            <Copy className="h-4 w-4" />
+                                        </button>
                                         <button type="button" onClick={() => handleRemove(selectedIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50">
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>
                                 </div>
+                                <LaneUpPreview row={selectedRow} outputKind={normalizedOutput} />
                                 <SizeGeometryEditor
                                     row={selectedRow}
                                     kind={kind}
@@ -405,6 +647,126 @@ export function ProductSizeWorkspace({
             />
         </div>
     )
+}
+
+function sizeRowKey(row: ProductMasterSize, index: number) {
+    return String(row.id || `${row.code || "size"}-${index}`)
+}
+
+function reindexSizeRows(rows: ProductMasterSize[]) {
+    return rows.map((row, index) => ({ ...row, sort_order: index + 1 }))
+}
+
+function duplicateSizeRow(row: ProductMasterSize, existingRows: ProductMasterSize[], order: number): ProductMasterSize {
+    const codeBase = String(row.code || `SZ-${order}`).trim().toUpperCase()
+    const code = uniqueSizeCode(codeBase, existingRows)
+    return {
+        ...row,
+        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        code,
+        label: row.label ? `${row.label} copy` : code,
+        active: row.active !== false,
+        sort_order: order,
+    }
+}
+
+function uniqueSizeCode(code: string, rows: ProductMasterSize[]) {
+    const base = code.endsWith("-COPY") ? code : `${code}-COPY`
+    if (!rows.some((row) => sameCode(row.code, base))) return base
+    let suffix = 2
+    while (rows.some((row) => sameCode(row.code, `${base}-${suffix}`))) suffix += 1
+    return `${base}-${suffix}`
+}
+
+function isOverriddenSize(row: ProductMasterSize, outputKind: OutputKind) {
+    const childOverride = !!row.child_target_override && Number(row.child_target_width_mm || 0) > 0
+    if (childOverride) return true
+    const explicitRollWidth = Number(row.roll_width_mm || 0)
+    if (outputKind === "POUCH" && explicitRollWidth > 0) {
+        const auto = computeProductGeometry(row, outputKind).fallbackRollWidthMm
+        return Math.abs(explicitRollWidth - auto) > 0.001
+    }
+    return outputKind === "ROLL" && explicitRollWidth > 0 && Math.abs(explicitRollWidth - Number(row.width_mm || 0)) > 0.001
+}
+
+function filterOptions(rows: ProductMasterSize[], outputKind: OutputKind): Array<{ value: FilterMode; label: string; count: number }> {
+    return [
+        { value: "all", label: "All", count: rows.length },
+        { value: "active", label: "Active", count: rows.filter((row) => row.active !== false).length },
+        { value: "inactive", label: "Inactive", count: rows.filter((row) => row.active === false).length },
+        { value: "overridden", label: "Overridden", count: rows.filter((row) => isOverriddenSize(row, outputKind)).length },
+    ]
+}
+
+function formulaVersionInfo(row: ProductMasterSize, outputKind: OutputKind) {
+    if (outputKind === "POUCH" && row.pouch_style_master) {
+        return { label: `V${row.pouch_style_version || 1} locked`, tone: "indigo" as const }
+    }
+    if (outputKind === "POUCH") return { label: "Manual formula", tone: "amber" as const }
+    if (outputKind === "ROLL") return { label: "Roll geometry", tone: "blue" as const }
+    return { label: "No formula", tone: "slate" as const }
+}
+
+function FormulaVersionBadge({ row, outputKind, className }: { row: ProductMasterSize; outputKind: OutputKind; className?: string }) {
+    const info = formulaVersionInfo(row, outputKind)
+    return (
+        <span className={cn(
+            "inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
+            info.tone === "indigo" && "bg-indigo-50 text-indigo-700 ring-indigo-200",
+            info.tone === "amber" && "bg-amber-50 text-amber-800 ring-amber-200",
+            info.tone === "blue" && "bg-blue-50 text-blue-700 ring-blue-200",
+            info.tone === "slate" && "bg-slate-50 text-slate-600 ring-slate-200",
+            className,
+        )}>
+            {info.label}
+        </span>
+    )
+}
+
+function LaneUpPreview({ row, outputKind }: { row: ProductMasterSize; outputKind: OutputKind }) {
+    const baseWidth = finalWebWidthMm(row, outputKind)
+    const sourceLabel = isOverriddenSize(row, outputKind) ? "Override" : outputKind === "POUCH" ? "Auto formula" : "Roll width"
+    if (outputKind !== "POUCH") {
+        return (
+            <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50/50 px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Roll width preview</div>
+                <div className="mt-1 font-mono text-sm font-black text-blue-950">{formatMm(baseWidth)} mm</div>
+            </div>
+        )
+    }
+    const lanes = [1, 2, 3, 4, 5, 6]
+    return (
+        <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Lane-up preview</div>
+                    <div className="mt-0.5 text-[11px] font-semibold text-slate-600">{sourceLabel} child web: <span className="font-mono text-slate-950">{formatMm(baseWidth)} mm</span></div>
+                </div>
+                <FormulaVersionBadge row={row} outputKind={outputKind} />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {lanes.map((lane) => (
+                    <div key={lane} className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-emerald-100">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">{lane}-up</div>
+                        <div className="font-mono text-xs font-black text-slate-950">{formatMm(baseWidth * lane)} mm</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+function finalWebWidthMm(row: ProductMasterSize, outputKind: OutputKind) {
+    if (outputKind === "ROLL") return Number(row.width_mm || 0)
+    const geometry = computeProductGeometry(row, outputKind)
+    if (row.child_target_override && Number(row.child_target_width_mm || 0) > 0) return Number(row.child_target_width_mm || 0)
+    if (Number(row.child_target_width_mm || 0) > 0) return Number(row.child_target_width_mm || 0)
+    return geometry.fallbackRollWidthMm
+}
+
+function formatMm(value: number) {
+    if (!Number.isFinite(value) || value <= 0) return "0"
+    return Number(value.toFixed(2)).toLocaleString()
 }
 
 function BulkReviewDialog({

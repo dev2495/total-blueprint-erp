@@ -1046,6 +1046,9 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                             onPatch={patchSize}
                             onRemove={removeSize}
                             onBulkApply={setDraftSizes}
+                            onRequestSave={() => updateMutation.mutate()}
+                            canRequestSave={!updateMutation.isPending && errorCount === 0}
+                            isSaving={updateMutation.isPending}
                         />
                     </RichSection>
 
