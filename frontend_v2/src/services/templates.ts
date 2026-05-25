@@ -1,3 +1,5 @@
+import type { AxiosRequestConfig } from "axios";
+
 import { api } from "@/lib/api";
 
 type MaybePaginated<T> = T[] | { results?: T[] } | unknown;
@@ -167,9 +169,12 @@ export interface TemplateApiErrorEnvelope {
 }
 
 export const templateService = {
-    getTemplates: async (params?: any) => {
-        const { data } = await api.get<MaybePaginated<TemplateBlueprint>>("/api/templates/", { params });
+    getTemplates: async (params?: any, config?: AxiosRequestConfig) => {
+        const { data } = await api.get<MaybePaginated<TemplateBlueprint>>("/api/templates/", { ...config, params });
         return unwrapList<TemplateBlueprint>(data);
+    },
+    getLiveTemplateOptions: async (params?: any) => {
+        return templateService.getTemplates({ status: "LIVE", options: "1", ...(params || {}) }, { timeout: 30_000 });
     },
     getTemplate: async (id: string) => {
         const { data } = await api.get<TemplateBlueprint>(`/api/templates/${id}/`);

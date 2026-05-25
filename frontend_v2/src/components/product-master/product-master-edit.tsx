@@ -44,7 +44,7 @@ import { masterDataService, type Material, type PackagingMaterial, type PodSkuVa
 import { recipeService } from "@/services/recipes"
 import { engineeringService, type Artwork } from "@/services/engineering"
 import { autoRollWidthMm, resolveProductOutputKind } from "@/lib/product-geometry"
-import { SizeGeometryEditor } from "@/components/product-master/size-geometry-editor"
+import { ProductSizeWorkspace } from "@/components/product-master/size-workspace"
 import {
     productMasterService,
     type LayerTemplateRow,
@@ -240,8 +240,11 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     })
     const { data: templates = [] } = useQuery({
         queryKey: ["templates", "live"],
-        queryFn: () => templateService.getTemplates({ status: "LIVE" }),
-        staleTime: 60_000,
+        queryFn: () => templateService.getLiveTemplateOptions(),
+        staleTime: 5 * 60_000,
+        retry: 2,
+        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+        meta: { suppressGlobalError: true },
     })
     const effectiveTemplateId = master?.template || master?.default_template || null
     const { data: routeInfo } = useQuery({
@@ -1032,46 +1035,18 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                         eyebrow="Sizes & geometry"
                         title={sizeSectionTitle}
                         subtitle={sizeSectionSubtitle}
-                        actions={
-                            <Button size="sm" variant="outline" className="rounded-xl" onClick={addSize}>
-                                <Plus className="mr-1 h-3.5 w-3.5" /> Add size
-                            </Button>
-                        }
                     >
-                        {draftSizes.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-6 text-center text-sm text-slate-500">
-                                No sizes yet. Add at least one for sales/planner to use this master.
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {draftSizes.map((row, i) => (
-                                    <div key={row.id || i} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-black text-slate-900">{row.code || `Size ${i + 1}`}</div>
-                                                <div className="text-xs text-slate-500">Final size plus exact geometry math for BOM, roll width, and stock matching.</div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                                                    <Switch checked={row.active} onCheckedChange={(v) => patchSize(i, { active: v })} />
-                                                    {row.active ? "Active" : "Inactive"}
-                                                </div>
-                                                <button type="button" onClick={() => removeSize(i)} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50">
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <SizeGeometryEditor
-                                            row={row}
-                                            kind={draft.product_kind}
-                                            packagingKind={draft.packaging_kind ?? null}
-                                            fixedFgType={draft.fixed_attributes?.fg_type ?? null}
-                                            onPatch={(patch) => patchSize(i, patch)}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <ProductSizeWorkspace
+                            rows={draftSizes}
+                            productId={productId}
+                            kind={draft.product_kind}
+                            packagingKind={draft.packaging_kind ?? null}
+                            fixedFgType={draft.fixed_attributes?.fg_type ?? null}
+                            onAdd={addSize}
+                            onPatch={patchSize}
+                            onRemove={removeSize}
+                            onBulkApply={setDraftSizes}
+                        />
                     </RichSection>
 
                     <RichSection

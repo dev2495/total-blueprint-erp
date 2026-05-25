@@ -300,11 +300,8 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must be an object."})
                 material_id = row.get("film_variant_id") or row.get("material_id")
                 material_code = row.get("film_variant_code") or row.get("material_code") or row.get("code") or row.get("layer") or row.get("name")
-                if not material_code:
-                    material = InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first() if material_id else None
-                    if material:
-                        material_code = material.code
-                else:
+                material = InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first() if material_id else None
+                if not material and material_code:
                     material = InventoryMaterial.objects.filter(code__iexact=str(material_code), category="FILM_VARIANT").first()
                 if not material:
                     raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must select a valid film variant."})

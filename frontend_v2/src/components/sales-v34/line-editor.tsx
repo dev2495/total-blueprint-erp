@@ -62,6 +62,7 @@ import { engineeringService, type Artwork } from "@/services/engineering"
 import { computeWebWidthPlan, webWidthPolicyService } from "@/services/web-width-policy"
 
 import type { SalesOrderLine } from "./types"
+import { buildSalesAxisValues } from "./axis-values"
 
 export interface LineEditorProps {
     line: SalesOrderLine
@@ -191,28 +192,11 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
 
     // ─── Live BOM preview query (drives the right rail) ─────────────
     const selectedSize = sizes.find((s) => s.code === line.size_code) || sizes[0]
-    const axisValues = React.useMemo(() => {
-        const layer_thicknesses: Record<string, number> = {}
-        const layer_grades: Record<string, string> = {}
-        const layer_widths: Record<string, number> = {}
-        Object.entries(line.layer_values || {}).forEach(([key, value]) => {
-            const thickness = Number(value.thickness_micron)
-            const width = Number(value.width_mm)
-            if (Number.isFinite(thickness) && thickness > 0) layer_thicknesses[key] = thickness
-            if (value.grade) layer_grades[key] = String(value.grade)
-            if (Number.isFinite(width) && width > 0) layer_widths[key] = width
-        })
-        const baseAxisValues = sanitizeAxisValues(line.axis_values)
-        const sizeCode = String(line.size_code || baseAxisValues.size || selectedSize?.code || "").trim()
-        return {
-            ...baseAxisValues,
-            ...(sizeCode ? { size: sizeCode } : {}),
-            ...(Object.keys(layer_thicknesses).length ? { layer_thicknesses } : {}),
-            ...(Object.keys(layer_grades).length ? { layer_grades } : {}),
-            ...(Object.keys(layer_widths).length ? { layer_widths } : {}),
-            ...(line.addons.length ? { addons: line.addons } : {}),
-        }
-    }, [line.addons, line.axis_values, line.layer_values, line.size_code, selectedSize?.code])
+    const axisBuild = React.useMemo(
+        () => buildSalesAxisValues(master, line, selectedSize),
+        [master, line, selectedSize]
+    )
+    const axisValues = axisBuild.axisValues
 
     const { data: livePreview, isLoading: livePreviewLoading } = useQuery({
         queryKey: ["sales-v37-live-bom", master?.id, axisValues, line.qty_value, line.qty_uom, line.price_basis, line.print_type, line.film_type, customerId, line.customer_product_overlay],
@@ -235,7 +219,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                       }
                     : { enabled: false },
             }),
-        enabled: !!master?.id && !!selectedSize && !!axisValues.size,
+        enabled: !!master?.id && !!selectedSize && !!axisValues.size && axisBuild.missingRequired.length === 0,
         staleTime: 0,
         retry: false,
     })
@@ -247,7 +231,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     } : undefined
 
     const subtotal = line.qty_value * (parseFloat(line.unit_price || "0") || 0)
-    const addDisabled = !master || !line.size_code || line.qty_value <= 0
+    const addDisabled = !master || !line.size_code || line.qty_value <= 0 || axisBuild.missingRequired.length > 0
 
     // Augment the API preview with the user-picked size as a fallback for geometry
     // fields the backend doesn't always populate (width_mm / height_mm / faces /
@@ -544,7 +528,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                 <LiveBomRail
                     title="Live BOM preview"
                     subtitle={master ? `${master.code}${line.size_code ? ` · ${line.size_code}` : ""}` : "Pick a product master to begin"}
-                    preview={augmentedPreview || livePreview || null}
+                    preview={augmentedPreview || livePreview || axisBuild.previewBlocker || null}
                     loading={livePreviewLoading}
                     sticky
                     scope="order"

@@ -50,6 +50,7 @@ import { useSalesDraft } from "./use-sales-draft"
 import { Cart } from "./cart"
 import { QuickStartBand } from "./quick-start-band"
 import { CustomerContextPanel } from "./customer-context-panel"
+import { buildSalesAxisValues } from "./axis-values"
 
 export function SalesOrderV34Workspace() {
     const router = useRouter()
@@ -74,7 +75,6 @@ export function SalesOrderV34Workspace() {
         expandLine,
         cartTotalKg,
         cartTotalValue,
-        isReadyToSubmit,
         blockingIssues,
         warnings,
     } = draftHook
@@ -100,36 +100,37 @@ export function SalesOrderV34Workspace() {
     }, [initialMaster, draft.lines.length, addLine])
 
     const customer = customers.find((c) => c.id === draft.customer)
+    const axisBlockingIssues = React.useMemo(() => {
+        const issues: string[] = []
+        draft.lines.forEach((line, index) => {
+            const master = masters.find((x) => x.id === line.product_master)
+            if (!master) return
+            buildSalesAxisValues(master, line).missingLabels.forEach((label) => {
+                issues.push(`Line ${index + 1}: ${label}`)
+            })
+        })
+        return issues
+    }, [draft.lines, masters])
+    const combinedBlockingIssues = React.useMemo(
+        () => [...blockingIssues, ...axisBlockingIssues],
+        [blockingIssues, axisBlockingIssues]
+    )
+    const combinedReadyToSubmit = combinedBlockingIssues.length === 0
 
     const createMutation = useMutation({
-        mutationFn: () =>
-            salesService.createOrder({
+        mutationFn: () => {
+            if (axisBlockingIssues.length > 0) {
+                throw new Error(axisBlockingIssues[0])
+            }
+            return salesService.createOrder({
                 customer: draft.customer,
                 ship_to_customer: draft.ship_to_customer || draft.customer,
                 order_name: draft.order_name || `Order ${new Date().toISOString().slice(0, 10)}`,
                 delivery_date: draft.delivery_date,
                 remarks: draft.remarks,
                 items: draft.lines.map((line) => {
-                    const layer_thicknesses: Record<string, number> = {}
-                    const layer_grades: Record<string, string> = {}
-                    const layer_widths: Record<string, number> = {}
-                    Object.entries(line.layer_values).forEach(([k, v]) => {
-                        const t = Number(v.thickness_micron)
-                        const w = Number(v.width_mm)
-                        const g = typeof v.grade === "string" ? v.grade.trim() : v.grade
-                        if (Number.isFinite(t) && t > 0) layer_thicknesses[k] = t
-                        if (g) layer_grades[k] = String(g)
-                        if (Number.isFinite(w) && w > 0) layer_widths[k] = w
-                    })
-                    const axis_values: Record<string, any> = {
-                        size: line.size_code,
-                        layer_thicknesses,
-                        layer_grades,
-                        ...line.axis_values,
-                    }
-                    if (Object.keys(layer_widths).length) axis_values.layer_widths = layer_widths
-                    if (line.addons.length) axis_values.addons = line.addons
                     const m = masters.find((x) => x.id === line.product_master)
+                    const axis_values = buildSalesAxisValues(m, line).axisValues
                     return {
                         product_master: line.product_master,
                         customer_product_overlay: line.customer_product_overlay,
@@ -154,7 +155,8 @@ export function SalesOrderV34Workspace() {
                         remarks: line.remarks,
                     }
                 }),
-            }),
+            })
+        },
         onSuccess: (data: any) => {
             toast({
                 title: "Sales order sent to planner",
@@ -177,18 +179,20 @@ export function SalesOrderV34Workspace() {
             if (!l.product_master) issues.push("Missing product master")
             if (l.product_master && !l.size_code) issues.push("Missing size")
             if (l.qty_value <= 0) issues.push("Quantity must be > 0")
+            const master = masters.find((x) => x.id === l.product_master)
+            if (master) issues.push(...buildSalesAxisValues(master, l).missingLabels)
             if (issues.length) out[l.id] = issues
         })
         return out
-    }, [draft.lines])
+    }, [draft.lines, masters])
 
     return (
         <div className="space-y-4 pb-32" data-testid="sales-order-v34-workspace">
             {/* Stepper backbone */}
-            <SalesStepper customerPicked={Boolean(draft.customer)} hasLines={draft.lines.length > 0} ready={isReadyToSubmit} />
+            <SalesStepper customerPicked={Boolean(draft.customer)} hasLines={draft.lines.length > 0} ready={combinedReadyToSubmit} />
 
             {/* Subtle hero · calmer than the gradient banner */}
-            <SubtleHero customer={customer} customerCount={customers.length} draft={draft} cartTotalKg={cartTotalKg} cartTotalValue={cartTotalValue} isReady={isReadyToSubmit} blockerCount={blockingIssues.length} />
+            <SubtleHero customer={customer} customerCount={customers.length} draft={draft} cartTotalKg={cartTotalKg} cartTotalValue={cartTotalValue} isReady={combinedReadyToSubmit} blockerCount={combinedBlockingIssues.length} />
 
             {/* Customer / PO / dates / plant header strip */}
             <CustomerHeaderStrip
@@ -269,9 +273,9 @@ export function SalesOrderV34Workspace() {
                 lineCount={draft.lines.length}
                 cartTotalKg={cartTotalKg}
                 cartTotalValue={cartTotalValue}
-                blockingIssues={blockingIssues}
+                blockingIssues={combinedBlockingIssues}
                 warnings={warnings}
-                isReady={isReadyToSubmit}
+                isReady={combinedReadyToSubmit}
                 isSubmitting={createMutation.isPending}
                 onSubmit={() => createMutation.mutate()}
             />

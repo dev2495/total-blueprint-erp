@@ -52,6 +52,28 @@ def _safe_uuid(value):
         return None
 
 
+def _flatten_preview_validation_errors(detail):
+    messages = []
+
+    def visit(value, prefix=""):
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                label = f"{prefix}.{key}" if prefix else str(key)
+                visit(nested, label)
+            return
+        if isinstance(value, (list, tuple, set)):
+            for nested in value:
+                visit(nested, prefix)
+            return
+        text = str(value or "").strip()
+        if not text:
+            return
+        messages.append(f"{prefix}: {text}" if prefix else text)
+
+    visit(detail)
+    return messages or ["Preview cannot be computed until the required axes are complete."]
+
+
 def _effective_packaging_kind(product):
     kind = str(getattr(product, "packaging_kind", "") or "").upper()
     if kind in {"INNER_POUCH", "SHEET"}:
@@ -467,12 +489,35 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="preview-bom")
     def preview_bom(self, request, pk=None):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
         from apps.sales.services.bom_preview import BOMPreviewService
 
         product = self.get_object()
         try:
             preview = BOMPreviewService.for_line({**request.data, "product_master": str(product.id)})
             return Response(preview, status=status.HTTP_200_OK)
+        except DjangoValidationError as exc:
+            detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+            blockers = _flatten_preview_validation_errors(detail)
+            return Response(
+                {
+                    "variant_status": "NEW",
+                    "invariant_signature": product.invariant_signature or product.code,
+                    "geometry_snapshot": {},
+                    "layer_snapshot": [],
+                    "bom": {"planning_lines": [], "is_complete": False, "errors": blockers},
+                    "bom_by_step": [],
+                    "packaging_lines": [],
+                    "pod_lines": [],
+                    "is_complete": False,
+                    "blockers": blockers,
+                    "checks": [{"label": blocker, "ok": False, "tone": "error"} for blocker in blockers],
+                    "errors": blockers,
+                    "detail": detail,
+                },
+                status=status.HTTP_200_OK,
+            )
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

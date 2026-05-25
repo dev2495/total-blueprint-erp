@@ -104,8 +104,11 @@ export function StockLauncherV3Workspace() {
     })
     const { data: templates = [] } = useQuery({
         queryKey: ["templates", "live"],
-        queryFn: () => templateService.getTemplates({ status: "LIVE" }),
-        staleTime: 60_000,
+        queryFn: () => templateService.getLiveTemplateOptions(),
+        staleTime: 5 * 60_000,
+        retry: 2,
+        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+        meta: { suppressGlobalError: true },
     })
     const { data: packagingMaterials = [] } = useQuery({
         queryKey: ["master-packaging"],

@@ -155,10 +155,13 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
     const templateKind = kind === "POUCH" || kind === "ROLL" ? kind : undefined
     const { data: templates = [] } = useQuery({
         queryKey: ["product-master-create-templates", "live", templateKind || "any"],
-        queryFn: () => templateService.getTemplates({ status: "LIVE", ...(templateKind ? { fg_type: templateKind } : {}) }),
+        queryFn: () => templateService.getLiveTemplateOptions(templateKind ? { fg_type: templateKind } : undefined),
         enabled: open,
-        staleTime: 60_000,
+        staleTime: 5 * 60_000,
         refetchOnMount: "always",
+        retry: 2,
+        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+        meta: { suppressGlobalError: true },
     })
     const { data: filmVariants = [] } = useQuery({
         queryKey: ["master-film-variants"],

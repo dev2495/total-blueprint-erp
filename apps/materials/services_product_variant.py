@@ -126,6 +126,28 @@ def _layer_allowed_material_codes(raw: dict[str, Any]) -> set[str]:
     return codes
 
 
+def _layer_material_ref(raw: dict[str, Any]) -> tuple[InventoryMaterial | None, str]:
+    material_id = raw.get("film_variant_id") or raw.get("material_id") or raw.get("variant_id")
+    material = None
+    if material_id:
+        material = InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first()
+
+    material_code = (
+        raw.get("film_variant_code")
+        or raw.get("material_code")
+        or raw.get("code")
+        or raw.get("layer")
+        or raw.get("name")
+    )
+    if not material and material_code:
+        material = _material_by_code(str(material_code or ""))
+        if material and material.category != "FILM_VARIANT":
+            material = None
+    if material:
+        return material, str(material.code or "")
+    return None, str(material_code or "")
+
+
 def _material_axis_configs(master: ProductMaster) -> dict[str, dict[str, Any]]:
     axes = master.variant_axes if isinstance(master.variant_axes, list) else []
     configs: dict[str, dict[str, Any]] = {}
@@ -168,7 +190,7 @@ def _validate_layer_material_overrides(master: ProductMaster, axis_values: dict[
     errors: dict[str, str] = {}
 
     for index, raw in enumerate(template_rows):
-        base_code = raw.get("film_variant_code") or raw.get("material_code") or raw.get("code") or raw.get("layer") or raw.get("name")
+        _, base_code = _layer_material_ref(raw)
         override_code = _layer_axis_value(source, index=index, role=raw.get("role"), material_code=base_code)
         override_code = _code_from_option(override_code)
         if not override_code:
@@ -562,9 +584,12 @@ def compute_layers(master: ProductMaster, axis_values: dict[str, Any], geometry:
     for index, raw in enumerate(template_rows):
         if not isinstance(raw, dict):
             continue
-        base_material_code = raw.get("film_variant_code") or raw.get("material_code") or raw.get("code") or raw.get("layer") or raw.get("name")
+        base_material, base_material_code = _layer_material_ref(raw)
         material_code, material_override_applied = _resolve_layer_material_code(master, axis_values, raw, index, base_material_code)
         material = _material_by_code(str(material_code or ""))
+        if not material_override_applied and (not material or material.category != "FILM_VARIANT") and base_material:
+            material = base_material
+            material_code = base_material.code
         if not material or material.category != "FILM_VARIANT":
             raise ValidationError({f"layer_{index + 1}": "Layer film variant is required."})
         percent = _to_decimal(raw.get("percent_of_total") or raw.get("thickness_share"))

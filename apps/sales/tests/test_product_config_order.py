@@ -1,10 +1,13 @@
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.artwork.models import Artwork
 from apps.inventory.models import InkMaterial
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from apps.materials.views import ProductMasterViewSet
 from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
 from apps.sales.services.bom_preview import BOMPreviewService
 from apps.sales.services import order_service
@@ -277,6 +280,129 @@ class ProductConfiguredOrderTests(TestCase):
         self.assertEqual(item.layer_snapshot[0]["grade_code"], "GP")
         self.assertEqual(item.addons_snapshot[0]["code"], "CORONA-TREAT-T")
         self.assertEqual(item.packaging_snapshot["primary_inner_pack"]["material_id"], str(pack.id))
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_layer_material_resolves_by_id_when_saved_code_is_stale(self, preview_sales_item):
+        family = InventoryMaterial.objects.create(
+            code="SYNC-FAM-T",
+            name="Sync family test",
+            category="FILM_FAMILY",
+            base_uom="KG",
+        )
+        film = InventoryMaterial.objects.create(
+            code="SYNC-FILM-20-T",
+            name="Sync Film 20 test",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            is_extrudable=True,
+        )
+        template = TemplateBlueprint.objects.create(
+            name="Sync Code Template",
+            fg_type="ROLL",
+            status="LIVE",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-SYNC-CODE-T",
+            name="Sync Code Roll",
+            product_kind="ROLL",
+            template=template,
+            default_template=template,
+            layer_template=[
+                {
+                    "role": "base-film",
+                    "film_variant_id": str(film.id),
+                    "film_variant_code": "OLD-CODE-20",
+                    "thickness_micron": 20,
+                    "default_grade": "GP",
+                }
+            ],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True, "options": ["ROLL-440"]}],
+            fixed_attributes={"fg_type": "ROLL", "layer_count": 1, "roll_form": "FLAT", "print_capable": False},
+            invariant_signature="INV-PM-SYNC-CODE-T",
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="ROLL-440",
+            label="440mm roll",
+            width_mm=440,
+            roll_width_mm=440,
+            standard_qty=1000,
+            qty_uom="KG",
+        )
+        preview_sales_item.return_value = {
+            "unit_weight_g": 0,
+            "total_weight_kg": 1000,
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+
+        preview = BOMPreviewService.for_line(
+            {
+                "product_master": str(master.id),
+                "template_id": str(template.id),
+                "axis_values": {"size": "ROLL-440"},
+                "quantity": 1000,
+                "quantity_uom": "KG",
+                "printing": {"enabled": False},
+            }
+        )
+
+        self.assertEqual(preview["layer_snapshot"][0]["material_code"], "SYNC-FILM-20-T")
+
+    def test_preview_bom_returns_blockers_not_http_error_for_missing_required_axes(self):
+        family = InventoryMaterial.objects.create(
+            code="PREVIEW-BLOCK-FAM-T",
+            name="Preview blocker family test",
+            category="FILM_FAMILY",
+            base_uom="KG",
+        )
+        InventoryMaterial.objects.create(
+            code="PREVIEW-BLOCK-FILM-T",
+            name="Preview blocker film test",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            is_extrudable=True,
+        )
+        template = TemplateBlueprint.objects.create(
+            name="Preview Blocker Template",
+            fg_type="POUCH",
+            status="LIVE",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-PREVIEW-BLOCK-T",
+            name="Preview Block Pouch",
+            product_kind="POUCH",
+            template=template,
+            default_template=template,
+            layer_template=[{"role": "sealant", "material_code": "PREVIEW-BLOCK-FILM-T", "thickness_micron": 40, "default_grade": "GP"}],
+            variant_axes=[
+                {"axis": "size", "type": "geometry", "required": True, "options": ["100x160"]},
+                {"axis": "packaging_inner", "type": "packaging_ref", "required": True, "master_data_source": "packaging_material"},
+            ],
+            fixed_attributes={"fg_type": "POUCH", "layer_count": 1, "print_capable": False},
+            invariant_signature="INV-PREVIEW-BLOCK-T",
+        )
+        user = get_user_model().objects.create_user(username="preview-admin", password="test")
+        factory = APIRequestFactory()
+        request = factory.post(
+            f"/api/master/products/{master.id}/preview-bom/",
+            {
+                "product_master": str(master.id),
+                "template_id": str(template.id),
+                "axis_values": {"size": "100x160"},
+                "quantity": 1000,
+                "quantity_uom": "PCS",
+                "printing": {"enabled": False},
+            },
+            format="json",
+        )
+        force_authenticate(request, user=user)
+        response = ProductMasterViewSet.as_view({"post": "preview_bom"})(request, pk=str(master.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_complete"])
+        self.assertIn("packaging_inner", " ".join(response.data["blockers"]))
 
     @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
     def test_order_line_rejects_global_thickness_and_grade_axis_values(self, preview_sales_item):

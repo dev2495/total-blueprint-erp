@@ -501,7 +501,14 @@ export default function QuotationWorkspace() {
         queryKey: ["quotation-sku-variants", draft.customer || "ALL"],
         queryFn: () => salesService.getSalesSkuVariants({ customer_id: draft.customer || undefined, active: true }),
     })
-    const { data: templates = [] } = useQuery({ queryKey: ["quote-templates"], queryFn: () => templateService.getTemplates({ status: "LIVE" }) })
+    const { data: templates = [] } = useQuery({
+        queryKey: ["quote-templates"],
+        queryFn: () => templateService.getLiveTemplateOptions(),
+        staleTime: 5 * 60_000,
+        retry: 2,
+        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+        meta: { suppressGlobalError: true },
+    })
     const { data: families = [] } = useQuery({ queryKey: ["quote-families"], queryFn: filmFamilyService.getAll })
     const { data: variants = [] } = useQuery({ queryKey: ["quote-variants"], queryFn: filmVariantService.getAll })
     const { data: addons = [] } = useQuery({ queryKey: ["quote-addons"], queryFn: masterDataService.getAddons })
