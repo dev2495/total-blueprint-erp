@@ -305,6 +305,9 @@ resolve_backend_python() {
     "${ROOT_DIR}/.venv/bin/python"
     "${ROOT_DIR}/venv_311/bin/python"
     "${ROOT_DIR}/.venv-validate/bin/python"
+    "${ROOT_DIR}/../../../venv/bin/python"
+    "${ROOT_DIR}/../../../venv/bin/python3"
+    "${ROOT_DIR}/../../../venv_311/bin/python"
   )
   for candidate in "${candidates[@]}"; do
     if probe_backend_python "${candidate}"; then

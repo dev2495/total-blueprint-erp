@@ -596,7 +596,13 @@ export default function DispatchBayPage() {
 
                     <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between"><h3 className="text-sm font-black text-slate-950">Dispatch history</h3><FileText className="h-4 w-4 text-slate-500" /></div>
-                        <Input value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Search challan..." className="mt-3 rounded-xl" />
+                        <Input
+                            data-testid="dispatch-history-search"
+                            value={historySearch}
+                            onChange={(event) => setHistorySearch(event.target.value)}
+                            placeholder="Search challan..."
+                            className="mt-3 rounded-xl"
+                        />
                         <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto overscroll-contain pr-1">
                             {pagedHistory.map((row: DeliveryChallan) => (
                                 <div key={row.id} data-testid={`dispatch-challan-row-${row.id}`} className="rounded-[12px] border border-slate-200 p-3">

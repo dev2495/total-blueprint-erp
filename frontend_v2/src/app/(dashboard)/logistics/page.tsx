@@ -108,7 +108,7 @@ export default function LogisticsHubPage() {
             <div>
               <h1 className="text-4xl font-black tracking-tight">Dispatch, packing, and transit control</h1>
               <p className="mt-2 max-w-3xl text-sm font-medium text-slate-300">
-                This surface now reads from live challan and inter-plant evidence. No synthetic freight graphs, no placeholder lane mix, only dispatch and transit state the team can operate from.
+                Live challan, packing, and inter-plant evidence for daily dispatch control, customer follow-up, and stock-in-transit decisions.
               </p>
             </div>
           </div>

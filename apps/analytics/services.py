@@ -752,9 +752,9 @@ class AnalyticsService:
         "status": "online",
         "uptime": "Unknown",
         "active_users": 0,
-        "error_rate": "0.0%",
+        "error_rate": "0.00%",
         "db_health": "Healthy",
-        "version": "2.1.0",
+        "version": "local",
         "cpu_usage": 0,
         "memory_usage": 0,
         "disk_usage": 0,
@@ -766,12 +766,69 @@ class AnalyticsService:
         Enhanced to provide real telemetry (CPU, Memory, Disk) using standard libraries.
         """
         from django.contrib.auth import get_user_model
+        from django.conf import settings
         from django.db import connection
+        from apps.users.models import NotificationDeliveryAttempt
         import time
         import subprocess
         import os
         from django.utils import timezone
         from datetime import timedelta
+
+        def percent(numerator, denominator):
+            if not denominator:
+                return "0.00%"
+            return f"{(float(numerator) / float(denominator)) * 100:.2f}%"
+
+        def app_version():
+            for key in ("RELEASE_VERSION", "RENDER_GIT_COMMIT", "GIT_SHA", "COMMIT_SHA"):
+                value = str(os.environ.get(key) or "").strip()
+                if value:
+                    return value[:12]
+            configured = str(getattr(settings, "APP_VERSION", "") or "").strip()
+            if configured:
+                return configured
+            try:
+                root = str(getattr(settings, "BASE_DIR", "") or os.getcwd())
+                result = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True, text=True, timeout=2)
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            except Exception:
+                pass
+            return "local"
+
+        def memory_usage_percent():
+            try:
+                meminfo = {}
+                with open("/proc/meminfo", "r", encoding="utf-8") as handle:
+                    for line in handle:
+                        key, raw = line.split(":", 1)
+                        meminfo[key] = int(raw.strip().split()[0]) * 1024
+                total = meminfo.get("MemTotal", 0)
+                available = meminfo.get("MemAvailable", 0)
+                if total > 0 and available >= 0:
+                    return int(((total - available) / total) * 100)
+            except Exception:
+                pass
+            try:
+                total_result = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=2)
+                page_result = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=2)
+                if total_result.returncode == 0 and page_result.returncode == 0:
+                    total = int(total_result.stdout.strip())
+                    page_size = 4096
+                    free_pages = 0
+                    for line in page_result.stdout.splitlines():
+                        if "page size of" in line:
+                            parts = [part for part in line.replace(".", "").split() if part.isdigit()]
+                            if parts:
+                                page_size = int(parts[-1])
+                        if line.startswith(("Pages free", "Pages inactive", "Pages speculative")):
+                            free_pages += int(line.split(":", 1)[1].strip().replace(".", ""))
+                    if total > 0:
+                        return int(((total - (free_pages * page_size)) / total) * 100)
+            except Exception:
+                pass
+            return 0
         
         User = get_user_model()
         
@@ -849,25 +906,25 @@ class AnalyticsService:
         except Exception:
             pass
 
-        # Memory (MacOS fallback to hardcoded mock heuristic based on process if vm_stat fails, to avoid complexity)
-        try:
-            # Simple heuristic for MacOS using ps
-            ps_mem = subprocess.run(['ps', '-caxm', '-orss,comm'], capture_output=True, text=True)
-            if ps_mem.returncode == 0:
-                # Just generating a plausible overall memory percentage based on top consumers
-                memory_usage = 45 + min(int(cpu_usage / 4), 30) # Mock plausible value if direct reading is too complex without psutil
-        except Exception:
-            pass
+        memory_usage = memory_usage_percent()
 
         # Disk Capacity
         try:
-            st = os.statvfs('/')
+            st = os.statvfs(str(getattr(settings, "BASE_DIR", "/") or "/"))
             free = st.f_bavail * st.f_frsize
             total = st.f_blocks * st.f_frsize
             used = total - free
-            disk_usage = int((used / total) * 100)
+            disk_usage = int((used / total) * 100) if total else 0
         except Exception:
             pass
+
+        report_total = ReportDispatchRun.objects.filter(created_at__gte=last_24h).count()
+        report_failed = ReportDispatchRun.objects.filter(created_at__gte=last_24h, status=ReportDispatchRun.Status.FAILED).count()
+        notification_total = NotificationDeliveryAttempt.objects.filter(created_at__gte=last_24h).count()
+        notification_failed = NotificationDeliveryAttempt.objects.filter(created_at__gte=last_24h, status="FAILED").count()
+        permission_total = PermissionAuditLog.objects.filter(created_at__gte=last_24h).count()
+        permission_denied = PermissionAuditLog.objects.filter(created_at__gte=last_24h, action="DENIED").count()
+        error_rate = percent(report_failed + notification_failed + permission_denied, report_total + notification_total + permission_total)
 
         # 5. Recent System Logs (Proxy via ProductionJob and JobExecutionLog)
         logs = []
@@ -891,24 +948,17 @@ class AnalyticsService:
                 })
         except Exception:
             pass
-
-        if not logs:
-            logs = [
-                {"level": "INFO", "message": "System running normally. All services active.", "time": "Just now"},
-                {"level": "INFO", "message": "Database vacuum completed successfully.", "time": "2h ago"},
-                {"level": "INFO", "message": "Cache optimization process finished.", "time": "5h ago"}
-            ]
         
         return {
             "status": "online",
             "uptime": uptime_str,
             "active_users": active_users,
-            "error_rate": "0.01%",
+            "error_rate": error_rate,
             "db_health": db_status,
-            "version": "v3.0.0-Premium",
+            "version": app_version(),
             "cpu_usage": cpu_usage,
-            "memory_usage": memory_usage or 42, # Fallback
-            "disk_usage": disk_usage or 60,
+            "memory_usage": memory_usage,
+            "disk_usage": disk_usage,
             "db_size_mb": db_size_mb,
             "active_connections": active_connections,
             "logs": logs

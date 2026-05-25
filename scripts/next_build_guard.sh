@@ -6,6 +6,32 @@ FRONTEND_DIR="${ROOT_DIR}/frontend_v2"
 STALE_ROOT="${ROOT_DIR}/.runtime/frontend-next-stale"
 MAX_BUILD_ATTEMPTS="${MAX_BUILD_ATTEMPTS:-3}"
 MAX_BUILD_SECONDS="${MAX_BUILD_SECONDS:-480}"
+FRONTEND_PORT="${FRONTEND_PORT:-3001}"
+FRONTEND_PID_FILE="${ROOT_DIR}/.runtime/service-runtime/state/frontend.pid"
+
+pid_running() {
+  local pid="$1"
+  [[ "${pid}" =~ ^[0-9]+$ ]] && [ "${pid}" -gt 1 ] && kill -0 "${pid}" 2>/dev/null
+}
+
+read_pid() {
+  [ -f "$1" ] || return 0
+  LC_ALL=C awk 'NR==1 {gsub(/[^0-9]/,"",$0); print $0; exit}' "$1" 2>/dev/null || true
+}
+
+if [ "${ALLOW_BUILD_WITH_RUNNING_FRONTEND:-0}" != "1" ]; then
+  active_frontend_pid="$(read_pid "${FRONTEND_PID_FILE}")"
+  if pid_running "${active_frontend_pid}"; then
+    echo "ERROR: refusing to rebuild .next while live frontend PID ${active_frontend_pid} is running."
+    echo "Stop/restart the stack first, or set ALLOW_BUILD_WITH_RUNNING_FRONTEND=1 for an intentional offline build."
+    exit 1
+  fi
+  if command -v lsof >/dev/null 2>&1 && lsof -ti:"${FRONTEND_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "ERROR: refusing to rebuild .next while port ${FRONTEND_PORT} has a live listener."
+    echo "Stop/restart the stack first, or set ALLOW_BUILD_WITH_RUNNING_FRONTEND=1 for an intentional offline build."
+    exit 1
+  fi
+fi
 
 cd "${FRONTEND_DIR}"
 

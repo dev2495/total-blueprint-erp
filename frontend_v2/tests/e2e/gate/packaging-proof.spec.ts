@@ -120,6 +120,10 @@ test("produced in-house packaging is visible across packaging inventory, packing
   await page.goto("/logistics/dispatch", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
 
+  const dispatchHistorySearch = page.getByTestId("dispatch-history-search")
+  await expect(dispatchHistorySearch).toBeVisible()
+  await dispatchHistorySearch.fill(proof.pouch_breakdown.challan_no)
+
   await expect(page.getByTestId(`dispatch-challan-row-${proofChallan.id}`)).toBeVisible()
   await expect(page.getByTestId(`dispatch-print-${proofChallan.id}`)).toBeVisible()
   await expect(page.locator("body")).toContainText(proof.pouch_breakdown.challan_no)

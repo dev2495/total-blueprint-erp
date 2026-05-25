@@ -36,7 +36,26 @@ def _ensure_current_period():
 
 
 def _fresh_close_period():
-    for year in range(2180, 2210):
+    fixture_year_floor = 2180
+    used_fixture_years = set()
+    reusable_periods = []
+    for period in InventoryFinancialPeriod.objects.all():
+        try:
+            start_year = int(str(period.financial_year).split("-", 1)[0])
+        except (TypeError, ValueError):
+            continue
+        if start_year < fixture_year_floor:
+            continue
+        used_fixture_years.add(start_year)
+        if period.status != "CLOSED":
+            reusable_periods.append((start_year, period))
+
+    if reusable_periods:
+        reusable_periods.sort(key=lambda item: item[0])
+        return reusable_periods[0][1]
+
+    next_year = max(used_fixture_years, default=fixture_year_floor - 1) + 1
+    for year in range(next_year, next_year + 200):
         fy = f"{year}-{year + 1}"
         period = InventoryFinancialPeriod.objects.filter(financial_year=fy).first()
         if not period:

@@ -129,6 +129,54 @@ def _geometry_has_positive_pouch_dims(geometry: dict | None) -> bool:
     return width_mm > 0 and height_mm > 0
 
 
+def _positive_decimal(*values) -> Decimal:
+    for value in values:
+        try:
+            parsed = Decimal(str(value or 0))
+        except Exception:
+            continue
+        if parsed > 0:
+            return parsed
+    return Decimal("0")
+
+
+def _ensure_seed_web_width_contract(geometry: dict | None, layer_snapshot: list | None) -> dict:
+    payload = deepcopy(geometry or {})
+    base = payload.get("base") if isinstance(payload.get("base"), dict) else {}
+    child_width = _positive_decimal(
+        payload.get("child_target_width_mm"),
+        payload.get("target_child_width_mm"),
+        payload.get("roll_width_mm"),
+        payload.get("effective_roll_width_mm"),
+        payload.get("effective_width_mm"),
+        base.get("child_target_width_mm"),
+        base.get("target_child_width_mm"),
+        base.get("roll_width_mm"),
+        base.get("width_mm"),
+        base.get("effective_width_mm"),
+    )
+    if child_width <= 0:
+        child_width = Decimal("1")
+
+    width_value = float(child_width)
+    payload["child_target_width_mm"] = width_value
+    payload["target_child_width_mm"] = width_value
+    payload["roll_width_mm"] = float(_positive_decimal(payload.get("roll_width_mm"), base.get("roll_width_mm"), child_width))
+    base["child_target_width_mm"] = width_value
+    base["target_child_width_mm"] = width_value
+    base["roll_width_mm"] = payload["roll_width_mm"]
+    payload["base"] = base
+
+    for row in layer_snapshot or []:
+        if not isinstance(row, dict):
+            continue
+        row_width = float(_positive_decimal(row.get("roll_width_mm"), row.get("width_mm"), payload["roll_width_mm"], child_width))
+        row["roll_width_mm"] = row_width
+        row["width_mm"] = row_width
+
+    return payload
+
+
 def _ensure_seed_ink_contract(layer_snapshot: list | None, total_colors: int) -> tuple[str, list[str], dict[str, str]]:
     color_count = max(1, int(total_colors or 1))
     base_family = resolve_ink_base_from_layers(layer_snapshot or [])
@@ -200,6 +248,7 @@ def build_gate_order() -> SalesOrder:
     customer = Customer.objects.order_by("name", "created_at").first()
     customer_name = customer.name if customer else "UI E2E Customer"
     layer_snapshot = deepcopy(variant.layer_snapshot or [])
+    geometry = _ensure_seed_web_width_contract(deepcopy(variant.geometry_snapshot or {}), layer_snapshot)
     payload = {
         "customer": str(customer.id) if customer else None,
         "customer_name": customer_name,
@@ -210,7 +259,7 @@ def build_gate_order() -> SalesOrder:
         "mode": "TEMPLATE",
         "qty_value": "2500",
         "qty_uom": "PCS",
-        "geometry": deepcopy(variant.geometry_snapshot or {}),
+        "geometry": geometry,
         "film_layers": layer_snapshot,
         "printing": _sheet_safe_seed_printing(deepcopy(variant.printing_snapshot or {}), layer_snapshot),
         "chemicals": deepcopy(variant.chemicals_snapshot or {}),
