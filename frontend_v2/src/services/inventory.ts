@@ -556,6 +556,33 @@ export const inventoryService = {
         return data
     },
 
+    uploadRollGrnExcel: async (file: File, context?: {
+        vendor_id?: string
+        warehouse_id?: string
+        vendor_invoice_no?: string
+        vendor_invoice_date?: string
+        dry_run?: boolean
+    }) => {
+        const form = new FormData()
+        form.append("file", file)
+        if (context?.vendor_id) form.append("vendor_id", context.vendor_id)
+        if (context?.warehouse_id) form.append("warehouse_id", context.warehouse_id)
+        if (context?.vendor_invoice_no) form.append("vendor_invoice_no", context.vendor_invoice_no)
+        if (context?.vendor_invoice_date) form.append("vendor_invoice_date", context.vendor_invoice_date)
+        if (context?.dry_run) form.append("dry_run", "true")
+        const { data } = await api.post("/api/inventory/grn/upload-rolls/", form, {
+            headers: { "Content-Type": "multipart/form-data" },
+        })
+        return data
+    },
+
+    downloadRollGrnTemplate: async () => {
+        const { data } = await api.get("/api/inventory/grn/roll-upload-template/", {
+            responseType: "blob",
+        })
+        return data as Blob
+    },
+
     getPackagingStock: async (params?: any) => {
         const { data } = await api.get("/api/inventory/packaging/stock/", { params })
         return unwrapList<PackagingStockRow>(data)

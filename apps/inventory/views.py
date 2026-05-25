@@ -11,7 +11,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from decimal import Decimal
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO
 import uuid
 import csv
@@ -59,7 +59,7 @@ from .services.roll_naming import (
 )
 from apps.materials.models import InventoryMaterial
 from apps.production.models import ProductionJob
-from apps.factory.models import Process, Machine
+from apps.factory.models import Process, Machine, Plant
 from django_filters.rest_framework import DjangoFilterBackend
 
 
@@ -371,11 +371,15 @@ def _resolve_material_from_payload(payload):
     if material_id:
         return InventoryMaterial.objects.get(id=material_id)
     code = str(payload.get("material_code") or payload.get("product_code") or payload.get("variant_code") or "").strip()
-    if not code:
-        raise ValidationError("Every GRN line needs material_id/product_id/variant_id or material_code.")
-    material = InventoryMaterial.objects.filter(code__iexact=code).first()
+    name = str(payload.get("material_name") or payload.get("product_name") or payload.get("variant_name") or "").strip()
+    if not code and not name:
+        raise ValidationError("Every GRN line needs material_id/product_id/variant_id, material_code, or exact material_name.")
+    material = InventoryMaterial.objects.filter(code__iexact=code).first() if code else None
+    if not material and name:
+        material = InventoryMaterial.objects.filter(name__iexact=name).first()
     if not material:
-        raise ValidationError(f"Material code {code} was not found.")
+        ref = code or name
+        raise ValidationError(f"Material {ref} was not found.")
     return material
 
 
@@ -384,6 +388,83 @@ def _resolve_location_from_payload(payload, fallback_id=None):
     if not location_id:
         raise ValidationError("Receiving location is required.")
     return InventoryLocation.objects.select_related("plant").get(id=location_id)
+
+
+def _normalise_upload_key(value):
+    return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
+
+
+def _upload_cell(value):
+    if value is None:
+        return ""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return str(value).strip()
+
+
+def _upload_decimal(value, *, default=None):
+    if value in (None, ""):
+        if default is None:
+            return None
+        return Decimal(str(default))
+    return Decimal(str(value))
+
+
+def _resolve_upload_vendor(ref):
+    ref = str(ref or "").strip()
+    if not ref:
+        raise ValidationError("GRN upload needs Vendor code in the GRN Header sheet.")
+    qs = Vendor.objects.filter(Q(code__iexact=ref) | Q(name__iexact=ref))
+    if _looks_like_uuid(ref):
+        qs = Vendor.objects.filter(Q(id=ref) | Q(code__iexact=ref) | Q(name__iexact=ref))
+    vendor = qs.first()
+    if not vendor:
+        raise ValidationError(f"Vendor {ref} was not found.")
+    return vendor
+
+
+def _resolve_upload_location(ref, *, plant_ref=""):
+    ref = str(ref or "").strip()
+    if not ref:
+        raise ValidationError("GRN upload needs Receiving warehouse in the GRN Header sheet or Location Code per row.")
+    qs = InventoryLocation.objects.select_related("plant")
+    if plant_ref:
+        plant_ref = str(plant_ref).strip()
+        plant = Plant.objects.filter(Q(code__iexact=plant_ref) | Q(name__iexact=plant_ref)).first()
+        if _looks_like_uuid(plant_ref):
+            plant = Plant.objects.filter(Q(id=plant_ref) | Q(code__iexact=plant_ref) | Q(name__iexact=plant_ref)).first()
+        if not plant:
+            raise ValidationError(f"Receiving plant {plant_ref} was not found.")
+        qs = qs.filter(plant=plant)
+    if _looks_like_uuid(ref):
+        location = qs.filter(id=ref).first()
+    else:
+        location = qs.filter(Q(code__iexact=ref) | Q(name__iexact=ref)).first()
+    if not location:
+        raise ValidationError(f"Receiving location {ref} was not found.")
+    return location
+
+
+def _resolve_upload_grade(ref):
+    ref = str(ref or "").strip()
+    if not ref:
+        return None
+    from apps.recipes.models import RecipeGrade
+    if _looks_like_uuid(ref):
+        grade = RecipeGrade.objects.filter(id=ref, is_active=True).first()
+    else:
+        grade = RecipeGrade.objects.filter(name__iexact=ref, is_active=True).first()
+    if not grade:
+        raise ValidationError(f"Recipe grade {ref} was not found.")
+    return grade
+
+
+def _looks_like_uuid(value):
+    try:
+        uuid.UUID(str(value))
+        return True
+    except Exception:
+        return False
 
 
 def _active_reservation_weight_by_roll():
@@ -1180,6 +1261,460 @@ class GRNViewSet(viewsets.ViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=False, methods=['get'], url_path='roll-upload-template')
+    def roll_upload_template(self, request):
+        """
+        Generate a GRN roll-upload workbook from the current master database.
+
+        This avoids shipping stale Excel dropdowns: Render downloads contain
+        Render vendors, plants, locations, film variants, and active grades.
+        """
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, PatternFill
+            from openpyxl.worksheet.datavalidation import DataValidation
+        except Exception as exc:
+            return Response({"error": f"Excel template support is unavailable: {_api_error_message(exc)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        from apps.recipes.models import RecipeGrade
+
+        vendors = list(
+            Vendor.objects
+            .filter(status="ACTIVE", type__in=["RM", "BOTH"])
+            .order_by("code", "name")
+        )
+        locations = list(
+            InventoryLocation.objects
+            .select_related("plant")
+            .filter(is_active=True, type__in=GRNService.ALLOWED_LOCATION_TYPES)
+            .order_by("plant__code", "code", "name")
+        )
+        plants_by_code = {}
+        for location in locations:
+            if location.plant and location.plant.code not in plants_by_code:
+                plants_by_code[location.plant.code] = location.plant
+        plants = sorted(plants_by_code.values(), key=lambda plant: (plant.code or "", plant.name or ""))
+        materials = list(
+            InventoryMaterial.objects
+            .filter(category="FILM_VARIANT")
+            .exclude(status="INACTIVE")
+            .order_by("code", "name")[:2000]
+        )
+        grades = list(RecipeGrade.objects.filter(is_active=True).order_by("name")[:1000])
+
+        wb = Workbook()
+        instructions = wb.active
+        instructions.title = "Instructions"
+        header = wb.create_sheet("GRN Header")
+        lines = wb.create_sheet("Roll Lines")
+        lookups = wb.create_sheet("Lookups")
+
+        title_fill = PatternFill("solid", fgColor="1F6FEB")
+        header_fill = PatternFill("solid", fgColor="EAF2FF")
+        required_fill = PatternFill("solid", fgColor="FFF7ED")
+        ok_fill = PatternFill("solid", fgColor="ECFDF5")
+        title_font = Font(bold=True, color="FFFFFF", size=14)
+        head_font = Font(bold=True, color="0F172A")
+        mono_font = Font(name="Consolas", size=10)
+
+        instructions["A1"] = "GRN bulk roll upload"
+        instructions["A1"].fill = title_fill
+        instructions["A1"].font = title_font
+        instructions.merge_cells("A1:F1")
+        instruction_rows = [
+            ("1", "Fill GRN Header", "Pick Vendor Code, Receiving Plant, and Receiving Warehouse from the dropdowns."),
+            ("2", "Fill Roll Lines", "One physical roll per row. Use Material Code or exact Material Name from the dropdowns."),
+            ("3", "Weights", "Net Wt KG may be blank when Gross Wt KG and Tare/Core KG are filled."),
+            ("4", "Validation", "Upload first validates the sheet. Stock is posted only after you click Post GRN."),
+            ("5", "Master lists", "The Lookups tab is generated from the current database at download time."),
+        ]
+        instructions.append(["Step", "What to do", "Notes"])
+        for row in instruction_rows:
+            instructions.append(row)
+
+        header_rows = [
+            ("Vendor Code", vendors[0].code if vendors else "", "required", "Dropdown from active RM/BOTH vendors"),
+            ("Receiving Plant", plants[0].code if plants else "", "required", "Dropdown from plants that have GRN locations"),
+            ("Receiving Warehouse", locations[0].code if locations else "", "required", "Dropdown from active WAREHOUSE/QC/RM/WIP locations"),
+            ("Vendor Invoice No", "", "optional", "Used as the GRN reference"),
+            ("Vendor Invoice Date", date.today().isoformat(), "optional", "yyyy-mm-dd"),
+        ]
+        header.append(["Field", "Value", "Required", "Notes"])
+        for row in header_rows:
+            header.append(row)
+
+        lookup_headers = [
+            "Vendor Code", "Vendor Name",
+            "Plant Code", "Plant Name",
+            "Location Code", "Location Name", "Location Display",
+            "Material Code", "Material Name",
+            "Grade",
+        ]
+        lookups.append(lookup_headers)
+        max_lookup_rows = max(len(vendors), len(plants), len(locations), len(materials), len(grades), 1)
+        for idx in range(max_lookup_rows):
+            vendor = vendors[idx] if idx < len(vendors) else None
+            plant = plants[idx] if idx < len(plants) else None
+            location = locations[idx] if idx < len(locations) else None
+            material = materials[idx] if idx < len(materials) else None
+            grade = grades[idx] if idx < len(grades) else None
+            lookups.append([
+                vendor.code if vendor else "",
+                vendor.name if vendor else "",
+                plant.code if plant else "",
+                plant.name if plant else "",
+                location.code if location else "",
+                location.name if location else "",
+                f"{location.code} · {location.name} · {location.plant.code if location.plant else ''}" if location else "",
+                material.code if material else "",
+                material.name if material else "",
+                grade.name if grade else "",
+            ])
+
+        line_headers = [
+            "Line No",
+            "Supplier Roll No",
+            "ERP Roll Label",
+            "Material Type",
+            "Material Code",
+            "Material Name",
+            "Vendor Lot Ref",
+            "Gross Wt KG",
+            "Tare/Core KG",
+            "Net Wt KG",
+            "Width MM",
+            "Thickness Micron",
+            "Length Meter",
+            "Roll Form",
+            "Grade",
+            "Unit Cost",
+            "Mfg Date",
+            "Best Before",
+            "QC Status",
+            "Location Code",
+            "Remarks",
+            "Check Status",
+            "Error Hint",
+        ]
+        lines.append(line_headers)
+        for row_no in range(2, 502):
+            line_index = row_no - 1
+            lines.append([
+                line_index,
+                "",
+                "",
+                "FILM",
+                "",
+                "",
+                "",
+                "",
+                "",
+                f'=IF(AND(H{row_no}<>"",I{row_no}<>""),H{row_no}-I{row_no},"")',
+                "",
+                "",
+                "",
+                "PARENT",
+                "",
+                "",
+                "",
+                "",
+                "PENDING",
+                "",
+                "",
+                f'=IF(OR(E{row_no}<>"",F{row_no}<>""),"READY","")',
+                f'=IF(AND(E{row_no}="",F{row_no}<>""),"Name-only match",IF(AND(E{row_no}<>"",F{row_no}<>""),"Code wins if code/name differ",""))',
+            ])
+
+        def add_list_validation(sheet, cell_range, values_range, allow_blank=True):
+            dv = DataValidation(type="list", formula1=values_range, allow_blank=allow_blank)
+            sheet.add_data_validation(dv)
+            dv.add(cell_range)
+
+        vendor_end = max(len(vendors) + 1, 2)
+        plant_end = max(len(plants) + 1, 2)
+        location_end = max(len(locations) + 1, 2)
+        material_end = max(len(materials) + 1, 2)
+        grade_end = max(len(grades) + 1, 2)
+        add_list_validation(header, "B2", f"'Lookups'!$A$2:$A${vendor_end}", allow_blank=False)
+        add_list_validation(header, "B3", f"'Lookups'!$C$2:$C${plant_end}", allow_blank=False)
+        add_list_validation(header, "B4", f"'Lookups'!$E$2:$E${location_end}", allow_blank=False)
+        add_list_validation(lines, "D2:D501", '"FILM"', allow_blank=False)
+        add_list_validation(lines, "E2:E501", f"'Lookups'!$H$2:$H${material_end}")
+        add_list_validation(lines, "F2:F501", f"'Lookups'!$I$2:$I${material_end}")
+        add_list_validation(lines, "N2:N501", '"PARENT,SLIT,REMAINDER"', allow_blank=True)
+        add_list_validation(lines, "O2:O501", f"'Lookups'!$J$2:$J${grade_end}")
+        add_list_validation(lines, "S2:S501", '"PENDING,PASS,HOLD,REJECT"', allow_blank=True)
+        add_list_validation(lines, "T2:T501", f"'Lookups'!$E$2:$E${location_end}")
+
+        for sheet in (instructions, header, lines, lookups):
+            sheet.freeze_panes = "A2"
+            for cell in sheet[1]:
+                cell.fill = header_fill
+                cell.font = head_font
+                cell.alignment = Alignment(horizontal="center")
+            for row in sheet.iter_rows():
+                for cell in row:
+                    cell.alignment = Alignment(vertical="top", wrap_text=True)
+        instructions["A1"].fill = title_fill
+        instructions["A1"].font = title_font
+        header["A1"].fill = header_fill
+        for required_cell in ("A2", "A3", "A4", "B2", "B3", "B4"):
+            header[required_cell].fill = required_fill
+        for col in ("E", "F", "T"):
+            for cell in lines[f"{col}2:{col}501"]:
+                cell[0].fill = ok_fill
+        for row in lines.iter_rows(min_row=2, max_row=501):
+            row[0].font = mono_font
+            row[1].font = mono_font
+            row[2].font = mono_font
+            row[4].font = mono_font
+            row[19].font = mono_font
+        lines.auto_filter.ref = "A1:W501"
+        lookups.auto_filter.ref = f"A1:J{max_lookup_rows + 1}"
+
+        widths = {
+            instructions: [10, 28, 90],
+            header: [26, 32, 16, 70],
+            lines: [10, 20, 20, 16, 28, 42, 22, 14, 14, 14, 14, 18, 16, 16, 22, 14, 16, 16, 16, 22, 40, 18, 34],
+            lookups: [22, 34, 18, 34, 22, 34, 52, 28, 52, 28],
+        }
+        for sheet, sizes in widths.items():
+            for index, width in enumerate(sizes, start=1):
+                sheet.column_dimensions[chr(64 + index)].width = width
+
+        payload = BytesIO()
+        wb.save(payload)
+        payload.seek(0)
+        response = HttpResponse(
+            payload.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="grn_live_roll_upload_template.xlsx"'
+        return response
+
+    @action(detail=False, methods=['post'], url_path='upload-rolls')
+    def upload_rolls(self, request):
+        """
+        Excel bulk upload for purchased film roll GRNs.
+
+        Expected workbook tabs:
+        - GRN Header: two-column key/value sheet.
+        - Roll Lines: one physical roll per row.
+        """
+        uploaded = request.FILES.get("file") or request.FILES.get("upload")
+        if not uploaded:
+            return Response({"error": "Upload an .xlsx file in field 'file'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from openpyxl import load_workbook
+            workbook = load_workbook(uploaded, data_only=True, read_only=True)
+        except Exception as exc:
+            return Response({"error": f"Could not read Excel file: {_api_error_message(exc)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if "GRN Header" not in workbook.sheetnames or "Roll Lines" not in workbook.sheetnames:
+            return Response({"error": "Workbook must contain 'GRN Header' and 'Roll Lines' sheets."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            header_ws = workbook["GRN Header"]
+            line_ws = workbook["Roll Lines"]
+            header = {}
+            for row in header_ws.iter_rows(min_row=1, max_col=2, values_only=True):
+                key = _normalise_upload_key(row[0])
+                if key:
+                    header[key] = row[1]
+
+            vendor_ref = request.data.get("vendor_id") or request.data.get("vendor") or header.get("vendorcode")
+            vendor = _resolve_upload_vendor(vendor_ref)
+            plant_ref = request.data.get("plant_id") or request.data.get("plant") or header.get("receivingplant") or ""
+            default_location_ref = (
+                request.data.get("store_location_id")
+                or request.data.get("warehouse_id")
+                or request.data.get("location_id")
+                or header.get("receivingwarehouse")
+                or ""
+            )
+            invoice_no = _upload_cell(request.data.get("vendor_invoice_no") or header.get("vendorinvoiceno")) or f"GRN-UPLOAD-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+            invoice_date = _upload_cell(request.data.get("vendor_invoice_date") or header.get("vendorinvoicedate"))
+
+            raw_headers = next(line_ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
+            if not raw_headers:
+                raise ValidationError("Roll Lines sheet is missing headers.")
+            column_map = {_normalise_upload_key(label): idx for idx, label in enumerate(raw_headers)}
+
+            def cell(row, label, default=""):
+                idx = column_map.get(_normalise_upload_key(label))
+                if idx is None or idx >= len(row):
+                    return default
+                value = row[idx]
+                return default if value is None else value
+
+            business_columns = [
+                "Supplier Roll No",
+                "ERP Roll Label",
+                "Material Code",
+                "Material Name",
+                "Vendor Lot Ref",
+                "Gross Wt KG",
+                "Tare/Core KG",
+                "Net Wt KG",
+                "Width MM",
+                "Thickness Micron",
+                "Length Meter",
+                "Grade",
+                "Unit Cost",
+                "Mfg Date",
+                "Best Before",
+                "Location Code",
+                "Remarks",
+            ]
+            parsed_rows = []
+            errors = []
+            seen_labels = set()
+            for excel_row_no, row in enumerate(line_ws.iter_rows(min_row=2, values_only=True), start=2):
+                if not any(_upload_cell(cell(row, label)) for label in business_columns):
+                    continue
+                if len(parsed_rows) >= 500:
+                    errors.append({"row": excel_row_no, "error": "Maximum 500 roll rows per upload."})
+                    break
+
+                try:
+                    material_code = _upload_cell(cell(row, "Material Code"))
+                    material_name = _upload_cell(cell(row, "Material Name"))
+                    if not material_code and not material_name:
+                        raise ValidationError("Material Code or exact Material Name is required.")
+                    material = _resolve_material_from_payload({"material_code": material_code, "material_name": material_name})
+                    if str(material.category or "").upper() != "FILM_VARIANT":
+                        raise ValidationError(f"Roll upload requires FILM_VARIANT material. {material_code or material_name} is {material.category}.")
+
+                    supplier_roll_no = _upload_cell(cell(row, "Supplier Roll No"))
+                    label_id = _upload_cell(cell(row, "ERP Roll Label")) or supplier_roll_no
+                    if not label_id:
+                        raise ValidationError("Supplier Roll No or ERP Roll Label is required.")
+                    label_key = label_id.upper()
+                    if label_key in seen_labels:
+                        raise ValidationError(f"Duplicate roll label {label_id} inside upload.")
+                    seen_labels.add(label_key)
+                    if InventoryRoll.objects.filter(label_id=label_id).exists():
+                        raise ValidationError(f"Roll label {label_id} already exists.")
+
+                    gross = _upload_decimal(cell(row, "Gross Wt KG"), default=0)
+                    tare = _upload_decimal(cell(row, "Tare/Core KG"), default=0)
+                    net = _upload_decimal(cell(row, "Net Wt KG"), default=None)
+                    if net is None:
+                        net = gross - tare
+                    if net <= 0:
+                        raise ValidationError("Net Wt KG must be positive, or Gross Wt KG must exceed Tare/Core KG.")
+                    if gross and abs(gross - tare - net) > Decimal("0.05"):
+                        raise ValidationError("Gross Wt KG must equal Net Wt KG + Tare/Core KG within 0.05 KG.")
+
+                    width = _upload_decimal(cell(row, "Width MM"), default=0)
+                    thickness = _upload_decimal(cell(row, "Thickness Micron"), default=0)
+                    if width <= 0:
+                        raise ValidationError("Width MM is required and must be positive.")
+                    if thickness <= 0:
+                        raise ValidationError("Thickness Micron is required and must be positive.")
+
+                    location_ref = _upload_cell(cell(row, "Location Code")) or default_location_ref
+                    location = _resolve_upload_location(location_ref, plant_ref=plant_ref)
+                    grade_ref = _upload_cell(cell(row, "Grade"))
+                    grade = _resolve_upload_grade(grade_ref) if getattr(material, "is_extrudable", False) else None
+
+                    parsed_rows.append({
+                        "excel_row": excel_row_no,
+                        "material": material,
+                        "location": location,
+                        "label_id": label_id,
+                        "supplier_roll_no": supplier_roll_no,
+                        "batch_no": _upload_cell(cell(row, "Vendor Lot Ref")),
+                        "gross_weight_kg": gross,
+                        "tare_weight_kg": tare,
+                        "net_weight_kg": net,
+                        "width_mm": width,
+                        "thickness_micron": thickness,
+                        "length_m": _upload_decimal(cell(row, "Length Meter"), default=0),
+                        "grade_id": str(grade.id) if grade else None,
+                        "unit_cost": _upload_decimal(cell(row, "Unit Cost"), default=0),
+                        "mfg_date": _upload_cell(cell(row, "Mfg Date")),
+                        "best_before": _upload_cell(cell(row, "Best Before")),
+                        "qc_status": _upload_cell(cell(row, "QC Status")),
+                        "remarks": _upload_cell(cell(row, "Remarks")),
+                    })
+                except Exception as exc:
+                    errors.append({"row": excel_row_no, "error": _api_error_message(exc)})
+
+            if not parsed_rows:
+                errors.append({"row": None, "error": "No roll rows found in Roll Lines sheet."})
+            if errors:
+                return Response({"status": "FAILED", "error": "Upload validation failed.", "errors": errors[:50]}, status=status.HTTP_400_BAD_REQUEST)
+
+            dry_run = str(request.data.get("dry_run") or "").strip().lower() in {"1", "true", "yes"}
+            created_refs = []
+            total_qty = Decimal("0")
+            total_value = Decimal("0")
+            if not dry_run:
+                with transaction.atomic():
+                    for parsed in parsed_rows:
+                        reference = " | ".join(part for part in [invoice_no, parsed["batch_no"]] if part)
+                        created = GRNService.create_roll_grn(
+                            material=parsed["material"],
+                            location=parsed["location"],
+                            vendor=vendor,
+                            plant=parsed["location"].plant,
+                            rolls_data=[{
+                                "label_id": parsed["label_id"],
+                                "batch_no": parsed["batch_no"],
+                                "thickness_micron": parsed["thickness_micron"],
+                                "width_mm": parsed["width_mm"],
+                                "weight_kg": parsed["net_weight_kg"],
+                                "length_m": parsed["length_m"],
+                                "grade_id": parsed["grade_id"],
+                            }],
+                            reference=reference,
+                        )
+                        roll = created[0]
+                        meta = dict(roll.meta_json or {})
+                        meta.update({
+                            "vendor_roll_label": parsed["supplier_roll_no"],
+                            "vendor_invoice_no": invoice_no,
+                            "vendor_invoice_date": invoice_date,
+                            "mfg_date": parsed["mfg_date"],
+                            "best_before": parsed["best_before"],
+                            "qc_status": parsed["qc_status"],
+                            "upload_excel_row": parsed["excel_row"],
+                            "remarks": parsed["remarks"],
+                        })
+                        roll.gross_weight_kg = parsed["gross_weight_kg"]
+                        roll.tare_weight_kg = parsed["tare_weight_kg"]
+                        roll.net_weight_kg = parsed["net_weight_kg"]
+                        roll.meta_json = meta
+                        roll.save(update_fields=["gross_weight_kg", "tare_weight_kg", "net_weight_kg", "meta_json"])
+                        total_qty += parsed["net_weight_kg"]
+                        total_value += parsed["net_weight_kg"] * parsed["unit_cost"]
+                        created_refs.append({"id": str(roll.id), "ref": roll.label_id, "type": "ROLL", "excel_row": parsed["excel_row"]})
+            else:
+                total_qty = sum((row["net_weight_kg"] for row in parsed_rows), Decimal("0"))
+                total_value = sum((row["net_weight_kg"] * row["unit_cost"] for row in parsed_rows), Decimal("0"))
+
+            grn_no = f"GRN/{timezone.now().strftime('%Y/%m')}/{str(uuid.uuid4())[:5].upper()}"
+            return Response(
+                {
+                    "id": str(uuid.uuid4()),
+                    "grn_no": grn_no,
+                    "status": "VALIDATED" if dry_run else "POSTED",
+                    "klass": "ROLL",
+                    "dry_run": dry_run,
+                    "totals": {"qty": float(total_qty), "value": float(total_value)},
+                    "stock_movements": created_refs,
+                    "rows": len(parsed_rows),
+                    "vendor": {"id": str(vendor.id), "code": vendor.code, "name": vendor.name},
+                },
+                status=status.HTTP_200_OK if dry_run else status.HTTP_201_CREATED,
+            )
+        except (ValidationError, InventoryMaterial.DoesNotExist, InventoryLocation.DoesNotExist) as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='bulk')
     def create_bulk(self, request):

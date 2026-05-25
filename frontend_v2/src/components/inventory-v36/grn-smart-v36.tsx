@@ -21,11 +21,13 @@ import {
     Boxes,
     ChevronDown,
     CheckCircle2,
+    Download,
     Layers,
     Loader2,
     Package,
     Plus,
     Save,
+    Upload,
     X,
 } from "lucide-react"
 
@@ -135,6 +137,7 @@ function materialMatchesReceiptClass(material: any, klass: ClassKind) {
 export function GrnSmartV36() {
     const { toast } = useToast()
     const queryClient = useQueryClient()
+    const rollUploadInputRef = React.useRef<HTMLInputElement | null>(null)
 
     const [klass, setKlass] = React.useState<ClassKind>("BULK")
     const [sourceType, setSourceType] = React.useState<"PO" | "DIRECT" | "INTERPLANT" | "JOBWORK">("PO")
@@ -159,6 +162,8 @@ export function GrnSmartV36() {
     const [gstPct, setGstPct] = React.useState("18")
     const [remarks, setRemarks] = React.useState("")
     const [lastPosted, setLastPosted] = React.useState<PostedReceipt | null>(null)
+    const [rollUploadFile, setRollUploadFile] = React.useState<File | null>(null)
+    const [rollUploadPreview, setRollUploadPreview] = React.useState<{ rows: number; qty: number; value: number; vendorName?: string } | null>(null)
 
     const vendorsQ = useQuery({ queryKey: ["vendors"], queryFn: () => inventoryService.getVendors(), staleTime: 60_000 })
     const locationsQ = useQuery({ queryKey: ["locations"], queryFn: () => inventoryService.getLocations(), staleTime: 60_000 })
@@ -276,6 +281,84 @@ export function GrnSmartV36() {
         onError: (err: any) => toast({ title: "Could not post GRN", description: describeApiError(err, "Try again"), variant: "destructive" }),
     })
 
+    const uploadRollsMutation = useMutation({
+        mutationFn: ({ file, dryRun }: { file: File; dryRun: boolean }) => inventoryService.uploadRollGrnExcel(file, {
+            vendor_id: vendorId || undefined,
+            warehouse_id: warehouseId || undefined,
+            vendor_invoice_no: vendorInvoiceNo || undefined,
+            vendor_invoice_date: vendorInvoiceDate || undefined,
+            dry_run: dryRun,
+        }),
+        onSuccess: (receipt: any) => {
+            if (receipt?.dry_run) {
+                setRollUploadPreview({
+                    rows: Number(receipt?.rows || 0) || 0,
+                    qty: Number(receipt?.totals?.qty || 0) || 0,
+                    value: Number(receipt?.totals?.value || 0) || 0,
+                    vendorName: receipt?.vendor?.name,
+                })
+                toast({
+                    title: "Excel validated",
+                    description: `${Number(receipt?.rows || 0)} rolls · ${Number(receipt?.totals?.qty || 0).toLocaleString()} KG ready to post`,
+                })
+                return
+            }
+            const posted: PostedReceipt = {
+                grn_no: String(receipt?.grn_no || "GRN posted"),
+                klass: "ROLL",
+                total_qty: Number(receipt?.totals?.qty ?? 0) || 0,
+                uom: "KG",
+                movement_count: Number(receipt?.rows || (Array.isArray(receipt?.stock_movements) ? receipt.stock_movements.length : 0)) || 0,
+            }
+            queryClient.invalidateQueries({ queryKey: ["inventory-v36-snapshot"] })
+            queryClient.invalidateQueries({ queryKey: ["inventory-rolls"] })
+            queryClient.invalidateQueries({ queryKey: ["grn-history"] })
+            setKlass("ROLL")
+            setLastPosted(posted)
+            setRollUploadFile(null)
+            setRollUploadPreview(null)
+            toast({ title: "Roll GRN uploaded", description: `${posted.grn_no} · ${posted.movement_count} rolls · ${posted.total_qty.toLocaleString()} KG` })
+        },
+        onError: (err: any) => {
+            const details = err?.response?.data?.errors
+            const first = Array.isArray(details) && details.length ? `Row ${details[0]?.row || "?"}: ${details[0]?.error || ""}` : ""
+            toast({
+                title: "Excel upload failed",
+                description: first || describeApiError(err, "Fix the sheet and upload again"),
+                variant: "destructive",
+            })
+        },
+        onSettled: () => {
+            if (rollUploadInputRef.current) rollUploadInputRef.current.value = ""
+        },
+    })
+
+    const downloadRollTemplateMutation = useMutation({
+        mutationFn: () => inventoryService.downloadRollGrnTemplate(),
+        onSuccess: (blob) => {
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = "grn_live_roll_upload_template.xlsx"
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.URL.revokeObjectURL(url)
+            toast({ title: "Template downloaded", description: "Dropdowns came from the current master database." })
+        },
+        onError: (err: any) => toast({
+            title: "Could not download template",
+            description: describeApiError(err, "Try again"),
+            variant: "destructive",
+        }),
+    })
+
+    const validateRollUploadFile = React.useCallback((file: File) => {
+        setRollUploadFile(file)
+        setRollUploadPreview(null)
+        uploadRollsMutation.mutate({ file, dryRun: true })
+    }, [uploadRollsMutation])
+
     return (
         <div data-testid="smart-grn-v36" className="space-y-5 pb-24">
             {/* Header */}
@@ -388,7 +471,47 @@ export function GrnSmartV36() {
 
                     {/* 3 — Items */}
                     <Section idx={3} eyebrow="Items received" title="What did you actually receive?" tone="violet"
-                        actions={<Button size="sm" variant="outline" onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>}>
+                        actions={
+                            <div className="flex flex-wrap justify-end gap-2">
+                                {klass === "ROLL" && (
+                                    <>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            type="button"
+                                            disabled={downloadRollTemplateMutation.isPending}
+                                            onClick={() => downloadRollTemplateMutation.mutate()}
+                                            className="rounded-lg gap-1.5"
+                                        >
+                                            {downloadRollTemplateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                                            Live template
+                                        </Button>
+                                        <input
+                                            ref={rollUploadInputRef}
+                                            type="file"
+                                            accept=".xlsx"
+                                            className="hidden"
+                                            onChange={(event) => {
+                                                const file = event.target.files?.[0]
+                                                if (file) validateRollUploadFile(file)
+                                            }}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            type="button"
+                                            disabled={uploadRollsMutation.isPending}
+                                            onClick={() => rollUploadInputRef.current?.click()}
+                                            className="rounded-lg gap-1.5"
+                                        >
+                                            {uploadRollsMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                                            Upload Excel
+                                        </Button>
+                                    </>
+                                )}
+                                <Button size="sm" variant="outline" onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>
+                            </div>
+                        }>
                         <div className="space-y-3">
                             {klass === "BULK" && (
                                 <BulkMaterialFilterChips
@@ -396,6 +519,44 @@ export function GrnSmartV36() {
                                     onChange={setBulkMaterialFilter}
                                     materials={materials as any[]}
                                 />
+                            )}
+                            {klass === "ROLL" && rollUploadPreview && (
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Excel validated</div>
+                                            <div className="mt-1 font-bold">
+                                                {rollUploadPreview.rows.toLocaleString()} rolls · {rollUploadPreview.qty.toLocaleString()} KG
+                                                {rollUploadPreview.vendorName ? ` · ${rollUploadPreview.vendorName}` : ""}
+                                            </div>
+                                            <div className="mt-0.5 text-xs text-emerald-800">Review the uploaded workbook. Posting will create all rolls in one GRN.</div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="rounded-lg border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100"
+                                                onClick={() => {
+                                                    setRollUploadFile(null)
+                                                    setRollUploadPreview(null)
+                                                }}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                disabled={!rollUploadFile || uploadRollsMutation.isPending}
+                                                onClick={() => rollUploadFile && uploadRollsMutation.mutate({ file: rollUploadFile, dryRun: false })}
+                                                className="rounded-lg bg-emerald-700 text-white hover:bg-emerald-800"
+                                            >
+                                                {uploadRollsMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="mr-1 h-3 w-3" />}
+                                                Post GRN
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                             {items.map((it, idx) => (
                                 <ItemEditor
