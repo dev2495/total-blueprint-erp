@@ -43,10 +43,10 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(f'Plant {plant_code} not found'))
                 return
         else:
-            plants = list(Plant.objects.filter(is_active=True))
+            plants = list(Plant.objects.filter(include_in_official_reports=True))
         
         if not plants:
-            self.stdout.write(self.style.WARNING('No active plants found'))
+            self.stdout.write(self.style.WARNING('No reportable plants found'))
             return
         
         total_alerts = 0

@@ -6,7 +6,7 @@ from django.db.models import Avg, Count, Max, Q, Sum
 from django.utils import timezone
 
 from apps.analytics.decorators import safe_service
-from apps.factory.models import Machine
+from apps.factory.models import Machine, WorkCenter
 from apps.inventory.models import InventoryBulk, InventoryRoll
 from apps.production.models import DowntimeLog, JobExecutionLog, ScrapLog
 from apps.sales.models import SalesOrder
@@ -59,10 +59,20 @@ class KPIService:
         scrap_scope = {}
         sales_scope = {}
         inv_roll_scope = {}
+        bulk_scope = {}
         if work_center_ids:
-            execution_scope["production_job__work_center_id__in"] = work_center_ids
-            scrap_scope["production_job__work_center_id__in"] = work_center_ids
-            inv_roll_scope["work_center_id__in"] = work_center_ids
+            wc_ids = list(work_center_ids)
+            execution_scope["production_job__work_center_id__in"] = wc_ids
+            scrap_scope["production_job__work_center_id__in"] = wc_ids
+            inv_roll_scope["production_job__work_center_id__in"] = wc_ids
+            plant_ids = list(
+                WorkCenter.objects.filter(id__in=wc_ids)
+                .exclude(plant_id__isnull=True)
+                .values_list("plant_id", flat=True)
+                .distinct()
+            )
+            if plant_ids:
+                bulk_scope["plant_id__in"] = plant_ids
 
         produced_today = Decimal(
             str(
@@ -173,7 +183,7 @@ class KPIService:
                 or 0
             )
         )
-        rm_kg = Decimal(str(InventoryBulk.objects.aggregate(total=Sum("qty_kg"))["total"] or 0))
+        rm_kg = Decimal(str(InventoryBulk.objects.filter(**bulk_scope).aggregate(total=Sum("qty_kg"))["total"] or 0))
 
         production_trend = (
             JobExecutionLog.objects.filter(logged_at__date__gte=last_30_days, **execution_scope)
