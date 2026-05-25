@@ -1708,8 +1708,199 @@ class GRNViewSet(viewsets.ViewSet):
                     "stock_movements": created_refs,
                     "rows": len(parsed_rows),
                     "vendor": {"id": str(vendor.id), "code": vendor.code, "name": vendor.name},
+                    "vendor_invoice_no": invoice_no,
+                    "vendor_invoice_date": invoice_date,
+                    "review_rows": [
+                        {
+                            "excel_row": parsed["excel_row"],
+                            "supplier_roll_no": parsed["supplier_roll_no"],
+                            "label_id": parsed["label_id"],
+                            "material_code": parsed["material"].code,
+                            "material_name": parsed["material"].name,
+                            "batch_no": parsed["batch_no"],
+                            "gross_weight_kg": float(parsed["gross_weight_kg"] or 0),
+                            "tare_weight_kg": float(parsed["tare_weight_kg"] or 0),
+                            "net_weight_kg": float(parsed["net_weight_kg"] or 0),
+                            "width_mm": float(parsed["width_mm"] or 0),
+                            "thickness_micron": float(parsed["thickness_micron"] or 0),
+                            "length_m": float(parsed["length_m"] or 0),
+                            "grade_id": parsed["grade_id"],
+                            "unit_cost": float(parsed["unit_cost"] or 0),
+                            "mfg_date": parsed["mfg_date"],
+                            "best_before": parsed["best_before"],
+                            "qc_status": parsed["qc_status"],
+                            "location_id": str(parsed["location"].id),
+                            "location_code": parsed["location"].code,
+                            "location_name": parsed["location"].name,
+                            "plant_code": parsed["location"].plant.code if parsed["location"].plant else "",
+                            "remarks": parsed["remarks"],
+                        }
+                        for parsed in parsed_rows
+                    ],
                 },
                 status=status.HTTP_200_OK if dry_run else status.HTTP_201_CREATED,
+            )
+        except (ValidationError, InventoryMaterial.DoesNotExist, InventoryLocation.DoesNotExist) as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='post-roll-review')
+    def post_roll_review(self, request):
+        """Post reviewed/edited roll-upload rows after the UI validation step."""
+        rows = request.data.get("review_rows") or request.data.get("rows") or []
+        if not isinstance(rows, list) or not rows:
+            return Response({"error": "Review rows are required before posting."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vendor_ref = request.data.get("vendor_id") or request.data.get("vendor") or request.data.get("vendor_code")
+            vendor = _resolve_upload_vendor(vendor_ref)
+            plant_ref = request.data.get("plant_id") or request.data.get("plant") or ""
+            default_location_ref = (
+                request.data.get("store_location_id")
+                or request.data.get("warehouse_id")
+                or request.data.get("location_id")
+                or request.data.get("location")
+                or ""
+            )
+            invoice_no = _upload_cell(request.data.get("vendor_invoice_no")) or f"GRN-UPLOAD-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+            invoice_date = _upload_cell(request.data.get("vendor_invoice_date"))
+
+            parsed_rows = []
+            errors = []
+            seen_labels = set()
+            for index, row in enumerate(rows, start=1):
+                row = dict(row or {})
+                excel_row = row.get("excel_row") or index
+                try:
+                    material_code = _upload_cell(row.get("material_code"))
+                    material_name = _upload_cell(row.get("material_name"))
+                    if not material_code and not material_name:
+                        raise ValidationError("Material Code or exact Material Name is required.")
+                    material = _resolve_material_from_payload({"material_code": material_code, "material_name": material_name})
+                    if str(material.category or "").upper() != "FILM_VARIANT":
+                        raise ValidationError(f"Roll upload requires FILM_VARIANT material. {material_code or material_name} is {material.category}.")
+
+                    supplier_roll_no = _upload_cell(row.get("supplier_roll_no") or row.get("vendor_roll_label"))
+                    label_id = _upload_cell(row.get("label_id") or row.get("erp_roll_label")) or supplier_roll_no
+                    if not label_id:
+                        raise ValidationError("Supplier Roll No or ERP Roll Label is required.")
+                    label_key = label_id.upper()
+                    if label_key in seen_labels:
+                        raise ValidationError(f"Duplicate roll label {label_id} inside review.")
+                    seen_labels.add(label_key)
+                    if InventoryRoll.objects.filter(label_id=label_id).exists():
+                        raise ValidationError(f"Roll label {label_id} already exists.")
+
+                    gross = _upload_decimal(row.get("gross_weight_kg"), default=0)
+                    tare = _upload_decimal(row.get("tare_weight_kg"), default=0)
+                    net = _upload_decimal(row.get("net_weight_kg"), default=None)
+                    if net is None:
+                        net = gross - tare
+                    if net <= 0:
+                        raise ValidationError("Net Wt KG must be positive, or Gross Wt KG must exceed Tare/Core KG.")
+                    if gross and abs(gross - tare - net) > Decimal("0.05"):
+                        raise ValidationError("Gross Wt KG must equal Net Wt KG + Tare/Core KG within 0.05 KG.")
+
+                    width = _upload_decimal(row.get("width_mm"), default=0)
+                    thickness = _upload_decimal(row.get("thickness_micron") or row.get("thickness_um"), default=0)
+                    if width <= 0:
+                        raise ValidationError("Width MM is required and must be positive.")
+                    if thickness <= 0:
+                        raise ValidationError("Thickness Micron is required and must be positive.")
+
+                    location_ref = (
+                        _upload_cell(row.get("location_id"))
+                        or _upload_cell(row.get("location_code"))
+                        or _upload_cell(row.get("location_name"))
+                        or default_location_ref
+                    )
+                    location = _resolve_upload_location(location_ref, plant_ref=plant_ref)
+                    grade_ref = _upload_cell(row.get("grade_id") or row.get("grade") or row.get("grade_name"))
+                    grade = _resolve_upload_grade(grade_ref) if getattr(material, "is_extrudable", False) else None
+
+                    parsed_rows.append({
+                        "excel_row": excel_row,
+                        "material": material,
+                        "location": location,
+                        "label_id": label_id,
+                        "supplier_roll_no": supplier_roll_no,
+                        "batch_no": _upload_cell(row.get("batch_no") or row.get("vendor_lot_ref")),
+                        "gross_weight_kg": gross,
+                        "tare_weight_kg": tare,
+                        "net_weight_kg": net,
+                        "width_mm": width,
+                        "thickness_micron": thickness,
+                        "length_m": _upload_decimal(row.get("length_m"), default=0),
+                        "grade_id": str(grade.id) if grade else None,
+                        "unit_cost": _upload_decimal(row.get("unit_cost"), default=0),
+                        "mfg_date": _upload_cell(row.get("mfg_date")),
+                        "best_before": _upload_cell(row.get("best_before")),
+                        "qc_status": _upload_cell(row.get("qc_status")),
+                        "remarks": _upload_cell(row.get("remarks")),
+                    })
+                except Exception as exc:
+                    errors.append({"row": excel_row, "error": _api_error_message(exc)})
+
+            if errors:
+                return Response({"status": "FAILED", "error": "Review validation failed.", "errors": errors[:50]}, status=status.HTTP_400_BAD_REQUEST)
+
+            created_refs = []
+            total_qty = Decimal("0")
+            total_value = Decimal("0")
+            with transaction.atomic():
+                for parsed in parsed_rows:
+                    reference = " | ".join(part for part in [invoice_no, parsed["batch_no"]] if part)
+                    created = GRNService.create_roll_grn(
+                        material=parsed["material"],
+                        location=parsed["location"],
+                        vendor=vendor,
+                        plant=parsed["location"].plant,
+                        rolls_data=[{
+                            "label_id": parsed["label_id"],
+                            "batch_no": parsed["batch_no"],
+                            "thickness_micron": parsed["thickness_micron"],
+                            "width_mm": parsed["width_mm"],
+                            "weight_kg": parsed["net_weight_kg"],
+                            "length_m": parsed["length_m"],
+                            "grade_id": parsed["grade_id"],
+                        }],
+                        reference=reference,
+                    )
+                    roll = created[0]
+                    meta = dict(roll.meta_json or {})
+                    meta.update({
+                        "vendor_roll_label": parsed["supplier_roll_no"],
+                        "vendor_invoice_no": invoice_no,
+                        "vendor_invoice_date": invoice_date,
+                        "mfg_date": parsed["mfg_date"],
+                        "best_before": parsed["best_before"],
+                        "qc_status": parsed["qc_status"],
+                        "upload_excel_row": parsed["excel_row"],
+                        "remarks": parsed["remarks"],
+                    })
+                    roll.gross_weight_kg = parsed["gross_weight_kg"]
+                    roll.tare_weight_kg = parsed["tare_weight_kg"]
+                    roll.net_weight_kg = parsed["net_weight_kg"]
+                    roll.meta_json = meta
+                    roll.save(update_fields=["gross_weight_kg", "tare_weight_kg", "net_weight_kg", "meta_json"])
+                    total_qty += parsed["net_weight_kg"]
+                    total_value += parsed["net_weight_kg"] * parsed["unit_cost"]
+                    created_refs.append({"id": str(roll.id), "ref": roll.label_id, "type": "ROLL", "excel_row": parsed["excel_row"]})
+
+            grn_no = f"GRN/{timezone.now().strftime('%Y/%m')}/{str(uuid.uuid4())[:5].upper()}"
+            return Response(
+                {
+                    "id": str(uuid.uuid4()),
+                    "grn_no": grn_no,
+                    "status": "POSTED",
+                    "klass": "ROLL",
+                    "totals": {"qty": float(total_qty), "value": float(total_value)},
+                    "stock_movements": created_refs,
+                    "rows": len(parsed_rows),
+                    "vendor": {"id": str(vendor.id), "code": vendor.code, "name": vendor.name},
+                },
+                status=status.HTTP_201_CREATED,
             )
         except (ValidationError, InventoryMaterial.DoesNotExist, InventoryLocation.DoesNotExist) as exc:
             return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)

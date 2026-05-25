@@ -76,6 +76,32 @@ interface PostedReceipt {
     movement_count: number
 }
 
+interface RollReviewRow {
+    excel_row?: number | string
+    supplier_roll_no?: string
+    label_id?: string
+    material_code?: string
+    material_name?: string
+    batch_no?: string
+    gross_weight_kg?: string | number
+    tare_weight_kg?: string | number
+    net_weight_kg?: string | number
+    width_mm?: string | number
+    thickness_micron?: string | number
+    length_m?: string | number
+    grade_id?: string
+    grade?: string
+    unit_cost?: string | number
+    mfg_date?: string
+    best_before?: string
+    qc_status?: string
+    location_id?: string
+    location_code?: string
+    location_name?: string
+    plant_code?: string
+    remarks?: string
+}
+
 const FRESH_ITEM = (): ItemDraft => ({
     id: `it-${Math.random().toString(36).slice(2, 8)}`,
     material_code: "",
@@ -162,8 +188,8 @@ export function GrnSmartV36() {
     const [gstPct, setGstPct] = React.useState("18")
     const [remarks, setRemarks] = React.useState("")
     const [lastPosted, setLastPosted] = React.useState<PostedReceipt | null>(null)
-    const [rollUploadFile, setRollUploadFile] = React.useState<File | null>(null)
-    const [rollUploadPreview, setRollUploadPreview] = React.useState<{ rows: number; qty: number; value: number; vendorName?: string } | null>(null)
+    const [rollUploadPreview, setRollUploadPreview] = React.useState<{ rows: number; qty: number; value: number; vendorName?: string; vendorCode?: string; invoiceNo?: string; invoiceDate?: string } | null>(null)
+    const [rollReviewRows, setRollReviewRows] = React.useState<RollReviewRow[]>([])
 
     const vendorsQ = useQuery({ queryKey: ["vendors"], queryFn: () => inventoryService.getVendors(), staleTime: 60_000 })
     const locationsQ = useQuery({ queryKey: ["locations"], queryFn: () => inventoryService.getLocations(), staleTime: 60_000 })
@@ -296,10 +322,14 @@ export function GrnSmartV36() {
                     qty: Number(receipt?.totals?.qty || 0) || 0,
                     value: Number(receipt?.totals?.value || 0) || 0,
                     vendorName: receipt?.vendor?.name,
+                    vendorCode: receipt?.vendor?.code,
+                    invoiceNo: receipt?.vendor_invoice_no,
+                    invoiceDate: receipt?.vendor_invoice_date,
                 })
+                setRollReviewRows(Array.isArray(receipt?.review_rows) ? receipt.review_rows : [])
                 toast({
                     title: "Excel validated",
-                    description: `${Number(receipt?.rows || 0)} rolls · ${Number(receipt?.totals?.qty || 0).toLocaleString()} KG ready to post`,
+                    description: `${Number(receipt?.rows || 0)} rolls · ${Number(receipt?.totals?.qty || 0).toLocaleString()} KG ready for review`,
                 })
                 return
             }
@@ -315,8 +345,8 @@ export function GrnSmartV36() {
             queryClient.invalidateQueries({ queryKey: ["grn-history"] })
             setKlass("ROLL")
             setLastPosted(posted)
-            setRollUploadFile(null)
             setRollUploadPreview(null)
+            setRollReviewRows([])
             toast({ title: "Roll GRN uploaded", description: `${posted.grn_no} · ${posted.movement_count} rolls · ${posted.total_qty.toLocaleString()} KG` })
         },
         onError: (err: any) => {
@@ -353,9 +383,54 @@ export function GrnSmartV36() {
         }),
     })
 
+    const postRollReviewMutation = useMutation({
+        mutationFn: () => inventoryService.postRollGrnReview({
+            vendor_id: vendorId || undefined,
+            vendor: rollUploadPreview?.vendorCode || undefined,
+            warehouse_id: warehouseId || undefined,
+            vendor_invoice_no: vendorInvoiceNo || rollUploadPreview?.invoiceNo || undefined,
+            vendor_invoice_date: vendorInvoiceDate || rollUploadPreview?.invoiceDate || undefined,
+            review_rows: rollReviewRows,
+        }),
+        onSuccess: (receipt: any) => {
+            const posted: PostedReceipt = {
+                grn_no: String(receipt?.grn_no || "GRN posted"),
+                klass: "ROLL",
+                total_qty: Number(receipt?.totals?.qty ?? 0) || 0,
+                uom: "KG",
+                movement_count: Number(receipt?.rows || (Array.isArray(receipt?.stock_movements) ? receipt.stock_movements.length : 0)) || 0,
+            }
+            queryClient.invalidateQueries({ queryKey: ["inventory-v36-snapshot"] })
+            queryClient.invalidateQueries({ queryKey: ["inventory-rolls"] })
+            queryClient.invalidateQueries({ queryKey: ["grn-history"] })
+            setKlass("ROLL")
+            setLastPosted(posted)
+            setRollUploadPreview(null)
+            setRollReviewRows([])
+            toast({ title: "Roll GRN posted", description: `${posted.grn_no} · ${posted.movement_count} rolls · ${posted.total_qty.toLocaleString()} KG` })
+        },
+        onError: (err: any) => {
+            const details = err?.response?.data?.errors
+            const first = Array.isArray(details) && details.length ? `Row ${details[0]?.row || "?"}: ${details[0]?.error || ""}` : ""
+            toast({
+                title: "Review posting failed",
+                description: first || describeApiError(err, "Fix the review rows and post again"),
+                variant: "destructive",
+            })
+        },
+    })
+
+    const updateRollReviewRow = React.useCallback((index: number, patch: Partial<RollReviewRow>) => {
+        setRollReviewRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))
+    }, [])
+
+    const removeRollReviewRow = React.useCallback((index: number) => {
+        setRollReviewRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))
+    }, [])
+
     const validateRollUploadFile = React.useCallback((file: File) => {
-        setRollUploadFile(file)
         setRollUploadPreview(null)
+        setRollReviewRows([])
         uploadRollsMutation.mutate({ file, dryRun: true })
     }, [uploadRollsMutation])
 
@@ -521,15 +596,15 @@ export function GrnSmartV36() {
                                 />
                             )}
                             {klass === "ROLL" && rollUploadPreview && (
-                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-sm">
+                                    <div className="flex flex-col gap-3 border-b border-emerald-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Excel validated</div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Excel validated · review before posting</div>
                                             <div className="mt-1 font-bold">
                                                 {rollUploadPreview.rows.toLocaleString()} rolls · {rollUploadPreview.qty.toLocaleString()} KG
                                                 {rollUploadPreview.vendorName ? ` · ${rollUploadPreview.vendorName}` : ""}
                                             </div>
-                                            <div className="mt-0.5 text-xs text-emerald-800">Review the uploaded workbook. Posting will create all rolls in one GRN.</div>
+                                            <div className="mt-0.5 text-xs text-emerald-800">Edit any row below. Posting creates stock only from this reviewed list.</div>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button
@@ -538,8 +613,8 @@ export function GrnSmartV36() {
                                                 size="sm"
                                                 className="rounded-lg border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100"
                                                 onClick={() => {
-                                                    setRollUploadFile(null)
                                                     setRollUploadPreview(null)
+                                                    setRollReviewRows([])
                                                 }}
                                             >
                                                 Cancel
@@ -547,18 +622,55 @@ export function GrnSmartV36() {
                                             <Button
                                                 type="button"
                                                 size="sm"
-                                                disabled={!rollUploadFile || uploadRollsMutation.isPending}
-                                                onClick={() => rollUploadFile && uploadRollsMutation.mutate({ file: rollUploadFile, dryRun: false })}
+                                                disabled={!rollReviewRows.length || postRollReviewMutation.isPending}
+                                                onClick={() => postRollReviewMutation.mutate()}
                                                 className="rounded-lg bg-emerald-700 text-white hover:bg-emerald-800"
                                             >
-                                                {uploadRollsMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="mr-1 h-3 w-3" />}
+                                                {postRollReviewMutation.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="mr-1 h-3 w-3" />}
                                                 Post GRN
                                             </Button>
                                         </div>
                                     </div>
+                                    <div className="mt-3 overflow-x-auto rounded-xl border border-emerald-100 bg-white">
+                                        <table className="min-w-[1500px] text-left text-[11px]">
+                                            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                                                <tr>
+                                                    {["Row", "ERP label", "Supplier roll", "Variant code", "Variant name", "Lot", "Gross", "Tare", "Net", "Width", "Micron", "Location", "Cost", "QC", "Remarks", ""].map((head) => (
+                                                        <th key={head} className="px-2 py-2">{head}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {rollReviewRows.map((row, index) => (
+                                                    <tr key={`${row.excel_row || index}-${index}`} className="border-t border-slate-100 align-top">
+                                                        <td className="px-2 py-2 font-mono text-slate-500">{row.excel_row || index + 1}</td>
+                                                        <td className="px-2 py-2"><Input value={String(row.label_id || "")} onChange={(e) => updateRollReviewRow(index, { label_id: e.target.value })} className="h-8 min-w-[130px] rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.supplier_roll_no || "")} onChange={(e) => updateRollReviewRow(index, { supplier_roll_no: e.target.value })} className="h-8 min-w-[130px] rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.material_code || "")} onChange={(e) => updateRollReviewRow(index, { material_code: e.target.value })} className="h-8 min-w-[180px] rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.material_name || "")} onChange={(e) => updateRollReviewRow(index, { material_name: e.target.value })} className="h-8 min-w-[260px] rounded-lg text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.batch_no || "")} onChange={(e) => updateRollReviewRow(index, { batch_no: e.target.value })} className="h-8 min-w-[130px] rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.gross_weight_kg ?? "")} onChange={(e) => updateRollReviewRow(index, { gross_weight_kg: e.target.value })} className="h-8 w-24 rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.tare_weight_kg ?? "")} onChange={(e) => updateRollReviewRow(index, { tare_weight_kg: e.target.value })} className="h-8 w-24 rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.net_weight_kg ?? "")} onChange={(e) => updateRollReviewRow(index, { net_weight_kg: e.target.value })} className="h-8 w-24 rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.width_mm ?? "")} onChange={(e) => updateRollReviewRow(index, { width_mm: e.target.value })} className="h-8 w-24 rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.thickness_micron ?? "")} onChange={(e) => updateRollReviewRow(index, { thickness_micron: e.target.value })} className="h-8 w-24 rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.location_code || "")} onChange={(e) => updateRollReviewRow(index, { location_code: e.target.value })} title={row.location_name || ""} className="h-8 min-w-[130px] rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.unit_cost ?? "")} onChange={(e) => updateRollReviewRow(index, { unit_cost: e.target.value })} className="h-8 w-24 rounded-lg font-mono text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.qc_status || "PENDING")} onChange={(e) => updateRollReviewRow(index, { qc_status: e.target.value })} className="h-8 w-28 rounded-lg text-xs" /></td>
+                                                        <td className="px-2 py-2"><Input value={String(row.remarks || "")} onChange={(e) => updateRollReviewRow(index, { remarks: e.target.value })} className="h-8 min-w-[200px] rounded-lg text-xs" /></td>
+                                                        <td className="px-2 py-2">
+                                                            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 rounded-lg p-0 text-rose-600" onClick={() => removeRollReviewRow(index)}>
+                                                                <X className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
-                            {items.map((it, idx) => (
+                            {rollReviewRows.length === 0 && items.map((it, idx) => (
                                 <ItemEditor
                                     key={it.id}
                                     item={it}

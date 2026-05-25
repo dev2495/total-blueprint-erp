@@ -583,6 +583,18 @@ export const inventoryService = {
         return data as Blob
     },
 
+    postRollGrnReview: async (payload: {
+        vendor_id?: string
+        vendor?: string
+        warehouse_id?: string
+        vendor_invoice_no?: string
+        vendor_invoice_date?: string
+        review_rows: Array<Record<string, any>>
+    }) => {
+        const { data } = await api.post("/api/inventory/grn/post-roll-review/", payload)
+        return data
+    },
+
     getPackagingStock: async (params?: any) => {
         const { data } = await api.get("/api/inventory/packaging/stock/", { params })
         return unwrapList<PackagingStockRow>(data)
