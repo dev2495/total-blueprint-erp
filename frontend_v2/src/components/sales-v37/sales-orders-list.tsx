@@ -63,6 +63,14 @@ import { productMasterService, type ProductMaster } from "@/services/product-mas
 type AgeBucket = "fresh" | "watch" | "aged"
 type Density = "comfortable" | "compact"
 type Tab = "queue" | "history" | "cancelled"
+type AxisChipTone = "slate" | "violet" | "emerald" | "blue" | "fuchsia" | "amber" | "rose" | "cyan"
+
+interface AxisChip {
+    key: string
+    label: string
+    tone: AxisChipTone
+    title?: string
+}
 
 type StatusKey =
     | "DRAFT" | "CONFIRMED" | "PLANNING_REQUIRED" | "PLANNED" | "RELEASED"
@@ -185,6 +193,264 @@ function unwrapOrders(raw: any): SalesOrder[] {
     if (Array.isArray(raw?.results)) return raw.results
     if (Array.isArray(raw?.items)) return raw.items
     return []
+}
+
+function asRecord(value: unknown): Record<string, any> {
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {}
+}
+
+function asArray(value: unknown): any[] {
+    return Array.isArray(value) ? value : []
+}
+
+function cleanText(value: unknown): string {
+    const text = String(value ?? "").trim()
+    return text && !["null", "undefined", "none", "nan", "—"].includes(text.toLowerCase()) ? text : ""
+}
+
+function compactNumber(value: unknown): string {
+    const n = Number(value)
+    if (!Number.isFinite(n) || n <= 0) return ""
+    return n.toLocaleString("en-IN", { maximumFractionDigits: n % 1 ? 2 : 0 })
+}
+
+function humanAxisName(key: string): string {
+    const mapped: Record<string, string> = {
+        size: "Size",
+        pouch_style: "Style",
+        roll_form: "Roll type",
+        layer_thicknesses: "Thickness",
+        layer_grades: "Grade",
+        layer_widths: "Layer width",
+        addons: "Add-on",
+        addon: "Add-on",
+        packaging: "Packing",
+        packaging_inner: "Inner pack",
+        packaging_outer: "Outer pack",
+        pod: "POD",
+        pod_variant: "POD",
+        artwork_mode: "Artwork",
+        lane_up: "Lane-up",
+        lanes: "Lane-up",
+    }
+    const normalized = key.trim()
+    return mapped[normalized] || normalized.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())
+}
+
+function chipToneClasses(tone: AxisChipTone): string {
+    switch (tone) {
+        case "violet": return "bg-violet-50 text-violet-800 ring-violet-200"
+        case "emerald": return "bg-emerald-50 text-emerald-800 ring-emerald-200"
+        case "blue": return "bg-blue-50 text-blue-800 ring-blue-200"
+        case "fuchsia": return "bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200"
+        case "amber": return "bg-amber-50 text-amber-800 ring-amber-200"
+        case "rose": return "bg-rose-50 text-rose-800 ring-rose-200"
+        case "cyan": return "bg-cyan-50 text-cyan-800 ring-cyan-200"
+        default: return "bg-slate-50 text-slate-800 ring-slate-200"
+    }
+}
+
+function labelFromRow(row: Record<string, any>, fallback = ""): string {
+    return cleanText(
+        row.label ||
+        row.name ||
+        row.addon_name ||
+        row.material_name ||
+        row.pod_sku_name ||
+        row.packaging_name ||
+        row.code ||
+        row.addon_code ||
+        row.material_code ||
+        row.pod_sku_code ||
+        row.packaging_code ||
+        row.value ||
+        row.id ||
+        fallback
+    )
+}
+
+function axisScalarLabels(value: unknown): string[] {
+    if (value === null || value === undefined || value === "") return []
+    if (Array.isArray(value)) return value.flatMap(axisScalarLabels)
+    if (typeof value === "object") {
+        const row = asRecord(value)
+        const entries = Object.entries(row)
+        if (entries.length > 0 && entries.every(([, child]) => child === null || typeof child !== "object" || Array.isArray(child))) {
+            const direct = labelFromRow(row)
+            if (direct && direct !== "[object Object]") return [direct]
+        }
+        return entries.flatMap(([layerKey, child]) => axisScalarLabels(child).map((label) => `L${layerKey}: ${label}`))
+    }
+    return [cleanText(value)].filter(Boolean)
+}
+
+function pushUnique(chips: AxisChip[], seen: Set<string>, label: string, tone: AxisChipTone, keyPrefix: string, title?: string) {
+    const clean = cleanText(label)
+    if (!clean) return
+    const dedupeKey = `${keyPrefix}:${clean.toLowerCase()}`
+    if (seen.has(dedupeKey)) return
+    seen.add(dedupeKey)
+    chips.push({ key: `${keyPrefix}-${chips.length}-${clean}`, label: clean, tone, title: title || clean })
+}
+
+function geometryFromLine(line: any, summary?: SalesOrder["item_summary"]) {
+    const geometry = asRecord(line?.geometry_snapshot)
+    const base = asRecord(geometry.base)
+    const size = asRecord(summary?.size || summary?.spec_facets?.size)
+    const width = base.width_mm ?? geometry.width_mm ?? geometry.roll_width_mm ?? geometry.child_target_width_mm ?? size.width_mm
+    const height = base.height_mm ?? geometry.height_mm ?? size.height_mm
+    const gusset = base.gusset_mm ?? geometry.gusset_mm ?? size.gusset_mm
+    const rollWidth = geometry.final_web_width_mm ?? geometry.planned_parent_width_mm ?? geometry.roll_width_mm ?? geometry.child_target_width_mm ?? base.roll_width_mm ?? width
+    return {
+        raw: geometry,
+        base,
+        finishedGoodType: cleanText(summary?.finished_good_type || size.finished_good_type || geometry.finished_good_type || line?.finished_good_type).toUpperCase(),
+        rollForm: cleanText(size.roll_form || geometry.roll_form || line?.roll_form || summary?.size_or_form).toUpperCase(),
+        pouchStyle: cleanText(geometry.pouch_style || base.pouch_style || geometry.pouch_style_code || line?.pouch_style),
+        width,
+        height,
+        gusset,
+        rollWidth,
+        label: cleanText(size.label || summary?.size_or_form),
+    }
+}
+
+function buildLineAxisChips(line: any, summary?: SalesOrder["item_summary"]): AxisChip[] {
+    const chips: AxisChip[] = []
+    const seen = new Set<string>()
+    const geometry = geometryFromLine(line, summary)
+    const fgType = geometry.finishedGoodType || cleanText(summary?.finished_good_type).toUpperCase()
+    const axisValues = asRecord(line?.axis_values || summary?.spec_facets?.axis_values)
+    const lineName = cleanText(line?.line_name || summary?.variant_name)
+
+    if (line?.product_master_code || summary?.spec_facets?.product_master_code) {
+        pushUnique(chips, seen, cleanText(line?.product_master_code || summary?.spec_facets?.product_master_code), "violet", "master")
+    } else if (summary?.template_tag) {
+        pushUnique(chips, seen, summary.template_tag, "violet", "template")
+    }
+
+    if (fgType === "ROLL") {
+        const form = geometry.rollForm || cleanText(axisValues.roll_form).toUpperCase() || "ROLL"
+        pushUnique(chips, seen, `Roll · ${form}`, "slate", "fg")
+        const width = compactNumber(geometry.rollWidth)
+        if (width) pushUnique(chips, seen, `Web ${width} mm`, "emerald", "roll-width")
+    } else if (fgType) {
+        pushUnique(chips, seen, fgType === "POUCH" ? "Pouch" : fgType, "slate", "fg")
+    }
+
+    const sizeLabel = geometry.label && !["ROLL", "FLAT", "FOLDED", "TUBING", "SHEET", "TUBE"].includes(geometry.label.toUpperCase())
+        ? geometry.label
+        : [compactNumber(geometry.width), compactNumber(geometry.height)].filter(Boolean).join(" x ")
+    if (sizeLabel && fgType !== "ROLL") {
+        pushUnique(chips, seen, sizeLabel.toLowerCase().includes("mm") ? sizeLabel : `${sizeLabel} mm`, "emerald", "size")
+    }
+    if (geometry.pouchStyle) pushUnique(chips, seen, `Style ${geometry.pouchStyle}`, "cyan", "style")
+    if (compactNumber(geometry.gusset)) pushUnique(chips, seen, `Gusset ${compactNumber(geometry.gusset)} mm`, "cyan", "gusset")
+
+    const layerRows = asArray(summary?.layers?.length ? summary.layers : summary?.spec_facets?.layers?.length ? summary.spec_facets.layers : line?.layer_snapshot)
+    layerRows.forEach((layer, idx) => {
+        const row = asRecord(layer)
+        const label = cleanText(row.label)
+        if (label) {
+            pushUnique(chips, seen, label, "blue", `layer-${idx + 1}`)
+            return
+        }
+        const parts = [
+            `L${idx + 1}`,
+            cleanText(row.variant_code || row.material_code || row.family_code || row.code || row.variant_name || row.material_name || row.family_name || row.name),
+            compactNumber(row.thickness_micron || row.thickness) ? `${compactNumber(row.thickness_micron || row.thickness)}u` : "",
+            cleanText(row.grade || row.grade_name || row.grade_code),
+            compactNumber(row.roll_width_mm || row.width_mm || row.width) ? `${compactNumber(row.roll_width_mm || row.width_mm || row.width)}mm` : "",
+        ].filter(Boolean).join(" · ")
+        pushUnique(chips, seen, parts, "blue", `layer-${idx + 1}`)
+    })
+
+    const printingSummary = cleanText(summary?.printing_summary)
+    if (printingSummary && printingSummary.toLowerCase() !== "no print") {
+        pushUnique(chips, seen, printingSummary, "rose", "print")
+    }
+
+    const podLabels = [
+        ...asArray(summary?.pod_labels),
+        ...axisScalarLabels(axisValues.pod),
+        ...axisScalarLabels(axisValues.pod_variant),
+    ]
+    podLabels.forEach((label) => pushUnique(chips, seen, label.startsWith("POD") ? label : `POD ${label}`, "fuchsia", "pod"))
+
+    const addonLabels = [
+        ...asArray(summary?.addon_labels),
+        ...axisScalarLabels(axisValues.addons),
+        ...asArray(line?.addons_snapshot).map((row) => labelFromRow(asRecord(row))),
+    ]
+    addonLabels.forEach((label) => pushUnique(chips, seen, label, "amber", "addon"))
+
+    const packagingSummary = cleanText(summary?.packaging_summary)
+    if (packagingSummary && packagingSummary.toLowerCase() !== "standard pack") {
+        pushUnique(chips, seen, packagingSummary, "cyan", "packaging")
+    }
+    ;["packaging", "packaging_inner", "packaging_outer"].forEach((key) => {
+        axisScalarLabels(axisValues[key]).forEach((label) => pushUnique(chips, seen, `${humanAxisName(key)} ${label}`, "cyan", key))
+    })
+
+    const hiddenAxis = new Set([
+        "size",
+        "roll_form",
+        "pouch_style",
+        "layer_thicknesses",
+        "layer_grades",
+        "layer_widths",
+        "layer_materials",
+        "layer_material_overrides",
+        "film_variant_by_layer",
+        "layer_film_variants",
+        "material_by_layer",
+        "addons",
+        "addon",
+        "pod",
+        "pod_variant",
+        "packaging",
+        "packaging_inner",
+        "packaging_outer",
+    ])
+    Object.entries(axisValues).forEach(([key, value]) => {
+        if (hiddenAxis.has(key)) return
+        axisScalarLabels(value).forEach((label) => pushUnique(chips, seen, `${humanAxisName(key)} ${label}`, "slate", `axis-${key}`))
+    })
+
+    if (!chips.length && lineName) pushUnique(chips, seen, lineName, "slate", "line")
+    return chips
+}
+
+function buildOrderAxisChips(order: SalesOrder): AxisChip[] {
+    const firstLine = Array.isArray(order.items) && order.items.length ? order.items[0] : {}
+    const chips = buildLineAxisChips(firstLine, order.item_summary)
+    const lineCount = Number(order.item_summary?.line_count || order.items?.length || 0)
+    if (lineCount > 1) {
+        chips.unshift({ key: "line-count", label: `${lineCount} lines`, tone: "slate", title: `${lineCount} order lines` })
+    }
+    return chips
+}
+
+function AxisChipStrip({ chips, compact = false, className }: { chips: AxisChip[]; compact?: boolean; className?: string }) {
+    if (!chips.length) return null
+    return (
+        <div className={cn("flex flex-wrap items-center gap-1", className)}>
+            {chips.map((chip) => (
+                <span
+                    key={chip.key}
+                    title={chip.title || chip.label}
+                    className={cn(
+                        "inline-flex max-w-full items-center rounded-md ring-1",
+                        compact ? "px-1.5 py-0.5 text-[9px]" : "px-1.5 py-0.5 text-[10px]",
+                        "font-mono font-bold leading-4",
+                        chipToneClasses(chip.tone),
+                    )}
+                >
+                    <span className="truncate">{chip.label}</span>
+                </span>
+            ))}
+        </div>
+    )
 }
 
 // ─── Root component ────────────────────────────────────────────────────
@@ -503,7 +769,7 @@ export function SalesOrdersListWorkspace() {
                 ) : (
                     <>
                         {/* Desktop column headers — hidden on mobile */}
-                        <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_9.5rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                        <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1.25fr)_minmax(0,2.25fr)_minmax(0,1.05fr)_8rem_9.5rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
                             <div><input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-3.5 w-3.5 rounded border-slate-300" /></div>
                             <div>Customer · Order #</div>
                             <div>Product master · variant tuple</div>
@@ -904,7 +1170,7 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
     const rowPad = density === "compact" ? "py-2" : "py-3"
     const isCancelled = statusKey === "CANCELLED"
     const canCancel = ["DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"].includes(statusKey)
-    const masterCode = order.item_summary?.template_tag || (order.item_summary?.variant_code || "").split("-")[0] || ""
+    const axisChips = buildOrderAxisChips(order)
 
     return (
         <article className={cn("border-b border-slate-100 transition", rowHoverBg, isCancelled && "opacity-70 hover:opacity-100")}>
@@ -925,11 +1191,7 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
                     <div className="mt-1.5 text-[11px] font-bold text-slate-700 truncate">
                         {order.item_summary?.variant_name || order.line_name || order.item_summary?.template_name || "—"}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-mono">
-                        {masterCode ? <span className="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">{masterCode}</span> : null}
-                        {order.item_summary?.size_or_form ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">{order.item_summary.size_or_form}</span> : null}
-                        {(order.item_summary?.pod_labels || []).slice(0, 1).map((l: string) => <span key={l} className="rounded bg-fuchsia-50 px-1.5 py-0.5 font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">{l}</span>)}
-                    </div>
+                    <AxisChipStrip chips={axisChips} compact className="mt-1" />
                     <div className="mt-1.5 flex items-center justify-between text-[11px]">
                         <span className="font-mono font-black text-slate-900">{fmtKg(totalKg)} <span className="text-[10px] font-bold text-slate-500">KG</span></span>
                         <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-black ring-1", STATUS_PILL_TONE[statusKey])}>
@@ -956,7 +1218,7 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
             </div>
 
             {/* Desktop layout (table-ish) */}
-            <div className={cn("hidden md:grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_8rem_9.5rem] gap-3 px-4 items-center", rowPad)}>
+            <div className={cn("hidden md:grid grid-cols-[2.5rem_minmax(0,1.25fr)_minmax(0,2.25fr)_minmax(0,1.05fr)_8rem_9.5rem] gap-3 px-4 items-center", rowPad)}>
                 <div><input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3.5 w-3.5 rounded border-slate-300" /></div>
                 <button onClick={onToggleExpand} className="min-w-0 flex items-center gap-2.5 text-left">
                     <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-xl text-white font-black text-[11px]", customerAvatarTone(age))}>{customerInitials(order.customer_name || "")}</span>
@@ -973,13 +1235,7 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
                     <div className="text-[12px] font-bold text-slate-900 truncate">
                         {order.item_summary?.variant_name || order.line_name || order.item_summary?.template_name || "—"}
                     </div>
-                    <div className="flex items-center gap-1 mt-0.5 text-[10px] font-mono flex-wrap">
-                        {masterCode ? <span className="rounded bg-violet-50 px-1.5 py-0.5 font-black text-violet-800 ring-1 ring-violet-200">{masterCode}</span> : null}
-                        {order.item_summary?.size_or_form ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">{order.item_summary.size_or_form}</span> : null}
-                        {order.item_summary?.layer_labels?.slice(0, 1).map((l: string) => <span key={l} className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200 truncate max-w-[140px]">{l}</span>)}
-                        {(order.item_summary?.pod_labels || []).slice(0, 1).map((l: string) => <span key={`p-${l}`} className="rounded bg-fuchsia-50 px-1.5 py-0.5 font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">{l}</span>)}
-                        {(order.item_summary?.addon_labels || []).slice(0, 1).map((l: string) => <span key={`a-${l}`} className="rounded bg-amber-50 px-1.5 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">{l}</span>)}
-                    </div>
+                    <AxisChipStrip chips={axisChips} className="mt-1" />
                 </button>
                 <div className="min-w-0">
                     <div className="text-[12px] font-mono font-black text-slate-900">{fmtKg(totalKg)} <span className="text-[10px] font-bold text-slate-500">KG</span></div>
@@ -1053,17 +1309,19 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Line items · {(full.items || []).length}</div>
                         <div className="space-y-1.5">
-                            {(full.items || []).map((it: any, i: number) => (
-                                <div key={it.id || i} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px]">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="font-mono font-bold text-slate-900 truncate">Line {i + 1} · {it.product_master_code || it.variant_code || "—"}</span>
-                                        <span className="font-mono font-bold text-slate-700">{fmtKg(it.qty_value || it.ordered_qty || 0)} {it.qty_uom || "KG"}{it.unit_price ? ` · ${fmtMoney(Number(it.unit_price) * Number(it.qty_value || 0))}` : ""}</span>
+                            {(full.items || []).map((it: any, i: number) => {
+                                const lineChips = buildLineAxisChips(it)
+                                const lineTitle = cleanText(it.line_name || it.product_variant_code || it.sku_variant_code || it.product_master_code || it.template_name || `Line ${i + 1}`)
+                                return (
+                                    <div key={it.id || i} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px]">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-mono font-bold text-slate-900 truncate">Line {i + 1} · {lineTitle || "—"}</span>
+                                            <span className="font-mono font-bold text-slate-700">{fmtKg(it.qty_value || it.ordered_qty || 0)} {it.qty_uom || "KG"}{it.unit_price ? ` · ${fmtMoney(Number(it.unit_price) * Number(it.qty_value || 0))}` : ""}</span>
+                                        </div>
+                                        <AxisChipStrip chips={lineChips} compact className="mt-1.5" />
                                     </div>
-                                    <div className="text-slate-500 mt-1 truncate">
-                                        {[it.size_code, it.variant_name, it.printing_summary, ...(Array.isArray(it.addons) ? it.addons : [])].filter(Boolean).join(" · ") || "—"}
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                             {(!full.items || full.items.length === 0) ? <div className="text-[11px] italic text-slate-500">No line items captured.</div> : null}
                         </div>
                     </div>
