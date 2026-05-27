@@ -63,6 +63,7 @@ export interface MRPDraftActionResponse extends MRPSuggestion {
     action_status: string;
     draft_ref: string;
     action: string;
+    po_id?: string;
 }
 
 export const mrpService = {
@@ -102,6 +103,10 @@ export const mrpService = {
     },
     createDraftTransfer: async (suggestionId: string): Promise<MRPDraftActionResponse> => {
         const { data } = await api.post(`/api/mrp/suggestions/${suggestionId}/create-draft-transfer/`);
+        return data;
+    },
+    bulkDraftPO: async (suggestionIds: string[]): Promise<{ results: MRPDraftActionResponse[]; errors: Array<{ suggestion_id: string; error: string }> }> => {
+        const { data } = await api.post(`/api/mrp/suggestions/bulk-draft-po/`, { suggestion_ids: suggestionIds });
         return data;
     },
 };

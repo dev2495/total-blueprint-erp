@@ -67,3 +67,24 @@ class MRPSuggestionViewSet(viewsets.ReadOnlyModelViewSet):
             return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='bulk-draft-po')
+    def bulk_draft_po(self, request):
+        ids = request.data.get('suggestion_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return Response({"error": "suggestion_ids (list) required."}, status=400)
+        results = []
+        errors = []
+        for sid in ids:
+            try:
+                sug = MRPSuggestion.objects.get(pk=sid)
+                if str(sug.type or '').upper() != 'PURCHASE':
+                    errors.append({"suggestion_id": str(sid), "error": "Not a PURCHASE suggestion."})
+                    continue
+                payload = MRPService.create_suggestion_draft(sug, 'po', request.user)
+                results.append(payload)
+            except MRPSuggestion.DoesNotExist:
+                errors.append({"suggestion_id": str(sid), "error": "Not found."})
+            except Exception as e:
+                errors.append({"suggestion_id": str(sid), "error": str(e)})
+        return Response({"results": results, "errors": errors})

@@ -1,0 +1,181 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import HttpResponse
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+from apps.inventory.models import Vendor
+from apps.procurement.models import (
+    PurchaseOrder,
+    PurchaseOrderReceipt,
+)
+from apps.procurement.serializers import (
+    PurchaseOrderListSerializer,
+    PurchaseOrderReceiptCreateSerializer,
+    PurchaseOrderReceiptSerializer,
+    PurchaseOrderSerializer,
+)
+from apps.procurement.services.po_pdf import PurchaseOrderPDFService
+from apps.procurement.services.po_receipt import PurchaseOrderReceiptService
+from apps.procurement.services.purchase_order import PurchaseOrderService
+from apps.procurement.services.vendor_performance import VendorPerformanceService
+
+
+class PurchaseOrderViewSet(viewsets.ModelViewSet):
+    queryset = PurchaseOrder.objects.all().select_related("vendor", "plant").prefetch_related("items", "items__material")
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return PurchaseOrderListSerializer
+        return PurchaseOrderSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        status_filter = params.get("status")
+        vendor_filter = params.get("vendor")
+        search = params.get("search")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if vendor_filter:
+            qs = qs.filter(vendor_id=vendor_filter)
+        if search:
+            qs = qs.filter(code__icontains=search)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def send(self, request, pk=None):
+        po = self.get_object()
+        channel = request.data.get("channel", "pdf_only")
+        try:
+            PurchaseOrderService.send(po, request.user, channel=channel)
+        except DjangoValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        po.refresh_from_db()
+        return Response(PurchaseOrderSerializer(po, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def acknowledge(self, request, pk=None):
+        po = self.get_object()
+        ack_ref = request.data.get("ack_ref", "")
+        ack_date = request.data.get("ack_date") or None
+        try:
+            PurchaseOrderService.acknowledge(po, request.user, ack_ref, ack_date)
+        except DjangoValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        po.refresh_from_db()
+        return Response(PurchaseOrderSerializer(po, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        po = self.get_object()
+        reason = request.data.get("reason", "")
+        try:
+            PurchaseOrderService.cancel(po, request.user, reason)
+        except DjangoValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        po.refresh_from_db()
+        return Response(PurchaseOrderSerializer(po, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="close_short")
+    def close_short(self, request, pk=None):
+        po = self.get_object()
+        line_id = request.data.get("line_id") or None
+        reason = request.data.get("reason", "")
+        try:
+            PurchaseOrderService.close_short(po, request.user, line_id, reason)
+        except DjangoValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        po.refresh_from_db()
+        return Response(PurchaseOrderSerializer(po, context={"request": request}).data)
+
+    @action(detail=True, methods=["get"])
+    def pdf(self, request, pk=None):
+        po = self.get_object()
+        try:
+            data = PurchaseOrderPDFService.render_pdf_bytes(po)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="{po.code}.pdf"'
+        return resp
+
+    @action(detail=False, methods=["post"], url_path="from_mrp")
+    def from_mrp(self, request):
+        from apps.mrp.models import MRPSuggestion
+        from apps.mrp.services import MRPService
+
+        suggestion_id = request.data.get("suggestion_id")
+        if not suggestion_id:
+            return Response({"error": "suggestion_id is required."}, status=400)
+        try:
+            sug = MRPSuggestion.objects.get(pk=suggestion_id)
+        except MRPSuggestion.DoesNotExist:
+            return Response({"error": "Suggestion not found."}, status=404)
+        try:
+            payload = MRPService.create_suggestion_draft(sug, "po", user=request.user)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+        po_id = payload.get("po_id")
+        if po_id:
+            try:
+                po = PurchaseOrder.objects.get(pk=po_id)
+                data = PurchaseOrderSerializer(po, context={"request": request}).data
+                data.update(payload)
+                return Response(data, status=status.HTTP_201_CREATED)
+            except PurchaseOrder.DoesNotExist:
+                pass
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="vendor_performance")
+    def vendor_performance(self, request):
+        vendor_id = request.query_params.get("vendor")
+        if not vendor_id:
+            return Response({"error": "vendor query param is required."}, status=400)
+        try:
+            vendor = Vendor.objects.get(pk=vendor_id)
+        except Vendor.DoesNotExist:
+            return Response({"error": "Vendor not found."}, status=404)
+        return Response(VendorPerformanceService.compute(vendor))
+
+
+class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
+    queryset = PurchaseOrderReceipt.objects.all().select_related(
+        "purchase_order", "plant"
+    ).prefetch_related("lines")
+    serializer_class = PurchaseOrderReceiptSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        po = self.request.query_params.get("purchase_order")
+        if po:
+            qs = qs.filter(purchase_order_id=po)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        ser = PurchaseOrderReceiptCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        try:
+            po = PurchaseOrder.objects.get(pk=data["purchase_order"])
+        except PurchaseOrder.DoesNotExist:
+            return Response({"error": "Purchase order not found"}, status=404)
+        try:
+            receipt = PurchaseOrderReceiptService.create(
+                po=po,
+                user=request.user,
+                lines_data=[dict(ld) for ld in data["lines"]],
+                vendor_invoice_no=data.get("vendor_invoice_no", ""),
+                vendor_invoice_date=data.get("vendor_invoice_date"),
+                vehicle_no=data.get("vehicle_no", ""),
+                driver_name=data.get("driver_name", ""),
+                lr_no=data.get("lr_no", ""),
+                notes=data.get("notes", ""),
+                quality_status=data.get("quality_status", "PENDING"),
+            )
+        except DjangoValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        return Response(
+            PurchaseOrderReceiptSerializer(receipt).data,
+            status=status.HTTP_201_CREATED,
+        )

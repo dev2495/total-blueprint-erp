@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -34,6 +35,7 @@ import {
   Split,
   TrendingDown,
   TrendingUp,
+  Zap,
 } from "lucide-react";
 
 import { mrpService, type MRPPlan, type MRPRequirement, type MRPSuggestion } from "@/services/mrp";
@@ -108,6 +110,7 @@ function buildPlanTrendData(plans: MRPPlan[]) {
 export default function MRPCenter() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [actionFilter, setActionFilter] = useState<string>("ALL");
@@ -186,9 +189,14 @@ export default function MRPCenter() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["mrp-suggestions", activePlan?.id] });
       toast({
-        title: "Draft created",
-        description: `Reference ${data.draft_ref} is ready for review.`,
+        title: data.po_id ? "Purchase Order drafted" : "Draft created",
+        description: data.po_id
+          ? `PO ${data.draft_ref} is ready — opening it now.`
+          : `Reference ${data.draft_ref} is ready for review.`,
       });
+      if (data.po_id) {
+        router.push(`/procurement/purchase-orders/${data.po_id}`);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -201,6 +209,40 @@ export default function MRPCenter() {
 
   const requirements = requirementsQuery.data || [];
   const suggestions = suggestionsQuery.data || [];
+
+  const highPurchasePending = useMemo(
+    () =>
+      suggestions.filter(
+        (s) =>
+          (s.priority || "").toString().toUpperCase() === "HIGH" &&
+          resolveAction(s) === "PURCHASE" &&
+          (s.action_status || "PENDING") === "PENDING"
+      ),
+    [suggestions]
+  );
+
+  const bulkDraftMutation = useMutation({
+    mutationFn: async (ids: string[]) => mrpService.bulkDraftPO(ids),
+    onSuccess: (data) => {
+      const created = (data?.results || []).length;
+      const failed = (data?.errors || []).length;
+      queryClient.invalidateQueries({ queryKey: ["mrp-suggestions"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-suggestions", activePlan?.id] });
+      toast({
+        title: failed > 0 ? `Drafted ${created} POs · ${failed} failed` : `Drafted ${created} POs`,
+        description: failed > 0
+          ? "Some suggestions could not be drafted. Review the execution board for details."
+          : "High-priority purchase suggestions converted to draft POs.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Bulk draft failed",
+        description: error?.response?.data?.error || error?.message || "Unable to draft POs in bulk.",
+      });
+    },
+  });
 
   const effectiveSupplyKg = activePlan ? toNumber(activePlan.total_available_kg) + toNumber(activePlan.total_wip_kg) : 0;
   const totalDemandKg = activePlan ? toNumber(activePlan.total_demand_kg) : 0;
@@ -355,6 +397,33 @@ export default function MRPCenter() {
 
               <Button
                 size="lg"
+                variant="outline"
+                className="h-11 rounded-2xl border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 px-5 font-semibold text-amber-900 shadow-sm transition hover:from-amber-100 hover:to-orange-100 disabled:opacity-60"
+                onClick={() => {
+                  if (highPurchasePending.length === 0) {
+                    toast({
+                      title: "No HIGH PURCHASE suggestions pending",
+                      description: "Run the planning engine or adjust priorities to surface high-priority buys.",
+                    });
+                    return;
+                  }
+                  if (typeof window !== "undefined" && !window.confirm(`Draft ${highPurchasePending.length} POs for HIGH-priority items?`)) {
+                    return;
+                  }
+                  bulkDraftMutation.mutate(highPurchasePending.map((s) => s.id));
+                }}
+                disabled={bulkDraftMutation.isPending}
+                title="Draft purchase orders for every pending HIGH-priority PURCHASE suggestion in this plan"
+              >
+                {bulkDraftMutation.isPending ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="mr-2 h-4 w-4" />
+                )}
+                Draft all HIGH ({highPurchasePending.length})
+              </Button>
+              <Button
+                size="lg"
                 className="h-11 rounded-2xl bg-slate-900 px-5 font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800"
                 onClick={() => runMutation.mutate()}
                 disabled={isRunning}
@@ -422,7 +491,7 @@ export default function MRPCenter() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="h-[360px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                   <AreaChart data={planTrendData} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="mrpDemand" x1="0" y1="0" x2="0" y2="1">
@@ -482,7 +551,7 @@ export default function MRPCenter() {
               </CardHeader>
               <CardContent className="grid gap-4 p-6 md:grid-cols-[1fr_1.1fr]">
                 <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                     <PieChart>
                       <Pie
                         data={actionMixData}
@@ -517,7 +586,7 @@ export default function MRPCenter() {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="h-[240px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                     <BarChart data={categoryRiskData} layout="vertical" margin={{ top: 8, right: 8, left: 12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
                       <XAxis type="number" tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} tickLine={false} axisLine={false} tick={{ fill: "#64748B", fontSize: 12 }} />

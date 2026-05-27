@@ -13,6 +13,7 @@ import {
     Droplets, Factory, IndianRupee, Package, RefreshCw, Shield,
     TrendingUp, Users, Zap, Activity, BarChart3, Clock, Layers,
     Truck, FileText, Flame, AlertCircle, Cpu, Repeat, Award,
+    ShoppingCart,
 } from "lucide-react";
 import styles from "./owner.module.css";
 
@@ -173,6 +174,9 @@ export default function OwnerDashboardPage() {
         date: String(r.date ?? "").slice(5),
         revenue_inr: Number(r.revenue_inr || 0),
     }));
+
+    const procurement: any = data.procurement ?? {};
+    const topVendors: any[] = procurement.top_vendors ?? [];
 
     const scrapTrend = useMemo(() =>
         (data.scrap_trend ?? []).map((r: any) => ({
@@ -352,7 +356,7 @@ export default function OwnerDashboardPage() {
                 {tradingSeries.length > 0 && (
                     <div className={styles.trendCard}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>Last 14 days trade revenue</div>
-                        <ResponsiveContainer width="100%" height={140}>
+                        <ResponsiveContainer width="100%" height={140} minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={tradingSeries} margin={{ top: 5, right: 8, left: -25, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="tradeGrad" x1="0" y1="0" x2="0" y2="1">
@@ -377,6 +381,63 @@ export default function OwnerDashboardPage() {
                 )}
             </div>
 
+            {/* ─── PROCUREMENT PULSE ─── */}
+            <div className={`${styles.glassCard} ${styles.animUp}`} style={{ marginBottom: 14, animationDelay: "140ms" }}>
+                <div className={styles.tradingHeader}>
+                    <div className={styles.sectionTitle}><ShoppingCart size={13} /> Procurement Pulse</div>
+                    <Link href="/procurement/purchase-orders" className={styles.procurementLink}>View purchase orders →</Link>
+                </div>
+                <div className={styles.kpiGrid} style={{ marginTop: 6 }}>
+                    <KPICard
+                        label="Open POs"
+                        value={Number(procurement.open_pos_count || 0)}
+                        sub={fmtCurr(Number(procurement.open_po_value_inr || 0)) + " in flight"}
+                        icon={<FileText size={17} color="#fff" />}
+                        gradientClass={styles.gradNavy}
+                        delay="0ms"
+                    />
+                    <KPICard
+                        label="Overdue POs"
+                        value={Number(procurement.overdue_pos_count || 0)}
+                        sub="Past expected delivery"
+                        icon={<AlertTriangle size={17} color="#fff" />}
+                        gradientClass={styles.gradAmber}
+                        delay="40ms"
+                    />
+                    <KPICard
+                        label="MTD Spend"
+                        value={Number(procurement.mtd_spend_inr || 0)}
+                        sub="Completed POs this month"
+                        icon={<IndianRupee size={17} color="#fff" />}
+                        gradientClass={styles.gradBlue}
+                        currency
+                        delay="80ms"
+                    />
+                    <KPICard
+                        label="Avg cycle days"
+                        value={Number(procurement.avg_cycle_days || 0)}
+                        sub="Order → completion (30d)"
+                        icon={<Clock size={17} color="#fff" />}
+                        gradientClass={styles.gradSlate}
+                        delay="120ms"
+                    />
+                </div>
+                <div className={styles.procurementVendorList}>
+                    <div className={styles.procurementVendorTitle}>Top vendors this month by spend</div>
+                    {topVendors.length === 0 ? (
+                        <div className={styles.procurementEmptyVendors}>No vendor spend recorded yet this month.</div>
+                    ) : (
+                        topVendors.map((v: any, i: number) => (
+                            <div key={v.vendor_id ?? `v-${i}`} className={styles.procurementVendorRow}>
+                                <div className={styles.procurementVendorRank}>{i + 1}</div>
+                                <div className={styles.procurementVendorName}>{v.vendor_name || "—"}</div>
+                                <div className={styles.procurementVendorTotal}>{fmtCurr(Number(v.total_inr || 0))}</div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
             {!showHeavyBands ? (
                 <div className={`${styles.glassCard} ${styles.animUp}`} style={{ marginBottom: 14, animationDelay: "150ms" }}>
                     <div className={styles.sectionTitle}><RefreshCw size={13} className={query.isFetching ? styles.spin : ""} /> Loading lower analytics bands</div>
@@ -392,7 +453,7 @@ export default function OwnerDashboardPage() {
                 <div className={styles.glassCard}>
                     <div className={styles.sectionTitle}><TrendingUp size={13} /> Revenue &amp; Profit Trend</div>
                     <div style={{ height: 200 }}>
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={finTrend.length > 0 ? finTrend : productionTrend} margin={{ top: 5, right: 8, left: -15, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="revG" x1="0" y1="0" x2="0" y2="1">
@@ -445,7 +506,7 @@ export default function OwnerDashboardPage() {
                         {invDist.length > 0 ? (
                             <>
                                 <div style={{ height: 120 }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                         <PieChart>
                                             <Pie data={invDist} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={32} outerRadius={52} paddingAngle={3}>
                                                 {invDist.map((_: any, i: number) => <Cell key={i} fill={INV_COLORS[i % INV_COLORS.length]} />)}
@@ -498,7 +559,7 @@ export default function OwnerDashboardPage() {
                 <div className={styles.glassCard}>
                     <div className={styles.sectionTitle}><Flame size={13} /> Scrap Trend — 30 Days</div>
                     <div style={{ height: 150 }}>
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={scrapTrend} margin={{ top: 5, right: 8, left: -25, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="scrapG" x1="0" y1="0" x2="0" y2="1">
@@ -533,7 +594,7 @@ export default function OwnerDashboardPage() {
                     {jobDist.length > 0 ? (
                         <>
                             <div style={{ height: 150, position: "relative" }}>
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                     <PieChart>
                                         <Pie data={jobDist} dataKey="count" nameKey="job_state" cx="50%" cy="50%" innerRadius={42} outerRadius={60} paddingAngle={3}>
                                             {jobDist.map((e: any, i: number) => <Cell key={i} fill={JOB_COLORS[e.job_state] ?? "#2563eb"} />)}
@@ -569,7 +630,7 @@ export default function OwnerDashboardPage() {
                     {shiftRows.length > 0 ? (
                         <>
                             <div style={{ height: 120 }}>
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                     <BarChart data={shiftRows} margin={{ top: 0, right: 5, left: -25, bottom: 0 }} barGap={2}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,102,241,0.07)" vertical={false} />
                                         <XAxis dataKey="shift_code" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
@@ -679,7 +740,7 @@ export default function OwnerDashboardPage() {
                 <div className={styles.glassCard}>
                     <div className={styles.sectionTitle}><Truck size={13} /> Sales Trend</div>
                     <div style={{ height: 180 }}>
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={salesTrend} margin={{ top: 5, right: 8, left: -25, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="salesG" x1="0" y1="0" x2="0" y2="1">

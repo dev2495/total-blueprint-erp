@@ -368,7 +368,12 @@ class MRPService:
     def create_suggestion_draft(suggestion: MRPSuggestion, draft_type: str, user=None) -> Dict[str, Any]:
         """
         Create draft references from MRP suggestions.
-        Draft-only path: no immediate procurement/production/transfer commit.
+
+        For 'po', this actually creates a DRAFT PurchaseOrder (auto-picks vendor
+        from material's last BulkTransaction.reference VENDOR:<code>) and returns
+        the PO id so the UI can navigate to it.
+
+        For 'job' / 'transfer', kept as the lightweight stub for V1.
         """
         kind = str(draft_type or '').lower().strip()
         if kind not in {'po', 'job', 'transfer'}:
@@ -383,9 +388,114 @@ class MRPService:
             raise ValueError("Draft Transfer is valid only for TRANSFER suggestions.")
 
         now = timezone.now()
+
+        # ── PO PATH ──────────────────────────────────────────────────────
+        if kind == 'po':
+            from apps.procurement.models import PurchaseOrder, PurchaseOrderItem
+            from apps.procurement.services.purchase_order import PurchaseOrderService
+            from apps.inventory.models import BulkTransaction, Vendor
+
+            # Auto-pick vendor from the material's most recent INWARD BulkTransaction.
+            # The vendor is stored in reference as "VENDOR:<code>".
+            vendor = None
+            last_rate = Decimal('0')
+            last_tx = (
+                BulkTransaction.objects
+                .filter(material=suggestion.material, type='INWARD')
+                .order_by('-created_at')
+                .first()
+            )
+            if last_tx and last_tx.reference:
+                ref = str(last_tx.reference)
+                if 'VENDOR:' in ref:
+                    code_segment = ref.split('VENDOR:', 1)[1].split('|', 1)[0].strip()
+                    vendor = Vendor.objects.filter(code=code_segment).first()
+                last_rate = Decimal(str(last_tx.avg_cost or 0))
+
+            if not vendor:
+                # Packaging may have a vendor FK on the most recent packaging tx.
+                try:
+                    from apps.inventory.models import PackagingTransaction
+                    pkg_tx = (
+                        PackagingTransaction.objects
+                        .filter(material=suggestion.material, type='INWARD', vendor__isnull=False)
+                        .order_by('-created_at')
+                        .first()
+                    )
+                    if pkg_tx and pkg_tx.vendor:
+                        vendor = pkg_tx.vendor
+                        last_rate = Decimal(str(pkg_tx.avg_cost or 0))
+                except Exception:
+                    pass
+
+            if not vendor:
+                vendor = Vendor.objects.filter(status='ACTIVE').order_by('name').first()
+            if not vendor:
+                vendor = Vendor.objects.order_by('name').first()
+            if not vendor:
+                raise ValueError("No vendor available — create a vendor master first.")
+
+            plant = suggestion.target_plant or suggestion.plan.plant
+            if not plant:
+                from apps.factory.models import Plant
+                plant = Plant.objects.first()
+            if not plant:
+                raise ValueError("No plant available — create a plant master first.")
+
+            po = PurchaseOrder.objects.create(
+                vendor=vendor,
+                plant=plant,
+                source_mrp_suggestion=suggestion,
+                created_by=user if (user and getattr(user, 'is_authenticated', False)) else None,
+                status='DRAFT',
+                order_date=now.date(),
+                expected_delivery_date=suggestion.required_date,
+                notes=f"Auto-drafted from MRP suggestion: {suggestion.reason or ''}".strip(),
+            )
+            PurchaseOrderItem.objects.create(
+                purchase_order=po,
+                line_no=1,
+                material=suggestion.material,
+                qty_ordered=suggestion.qty or Decimal('0'),
+                uom=str(suggestion.material.base_uom or 'KG'),
+                rate_per_uom=last_rate,
+                expected_delivery_date=suggestion.required_date,
+            )
+            PurchaseOrderService.recalc_totals(po)
+
+            suggestion.draft_ref = po.code
+            suggestion.action_status = 'PO_DRAFTED'
+            suggestion.last_action_at = now
+            suggestion.last_action_by = user if user and getattr(user, 'is_authenticated', False) else None
+            suggestion.save(update_fields=['draft_ref', 'action_status', 'last_action_at', 'last_action_by'])
+
+            try:
+                from apps.users.services import NotificationService
+                NotificationService.create_notification(
+                    user=None,
+                    target_role='STORE',
+                    title="MRP: Purchase Order Drafted",
+                    message=f"PO {po.code} drafted for {suggestion.qty} {suggestion.material.base_uom or 'KG'} of {suggestion.material.name}. Review and send.",
+                    notification_type='LOW_STOCK',
+                    related_object_type='PurchaseOrder',
+                    related_object_id=str(po.id),
+                    priority='HIGH' if suggestion.priority == 'HIGH' else 'NORMAL',
+                )
+            except Exception as e:
+                logger.error(f"Failed to send PO Notification: {e}", exc_info=True)
+
+            return {
+                'suggestion_id': str(suggestion.id),
+                'action': 'PO',
+                'action_status': suggestion.action_status,
+                'draft_ref': po.code,
+                'po_id': str(po.id),
+            }
+
+        # ── JOB / TRANSFER STUB PATH (legacy V1) ─────────────────────────
         ts = now.strftime('%Y%m%d-%H%M%S')
         short_id = str(suggestion.id).split('-')[0].upper()
-        prefix = {'po': 'DPO', 'job': 'DJOB', 'transfer': 'DTRN'}[kind]
+        prefix = {'job': 'DJOB', 'transfer': 'DTRN'}[kind]
         draft_ref = f"{prefix}-{ts}-{short_id}"
 
         suggestion.draft_ref = draft_ref
@@ -393,27 +503,6 @@ class MRPService:
         suggestion.last_action_at = now
         suggestion.last_action_by = user if user and getattr(user, 'is_authenticated', False) else None
         suggestion.save(update_fields=['draft_ref', 'action_status', 'last_action_at', 'last_action_by'])
-
-        # Notify Inventory Team for PO drafts
-        if kind == 'po':
-            try:
-                from apps.users.services import NotificationService
-                
-                title = "MRP: Urgent Procurement Required"
-                message = f"Draft PO {draft_ref} generated from MRP Engine for {suggestion.qty} KG of {suggestion.material.name}. Please review stock and proceed."
-                
-                NotificationService.create_notification(
-                    user=None,
-                    target_role='STORE',
-                    title=title,
-                    message=message,
-                    notification_type='LOW_STOCK',
-                    related_object_type='MRPSuggestion',
-                    related_object_id=str(suggestion.id),
-                    priority='HIGH' if suggestion.priority == 'HIGH' else 'NORMAL'
-                )
-            except Exception as e:
-                logger.error(f"Failed to send PO Notification: {e}", exc_info=True)
 
         return {
             'suggestion_id': str(suggestion.id),

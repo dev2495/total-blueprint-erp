@@ -104,6 +104,11 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/costing/", "costing.manage"),
     ("PATCH", "/api/costing/", "costing.manage"),
     ("DELETE", "/api/costing/", "costing.manage"),
+    ("GET", "/api/procurement/", "procurement.view"),
+    ("POST", "/api/procurement/", "procurement.manage"),
+    ("PUT", "/api/procurement/", "procurement.manage"),
+    ("PATCH", "/api/procurement/", "procurement.manage"),
+    ("DELETE", "/api/procurement/", "procurement.manage"),
     ("GET", "/api/ops/", "ops.view"),
     ("POST", "/api/ops/", "ops.manage"),
     ("PUT", "/api/ops/", "ops.manage"),
@@ -231,6 +236,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "dashboard.view",
         "notifications.view",
         "sales.view",
+        "procurement.view",
+        "procurement.manage",
     ],
     "DISPATCH": [
         "users.self_manage",
@@ -257,6 +264,7 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "templates.view",
         "engineering.view",
         "notifications.view",
+        "procurement.view",
     ],
 }
 

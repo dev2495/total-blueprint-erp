@@ -131,6 +131,106 @@ def _build_control_tower_trading_block(timeframe: str = "month"):
     }
 
 
+def _empty_procurement_block():
+    return {
+        "open_pos_count": 0,
+        "open_po_value_inr": 0.0,
+        "overdue_pos_count": 0,
+        "mtd_spend_inr": 0.0,
+        "avg_cycle_days": 0.0,
+        "top_vendors": [],
+    }
+
+
+def _build_control_tower_procurement_block():
+    """Compact procurement subset for the owner control tower payload.
+
+    Mirrors the trading block — single helper that the dashboard consumes
+    so the owner page can render a Procurement Pulse section without a
+    second round-trip. Guarded with try/except so a missing migration or
+    empty database never blows up the dashboard.
+    """
+    from datetime import timedelta as _td
+    from decimal import Decimal as _Dec
+
+    from django.db.models import Avg, Count, F, Sum
+    from django.db.models.functions import Coalesce
+
+    try:
+        from apps.procurement.models import PurchaseOrder
+    except Exception:
+        return _empty_procurement_block()
+
+    today = timezone.now().date()
+    month_start = today.replace(day=1)
+
+    try:
+        terminal = ["COMPLETED", "CANCELLED"]
+        open_qs = PurchaseOrder.objects.exclude(status__in=terminal)
+        open_pos_count = open_qs.count()
+        open_po_value = open_qs.aggregate(total=Coalesce(Sum("grand_total"), _Dec("0")))["total"] or _Dec("0")
+
+        overdue_pos_count = open_qs.filter(
+            expected_delivery_date__isnull=False,
+            expected_delivery_date__lt=today,
+        ).count()
+
+        mtd_qs = PurchaseOrder.objects.filter(
+            status="COMPLETED",
+            order_date__gte=month_start,
+            order_date__lte=today,
+        )
+        mtd_spend = mtd_qs.aggregate(total=Coalesce(Sum("grand_total"), _Dec("0")))["total"] or _Dec("0")
+
+        # Average cycle for POs completed in the last 30 days.
+        cycle_qs = PurchaseOrder.objects.filter(
+            status="COMPLETED",
+            completed_at__isnull=False,
+            completed_at__gte=timezone.now() - _td(days=30),
+        )
+        avg_cycle_days = 0.0
+        cycle_samples = []
+        for po in cycle_qs.only("order_date", "completed_at")[:200]:
+            try:
+                completed_date = po.completed_at.date() if hasattr(po.completed_at, "date") else po.completed_at
+                delta = (completed_date - po.order_date).days
+                if delta >= 0:
+                    cycle_samples.append(delta)
+            except Exception:
+                continue
+        if cycle_samples:
+            avg_cycle_days = round(sum(cycle_samples) / len(cycle_samples), 1)
+
+        # Top vendors this month by COMPLETED + open spend (use grand_total).
+        top_qs = (
+            PurchaseOrder.objects.filter(order_date__gte=month_start, order_date__lte=today)
+            .values("vendor_id", vendor_name=F("vendor__name"))
+            .annotate(total=Coalesce(Sum("grand_total"), _Dec("0")), count=Count("id"))
+            .order_by("-total")[:5]
+        )
+        top_vendors = [
+            {
+                "vendor_id": str(row.get("vendor_id")) if row.get("vendor_id") is not None else None,
+                "vendor_name": row.get("vendor_name") or "—",
+                "total_inr": float(row.get("total") or 0),
+                "po_count": int(row.get("count") or 0),
+            }
+            for row in top_qs
+        ]
+
+        return {
+            "open_pos_count": int(open_pos_count),
+            "open_po_value_inr": float(open_po_value),
+            "overdue_pos_count": int(overdue_pos_count),
+            "mtd_spend_inr": float(mtd_spend),
+            "avg_cycle_days": float(avg_cycle_days),
+            "top_vendors": top_vendors,
+        }
+    except Exception as exc:
+        logger.warning("Procurement block build failed: %s", str(exc))
+        return _empty_procurement_block()
+
+
 def _load_capability_registry():
     registry_path = Path(getattr(settings, "BASE_DIR", ".")) / "docs" / "runbooks" / "capability-registry.json"
     with registry_path.open("r", encoding="utf-8") as handle:
@@ -336,6 +436,11 @@ class AnalyticsViewSet(viewsets.ViewSet):
             except Exception as trading_exc:
                 logger.warning("Trading block injection failed: %s", str(trading_exc))
                 stats["trading"] = _empty_trading_block()
+            try:
+                stats["procurement"] = _build_control_tower_procurement_block()
+            except Exception as proc_exc:
+                logger.warning("Procurement block injection failed: %s", str(proc_exc))
+                stats["procurement"] = _empty_procurement_block()
             return Response(stats)
         except Exception as e:
             logger.error(f"Control tower error: {str(e)}", exc_info=True)

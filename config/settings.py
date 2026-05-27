@@ -145,6 +145,7 @@ INSTALLED_APPS = [
     "apps.analytics",
     "apps.mrp",
     "apps.costing",
+    "apps.procurement",
     "apps.platformops",
     "rest_framework_simplejwt.token_blacklist",
 ]

@@ -33,6 +33,7 @@ import {
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
+import { getCanonicalRoleCode } from "./roles"
 
 export interface NavAccessDescriptor {
   roles?: string[]
@@ -127,6 +128,29 @@ export const NAV_ITEMS: NavItem[] = [
         icon: Zap,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
         permissions: ["production.view", "production.manage"],
+      },
+    ],
+  },
+  {
+    title: "Procurement",
+    href: "/procurement/purchase-orders",
+    icon: ShoppingCart,
+    roles: ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+    permissions: ["procurement.view", "procurement.manage"],
+    children: [
+      {
+        title: "Purchase Orders",
+        href: "/procurement/purchase-orders",
+        icon: FileText,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+        permissions: ["procurement.view", "procurement.manage"],
+      },
+      {
+        title: "New PO",
+        href: "/procurement/purchase-orders/new",
+        icon: FileText,
+        roles: ["ADMIN", "OWNER", "STORE"],
+        permissions: ["procurement.manage"],
       },
     ],
   },
@@ -380,7 +404,7 @@ export const NAV_ITEMS: NavItem[] = [
 ]
 
 function normalizeRole(value: string | undefined) {
-  return String(value || "").toUpperCase()
+  return getCanonicalRoleCode(value) || String(value || "").toUpperCase()
 }
 
 function toPermissionSet(grantedPermissions?: Iterable<string>) {
