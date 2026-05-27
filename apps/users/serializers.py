@@ -3,7 +3,7 @@ from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
-from .models import User, Role, UserProfileChangeRequest
+from .models import CompanyProfile, User, Role, UserProfileChangeRequest
 from .permission_registry import is_assignable_permission, normalize_permission_code
 from .permission_service import PermissionService
 
@@ -228,3 +228,52 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             "refresh": str(refresh),
             "access": str(refresh.access_token),
         }
+
+
+class CompanyProfileSerializer(serializers.ModelSerializer):
+    updated_by_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CompanyProfile
+        fields = [
+            "id",
+            "legal_name",
+            "trading_name",
+            "tagline",
+            "address_line1",
+            "address_line2",
+            "city",
+            "state",
+            "country",
+            "pincode",
+            "phone_primary",
+            "phone_secondary",
+            "email",
+            "website",
+            "gstin",
+            "pan",
+            "cin",
+            "udyam",
+            "iec_code",
+            "bank_name",
+            "bank_branch",
+            "bank_account_no",
+            "bank_ifsc",
+            "bank_upi",
+            "default_payment_terms",
+            "default_jurisdiction",
+            "quote_validity_days",
+            "quote_terms_text",
+            "authorised_signatory_name",
+            "authorised_signatory_role",
+            "logo_path",
+            "updated_at",
+            "updated_by_username",
+        ]
+        read_only_fields = ["id", "updated_at", "updated_by_username"]
+
+    def get_updated_by_username(self, obj):
+        u = getattr(obj, "updated_by", None)
+        if not u:
+            return ""
+        return getattr(u, "username", "") or ""

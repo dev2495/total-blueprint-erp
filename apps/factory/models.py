@@ -16,7 +16,27 @@ class Plant(models.Model):
         default=True,
         help_text="When enabled, this plant is included in official daily PDF and spreadsheet report packs.",
     )
-    
+    rate_card = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Conversion rates per stage in INR/kg. Keys: extrusion_per_kg, "
+            "lamination_per_kg, printing_per_kg, slitting_per_kg, "
+            "pouching_per_kg, overhead_per_kg, scrap_pct (decimal e.g. 0.04). "
+            "Missing keys treated as 0 and flagged INDICATIVE."
+        ),
+    )
+    default_margin_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            "Plant-level default margin floor in %. Cascade rank #3 "
+            "(customer overlay > pouch style > THIS > company default)."
+        ),
+    )
+
     def __str__(self):
         return f"{self.name} ({self.code})"
     

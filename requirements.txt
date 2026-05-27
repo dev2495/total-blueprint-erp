@@ -7,6 +7,7 @@ psycopg2-binary
 djangorestframework-simplejwt
 python-dotenv
 reportlab
+svglib
 openpyxl
 celery
 redis

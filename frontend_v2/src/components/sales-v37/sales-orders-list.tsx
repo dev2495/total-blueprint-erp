@@ -284,12 +284,19 @@ function axisScalarLabels(value: unknown): string[] {
     return [cleanText(value)].filter(Boolean)
 }
 
+function hasKeys(value: Record<string, any>): boolean {
+    return Object.keys(value).length > 0
+}
+
 function pushUnique(chips: AxisChip[], seen: Set<string>, label: string, tone: AxisChipTone, keyPrefix: string, title?: string) {
     const clean = cleanText(label)
     if (!clean) return
     const dedupeKey = `${keyPrefix}:${clean.toLowerCase()}`
+    const labelKey = `label:${clean.toLowerCase()}`
     if (seen.has(dedupeKey)) return
+    if (seen.has(labelKey)) return
     seen.add(dedupeKey)
+    seen.add(labelKey)
     chips.push({ key: `${keyPrefix}-${chips.length}-${clean}`, label: clean, tone, title: title || clean })
 }
 
@@ -315,16 +322,109 @@ function geometryFromLine(line: any, summary?: SalesOrder["item_summary"]) {
     }
 }
 
+function printingLabelFromSnapshot(printing: Record<string, any>, fallback = ""): string {
+    if (!hasKeys(printing)) return fallback
+    if (!printing.enabled) return ""
+    const printType = cleanText(printing.type || printing.printing_type || "PRINT").toUpperCase()
+    const front = Number(printing.front_colors_count ?? printing.front_colours_count ?? printing.front_colors ?? 0)
+    const back = Number(printing.back_colors_count ?? printing.back_colours_count ?? printing.back_colors ?? 0)
+    const colorBits = [front > 0 ? `F${front}` : "", back > 0 ? `B${back}` : ""].filter(Boolean).join("/")
+    return [printType, colorBits].filter(Boolean).join(" ")
+}
+
+function materialLabelFromSnapshot(row: Record<string, any>, fallback = ""): string {
+    return labelFromRow({
+        label: row.label || row.display_label,
+        code: row.material_code || row.packaging_code || row.pod_sku_code || row.sku_code || row.code,
+        name: row.material_name || row.packaging_name || row.pod_sku_name || row.sku_name || row.name,
+        value: row.value,
+    }, fallback)
+}
+
+function selectedAddonLabels(line: any, axisValues: Record<string, any>, summary?: SalesOrder["item_summary"]): string[] {
+    const snapshotLabels = asArray(line?.addons_snapshot)
+        .map((row) => materialLabelFromSnapshot(asRecord(row)))
+        .filter(Boolean)
+    if (snapshotLabels.length) return snapshotLabels
+
+    const axisLabels = axisScalarLabels(axisValues.addons || axisValues.addon)
+    if (axisLabels.length) return axisLabels
+
+    const hasLinePayload = hasKeys(asRecord(line))
+    return hasLinePayload ? [] : asArray(summary?.addon_labels)
+}
+
+function selectedPodLabels(line: any, axisValues: Record<string, any>, summary?: SalesOrder["item_summary"]): string[] {
+    const packaging = asRecord(line?.packaging_snapshot)
+    const pod = asRecord(packaging.pod)
+    const podLabel = pod.enabled ? materialLabelFromSnapshot(pod, "POD") : ""
+    if (podLabel) return [podLabel]
+
+    const axisLabels = [
+        ...axisScalarLabels(axisValues.pod),
+        ...axisScalarLabels(axisValues.pod_variant),
+    ]
+    if (axisLabels.length) return axisLabels
+
+    const hasLinePayload = hasKeys(asRecord(line))
+    return hasLinePayload ? [] : asArray(summary?.pod_labels)
+}
+
+function selectedPackagingLabels(line: any, axisValues: Record<string, any>, summary?: SalesOrder["item_summary"]): string[] {
+    const packaging = asRecord(line?.packaging_snapshot)
+    const labels: string[] = []
+
+    const primary = asRecord(packaging.primary_inner_pack)
+    const primaryLabel = materialLabelFromSnapshot(primary)
+    if ((primary.enabled || primaryLabel) && primaryLabel) {
+        const pcs = compactNumber(primary.pcs_per_pack || primary.default_pcs_per_inner_pack || primary.pcs)
+        labels.push(`Inner pack ${primaryLabel}${pcs ? ` · ${pcs} pcs` : ""}`)
+    }
+
+    const outer = asRecord(packaging.final_outer_pack || packaging.outer_pack)
+    const outerLabel = materialLabelFromSnapshot(outer)
+    if ((outer.enabled || outerLabel) && outerLabel) {
+        labels.push(`Outer pack ${outerLabel}`)
+    }
+
+    const rollDispatch = asRecord(packaging.roll_dispatch_pack)
+    if (rollDispatch.enabled) {
+        const rollLines = asArray(rollDispatch.lines)
+            .map((row) => materialLabelFromSnapshot(asRecord(row)))
+            .filter(Boolean)
+        rollLines.slice(0, 2).forEach((label) => labels.push(`Roll pack ${label}`))
+    }
+
+    if (labels.length) return labels
+
+    const axisLabels: string[] = []
+    ;["packaging_inner", "packaging_outer", "packaging"].forEach((key) => {
+        axisScalarLabels(axisValues[key]).forEach((label) => {
+            const prefix = key === "packaging_inner" ? "Inner pack" : key === "packaging_outer" ? "Outer pack" : humanAxisName(key)
+            axisLabels.push(`${prefix} ${label}`)
+        })
+    })
+    if (axisLabels.length) return axisLabels
+
+    const hasLinePayload = hasKeys(asRecord(line))
+    const packagingSummary = cleanText(summary?.packaging_summary)
+    if (!hasLinePayload && packagingSummary && packagingSummary.toLowerCase() !== "standard pack") {
+        return [packagingSummary]
+    }
+    return []
+}
+
 function buildLineAxisChips(line: any, summary?: SalesOrder["item_summary"]): AxisChip[] {
     const chips: AxisChip[] = []
     const seen = new Set<string>()
     const geometry = geometryFromLine(line, summary)
     const fgType = geometry.finishedGoodType || cleanText(summary?.finished_good_type).toUpperCase()
-    const axisValues = asRecord(line?.axis_values || summary?.spec_facets?.axis_values)
+    const lineAxisValues = asRecord(line?.axis_values)
+    const axisValues = hasKeys(lineAxisValues) ? lineAxisValues : asRecord(summary?.spec_facets?.axis_values)
     const lineName = cleanText(line?.line_name || summary?.variant_name)
 
-    if (line?.product_master_code || summary?.spec_facets?.product_master_code) {
-        pushUnique(chips, seen, cleanText(line?.product_master_code || summary?.spec_facets?.product_master_code), "violet", "master")
+    if (line?.product_master_code || line?.product_master_name || summary?.spec_facets?.product_master_code) {
+        pushUnique(chips, seen, cleanText(line?.product_master_code || line?.product_master_name || summary?.spec_facets?.product_master_code), "violet", "master")
     } else if (summary?.template_tag) {
         pushUnique(chips, seen, summary.template_tag, "violet", "template")
     }
@@ -347,7 +447,8 @@ function buildLineAxisChips(line: any, summary?: SalesOrder["item_summary"]): Ax
     if (geometry.pouchStyle) pushUnique(chips, seen, `Style ${geometry.pouchStyle}`, "cyan", "style")
     if (compactNumber(geometry.gusset)) pushUnique(chips, seen, `Gusset ${compactNumber(geometry.gusset)} mm`, "cyan", "gusset")
 
-    const layerRows = asArray(summary?.layers?.length ? summary.layers : summary?.spec_facets?.layers?.length ? summary.spec_facets.layers : line?.layer_snapshot)
+    const lineLayerRows = asArray(line?.layer_snapshot)
+    const layerRows = lineLayerRows.length ? lineLayerRows : asArray(summary?.layers?.length ? summary.layers : summary?.spec_facets?.layers?.length ? summary.spec_facets.layers : [])
     layerRows.forEach((layer, idx) => {
         const row = asRecord(layer)
         const label = cleanText(row.label)
@@ -365,32 +466,19 @@ function buildLineAxisChips(line: any, summary?: SalesOrder["item_summary"]): Ax
         pushUnique(chips, seen, parts, "blue", `layer-${idx + 1}`)
     })
 
-    const printingSummary = cleanText(summary?.printing_summary)
+    const printingSummary = printingLabelFromSnapshot(asRecord(line?.printing_snapshot), cleanText(summary?.printing_summary))
     if (printingSummary && printingSummary.toLowerCase() !== "no print") {
         pushUnique(chips, seen, printingSummary, "rose", "print")
     }
 
-    const podLabels = [
-        ...asArray(summary?.pod_labels),
-        ...axisScalarLabels(axisValues.pod),
-        ...axisScalarLabels(axisValues.pod_variant),
-    ]
+    const podLabels = selectedPodLabels(line, axisValues, summary)
     podLabels.forEach((label) => pushUnique(chips, seen, label.startsWith("POD") ? label : `POD ${label}`, "fuchsia", "pod"))
 
-    const addonLabels = [
-        ...asArray(summary?.addon_labels),
-        ...axisScalarLabels(axisValues.addons),
-        ...asArray(line?.addons_snapshot).map((row) => labelFromRow(asRecord(row))),
-    ]
+    const addonLabels = selectedAddonLabels(line, axisValues, summary)
     addonLabels.forEach((label) => pushUnique(chips, seen, label, "amber", "addon"))
 
-    const packagingSummary = cleanText(summary?.packaging_summary)
-    if (packagingSummary && packagingSummary.toLowerCase() !== "standard pack") {
-        pushUnique(chips, seen, packagingSummary, "cyan", "packaging")
-    }
-    ;["packaging", "packaging_inner", "packaging_outer"].forEach((key) => {
-        axisScalarLabels(axisValues[key]).forEach((label) => pushUnique(chips, seen, `${humanAxisName(key)} ${label}`, "cyan", key))
-    })
+    selectedPackagingLabels(line, axisValues, summary)
+        .forEach((label) => pushUnique(chips, seen, label, "cyan", "packaging"))
 
     const hiddenAxis = new Set([
         "size",
@@ -434,11 +522,12 @@ function buildOrderAxisChips(order: SalesOrder): AxisChip[] {
 function AxisChipStrip({ chips, compact = false, className }: { chips: AxisChip[]; compact?: boolean; className?: string }) {
     if (!chips.length) return null
     return (
-        <div className={cn("flex flex-wrap items-center gap-1", className)}>
+        <div data-testid="axis-chip-strip" className={cn("flex flex-wrap items-center gap-1", className)}>
             {chips.map((chip) => (
                 <span
                     key={chip.key}
                     title={chip.title || chip.label}
+                    data-axis-chip={chip.label}
                     className={cn(
                         "inline-flex max-w-full items-center rounded-md ring-1",
                         compact ? "px-1.5 py-0.5 text-[9px]" : "px-1.5 py-0.5 text-[10px]",

@@ -29,6 +29,7 @@ import {
   Combine,
   Repeat,
   SlidersHorizontal,
+  Building2,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -324,6 +325,13 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Owner Dashboard", href: "/dashboard/owner", icon: LayoutDashboard, roles: ["OWNER", "SUPER_ADMIN"] },
       { title: "System Health", href: "/dashboard/admin", icon: Activity, roles: ["ADMIN", "SUPER_ADMIN"], permissions: ["dashboard.view"] },
       { title: "User Management", href: "/system/users", icon: Users, roles: ["ADMIN", "OWNER", "SUPER_ADMIN"], permissions: ["users.view", "users.manage"] },
+      {
+        title: "Company Profile",
+        href: "/system/company-profile",
+        icon: Building2,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN"],
+        permissions: ["system.manage", "system.view"],
+      },
       {
         title: "Role Matrix",
         href: "/system/role-matrix",

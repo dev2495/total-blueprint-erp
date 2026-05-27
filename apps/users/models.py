@@ -305,3 +305,80 @@ class PermissionAuditLog(models.Model):
             models.Index(fields=['action', 'created_at']),
             models.Index(fields=['user', 'created_at']),
         ]
+
+
+class CompanyProfile(models.Model):
+    """Singleton row holding the company identity that appears on quotations,
+    invoices, and other customer-facing documents."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+    # Identity
+    legal_name = models.CharField(max_length=200, default="TOTAL POLY PRINT PVT. LTD.")
+    trading_name = models.CharField(max_length=200, blank=True, default="")
+    tagline = models.CharField(max_length=300, default="Leading manufacturer of Flexible Packaging")
+    # Address
+    address_line1 = models.CharField(max_length=200, default="Survey No. 261/3-A, Opp. Dabhel Cricket Ground")
+    address_line2 = models.CharField(max_length=200, default="Dabhel")
+    city = models.CharField(max_length=80, default="Daman")
+    state = models.CharField(max_length=80, default="Daman (U.T.)")
+    country = models.CharField(max_length=80, default="India")
+    pincode = models.CharField(max_length=12, default="396210")
+    # Contact
+    phone_primary = models.CharField(max_length=40, default="+91 72111 35002")
+    phone_secondary = models.CharField(max_length=40, blank=True, default="+91 98985 85118")
+    email = models.EmailField(default="info@totalpolyprint.com")
+    website = models.URLField(default="https://www.totalpolyprint.com")
+    # Statutory
+    gstin = models.CharField(max_length=20, blank=True, default="")
+    pan = models.CharField(max_length=12, blank=True, default="")
+    cin = models.CharField(max_length=24, blank=True, default="")
+    udyam = models.CharField(max_length=24, blank=True, default="")
+    iec_code = models.CharField(max_length=20, blank=True, default="")
+    # Bank
+    bank_name = models.CharField(max_length=100, blank=True, default="")
+    bank_branch = models.CharField(max_length=100, blank=True, default="")
+    bank_account_no = models.CharField(max_length=40, blank=True, default="")
+    bank_ifsc = models.CharField(max_length=20, blank=True, default="")
+    bank_upi = models.CharField(max_length=80, blank=True, default="")
+    # Defaults shown on quote PDFs
+    default_payment_terms = models.CharField(max_length=120, default="Net 45 days from invoice date")
+    default_jurisdiction = models.CharField(max_length=100, default="Daman, India")
+    quote_validity_days = models.PositiveSmallIntegerField(default=12)
+    quote_terms_text = models.TextField(blank=True, default="")
+    # Signatory
+    authorised_signatory_name = models.CharField(max_length=120, default="")
+    authorised_signatory_role = models.CharField(max_length=120, default="Authorised Signatory")
+    # Logo path (relative to frontend_v2/public/)
+    logo_path = models.CharField(max_length=200, default="brand/tpp-logo-pdf.svg")
+
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "users_company_profile"
+        verbose_name = "Company Profile"
+        verbose_name_plural = "Company Profile"
+
+    def __str__(self) -> str:
+        return self.legal_name or "Company Profile"
+
+    def save(self, *args, **kwargs):
+        # Singleton: any save is pinned to id=1.
+        self.id = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):  # pragma: no cover - guard against accidental delete
+        # The singleton must not be deletable; ignore the call instead of raising
+        # so that any cascading delete code paths stay safe.
+        return (0, {})
+
+    @classmethod
+    def get_solo(cls) -> "CompanyProfile":
+        obj, _ = cls.objects.get_or_create(id=1)
+        return obj

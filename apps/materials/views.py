@@ -282,6 +282,87 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['category', 'is_extrudable']
     search_fields = ['name', 'code']
 
+    @action(detail=False, methods=["get"], url_path="bom-lookup")
+    def bom_lookup(self, request):
+        """V37 BOM picker — return materials filtered by category list with
+        rate + density + on-hand stock attached.
+
+        Query params:
+          - category=FILM_FAMILY,FILM_VARIANT (comma-separated)
+          - search=PET
+          - page_size=50
+        """
+        from decimal import Decimal
+        try:
+            from apps.costing.models import MaterialCostSnapshot
+        except Exception:  # pragma: no cover
+            MaterialCostSnapshot = None
+        try:
+            from apps.inventory.models import StockBalance
+        except Exception:  # pragma: no cover
+            StockBalance = None
+
+        categories_param = (request.query_params.get("category") or "").strip()
+        categories = [c.strip().upper() for c in categories_param.split(",") if c.strip()]
+        search = (request.query_params.get("search") or "").strip()
+        try:
+            page_size = int(request.query_params.get("page_size") or 50)
+        except Exception:
+            page_size = 50
+        page_size = max(1, min(page_size, 200))
+
+        qs = InventoryMaterial.objects.filter(status="ACTIVE")
+        if categories:
+            qs = qs.filter(category__in=categories)
+        if search:
+            qs = qs.filter(
+                models.Q(name__icontains=search) | models.Q(code__icontains=search)
+            )
+        qs = qs.order_by("category", "name")[:page_size]
+
+        rate_map = {}
+        if MaterialCostSnapshot is not None:
+            for snap in MaterialCostSnapshot.objects.filter(material__in=list(qs)):
+                rate_map[str(snap.material_id)] = snap.avg_rate_per_kg
+
+        stock_map = {}
+        if StockBalance is not None:
+            try:
+                rows = StockBalance.objects.filter(material__in=list(qs)).values(
+                    "material_id"
+                ).annotate(total=models.Sum("qty"))
+                for row in rows:
+                    stock_map[str(row["material_id"])] = float(row.get("total") or 0)
+            except Exception:
+                pass
+
+        out = []
+        for mat in qs:
+            mid = str(mat.id)
+            density = float(mat.density_gcm3) if mat.density_gcm3 else None
+            sub_count = 0
+            if mat.category == "FILM_FAMILY":
+                try:
+                    sub_count = InventoryMaterial.objects.filter(
+                        parent_family_id=mat.id, status="ACTIVE"
+                    ).count()
+                except Exception:
+                    sub_count = 0
+            out.append({
+                "id": mid,
+                "code": mat.code,
+                "name": mat.name,
+                "category": mat.category,
+                "category_display": mat.get_category_display(),
+                "base_uom": mat.base_uom,
+                "density_gcm3": density,
+                "avg_cost": float(rate_map.get(mid) or 0),
+                "stock_qty": stock_map.get(mid, 0.0),
+                "substitutes_count": sub_count,
+            })
+
+        return Response({"results": out, "count": len(out)})
+
 
 class CommercialFamilyViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_COMMERCIAL_FAMILY"
@@ -746,6 +827,202 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return Response([
             {"at": product.updated_at, "event": "Product Master ready", "detail": "Used by sales as configurable master; sizes/artwork stay below it."}
         ])
+
+    # ─────────────────────────── BOM (quotation workspace) ───────────────────
+    # The quotation workspace catalog flow needs to hydrate a Product Master's
+    # full Bill of Materials — film layers, adhesive, ink, addons, feature
+    # toggle defaults — so the sales operator can tweak per-quote without
+    # creating a new master. The PM stores the canonical BOM hints under
+    # `layer_template` (film stack) and `fixed_attributes["bom_defaults"]`
+    # (everything else). This action consolidates both into a single
+    # consumer-friendly payload.
+    DEFAULT_FEATURE_OPTIONS = [
+        {"key": "has_zipper", "label": "Zipper"},
+        {"key": "has_valve", "label": "One-way valve"},
+        {"key": "has_window", "label": "Window patch"},
+        {"key": "has_tear_notch", "label": "Tear notch"},
+        {"key": "has_hang_hole", "label": "Hang hole"},
+        {"key": "finish_matte", "label": "Matte finish"},
+        {"key": "has_white_ink_layer", "label": "White ink underlay"},
+        {"key": "has_metallised_layer", "label": "Metallised layer"},
+    ]
+
+    @action(detail=True, methods=["get"], url_path="bom")
+    def bom(self, request, pk=None):
+        """Return the canonical BOM hydration payload for the quotation
+        workspace catalog flow.
+
+        Shape:
+            {
+              "product_master_id": ..., "product_master_code": ...,
+              "default_pouch_style_id": ..., "default_pouch_style_code": ...,
+              "sizes": [{id, code, label, width_mm, height_mm, gusset_mm, flap_mm, pouch_style_id}],
+              "layers": [{position, material_id, material_code, material_name, micron, gsm, rate_per_kg, density_gcm3}],
+              "adhesive": {material_id, code, name, gsm, rate_per_kg},
+              "ink": {material_id, code, name, gsm, rate_per_kg, coverage},
+              "addons": [{material_id, code, name, qty_per_pouch, rate_per_kg}],
+              "feature_options": [{key, label, default}],
+              "feature_defaults": {...},
+            }
+        """
+        product = self.get_object()
+        bom_defaults = {}
+        if isinstance(product.fixed_attributes, dict):
+            raw = product.fixed_attributes.get("bom_defaults")
+            if isinstance(raw, dict):
+                bom_defaults = raw
+
+        # ── Hydrate layer rows from `layer_template` + InventoryMaterial ──
+        layers_out = []
+        layer_template = product.layer_template or product.canonical_layer_stack or []
+        try:
+            material_codes = [
+                str(row.get("material_code") or row.get("film_variant_code") or "").strip()
+                for row in layer_template
+                if isinstance(row, dict)
+            ]
+            material_codes = [c for c in material_codes if c]
+            material_map = {}
+            if material_codes:
+                for mat in InventoryMaterial.objects.filter(code__in=material_codes):
+                    material_map[mat.code] = mat
+        except Exception:
+            material_map = {}
+
+        # rate-per-kg helper — uses MaterialCostSnapshot if available, falls back to 0
+        try:
+            from apps.costing.models import MaterialCostSnapshot
+        except Exception:  # pragma: no cover
+            MaterialCostSnapshot = None
+        rate_map = {}
+        if MaterialCostSnapshot is not None and material_map:
+            for snap in MaterialCostSnapshot.objects.filter(material__in=list(material_map.values())):
+                rate_map[str(snap.material_id)] = float(snap.avg_rate_per_kg or 0)
+
+        for idx, row in enumerate(layer_template or []):
+            if not isinstance(row, dict):
+                continue
+            code = str(row.get("material_code") or row.get("film_variant_code") or "").strip()
+            mat = material_map.get(code) if code else None
+            micron = row.get("thickness_micron") or row.get("micron") or 0
+            density = None
+            if mat and mat.density_gcm3 is not None:
+                density = float(mat.density_gcm3)
+            elif row.get("density_gcm3") is not None:
+                density = float(row.get("density_gcm3"))
+            gsm = float(micron) * density if (density and micron) else (row.get("gsm") or 0)
+            layers_out.append({
+                "position": row.get("role") or f"L{idx + 1}",
+                "material_id": str(mat.id) if mat else (row.get("material_id") or None),
+                "material_code": code,
+                "material_name": mat.name if mat else (row.get("name") or code),
+                "micron": float(micron or 0),
+                "gsm": float(gsm or 0),
+                "rate_per_kg": float((rate_map.get(str(mat.id)) if mat else None) or row.get("rate_per_kg") or 0),
+                "density_gcm3": density,
+            })
+
+        # Layers may also live under bom_defaults.layers (preferred when set).
+        if isinstance(bom_defaults.get("layers"), list) and bom_defaults["layers"]:
+            layers_out = bom_defaults["layers"]
+
+        # ── Sizes ──
+        sizes_qs = product.sizes.filter(active=True).order_by("sort_order", "label", "code")
+        sizes_out = []
+        first_pouch_style_id = None
+        for s in sizes_qs:
+            ps_id = str(s.pouch_style_master_id) if s.pouch_style_master_id else None
+            if ps_id and not first_pouch_style_id:
+                first_pouch_style_id = ps_id
+            geom = s.geometry_config if isinstance(s.geometry_config, dict) else {}
+            sizes_out.append({
+                "id": str(s.id),
+                "code": s.code,
+                "label": s.label,
+                "width_mm": float(s.width_mm) if s.width_mm is not None else None,
+                "height_mm": float(s.height_mm) if s.height_mm is not None else None,
+                "gusset_mm": float(s.gusset_mm) if s.gusset_mm is not None else None,
+                "flap_mm": float(geom.get("flap_mm") or 0) or None,
+                "qty_uom": s.qty_uom,
+                "standard_qty": float(s.standard_qty) if s.standard_qty is not None else None,
+                "pouch_style_id": ps_id,
+                "child_target_width_mm": float(s.child_target_width_mm) if s.child_target_width_mm is not None else None,
+            })
+
+        adhesive = bom_defaults.get("adhesive") if isinstance(bom_defaults.get("adhesive"), dict) else {
+            "name": "Standard PU adhesive",
+            "gsm": 4.0,
+            "rate_per_kg": 280.0,
+        }
+        ink = bom_defaults.get("ink") if isinstance(bom_defaults.get("ink"), dict) else {
+            "name": "Solvent ink",
+            "gsm": 3.2,
+            "rate_per_kg": 410.0,
+            "coverage": "MEDIUM",
+        }
+        addons = bom_defaults.get("addons") if isinstance(bom_defaults.get("addons"), list) else []
+
+        feature_options = list(self.DEFAULT_FEATURE_OPTIONS)
+        custom_features = bom_defaults.get("feature_options")
+        if isinstance(custom_features, list) and custom_features:
+            feature_options = [f for f in custom_features if isinstance(f, dict) and f.get("key")]
+        feature_defaults = bom_defaults.get("feature_defaults") if isinstance(bom_defaults.get("feature_defaults"), dict) else {}
+
+        return Response({
+            "product_master_id": str(product.id),
+            "product_master_code": product.code,
+            "product_master_name": product.name,
+            "default_pouch_style_id": first_pouch_style_id,
+            "sizes": sizes_out,
+            "layers": layers_out,
+            "adhesive": adhesive,
+            "ink": ink,
+            "addons": addons,
+            "feature_options": feature_options,
+            "feature_defaults": feature_defaults,
+        })
+
+    @action(detail=True, methods=["post"], url_path="update-bom")
+    def update_bom(self, request, pk=None):
+        """Promote a modified BOM (from a quote line) back to the master.
+
+        Gated by `master.manage` (enforced globally by the perm registry on
+        POST /api/master/). Body matches the shape returned by `bom` —
+        `layers`, `adhesive`, `ink`, `addons`, `feature_defaults`.
+        """
+        product = self.get_object()
+        payload = request.data or {}
+        bom_defaults = {}
+        if isinstance(product.fixed_attributes, dict):
+            bom_defaults = dict(product.fixed_attributes)
+        else:
+            bom_defaults = {}
+
+        new_defaults = dict(bom_defaults.get("bom_defaults") or {})
+        for key in ("layers", "adhesive", "ink", "addons", "feature_defaults", "feature_options"):
+            if key in payload:
+                new_defaults[key] = payload[key]
+        bom_defaults["bom_defaults"] = new_defaults
+        product.fixed_attributes = bom_defaults
+
+        # Also write `layer_template` from layers for backward compatibility.
+        layers = payload.get("layers")
+        if isinstance(layers, list) and layers:
+            template_rows = []
+            for idx, layer in enumerate(layers):
+                if not isinstance(layer, dict):
+                    continue
+                template_rows.append({
+                    "role": layer.get("position") or f"L{idx + 1}",
+                    "material_code": layer.get("material_code") or "",
+                    "thickness_micron": layer.get("micron") or 0,
+                    "gsm": layer.get("gsm") or 0,
+                })
+            if template_rows:
+                product.layer_template = template_rows
+
+        product.save(update_fields=["fixed_attributes", "layer_template", "updated_at"])
+        return Response(ProductMasterSerializer(product).data)
 
 
 class ProductMasterSizeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):

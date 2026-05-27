@@ -1,9 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
-import { Zap } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
@@ -64,8 +64,15 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
       href={getLandingPage(userRoleCode)}
       className={cn("group flex items-center gap-3", compact ? "justify-center" : "")}
     >
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-[0_12px_30px_-18px_rgba(37,99,235,0.9)] transition-transform duration-200 group-hover:-translate-y-px">
-        <Zap className="h-4 w-4 fill-white" strokeWidth={1.5} />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-200 group-hover:-translate-y-px">
+        <Image
+          src="/brand/tpp-logo-mark.svg"
+          alt="Total Poly Print"
+          width={44}
+          height={44}
+          priority
+          className="h-11 w-auto"
+        />
       </div>
       {!compact ? (
         <div className="flex flex-col leading-none">

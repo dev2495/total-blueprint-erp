@@ -400,6 +400,23 @@ class PouchStyleMaster(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
     notes = models.TextField(blank=True, default="")
 
+    default_margin_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Style default margin floor. Cascade rank #2.",
+    )
+    conversion_stages = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Which plant rate-card stages apply for this pouch style, '
+            'e.g. ["extrusion","printing","slitting","pouching"]. '
+            'Empty list = all stages.'
+        ),
+    )
+
     created_by = models.ForeignKey(
         "users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="pouch_styles_created"
     )

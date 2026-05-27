@@ -20,6 +20,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
 from .models import (
+    CompanyProfile,
     Notification,
     NotificationDeliveryAttempt,
     NotificationRule,
@@ -37,6 +38,7 @@ from .permission_registry import (
 from .permission_service import PermissionService
 from .role_catalog import canonicalize_role_matrix, canonicalize_role_rows, get_canonical_role_code
 from .serializers import (
+    CompanyProfileSerializer,
     MyTokenObtainPairSerializer,
     RoleSerializer,
     UserProfileChangeRequestSerializer,
@@ -884,3 +886,54 @@ class NotificationViewSet(viewsets.ViewSet):
                 for r in rows
             ]
         )
+
+
+class CompanyProfileView(APIView):
+    """Singleton endpoint returning / updating the company profile shown on quotes."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _can_view(self, user) -> bool:
+        if not getattr(user, "is_authenticated", False):
+            return False
+        if getattr(user, "is_superuser", False) or getattr(user, "is_owner", False):
+            return True
+        role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+        if role_code in {"OWNER", "ADMIN", "SUPER_ADMIN"}:
+            return True
+        ent = PermissionService.get_entitlements(user) or {}
+        perms = set(ent.get("permissions") or [])
+        return "*" in perms or "system.view" in perms or "system.manage" in perms
+
+    def _can_manage(self, user) -> bool:
+        if not getattr(user, "is_authenticated", False):
+            return False
+        if getattr(user, "is_superuser", False) or getattr(user, "is_owner", False):
+            return True
+        role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+        if role_code in {"OWNER", "ADMIN", "SUPER_ADMIN"}:
+            return True
+        ent = PermissionService.get_entitlements(user) or {}
+        perms = set(ent.get("permissions") or [])
+        return "*" in perms or "system.manage" in perms
+
+    def get(self, request):
+        if not self._can_view(request.user):
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        profile = CompanyProfile.get_solo()
+        return Response(CompanyProfileSerializer(profile).data)
+
+    def patch(self, request):
+        if not self._can_manage(request.user):
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        profile = CompanyProfile.get_solo()
+        serializer = CompanyProfileSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        if getattr(request.user, "is_authenticated", False):
+            instance.updated_by = request.user
+            instance.save(update_fields=["updated_by", "updated_at"])
+        return Response(CompanyProfileSerializer(instance).data)
+
+    def put(self, request):
+        return self.patch(request)

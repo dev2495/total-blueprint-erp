@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.db.models import Q
 from django.core.exceptions import ValidationError
@@ -86,6 +88,16 @@ class CustomerProductOverlay(models.Model):
         related_name='customer_product_overlays',
     )
     notes = models.TextField(blank=True, default='')
+    margin_floor_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            "Customer-specific minimum margin % for this product. "
+            "Wins over pouch-style and plant defaults in the quotation costing cascade."
+        ),
+    )
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -506,6 +518,55 @@ class Quotation(models.Model):
         blank=True,
         related_name="source_quotations",
     )
+    parent_quotation = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="revisions",
+    )
+    revision_no = models.PositiveIntegerField(default=1)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_quotations",
+    )
+    # V37 deep workspace — commercials, lifecycle, rejection metadata
+    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
+    freight_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
+    freight_included = models.BooleanField(default=True)
+    other_charges = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of [{label, amount}] for tooling/samples/etc.",
+    )
+    custom_terms = models.TextField(blank=True, default="")
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("18"))
+    status_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Append-only [{status, at, by_id, by_name, note}].",
+    )
+    rejection_reason = models.TextField(blank=True, default="")
+    sent_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotations_sent",
+    )
+    rejected_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotations_rejected",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -590,6 +651,41 @@ class QuotationItem(models.Model):
     total_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     quoted_unit_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     quoted_line_total = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+
+    LINE_KIND_CHOICES = [
+        ("CATALOG", "Catalog"),
+        ("AD_HOC", "Ad-hoc"),
+    ]
+    line_kind = models.CharField(
+        max_length=12, choices=LINE_KIND_CHOICES, default="CATALOG"
+    )
+    spec_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Full pouch spec for ad-hoc lines. Shape: "
+            "{ pouch_style_id, width_mm, height_mm, gusset_mm, flap_mm, "
+            "layers: [{material_id, micron, gsm}], adhesive, print, addons, "
+            "child_web_width_mm, save_as_master? }"
+        ),
+    )
+    margin_lock = models.BooleanField(
+        default=True,
+        help_text=(
+            "True = margin% pinned, rate computed. "
+            "False = rate pinned, margin computed."
+        ),
+    )
+    manual_rate_override = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            "Operator-typed rate that overrides system suggestion. "
+            "Stays even if cost changes underneath."
+        ),
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

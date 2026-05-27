@@ -51,6 +51,15 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/tooling/", "tooling.manage"),
     ("PATCH", "/api/tooling/", "tooling.manage"),
     ("DELETE", "/api/tooling/", "tooling.manage"),
+    # NOTE: Earlier iterations tried to gate quote approval with a dedicated
+    # `sales.quote.approve` code at /api/sales/quotations/approve. The route
+    # resolver does prefix-based startswith matching, so that prefix could not
+    # differentiate /approve/ from any other detail-route action on the same
+    # ViewSet (and would never have matched the `/{id}/approve/` URL anyway).
+    # For V1 we accept that quote approval is gated by the broader sales.manage
+    # permission like the other write actions — OWNER/ADMIN/SUPER_ADMIN already
+    # wildcard, SALES already has sales.manage. A method-aware exact-path
+    # matcher for the dedicated permission can land in V2.
     ("GET", "/api/sales/", "sales.view"),
     ("POST", "/api/sales/", "sales.manage"),
     ("PUT", "/api/sales/", "sales.manage"),
@@ -140,6 +149,13 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/auth/roles/", "rbac.manage"),
     ("PATCH", "/api/auth/roles/", "rbac.manage"),
     ("DELETE", "/api/auth/roles/", "rbac.manage"),
+    # System / company-wide configuration (singleton CompanyProfile etc.)
+    ("GET", "/api/system/company-profile", "system.view"),
+    ("GET", "/api/system/", "system.view"),
+    ("POST", "/api/system/", "system.manage"),
+    ("PUT", "/api/system/", "system.manage"),
+    ("PATCH", "/api/system/", "system.manage"),
+    ("DELETE", "/api/system/", "system.manage"),
 ]
 
 

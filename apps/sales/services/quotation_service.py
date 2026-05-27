@@ -27,6 +27,15 @@ def _dec(value: Any, default: Decimal = Decimal("0")) -> Decimal:
         return default
 
 
+def _safe_dec_or_none(value: Any):
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
 def _uuid_str(value: Any) -> str | None:
     if value in (None, ""):
         return None
@@ -148,6 +157,10 @@ class QuotationService:
         if quotation.status == "CONVERTED" and quotation.converted_sales_order_id:
             raise ValidationError("Quotation has already been converted.")
 
+        # First pass: promote AD_HOC items into ProductMaster (when save_as_master=True)
+        # and attach a fallback template when the line was authored ad-hoc.
+        cls._promote_adhoc_items(quotation)
+
         item_errors: list[str] = []
         items_payload: list[dict[str, Any]] = []
 
@@ -167,25 +180,50 @@ class QuotationService:
             if item.chemicals_snapshot:
                 printing["chemicals"] = deepcopy(item.chemicals_snapshot)
 
-            items_payload.append(
-                {
-                    "template_id": str(item.template_id),
-                    "mode": "TEMPLATE",
-                    "sku_variant": str(item.sku_variant_id) if item.sku_variant_id else None,
-                    "line_name": item.line_name,
-                    "qty_value": float(item.qty_value),
-                    "qty_uom": item.qty_uom,
-                    "price_basis": item.price_basis,
-                    "unit_price": float(unit_price),
-                    "fg_type": item.finished_good_type,
-                    "roll_form": item.roll_form or None,
-                    "geometry": deepcopy(item.geometry_snapshot or {}),
-                    "film_layers": deepcopy(item.layer_snapshot or []),
-                    "printing": printing,
-                    "addons": deepcopy(item.addons_snapshot or []),
-                    "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
-                }
-            )
+            # V37 ad-hoc items keep geometry/layers in spec_snapshot rather than
+            # the legacy *_snapshot fields. Build a geometry+layer dict that the
+            # SO physics validator will accept.
+            spec_snapshot = deepcopy(item.spec_snapshot or {})
+            geometry = deepcopy(item.geometry_snapshot or {})
+            layer_snapshot = deepcopy(item.layer_snapshot or [])
+            if item.line_kind == "AD_HOC":
+                if not geometry.get("width_mm") and spec_snapshot.get("width_mm"):
+                    geometry = {
+                        "width_mm": spec_snapshot.get("width_mm"),
+                        "height_mm": spec_snapshot.get("height_mm"),
+                        "gusset_mm": spec_snapshot.get("gusset_mm"),
+                        "flap_mm": spec_snapshot.get("flap_mm") or 0,
+                    }
+                if not layer_snapshot and spec_snapshot.get("layers"):
+                    layer_snapshot = deepcopy(spec_snapshot.get("layers") or [])
+
+            so_item_payload = {
+                "template_id": str(item.template_id),
+                "mode": "TEMPLATE",
+                "sku_variant": str(item.sku_variant_id) if item.sku_variant_id else None,
+                "line_name": item.line_name,
+                "qty_value": float(item.qty_value),
+                "qty_uom": item.qty_uom,
+                "price_basis": item.price_basis,
+                "unit_price": float(unit_price),
+                "fg_type": item.finished_good_type,
+                "roll_form": item.roll_form or None,
+                "geometry": geometry,
+                "film_layers": layer_snapshot,
+                "printing": printing,
+                "addons": deepcopy(item.addons_snapshot or []),
+                "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
+            }
+            # V37 ad-hoc: forward product_master pointer (if promoted) so the SO line
+            # can be planned from the auto-created master and downstream production
+            # has spec_snapshot available for the manufacturing flow.
+            promoted_pm_id = spec_snapshot.get("product_master_id")
+            if promoted_pm_id:
+                so_item_payload["product_master"] = str(promoted_pm_id)
+            if item.line_kind == "AD_HOC" and spec_snapshot:
+                # Preserve the spec for production planning even without save_as_master.
+                so_item_payload["adhoc_spec_snapshot"] = spec_snapshot
+            items_payload.append(so_item_payload)
 
         if item_errors:
             raise ValidationError({"items": item_errors})
@@ -204,6 +242,245 @@ class QuotationService:
         quotation.converted_sales_order = sales_order
         quotation.save(update_fields=["status", "converted_sales_order", "updated_at"])
         return sales_order
+
+    # ------------------------------------------------------------------ #
+    # V37 ad-hoc helpers
+    # ------------------------------------------------------------------ #
+
+    @classmethod
+    def _promote_adhoc_items(cls, quotation: Quotation) -> None:
+        """For each AD_HOC item where spec_snapshot.save_as_master is True, create
+        a ProductMaster + ProductVariant and stamp the IDs onto spec_snapshot so
+        downstream conversion can link them to the SalesOrderItem.
+
+        Also fills in a fallback LIVE template for AD_HOC items that lack one,
+        so the conversion path (which requires a template per item) can run for
+        a V37-authored quote.
+        """
+        from apps.materials.models import ProductMaster, ProductVariant
+        from apps.templates.models import TemplateBlueprint
+        import hashlib
+        import json as _json
+
+        fallback_template = None
+
+        def _get_fallback_template():
+            nonlocal fallback_template
+            if fallback_template is not None:
+                return fallback_template
+            fallback_template = (
+                TemplateBlueprint.objects
+                .filter(status="LIVE", fg_type="POUCH")
+                .order_by("-updated_at")
+                .first()
+                or TemplateBlueprint.objects.filter(status="LIVE").order_by("-updated_at").first()
+            )
+            return fallback_template
+
+        for item in quotation.items.all():
+            if item.line_kind != "AD_HOC":
+                continue
+            spec = dict(item.spec_snapshot or {})
+            updated = False
+
+            if spec.get("save_as_master") and not spec.get("product_master_id"):
+                # Build a deterministic-ish code from the geometry hash.
+                geo_key = _json.dumps(
+                    {
+                        "w": spec.get("width_mm"),
+                        "h": spec.get("height_mm"),
+                        "g": spec.get("gusset_mm"),
+                        "f": spec.get("flap_mm"),
+                        "layers": [
+                            (l.get("micron"), l.get("gsm")) for l in (spec.get("layers") or [])
+                        ],
+                    },
+                    sort_keys=True,
+                    default=str,
+                )
+                short = hashlib.sha256(geo_key.encode("utf-8")).hexdigest()[:8].upper()
+                code_root = f"PM-AUTO-{short}"
+                code = code_root
+                seq = 1
+                while ProductMaster.objects.filter(code=code).exists():
+                    seq += 1
+                    code = f"{code_root}-{seq}"
+                name = (
+                    item.line_name
+                    or f"Ad-hoc {spec.get('width_mm','?')}x{spec.get('height_mm','?')} {short}"
+                )
+                pm = ProductMaster.objects.create(
+                    code=code,
+                    name=name,
+                    product_kind="POUCH",
+                    reusable_policy="CONFIGURABLE",
+                    canonical_layer_stack=deepcopy(spec.get("layers") or []),
+                    layer_template=deepcopy(spec.get("layers") or []),
+                    fixed_attributes={
+                        "fg_type": "POUCH",
+                        "auto_from_quotation": str(quotation.id),
+                    },
+                    description=f"Auto-created from quotation {quotation.quote_number}",
+                )
+                geometry_snapshot = {
+                    "width_mm": spec.get("width_mm"),
+                    "height_mm": spec.get("height_mm"),
+                    "gusset_mm": spec.get("gusset_mm"),
+                    "flap_mm": spec.get("flap_mm"),
+                }
+                variant_signature = hashlib.sha256(
+                    _json.dumps(
+                        {**geometry_snapshot, "layers": spec.get("layers") or []},
+                        sort_keys=True,
+                        default=str,
+                    ).encode("utf-8")
+                ).hexdigest()[:64]
+                ProductVariant.objects.create(
+                    master=pm,
+                    code=f"V-{short}",
+                    geometry_snapshot=geometry_snapshot,
+                    layer_snapshot=deepcopy(spec.get("layers") or []),
+                    bom_signature=variant_signature,
+                )
+                spec["product_master_id"] = str(pm.id)
+                spec["product_master_code"] = pm.code
+                updated = True
+
+            # Attach fallback template only if missing — needed because
+            # SalesOrderItem.template is non-null and downstream conversion
+            # rejects rows without one. Template is just the route hint; the
+            # spec_snapshot remains the source of truth for production.
+            if not item.template_id:
+                ft = _get_fallback_template()
+                if ft is not None:
+                    item.template = ft
+                    item.save(update_fields=["template", "updated_at"])
+
+            if updated:
+                item.spec_snapshot = spec
+                item.save(update_fields=["spec_snapshot", "updated_at"])
+
+    @classmethod
+    def recalc(cls, quotation: Quotation) -> Quotation:
+        """V37 entrypoint — refresh totals snapshot from the current items.
+
+        Idempotent. Use after bulk_update_items or any direct QuotationItem
+        mutation outside the legacy ``update_quotation`` path.
+        """
+        cls._refresh_totals(quotation)
+        return quotation
+
+    @classmethod
+    @transaction.atomic
+    def bulk_update_items(cls, quotation: Quotation, items_payload: list[dict[str, Any]]) -> Quotation:
+        """V37 nested write — replace the item list with the supplied rows.
+
+        Each row accepts the V37 shape::
+
+            {
+              "line_kind": "CATALOG" | "AD_HOC",
+              "line_name": "...",
+              "qty": <number>,                  # alias for qty_value
+              "uom": "PCS" | "KG",              # alias for qty_uom
+              "rate": <number>,                 # unit price (alias for quoted_unit_price)
+              "line_total": <number>,           # qty * rate
+              "spec_snapshot": {...},           # for ad-hoc lines
+              "costing_snapshot": {...},        # last preview result
+              "margin_lock": true|false,
+              "manual_rate_override": <number|null>,
+              # plus optional CATALOG fields:
+              "product_master": <uuid>,
+              "size_id": <uuid>,
+            }
+
+        Backwards-compatible: the older template/sku_variant shape still works.
+        """
+        rows = items_payload or []
+        quotation.items.all().delete()
+
+        from apps.materials.models import ProductMaster, ProductMasterSize
+
+        for raw in rows:
+            row = dict(raw or {})
+            line_kind = str(row.get("line_kind") or "CATALOG").upper()
+            if line_kind not in {"CATALOG", "AD_HOC"}:
+                line_kind = "CATALOG"
+
+            qty = _dec(row.get("qty_value") or row.get("qty"), Decimal("0"))
+            if qty <= 0:
+                raise ValidationError({"items": "Each line needs a positive quantity."})
+
+            uom = str(row.get("qty_uom") or row.get("uom") or "KG").upper()
+            if uom not in {"PCS", "KG"}:
+                uom = "KG"
+            price_basis = str(row.get("price_basis") or uom).upper()
+            if price_basis not in {"PCS", "KG"}:
+                price_basis = uom
+
+            rate = _dec(row.get("rate") or row.get("quoted_unit_price"), Decimal("0"))
+            line_total = _dec(row.get("line_total") or row.get("quoted_line_total"), rate * qty)
+
+            spec_snapshot = row.get("spec_snapshot") or {}
+            costing_snapshot = row.get("costing_snapshot") or {}
+
+            # CATALOG → resolve product master + size, freeze geometry into spec_snapshot.
+            template_id = _uuid_str(row.get("template") or row.get("template_id"))
+            sku_variant_id = _uuid_str(row.get("sku_variant") or row.get("sku_variant_id"))
+            line_name = str(row.get("line_name") or "").strip()
+            if line_kind == "CATALOG":
+                pm_id = _uuid_str(row.get("product_master") or row.get("product_master_id"))
+                size_id = _uuid_str(row.get("size") or row.get("size_id"))
+                pm = ProductMaster.objects.filter(id=pm_id).first() if pm_id else None
+                size = ProductMasterSize.objects.filter(id=size_id).first() if size_id else None
+                if pm and not template_id and pm.template_id:
+                    template_id = str(pm.template_id)
+                elif pm and not template_id and pm.default_template_id:
+                    template_id = str(pm.default_template_id)
+                if not line_name and pm:
+                    line_name = pm.name
+                if pm:
+                    spec_snapshot = {
+                        **spec_snapshot,
+                        "product_master_id": str(pm.id),
+                        "product_master_code": pm.code,
+                        "size_id": str(size.id) if size else None,
+                        "size_code": size.code if size else None,
+                        "width_mm": float(size.width_mm) if size and size.width_mm else spec_snapshot.get("width_mm"),
+                        "height_mm": float(size.height_mm) if size and size.height_mm else spec_snapshot.get("height_mm"),
+                        "gusset_mm": float(size.gusset_mm) if size and size.gusset_mm else spec_snapshot.get("gusset_mm"),
+                    }
+
+            QuotationItem.objects.create(
+                quotation=quotation,
+                template_id=template_id,
+                sku_variant_id=sku_variant_id,
+                line_name=line_name or ("Ad-hoc line" if line_kind == "AD_HOC" else "Catalog line"),
+                finished_good_type=str(row.get("finished_good_type") or row.get("fg_type") or "POUCH").upper(),
+                roll_form=str(row.get("roll_form") or "").upper(),
+                qty_value=qty,
+                qty_uom=uom,
+                price_basis=price_basis,
+                geometry_snapshot=row.get("geometry_snapshot") or {},
+                layer_snapshot=row.get("layer_snapshot") or (spec_snapshot.get("layers") or []),
+                printing_snapshot=row.get("printing_snapshot") or {},
+                chemicals_snapshot=row.get("chemicals_snapshot") or {},
+                addons_snapshot=row.get("addons_snapshot") or [],
+                packaging_snapshot=row.get("packaging_snapshot") or {},
+                physics_snapshot=row.get("physics_snapshot") or {},
+                bom_snapshot=row.get("bom_snapshot") or {},
+                process_cost_rows=row.get("process_cost_rows") or [],
+                commercial_snapshot=row.get("commercial_snapshot") or {},
+                costing_snapshot=costing_snapshot,
+                quoted_unit_price=rate,
+                quoted_line_total=line_total,
+                line_kind=line_kind,
+                spec_snapshot=spec_snapshot,
+                margin_lock=bool(row.get("margin_lock", True)),
+                manual_rate_override=_safe_dec_or_none(row.get("manual_rate_override")),
+            )
+
+        cls._refresh_totals(quotation)
+        return quotation
 
     @classmethod
     def _save_quotation(cls, quotation: Quotation, payload: dict[str, Any], *, is_create: bool) -> Quotation:
@@ -233,15 +510,54 @@ class QuotationService:
         quotation.currency = str(payload.get("currency") or quotation.currency or "INR").upper()
         quotation.terms = str(payload.get("terms", quotation.terms or ""))
         quotation.notes = str(payload.get("notes", quotation.notes or ""))
+        # V37 commercials — discount / freight / other charges / custom terms
+        if "discount_pct" in payload:
+            quotation.discount_pct = _dec(payload.get("discount_pct"))
+        if "discount_amount" in payload:
+            quotation.discount_amount = _dec(payload.get("discount_amount"))
+        if "freight_amount" in payload:
+            quotation.freight_amount = _dec(payload.get("freight_amount"))
+        if "freight_included" in payload:
+            quotation.freight_included = bool(payload.get("freight_included"))
+        if "other_charges" in payload:
+            raw_oc = payload.get("other_charges") or []
+            if isinstance(raw_oc, list):
+                quotation.other_charges = [
+                    {"label": str(it.get("label") or "Charge"), "amount": float(_dec(it.get("amount")))}
+                    for it in raw_oc
+                    if isinstance(it, dict)
+                ]
+        if "gst_rate" in payload:
+            quotation.gst_rate = _dec(payload.get("gst_rate"))
+        if "custom_terms" in payload:
+            quotation.custom_terms = str(payload.get("custom_terms") or "")
         quotation.save()
 
         if is_create or "items" in payload:
             items_payload = payload.get("items") or []
             if not items_payload:
+                if is_create:
+                    # V37 supports creating an empty draft quote and adding lines later.
+                    cls._refresh_totals(quotation)
+                    return quotation
                 raise ValidationError({"items": "At least one quote line is required."})
-            quotation.items.all().delete()
-            for raw_item in items_payload:
-                cls._persist_item(quotation, raw_item or {})
+            # V37 lines carry `line_kind` (CATALOG / AD_HOC) and use the
+            # spec_snapshot shape. Route those through bulk_update_items rather
+            # than the legacy template-driven `_persist_item` flow.
+            if any(
+                isinstance(r, dict)
+                and (
+                    r.get("line_kind")
+                    or r.get("spec_snapshot")
+                    or (r.get("rate") is not None and r.get("template") is None and r.get("template_id") is None)
+                )
+                for r in items_payload
+            ):
+                cls.bulk_update_items(quotation, items_payload)
+            else:
+                quotation.items.all().delete()
+                for raw_item in items_payload:
+                    cls._persist_item(quotation, raw_item or {})
 
         cls._refresh_totals(quotation)
         return quotation
@@ -702,32 +1018,85 @@ class QuotationService:
 
     @classmethod
     def _refresh_totals(cls, quotation: Quotation) -> None:
-        subtotal = Decimal("0")
-        tax_total = Decimal("0")
-        grand_total = Decimal("0")
+        line_subtotal = Decimal("0")
         direct_cost_total = Decimal("0")
-        margin_total = Decimal("0")
         item_count = 0
 
         for item in quotation.items.all():
             item_count += 1
             costing = item.costing_snapshot or {}
-            subtotal += _dec(costing.get("net_total"))
-            tax_total += _dec(costing.get("tax_value"))
-            grand_total += _dec(costing.get("grand_total"))
-            direct_cost_total += _dec(costing.get("landed_cost"))
-            margin_total += _dec(costing.get("margin_value"))
+            net_total = _dec(costing.get("net_total"))
+            if net_total <= 0:
+                # V37 ad-hoc / catalog lines store line totals directly on the item.
+                net_total = _dec(item.quoted_line_total)
+            line_subtotal += net_total
+            landed = _dec(costing.get("landed_cost"))
+            if landed <= 0:
+                cost_per_kg = _dec(costing.get("total_cost_per_kg"))
+                if cost_per_kg > 0:
+                    qty_kg = (
+                        _dec(item.qty_value)
+                        if item.qty_uom == "KG"
+                        else _dec(item.total_weight_kg)
+                    )
+                    landed = cost_per_kg * qty_kg
+            direct_cost_total += landed
+
+        # Apply commercials: discount → freight → other charges → GST
+        discount_amount = _dec(getattr(quotation, "discount_amount", 0))
+        discount_pct = _dec(getattr(quotation, "discount_pct", 0))
+        if discount_amount <= 0 and discount_pct > 0:
+            discount_amount = (line_subtotal * discount_pct / Decimal("100"))
+        freight = _dec(getattr(quotation, "freight_amount", 0))
+        freight_included = bool(getattr(quotation, "freight_included", True))
+        freight_extra = freight if not freight_included else Decimal("0")
+        other_charges_total = Decimal("0")
+        for charge in (getattr(quotation, "other_charges", None) or []):
+            other_charges_total += _dec((charge or {}).get("amount"))
+        taxable = max(Decimal("0"), line_subtotal - discount_amount + freight_extra + other_charges_total)
+        gst_rate = _dec(getattr(quotation, "gst_rate", 18))
+        tax_total = (taxable * gst_rate / Decimal("100"))
+        grand_total = taxable + tax_total
+        margin_total = max(Decimal("0"), taxable - direct_cost_total)
+        margin_percent = (margin_total / taxable * Decimal("100")) if taxable > 0 else Decimal("0")
 
         quotation.totals_snapshot = _make_json_serializable(
             {
                 "item_count": item_count,
-                "subtotal": float(subtotal.quantize(Decimal("0.0001"))),
+                "subtotal": float(line_subtotal.quantize(Decimal("0.0001"))),
+                "discount_amount": float(discount_amount.quantize(Decimal("0.0001"))),
+                "discount_pct": float(discount_pct.quantize(Decimal("0.0001"))),
+                "freight_amount": float(freight.quantize(Decimal("0.0001"))),
+                "freight_included": freight_included,
+                "other_charges_total": float(other_charges_total.quantize(Decimal("0.0001"))),
+                "taxable_amount": float(taxable.quantize(Decimal("0.0001"))),
+                "gst_rate": float(gst_rate.quantize(Decimal("0.0001"))),
                 "tax_total": float(tax_total.quantize(Decimal("0.0001"))),
                 "grand_total": float(grand_total.quantize(Decimal("0.0001"))),
                 "landed_cost_total": float(direct_cost_total.quantize(Decimal("0.0001"))),
                 "margin_total": float(margin_total.quantize(Decimal("0.0001"))),
-                "margin_percent": float((margin_total / subtotal * Decimal("100")).quantize(Decimal("0.0001"))) if subtotal > 0 else 0.0,
+                "margin_percent": float(margin_percent.quantize(Decimal("0.0001"))),
                 "currency": quotation.currency,
             }
         )
         quotation.save(update_fields=["totals_snapshot", "updated_at"])
+
+    @classmethod
+    def append_status_history(cls, quotation: Quotation, *, status: str, user=None, note: str = "") -> None:
+        history = list(getattr(quotation, "status_history", None) or [])
+        history.append(
+            {
+                "status": status,
+                "at": timezone.now().isoformat(),
+                "by_id": str(getattr(user, "id", "")) if user is not None and getattr(user, "is_authenticated", False) else None,
+                "by_name": (
+                    getattr(user, "full_name", None)
+                    or (getattr(user, "get_full_name", lambda: "")() or None)
+                    or getattr(user, "username", None)
+                    or None
+                ) if user is not None else None,
+                "note": note or "",
+            }
+        )
+        quotation.status_history = history
+        quotation.save(update_fields=["status_history", "updated_at"])

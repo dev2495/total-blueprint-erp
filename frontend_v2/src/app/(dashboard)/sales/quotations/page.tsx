@@ -1,5 +1,5 @@
-import QuotationWorkspace from "@/components/sales/quotations/quotation-workspace"
+import QuotationListPage from "@/components/quotations/quotation-list-page"
 
 export default function QuotationsPage() {
-    return <QuotationWorkspace />
+    return <QuotationListPage />
 }

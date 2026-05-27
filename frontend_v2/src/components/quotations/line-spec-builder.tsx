@@ -1,0 +1,657 @@
+"use client"
+
+import { useMemo } from "react"
+import {
+    Layers3,
+    Plus,
+    Ruler,
+    Sparkles,
+    Trash2,
+    Droplets,
+    Paintbrush,
+} from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import MaterialPicker from "@/components/materials/material-picker"
+import FeatureToggles from "@/components/quotations/feature-toggles"
+import type { MasterSnapshot } from "@/components/quotations/line-spec-diff"
+import type {
+    BomAddon,
+    BomLayer,
+    FeatureOption,
+    QuoteLineSpec,
+} from "@/services/quotation"
+
+export interface LineSpecValue {
+    origin: "CATALOG" | "AD_HOC"
+    product_master_id?: string
+    product_master_code?: string
+    size_id?: string
+    size_label?: string
+    width_mm: number
+    height_mm: number
+    gusset_mm: number
+    flap_mm: number
+    layers: BomLayer[]
+    adhesive: { material_id?: string | null; code?: string; name?: string; gsm: number; rate_per_kg: number }
+    ink: { material_id?: string | null; code?: string; name?: string; gsm: number; rate_per_kg: number; coverage?: string }
+    addons: BomAddon[]
+    features: Record<string, boolean>
+}
+
+interface LineSpecBuilderProps {
+    value: LineSpecValue
+    onChange: (next: LineSpecValue) => void
+    masterSnapshot?: MasterSnapshot
+    featureOptions?: FeatureOption[]
+    /** Set of paths (e.g. "width_mm", "layers[1].micron", "adhesive.gsm", "features.has_zipper") flagged as MODIFIED. */
+    modifiedPaths?: Set<string>
+}
+
+const QUICK_ADDONS: Array<{ name: string; qty_per_pouch: number; rate_per_kg: number }> = [
+    { name: "Zipper LDPE 8mm", qty_per_pouch: 1, rate_per_kg: 240 },
+    { name: "Tear notch", qty_per_pouch: 1, rate_per_kg: 0 },
+    { name: "Hang hole", qty_per_pouch: 1, rate_per_kg: 0 },
+    { name: "Spout 8mm", qty_per_pouch: 1, rate_per_kg: 320 },
+    { name: "One-way valve", qty_per_pouch: 1, rate_per_kg: 280 },
+]
+
+const INK_COVERAGE_TO_GSM: Record<string, number> = {
+    LIGHT: 1.8,
+    MEDIUM: 3.2,
+    HEAVY: 5.4,
+}
+
+function dotIfModified(modifiedPaths: Set<string> | undefined, path: string): boolean {
+    return Boolean(modifiedPaths?.has(path))
+}
+
+function ModChip({ active }: { active: boolean }) {
+    if (!active) return null
+    return (
+        <span className="inline-flex items-center h-4 px-1 rounded text-[8px] font-extrabold uppercase tracking-widest bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+            mod
+        </span>
+    )
+}
+
+function FieldLabel({
+    children,
+    modified,
+}: {
+    children: React.ReactNode
+    modified?: boolean
+}) {
+    return (
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 inline-flex items-center gap-1.5">
+            {children}
+            <ModChip active={Boolean(modified)} />
+        </span>
+    )
+}
+
+export default function LineSpecBuilder({
+    value,
+    onChange,
+    featureOptions,
+    masterSnapshot,
+    modifiedPaths,
+}: LineSpecBuilderProps) {
+    const layers = value.layers || []
+    const addons = value.addons || []
+
+    const totalMicron = useMemo(
+        () => layers.reduce((s, l) => s + (Number(l.micron) || 0), 0),
+        [layers],
+    )
+    const totalGsm = useMemo(
+        () =>
+            layers.reduce((s, l) => s + (Number(l.gsm) || 0), 0) +
+            Number(value.adhesive?.gsm || 0) +
+            Number(value.ink?.gsm || 0),
+        [layers, value.adhesive?.gsm, value.ink?.gsm],
+    )
+
+    const childWebMm = useMemo(() => {
+        const w = Number(value.width_mm) || 0
+        const g = Number(value.gusset_mm) || 0
+        return w + g
+    }, [value.width_mm, value.gusset_mm])
+
+    const updateLayer = (idx: number, patch: Partial<BomLayer>) => {
+        const next = layers.map((l, i) => {
+            if (i !== idx) return l
+            const merged: BomLayer = { ...l, ...patch }
+            const density = patch.density_gcm3 ?? merged.density_gcm3
+            const micron = patch.micron ?? merged.micron
+            if (("micron" in patch || "density_gcm3" in patch || "material_id" in patch) && density && micron) {
+                merged.gsm = Number((Number(micron) * Number(density)).toFixed(2))
+            }
+            return merged
+        })
+        onChange({ ...value, layers: next })
+    }
+
+    const featOpts: FeatureOption[] = featureOptions || []
+
+    return (
+        <div className="space-y-4">
+            {/* Section 1 — Geometry */}
+            <SectionCard
+                icon={<Ruler className="h-4 w-4 text-indigo-600" />}
+                title="Pouch geometry"
+                accent="from-indigo-100/70 to-white"
+            >
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(
+                        [
+                            ["Width (mm)", "width_mm"],
+                            ["Height (mm)", "height_mm"],
+                            ["Gusset (mm)", "gusset_mm"],
+                            ["Flap (mm)", "flap_mm"],
+                        ] as Array<[string, keyof LineSpecValue]>
+                    ).map(([label, key]) => {
+                        const isMod = dotIfModified(modifiedPaths, String(key))
+                        return (
+                            <label key={String(key)} className="block">
+                                <FieldLabel modified={isMod}>{label}</FieldLabel>
+                                <input
+                                    type="number"
+                                    value={Number(value[key] as number) || 0}
+                                    onChange={(e) =>
+                                        onChange({ ...value, [key]: Number(e.target.value) } as LineSpecValue)
+                                    }
+                                    className={cn(
+                                        "mt-1 h-10 w-full rounded-lg border px-3 text-sm font-bold font-mono text-right outline-none focus:ring-2 focus:ring-indigo-200",
+                                        isMod
+                                            ? "border-amber-300 focus:border-amber-400 bg-amber-50/40"
+                                            : "border-slate-200 focus:border-indigo-400",
+                                    )}
+                                />
+                            </label>
+                        )
+                    })}
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-3 text-[11px] font-bold text-slate-500">
+                    <span>
+                        Child web ≈{" "}
+                        <span className="font-mono font-extrabold text-slate-800">
+                            {childWebMm.toFixed(0)} mm
+                        </span>
+                    </span>
+                </div>
+            </SectionCard>
+
+            {/* Section 2 — Film BOM */}
+            <SectionCard
+                icon={<Layers3 className="h-4 w-4 text-violet-600" />}
+                title="Film bill of materials"
+                accent="from-violet-100/70 to-white"
+                action={
+                    <button
+                        onClick={() =>
+                            onChange({
+                                ...value,
+                                layers: [
+                                    ...layers,
+                                    {
+                                        position: `L${layers.length + 1}`,
+                                        material_name: `Layer ${layers.length + 1}`,
+                                        micron: 0,
+                                        gsm: 0,
+                                        rate_per_kg: 0,
+                                    },
+                                ],
+                            })
+                        }
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-200 text-[11px] font-extrabold uppercase tracking-wider hover:bg-violet-100"
+                    >
+                        <Plus className="h-3 w-3" strokeWidth={2.5} />
+                        Layer
+                    </button>
+                }
+            >
+                {layers.length === 0 ? (
+                    <div className="text-[11px] font-bold text-slate-400">
+                        No layers. Use “Layer” to start the stack.
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {layers.map((l, idx) => {
+                            const isMatMod = dotIfModified(modifiedPaths, `layers[${idx}].material`)
+                            const isMuMod = dotIfModified(modifiedPaths, `layers[${idx}].micron`)
+                            const isGsmMod = dotIfModified(modifiedPaths, `layers[${idx}].gsm`)
+                            return (
+                                <div key={idx} className="grid grid-cols-[36px_1fr_60px_70px_100px_auto] gap-2 items-center">
+                                    <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-violet-100 text-violet-700 text-[10px] font-extrabold uppercase tracking-widest">
+                                        {l.position || `L${idx + 1}`}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <MaterialPicker
+                                            categories={["FILM_FAMILY", "FILM_VARIANT"]}
+                                            value={{
+                                                id: l.material_id || undefined,
+                                                code: l.material_code,
+                                                name: l.material_name || l.material_code,
+                                            }}
+                                            placeholder="Pick film…"
+                                            compact
+                                            onSelect={(m) =>
+                                                updateLayer(idx, {
+                                                    material_id: m.id,
+                                                    material_code: m.code,
+                                                    material_name: m.name,
+                                                    density_gcm3: m.density_gcm3 || null,
+                                                    rate_per_kg: m.avg_cost || l.rate_per_kg,
+                                                })
+                                            }
+                                        />
+                                        <div className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-slate-400 font-mono">
+                                            {isMatMod ? <ModChip active /> : null}
+                                            {l.material_code ? <span>{l.material_code}</span> : null}
+                                            {l.density_gcm3 ? <span>· ρ {l.density_gcm3}</span> : null}
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        placeholder="µ"
+                                        value={Number(l.micron) || 0}
+                                        onChange={(e) => updateLayer(idx, { micron: Number(e.target.value) })}
+                                        className={cn(
+                                            "h-9 rounded-lg border px-2 text-sm font-bold font-mono text-right outline-none focus:ring-2 focus:ring-indigo-200",
+                                            isMuMod
+                                                ? "border-amber-300 bg-amber-50/40"
+                                                : "border-slate-200 focus:border-indigo-400",
+                                        )}
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="gsm"
+                                        value={Number(l.gsm) || 0}
+                                        onChange={(e) => updateLayer(idx, { gsm: Number(e.target.value) })}
+                                        className={cn(
+                                            "h-9 rounded-lg border px-2 text-sm font-bold font-mono text-right outline-none focus:ring-2 focus:ring-indigo-200",
+                                            isGsmMod
+                                                ? "border-amber-300 bg-amber-50/40"
+                                                : "border-slate-200 focus:border-indigo-400",
+                                        )}
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="₹/kg"
+                                        value={Number(l.rate_per_kg) || 0}
+                                        onChange={(e) =>
+                                            updateLayer(idx, { rate_per_kg: Number(e.target.value) })
+                                        }
+                                        className="h-9 rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                                    />
+                                    <button
+                                        onClick={() =>
+                                            onChange({
+                                                ...value,
+                                                layers: layers.filter((_, i) => i !== idx),
+                                            })
+                                        }
+                                        className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+                <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-3 text-center">
+                    <Totals label="Total µ" value={totalMicron.toFixed(0)} />
+                    <Totals label="Total GSM" value={totalGsm.toFixed(2)} />
+                    <Totals label="Layers" value={String(layers.length)} />
+                </div>
+            </SectionCard>
+
+            {/* Section 3 — Adhesive + Ink */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SectionCard
+                    icon={<Droplets className="h-4 w-4 text-sky-600" />}
+                    title="Adhesive"
+                    accent="from-sky-100/70 to-white"
+                >
+                    <MaterialPicker
+                        categories={["ADHESIVE", "SOLVENT"]}
+                        value={{
+                            id: value.adhesive?.material_id || undefined,
+                            code: value.adhesive?.code,
+                            name: value.adhesive?.name || "Pick adhesive",
+                        }}
+                        placeholder="Pick adhesive…"
+                        compact
+                        onSelect={(m) =>
+                            onChange({
+                                ...value,
+                                adhesive: {
+                                    ...value.adhesive,
+                                    material_id: m.id,
+                                    code: m.code,
+                                    name: m.name,
+                                    rate_per_kg: m.avg_cost || value.adhesive.rate_per_kg,
+                                },
+                            })
+                        }
+                    />
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                        <label className="block">
+                            <FieldLabel modified={dotIfModified(modifiedPaths, "adhesive.gsm")}>GSM</FieldLabel>
+                            <input
+                                type="number"
+                                value={Number(value.adhesive.gsm) || 0}
+                                onChange={(e) =>
+                                    onChange({
+                                        ...value,
+                                        adhesive: { ...value.adhesive, gsm: Number(e.target.value) },
+                                    })
+                                }
+                                className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                            />
+                        </label>
+                        <label className="block">
+                            <FieldLabel modified={dotIfModified(modifiedPaths, "adhesive.rate")}>₹/kg</FieldLabel>
+                            <input
+                                type="number"
+                                value={Number(value.adhesive.rate_per_kg) || 0}
+                                onChange={(e) =>
+                                    onChange({
+                                        ...value,
+                                        adhesive: {
+                                            ...value.adhesive,
+                                            rate_per_kg: Number(e.target.value),
+                                        },
+                                    })
+                                }
+                                className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                            />
+                        </label>
+                    </div>
+                </SectionCard>
+
+                <SectionCard
+                    icon={<Paintbrush className="h-4 w-4 text-rose-600" />}
+                    title="Ink"
+                    accent="from-rose-100/70 to-white"
+                >
+                    <MaterialPicker
+                        categories={["INK"]}
+                        value={{
+                            id: value.ink?.material_id || undefined,
+                            code: value.ink?.code,
+                            name: value.ink?.name || "Pick ink",
+                        }}
+                        placeholder="Pick ink…"
+                        compact
+                        onSelect={(m) =>
+                            onChange({
+                                ...value,
+                                ink: {
+                                    ...value.ink,
+                                    material_id: m.id,
+                                    code: m.code,
+                                    name: m.name,
+                                    rate_per_kg: m.avg_cost || value.ink.rate_per_kg,
+                                },
+                            })
+                        }
+                    />
+                    <div className="mt-2 flex flex-wrap gap-1 mb-2">
+                        {(["LIGHT", "MEDIUM", "HEAVY"] as const).map((c) => {
+                            const active = (value.ink.coverage || "MEDIUM") === c
+                            return (
+                                <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() =>
+                                        onChange({
+                                            ...value,
+                                            ink: {
+                                                ...value.ink,
+                                                coverage: c,
+                                                gsm: INK_COVERAGE_TO_GSM[c],
+                                            },
+                                        })
+                                    }
+                                    className={cn(
+                                        "h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider ring-1",
+                                        active
+                                            ? "bg-rose-500 text-white ring-rose-500"
+                                            : "bg-white text-slate-600 ring-slate-200 hover:bg-rose-50",
+                                    )}
+                                >
+                                    {c}
+                                </button>
+                            )
+                        })}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                            <FieldLabel modified={dotIfModified(modifiedPaths, "ink.gsm")}>GSM</FieldLabel>
+                            <input
+                                type="number"
+                                value={Number(value.ink.gsm) || 0}
+                                onChange={(e) =>
+                                    onChange({
+                                        ...value,
+                                        ink: { ...value.ink, gsm: Number(e.target.value) },
+                                    })
+                                }
+                                className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                            />
+                        </label>
+                        <label className="block">
+                            <FieldLabel modified={dotIfModified(modifiedPaths, "ink.rate")}>₹/kg</FieldLabel>
+                            <input
+                                type="number"
+                                value={Number(value.ink.rate_per_kg) || 0}
+                                onChange={(e) =>
+                                    onChange({
+                                        ...value,
+                                        ink: {
+                                            ...value.ink,
+                                            rate_per_kg: Number(e.target.value),
+                                        },
+                                    })
+                                }
+                                className="mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                            />
+                        </label>
+                    </div>
+                </SectionCard>
+            </div>
+
+            {/* Section 4 — Addons */}
+            <SectionCard
+                icon={<Sparkles className="h-4 w-4 text-amber-600" />}
+                title="Addons"
+                accent="from-amber-100/70 to-white"
+                action={
+                    <div className="flex flex-wrap gap-1">
+                        {QUICK_ADDONS.map((qa) => (
+                            <button
+                                key={qa.name}
+                                type="button"
+                                onClick={() =>
+                                    onChange({
+                                        ...value,
+                                        addons: [...addons, { ...qa }],
+                                    })
+                                }
+                                className="h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100"
+                            >
+                                + {qa.name}
+                            </button>
+                        ))}
+                    </div>
+                }
+            >
+                {addons.length === 0 ? (
+                    <div className="text-[11px] font-bold text-slate-400">
+                        No addons. Use the quick-add chips above.
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {addons.map((a, idx) => (
+                            <div key={idx} className="grid grid-cols-[1fr_70px_90px_auto] gap-2 items-center">
+                                <MaterialPicker
+                                    categories={["ADDON"]}
+                                    value={{ id: a.material_id || undefined, code: a.code, name: a.name }}
+                                    placeholder="Pick addon…"
+                                    compact
+                                    onSelect={(m) =>
+                                        onChange({
+                                            ...value,
+                                            addons: addons.map((x, i) =>
+                                                i === idx
+                                                    ? {
+                                                          ...x,
+                                                          material_id: m.id,
+                                                          code: m.code,
+                                                          name: m.name,
+                                                          rate_per_kg: m.avg_cost || x.rate_per_kg,
+                                                      }
+                                                    : x,
+                                            ),
+                                        })
+                                    }
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="qty/pouch"
+                                    value={Number(a.qty_per_pouch) || 0}
+                                    onChange={(e) =>
+                                        onChange({
+                                            ...value,
+                                            addons: addons.map((x, i) =>
+                                                i === idx
+                                                    ? { ...x, qty_per_pouch: Number(e.target.value) }
+                                                    : x,
+                                            ),
+                                        })
+                                    }
+                                    className="h-9 rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="₹/kg"
+                                    value={Number(a.rate_per_kg) || 0}
+                                    onChange={(e) =>
+                                        onChange({
+                                            ...value,
+                                            addons: addons.map((x, i) =>
+                                                i === idx
+                                                    ? { ...x, rate_per_kg: Number(e.target.value) }
+                                                    : x,
+                                            ),
+                                        })
+                                    }
+                                    className="h-9 rounded-lg border border-slate-200 px-2 text-sm font-bold font-mono text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
+                                />
+                                <button
+                                    onClick={() =>
+                                        onChange({
+                                            ...value,
+                                            addons: addons.filter((_, i) => i !== idx),
+                                        })
+                                    }
+                                    className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SectionCard>
+
+            {/* Section 5 — Features */}
+            <FeatureToggles
+                options={featOpts}
+                value={value.features || {}}
+                masterDefaults={masterSnapshot?.features}
+                onChange={(features) => onChange({ ...value, features })}
+            />
+        </div>
+    )
+}
+
+/**
+ * Build a `QuoteLineSpec` payload for the backend cost-preview from a
+ * `LineSpecValue`. Centralized so catalog + ad-hoc serialize identically.
+ */
+export function lineSpecToBackendSpec(v: LineSpecValue): QuoteLineSpec & Record<string, unknown> {
+    return {
+        product_master_id: v.product_master_id,
+        size_id: v.size_id,
+        width_mm: v.width_mm,
+        height_mm: v.height_mm,
+        gusset_mm: v.gusset_mm,
+        flap_mm: v.flap_mm,
+        layers: (v.layers || []).map((l) => ({
+            material_id: l.material_id || undefined,
+            material_code: l.material_code,
+            name: l.material_name,
+            micron: l.micron,
+            gsm: l.gsm,
+            rate_per_kg: l.rate_per_kg,
+            density_gcm3: l.density_gcm3 || undefined,
+        })),
+        adhesive_name: v.adhesive?.name,
+        adhesive_gsm: v.adhesive?.gsm,
+        adhesive_rate_per_kg: v.adhesive?.rate_per_kg,
+        ink_name: v.ink?.name,
+        ink_gsm: v.ink?.gsm,
+        ink_rate_per_kg: v.ink?.rate_per_kg,
+        addons: (v.addons || []).map((a) => ({
+            material_id: a.material_id || undefined,
+            name: a.name,
+            qty_per_pouch: a.qty_per_pouch,
+            rate_per_kg: Number(a.rate_per_kg || 0) * Number(a.qty_per_pouch || 0),
+        })),
+        // Pass features through so backend can persist + use downstream
+        features: v.features,
+    }
+}
+
+interface SectionCardProps {
+    icon: React.ReactNode
+    title: string
+    accent: string
+    children: React.ReactNode
+    action?: React.ReactNode
+}
+
+function SectionCard({ icon, title, accent, children, action }: SectionCardProps) {
+    return (
+        <div className="rounded-xl ring-1 ring-slate-200 bg-white overflow-hidden">
+            <div
+                className={cn(
+                    "px-3 py-2 border-b border-slate-100 flex items-center gap-2 bg-gradient-to-r",
+                    accent,
+                )}
+            >
+                {icon}
+                <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-700">
+                    {title}
+                </span>
+                <div className="ml-auto">{action}</div>
+            </div>
+            <div className="p-3">{children}</div>
+        </div>
+    )
+}
+
+function Totals({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                {label}
+            </div>
+            <div className="font-mono text-sm font-extrabold text-slate-900">{value}</div>
+        </div>
+    )
+}

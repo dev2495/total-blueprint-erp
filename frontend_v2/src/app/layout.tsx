@@ -8,6 +8,13 @@ installServerConsoleFilters();
 export const metadata: Metadata = {
   title: "Total Poly Print ERP",
   description: "Total Poly Print ERP",
+  icons: {
+    icon: [
+      { url: "/brand/tpp-logo-mark.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/brand/tpp-logo-mark.svg",
+    apple: "/brand/tpp-logo-mark.svg",
+  },
 };
 
 export default async function RootLayout({
