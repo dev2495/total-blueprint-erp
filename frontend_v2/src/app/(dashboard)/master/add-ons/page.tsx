@@ -41,7 +41,7 @@ const formSchema = z.object({
     weight_value: z.coerce.number().min(0, "Value must be positive"),
     is_purchasable: z.boolean().default(false),
     addon_is_purchased: z.boolean().default(false),
-    addon_purchase_uom: z.enum(["KG", "PCS"]).default("KG"),
+    addon_purchase_uom: z.enum(["KG", "PCS", "METER"]).default("KG"),
 })
 
 
@@ -55,7 +55,7 @@ function AddonForm({ initialData, onSubmit, isLoading }: { initialData?: Addon, 
             weight_value: initialData?.weight_value || 0,
             is_purchasable: Boolean(initialData?.is_purchasable ?? initialData?.addon_is_purchased),
             addon_is_purchased: Boolean(initialData?.is_purchasable ?? initialData?.addon_is_purchased),
-            addon_purchase_uom: (initialData?.addon_purchase_uom as "KG" | "PCS") || "KG",
+            addon_purchase_uom: (initialData?.addon_purchase_uom as "KG" | "PCS" | "METER") || "KG",
         },
     })
 
@@ -165,6 +165,7 @@ function AddonForm({ initialData, onSubmit, isLoading }: { initialData?: Addon, 
                                     <SelectContent>
                                         <SelectItem value="KG">KG</SelectItem>
                                         <SelectItem value="PCS">PCS</SelectItem>
+                                        <SelectItem value="METER">METER</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />

@@ -41,6 +41,7 @@ import { describeApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { inventoryService, type Vendor, type Location } from "@/services/inventory"
 import { masterDataService, type GranuleQualityCode } from "@/services/master-data"
+import { procurementService, type POItem, type PurchaseOrderListItem } from "@/services/procurement"
 import { recipeService, type RecipeGrade } from "@/services/recipes"
 import { tradingGoodService, tradingGoodReceiptService, type TradingGood } from "@/services/trading-goods"
 import { MaterialPicker } from "@/components/inventory/material-picker"
@@ -50,6 +51,7 @@ type BulkMaterialFilter = "ALL" | "GRANULE" | "INK" | "ADHESIVE" | "SOLVENT" | "
 
 interface ItemDraft {
     id: string
+    po_item_id?: string
     material_code: string
     grade: string
     granule_code_id: string
@@ -149,7 +151,7 @@ function isPurchasedAddon(material: any) {
     if (Object.prototype.hasOwnProperty.call(material || {}, "addon_is_purchased")) {
         return material?.addon_is_purchased === true
     }
-    return ["KG", "PCS"].includes(String(material?.addon_purchase_uom || material?.base_uom || "").toUpperCase())
+    return ["KG", "PCS", "METER"].includes(String(material?.addon_purchase_uom || material?.base_uom || "").toUpperCase())
 }
 
 function materialMatchesReceiptClass(material: any, klass: ClassKind) {
@@ -158,6 +160,38 @@ function materialMatchesReceiptClass(material: any, klass: ClassKind) {
     if (klass === "ROLL") return category === "FILM_VARIANT"
     if (klass === "PACKAGING") return category === "PACKAGING"
     return ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "POD", "ADDON"].includes(category) && isPurchasedAddon(material)
+}
+
+function poItemMatchesReceiptClass(item: POItem, klass: ClassKind) {
+    const category = String(item.material_category || "").toUpperCase()
+    if (klass === "ROLL") return ["FILM_VARIANT", "POD"].includes(category)
+    if (klass === "PACKAGING") return category === "PACKAGING"
+    if (klass === "TRADING") return false
+    return ["GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON", "FILM_FAMILY"].includes(category)
+}
+
+function poItemToDraft(item: POItem, locationId: string): ItemDraft {
+    const openQty = Number(item.qty_open ?? 0)
+    const qty = openQty > 0 ? openQty : Math.max(0, Number(item.qty_ordered || 0) - Number(item.qty_received || 0))
+    return {
+        ...FRESH_ITEM(),
+        id: `po-${item.id || Math.random().toString(36).slice(2, 8)}`,
+        po_item_id: item.id,
+        material_code: item.material_code || "",
+        qty: qty ? String(qty) : "",
+        uom: String(item.uom || "KG").toUpperCase(),
+        unit_cost: item.rate_per_uom != null ? String(item.rate_per_uom) : "",
+        location: locationId,
+        width_mm: item.expected_width_mm != null ? String(item.expected_width_mm) : "",
+        thickness_um: item.expected_thickness_micron != null ? String(item.expected_thickness_micron) : "",
+        net_weight_kg: String(item.uom || "").toUpperCase() === "KG" && qty ? String(qty) : "",
+    }
+}
+
+function receiptTotalQty(receipt: any, fallback: number) {
+    if (receipt?.totals?.qty != null) return Number(receipt.totals.qty) || 0
+    if (Array.isArray(receipt?.lines)) return receipt.lines.reduce((sum: number, line: any) => sum + (Number(line.qty_received) || 0), 0)
+    return fallback
 }
 
 export function GrnSmartV36() {
@@ -197,9 +231,23 @@ export function GrnSmartV36() {
     const materialsQ = useQuery({ queryKey: ["material-library"], queryFn: () => masterDataService.getLibrary(), staleTime: 60_000 })
     const gradesQ = useQuery({ queryKey: ["recipe-grades"], queryFn: () => recipeService.getGrades(), staleTime: 60_000 })
     const granuleCodesQ = useQuery({ queryKey: ["granule-codes", "active"], queryFn: () => masterDataService.getGranuleCodes({ status: "ACTIVE" }), staleTime: 60_000 })
+    const openPurchaseOrdersQ = useQuery({
+        queryKey: ["procurement-open-pos-for-grn"],
+        queryFn: () => procurementService.listOpenForReceipt(),
+        enabled: sourceType === "PO" && klass !== "TRADING",
+        staleTime: 30_000,
+    })
+    const selectedPoQ = useQuery({
+        queryKey: ["procurement-po-for-grn", poId],
+        queryFn: () => procurementService.get(poId),
+        enabled: sourceType === "PO" && Boolean(poId),
+        staleTime: 15_000,
+    })
     const vendors = vendorsQ.data || []
     const locations = locationsQ.data || []
     const materials = materialsQ.data || []
+    const openPurchaseOrders = openPurchaseOrdersQ.data || []
+    const selectedPo = selectedPoQ.data || null
 
     const lineQty = React.useCallback((line: Pick<ItemDraft, "qty" | "net_weight_kg">) => Number(klass === "ROLL" ? (line.net_weight_kg || line.qty) : line.qty) || 0, [klass])
     const subtotal = items.reduce((s, i) => s + lineQty(i) * (Number(i.unit_cost) || 0), 0)
@@ -208,8 +256,18 @@ export function GrnSmartV36() {
 
     const totalQty = items.reduce((s, i) => s + lineQty(i), 0)
 
-    const queryError = vendorsQ.error || locationsQ.error || materialsQ.error || gradesQ.error || granuleCodesQ.error
-    const valid = !!warehouseId && !!vendorId && items.every((i) => i.material_code && lineQty(i) > 0)
+    const queryError = vendorsQ.error || locationsQ.error || materialsQ.error || gradesQ.error || granuleCodesQ.error || openPurchaseOrdersQ.error || selectedPoQ.error
+    const valid = !!warehouseId && !!vendorId && items.every((i) => i.material_code && lineQty(i) > 0) && (sourceType !== "PO" || (!!poId && items.every((i) => i.po_item_id)))
+
+    React.useEffect(() => {
+        if (sourceType !== "PO" || !selectedPo) return
+        setVendorId(selectedPo.vendor || "")
+        const samePlantLocation = locations.find((loc: any) => String(loc.plant) === String(selectedPo.plant))
+        if (!warehouseId && samePlantLocation?.id) setWarehouseId(samePlantLocation.id)
+        const lineLocation = warehouseId || samePlantLocation?.id || ""
+        const poLines = (selectedPo.items || []).filter((line) => Number(line.qty_open || 0) > 0 && poItemMatchesReceiptClass(line, klass))
+        setItems(poLines.length ? poLines.map((line) => poItemToDraft(line, lineLocation)) : [FRESH_ITEM()])
+    }, [klass, locations, selectedPo, sourceType, warehouseId])
 
     const handleClassChange = React.useCallback((next: ClassKind) => {
         setKlass(next)
@@ -218,9 +276,18 @@ export function GrnSmartV36() {
         setLastPosted(null)
     }, [])
 
+    const handleSourceTypeChange = React.useCallback((next: "PO" | "DIRECT" | "INTERPLANT" | "JOBWORK" | "MANUAL_PO") => {
+        setSourceType(next)
+        setLastPosted(null)
+        if (next !== "PO") setPoId("")
+        if (next !== "MANUAL_PO") setManualPoRef("")
+        if (next !== "PO") setItems([FRESH_ITEM()])
+    }, [])
+
     const resetDraftAfterPost = React.useCallback(() => {
         setSourceType("PO")
         setPoId("")
+        setManualPoRef("")
         setVendorId("")
         setVendorInvoiceNo("")
         setVendorInvoiceDate("")
@@ -243,15 +310,40 @@ export function GrnSmartV36() {
 
     const submitMutation = useMutation({
         mutationFn: async () => {
+            if (sourceType === "PO") {
+                if (!poId) throw new Error("Pick a system purchase order.")
+                const poLines = items
+                    .filter((line) => line.po_item_id && lineQty(line) > 0)
+                    .map((line) => ({
+                        po_item_id: line.po_item_id as string,
+                        qty_received: lineQty(line),
+                        rate: Number(line.unit_cost) || undefined,
+                        notes: line.vendor_lot_ref || "",
+                        width_mm: line.width_mm ? Number(line.width_mm) : undefined,
+                        thickness_micron: line.thickness_um ? Number(line.thickness_um) : undefined,
+                    }))
+                if (!poLines.length) throw new Error("Selected PO has no receivable lines for this stock class.")
+                return procurementService.createReceipt({
+                    purchase_order: poId,
+                    location_id: warehouseId,
+                    vendor_invoice_no: vendorInvoiceNo,
+                    vendor_invoice_date: vendorInvoiceDate || null,
+                    vehicle_no: lrVehicle,
+                    lr_no: lrVehicle,
+                    notes: remarks,
+                    quality_status: "PENDING",
+                    lines: poLines,
+                })
+            }
             const basePayload: any = {
                 klass,
                 source_type: sourceType,
-                source_ref: sourceType === "MANUAL_PO" ? manualPoRef : poId,
+                source_ref: sourceType === "MANUAL_PO" ? manualPoRef : "",
                 manual_po_ref: sourceType === "MANUAL_PO" ? manualPoRef : "",
                 vendor_id: vendorId,
                 vendor_invoice_no: vendorInvoiceNo,
                 vendor_invoice_date: vendorInvoiceDate,
-                reference_po_id: sourceType === "PO" ? poId : undefined,
+                reference_po_id: undefined,
                 lr_vehicle: lrVehicle,
                 transport: { vehicle_no: lrVehicle },
                 warehouse_id: warehouseId,
@@ -291,17 +383,20 @@ export function GrnSmartV36() {
         },
         onSuccess: (receipt: any) => {
             const posted: PostedReceipt = {
-                grn_no: String(receipt?.grn_no || "GRN posted"),
+                grn_no: String(receipt?.grn_no || receipt?.code || "GRN posted"),
                 klass,
-                total_qty: Number(receipt?.totals?.qty ?? totalQty) || 0,
+                total_qty: receiptTotalQty(receipt, totalQty),
                 uom: items[0]?.uom || "units",
-                movement_count: Array.isArray(receipt?.stock_movements) ? receipt.stock_movements.length : items.length,
+                movement_count: Array.isArray(receipt?.stock_movements) ? receipt.stock_movements.length : Array.isArray(receipt?.lines) ? receipt.lines.length : items.length,
             }
             queryClient.invalidateQueries({ queryKey: ["inventory-snapshot"] })
             queryClient.invalidateQueries({ queryKey: ["inventory-bulk"] })
             queryClient.invalidateQueries({ queryKey: ["inventory-rolls"] })
             queryClient.invalidateQueries({ queryKey: ["inventory-packaging"] })
             queryClient.invalidateQueries({ queryKey: ["grn-history"] })
+            queryClient.invalidateQueries({ queryKey: ["procurement-open-pos-for-grn"] })
+            queryClient.invalidateQueries({ queryKey: ["procurement-po-for-grn"] })
+            queryClient.invalidateQueries({ queryKey: ["purchase-orders"] })
             setLastPosted(posted)
             resetDraftAfterPost()
             toast({ title: "GRN posted", description: `${posted.grn_no} · ${posted.total_qty} ${posted.uom} added to ledger` })
@@ -521,7 +616,7 @@ export function GrnSmartV36() {
                             <Field label="Source type">
                                 <div className="flex flex-wrap gap-2">
                                     {(["PO", "MANUAL_PO", "DIRECT", "JOBWORK"] as const).map((t) => (
-                                        <Toggle key={t} active={sourceType === t} onClick={() => setSourceType(t)}>
+                                        <Toggle key={t} active={sourceType === t} onClick={() => handleSourceTypeChange(t)}>
                                             {t === "PO" ? "Against system PO" : t === "MANUAL_PO" ? "Manual vendor PO ref" : t === "DIRECT" ? "Direct receipt" : "Job work return"}
                                         </Toggle>
                                     ))}
@@ -534,8 +629,36 @@ export function GrnSmartV36() {
                                 <Input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="h-10 rounded-xl border-slate-200 shadow-sm" />
                             </Field>
                             {sourceType === "PO" && (
-                                <Field label="System purchase order #" col2>
-                                    <Input value={poId} onChange={(e) => setPoId(e.target.value)} placeholder="PO-2025-0042" className="h-10 rounded-xl border-slate-200 font-mono shadow-sm" />
+                                <Field label="System purchase order" col2>
+                                    <Select value={poId} onValueChange={(value) => {
+                                        setPoId(value)
+                                        setLastPosted(null)
+                                    }}>
+                                        <SelectTrigger data-testid="smart-grn-system-po" className="h-10 rounded-xl border-slate-200 font-mono shadow-sm">
+                                            <SelectValue placeholder={openPurchaseOrdersQ.isLoading ? "Loading open purchase orders..." : "Pick open PO waiting to receive"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {openPurchaseOrders.map((po: PurchaseOrderListItem) => (
+                                                <SelectItem key={po.id} value={po.id}>
+                                                    {po.code} · {po.vendor_name || "Vendor"} · open {(Number(po.open_qty_total ?? po.qty_ordered_total - po.qty_received_total) || 0).toLocaleString()} units
+                                                </SelectItem>
+                                            ))}
+                                            {!openPurchaseOrdersQ.isLoading && openPurchaseOrders.length === 0 && (
+                                                <SelectItem value="__none__" disabled>No sent/ack/partial PO has open quantity</SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                    {selectedPo && (
+                                        <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-[11px] text-blue-950">
+                                            <div className="font-bold">{selectedPo.code} · {selectedPo.vendor_name || "Vendor"} · {selectedPo.status}</div>
+                                            <div className="mt-0.5">
+                                                {(selectedPo.items || []).filter((line) => Number(line.qty_open || 0) > 0).length} open lines · {Number(selectedPo.open_qty_total || 0).toLocaleString()} total open qty
+                                            </div>
+                                            {(selectedPo.items || []).filter((line) => Number(line.qty_open || 0) > 0 && poItemMatchesReceiptClass(line, klass)).length === 0 && (
+                                                <div className="mt-1 font-bold text-amber-700">No open {klass.toLowerCase()} lines on this PO. Pick another stock class or PO.</div>
+                                            )}
+                                        </div>
+                                    )}
                                 </Field>
                             )}
                             {sourceType === "MANUAL_PO" && (
@@ -544,7 +667,7 @@ export function GrnSmartV36() {
                                 </Field>
                             )}
                             <Field label="Vendor">
-                                <Select value={vendorId} onValueChange={setVendorId}>
+                                <Select value={vendorId} onValueChange={setVendorId} disabled={sourceType === "PO"}>
                                     <SelectTrigger data-testid="smart-grn-vendor" className="h-10 rounded-xl border-slate-200 shadow-sm"><SelectValue placeholder="Pick vendor" /></SelectTrigger>
                                     <SelectContent>
                                         {(vendors as Vendor[]).map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
@@ -637,7 +760,7 @@ export function GrnSmartV36() {
                                         </Button>
                                     </>
                                 )}
-                                <Button size="sm" variant="outline" onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>
+                                <Button size="sm" variant="outline" disabled={sourceType === "PO"} onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>
                             </div>
                         }>
                         <div className="space-y-3">
@@ -734,6 +857,7 @@ export function GrnSmartV36() {
                                     locations={locations as Location[]}
                                     grades={(gradesQ.data || []) as RecipeGrade[]}
                                     granuleCodes={(granuleCodesQ.data || []) as GranuleQualityCode[]}
+                                    lockedToPo={sourceType === "PO"}
                                     onChange={(patch) => setItems(items.map((i) => i.id === it.id ? { ...i, ...patch } : i))}
                                     onRemove={() => setItems(items.length > 1 ? items.filter((i) => i.id !== it.id) : items)}
                                 />
@@ -839,8 +963,9 @@ export function GrnSmartV36() {
                                 <ul className="mt-1 space-y-0.5 text-[11px] text-emerald-900">
                                     <li className={vendorId ? "" : "text-rose-700"}>{vendorId ? "✓" : "✗"} Vendor selected</li>
                                     <li className={warehouseId ? "" : "text-rose-700"}>{warehouseId ? "✓" : "✗"} Warehouse selected</li>
+                                    {sourceType === "PO" && <li className={poId ? "" : "text-rose-700"}>{poId ? "✓" : "✗"} System PO selected</li>}
                                     <li className={items.every((i) => i.material_code) ? "" : "text-rose-700"}>{items.every((i) => i.material_code) ? "✓" : "✗"} All items have material</li>
-                                    <li className={items.every((i) => Number(i.qty) > 0) ? "" : "text-rose-700"}>{items.every((i) => Number(i.qty) > 0) ? "✓" : "✗"} All items have qty &gt; 0</li>
+                                    <li className={items.every((i) => lineQty(i) > 0) ? "" : "text-rose-700"}>{items.every((i) => lineQty(i) > 0) ? "✓" : "✗"} All items have qty &gt; 0</li>
                                     <li>✓ Period open</li>
                                 </ul>
                             </div>
@@ -978,7 +1103,7 @@ function BulkMaterialFilterChips({ value, onChange, materials }: { value: BulkMa
     )
 }
 
-function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locations, grades, granuleCodes, onChange, onRemove }: { item: ItemDraft; index: number; klass: ClassKind; bulkMaterialFilter: BulkMaterialFilter; materials: any[]; locations: Location[]; grades: RecipeGrade[]; granuleCodes: GranuleQualityCode[]; onChange: (patch: Partial<ItemDraft>) => void; onRemove: () => void }) {
+function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locations, grades, granuleCodes, lockedToPo, onChange, onRemove }: { item: ItemDraft; index: number; klass: ClassKind; bulkMaterialFilter: BulkMaterialFilter; materials: any[]; locations: Location[]; grades: RecipeGrade[]; granuleCodes: GranuleQualityCode[]; lockedToPo?: boolean; onChange: (patch: Partial<ItemDraft>) => void; onRemove: () => void }) {
     const filteredMaterials = React.useMemo(() => {
         return materials
             .filter((material) => materialMatchesReceiptClass(material, klass))
@@ -1007,6 +1132,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
         const selected = filteredMaterials.find((m) => String(m.code) === code)
         onChange({
             material_code: code,
+            po_item_id: lockedToPo ? item.po_item_id : undefined,
             grade: "",
             granule_code_id: "",
             uom: materialBaseUom(selected, klass),
@@ -1044,6 +1170,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                             value={item.material_code}
                             onValueChange={handleMaterialChange}
                             placeholder={klass === "BULK" ? "Search code, name, type" : "Search material"}
+                            disabled={lockedToPo}
                             testId={`smart-grn-line-${index}-material`}
                             className="h-9 rounded-lg border-slate-200 font-mono text-xs shadow-sm"
                         />

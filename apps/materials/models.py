@@ -620,7 +620,7 @@ class InventoryMaterial(models.Model):
     )
     addon_purchase_uom = models.CharField(
         max_length=10,
-        choices=[('KG', 'Kilograms (KG)'), ('PCS', 'Pieces (PCS)')],
+        choices=[('KG', 'Kilograms (KG)'), ('PCS', 'Pieces (PCS)'), ('METER', 'Meters (METER)')],
         default='KG',
         help_text="Inventory UOM used when purchased add-ons are inwarded through bulk GRN.",
     )
@@ -752,8 +752,8 @@ class InventoryMaterial(models.Model):
             if self.weight_value is None:
                 raise ValidationError({'weight_value': "Addon must have a weight value (float)."})
             self.addon_purchase_uom = str(self.addon_purchase_uom or 'KG').upper()
-            if self.addon_is_purchased and self.addon_purchase_uom not in {'KG', 'PCS'}:
-                raise ValidationError({'addon_purchase_uom': "Purchased add-on UOM must be KG or PCS."})
+            if self.addon_is_purchased and self.addon_purchase_uom not in {'KG', 'PCS', 'METER'}:
+                raise ValidationError({'addon_purchase_uom': "Purchased add-on UOM must be KG, PCS, or METER."})
             self.is_purchasable = bool(self.addon_is_purchased)
             self.base_uom = self.addon_purchase_uom if self.addon_is_purchased else 'KG'
 

@@ -82,6 +82,19 @@ function fmtNum(n: number, max = 0): string {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: max }).format(n)
 }
 
+function stockUom(row: any, fallback = "KG"): string {
+    return String(row?.uom || row?.stock_uom || row?.base_uom || fallback).toUpperCase()
+}
+
+function qtyDecimalsForUom(uom: string): number {
+    return uom === "KG" ? 3 : uom === "METER" ? 1 : 0
+}
+
+function formatStockQty(qty: number, row: any, fallback = "KG"): string {
+    const uom = stockUom(row, fallback)
+    return `${fmtNum(qty, qtyDecimalsForUom(uom))} ${uom}`
+}
+
 function makeTrend(target: number, points = 12): number[] {
     if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0]
     const seed = Math.max(target * 0.65, 1)
@@ -586,9 +599,9 @@ function BulkTable({ rows, total, pageSize, onPageSize, loading, onSelect }: { r
                                         <div className="font-mono text-[10px] text-slate-500">{r.location_code || r.location_name || "—"}</div>
                                     </td>
                                     <td className="px-3 py-2 font-mono text-[10px] text-slate-600">{r.lot_no || "—"}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{fmtNum(onhand, 1)}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-violet-700">{fmtNum(reserved, 1)}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{fmtNum(available, 1)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatStockQty(onhand, r)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-violet-700">{formatStockQty(reserved, r)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatStockQty(available, r)}</td>
                                     <td className="px-3 py-2">
                                         <div className="flex items-center gap-2">
                                             <div className="h-1.5 w-16 rounded-full bg-slate-200 overflow-hidden">
@@ -642,9 +655,9 @@ function BulkGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { ro
                                 <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase", h.bucket === "HEALTHY" ? "bg-emerald-100 text-emerald-700" : h.bucket === "LOW" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{h.bucket}</span>
                             </div>
                             <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-slate-50/80 p-2 text-center">
-                                <div><div className="text-[8px] font-black uppercase text-slate-500">On hand</div><div className="font-mono text-sm font-bold text-slate-900">{fmtNum(onhand, 0)}</div></div>
-                                <div><div className="text-[8px] font-black uppercase text-slate-500">Reserved</div><div className="font-mono text-sm font-bold text-violet-700">{fmtNum(reserved, 0)}</div></div>
-                                <div><div className="text-[8px] font-black uppercase text-slate-500">Free</div><div className="font-mono text-sm font-bold text-emerald-700">{fmtNum(Math.max(0, onhand - reserved), 0)}</div></div>
+                                <div><div className="text-[8px] font-black uppercase text-slate-500">On hand</div><div className="font-mono text-sm font-bold text-slate-900">{formatStockQty(onhand, r)}</div></div>
+                                <div><div className="text-[8px] font-black uppercase text-slate-500">Reserved</div><div className="font-mono text-sm font-bold text-violet-700">{formatStockQty(reserved, r)}</div></div>
+                                <div><div className="text-[8px] font-black uppercase text-slate-500">Free</div><div className="font-mono text-sm font-bold text-emerald-700">{formatStockQty(Math.max(0, onhand - reserved), r)}</div></div>
                             </div>
                             <div className="mt-2 flex items-center justify-between text-[10px]">
                                 <span className="font-mono text-slate-500"><MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />{r.location_code || "—"}</span>
@@ -696,9 +709,9 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 </div>
                 <div className="px-5 py-4 space-y-4">
                     <div className="grid grid-cols-3 gap-2 text-[11px]">
-                        <Stat label="On hand" value={`${fmtNum(onhand, 1)} ${row.uom || row.base_uom || "KG"}`} />
-                        <Stat label="Reserved" value={`${fmtNum(reserved, 1)} ${row.uom || row.base_uom || "KG"}`} tone="violet" />
-                        <Stat label="Available" value={`${fmtNum(available, 1)} ${row.uom || row.base_uom || "KG"}`} tone="emerald" />
+                        <Stat label="On hand" value={formatStockQty(onhand, row)} />
+                        <Stat label="Reserved" value={formatStockQty(reserved, row)} tone="violet" />
+                        <Stat label="Available" value={formatStockQty(available, row)} tone="emerald" />
                     </div>
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 mb-2">Lot details</div>
@@ -706,7 +719,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                             <Field label="Lot #" value={row.lot_no || "—"} />
                             <Field label="Grade" value={row.grade || "—"} />
                             <Field label="Vendor" value={row.vendor_name || "—"} />
-                            <Field label="UOM" value={row.uom || "KG"} />
+                            <Field label="UOM" value={stockUom(row)} />
                             <Field label="Plant" value={row.plant_name || "—"} icon={<Factory className="h-3 w-3 text-emerald-500" />} />
                             <Field label="Location" value={row.location_code || row.location_name || "—"} icon={<MapPin className="h-3 w-3 text-emerald-500" />} />
                             <Field label="Expiry" value={row.expiry_date || "—"} />
@@ -721,7 +734,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-mono text-[11px] font-bold text-violet-800">{r.so_no || r.so_id || "—"}</span>
-                                    <span className="font-mono text-[11px] font-bold text-slate-700">{fmtNum(Number(r.qty || 0), 1)} {r.uom || "KG"}</span>
+                                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatStockQty(Number(r.qty || 0), row)}</span>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5">{r.customer_name || ""} · promise {r.promise_date || "—"}</div>
                             </div>

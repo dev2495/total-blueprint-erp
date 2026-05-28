@@ -119,6 +119,7 @@ export interface PurchaseOrderListItem {
   grand_total: number
   qty_ordered_total: number
   qty_received_total: number
+  open_qty_total?: number
   progress_pct: number
   order_date: string
   expected_delivery_date?: string | null
@@ -151,9 +152,15 @@ export interface VendorPerformance {
 }
 
 export const procurementService = {
-  list: async (params?: { status?: string; vendor?: string; search?: string }) => {
+  list: async (params?: { status?: string; status__in?: string; vendor?: string; search?: string }) => {
     const res = await api.get("/api/procurement/purchase-orders/", { params })
     return unwrapList<PurchaseOrderListItem>(res.data)
+  },
+  listOpenForReceipt: async () => {
+    const res = await api.get("/api/procurement/purchase-orders/", {
+      params: { status__in: "SENT,ACK,PARTIAL" },
+    })
+    return unwrapList<PurchaseOrderListItem>(res.data).filter((po) => Number(po.open_qty_total ?? po.qty_ordered_total - po.qty_received_total) > 0)
   },
   get: async (id: string) =>
     (await api.get<PurchaseOrder>(`/api/procurement/purchase-orders/${id}/`)).data,
@@ -177,8 +184,9 @@ export const procurementService = {
   vendorPerformance: async (vendor_id: string) =>
     (await api.get<VendorPerformance>(`/api/procurement/purchase-orders/vendor_performance/`, { params: { vendor: vendor_id } })).data,
   createReceipt: async (body: {
-    purchase_order: string
-    vendor_invoice_no?: string
+	    purchase_order: string
+	    location_id?: string
+	    vendor_invoice_no?: string
     vendor_invoice_date?: string | null
     vehicle_no?: string
     driver_name?: string

@@ -4,7 +4,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.inventory.models import Vendor
+from apps.inventory.models import InventoryLocation, Vendor
 from apps.procurement.models import (
     PurchaseOrder,
     PurchaseOrderReceipt,
@@ -37,9 +37,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         params = self.request.query_params
         status_filter = params.get("status")
+        status_in_filter = params.get("status__in") or params.get("statuses")
         vendor_filter = params.get("vendor")
         search = params.get("search")
-        if status_filter:
+        if status_in_filter:
+            statuses = [s.strip().upper() for s in str(status_in_filter).split(",") if s.strip()]
+            qs = qs.filter(status__in=statuses)
+        elif status_filter:
             qs = qs.filter(status=status_filter)
         if vendor_filter:
             qs = qs.filter(vendor_id=vendor_filter)
@@ -165,6 +169,15 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
         except PurchaseOrder.DoesNotExist:
             return Response({"error": "Purchase order not found"}, status=404)
 
+        location = None
+        if data.get("location_id"):
+            try:
+                location = InventoryLocation.objects.get(pk=data["location_id"])
+            except InventoryLocation.DoesNotExist:
+                return Response({"error": "Receiving location not found"}, status=404)
+            if str(location.plant_id) != str(po.plant_id):
+                return Response({"error": "Receiving location must belong to the PO plant."}, status=400)
+
         # ── Idempotency layer ─────────────────────────────────────────────
         # Accept either an Idempotency-Key header or a body-level client_token.
         client_token = (
@@ -195,6 +208,7 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
                 lr_no=data.get("lr_no", ""),
                 notes=data.get("notes", ""),
                 quality_status=data.get("quality_status", "PENDING"),
+                location=location,
             )
         except DjangoValidationError as e:
             return Response({"error": str(e)}, status=400)

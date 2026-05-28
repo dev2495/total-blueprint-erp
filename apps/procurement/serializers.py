@@ -251,6 +251,7 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source="vendor.name", read_only=True)
     plant_name = serializers.CharField(source="plant.name", read_only=True)
     items_count = serializers.SerializerMethodField()
+    open_qty_total = serializers.SerializerMethodField()
     qty_ordered_total = serializers.SerializerMethodField()
     qty_received_total = serializers.SerializerMethodField()
     progress_pct = serializers.SerializerMethodField()
@@ -269,6 +270,7 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
             "order_date",
             "expected_delivery_date",
             "items_count",
+            "open_qty_total",
             "qty_ordered_total",
             "qty_received_total",
             "progress_pct",
@@ -277,6 +279,9 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
 
     def get_items_count(self, obj):
         return obj.items.count()
+
+    def get_open_qty_total(self, obj):
+        return float(obj.open_qty_total)
 
     def get_qty_ordered_total(self, obj):
         return float(sum((it.qty_ordered or Decimal("0")) for it in obj.items.all()))
@@ -312,6 +317,7 @@ class PurchaseOrderReceiptCreateLineSerializer(serializers.Serializer):
 
 class PurchaseOrderReceiptCreateSerializer(serializers.Serializer):
     purchase_order = serializers.UUIDField()
+    location_id = serializers.UUIDField(required=False, allow_null=True)
     vendor_invoice_no = serializers.CharField(required=False, allow_blank=True, default="")
     vendor_invoice_date = serializers.DateField(required=False, allow_null=True)
     vehicle_no = serializers.CharField(required=False, allow_blank=True, default="")

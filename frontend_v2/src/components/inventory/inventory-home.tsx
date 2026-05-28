@@ -126,6 +126,19 @@ function formatNumber(n: number, max = 0): string {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: max }).format(n)
 }
 
+function stockUom(row: any, fallback = "KG"): string {
+    return String(row?.uom || row?.stock_uom || row?.base_uom || fallback).toUpperCase()
+}
+
+function qtyDecimalsForUom(uom: string): number {
+    return uom === "KG" ? 3 : uom === "METER" ? 1 : 0
+}
+
+function formatStockQty(qty: number, row: any, fallback = "KG"): string {
+    const uom = stockUom(row, fallback)
+    return `${formatNumber(qty, qtyDecimalsForUom(uom))} ${uom}`
+}
+
 function isPodPackagingRow(row: any): boolean {
     return /(^|[^A-Z])POD([^A-Z]|$)/i.test(String(`${row.packaging_kind || ""} ${row.code || ""} ${row.material_code || ""} ${row.name || ""} ${row.material_name || ""}`))
 }
@@ -637,9 +650,9 @@ function BulkSection({ rows, loading, limit, onShowMore, onShowAll, onRowClick }
                                         <td className="px-3 py-2 font-mono font-bold text-slate-900">{r.material_code || r.code || "—"}</td>
                                         <td className="px-3 py-2"><span className="rounded-md bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-violet-700 ring-1 ring-violet-200">{r.grade || "—"}</span></td>
                                         <td className="px-3 py-2 font-mono text-[11px] text-slate-600">{r.location_code || r.location || "—"}</td>
-                                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatNumber(onhand, 1)} <span className="text-[10px] text-slate-500">KG</span></td>
-                                        <td className="px-3 py-2 text-right font-mono text-violet-700 font-bold">{formatNumber(reserved, 1)}</td>
-                                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatNumber(available, 1)}</td>
+                                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatStockQty(onhand, r)}</td>
+                                        <td className="px-3 py-2 text-right font-mono text-violet-700 font-bold">{formatStockQty(reserved, r)}</td>
+                                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatStockQty(available, r)}</td>
                                         <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-1 w-16 rounded-full bg-slate-200 overflow-hidden"><div className="h-full" style={{ width: `${health}%`, background: "linear-gradient(90deg, #10b981, #34d399)" }} /></div><span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold", healthClass)}>{health}%</span><ChevronRight className="h-3.5 w-3.5 text-slate-300" /></div></td>
                                     </tr>
                                 )
@@ -757,7 +770,7 @@ function PodStockSection({ rows, loading, limit, onShowMore, onShowAll, onRowCli
 
 function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
     const qty = Number(row.qty || row.on_hand || 0)
-    const qtyDecimals = String(row.uom || row.base_uom || "").toUpperCase() === "KG" ? 3 : 0
+    const qtyDecimals = qtyDecimalsForUom(stockUom(row, "PCS"))
     const status = qty > 100 ? "ok" : qty > 0 ? "warn" : "empty"
     const ICON = { ok: "●", warn: "◐", empty: "○" } as const
     const COLOR = { ok: "text-emerald-600", warn: "text-amber-600", empty: "text-slate-400" } as const
@@ -771,7 +784,7 @@ function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
                 </div>
             </div>
             <div className="text-right flex-none">
-                <div className="font-mono text-[11px] font-bold text-slate-800">{formatNumber(qty, qtyDecimals)} {row.uom || "PCS"}</div>
+                <div className="font-mono text-[11px] font-bold text-slate-800">{formatNumber(qty, qtyDecimals)} {stockUom(row, "PCS")}</div>
             </div>
         </button>
     )
@@ -779,13 +792,13 @@ function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
 
 function PodTile({ row, onClick }: { row: any; onClick?: () => void }) {
     const qty = Number(row.qty || row.on_hand || 0)
-    const qtyDecimals = String(row.uom || row.base_uom || "").toUpperCase() === "KG" ? 3 : 0
+    const qtyDecimals = qtyDecimalsForUom(stockUom(row, "PCS"))
     const status = qty > 50 ? "ok" : qty > 0 ? "warn" : "empty"
     const TONE = { ok: "border-emerald-200 bg-emerald-50/40", warn: "border-amber-200 bg-amber-50/40", empty: "border-slate-200 bg-slate-50" } as const
     return (
         <button onClick={onClick} className={cn("w-full text-left rounded-lg border px-2.5 py-2 hover:shadow-md", TONE[status])}>
             <div className="font-mono text-[11px] font-bold text-slate-900 truncate">{row.code || "—"}</div>
-            <div className="mt-0.5 font-mono text-[10px] text-slate-700">{formatNumber(qty, qtyDecimals)} {row.uom || "PCS"}</div>
+            <div className="mt-0.5 font-mono text-[10px] text-slate-700">{formatNumber(qty, qtyDecimals)} {stockUom(row, "PCS")}</div>
         </button>
     )
 }
@@ -1047,9 +1060,9 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                         <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X className="h-4 w-4 text-slate-500" /></button>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                        <Stat label="On hand" value={`${formatNumber(onhand, 1)} KG`} tone="slate" />
-                        <Stat label="Reserved" value={`${formatNumber(reserved, 1)} KG`} tone="violet" />
-                        <Stat label="Available" value={`${formatNumber(available, 1)} KG`} tone="emerald" />
+                        <Stat label="On hand" value={formatStockQty(onhand, row)} tone="slate" />
+                        <Stat label="Reserved" value={formatStockQty(reserved, row)} tone="violet" />
+                        <Stat label="Available" value={formatStockQty(available, row)} tone="emerald" />
                     </div>
                     <div className="mt-2">
                         <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1"><span>Reservation %</span><span>{reservationPct}%</span></div>
@@ -1064,7 +1077,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 mb-2">Vendor &amp; details</div>
                         <div className="grid grid-cols-2 gap-2 text-[11px]">
                             <Field label="Grade" value={row.grade || "—"} />
-                            <Field label="UOM" value={row.uom || "KG"} />
+                            <Field label="UOM" value={stockUom(row)} />
                             <Field label="Vendor" value={row.vendor_name || row.vendor || "—"} />
                             <Field label="Last GRN" value={row.last_grn_no || row.received_at || "—"} />
                             <Field label="Lot expiry" value={row.expiry_date || "—"} />

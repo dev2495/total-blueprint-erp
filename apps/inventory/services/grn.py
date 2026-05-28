@@ -113,8 +113,8 @@ class GRNService:
         if material.category == 'ADDON':
             if not material.addon_is_purchased:
                 raise ValidationError('Add-on inward is allowed only when the add-on master is marked purchased.')
-            if str(material.base_uom or '').upper() not in {'KG', 'PCS'}:
-                raise ValidationError('Purchased add-on inward supports only KG or PCS inventory UOM.')
+            if str(material.base_uom or '').upper() not in {'KG', 'PCS', 'METER'}:
+                raise ValidationError('Purchased add-on inward supports only KG, PCS, or METER inventory UOM.')
 
         resolved_granule_code_id = None
         if material.category == 'GRANULE':

@@ -95,11 +95,12 @@ export interface InventoryBulk {
     plant_name: string
     location: string
     location_name: string
-    qty_kg: number
-    quantity?: number
-    uom?: string
-    stock_uom?: string
-    avg_cost: number
+	    qty_kg: number
+	    quantity?: number
+	    uom?: string
+	    stock_uom?: string
+	    base_uom?: string
+	    avg_cost: number
     updated_at: string
 }
 
@@ -113,8 +114,10 @@ export interface BulkTransaction {
     location: string
     location_name: string
     type: 'INWARD' | 'PRODUCE' | 'CONSUME' | 'TRANSFER' | 'ADJUST' | 'OPENING_BALANCE' | 'OPENING_BALANCE_ADJUST' | 'COUNT_SHORT' | 'COUNT_EXCESS' | 'FY_ROLLFORWARD' | 'FY_CORRECTION'
-    qty_kg: number
-    avg_cost: number
+	    qty_kg: number
+	    stock_uom?: string
+	    base_uom?: string
+	    avg_cost: number
     reference: string
     job: string | null
     job_no: string | null

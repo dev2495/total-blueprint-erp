@@ -50,6 +50,35 @@ class AddonBulkGrnTests(TestCase):
         self.assertEqual(tx.material, addon)
         self.assertEqual(tx.qty_kg, Decimal("250.0000"))
 
+    def test_purchased_meter_addon_can_be_inwarded_as_bulk_stock(self):
+        addon = InventoryMaterial.objects.create(
+            code="ZIP-METER",
+            name="Purchased zipper meter roll",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        tx = GRNService.create_bulk_grn(
+            material=addon,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=Decimal("1250"),
+            plant=self.plant,
+            cost=Decimal("0.42"),
+            reference="ADDON-METER-GRN-1",
+        )
+
+        stock = InventoryBulk.objects.get(material=addon, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("1250.0000"))
+        self.assertEqual(stock.material.category, "ADDON")
+        self.assertEqual(stock.material.base_uom, "METER")
+        self.assertEqual(tx.material, addon)
+        self.assertEqual(tx.qty_kg, Decimal("1250.0000"))
+
     def test_material_library_serializer_exposes_purchase_flags_for_grn_picker(self):
         addon = InventoryMaterial.objects.create(
             code="ZIP-LIB",
@@ -68,6 +97,24 @@ class AddonBulkGrnTests(TestCase):
         self.assertEqual(data["addon_purchase_uom"], "PCS")
         self.assertEqual(data["weight_mode"], "PER_PIECE")
         self.assertEqual(data["base_uom"], "PCS")
+
+    def test_material_library_serializer_exposes_meter_purchase_uom(self):
+        addon = InventoryMaterial.objects.create(
+            code="ZIP-METER-LIB",
+            name="Library meter zipper",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        data = InventoryMaterialSerializer(addon).data
+
+        self.assertTrue(data["addon_is_purchased"])
+        self.assertEqual(data["addon_purchase_uom"], "METER")
+        self.assertEqual(data["base_uom"], "METER")
 
     def test_non_purchased_addon_cannot_be_inwarded(self):
         addon = InventoryMaterial.objects.create(

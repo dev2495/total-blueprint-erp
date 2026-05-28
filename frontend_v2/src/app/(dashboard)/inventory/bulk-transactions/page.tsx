@@ -34,6 +34,12 @@ export default function BulkTransactionsPage() {
         }
     }
 
+    const formatQty = (tx: any) => {
+        const uom = String(tx.stock_uom || tx.base_uom || "KG").toUpperCase()
+        const decimals = uom === "KG" ? 2 : uom === "METER" ? 1 : 0
+        return `${tx.qty_kg > 0 ? "+" : ""}${Number(tx.qty_kg || 0).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })} ${uom}`
+    }
+
     return (
         <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
             <div className="flex justify-between items-center">
@@ -57,7 +63,7 @@ export default function BulkTransactionsPage() {
                                 <TableHead>Type</TableHead>
                                 <TableHead>Material</TableHead>
                                 <TableHead>Location</TableHead>
-                                <TableHead className="text-right">Quantity (KG)</TableHead>
+	                                <TableHead className="text-right">Quantity</TableHead>
                                 <TableHead>Reference</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -107,7 +113,7 @@ export default function BulkTransactionsPage() {
                                             {tx.location_name}
                                         </TableCell>
                                         <TableCell className={`text-right font-mono font-semibold ${tx.qty_kg > 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                                            {tx.qty_kg > 0 ? "+" : ""}{tx.qty_kg.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+	                                            {formatQty(tx)}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-1.5 text-slate-500 text-sm max-w-[200px] truncate">

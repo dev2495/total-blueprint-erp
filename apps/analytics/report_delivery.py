@@ -1169,7 +1169,7 @@ class _StockStandingPDFRenderer(_BaseDailyPDFRenderer):
                     "plant": getattr(row.plant, "name", "-"),
                     "location": getattr(row.location, "name", "-"),
                     "qty": qty_value,
-                    "uom": "KG" if model is InventoryBulk else getattr(row.material, "base_uom", "QTY"),
+                    "uom": getattr(row.material, "base_uom", "QTY") or "QTY",
                     "avg_cost": avg_cost,
                     "value": qty_value * avg_cost,
                 }

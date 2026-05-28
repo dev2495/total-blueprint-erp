@@ -24,7 +24,6 @@ from apps.inventory.models import (
     RollLink,
     RollMovement,
 )
-from apps.materials.models import InventoryMaterial
 from apps.production.models import (
     DeliveryChallan,
     DeliveryChallanItem,
@@ -182,12 +181,6 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
-            InventoryMaterial.objects.filter(category="ADDON").update(
-                is_purchasable=False,
-                addon_is_purchased=False,
-                addon_purchase_uom="KG",
-                base_uom="KG",
-            )
             for key, model in self.reset_models:
                 count, _ = model.objects.all().delete()
                 result["deleted"][key] = count

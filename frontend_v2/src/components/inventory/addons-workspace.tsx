@@ -75,6 +75,19 @@ function fmtNum(n: number, max = 0): string {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: max }).format(n)
 }
 
+function stockUom(row: any, fallback = "KG"): string {
+    return String(row?.uom || row?.stock_uom || row?.base_uom || fallback).toUpperCase()
+}
+
+function qtyDecimalsForUom(uom: string): number {
+    return uom === "KG" ? 3 : uom === "METER" ? 1 : 0
+}
+
+function formatStockQty(qty: number, row: any, fallback = "KG"): string {
+    const uom = stockUom(row, fallback)
+    return `${fmtNum(qty, qtyDecimalsForUom(uom))} ${uom}`
+}
+
 function makeTrend(target: number, points = 12): number[] {
     if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0]
     const seed = Math.max(target * 0.65, 1)
@@ -460,9 +473,9 @@ function AddonsTable({ rows, total, pageSize, onPageSize, loading, onSelect }: {
                                         <div className="font-bold text-slate-700">{r.plant_name || "—"}</div>
                                         <div className="font-mono text-[10px] text-slate-500">{r.location_code || r.location_name || "—"}</div>
                                     </td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{fmtNum(onhand, 1)} <span className="text-[10px] text-slate-500">{r.uom || "KG"}</span></td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-violet-700">{fmtNum(reserved, 1)}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{fmtNum(available, 1)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatStockQty(onhand, r)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-violet-700">{formatStockQty(reserved, r)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatStockQty(available, r)}</td>
                                     <td className="px-3 py-2">
                                         <div className="flex items-center gap-2">
                                             <div className="h-1.5 w-14 rounded-full bg-slate-200 overflow-hidden">
@@ -518,8 +531,8 @@ function AddonsGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { 
                             <div className="mt-2 font-mono text-xs font-bold text-slate-900 truncate">{r.material_code || "—"}</div>
                             <div className="text-[10px] text-slate-500 truncate">{r.material_name || ""}</div>
                             <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg bg-slate-50/80 p-2 text-center">
-                                <div><div className="text-[8px] font-black uppercase text-slate-500">On hand</div><div className="font-mono text-sm font-bold text-slate-900">{fmtNum(onhand, 0)}</div></div>
-                                <div><div className="text-[8px] font-black uppercase text-slate-500">Free</div><div className="font-mono text-sm font-bold text-emerald-700">{fmtNum(Math.max(0, onhand - reserved), 0)}</div></div>
+                                <div><div className="text-[8px] font-black uppercase text-slate-500">On hand</div><div className="font-mono text-sm font-bold text-slate-900">{formatStockQty(onhand, r)}</div></div>
+                                <div><div className="text-[8px] font-black uppercase text-slate-500">Free</div><div className="font-mono text-sm font-bold text-emerald-700">{formatStockQty(Math.max(0, onhand - reserved), r)}</div></div>
                             </div>
                             <div className="mt-2 text-[10px] text-slate-500"><MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />{r.location_code || "—"}</div>
                         </button>
@@ -570,9 +583,9 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                         <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X className="h-4 w-4 text-slate-500" /></button>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                        <Stat label="On hand" value={`${fmtNum(onhand, 1)} ${row.uom || "KG"}`} />
-                        <Stat label="Reserved" value={`${fmtNum(reserved, 1)}`} tone="violet" />
-                        <Stat label="Available" value={`${fmtNum(available, 1)}`} tone="emerald" />
+                        <Stat label="On hand" value={formatStockQty(onhand, row)} />
+                        <Stat label="Reserved" value={formatStockQty(reserved, row)} tone="violet" />
+                        <Stat label="Available" value={formatStockQty(available, row)} tone="emerald" />
                     </div>
                 </div>
                 <div className="px-5 py-4 space-y-4">
@@ -595,7 +608,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-mono text-[11px] font-bold text-violet-800">{r.so_no || r.so_id || "—"}</span>
-                                    <span className="font-mono text-[11px] font-bold text-slate-700">{fmtNum(Number(r.qty || 0), 1)} {r.uom || "KG"}</span>
+                                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatStockQty(Number(r.qty || 0), row)}</span>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5">{r.customer_name || ""} · {r.promise_date || "—"}</div>
                             </div>

@@ -38,7 +38,7 @@ export interface Material {
     weight_mode?: 'PER_MM' | 'PER_PIECE' | 'FIXED' | string;
     weight_value?: number | null;
     addon_is_purchased?: boolean;
-    addon_purchase_uom?: 'KG' | 'PCS' | string | null;
+    addon_purchase_uom?: 'KG' | 'PCS' | 'METER' | string | null;
     packaging_kind?: 'INNER_POUCH' | 'OUTER_BAG' | 'GONNY' | 'TAPE' | 'SHEET' | 'BOX' | 'LABEL' | 'TAG' | 'OTHER' | string;
     packaging_supply_mode?: 'PURCHASED' | 'IN_HOUSE' | 'BOTH' | string;
     production_template?: string | null;
@@ -75,7 +75,7 @@ export interface Addon extends Material {
     weight_value: number;
     is_purchasable?: boolean;
     addon_is_purchased?: boolean;
-    addon_purchase_uom?: 'KG' | 'PCS';
+    addon_purchase_uom?: 'KG' | 'PCS' | 'METER';
     base_uom?: 'KG' | 'PCS' | 'METER';
 }
 
@@ -281,11 +281,11 @@ export const masterDataService = {
         const { data } = await api.get<MaybePaginated<Addon>>("/api/master/addons/");
         return unwrapList<Addon>(data);
     },
-    createAddon: async (data: { code: string; name: string; weight_mode: string; weight_value: number; is_purchasable?: boolean; addon_is_purchased?: boolean; addon_purchase_uom?: 'KG' | 'PCS' }) => {
+    createAddon: async (data: { code: string; name: string; weight_mode: string; weight_value: number; is_purchasable?: boolean; addon_is_purchased?: boolean; addon_purchase_uom?: 'KG' | 'PCS' | 'METER' }) => {
         const { data: res } = await api.post<Addon>("/api/master/addons/", data);
         return res;
     },
-    updateAddon: async (id: string, data: { code: string; name: string; weight_mode: string; weight_value: number; is_purchasable?: boolean; addon_is_purchased?: boolean; addon_purchase_uom?: 'KG' | 'PCS' }) => {
+    updateAddon: async (id: string, data: { code: string; name: string; weight_mode: string; weight_value: number; is_purchasable?: boolean; addon_is_purchased?: boolean; addon_purchase_uom?: 'KG' | 'PCS' | 'METER' }) => {
         const { data: res } = await api.put<Addon>(`/api/master/addons/${id}/`, data);
         return res;
     },
