@@ -41,8 +41,6 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { autoRollWidthMm } from "@/lib/product-geometry"
-
 import { AxisLayerMatrix, type LayerRowState } from "@/components/erp-v3/axis-layer-matrix"
 import { ArtworkSection, type ArtworkAssignment, type ArtworkColorway } from "@/components/erp-v3/artwork-section"
 import { LiveBomRail } from "@/components/erp-v3/live-bom-rail"
@@ -352,7 +350,6 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                         <LayerThicknessGrouped
                                             master={master}
                                             line={line}
-                                            sizes={sizes}
                                             onPatch={onPatch}
                                         />
                                     ) : null}
@@ -669,23 +666,19 @@ function SizeAxis({ sizes, value, onChange }: { sizes: any[]; value: string; onC
 
 // ─── Per-layer thickness as button group when uniform, else expand inline ──
 
-function LayerThicknessGrouped({ master, line, sizes, onPatch }: { master: ProductMaster; line: SalesOrderLine; sizes: any[]; onPatch: (p: Partial<SalesOrderLine>) => void }) {
+function LayerThicknessGrouped({ master, line, onPatch }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
     const layers = master.layer_template
     // Discover the available "thickness options" from the layer template (per-layer)
     // For now: if all layers share a `grade_options` or we have variants list, surface those.
     // We don't know exact allowed values without master.variant_axes config — fall back to AxisLayerMatrix.
-    const fallbackWidthMm = (sizes.find((s) => s.code === line.size_code)?.roll_width_mm
-        || autoRollWidthMm(sizes.find((s) => s.code === line.size_code) || sizes[0], master.product_kind)
-        || undefined)
-
     return (
         <div className="md:col-span-2">
-            <label className="text-[10px] font-bold text-slate-600">Per-layer axes <span className="text-slate-400">thickness · grade · width</span></label>
+            <label className="text-[10px] font-bold text-slate-600">Per-layer axes <span className="text-slate-400">thickness · grade</span></label>
             <div className="mt-1">
                 <AxisLayerMatrix
                     layers={layers}
                     values={line.layer_values}
-                    fallbackWidthMm={fallbackWidthMm}
+                    showWidthColumn={false}
                     onChange={(idx, patch) => onPatch({ layer_values: { ...line.layer_values, [idx]: { ...(line.layer_values[idx] || ({} as LayerRowState)), ...patch } } })}
                 />
             </div>
@@ -889,7 +882,7 @@ function axisScalarValue(value: unknown): any {
 function sanitizeAxisValues(raw: unknown): Record<string, any> {
     const src = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, any> : {}
     const out: Record<string, any> = {}
-    const structured = new Set(["layer_thicknesses", "layer_grades", "layer_widths", "layer_material_overrides", "layer_materials"])
+    const structured = new Set(["layer_thicknesses", "layer_grades", "layer_material_overrides", "layer_materials"])
     Object.entries(src).forEach(([key, value]) => {
         if (structured.has(key) && value && typeof value === "object") {
             out[key] = value

@@ -25,6 +25,7 @@ interface AxisLayerMatrixProps {
     values: Record<number, LayerRowState>
     fallbackWidthMm?: number
     allowWidthOverride?: boolean
+    showWidthColumn?: boolean
     onChange: (layerIndex: number, patch: Partial<LayerRowState>) => void
     className?: string
 }
@@ -34,6 +35,7 @@ export function AxisLayerMatrix({
     values,
     fallbackWidthMm,
     allowWidthOverride = false,
+    showWidthColumn = true,
     onChange,
     className,
 }: AxisLayerMatrixProps) {
@@ -46,7 +48,7 @@ export function AxisLayerMatrix({
                         <th className="px-4 py-3 text-left">Film / material</th>
                         <th className="px-4 py-3 text-left">Thickness (micron)</th>
                         <th className="px-4 py-3 text-left">Grade</th>
-                        <th className="px-4 py-3 text-left">Roll width</th>
+                        {showWidthColumn ? <th className="px-4 py-3 text-left">Roll width</th> : null}
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -124,28 +126,30 @@ export function AxisLayerMatrix({
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-4 py-3">
-                                    {allowWidthOverride ? (
-                                        <div className="relative inline-flex h-9 w-32 items-center rounded-lg border border-slate-200 bg-white pr-2 transition hover:border-slate-300 focus-within:border-blue-400">
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                value={widthFallback}
-                                                onChange={(e) => onChange(i, { width_mm: Number(e.target.value) })}
-                                                className="h-full w-full rounded-l-lg bg-transparent px-3 text-sm text-slate-800 focus:outline-none"
-                                            />
-                                            {state.width_mm == null ? (
-                                                <span className="absolute right-2 text-slate-300" title="From geometry">
-                                                    <Pencil className="h-3 w-3" />
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                    ) : (
-                                        <span className="inline-flex h-9 min-w-32 items-center justify-end rounded-lg bg-slate-50 px-3 font-mono text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
-                                            {widthFallback || "-"} mm
-                                        </span>
-                                    )}
-                                </td>
+                                {showWidthColumn ? (
+                                    <td className="px-4 py-3">
+                                        {allowWidthOverride ? (
+                                            <div className="relative inline-flex h-9 w-32 items-center rounded-lg border border-slate-200 bg-white pr-2 transition hover:border-slate-300 focus-within:border-blue-400">
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={widthFallback}
+                                                    onChange={(e) => onChange(i, { width_mm: Number(e.target.value) })}
+                                                    className="h-full w-full rounded-l-lg bg-transparent px-3 text-sm text-slate-800 focus:outline-none"
+                                                />
+                                                {state.width_mm == null ? (
+                                                    <span className="absolute right-2 text-slate-300" title="From geometry">
+                                                        <Pencil className="h-3 w-3" />
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        ) : (
+                                            <span className="inline-flex h-9 min-w-32 items-center justify-end rounded-lg bg-slate-50 px-3 font-mono text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                                                {widthFallback || "-"} mm
+                                            </span>
+                                        )}
+                                    </td>
+                                ) : null}
                             </tr>
                         )
                     })}

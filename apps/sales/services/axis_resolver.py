@@ -99,22 +99,29 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
     #   (a) an artwork is actually attached on the line / overlay, OR
     #   (b) the master forces artwork (artwork_required=true) — confirm-time
     #       validation will then either resolve a PM default or block the
-    #       confirm with a clear error.
+    #       confirm with a clear error, OR
+    #   (c) the line is explicitly deferred to planner so artwork can be
+    #       assigned before release.
     # If the master is merely print_capable with optional artwork AND no
     # artwork is on the line, enabled stays FALSE → the line is a
     # warning-print run (date stamps / batch codes / plain) and the BOM
     # carries ZERO ink rows. Production routing still hits the printing
     # step because routing is template-driven, not `enabled`-driven.
     artwork_required = bool(fixed.get("artwork_required", False))
+    defer_to_planner = bool(
+        printing.get("defer_artwork_to_planner")
+        or payload.get("defer_artwork_to_planner", False)
+    )
+    printing["defer_artwork_to_planner"] = defer_to_planner
     incoming_enabled = printing.get("enabled")
     if incoming_enabled is None:
-        printing["enabled"] = bool(artwork) or artwork_required
+        printing["enabled"] = bool(artwork) or artwork_required or defer_to_planner
     else:
         # Explicit caller-supplied enabled flag wins (e.g. preview flows that
         # want enabled=false). But never force it ON without an artwork or
-        # artwork_required — that's the "fake ink" trap we just designed out.
-        printing["enabled"] = bool(incoming_enabled) and (bool(artwork) or artwork_required)
-    printing.setdefault("defer_artwork_to_planner", bool(payload.get("defer_artwork_to_planner", False)))
+        # artwork_required unless the user deliberately defers artwork to
+        # planner — that creates the planner gate without attaching fake art.
+        printing["enabled"] = bool(incoming_enabled) and (bool(artwork) or artwork_required or defer_to_planner)
     if artwork:
         artwork_mapping = getattr(artwork, "color_mapping", {}) if isinstance(getattr(artwork, "color_mapping", {}), dict) else {}
         incoming_mapping = printing.get("color_mapping") if isinstance(printing.get("color_mapping"), dict) else {}
@@ -198,15 +205,18 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
         printing["front_colors_count"] = front_count
         printing["back_colors_count"] = back_count
 
-        ink_gsm = _positive_decimal(
-            printing.get("ink_gsm_total")
-            or printing.get("ink_gsm")
-            or fixed.get("default_ink_gsm_total")
-            or fixed.get("ink_gsm_total")
-            or fixed.get("ink_gsm")
-            or Decimal("1.2"),
-            Decimal("1.2"),
-        )
+        if artwork:
+            ink_gsm = _positive_decimal(
+                printing.get("ink_gsm_total")
+                or printing.get("ink_gsm")
+                or fixed.get("default_ink_gsm_total")
+                or fixed.get("ink_gsm_total")
+                or fixed.get("ink_gsm")
+                or Decimal("1.2"),
+                Decimal("1.2"),
+            )
+        else:
+            ink_gsm = Decimal("0")
         printing["ink_gsm_total"] = float(ink_gsm)
         printing["ink_gsm"] = float(ink_gsm)
     return printing

@@ -36,7 +36,10 @@ class SalesConfirmArtworkDeferredGateTests(SimpleTestCase):
             qty_value=Decimal("100"),
             qty_uom="KG",
             price_basis="KG",
-            geometry_snapshot={"base": {"width_mm": 120, "height_mm": 180}},
+            geometry_snapshot={
+                "base": {"width_mm": 120, "height_mm": 180},
+                "child_target_width_mm": 250,
+            },
             layer_snapshot=[],
             packaging_snapshot={},
             printing_snapshot={

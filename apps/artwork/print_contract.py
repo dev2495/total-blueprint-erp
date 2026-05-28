@@ -501,7 +501,8 @@ def validate_frozen_printing_snapshot(
     if color_names != expected_colors:
         raise ValidationError("Frozen printing snapshot color_names must exactly match front/back side colors.")
 
-    if _as_decimal(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0) <= Decimal("0"):
+    ink_gsm_total = _as_decimal(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0)
+    if (require_artwork or strict_inks) and ink_gsm_total <= Decimal("0"):
         raise ValidationError("Frozen printing snapshot requires total ink GSM greater than zero.")
 
     artwork_id = str(printing.get("artwork_id") or "").strip()

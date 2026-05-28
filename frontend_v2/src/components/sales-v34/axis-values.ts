@@ -5,8 +5,6 @@ import type { SalesOrderLine } from "./types"
 
 type SizeLike = {
     code?: string
-    width_mm?: number | null
-    roll_width_mm?: number | null
 }
 
 export interface SalesAxisBuildResult {
@@ -32,7 +30,6 @@ export interface SalesAxisBuildResult {
 const STRUCTURED_AXIS_KEYS = new Set([
     "layer_thicknesses",
     "layer_grades",
-    "layer_widths",
     "layer_material_overrides",
     "layer_materials",
     "film_variant_by_layer",
@@ -45,6 +42,7 @@ const GENERATED_AXIS_KEYS = new Set([
     "layer_thicknesses",
     "layer_grades",
     "layer_widths",
+    "layer_roll_widths",
     "layer_material_overrides",
     "layer_materials",
     "film_variant_by_layer",
@@ -59,7 +57,6 @@ export function buildSalesAxisValues(master: ProductMaster | undefined, line: Sa
 
     const layerThicknesses: Record<string, number> = {}
     const layerGrades: Record<string, string> = {}
-    const layerWidths: Record<string, number> = {}
     const layerMaterials: Record<string, string> = {}
 
     ;(master?.layer_template || []).forEach((row, index) => {
@@ -73,14 +70,10 @@ export function buildSalesAxisValues(master: ProductMaster | undefined, line: Sa
 
         const grade = String(state.grade || row.default_grade || "").trim()
         if (grade) layerGrades[key] = grade
-
-        const width = Number(state.width_mm || row.default_input_roll_width_mm || selectedSize?.roll_width_mm || selectedSize?.width_mm)
-        if (Number.isFinite(width) && width > 0) layerWidths[key] = width
     })
 
     if (Object.keys(layerThicknesses).length) axisValues.layer_thicknesses = layerThicknesses
     if (Object.keys(layerGrades).length) axisValues.layer_grades = layerGrades
-    if (Object.keys(layerWidths).length) axisValues.layer_widths = layerWidths
     if (line.addons.length) axisValues.addons = line.addons
 
     for (const axis of master?.variant_axes || []) {
@@ -103,7 +96,6 @@ export function buildSalesAxisValues(master: ProductMaster | undefined, line: Sa
             continue
         }
         if (canonical === "LAYER_WIDTHS" || canonical === "LAYER_ROLL_WIDTHS") {
-            if (Object.keys(layerWidths).length) axisValues[key] = layerWidths
             continue
         }
         if (isLayerMaterialAxis(axis)) {

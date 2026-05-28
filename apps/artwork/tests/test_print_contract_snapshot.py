@@ -16,6 +16,29 @@ class PrintContractSnapshotTests(TestCase):
         self.poly_cyan = InkMaterial.objects.create(base_type="POLY", color_name="CYAN")
         self.pet_red = InkMaterial.objects.create(base_type="PET", color_name="RED")
 
+    def test_deferred_artwork_snapshot_can_have_zero_ink_gsm_until_artwork_is_assigned(self):
+        validated = validate_frozen_printing_snapshot(
+            {
+                "enabled": True,
+                "type": "ROTO",
+                "substrate_mode": "SHEET",
+                "front_colors_count": 2,
+                "back_colors_count": 0,
+                "ink_gsm_total": 0,
+                "front_colors": ["FRONT 1", "FRONT 2"],
+                "back_colors": [],
+                "color_names": ["FRONT 1", "FRONT 2"],
+                "color_mapping": {},
+                "cylinder_required": True,
+            },
+            layer_snapshot=[{"density_g_cm3": 0.92}],
+            require_artwork=False,
+            strict_inks=False,
+        )
+
+        self.assertEqual(validated["ink_gsm_total"], 0.0)
+        self.assertEqual(validated["cylinder_required"], True)
+
     def test_frozen_snapshot_requires_artwork_design_code(self):
         with self.assertRaises(ValidationError) as exc:
             validate_frozen_printing_snapshot(
