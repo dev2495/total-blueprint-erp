@@ -894,7 +894,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                        <Link href={`/inventory/traceability-v36?q=${encodeURIComponent(roll.label_id || roll.id)}`} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700">
+                        <Link href={`/inventory/traceability?q=${encodeURIComponent(roll.label_id || roll.id)}`} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700">
                             <GitBranch className="h-3 w-3" /> Trace lineage
                         </Link>
                         <Link href={`/inventory?focus=${encodeURIComponent(roll.id)}`} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-200">

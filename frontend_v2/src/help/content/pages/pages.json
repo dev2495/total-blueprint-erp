@@ -7820,10 +7820,10 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
-      "inventory-rolls-v36-overview",
+      "inventory-rolls-overview",
       "inventory-stock-lifecycle-workflow"
     ],
     "faqRefs": [
@@ -8217,7 +8217,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -8361,7 +8361,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -8505,7 +8505,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-grn-overview",
@@ -8649,7 +8649,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-grn-overview",
@@ -8791,7 +8791,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/inter-plant-v36",
+    "routePattern": "/inventory/inter-plant",
     "title": {
       "en": "Inter-Plant",
       "hi": "Inter-Plant"
@@ -8923,7 +8923,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-inter-plant-overview",
@@ -9451,10 +9451,10 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
-      "inventory-rolls-v36-overview",
+      "inventory-rolls-overview",
       "inventory-stock-lifecycle-workflow"
     ],
     "faqRefs": [
@@ -9722,7 +9722,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -9866,7 +9866,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-packaging-overview",
@@ -10010,7 +10010,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -10154,10 +10154,10 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
-      "inventory-rolls-v36-overview",
+      "inventory-rolls-overview",
       "inventory-stock-lifecycle-workflow"
     ],
     "faqRefs": [
@@ -10166,7 +10166,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/traceability-v36",
+    "routePattern": "/inventory/traceability",
     "title": {
       "en": "Roll Genealogy & Stock Card",
       "hi": "Roll Genealogy & Stock Card"
@@ -10298,7 +10298,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-traceability-overview",
@@ -10441,7 +10441,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -10585,7 +10585,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -10727,7 +10727,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/traceability-v36",
+    "routePattern": "/inventory/traceability",
     "title": {
       "en": "Roll Genealogy & Stock Card",
       "hi": "Roll Genealogy & Stock Card"
@@ -10859,7 +10859,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-traceability-overview",
@@ -11130,7 +11130,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-stock-lifecycle-overview",
@@ -11524,7 +11524,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "logistics-packing-overview",
@@ -11668,7 +11668,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "logistics-packing-overview",
@@ -13206,7 +13206,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "master-overview",
@@ -14865,7 +14865,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "production-planner-overview",
@@ -16416,7 +16416,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "sales-orders-create-overview",
@@ -17819,7 +17819,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-bulk-overview",
@@ -17963,7 +17963,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-addons-overview",
@@ -18107,11 +18107,11 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
-      "inventory-rolls-v36-overview",
-      "inventory-rolls-v36-workflow"
+      "inventory-rolls-overview",
+      "inventory-rolls-workflow"
     ],
     "faqRefs": [
       "faq-access-control",
@@ -18251,7 +18251,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [
       "inventory-grn-overview",
@@ -18393,7 +18393,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -18533,7 +18533,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -18673,7 +18673,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -18814,7 +18814,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -18955,7 +18955,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19096,7 +19096,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19237,7 +19237,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19378,7 +19378,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19519,7 +19519,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19660,7 +19660,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19801,7 +19801,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -19940,7 +19940,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20079,7 +20079,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20218,7 +20218,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20358,7 +20358,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20498,7 +20498,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20638,7 +20638,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20777,7 +20777,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -20916,7 +20916,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -21055,7 +21055,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -21194,7 +21194,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -21333,7 +21333,7 @@
       "/inventory",
       "/inventory/grn",
       "/inventory/period",
-      "/inventory/traceability-v36"
+      "/inventory/traceability"
     ],
     "screenshotKeys": [],
     "faqRefs": [

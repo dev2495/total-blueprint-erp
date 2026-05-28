@@ -158,7 +158,7 @@ export function GrnHistoryV36() {
     const queryClient = useQueryClient()
 
     const grnQuery = useQuery({
-        queryKey: ["grn-history-v36"],
+        queryKey: ["grn-history"],
         queryFn: () => inventoryService.getGrnHistory({}),
         staleTime: 30_000,
     })
@@ -577,7 +577,7 @@ export function GrnHistoryV36() {
                     row={selected}
                     onClose={() => setSelected(null)}
                     onSaved={() => {
-                        queryClient.invalidateQueries({ queryKey: ["grn-history-v36"] })
+                        queryClient.invalidateQueries({ queryKey: ["grn-history"] })
                         setSelected(null)
                     }}
                 />

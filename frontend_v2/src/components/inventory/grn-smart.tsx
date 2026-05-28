@@ -437,7 +437,7 @@ export function GrnSmartV36() {
     }, [uploadRollsMutation])
 
     return (
-        <div data-testid="smart-grn-v36" className="space-y-5 pb-24">
+        <div data-testid="smart-grn" className="space-y-5 pb-24">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <Link href="/inventory" className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-blue-700">← Stock workspace</Link>
