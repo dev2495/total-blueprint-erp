@@ -450,3 +450,90 @@ class InventoryAuditService:
                 'high': alert_qs.filter(severity='HIGH').count()
             }
         }
+
+    # ------------------------------------------------------------------
+    # Sprint 3 — Reorder policy / low-stock alert generator
+    # ------------------------------------------------------------------
+    @classmethod
+    @transaction.atomic
+    def generate_low_stock_alerts(cls, *, plant: Plant = None) -> Dict[str, int]:
+        """For every InventoryMaterial with reorder_qty > 0, check current
+        available stock (bulk + AVAILABLE rolls) against reorder_qty + safety_stock.
+
+        Raises a LOW_STOCK alert (severity = HIGH if also < safety_stock else MEDIUM)
+        and resolves any existing alert when stock recovers to reorder_qty + 10%.
+
+        Per-plant when ``plant`` is provided; otherwise scans aggregate stock across all plants.
+
+        Returns ``{"raised": int, "resolved": int, "scanned": int}``.
+        """
+        from apps.materials.models import InventoryMaterial
+
+        materials = InventoryMaterial.objects.filter(
+            reorder_qty__isnull=False, reorder_qty__gt=0, status="ACTIVE"
+        )
+        scanned = 0
+        raised = 0
+        resolved = 0
+        for material in materials.iterator():
+            scanned += 1
+            reorder = Decimal(str(material.reorder_qty or 0))
+            safety = Decimal(str(material.safety_stock or 0))
+            # Stock roll-up: bulk + available rolls.
+            bulk_qs = InventoryBulk.objects.filter(material=material)
+            roll_qs = InventoryRoll.objects.filter(material=material, status="AVAILABLE")
+            if plant:
+                bulk_qs = bulk_qs.filter(plant=plant)
+                roll_qs = roll_qs.filter(location__plant=plant)
+            available = (
+                (bulk_qs.aggregate(t=Sum("qty_kg"))["t"] or Decimal("0"))
+                + (roll_qs.aggregate(t=Sum("weight_kg"))["t"] or Decimal("0"))
+            )
+
+            existing = InventoryAlert.objects.filter(
+                material=material, type="LOW_STOCK", resolved=False, plant=plant
+            ).first()
+
+            if available < reorder:
+                severity = "HIGH" if (safety > 0 and available < safety) else "MEDIUM"
+                message = (
+                    f"{material.code}: stock {available:.3f} {material.base_uom or 'KG'} "
+                    f"below reorder {reorder:.3f}. Safety {safety:.3f}."
+                )
+                if existing:
+                    existing.severity = severity
+                    existing.message = message
+                    existing.expected_value = reorder
+                    existing.actual_value = available
+                    existing.save(update_fields=["severity", "message", "expected_value", "actual_value"])
+                else:
+                    InventoryAlert.objects.create(
+                        type="LOW_STOCK",
+                        message=message,
+                        severity=severity,
+                        material=material,
+                        plant=plant,
+                        expected_value=reorder,
+                        actual_value=available,
+                    )
+                    raised += 1
+            else:
+                # Recovery: resolve alert once stock is at reorder * 1.10 or better.
+                if existing and available >= (reorder * Decimal("1.10")):
+                    existing.resolved = True
+                    existing.resolved_at = timezone.now()
+                    existing.resolution_note = (
+                        f"Stock recovered to {available:.3f}, above reorder {reorder:.3f} +10%."
+                    )
+                    existing.save(
+                        update_fields=["resolved", "resolved_at", "resolution_note"]
+                    )
+                    resolved += 1
+        logger.info(
+            "generate_low_stock_alerts: scanned=%d raised=%d resolved=%d plant=%s",
+            scanned,
+            raised,
+            resolved,
+            getattr(plant, "code", "ALL"),
+        )
+        return {"raised": raised, "resolved": resolved, "scanned": scanned}

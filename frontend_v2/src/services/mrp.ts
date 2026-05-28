@@ -109,4 +109,36 @@ export const mrpService = {
         const { data } = await api.post(`/api/mrp/suggestions/bulk-draft-po/`, { suggestion_ids: suggestionIds });
         return data;
     },
+    getDiff: async (planId: string, vsPlanId?: string): Promise<MRPPlanDiff> => {
+        const url = vsPlanId
+            ? `/api/mrp/plans/${planId}/diff/?vs=${vsPlanId}`
+            : `/api/mrp/plans/${planId}/diff/`;
+        const { data } = await api.get(url);
+        return data as MRPPlanDiff;
+    },
 };
+
+export interface MRPPlanDiffMaterial {
+    material_id: string;
+    material_code: string;
+    material_name: string;
+    required_qty: number;
+    shortage: number;
+}
+
+export interface MRPPlanDiffChange {
+    material_id: string;
+    material_code: string;
+    material_name: string;
+    from_qty: number;
+    to_qty: number;
+    delta: number;
+}
+
+export interface MRPPlanDiff {
+    from_plan: MRPPlan | null;
+    to_plan: MRPPlan;
+    added_materials: MRPPlanDiffMaterial[];
+    removed_materials: MRPPlanDiffMaterial[];
+    qty_changes: MRPPlanDiffChange[];
+}

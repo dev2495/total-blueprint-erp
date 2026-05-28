@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from django.db import transaction
@@ -12,6 +13,8 @@ from .serializers_quotations import QuotationSerializer
 from .services.quotation_costing import QuotationCostingService
 from .services.quotation_pdf import QuotationPDFService
 from .services.quotation_service import QuotationService
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_dec(value):
@@ -203,7 +206,13 @@ class QuotationViewSet(viewsets.ModelViewSet):
                         total=djmodels.Sum("qty")
                     )
                     available_kg = Decimal(str(agg["total"] or 0))
-                except Exception:
+                except Exception as exc:
+                    logger.warning(
+                        "production-preview material availability lookup failed for %s: %s",
+                        mat_id,
+                        exc,
+                        exc_info=True,
+                    )
                     available_kg = Decimal("0")
             availability_rows.append({
                 "material_id": str(mat_id),
@@ -235,6 +244,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
         original = self.get_object()
         try:
             with transaction.atomic():
+                original = Quotation.objects.select_for_update().get(pk=original.pk)
                 items = list(original.items.all())
                 clone = Quotation.objects.create(
                     customer=original.customer,
@@ -319,6 +329,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
             )
         try:
             with transaction.atomic():
+                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
                 if quotation.status == "DRAFT":
                     quotation.status = "SENT"
                 quotation.sent_at = timezone.now()
@@ -341,8 +352,13 @@ class QuotationViewSet(viewsets.ModelViewSet):
                         ),
                         category="sales.quotation.sent",
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "quotation send notification failed for %s: %s",
+                        quotation.quote_number,
+                        exc,
+                        exc_info=True,
+                    )
             return Response(
                 {
                     "id": str(quotation.id),
@@ -376,6 +392,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
             )
         try:
             with transaction.atomic():
+                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
                 if quotation.status not in ("DRAFT", "SENT"):
                     return Response(
                         {"detail": f"Cannot approve a {quotation.status} quotation."},
@@ -416,6 +433,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
         reason = str((request.data or {}).get("reason") or "").strip()
         try:
             with transaction.atomic():
+                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
                 if quotation.status in ("CONVERTED",):
                     return Response(
                         {"detail": "Cannot reject a converted quotation."},
@@ -446,6 +464,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
         user = getattr(request, "user", None)
         try:
             with transaction.atomic():
+                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
                 if quotation.status in ("CONVERTED", "REJECTED"):
                     return Response(
                         {"detail": f"Cannot expire a {quotation.status} quotation."},
@@ -496,7 +515,14 @@ class QuotationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            order = QuotationService.convert_to_sales_order(quotation)
+            with transaction.atomic():
+                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
+                if quotation.status != "APPROVED":
+                    return Response(
+                        {"detail": "Only APPROVED quotations can be converted to a sales order."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                order = QuotationService.convert_to_sales_order(quotation)
             return Response(
                 {
                     "sales_order_id": str(order.id),

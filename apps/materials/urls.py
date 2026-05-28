@@ -21,6 +21,7 @@ from .views import (
     WebWidthPolicyViewSet,
 )
 from apps.sales.views_trade import TradingGoodViewSet
+from .views_reorder import ReorderPolicyViewSet
 
 router = OptionalSlashRouter()
 router.register(r'film-families', FilmFamilyViewSet, basename='film-family')
@@ -42,6 +43,8 @@ router.register(r'pouch-styles', PouchStyleMasterViewSet, basename='pouch-style'
 router.register(r'web-width-policies', WebWidthPolicyViewSet, basename='web-width-policy')
 router.register(r'customer-product-overlays', CustomerProductOverlayViewSet, basename='customer-product-overlay')
 router.register(r'trading-goods', TradingGoodViewSet, basename='trading-good')
+router.register(r'reorder-policy', ReorderPolicyViewSet, basename='reorder-policy')
+router.register(r'inventory-materials', MaterialLibraryViewSet, basename='inventory-materials')
 
 urlpatterns = [
     path('', include(router.urls)),

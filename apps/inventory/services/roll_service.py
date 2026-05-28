@@ -362,8 +362,20 @@ class RollService:
         Returns:
             Dict with keys: output_roll, balance_roll, scrap_roll (any can be None)
         """
+        from apps.inventory.services.fsm import TransitionError, ROLL_TRANSITIONS, validate_transition
+
+        # Re-fetch under row lock to defeat concurrent consumers of the same roll.
+        prior_status = input_roll.status
+        input_roll = InventoryRoll.objects.select_for_update().get(pk=input_roll.pk)
+        if input_roll.status != prior_status:
+            raise TransitionError(
+                f"Roll {input_roll.label_id}: status changed concurrently "
+                f"({prior_status} -> {input_roll.status}); refusing to consume."
+            )
         if input_roll.status not in ('AVAILABLE', 'RESERVED', 'IN_PROCESS'):
             raise ValueError(f"Roll {input_roll.label_id} is not available for consumption (status: {input_roll.status})")
+        # Validate the planned CONSUMED transition through the FSM.
+        validate_transition(input_roll.status, "CONSUMED", ROLL_TRANSITIONS, label=f"Roll {input_roll.label_id}")
 
         total_consumed = used_kg + scrap_kg
         if total_consumed > input_roll.weight_kg:

@@ -221,9 +221,24 @@ class PurchaseOrderReceipt(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Idempotency: optional client-supplied token to defeat double-submits from the UI.
+    client_token = models.CharField(max_length=64, blank=True, default="", db_index=True)
+
     class Meta:
         db_table = "procurement_po_receipt"
         ordering = ["-received_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["purchase_order", "vendor_invoice_no"],
+                condition=models.Q(vendor_invoice_no__gt=""),
+                name="uniq_po_vendor_invoice",
+            ),
+            models.UniqueConstraint(
+                fields=["purchase_order", "client_token"],
+                condition=models.Q(client_token__gt=""),
+                name="uniq_po_client_token",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -251,3 +266,65 @@ class PurchaseOrderReceiptLine(models.Model):
 
     class Meta:
         db_table = "procurement_po_receipt_line"
+
+
+class TradingGoodReceipt(models.Model):
+    """Direct vendor receipt for a TradingGood (no PO required).
+
+    Credits TradingGoodStock with weighted-average cost. Partial unique
+    constraint by vendor + vendor_invoice_no prevents duplicate invoices.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=24, unique=True, db_index=True)
+    trading_good = models.ForeignKey(
+        "materials.TradingGood", on_delete=models.PROTECT, related_name="receipts"
+    )
+    vendor = models.ForeignKey(
+        "inventory.Vendor", on_delete=models.PROTECT, related_name="trading_good_receipts"
+    )
+    plant = models.ForeignKey(
+        "factory.Plant", on_delete=models.PROTECT, related_name="trading_good_receipts"
+    )
+    qty_received = models.DecimalField(max_digits=14, decimal_places=3)
+    rate = models.DecimalField(max_digits=14, decimal_places=2)
+
+    vendor_invoice_no = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    vendor_invoice_date = models.DateField(null=True, blank=True)
+    manual_po_ref = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Vendor's PO ref when receiving against a PO not in our system.",
+    )
+    vehicle_no = models.CharField(max_length=40, blank=True, default="")
+    driver_name = models.CharField(max_length=80, blank=True, default="")
+    lr_no = models.CharField(max_length=40, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+
+    received_at = models.DateTimeField(default=timezone.now)
+    received_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="trading_good_receipts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "procurement_trading_good_receipt"
+        ordering = ["-received_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vendor", "vendor_invoice_no"],
+                condition=models.Q(vendor_invoice_no__gt=""),
+                name="uniq_tgr_vendor_invoice",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = gen_code("TGR", TradingGoodReceipt)
+        super().save(*args, **kwargs)

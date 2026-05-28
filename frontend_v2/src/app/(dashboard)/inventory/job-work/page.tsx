@@ -413,7 +413,7 @@ function DispatchDialog({ order }: { order: JobWorkOrder }) {
             setOpen(false)
             setSelectedRollIds([])
             queryClient.invalidateQueries({ queryKey: ["job-work-orders"] })
-            queryClient.invalidateQueries({ queryKey: ["rolls-v36"] })
+            queryClient.invalidateQueries({ queryKey: ["inventory-rolls"] })
         },
         onError: (err: AxiosError<{ detail?: string; error?: string }>) => {
             toast.error(err.response?.data?.detail || err.response?.data?.error || "Dispatch failed")
@@ -532,7 +532,7 @@ function ReceiveDialog({ order }: { order: JobWorkOrder }) {
             toast.success("Received from jobwork.")
             setOpen(false)
             queryClient.invalidateQueries({ queryKey: ["job-work-orders"] })
-            queryClient.invalidateQueries({ queryKey: ["rolls-v36"] })
+            queryClient.invalidateQueries({ queryKey: ["inventory-rolls"] })
             queryClient.invalidateQueries({ queryKey: ["stock"] })
         },
         onError: (err: AxiosError<{ detail?: string; error?: string }>) => {

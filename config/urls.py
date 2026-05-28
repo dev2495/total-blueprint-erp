@@ -36,6 +36,7 @@ urlpatterns = [
 
     # 1. Canonical Master Data APIs
     path('api/master/', include('apps.materials.urls')), # Fix for frontend master-data.ts
+    path('api/materials/', include('apps.materials.urls')),  # Sprint 3: reorder policy + materials API
     path('api/recipes/', include('apps.recipes.urls')),  # Fix for missing recipes/grades endpoint
 
     # Fallback/Direct access (Optional but kept for now)

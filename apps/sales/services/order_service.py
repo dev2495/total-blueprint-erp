@@ -1,6 +1,9 @@
+import logging
 from copy import deepcopy
 from decimal import Decimal, ROUND_CEILING
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -2147,9 +2150,34 @@ class SalesOrderService:
         raise ValidationError("Custom template/R&D sales flow is removed in V2 hard-cut.")
 
     @staticmethod
+    def try_complete(order_id):
+        """If every line on the order is fully dispatched (qty_open == 0),
+        transition the SO to COMPLETED. Safe to call repeatedly; no-op on
+        an already-COMPLETED or CANCELLED order. Returns the (re-fetched) order.
+        """
+        with transaction.atomic():
+            order = (
+                SalesOrder.objects.select_for_update()
+                .prefetch_related("items", "items__dispatch_lines", "items__dispatch_lines__dispatch")
+                .get(id=order_id)
+            )
+            if order.status in {"COMPLETED", "CANCELLED"}:
+                return order
+            items = list(order.items.all())
+            if not items:
+                return order
+            for item in items:
+                if (item.qty_open or Decimal("0")) > Decimal("0"):
+                    return order
+            order.status = "COMPLETED"
+            order.completed_at = timezone.now()
+            order.save(update_fields=["status", "completed_at"])
+            return order
+
+    @staticmethod
     def confirm_sales_order(order_id):
         with transaction.atomic():
-            order = SalesOrder.objects.get(id=order_id)
+            order = SalesOrder.objects.select_for_update().get(id=order_id)
             if order.status not in ["DRAFT", "CONFIRMED"]:
                 raise ValidationError(f"Order cannot be confirmed from status {order.status}.")
 
@@ -2253,8 +2281,13 @@ class SalesOrderService:
                     sig = layer_signature_hash(item.layer_snapshot or [])
                     if isinstance(item.bom_snapshot, dict):
                         item.bom_snapshot["layer_signature_hash"] = sig
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "confirm_sales_order: layer signature hash failed for item %s: %s",
+                        getattr(item, "id", None),
+                        exc,
+                        exc_info=True,
+                    )
 
                 # Compute planned_parent_width_mm from lane count + effective web-width policy + child target.
                 try:
@@ -2300,8 +2333,13 @@ class SalesOrderService:
                         }
                 except ValidationError:
                     raise
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "confirm_sales_order: web-width policy evaluation failed for item %s: %s",
+                        item.id,
+                        exc,
+                        exc_info=True,
+                    )
 
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))

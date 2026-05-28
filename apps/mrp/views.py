@@ -25,6 +25,77 @@ class MRPViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": "No completed MRP plan found."}, status=status.HTTP_404_NOT_FOUND)
         return Response(MRPPlanSerializer(plan).data)
 
+    @action(detail=True, methods=['get'])
+    def diff(self, request, pk=None):
+        """Sprint 4 — compare two MRP plans line-by-line.
+
+        ?vs=<other_plan_id>  (defaults to the latest completed plan older than this one)
+        """
+        from decimal import Decimal
+        try:
+            to_plan = MRPPlan.objects.get(pk=pk)
+        except MRPPlan.DoesNotExist:
+            return Response({"error": "plan not found"}, status=status.HTTP_404_NOT_FOUND)
+        vs = request.query_params.get('vs')
+        if vs:
+            try:
+                from_plan = MRPPlan.objects.get(pk=vs)
+            except MRPPlan.DoesNotExist:
+                return Response({"error": "vs plan not found"}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            from_plan = (
+                MRPPlan.objects.filter(status='COMPLETED', created_at__lt=to_plan.created_at)
+                .order_by('-created_at')
+                .first()
+            )
+            if not from_plan:
+                return Response({
+                    "from_plan": None,
+                    "to_plan": MRPPlanSerializer(to_plan).data,
+                    "added_materials": [],
+                    "removed_materials": [],
+                    "qty_changes": [],
+                })
+
+        def reqs(plan):
+            out = {}
+            for r in MRPRequirement.objects.filter(plan=plan).select_related('material'):
+                out[str(r.material_id)] = {
+                    "material_id": str(r.material_id),
+                    "material_code": getattr(r.material, "code", ""),
+                    "material_name": getattr(r.material, "name", ""),
+                    "required_qty": float(r.required_qty_kg or 0),
+                    "shortage": float(r.shortage_qty_kg or 0),
+                }
+            return out
+
+        from_map = reqs(from_plan)
+        to_map = reqs(to_plan)
+        from_ids = set(from_map.keys())
+        to_ids = set(to_map.keys())
+        added = [to_map[mid] for mid in (to_ids - from_ids)]
+        removed = [from_map[mid] for mid in (from_ids - to_ids)]
+        qty_changes = []
+        for mid in (from_ids & to_ids):
+            f = from_map[mid]
+            t = to_map[mid]
+            if abs(t["required_qty"] - f["required_qty"]) > 1e-6:
+                qty_changes.append({
+                    "material_id": mid,
+                    "material_code": t["material_code"],
+                    "material_name": t["material_name"],
+                    "from_qty": f["required_qty"],
+                    "to_qty": t["required_qty"],
+                    "delta": t["required_qty"] - f["required_qty"],
+                })
+        return Response({
+            "from_plan": MRPPlanSerializer(from_plan).data,
+            "to_plan": MRPPlanSerializer(to_plan).data,
+            "added_materials": added,
+            "removed_materials": removed,
+            "qty_changes": qty_changes,
+        })
+
 class MRPRequirementViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = MRPRequirement.objects.all()
     serializer_class = MRPRequirementSerializer

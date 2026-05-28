@@ -682,6 +682,27 @@ class InventoryMaterial(models.Model):
 
     status = models.CharField(max_length=10, default='ACTIVE', choices=[('ACTIVE', 'Active'), ('INACTIVE', 'Inactive')])
 
+    # Sprint 3 — Reorder policy fields (low-stock alerts + MRP buffers).
+    reorder_qty = models.DecimalField(
+        max_digits=14,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="When stock falls below this, raise a low-stock alert.",
+    )
+    safety_stock = models.DecimalField(
+        max_digits=14,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Buffer below which production is at risk.",
+    )
+    lead_time_override_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Override vendor lead time for this material.",
+    )
+
     # Trade-resale flags — granules and film variants flagged TRUE here become
     # selectable in Trade Orders (resold as-is, no production cycle).
     is_sellable = models.BooleanField(

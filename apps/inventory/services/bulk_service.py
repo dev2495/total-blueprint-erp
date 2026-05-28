@@ -27,17 +27,26 @@ class BulkService:
 
     @classmethod
     @transaction.atomic
-    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None, granule_code_id=None):
+    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None, granule_code_id=None, vendor_id=None, vendor_invoice_no="", manual_po_ref=""):
         """
         Increase bulk quantity and update average cost.
         Used by GRN and manual adjustments.
         """
         qty = q4(qty)
         cost = q4(cost)
-        
+
         if qty <= 0:
             raise ValidationError("Quantity to add must be positive.")
         quality_code = cls._resolve_granule_code(material_id, granule_code_id)
+
+        # Vendor invoice dedup (partial unique by vendor + vendor_invoice_no).
+        if vendor_id and vendor_invoice_no:
+            if BulkTransaction.objects.filter(
+                vendor_id=vendor_id, vendor_invoice_no=vendor_invoice_no
+            ).exists():
+                raise ValidationError(
+                    f"Duplicate vendor invoice '{vendor_invoice_no}' for this vendor."
+                )
 
         bulk, created = InventoryBulk.objects.select_for_update().get_or_create(
             material_id=material_id,
@@ -68,6 +77,9 @@ class BulkService:
             avg_cost=resolved_rate,
             reference=reference,
             job_id=job_id,
+            vendor_id=vendor_id,
+            vendor_invoice_no=vendor_invoice_no or "",
+            manual_po_ref=(manual_po_ref or "").strip(),
         )
 
     @classmethod

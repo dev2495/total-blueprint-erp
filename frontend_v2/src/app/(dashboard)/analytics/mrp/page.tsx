@@ -38,7 +38,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { mrpService, type MRPPlan, type MRPRequirement, type MRPSuggestion } from "@/services/mrp";
+import { mrpService, type MRPPlan, type MRPPlanDiff, type MRPRequirement, type MRPSuggestion } from "@/services/mrp";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,9 @@ export default function MRPCenter() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [actionFilter, setActionFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [diffOpen, setDiffOpen] = useState(false);
+  const [diffData, setDiffData] = useState<MRPPlanDiff | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
 
   const plansQuery = useQuery({
     queryKey: ["mrp-plans"],
@@ -424,6 +427,32 @@ export default function MRPCenter() {
               </Button>
               <Button
                 size="lg"
+                variant="outline"
+                className="h-11 rounded-2xl px-5"
+                disabled={!activePlan?.id || diffLoading}
+                onClick={async () => {
+                  if (!activePlan?.id) return;
+                  setDiffLoading(true);
+                  try {
+                    const diff = await mrpService.getDiff(activePlan.id);
+                    setDiffData(diff);
+                    setDiffOpen(true);
+                  } catch (err) {
+                    toast({
+                      title: "Diff failed",
+                      description: err instanceof Error ? err.message : "Unknown error",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setDiffLoading(false);
+                  }
+                }}
+              >
+                {diffLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Split className="mr-2 h-4 w-4" />}
+                Compare with previous run
+              </Button>
+              <Button
+                size="lg"
                 className="h-11 rounded-2xl bg-slate-900 px-5 font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800"
                 onClick={() => runMutation.mutate()}
                 disabled={isRunning}
@@ -433,6 +462,69 @@ export default function MRPCenter() {
               </Button>
             </div>
           </div>
+
+          {diffOpen && diffData ? (
+            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Plan diff</div>
+                  <div className="text-lg font-black text-slate-900">
+                    {diffData.from_plan ? "Previous → current" : "Current run (no prior to compare)"}
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setDiffOpen(false)}>Close</Button>
+              </div>
+              <div className="space-y-4 p-6">
+                <Card className="rounded-2xl border-emerald-200 bg-emerald-50/50">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-emerald-900">Added materials ({diffData.added_materials.length})</CardTitle></CardHeader>
+                  <CardContent className="text-xs">
+                    {diffData.added_materials.length === 0 ? <span className="text-slate-500">None.</span> : (
+                      <ul className="space-y-1">
+                        {diffData.added_materials.map((m) => (
+                          <li key={m.material_id} className="flex justify-between font-mono">
+                            <span>{m.material_code}</span>
+                            <span className="text-emerald-700 font-bold">+{m.required_qty.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="rounded-2xl border-rose-200 bg-rose-50/40">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-rose-900">Removed materials ({diffData.removed_materials.length})</CardTitle></CardHeader>
+                  <CardContent className="text-xs">
+                    {diffData.removed_materials.length === 0 ? <span className="text-slate-500">None.</span> : (
+                      <ul className="space-y-1">
+                        {diffData.removed_materials.map((m) => (
+                          <li key={m.material_id} className="flex justify-between font-mono">
+                            <span>{m.material_code}</span>
+                            <span className="text-rose-700 font-bold">-{m.required_qty.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="rounded-2xl border-slate-200">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-slate-900">Qty changes ({diffData.qty_changes.length})</CardTitle></CardHeader>
+                  <CardContent className="text-xs">
+                    {diffData.qty_changes.length === 0 ? <span className="text-slate-500">No quantity deltas.</span> : (
+                      <ul className="space-y-1">
+                        {diffData.qty_changes.map((c) => (
+                          <li key={c.material_id} className="flex justify-between font-mono">
+                            <span>{c.material_code}</span>
+                            <span className={c.delta > 0 ? "text-amber-700 font-bold" : "text-blue-700 font-bold"}>
+                              {c.from_qty.toFixed(2)} → {c.to_qty.toFixed(2)} ({c.delta > 0 ? "+" : ""}{c.delta.toFixed(2)})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
             <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-3 py-3">

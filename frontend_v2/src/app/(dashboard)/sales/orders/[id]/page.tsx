@@ -142,6 +142,18 @@ export default function SalesOrderDetailPage() {
                             Waiting for Planner Control Hub action
                         </p>
                     )}
+                    {(order.status === 'RELEASED' || order.status === 'PACKING_READY' || order.status === 'DISPATCH_READY' || order.status === 'PLANNED') && (
+                        <Button asChild className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs tracking-wider h-11 px-7 shadow-md shadow-emerald-100">
+                            <Link href={`/sales/orders/${id}/dispatches`}>
+                                <Package className="h-4 w-4 mr-2" /> Dispatches
+                            </Link>
+                        </Button>
+                    )}
+                    <Button asChild variant="outline" className="rounded-xl font-bold uppercase text-[10px] tracking-wider h-9 px-4">
+                        <Link href={`/sales/orders/${id}/dispatches`}>
+                            <ChevronRight className="h-3 w-3 mr-1" /> Dispatch ledger
+                        </Link>
+                    </Button>
                 </div>
             </div>
 

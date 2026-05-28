@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, CheckCircle2, Ban, Loader2, SlidersHorizontal } from "lucide-react"
 
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
+import { GradientHero } from "@/components/erp/gradient-hero"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {

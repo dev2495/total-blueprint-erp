@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 
-import { MobileCountV36 } from "@/components/inventory-v36/mobile-count-v36"
+import { MobileCountV36 } from "@/components/inventory/mobile-count"
 
 export default function InventoryCountPage() {
     return (

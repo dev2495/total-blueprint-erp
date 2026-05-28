@@ -74,6 +74,19 @@ class PurchaseOrderReceiptService:
         if not lines_data:
             raise ValidationError("At least one line required")
 
+        # Vendor-level dedup: same vendor cannot raise two receipts (across POs) with
+        # the same invoice number. The model's unique constraint is scoped to a PO;
+        # this guards the multi-PO case as well.
+        inv_no = (vendor_invoice_no or "").strip()
+        if inv_no:
+            if PurchaseOrderReceipt.objects.filter(
+                purchase_order__vendor=po.vendor,
+                vendor_invoice_no=inv_no,
+            ).exists():
+                raise ValidationError(
+                    f"Duplicate vendor invoice '{inv_no}' for vendor {po.vendor.code}."
+                )
+
         receipt = PurchaseOrderReceipt.objects.create(
             purchase_order=po,
             plant=po.plant,
@@ -158,6 +171,10 @@ class PurchaseOrderReceiptService:
                 )
                 rl.roll_id = roll.id
             elif mat.category in PACK_CATEGORIES:
+                # PO receipt header carries the unique invoice; individual line
+                # PackagingTransactions only stamp vendor FK (no invoice_no) so
+                # the BulkTransaction/PackagingTransaction partial-unique doesn't
+                # collide across the multiple lines of a single receipt.
                 tx = PackagingService.add_packaging_stock(
                     material_id=str(mat.id),
                     qty=qty,
@@ -176,6 +193,9 @@ class PurchaseOrderReceiptService:
                     cost=rate,
                     reference=reference,
                     tx_type="INWARD",
+                    vendor_id=str(po.vendor.id),
+                    # vendor_invoice_no intentionally left blank; PO receipt
+                    # header is the source of truth for invoice dedup here.
                 )
                 rl.bulk_tx_id = getattr(tx, "id", None)
             else:

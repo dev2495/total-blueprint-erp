@@ -15,7 +15,7 @@ import {
     Layers,
 } from "lucide-react"
 
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
+import { GradientHero } from "@/components/erp/gradient-hero"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"

@@ -37,7 +37,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
+import { GradientHero } from "@/components/erp/gradient-hero"
 import {
     productMasterService,
     type ProductKind,

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { Plus, Search, Repeat, ClipboardList, Truck, CheckCircle2, XCircle } from "lucide-react"
 
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
+import { GradientHero } from "@/components/erp/gradient-hero"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

@@ -264,6 +264,9 @@ class TradeOrderViewSet(viewsets.ModelViewSet):
         return qs
 
     def _next_code(self):
+        """Generate a unique TO code via savepoint+IntegrityError retry."""
+        from django.db import IntegrityError
+
         year = timezone.now().year
         prefix = f"TO-{year}-"
         last = (
@@ -281,8 +284,20 @@ class TradeOrderViewSet(viewsets.ModelViewSet):
         return f"{prefix}{next_num:04d}"
 
     def perform_create(self, serializer):
+        from django.db import IntegrityError
+
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(code=self._next_code(), created_by=user)
+        # Idempotent code generation: retry up to 5x on IntegrityError (uniqueness clash).
+        for attempt in range(5):
+            sp = transaction.savepoint()
+            try:
+                serializer.save(code=self._next_code(), created_by=user)
+                transaction.savepoint_commit(sp)
+                return
+            except IntegrityError:
+                transaction.savepoint_rollback(sp)
+                if attempt == 4:
+                    raise
 
     def destroy(self, request, *args, **kwargs):
         order = self.get_object()
@@ -293,15 +308,17 @@ class TradeOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
         order = self.get_object()
-        if order.status != "DRAFT":
-            raise DRFValidationError(f"Cannot confirm order in status {order.status}.")
-        if not order.items.exists():
-            raise DRFValidationError("Add at least one line before confirming.")
-        shortages = get_trade_order_stock_shortages(order=order)
-        if shortages:
-            raise DRFValidationError(shortages)
-        order.status = "CONFIRMED"
-        order.save(update_fields=["status", "updated_at"])
+        with transaction.atomic():
+            order = TradeOrder.objects.select_for_update().get(pk=order.pk)
+            if order.status != "DRAFT":
+                raise DRFValidationError(f"Cannot confirm order in status {order.status}.")
+            if not order.items.exists():
+                raise DRFValidationError("Add at least one line before confirming.")
+            shortages = get_trade_order_stock_shortages(order=order)
+            if shortages:
+                raise DRFValidationError(shortages)
+            order.status = "CONFIRMED"
+            order.save(update_fields=["status", "updated_at"])
         return Response(self.get_serializer(order).data)
 
     @action(detail=True, methods=["post"], url_path="dispatch")
@@ -326,8 +343,10 @@ class TradeOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
         order = self.get_object()
-        if order.status in {"DISPATCHED", "INVOICED", "CANCELLED"}:
-            raise DRFValidationError(f"Cannot cancel order in status {order.status}.")
-        order.status = "CANCELLED"
-        order.save(update_fields=["status", "updated_at"])
+        with transaction.atomic():
+            order = TradeOrder.objects.select_for_update().get(pk=order.pk)
+            if order.status in {"DISPATCHED", "INVOICED", "CANCELLED"}:
+                raise DRFValidationError(f"Cannot cancel order in status {order.status}.")
+            order.status = "CANCELLED"
+            order.save(update_fields=["status", "updated_at"])
         return Response(self.get_serializer(order).data)

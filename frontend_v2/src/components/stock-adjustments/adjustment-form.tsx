@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus, Save, Trash2, Loader2, ArrowLeft, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
+import { GradientHero } from "@/components/erp/gradient-hero"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

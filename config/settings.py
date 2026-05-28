@@ -382,6 +382,15 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.analytics.tasks.dispatch_due_report_packs_task",
         "schedule": crontab(minute="*"),
     },
+    # Sprint 3 — Reorder policy + nightly MRP.
+    "low-stock-scan": {
+        "task": "apps.inventory.tasks.low_stock_scan",
+        "schedule": crontab(minute=0, hour=6),
+    },
+    "mrp-nightly": {
+        "task": "apps.mrp.tasks.run_nightly_mrp",
+        "schedule": crontab(minute=0, hour=2),
+    },
 }
 
 

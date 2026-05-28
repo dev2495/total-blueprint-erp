@@ -1,6 +1,6 @@
 "use client"
 
-import { SalesOrderV34Workspace } from "@/components/sales-v34/sales-order-v34-workspace"
+import { SalesOrderV34Workspace } from "@/components/sales-order-create/sales-order-workspace"
 
 export default function CreateSalesOrderPage() {
     return (

@@ -9,18 +9,24 @@ from apps.sales.services.order_service import SalesOrderService
 
 
 class SalesConfirmArtworkDeferredGateTests(SimpleTestCase):
-    @patch("apps.sales.services.order_service.SalesOrder.objects.get")
+    @patch("apps.sales.services.order_service.SalesOrder.objects.select_for_update")
     @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
     @patch("apps.sales.services.order_service._validate_printing_snapshot_for_confirm")
     @patch("apps.sales.services.order_service._validate_template_film_constraints")
     @patch("apps.sales.services.order_service.transaction.atomic")
+    @patch("apps.materials.services_web_width_policy.web_width_context_from_sales_order_item")
+    @patch("apps.materials.services_web_width_policy.evaluate_web_width_plan")
+    @patch("apps.production.services.in_house_demand_service.InHouseDemandService.create_for_order")
     def test_confirm_allows_printing_without_artwork_and_sets_planner_gate(
         self,
+        mock_create_demand,
+        mock_evaluate_width,
+        mock_width_context,
         mock_atomic,
         _mock_template_constraints,
         mock_validate_printing,
         mock_preview,
-        mock_get_order,
+        mock_select_for_update,
     ):
         mock_atomic.return_value = nullcontext()
         template = SimpleNamespace(
@@ -31,6 +37,7 @@ class SalesConfirmArtworkDeferredGateTests(SimpleTestCase):
             fg_type="POUCH",
         )
         item = SimpleNamespace(
+            id="item-1",
             template=template,
             template_id="tpl-1",
             qty_value=Decimal("100"),
@@ -58,6 +65,9 @@ class SalesConfirmArtworkDeferredGateTests(SimpleTestCase):
             save=Mock(),
             artwork_assignment_required=False,
             assigned_artwork_id="",
+            preferred_lane_count=1,
+            planned_parent_width_mm=None,
+            lane_count_source="manual",
         )
         order = SimpleNamespace(
             id="SO-PLANNER-GATE",
@@ -68,7 +78,7 @@ class SalesConfirmArtworkDeferredGateTests(SimpleTestCase):
             save=Mock(),
         )
 
-        mock_get_order.return_value = order
+        mock_select_for_update.return_value.get.return_value = order
         mock_validate_printing.return_value = (
             {
                 "enabled": True,
@@ -86,11 +96,26 @@ class SalesConfirmArtworkDeferredGateTests(SimpleTestCase):
             "unit_weight_g": 25.0,
             "total_weight_kg": 100.0,
         }
+        mock_width_context.return_value = {}
+        mock_evaluate_width.return_value = {
+            "planned_parent_width_mm": 250,
+            "policy_id": None,
+            "policy_code": None,
+            "policy_name": None,
+            "scope_type": None,
+            "scope_ref": None,
+            "parent_width_strategy": "CALCULATED",
+            "computed_run_width_mm": 250,
+            "trim_mm": 0,
+            "remainder_mm": 0,
+            "remainder_disposition": "NONE",
+        }
 
-        SalesOrderService.confirm_sales_order("SO-PLANNER-GATE")
+        SalesOrderService.confirm_sales_order(order.id)
 
         self.assertEqual(order.status, "PLANNING_REQUIRED")
         self.assertTrue(item.artwork_assignment_required)
         self.assertIsNone(item.assigned_artwork_id)
         mock_validate_printing.assert_called_once()
         self.assertTrue(mock_validate_printing.call_args.kwargs.get("allow_missing_artwork"))
+        mock_create_demand.assert_called_once_with(order)

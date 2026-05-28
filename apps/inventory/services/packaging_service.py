@@ -74,6 +74,8 @@ class PackagingService:
         meta_json=None,
         tx_type="INWARD",
         input_uom=None,
+        vendor_invoice_no="",
+        manual_po_ref="",
     ):
         material = InventoryMaterial.objects.get(id=material_id)
         cls._validate_packaging_material(material)
@@ -81,6 +83,17 @@ class PackagingService:
 
         base_qty, conversion_meta = cls._resolve_base_qty(material, qty, input_uom=input_uom)
         cost = q4(cost)
+
+        invoice_no = (vendor_invoice_no or "").strip()
+        if not invoice_no and isinstance(meta_json, dict):
+            invoice_no = str(meta_json.get("vendor_invoice_no") or "").strip()
+        if vendor_id and invoice_no:
+            if PackagingTransaction.objects.filter(
+                vendor_id=vendor_id, vendor_invoice_no=invoice_no
+            ).exists():
+                raise ValidationError(
+                    f"Duplicate vendor invoice '{invoice_no}' for this vendor."
+                )
 
         stock, _ = PackagingStock.objects.select_for_update().get_or_create(
             material=material,
@@ -114,6 +127,8 @@ class PackagingService:
             sales_order_item_id=sales_order_item_id,
             mts_order_id=mts_order_id,
             reference=reference,
+            vendor_invoice_no=invoice_no or "",
+            manual_po_ref=(manual_po_ref or "").strip(),
             meta_json=meta,
         )
 

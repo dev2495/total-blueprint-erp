@@ -82,3 +82,52 @@ export const tradingGoodService = {
     return unwrap<SellableMaterial>(data)
   },
 }
+
+export interface TradingGoodReceiptPayload {
+  trading_good: string
+  vendor: string
+  plant: string
+  qty: number | string
+  rate: number | string
+  vendor_invoice_no?: string
+  vendor_invoice_date?: string
+  vehicle_no?: string
+  driver_name?: string
+  lr_no?: string
+  notes?: string
+}
+
+export interface TradingGoodReceipt {
+  id: string
+  code: string
+  trading_good: string
+  trading_good_code?: string
+  trading_good_name?: string
+  base_uom?: string
+  vendor: string
+  vendor_code?: string
+  vendor_name?: string
+  plant: string
+  plant_name?: string
+  qty_received: number
+  rate: number
+  vendor_invoice_no?: string
+  vendor_invoice_date?: string | null
+  vehicle_no?: string
+  driver_name?: string
+  lr_no?: string
+  notes?: string
+  received_at?: string
+  created_at?: string
+}
+
+export const tradingGoodReceiptService = {
+  list: async (params?: { vendor?: string; plant?: string; trading_good?: string; search?: string }) => {
+    const { data } = await api.get("/api/procurement/trading-good-receipts/", {
+      params: { page_size: 200, ...params },
+    })
+    return unwrap<TradingGoodReceipt>(data)
+  },
+  create: async (body: TradingGoodReceiptPayload) =>
+    (await api.post<TradingGoodReceipt>("/api/procurement/trading-good-receipts/", body)).data,
+}

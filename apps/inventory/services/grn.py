@@ -46,16 +46,22 @@ class GRNService:
     
     @classmethod
     @transaction.atomic
-    def create_bulk_grn(cls, 
-                        material: InventoryMaterial, 
-                        location: InventoryLocation, 
+    def create_bulk_grn(cls,
+                        material: InventoryMaterial,
+                        location: InventoryLocation,
                         vendor: Vendor,
-                        quantity: float, 
+                        quantity: float,
                         plant,
                         cost: float = 0,
                         reference: str = "",
                         granule_code_id: str | None = None,
-                        granule_code: str | None = None):
+                        granule_code: str | None = None,
+                        vendor_invoice_no: str = "",
+                        manual_po_ref: str = "",
+                        # Compatibility aliases used by some tests/callers:
+                        qty=None,
+                        rate=None,
+                        user=None):
         """
         Phase 56: Record a Bulk Goods Receipt.
         Uses BulkService.add_bulk() for proper inventory tracking.
@@ -71,11 +77,26 @@ class GRNService:
         Returns:
             BulkTransaction record
         """
-        if quantity <= 0:
+        if qty is not None and (quantity is None or quantity == 0):
+            quantity = qty
+        if rate is not None and (cost is None or cost == 0):
+            cost = rate
+        if quantity is None or Decimal(str(quantity)) <= 0:
             raise ValidationError("Quantity must be positive.")
-        
+
         cls._validate_location(location, plant)
         cls._validate_vendor(vendor)
+
+        # Vendor-invoice dedup (safety net; constraint is the source of truth).
+        invoice_no = (vendor_invoice_no or "").strip()
+        if vendor and invoice_no:
+            from apps.inventory.models import BulkTransaction
+            if BulkTransaction.objects.filter(
+                vendor=vendor, vendor_invoice_no=invoice_no
+            ).exists():
+                raise ValidationError(
+                    f"Duplicate vendor invoice '{invoice_no}' for vendor {vendor.code}."
+                )
         
         # Validate material is a bulk type
         bulk_categories = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD', 'ADDON']
@@ -123,17 +144,22 @@ class GRNService:
             cost=cost,
             reference=f"VENDOR:{vendor.code} | {reference or 'GRN'}",
             granule_code_id=resolved_granule_code_id,
+            vendor_id=str(vendor.id),
+            vendor_invoice_no=invoice_no,
+            manual_po_ref=(manual_po_ref or "").strip(),
         )
 
     @classmethod
     @transaction.atomic
-    def create_roll_grn(cls, 
-                        material: InventoryMaterial, 
-                        location: InventoryLocation, 
+    def create_roll_grn(cls,
+                        material: InventoryMaterial,
+                        location: InventoryLocation,
                         vendor: Vendor,
                         plant,
-                        rolls_data: List[Dict[str, Any]], 
-                        reference: str = "") -> List[InventoryRoll]:
+                        rolls_data: List[Dict[str, Any]],
+                        reference: str = "",
+                        vendor_invoice_no: str = "",
+                        manual_po_ref: str = "") -> List[InventoryRoll]:
         """
         Phase 56: Record a Roll Goods Receipt (Multiple Rolls).
         Creates InventoryRoll objects with full physical specs.
@@ -152,9 +178,18 @@ class GRNService:
         """
         if not rolls_data:
             raise ValidationError("No rolls provided.")
-            
+
         cls._validate_location(location, plant)
         cls._validate_vendor(vendor)
+
+        invoice_no = (vendor_invoice_no or "").strip()
+        if vendor and invoice_no:
+            if InventoryRoll.objects.filter(
+                vendor=vendor, vendor_invoice_no=invoice_no
+            ).exists():
+                raise ValidationError(
+                    f"Duplicate vendor invoice '{invoice_no}' for vendor {vendor.code}."
+                )
         
         # Validate material is a film variant (physical roll currency must always be a variant).
         if material.category != 'FILM_VARIANT':
@@ -215,9 +250,13 @@ class GRNService:
                 "grn_vendor_name": vendor.name,
                 "grn_reference": reference or "",
                 "grn_source": "GRN_INWARD",
+                "grn_vendor_invoice_no": invoice_no,
             })
             roll.meta_json = meta
-            roll.save(update_fields=['meta_json'])
+            roll.vendor = vendor
+            roll.vendor_invoice_no = invoice_no
+            roll.manual_po_ref = (manual_po_ref or "").strip()
+            roll.save(update_fields=['meta_json', 'vendor', 'vendor_invoice_no', 'manual_po_ref'])
 
             created_rolls.append(roll)
             

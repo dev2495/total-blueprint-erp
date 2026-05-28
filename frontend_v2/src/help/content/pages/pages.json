@@ -7818,7 +7818,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -7950,7 +7950,7 @@
     ],
     "relatedRoutes": [
       "/inventory/bulk-transactions",
-      "/inventory/grn-v36"
+      "/inventory/grn"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -8077,7 +8077,7 @@
     ],
     "relatedRoutes": [
       "/inventory/alerts",
-      "/inventory/grn-v36"
+      "/inventory/grn"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -8215,7 +8215,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -8359,7 +8359,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -8373,7 +8373,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/grn-v36",
+    "routePattern": "/inventory/grn",
     "title": {
       "en": "Smart GRN",
       "hi": "Smart GRN"
@@ -8503,7 +8503,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -8517,7 +8517,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/grn-v36",
+    "routePattern": "/inventory/grn",
     "title": {
       "en": "Smart GRN",
       "hi": "Smart GRN"
@@ -8647,7 +8647,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -8921,7 +8921,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -9449,7 +9449,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -9720,7 +9720,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -9734,7 +9734,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/packaging-v36",
+    "routePattern": "/inventory/packaging",
     "title": {
       "en": "Packaging Workspace",
       "hi": "Packaging Workspace"
@@ -9864,7 +9864,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -10008,7 +10008,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -10152,7 +10152,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -10296,7 +10296,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -10439,7 +10439,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -10583,7 +10583,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -10857,7 +10857,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -11128,7 +11128,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -11522,7 +11522,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -11666,7 +11666,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -13204,7 +13204,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -14863,7 +14863,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -16414,7 +16414,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -17687,7 +17687,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/bulk-v36",
+    "routePattern": "/inventory/bulk",
     "title": {
       "en": "Bulk Workspace",
       "hi": "Bulk Workspace"
@@ -17817,7 +17817,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -17831,7 +17831,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/addons-v36",
+    "routePattern": "/inventory/addons",
     "title": {
       "en": "Inks & Adhesives Workspace",
       "hi": "Inks & Adhesives Workspace"
@@ -17961,7 +17961,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -17975,7 +17975,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/rolls-v36",
+    "routePattern": "/inventory/rolls",
     "title": {
       "en": "Rolls Workspace",
       "hi": "Rolls Workspace"
@@ -18105,7 +18105,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -18119,7 +18119,7 @@
     ]
   },
   {
-    "routePattern": "/inventory/grn-history-v36",
+    "routePattern": "/inventory/grn-history",
     "title": {
       "en": "GRN History",
       "hi": "GRN History"
@@ -18249,7 +18249,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -18391,7 +18391,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -18531,7 +18531,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -18671,7 +18671,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -18812,7 +18812,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -18953,7 +18953,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19094,7 +19094,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19235,7 +19235,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19376,7 +19376,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19517,7 +19517,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19658,7 +19658,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19799,7 +19799,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -19938,7 +19938,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20077,7 +20077,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20216,7 +20216,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20356,7 +20356,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20496,7 +20496,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20636,7 +20636,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20775,7 +20775,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -20914,7 +20914,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -21053,7 +21053,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -21192,7 +21192,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],
@@ -21331,7 +21331,7 @@
     ],
     "relatedRoutes": [
       "/inventory",
-      "/inventory/grn-v36",
+      "/inventory/grn",
       "/inventory/period",
       "/inventory/traceability-v36"
     ],

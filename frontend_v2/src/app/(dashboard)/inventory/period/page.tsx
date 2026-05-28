@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 
-import { PeriodWorkspaceV36 } from "@/components/inventory-v36/period-workspace-v36"
+import { PeriodWorkspaceV36 } from "@/components/inventory/period-workspace"
 
 export default function InventoryPeriodPage() {
     return (

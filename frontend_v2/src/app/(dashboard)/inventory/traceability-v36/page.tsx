@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 
-import { TraceabilityV36 } from "@/components/inventory-v36/traceability-v36"
+import { TraceabilityV36 } from "@/components/inventory/traceability"
 
 export default function TraceabilityV36Page() {
     return (

@@ -161,7 +161,7 @@ export interface PackagingTransactionRow {
 
 export interface GrnHistoryRow {
     id: string
-    source_type: "BULK" | "PACKAGING" | "ROLL"
+    source_type: "BULK" | "PACKAGING" | "ROLL" | "TRADING"
     source_id: string
     material?: string
     material_code?: string
@@ -183,6 +183,8 @@ export interface GrnHistoryRow {
     uom: string
     avg_cost?: number
     reference?: string
+    vendor_invoice_no?: string
+    manual_po_ref?: string
     vendor?: string | null
     vendor_code?: string | null
     vendor_name?: string | null

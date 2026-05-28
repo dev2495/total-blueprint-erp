@@ -1,6 +1,6 @@
 "use client"
 
-import { StockLauncherV3Workspace } from "@/components/planner-v3/stock-launcher-workspace"
+import { StockLauncherV3Workspace } from "@/components/planner-launcher/stock-launcher-workspace"
 
 export default function StockLauncherPage() {
     return (

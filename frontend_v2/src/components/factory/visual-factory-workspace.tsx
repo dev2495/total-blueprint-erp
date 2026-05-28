@@ -454,8 +454,9 @@ function WipAgingPanel({ pools, meta }: { pools: WipAgingPool[]; meta: { fresh: 
 function WipPoolRow({ pool }: { pool: WipAgingPool }) {
     const total = Math.max(1, pool.total)
     const seg = (n: number) => `${(n / total) * 100}%`
+    const inventoryRoute = pool.klass.toLowerCase().includes("raw") ? "bulk" : "rolls"
     return (
-        <Link href={`/inventory/${pool.klass.toLowerCase().includes("raw") ? "bulk-v36" : "rolls-v36"}?klass=${encodeURIComponent(pool.klass)}`} className="block px-5 py-3 grid grid-cols-12 gap-3 items-center hover:bg-slate-50/60">
+        <Link href={`/inventory/${inventoryRoute}?klass=${encodeURIComponent(pool.klass)}`} className="block px-5 py-3 grid grid-cols-12 gap-3 items-center hover:bg-slate-50/60">
             <div className="col-span-3">
                 <div className="font-mono text-[11px] font-black text-slate-700">{pool.klass}</div>
                 <div className="text-[11px] font-bold text-slate-800">{pool.label}</div>
@@ -537,6 +538,7 @@ function buildAlerts({ liveMachines, salesOrders, wipAging }: { liveMachines: Op
         }
     }
     for (const p of wipAging) {
+        const inventoryRoute = p.klass.toLowerCase().includes("raw") ? "bulk" : "rolls"
         if (p.dead > 0) {
             out.push({
                 id: `wip-dead-${p.klass}`,
@@ -544,7 +546,7 @@ function buildAlerts({ liveMachines, salesOrders, wipAging }: { liveMachines: Op
                 title: `${p.klass} dead stock`,
                 sub: `${fmtKg(p.dead)} KG sitting > 10 days`,
                 timeLabel: "WIP aging",
-                href: `/inventory/${p.klass.toLowerCase().includes("raw") ? "bulk-v36" : "rolls-v36"}`,
+                href: `/inventory/${inventoryRoute}`,
             })
         }
     }
@@ -740,7 +742,7 @@ function PlantBlock({ plant, workCenters, machines, liveById, downtime, scrap, w
                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-700">Material yard · this plant</div>
                                 <div className="text-[10px] text-slate-500">Raw + WIP storage</div>
                             </div>
-                            <Link href="/inventory/rolls-v36" className="text-[10px] font-bold text-slate-700 underline-offset-2 hover:underline">drill</Link>
+                            <Link href="/inventory/rolls" className="text-[10px] font-bold text-slate-700 underline-offset-2 hover:underline">drill</Link>
                         </div>
                         <div className="space-y-1.5 text-[10px]">
                             {wipAging.map((p) => (

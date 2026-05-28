@@ -187,6 +187,29 @@ class MRPService:
             qty = Decimal(str(pod.get('weight_kg', 0))) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
+        # Sprint 4 — packaging / adhesive / solvent / addon completeness.
+        for pkg in bom.get('packaging', []) or []:
+            mat_id = pkg.get('material_id') or pkg.get('packaging_id')
+            qty_field = pkg.get('weight_kg', pkg.get('qty', 0))
+            qty = Decimal(str(qty_field or 0)) * scaling_factor
+            MRPService._add_to_demand(mat_id, qty, demand_map)
+
+        for adh in bom.get('adhesives', []) or bom.get('adhesive', []) or []:
+            mat_id = adh.get('material_id')
+            qty = Decimal(str(adh.get('weight_kg', 0))) * scaling_factor
+            MRPService._add_to_demand(mat_id, qty, demand_map)
+
+        for sol in bom.get('solvents', []) or bom.get('solvent', []) or []:
+            mat_id = sol.get('material_id')
+            qty = Decimal(str(sol.get('weight_kg', 0))) * scaling_factor
+            MRPService._add_to_demand(mat_id, qty, demand_map)
+
+        for addon in bom.get('addons', []) or bom.get('addon', []) or []:
+            mat_id = addon.get('material_id') or addon.get('addon_id')
+            qty_field = addon.get('weight_kg', addon.get('qty', 0))
+            qty = Decimal(str(qty_field or 0)) * scaling_factor
+            MRPService._add_to_demand(mat_id, qty, demand_map)
+
     @staticmethod
     def _add_to_demand(mat_id, qty, demand_map):
         if not mat_id: return

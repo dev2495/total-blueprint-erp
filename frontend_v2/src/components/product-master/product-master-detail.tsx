@@ -49,10 +49,10 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { GradientHero } from "@/components/erp-v3/gradient-hero"
-import { SectionCardV3 } from "@/components/erp-v3/section-card-v3"
-import { RouteTimeline } from "@/components/erp-v3/route-timeline"
-import { LiveBomRail } from "@/components/erp-v3/live-bom-rail"
+import { GradientHero } from "@/components/erp/gradient-hero"
+import { SectionCardV3 } from "@/components/erp/section-card"
+import { RouteTimeline } from "@/components/erp/route-timeline"
+import { LiveBomRail } from "@/components/erp/live-bom-rail"
 import {
     productMasterService,
     hasCatalogBackedAxis,
@@ -71,7 +71,7 @@ import { engineeringService, type Artwork } from "@/services/engineering"
 import { cn } from "@/lib/utils"
 import { autoRollWidthMm, resolveProductOutputKind } from "@/lib/product-geometry"
 import { SizeGeometryEditor } from "@/components/product-master/size-geometry-editor"
-import { VariantsMatrixV37 } from "@/components/product-master/variants-matrix-v37"
+import { VariantsMatrixV37 } from "@/components/product-master/variants-matrix"
 import {
     gradeOptionsForLayer,
     isPurchasedOnlyFilm,

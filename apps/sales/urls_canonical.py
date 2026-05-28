@@ -5,6 +5,7 @@ from .views_customers import CustomerViewSet
 from .views_orders import SalesOrderBlockReasonView, SalesOrderViewSet
 from .views_quotations import QuotationViewSet
 from .views_trade import SellableMaterialsView, TradeOrderItemOptionsView, TradeOrderViewSet
+from .views_dispatch import CustomerDispatchViewSet
 
 router = OptionalSlashRouter()
 router.register(r'orders', SalesOrderViewSet, basename='sales-order-canonical')
@@ -13,6 +14,7 @@ router.register(r'sku-variants', SalesSkuVariantViewSet, basename='sales-sku-var
 router.register(r'customers', CustomerViewSet, basename='customer-canonical')
 router.register(r'quotations', QuotationViewSet, basename='sales-quotation-canonical')
 router.register(r'trade-orders', TradeOrderViewSet, basename='trade-order')
+router.register(r'customer-dispatches', CustomerDispatchViewSet, basename='customer-dispatch')
 
 urlpatterns = [
     path('', include(router.urls)),

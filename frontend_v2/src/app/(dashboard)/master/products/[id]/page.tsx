@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { PmDetailV37 } from "@/components/product-master/pm-detail-v37"
+import { PmDetailV37 } from "@/components/product-master/pm-detail"
 
 export default function ProductMasterDetailPage() {
     const params = useParams<{ id: string }>()

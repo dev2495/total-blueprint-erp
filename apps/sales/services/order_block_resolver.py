@@ -5,13 +5,9 @@ def resolve_block_reasons(order):
     """
     reasons = []
     
-    # 1. Check if it's a CUSTOM order awaiting engineering approval
-    if order.order_type == 'CUSTOM' and order.status == 'ON_HOLD':
-        # Check if items have DRAFT templates
-        for item in order.items.all():
-            if item.template and item.template.status == 'DRAFT':
-                reasons.append(f"Custom template '{item.template.name}' is awaiting engineering approval.")
-    
+    # 1. Sprint 2: ON_HOLD legacy status retired; templates in DRAFT are still
+    # surfaced via the per-item LIVE check below.
+
     # 2. Check each item for individual production blocks
     for item in order.items.all():
         if not item.template:

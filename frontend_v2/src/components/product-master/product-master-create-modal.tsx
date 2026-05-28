@@ -27,7 +27,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { RouteTimeline } from "@/components/erp-v3/route-timeline"
+import { RouteTimeline } from "@/components/erp/route-timeline"
 import { templateService } from "@/services/templates"
 import { masterDataService, type Material } from "@/services/master-data"
 import {

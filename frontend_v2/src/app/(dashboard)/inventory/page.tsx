@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 
-import { InventoryHomeV36 } from "@/components/inventory-v36/inventory-home-v36"
+import { InventoryHomeV36 } from "@/components/inventory/inventory-home"
 
 export default function InventoryPage() {
   return (

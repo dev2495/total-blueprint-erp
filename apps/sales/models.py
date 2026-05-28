@@ -160,9 +160,6 @@ class SalesOrder(models.Model):
         ('DISPATCH_READY', 'Dispatch Ready'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
-        # Backward-compat legacy values kept to avoid breaking historical rows.
-        ('ON_HOLD', 'On Hold'),
-        ('READY', 'Ready'),
     ]
 
     ORDER_TYPE_CHOICES = [
@@ -190,6 +187,7 @@ class SalesOrder(models.Model):
     geometry_override = models.JSONField(default=dict, blank=True)
     commercial_confirmed_at = models.DateTimeField(null=True, blank=True)
     delivery_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -386,6 +384,32 @@ class SalesOrderItem(models.Model):
                 return derived_pcs * unit_price
             return Decimal("0")
         return Decimal(str(self.total_weight_kg or 0)) * unit_price
+
+    @property
+    def qty_dispatched(self):
+        """Sum of qty_dispatched across CustomerDispatchLines whose parent dispatch is
+        CONFIRMED or DISPATCHED. Returns Decimal so callers can compare safely.
+        """
+        from decimal import Decimal
+        total = Decimal("0")
+        # Lazy access: dispatch_lines reverse relation appears once
+        # apps/sales/models_dispatch.py is registered.
+        try:
+            lines = self.dispatch_lines.all()
+        except Exception:
+            return total
+        for line in lines:
+            parent_status = getattr(getattr(line, "dispatch", None), "status", "") or ""
+            if str(parent_status).upper() in {"CONFIRMED", "DISPATCHED"}:
+                total += Decimal(str(line.qty_dispatched or 0))
+        return total
+
+    @property
+    def qty_open(self):
+        """qty_value - qty_dispatched, never negative."""
+        from decimal import Decimal
+        ordered = Decimal(str(self.qty_value or 0))
+        return max(ordered - self.qty_dispatched, Decimal("0"))
 
     class Meta:
         db_table = 'sales_order_items'
@@ -700,3 +724,6 @@ class QuotationItem(models.Model):
 
 # Trade Orders — resale flow, kept separate from manufacturing sales orders.
 from apps.sales.models_trade import *  # noqa: E402,F401,F403
+
+# CustomerDispatch — Sprint 2 lifecycle closure.
+from apps.sales.models_dispatch import *  # noqa: E402,F401,F403

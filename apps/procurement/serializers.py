@@ -7,6 +7,7 @@ from apps.procurement.models import (
     PurchaseOrderItem,
     PurchaseOrderReceipt,
     PurchaseOrderReceiptLine,
+    TradingGoodReceipt,
 )
 
 
@@ -321,3 +322,56 @@ class PurchaseOrderReceiptCreateSerializer(serializers.Serializer):
         choices=PurchaseOrderReceipt.QUALITY_CHOICES, default="PENDING", required=False
     )
     lines = PurchaseOrderReceiptCreateLineSerializer(many=True)
+
+
+class TradingGoodReceiptSerializer(serializers.ModelSerializer):
+    trading_good_code = serializers.CharField(source="trading_good.code", read_only=True)
+    trading_good_name = serializers.CharField(source="trading_good.name", read_only=True)
+    base_uom = serializers.CharField(source="trading_good.base_uom", read_only=True)
+    vendor_code = serializers.CharField(source="vendor.code", read_only=True)
+    vendor_name = serializers.CharField(source="vendor.name", read_only=True)
+    plant_code = serializers.CharField(source="plant.code", read_only=True, default="")
+    plant_name = serializers.CharField(source="plant.name", read_only=True)
+
+    class Meta:
+        model = TradingGoodReceipt
+        fields = [
+            "id",
+            "code",
+            "trading_good",
+            "trading_good_code",
+            "trading_good_name",
+            "base_uom",
+            "vendor",
+            "vendor_code",
+            "vendor_name",
+            "plant",
+            "plant_code",
+            "plant_name",
+            "qty_received",
+            "rate",
+            "vendor_invoice_no",
+            "vendor_invoice_date",
+            "vehicle_no",
+            "driver_name",
+            "lr_no",
+            "notes",
+            "received_at",
+            "received_by",
+            "created_at",
+        ]
+        read_only_fields = ["id", "code", "received_at", "received_by", "created_at"]
+
+
+class TradingGoodReceiptCreateSerializer(serializers.Serializer):
+    trading_good = serializers.UUIDField()
+    vendor = serializers.UUIDField()
+    plant = serializers.UUIDField()
+    qty = serializers.DecimalField(max_digits=14, decimal_places=3)
+    rate = serializers.DecimalField(max_digits=14, decimal_places=2)
+    vendor_invoice_no = serializers.CharField(required=False, allow_blank=True, default="")
+    vendor_invoice_date = serializers.DateField(required=False, allow_null=True)
+    vehicle_no = serializers.CharField(required=False, allow_blank=True, default="")
+    driver_name = serializers.CharField(required=False, allow_blank=True, default="")
+    lr_no = serializers.CharField(required=False, allow_blank=True, default="")
+    notes = serializers.CharField(required=False, allow_blank=True, default="")

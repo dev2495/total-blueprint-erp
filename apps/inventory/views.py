@@ -623,6 +623,7 @@ def _stock_snapshot_payload(request):
             "quantity": float(qty),
             "uom": stock.material.base_uom or "KG",
             "stock_uom": stock.material.base_uom or "KG",
+            "base_uom": stock.material.base_uom or "KG",
             "reserved_qty": float(min(reserved, qty)),
             "free_qty": float(max(Decimal("0"), qty - reserved)),
             "plant": str(stock.plant_id) if stock.plant_id else "",
@@ -1124,6 +1125,7 @@ class GRNViewSet(viewsets.ViewSet):
             or request.data.get("location")
         )
         invoice_no = str(request.data.get("vendor_invoice_no") or request.data.get("source_ref") or request.data.get("reference") or "").strip()
+        manual_po_ref = str(request.data.get("manual_po_ref") or "").strip()
         receipt_ref = invoice_no or f"GRN-{timezone.now().strftime('%Y%m%d%H%M%S')}"
         created_refs = []
         total_qty = Decimal("0")
@@ -1157,6 +1159,8 @@ class GRNViewSet(viewsets.ViewSet):
                         reference=line_ref,
                         granule_code_id=line.get("granule_code_id") or None,
                         granule_code=line.get("granule_code") or "",
+                        vendor_invoice_no=invoice_no,
+                        manual_po_ref=manual_po_ref,
                     )
                     total_qty += qty
                     total_value += qty * rate
@@ -1173,6 +1177,8 @@ class GRNViewSet(viewsets.ViewSet):
                         vendor_id=vendor.id,
                         reference=line_ref or "PACKAGING_GRN",
                         input_uom=line.get("uom") or getattr(material, "base_uom", None),
+                        vendor_invoice_no=invoice_no,
+                        manual_po_ref=manual_po_ref,
                         meta_json={
                             "vendor_invoice_no": invoice_no,
                             "packaging_kind": line.get("packaging_kind") or getattr(material, "packaging_kind", ""),
@@ -1217,6 +1223,8 @@ class GRNViewSet(viewsets.ViewSet):
                             "grade_id": line.get("grade_id") or line.get("grade") or None,
                         }],
                         reference=line_ref,
+                        vendor_invoice_no=invoice_no,
+                        manual_po_ref=manual_po_ref,
                     )
                     roll = created[0]
                     update_fields = []

@@ -165,6 +165,15 @@ class InventoryRoll(models.Model):
     # Phase 56: Master Reference (Variant = logical, physical specs on Roll)
     material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, null=True, blank=True, related_name='inventory_rolls', help_text="Film Variant (logical)")
     batch_no = models.CharField(max_length=100, blank=True)
+    vendor = models.ForeignKey('Vendor', on_delete=models.SET_NULL, null=True, blank=True, related_name='inventory_rolls', help_text="GRN vendor reference for traceability")
+    vendor_invoice_no = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    manual_po_ref = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Vendor's PO ref when receiving against a PO not in our system (i.e. no system_po linkage).",
+    )
     
     # Phase 56: Physical Specs (live ONLY on Roll)
     thickness_micron = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Thickness in microns")
@@ -343,8 +352,17 @@ class BulkTransaction(models.Model):
     type = models.CharField(max_length=30, choices=TYPE_CHOICES)
     qty_kg = models.DecimalField(max_digits=15, decimal_places=4)
     avg_cost = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
-    
+
     reference = models.CharField(max_length=255, null=True, blank=True)
+    vendor = models.ForeignKey('Vendor', on_delete=models.SET_NULL, null=True, blank=True, related_name='bulk_transactions')
+    vendor_invoice_no = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    manual_po_ref = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Vendor's PO ref when receiving against a PO not in our system (i.e. no system_po linkage).",
+    )
     job = models.ForeignKey('production.ProductionJob', on_delete=models.SET_NULL, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -352,6 +370,13 @@ class BulkTransaction(models.Model):
     class Meta:
         db_table = 'inventory_bulk_transactions'
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vendor", "vendor_invoice_no"],
+                condition=models.Q(vendor_invoice_no__gt="") & models.Q(vendor__isnull=False),
+                name="uniq_bulk_tx_vendor_invoice",
+            ),
+        ]
 
 
 class PackagingStock(models.Model):
@@ -401,12 +426,27 @@ class PackagingTransaction(models.Model):
     sales_order_item = models.ForeignKey('sales.SalesOrderItem', on_delete=models.SET_NULL, null=True, blank=True, related_name='packaging_transactions')
     mts_order = models.ForeignKey('production.PlannedStockOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='packaging_transactions')
     reference = models.CharField(max_length=255, null=True, blank=True)
+    vendor_invoice_no = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    manual_po_ref = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Vendor's PO ref when receiving against a PO not in our system (i.e. no system_po linkage).",
+    )
     meta_json = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'inventory_packaging_transactions'
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vendor", "vendor_invoice_no"],
+                condition=models.Q(vendor_invoice_no__gt="") & models.Q(vendor__isnull=False),
+                name="uniq_pkg_tx_vendor_invoice",
+            ),
+        ]
 
 
 class InventoryCorrectionAudit(models.Model):

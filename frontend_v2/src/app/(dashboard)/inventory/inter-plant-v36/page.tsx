@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 
-import { InterPlantV36 } from "@/components/inventory-v36/inter-plant-v36"
+import { InterPlantV36 } from "@/components/inventory/inter-plant"
 
 export default function InterPlantV36Page() {
     return (

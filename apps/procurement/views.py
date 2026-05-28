@@ -8,16 +8,20 @@ from apps.inventory.models import Vendor
 from apps.procurement.models import (
     PurchaseOrder,
     PurchaseOrderReceipt,
+    TradingGoodReceipt,
 )
 from apps.procurement.serializers import (
     PurchaseOrderListSerializer,
     PurchaseOrderReceiptCreateSerializer,
     PurchaseOrderReceiptSerializer,
     PurchaseOrderSerializer,
+    TradingGoodReceiptCreateSerializer,
+    TradingGoodReceiptSerializer,
 )
 from apps.procurement.services.po_pdf import PurchaseOrderPDFService
 from apps.procurement.services.po_receipt import PurchaseOrderReceiptService
 from apps.procurement.services.purchase_order import PurchaseOrderService
+from apps.procurement.services.trading_good_receipt import TradingGoodReceiptService
 from apps.procurement.services.vendor_performance import VendorPerformanceService
 
 
@@ -160,6 +164,25 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
             po = PurchaseOrder.objects.get(pk=data["purchase_order"])
         except PurchaseOrder.DoesNotExist:
             return Response({"error": "Purchase order not found"}, status=404)
+
+        # ── Idempotency layer ─────────────────────────────────────────────
+        # Accept either an Idempotency-Key header or a body-level client_token.
+        client_token = (
+            request.headers.get("Idempotency-Key")
+            or request.data.get("client_token")
+            or ""
+        )
+        client_token = str(client_token or "").strip()[:64]
+        if client_token:
+            existing = PurchaseOrderReceipt.objects.filter(
+                purchase_order=po, client_token=client_token
+            ).first()
+            if existing:
+                return Response(
+                    PurchaseOrderReceiptSerializer(existing).data,
+                    status=status.HTTP_200_OK,
+                )
+
         try:
             receipt = PurchaseOrderReceiptService.create(
                 po=po,
@@ -175,7 +198,80 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
             )
         except DjangoValidationError as e:
             return Response({"error": str(e)}, status=400)
+
+        # Stamp the token after the service created the row.
+        if client_token and not receipt.client_token:
+            receipt.client_token = client_token
+            receipt.save(update_fields=["client_token"])
+
         return Response(
             PurchaseOrderReceiptSerializer(receipt).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TradingGoodReceiptViewSet(viewsets.ModelViewSet):
+    """List/Create/Retrieve trading-good direct receipts."""
+
+    queryset = TradingGoodReceipt.objects.all().select_related(
+        "trading_good", "vendor", "plant"
+    )
+    serializer_class = TradingGoodReceiptSerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        if params.get("vendor"):
+            qs = qs.filter(vendor_id=params["vendor"])
+        if params.get("plant"):
+            qs = qs.filter(plant_id=params["plant"])
+        if params.get("trading_good"):
+            qs = qs.filter(trading_good_id=params["trading_good"])
+        if params.get("search"):
+            qs = qs.filter(code__icontains=params["search"])
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        ser = TradingGoodReceiptCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        from apps.factory.models import Plant
+        from apps.materials.models import TradingGood
+
+        try:
+            trading_good = TradingGood.objects.get(pk=data["trading_good"])
+        except TradingGood.DoesNotExist:
+            return Response({"error": "Trading good not found"}, status=404)
+        try:
+            vendor = Vendor.objects.get(pk=data["vendor"])
+        except Vendor.DoesNotExist:
+            return Response({"error": "Vendor not found"}, status=404)
+        try:
+            plant = Plant.objects.get(pk=data["plant"])
+        except Plant.DoesNotExist:
+            return Response({"error": "Plant not found"}, status=404)
+
+        try:
+            receipt = TradingGoodReceiptService.create(
+                trading_good=trading_good,
+                vendor=vendor,
+                plant=plant,
+                qty=data["qty"],
+                rate=data["rate"],
+                vendor_invoice_no=data.get("vendor_invoice_no", ""),
+                vendor_invoice_date=data.get("vendor_invoice_date"),
+                vehicle_no=data.get("vehicle_no", ""),
+                driver_name=data.get("driver_name", ""),
+                lr_no=data.get("lr_no", ""),
+                notes=data.get("notes", ""),
+                user=request.user,
+            )
+        except DjangoValidationError as e:
+            return Response({"error": str(e)}, status=400)
+
+        return Response(
+            TradingGoodReceiptSerializer(receipt).data,
             status=status.HTTP_201_CREATED,
         )

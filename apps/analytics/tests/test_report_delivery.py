@@ -100,12 +100,14 @@ class ReportDeliveryTests(TestCase):
         self.production_profile.extra_recipients = []
         self.production_profile.save(update_fields=["target_roles", "extra_recipients"])
 
-        run = ReportDistributionService.send_profile(
-            self.production_profile,
-            report_date=date(2026, 3, 5),
-            triggered_by=self.owner,
-            triggered_manually=True,
-        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch.object(ReportDistributionService, "artifact_root", return_value=Path(tmp_dir)):
+                run = ReportDistributionService.send_profile(
+                    self.production_profile,
+                    report_date=date(2026, 3, 5),
+                    triggered_by=self.owner,
+                    triggered_manually=True,
+                )
 
         self.assertEqual(run.status, ReportDispatchRun.Status.SUCCEEDED)
         self.assertEqual(run.recipient_count, 2)
@@ -130,7 +132,9 @@ class ReportDeliveryTests(TestCase):
         ]
         render_report.return_value = rendered
 
-        run = ReportDistributionService.send_profile(self.production_profile, report_date=date(2026, 3, 5))
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch.object(ReportDistributionService, "artifact_root", return_value=Path(tmp_dir)):
+                run = ReportDistributionService.send_profile(self.production_profile, report_date=date(2026, 3, 5))
 
         self.assertEqual(run.status, ReportDispatchRun.Status.SUCCEEDED)
         self.assertEqual(run.detail_file_name, "stock-standing-detail-2026-03-05.xlsx")
