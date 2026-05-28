@@ -676,7 +676,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                 )
             })()}
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-6">
                     <RichSection index={1} tone="indigo" icon={<Workflow className="h-5 w-5" />} eyebrow="Identity" title="Header & live route" subtitle="The stable identity that sales & planner read.">
                         <div className="space-y-4">
@@ -1215,7 +1215,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                         )}
                 </div>
 
-                <aside className="space-y-4">
+                <aside className="grid gap-4 xl:grid-cols-2">
                     {(() => {
                         const kind = String(draft.product_kind || "").toUpperCase()
                         const visualKind = outputKind === "ROLL" || outputKind === "POUCH" ? outputKind : kind

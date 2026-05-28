@@ -5,6 +5,20 @@ import type { SalesOrderLine } from "./types"
 
 type SizeLike = {
     code?: string
+    width_mm?: number | string | null
+    height_mm?: number | string | null
+    roll_width_mm?: number | string | null
+    child_target_width_mm?: number | string | null
+    target_child_width_mm?: number | string | null
+    gusset_mm?: number | string | null
+    bottom_gusset_mm?: number | string | null
+    flap_tape_mm?: number | string | null
+    flap_mm?: number | string | null
+    trim_loss_mm?: number | string | null
+    pouch_style?: string | null
+    pouch_style_master?: string | null
+    pouch_style_master_code?: string | null
+    roll_form?: string | null
 }
 
 export interface SalesAxisBuildResult {
@@ -87,6 +101,15 @@ export function buildSalesAxisValues(master: ProductMaster | undefined, line: Sa
             continue
         }
 
+        if (canonical === "ARTWORK_MODE") {
+            const mode = String(line.artwork_mode || axisValues.artwork_mode || "DEFER").trim()
+            if (mode) {
+                axisValues[key] = mode
+                axisValues.artwork_mode = mode
+            }
+            continue
+        }
+
         if (canonical === "LAYER_THICKNESSES") {
             if (Object.keys(layerThicknesses).length) axisValues[key] = layerThicknesses
             continue
@@ -123,7 +146,9 @@ export function buildSalesAxisValues(master: ProductMaster | undefined, line: Sa
         axisValues,
         missingRequired,
         missingLabels,
-        previewBlocker: missingLabels.length && master ? buildPreviewBlocker(master, missingLabels) : undefined,
+        previewBlocker: missingLabels.length && master
+            ? buildPreviewBlocker(master, missingLabels, selectedSize, line)
+            : undefined,
     }
 }
 
@@ -197,12 +222,47 @@ function normalizeCode(value: unknown) {
     return String(value || "").trim().toUpperCase()
 }
 
-function buildPreviewBlocker(master: ProductMaster, blockers: string[]) {
+function buildPreviewBlocker(master: ProductMaster, blockers: string[], selectedSize?: SizeLike | null, line?: SalesOrderLine) {
+    const size = selectedSize || {}
+    const layerValues = (line?.layer_values || {}) as Record<string, LayerRowState>
+    const widthMm = numberOrNull(size.width_mm)
+    const heightMm = numberOrNull(size.height_mm)
+    const childWidthMm = numberOrNull(size.child_target_width_mm ?? size.target_child_width_mm ?? size.roll_width_mm)
+    const rollWidthMm = numberOrNull(size.roll_width_mm ?? childWidthMm)
+    const layerSnapshot = (master.layer_template || []).map((row, index) => {
+        const key = String(index + 1)
+        const state = layerValues[key] || {}
+        return {
+            role: row.role || `L${index + 1}`,
+            film_variant_code: state.film_variant_code || row.film_variant_code || "",
+            thickness_micron: numberOrNull(state.thickness_micron ?? row.thickness_micron),
+            grade: state.grade || row.default_grade || "",
+        }
+    }).filter((row) => row.film_variant_code || row.thickness_micron || row.grade)
+
     return {
         variant_status: "NEW" as const,
         invariant_signature: master.invariant_signature || master.code,
-        geometry_snapshot: {},
-        layer_snapshot: [],
+        geometry_snapshot: {
+            product_kind: master.product_kind,
+            fg_type: (master as any).fixed_attributes?.fg_type,
+            kind: (master as any).fixed_attributes?.fg_type || master.product_kind,
+            size_code: size.code || line?.size_code || "",
+            width_mm: widthMm,
+            height_mm: heightMm,
+            roll_width_mm: rollWidthMm,
+            child_target_width_mm: childWidthMm,
+            target_child_width_mm: childWidthMm,
+            gusset_mm: numberOrNull(size.gusset_mm),
+            bottom_gusset_mm: numberOrNull(size.bottom_gusset_mm),
+            flap_tape_mm: numberOrNull(size.flap_tape_mm ?? size.flap_mm),
+            trim_loss_mm: numberOrNull(size.trim_loss_mm),
+            pouch_style: size.pouch_style,
+            pouch_style_master: size.pouch_style_master,
+            pouch_style_master_code: size.pouch_style_master_code,
+            roll_form: size.roll_form,
+        },
+        layer_snapshot: layerSnapshot,
         bom: { planning_lines: [], is_complete: false as const, errors: blockers },
         bom_by_step: [],
         packaging_lines: [],
@@ -212,4 +272,9 @@ function buildPreviewBlocker(master: ProductMaster, blockers: string[]) {
         checks: blockers.map((label) => ({ label, ok: false as const, tone: "error" as const })),
         errors: blockers,
     }
+}
+
+function numberOrNull(value: unknown) {
+    const next = Number(value)
+    return Number.isFinite(next) && next > 0 ? next : null
 }

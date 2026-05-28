@@ -198,26 +198,32 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
 
     const { data: livePreview, isLoading: livePreviewLoading } = useQuery({
         queryKey: ["sales-v37-live-bom", master?.id, axisValues, line.qty_value, line.qty_uom, line.price_basis, line.print_type, line.film_type, customerId, line.customer_product_overlay],
-        queryFn: () =>
-            productMasterService.previewBom({
-                product_master: master!.id,
-                customer_id: customerId,
-                template_id: line.template_id || master!.template || master!.default_template || null,
-                axis_values: axisValues,
-                quantity: line.qty_value,
-                quantity_uom: line.qty_uom,
-                price_basis: line.price_basis,
-                printing: master!.fixed_attributes?.print_capable
-                    ? {
-                          enabled: true,
-                          print_type: line.print_type,
-                          film_type: line.film_type,
-                          artwork_id: line.artwork_assignment?.artwork_id,
-                          defer_artwork_to_planner: line.artwork_mode === "DEFER",
-                      }
-                    : { enabled: false },
-            }),
-        enabled: !!master?.id && !!selectedSize && !!axisValues.size && axisBuild.missingRequired.length === 0,
+        queryFn: async () => {
+            try {
+                return await productMasterService.previewBom({
+                    product_master: master!.id,
+                    customer_id: customerId,
+                    template_id: line.template_id || master!.template || master!.default_template || null,
+                    axis_values: axisValues,
+                    quantity: line.qty_value,
+                    quantity_uom: line.qty_uom,
+                    price_basis: line.price_basis,
+                    printing: master!.fixed_attributes?.print_capable
+                        ? {
+                              enabled: true,
+                              print_type: line.print_type,
+                              film_type: line.film_type,
+                              artwork_id: line.artwork_assignment?.artwork_id,
+                              defer_artwork_to_planner: line.artwork_mode === "DEFER",
+                          }
+                        : { enabled: false },
+                })
+            } catch (error) {
+                if (axisBuild.previewBlocker) return axisBuild.previewBlocker
+                throw error
+            }
+        },
+        enabled: !!master?.id && !!selectedSize && !!axisValues.size,
         staleTime: 0,
         retry: false,
     })
@@ -226,28 +232,38 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         print_capable: !!master.fixed_attributes?.print_capable,
         pod_locked: !!(master.fixed_attributes?.pod_enabled && (master.fixed_attributes?.pod_variant_code || master.fixed_attributes?.pod_variant)),
         addons_axis: addonAxis ? (addonAxis.required ? "required" as const : "optional" as const) : "off" as const,
+        artwork_deferred: line.artwork_mode === "DEFER",
+        artwork_attached: !!line.artwork_assignment?.artwork_id,
     } : undefined
 
     const subtotal = line.qty_value * (parseFloat(line.unit_price || "0") || 0)
     const addDisabled = !master || !line.size_code || line.qty_value <= 0 || axisBuild.missingRequired.length > 0
 
     // Augment the API preview with the user-picked size as a fallback for geometry
-    // fields the backend doesn't always populate (width_mm / height_mm / faces /
-    // gusset_mm). Keeps the rail honest about what the user just selected.
+    // fields the backend doesn't always populate. Keeps the rail honest about
+    // what the user just selected while the backend progressively resolves BOM.
     const augmentedPreview = React.useMemo(() => {
         if (!livePreview) return null
+        const selected: any = selectedSize || {}
         const g: any = livePreview.geometry_snapshot || {}
         const merged = {
             ...g,
-            width_mm: g.width_mm ?? selectedSize?.width_mm ?? null,
-            height_mm: g.height_mm ?? selectedSize?.height_mm ?? null,
-            faces: g.faces ?? selectedSize?.faces ?? (master?.product_kind === "ROLL" ? 1 : 2),
-            gusset_mm: g.gusset_mm ?? selectedSize?.gusset_mm ?? null,
-            size_code: g.size_code || selectedSize?.code || line.size_code || null,
-            roll_width_mm: g.roll_width_mm ?? selectedSize?.roll_width_mm ?? null,
+            width_mm: g.width_mm ?? selected.width_mm ?? null,
+            height_mm: g.height_mm ?? selected.height_mm ?? null,
+            gusset_mm: g.gusset_mm ?? selected.gusset_mm ?? null,
+            size_code: g.size_code || selected.code || line.size_code || null,
+            roll_width_mm: g.roll_width_mm ?? selected.roll_width_mm ?? null,
+            child_target_width_mm: g.child_target_width_mm ?? g.target_child_width_mm ?? selected.child_target_width_mm ?? selected.roll_width_mm ?? null,
+            target_child_width_mm: g.target_child_width_mm ?? g.child_target_width_mm ?? selected.child_target_width_mm ?? selected.roll_width_mm ?? null,
+            pouch_style: g.pouch_style ?? selected.pouch_style ?? null,
+            pouch_style_master: g.pouch_style_master ?? selected.pouch_style_master ?? null,
+            pouch_style_master_code: g.pouch_style_master_code ?? selected.pouch_style_master_code ?? null,
+            flap_tape_mm: g.flap_tape_mm ?? selected.flap_tape_mm ?? null,
+            bottom_gusset_mm: g.bottom_gusset_mm ?? selected.bottom_gusset_mm ?? null,
+            trim_loss_mm: g.trim_loss_mm ?? selected.trim_loss_mm ?? null,
         }
         return { ...livePreview, geometry_snapshot: merged }
-    }, [livePreview, selectedSize, line.size_code, master?.product_kind])
+    }, [livePreview, selectedSize, line.size_code])
     const allowedLaneCounts = React.useMemo(() => {
         const lanes = (webWidthPolicy?.allowed_lanes || []).map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)
         return lanes.length ? lanes : [1, 2, 3]

@@ -7,7 +7,7 @@
  *   1. Header pill row (eyebrow + status badge)
  *   2. Identity card (selected tuple + EXISTS/NEW badge + customer overlay match)
  *   3. Visual pouch render (SVG silhouette by product_kind, with dim labels)
- *   4. Geometry mini-stat strip (W×H, faces, unit g, total kg + pouches)
+ *   4. Geometry mini-stat strip (W×H, thickness, roll width, unit g, total kg + pouches)
  *   5. Layer stack (horizontal coloured bars proportional to thickness, grade chip)
  *   6. Material breakdown grouped by Film / Ink / Add-ons / Catalog refs (qty + UOM)
  *   7. BOM by step ribbon (5 pills, coloured by step kind, with material count)
@@ -54,6 +54,8 @@ interface LiveBomRailProps {
         print_capable?: boolean
         pod_locked?: boolean
         addons_axis?: "off" | "optional" | "required"
+        artwork_deferred?: boolean
+        artwork_attached?: boolean
     }
     /** Optional template route steps to render as a top route ribbon. */
     routeSteps?: Array<{ index: number; name: string; process_code?: string; transition?: string; has_artwork?: boolean }>
@@ -329,6 +331,7 @@ function summariseTuple(preview: PreviewBomResult): string {
 // ─── 2 · Visual pouch render ─────────────────────────────────────
 
 function PouchRender({ preview }: { preview: PreviewBomResult }) {
+    const gradientId = React.useId().replace(/:/g, "")
     const g = preview.geometry_snapshot || {}
     const kind = String(
         (preview as any).finished_good_type
@@ -343,6 +346,26 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
     const width = Number(g.width_mm ?? g.final_width_mm ?? g.size_width_mm ?? g.width ?? 0)
     const height = Number(g.height_mm ?? g.final_height_mm ?? g.size_height_mm ?? g.height ?? 0)
     const rollWidth = Number(g.roll_width_mm ?? g.roll_width ?? 0)
+    const styleCode = String(g.pouch_style_master_code || g.pouch_style_master || g.pouch_style || "").toUpperCase()
+    const featureHaystack = `${styleCode} ${JSON.stringify(preview.addons_snapshot || [])} ${JSON.stringify(preview.bom?.planning_lines || preview.bom_snapshot?.planning_lines || [])}`.toUpperCase()
+    const gussetMm = Number(g.gusset_mm || g.bottom_gusset_mm || 0)
+    const flapMm = Number(g.flap_tape_mm || g.flap_mm || 0)
+    const isCenterSeal = /CENTER|CENTRE/.test(styleCode)
+    const isSideGusset = /SIDE[_\s-]?GUSSET/.test(styleCode) || gussetMm > 0
+    const isStandup = /STAND|ZIP|BOTTOM/.test(styleCode) || gussetMm > 0
+    const isSpout = /SPOUT/.test(styleCode) || /SPOUT/.test(featureHaystack)
+    const hasDcut = /D[\s_-]?CUT|DIE[\s_-]?CUT|ROUND[\s_-]?CUT|HANDLE/.test(featureHaystack)
+    const hasAirHole = /AIR[\s_-]?HOLE|VENT|PUNCH|HOLE/.test(featureHaystack)
+    const hasTape = flapMm > 0 || /TAPE|ZIP|ZIPPER|SEALING/.test(featureHaystack)
+    const featureTags = [
+        styleCode ? styleCode.replace(/_/g, " ").toLowerCase() : "pouch",
+        isSideGusset ? "side gusset" : null,
+        isCenterSeal ? "center seal" : null,
+        hasDcut ? "cut" : null,
+        hasAirHole ? "air holes" : null,
+        hasTape ? "tape/zip" : null,
+        isSpout ? "spout" : null,
+    ].filter(Boolean).slice(0, 4)
     return (
         <section className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
             <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
@@ -351,25 +374,50 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
             </div>
             <div className="flex items-center justify-center bg-slate-50 rounded-xl py-3">
                 {kind === "POUCH" ? (
-                    <svg viewBox="0 0 140 180" width="120" height="150" className="drop-shadow-md">
+                    <svg viewBox="0 0 180 190" width="150" height="158" className="drop-shadow-md" role="img" aria-label="Pouch visual preview">
                         <defs>
-                            <linearGradient id="lbr-pouch" x1="0" x2="1" y1="0" y2="1">
-                                <stop offset="0%" stopColor="#a7f3d0" />
-                                <stop offset="100%" stopColor="#6ee7b7" />
+                            <linearGradient id={`lbr-pouch-${gradientId}`} x1="0" x2="1" y1="0" y2="1">
+                                <stop offset="0%" stopColor="#bbf7d0" />
+                                <stop offset="55%" stopColor="#86efac" />
+                                <stop offset="100%" stopColor="#5eead4" />
                             </linearGradient>
                         </defs>
-                        <path d="M 25 18 L 115 18 L 122 26 L 122 168 L 18 168 L 18 26 Z" fill="url(#lbr-pouch)" stroke="#047857" strokeWidth="1.2" />
-                        <rect x="20" y="20" width="100" height="6" fill="#065f46" opacity="0.45" />
-                        <path d="M 25 18 L 18 26 L 18 168" fill="none" stroke="#047857" strokeWidth="0.7" strokeDasharray="2 2" opacity="0.55" />
-                        <path d="M 115 18 L 122 26 L 122 168" fill="none" stroke="#047857" strokeWidth="0.7" strokeDasharray="2 2" opacity="0.55" />
-                        {width > 0 ? <text x="70" y="178" textAnchor="middle" fontSize="8" fill="#475569" fontWeight="700">{width} mm</text> : null}
-                        {height > 0 ? <text x="6" y="100" fontSize="8" fill="#475569" fontWeight="700" transform="rotate(-90 6 100)">{height} mm</text> : null}
+                        <path d="M 46 18 L 134 18 L 143 28 L 143 165 L 37 165 L 37 28 Z" fill={`url(#lbr-pouch-${gradientId})`} stroke="#047857" strokeWidth="1.4" />
+                        <rect x="42" y="24" width="96" height="8" rx="2" fill="#047857" opacity="0.28" />
+                        <rect x="43" y="145" width="94" height="11" rx="3" fill="#065f46" opacity={isStandup ? 0.26 : 0.12} />
+                        <path d="M 47 18 L 37 28 L 37 165" fill="none" stroke="#047857" strokeWidth="0.8" strokeDasharray="3 3" opacity="0.55" />
+                        <path d="M 133 18 L 143 28 L 143 165" fill="none" stroke="#047857" strokeWidth="0.8" strokeDasharray="3 3" opacity="0.55" />
+                        {isSideGusset ? (
+                            <>
+                                <path d="M 51 35 C 61 62 61 123 51 150" fill="none" stroke="#065f46" strokeWidth="1" opacity="0.45" />
+                                <path d="M 129 35 C 119 62 119 123 129 150" fill="none" stroke="#065f46" strokeWidth="1" opacity="0.45" />
+                            </>
+                        ) : null}
+                        {isCenterSeal ? <path d="M 90 34 L 90 152" stroke="#065f46" strokeWidth="1.1" strokeDasharray="5 4" opacity="0.42" /> : null}
+                        {hasTape ? <path d="M 54 41 L 126 41" stroke="#064e3b" strokeWidth="3" strokeLinecap="round" opacity="0.35" /> : null}
+                        {hasDcut ? <path d="M 72 37 C 75 52 105 52 108 37" fill="none" stroke="#064e3b" strokeWidth="2.2" strokeLinecap="round" opacity="0.7" /> : null}
+                        {hasAirHole ? (
+                            <>
+                                <circle cx="64" cy="56" r="2.3" fill="#ecfeff" stroke="#0f766e" strokeWidth="0.8" />
+                                <circle cx="116" cy="56" r="2.3" fill="#ecfeff" stroke="#0f766e" strokeWidth="0.8" />
+                            </>
+                        ) : null}
+                        {isSpout ? (
+                            <>
+                                <path d="M 123 16 L 148 7 L 154 21 L 134 31 Z" fill="#99f6e4" stroke="#047857" strokeWidth="1" />
+                                <rect x="145" y="7" width="14" height="14" rx="3" fill="#2dd4bf" stroke="#047857" strokeWidth="1" />
+                            </>
+                        ) : null}
+                        {isStandup ? <path d="M 48 159 C 71 171 109 171 132 159" fill="none" stroke="#064e3b" strokeWidth="1.3" opacity="0.5" /> : null}
+                        {width > 0 ? <text x="90" y="181" textAnchor="middle" fontSize="8" fill="#475569" fontWeight="700">{width} mm</text> : null}
+                        {height > 0 ? <text x="16" y="103" fontSize="8" fill="#475569" fontWeight="700" transform="rotate(-90 16 103)">{height} mm</text> : null}
                     </svg>
                 ) : kind === "ROLL" ? (
                     <svg viewBox="0 0 140 110" width="130" height="100" className="drop-shadow-md">
                         <ellipse cx="38" cy="55" rx="14" ry="44" fill="#bae6fd" stroke="#0284c7" strokeWidth="1.2" />
                         <rect x="38" y="11" width="74" height="88" fill="#7dd3fc" stroke="#0284c7" strokeWidth="1.2" />
                         <ellipse cx="112" cy="55" rx="14" ry="44" fill="#38bdf8" stroke="#0284c7" strokeWidth="1.2" />
+                        <ellipse cx="112" cy="55" rx="6" ry="18" fill="#f8fafc" stroke="#0369a1" strokeWidth="0.9" opacity="0.9" />
                         {rollWidth > 0 ? <text x="75" y="107" textAnchor="middle" fontSize="8" fill="#475569" fontWeight="700">{rollWidth} mm roll W</text> : null}
                     </svg>
                 ) : (
@@ -380,6 +428,15 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
                     </svg>
                 )}
             </div>
+            {featureTags.length ? (
+                <div className="mt-2 flex flex-wrap justify-center gap-1">
+                    {featureTags.map((tag) => (
+                        <span key={String(tag)} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 ring-1 ring-emerald-100">
+                            {tag}
+                        </span>
+                    ))}
+                </div>
+            ) : null}
         </section>
     )
 }
@@ -396,12 +453,10 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
     // shows "—" when the data actually exists.
     const widthMm = Number(g.width_mm ?? g.final_width_mm ?? g.size_width_mm ?? g.width ?? 0)
     const heightMm = Number(g.height_mm ?? g.final_height_mm ?? g.size_height_mm ?? g.height ?? 0)
-    const faces = Number(g.faces ?? g.face_count ?? 0)
     const thicknessUm = Number(g.thickness_um ?? g.thickness_micron ?? preview.layer_snapshot?.reduce((s: number, l: any) => s + (Number(l?.thickness_micron) || 0), 0) ?? 0)
     const rollWidthMm = Number(g.roll_width_mm ?? g.roll_width ?? 0)
     const cells: Array<{ label: string; value: string; tone?: "default" | "emerald" }> = [
         { label: "W × H", value: widthMm > 0 ? `${widthMm} × ${heightMm || 0} mm` : "—" },
-        { label: "Faces", value: faces > 0 ? String(faces) : "—" },
         { label: "Thickness", value: thicknessUm > 0 ? `${thicknessUm} μ` : "—" },
         { label: "Roll W", value: rollWidthMm > 0 ? `${rollWidthMm} mm` : "—" },
         { label: "Unit wt", value: unitG > 0 ? `${unitG} g` : "—", tone: unitG > 0 ? "emerald" : "default" },
@@ -507,13 +562,20 @@ function matchCategory(cat: string, code = "", name = ""): string {
 function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBomResult; scope: "variant" | "order"; masterFlags?: LiveBomRailProps["masterFlags"] }) {
     const planningLines: any[] = (preview.bom?.planning_lines || preview.bom_snapshot?.planning_lines || []) as any[]
     const rows: Array<{ category: string; code: string; name: string; qty: number; uom: string; placeholder?: boolean }> = []
-    planningLines.forEach((row) => rows.push({
-        category: String(row.category_code || row.category || "OTHER").toUpperCase(),
-        code: String(row.material_code || row.code || "—"),
-        name: String(row.material_name || row.name || ""),
-        qty: Number(row.planned_issue_qty ?? row.theoretical_qty ?? row.qty ?? 0),
-        uom: String(row.uom || "KG"),
-    }))
+    const artworkDeferred = scope === "order" && !!masterFlags?.artwork_deferred
+    planningLines.forEach((row) => {
+        const category = String(row.category_code || row.category || "OTHER").toUpperCase()
+        const code = String(row.material_code || row.code || "—")
+        const name = String(row.material_name || row.name || "")
+        if (artworkDeferred && matchCategory(category, code, name) === "INK") return
+        rows.push({
+            category,
+            code,
+            name,
+            qty: Number(row.planned_issue_qty ?? row.theoretical_qty ?? row.qty ?? 0),
+            uom: String(row.uom || "KG"),
+        })
+    })
     if (rows.length === 0) {
         (preview.addons_snapshot || []).forEach((r: any) => rows.push({
             category: "ADDON",
@@ -566,7 +628,7 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
         if (!podLocked && !hasCat("POD")) {
             rows.push({ category: "POD", code: "POD-?", name: "POD variant picked on order line", qty: 0, uom: "KG", placeholder: true })
         }
-    } else if (scope === "order" && printCapable && !hasCat("INK")) {
+    } else if (scope === "order" && printCapable && !artworkDeferred && !hasCat("INK")) {
         // Order-scope warning-print state: master is print-capable but the
         // line has no artwork attached yet, so the BOM resolver emitted zero
         // ink rows. Surface a clear placeholder so the planner sees "ink

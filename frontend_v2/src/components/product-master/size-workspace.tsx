@@ -422,7 +422,7 @@ export function ProductSizeWorkspace({
                     No sizes yet. Add one size manually or import a template file.
                 </div>
             ) : (
-                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.35fr)]">
+                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(440px,0.72fr)_minmax(720px,1.6fr)]">
                     <div
                         className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                         tabIndex={0}
@@ -486,7 +486,7 @@ export function ProductSizeWorkspace({
                             ) : null}
                         </div>
 
-                        <ScrollArea className="h-[520px]">
+                        <ScrollArea className="h-[620px]">
                             <div className="min-w-[720px]">
                                 <Table>
                                     <TableHeader className="sticky top-0 z-10 bg-slate-50">
@@ -595,7 +595,7 @@ export function ProductSizeWorkspace({
                         </ScrollArea>
                     </div>
 
-                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:self-start" data-size-editor>
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:sticky xl:top-4 xl:self-start" data-size-editor>
                         {selectedRow ? (
                             <>
                                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
