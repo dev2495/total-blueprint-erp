@@ -538,6 +538,14 @@ def _paged_payload(items, request, *, facet_keys=()):
     }
 
 
+def _bulk_reference_vendor(reference):
+    text = str(reference or "")
+    if not text.startswith("VENDOR:"):
+        return {"vendor_code": "", "vendor_name": ""}
+    label = text.split("|", 1)[0].replace("VENDOR:", "").strip()
+    return {"vendor_code": label, "vendor_name": label}
+
+
 def _stock_snapshot_payload(request):
     plant_id = request.query_params.get("plant_id") or request.query_params.get("plant")
     as_of = timezone.now()
@@ -597,11 +605,30 @@ def _stock_snapshot_payload(request):
             "roll_role": resolve_roll_role(roll),
         })
 
+    bulk_stocks = list(bulk_qs.order_by("material__code", "location__code")[:2000])
+    latest_bulk_tx_by_key = {}
+    if bulk_stocks:
+        material_ids = {stock.material_id for stock in bulk_stocks}
+        location_ids = {stock.location_id for stock in bulk_stocks}
+        for tx in BulkTransaction.objects.select_related("vendor").filter(
+            type="INWARD",
+            material_id__in=material_ids,
+            location_id__in=location_ids,
+        ).order_by("-created_at"):
+            key = (tx.material_id, tx.location_id, tx.granule_code_id)
+            if key not in latest_bulk_tx_by_key:
+                latest_bulk_tx_by_key[key] = tx
+
     bulk_rows = []
     total_bulk_kg = Decimal("0")
-    for stock in bulk_qs.order_by("material__code", "location__code")[:2000]:
+    for stock in bulk_stocks:
         qty = _as_decimal(stock.qty_kg)
         reserved = Decimal(str(material_reservations.get(str(stock.material_id), 0)))
+        latest_tx = latest_bulk_tx_by_key.get((stock.material_id, stock.location_id, stock.granule_code_id))
+        uom = stock.material.base_uom or "KG"
+        reference_vendor = _bulk_reference_vendor(latest_tx.reference if latest_tx else "")
+        vendor_code = latest_tx.vendor.code if latest_tx and latest_tx.vendor else reference_vendor.get("vendor_code", "")
+        vendor_name = latest_tx.vendor.name if latest_tx and latest_tx.vendor else reference_vendor.get("vendor_name", "")
         total_bulk_kg += qty
         reservation_kg += min(reserved, qty)
         bulk_rows.append({
@@ -621,9 +648,9 @@ def _stock_snapshot_payload(request):
             "qty": float(qty),
             "qty_kg": float(qty),
             "quantity": float(qty),
-            "uom": stock.material.base_uom or "KG",
-            "stock_uom": stock.material.base_uom or "KG",
-            "base_uom": stock.material.base_uom or "KG",
+            "uom": uom,
+            "stock_uom": uom,
+            "base_uom": uom,
             "reserved_qty": float(min(reserved, qty)),
             "free_qty": float(max(Decimal("0"), qty - reserved)),
             "plant": str(stock.plant_id) if stock.plant_id else "",
@@ -633,6 +660,14 @@ def _stock_snapshot_payload(request):
             "location_name": stock.location.name,
             "age_days": max((as_of.date() - stock.updated_at.date()).days, 0) if stock.updated_at else 0,
             "avg_cost": float(stock.avg_cost or 0),
+            "vendor": str(latest_tx.vendor_id) if latest_tx and latest_tx.vendor_id else "",
+            "vendor_code": vendor_code,
+            "vendor_name": vendor_name,
+            "vendor_invoice_no": latest_tx.vendor_invoice_no if latest_tx else "",
+            "manual_po_ref": latest_tx.manual_po_ref if latest_tx else "",
+            "last_grn_no": (latest_tx.vendor_invoice_no or latest_tx.reference or "") if latest_tx else "",
+            "last_grn_ref": latest_tx.reference if latest_tx else "",
+            "last_grn_at": latest_tx.created_at.isoformat() if latest_tx and latest_tx.created_at else None,
         })
 
     packaging_rows = []
@@ -1037,7 +1072,7 @@ class StockViewSet(viewsets.ViewSet):
             return Response({"error": "material_id param required"}, status=400)
 
         from .models import InventoryBulk
-        qs = InventoryBulk.objects.filter(material_id=material_id, qty_kg__gt=0).select_related('plant', 'location')
+        qs = InventoryBulk.objects.filter(material_id=material_id, qty_kg__gt=0).select_related('plant', 'location', 'material')
         if exclude_plant_id:
             qs = qs.exclude(plant_id=exclude_plant_id)
 
@@ -1056,7 +1091,7 @@ class StockViewSet(viewsets.ViewSet):
                 'location_id': str(item.location_id),
                 'location_name': item.location.name if item.location else None,
                 'quantity': float(item.qty_kg or 0),
-                'uom': 'KG'
+                'uom': item.material.base_uom if item.material else 'KG'
             })
 
         return Response(list(grouped.values()))
@@ -2891,7 +2926,7 @@ class InventoryLedgerView(APIView):
                     "id": str(tx.id),
                     "tx_type": tx_type,
                     "quantity": float(tx.qty_kg or 0),
-                    "uom": "KG",
+                    "uom": (tx.material.base_uom if tx.material else None) or "KG",
                     "material_name": tx.material.name if tx.material else None,
                     "item_label_id": None,
                     "from_location_name": None,

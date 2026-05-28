@@ -817,6 +817,8 @@ class InventoryBulkSerializer(serializers.ModelSerializer):
     material_code = serializers.CharField(source='material.code', read_only=True)
     material_category = serializers.CharField(source='material.category', read_only=True)
     stock_uom = serializers.CharField(source='material.base_uom', read_only=True)
+    base_uom = serializers.CharField(source='material.base_uom', read_only=True)
+    uom = serializers.CharField(source='material.base_uom', read_only=True)
     granule_quality_code = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
     granule_quality_code_id = serializers.CharField(source='granule_code.id', read_only=True, allow_null=True)
     location_name = serializers.CharField(source='location.name', read_only=True)
@@ -832,7 +834,10 @@ class BulkTransactionSerializer(serializers.ModelSerializer):
     granule_quality_code = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
     granule_quality_code_id = serializers.CharField(source='granule_code.id', read_only=True, allow_null=True)
     stock_uom = serializers.CharField(source='material.base_uom', read_only=True)
+    base_uom = serializers.CharField(source='material.base_uom', read_only=True)
+    uom = serializers.CharField(source='material.base_uom', read_only=True)
     location_name = serializers.CharField(source='location.name', read_only=True)
+    vendor_name = serializers.CharField(source='vendor.name', read_only=True, allow_null=True)
     job_no = serializers.CharField(source='job.job_no', read_only=True, allow_null=True)
     
     class Meta:

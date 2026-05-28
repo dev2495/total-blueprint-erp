@@ -95,6 +95,39 @@ function formatStockQty(qty: number, row: any, fallback = "KG"): string {
     return `${fmtNum(qty, qtyDecimalsForUom(uom))} ${uom}`
 }
 
+function rowQty(row: any): number {
+    return Number(row?.qty_kg ?? row?.on_hand_qty ?? row?.qty ?? 0) || 0
+}
+
+function formatQtyByUom(qty: number, uom: string): string {
+    const normalized = String(uom || "KG").toUpperCase()
+    return `${fmtNum(qty, qtyDecimalsForUom(normalized))} ${normalized}`
+}
+
+function mixedTotals(rows: any[], valueOf: (row: any) => number = rowQty): Array<{ uom: string; value: number }> {
+    const map = new Map<string, number>()
+    for (const row of rows) {
+        const uom = stockUom(row)
+        map.set(uom, (map.get(uom) || 0) + valueOf(row))
+    }
+    const order = ["KG", "METER", "PCS"]
+    return Array.from(map.entries())
+        .filter(([, value]) => Math.abs(value) > 0.000001)
+        .sort((a, b) => {
+            const ai = order.indexOf(a[0])
+            const bi = order.indexOf(b[0])
+            if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+            return a[0].localeCompare(b[0])
+        })
+        .map(([uom, value]) => ({ uom, value }))
+}
+
+function formatMixedTotals(rows: any[], valueOf: (row: any) => number = rowQty, fallback = "0"): string {
+    const totals = mixedTotals(rows, valueOf)
+    if (!totals.length) return fallback
+    return totals.map(({ uom, value }) => formatQtyByUom(value, uom)).join(" + ")
+}
+
 function makeTrend(target: number, points = 12): number[] {
     if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0]
     const seed = Math.max(target * 0.65, 1)
@@ -137,7 +170,7 @@ function classifyMaterial(row: any): "GRANULE" | "CHEMICAL" | "ADHESIVE" | "SOLV
 }
 
 function healthOf(row: any): { score: number; bucket: "HEALTHY" | "LOW" | "CRITICAL" } {
-    const onhand = Number(row.qty_kg || row.on_hand_qty || row.qty || 0)
+    const onhand = rowQty(row)
     const reorder = Number(row.reorder_point || 200)
     const score = onhand > reorder * 2 ? 100 : Math.max(0, Math.min(100, Math.round((onhand / Math.max(reorder, 1)) * 50)))
     const bucket = score >= 60 ? "HEALTHY" : score >= 30 ? "LOW" : "CRITICAL"
@@ -232,13 +265,16 @@ export function BulkWorkspaceV36() {
     }, [allRows, filters])
 
     const kpi = React.useMemo(() => {
-        const totalKg = filtered.reduce((s: number, r: any) => s + Number(r.qty_kg || r.on_hand_qty || 0), 0)
-        const reservedKg = filtered.reduce((s: number, r: any) => s + Number(r.reserved_qty || 0), 0)
+        const totalQty = filtered.reduce((s: number, r: any) => s + rowQty(r), 0)
+        const reservedQty = filtered.reduce((s: number, r: any) => s + Number(r.reserved_qty || 0), 0)
         const lowStock = filtered.filter((r: any) => healthOf(r).bucket === "LOW").length
         const critical = filtered.filter((r: any) => healthOf(r).bucket === "CRITICAL").length
         const addons = filtered.filter((r: any) => isAddon(r)).length
         const granules = filtered.filter((r: any) => classifyMaterial(r) === "GRANULE").length
-        return { totalLots: filtered.length, totalKg, reservedKg, available: totalKg - reservedKg, lowStock, critical, addons, granules }
+        const totalDisplay = formatMixedTotals(filtered)
+        const reservedDisplay = formatMixedTotals(filtered, (r) => Number(r.reserved_qty || 0), "0")
+        const availableDisplay = formatMixedTotals(filtered, (r) => Math.max(0, rowQty(r) - Number(r.reserved_qty || 0)), "0")
+        return { totalLots: filtered.length, totalQty, reservedQty, availableQty: totalQty - reservedQty, totalDisplay, reservedDisplay, availableDisplay, lowStock, critical, addons, granules }
     }, [filtered])
 
     // Material breakdown for donut
@@ -246,21 +282,22 @@ export function BulkWorkspaceV36() {
         const map = new Map<string, number>()
         for (const r of filtered) {
             const cls = classifyMaterial(r)
-            map.set(cls, (map.get(cls) || 0) + Number(r.qty_kg || 0))
+            const key = `${cls} · ${stockUom(r)}`
+            map.set(key, (map.get(key) || 0) + rowQty(r))
         }
         const total = Array.from(map.values()).reduce((s, v) => s + v, 0) || 1
         const COLORS: Record<string, string> = {
             GRANULE: "#3b82f6", INK: "#a855f7", ADHESIVE: "#f59e0b", SOLVENT: "#06b6d4", CHEMICAL: "#ec4899", OTHER: "#94a3b8",
         }
-        return Array.from(map.entries()).map(([k, v]) => ({ key: k, kg: v, pct: (v / total) * 100, color: COLORS[k] || "#94a3b8" }))
+        return Array.from(map.entries()).map(([k, v]) => ({ key: k, kg: v, pct: (v / total) * 100, color: COLORS[k.split(" · ", 1)[0]] || "#94a3b8" }))
     }, [filtered])
 
     // Plant split for bar
     const plantSplit = React.useMemo(() => {
         const map = new Map<string, number>()
         for (const r of filtered) {
-            const k = r.plant_name || r.plant_id || "Unknown"
-            map.set(k, (map.get(k) || 0) + Number(r.qty_kg || 0))
+            const k = `${r.plant_name || r.plant_id || "Unknown"} · ${stockUom(r)}`
+            map.set(k, (map.get(k) || 0) + rowQty(r))
         }
         const total = Array.from(map.values()).reduce((s, v) => s + v, 0) || 1
         return Array.from(map.entries())
@@ -290,8 +327,8 @@ export function BulkWorkspaceV36() {
         const map = new Map<string, number>()
         for (const r of filtered as any[]) {
             const k = String(r.location_code || r.location_name || "—")
-            const kg = Number(r.qty_kg || r.on_hand_qty || 0)
-            map.set(k, (map.get(k) || 0) + kg)
+            const key = `${k} · ${stockUom(r)}`
+            map.set(key, (map.get(key) || 0) + rowQty(r))
         }
         return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
     }, [filtered])
@@ -306,49 +343,52 @@ export function BulkWorkspaceV36() {
         return { fresh, aged, old }
     }, [filtered])
 
-    // Matrix: material class × plant (kg)
+    // Matrix: material class × plant, split by the material stock UOM.
     const pulseMatrix = React.useMemo(() => {
         const cellMap: Record<string, Record<string, number>> = {}
         const rowSet = new Set<string>()
         const colSet = new Set<string>()
         for (const r of filtered as any[]) {
             const cls = classifyMaterial(r)
+            const rowKey = `${cls} · ${stockUom(r)}`
             const plant = String(r.plant_name || r.plant_id || "—")
-            rowSet.add(cls); colSet.add(plant)
-            cellMap[cls] = cellMap[cls] || {}
-            cellMap[cls][plant] = (cellMap[cls][plant] || 0) + Number(r.qty_kg || r.on_hand_qty || 0)
+            rowSet.add(rowKey); colSet.add(plant)
+            cellMap[rowKey] = cellMap[rowKey] || {}
+            cellMap[rowKey][plant] = (cellMap[rowKey][plant] || 0) + rowQty(r)
         }
         return {
-            title: "Material class × plant (kg)",
+            title: "Material class × plant",
             subtitle: "Concentration heatmap",
             rowLabel: "class", colLabel: "plant",
             rows: Array.from(rowSet).sort(),
             cols: Array.from(colSet).sort(),
             cells: cellMap,
-            unit: "kg",
+            unit: "",
         }
     }, [filtered])
 
     // Top materials list (with addon flag in sub)
     const pulseTopList = React.useMemo(() => {
-        const map = new Map<string, { kg: number; addon: boolean; cls: string }>()
+        const map = new Map<string, { qty: number; addon: boolean; cls: string; uom: string }>()
         for (const r of filtered as any[]) {
             const k = String(r.material_code || r.material_name || "—")
-            const cur = map.get(k) || { kg: 0, addon: false, cls: classifyMaterial(r) }
-            cur.kg += Number(r.qty_kg || r.on_hand_qty || 0)
+            const uom = stockUom(r)
+            const key = `${k}__${uom}`
+            const cur = map.get(key) || { qty: 0, addon: false, cls: classifyMaterial(r), uom }
+            cur.qty += rowQty(r)
             cur.addon = cur.addon || isAddon(r)
-            map.set(k, cur)
+            map.set(key, cur)
         }
         const rows = Array.from(map.entries())
-            .sort((a, b) => b[1].kg - a[1].kg)
+            .sort((a, b) => b[1].qty - a[1].qty)
             .slice(0, 8)
             .map(([label, v]) => ({
-                label,
+                label: label.split("__")[0],
                 sub: `${v.cls}${v.addon ? " · addon" : ""}`,
-                value: `${fmtNum(v.kg, 0)} KG`,
+                value: formatQtyByUom(v.qty, v.uom),
                 tone: v.addon ? "warn" as const : "default" as const,
             }))
-        return { title: "Top materials by KG", subtitle: "Across granules + addons", rows }
+        return { title: "Top materials by stock", subtitle: "Split by inventory UOM", rows }
     }, [filtered])
 
     if (stockQuery.isError) {
@@ -370,7 +410,7 @@ export function BulkWorkspaceV36() {
                 palette="emerald"
                 chips={[
                     { icon: <FlaskConical className="h-3.5 w-3.5" />, label: "Lots", value: `${kpi.totalLots}`, tone: "ok" },
-                    { icon: <Layers className="h-3.5 w-3.5" />, label: "KG", value: fmtNum(kpi.totalKg, 0), tone: "violet" },
+                    { icon: <Layers className="h-3.5 w-3.5" />, label: "Stock", value: kpi.totalDisplay, tone: "violet" },
                     { icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Critical", value: `${kpi.critical}`, tone: "warn" },
                 ]}
                 actions={
@@ -394,8 +434,8 @@ export function BulkWorkspaceV36() {
                 <PulseViewV36
                     kpis={[
                         { label: "Lots", value: fmtNum(kpi.totalLots), sub: "current rows", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.totalLots, 12) },
-                        { label: "On hand KG", value: fmtNum(kpi.totalKg, 0), sub: `${fmtNum(kpi.reservedKg, 0)} reserved`, icon: <Layers className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.totalKg, 12) },
-                        { label: "Available", value: fmtNum(kpi.available, 0), sub: "free to issue", icon: <Layers className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.available, 12) },
+                        { label: "On hand", value: kpi.totalDisplay, sub: `${kpi.reservedDisplay} reserved`, icon: <Layers className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.totalQty, 12) },
+                        { label: "Available", value: kpi.availableDisplay, sub: "free to issue", icon: <Layers className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.availableQty, 12) },
                         { label: "Granules", value: fmtNum(kpi.granules), sub: "resin lots", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.granules, 12) },
                         { label: "Add-ons", value: fmtNum(kpi.addons), sub: "inks · adh · solv", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.addons, 12) },
                         { label: "Critical", value: fmtNum(kpi.critical), sub: "below reorder", icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: kpi.critical > 0 ? "bad" : "default", trend: makeTrend(kpi.critical, 12) },
@@ -404,12 +444,12 @@ export function BulkWorkspaceV36() {
                         { label: "Material classes", value: fmtNum(pulseMaterialBreakdown.length), sub: "distinct types" },
                         { label: "Plants", value: fmtNum(pulsePlantBreakdown.length), sub: "with stock" },
                         { label: "Locations", value: fmtNum(pulseLocationBreakdown.length), sub: "warehouses" },
-                        { label: "Avg lot kg", value: kpi.totalLots > 0 ? `${(kpi.totalKg / kpi.totalLots).toFixed(0)}` : "—", sub: "per lot" },
-                        { label: "Reserved %", value: kpi.totalKg > 0 ? `${Math.round((kpi.reservedKg / kpi.totalKg) * 100)}%` : "0%", sub: "kg held", tone: kpi.reservedKg > 0 ? "warn" : "default" },
+                        { label: "Stock UOMs", value: fmtNum(mixedTotals(filtered).length), sub: "units represented" },
+                        { label: "Reserved %", value: kpi.totalQty > 0 ? `${Math.round((kpi.reservedQty / kpi.totalQty) * 100)}%` : "0%", sub: "same-UOM estimate", tone: kpi.reservedQty > 0 ? "warn" : "default" },
                         { label: "Healthy", value: kpi.totalLots > 0 ? `${Math.round(((kpi.totalLots - kpi.lowStock - kpi.critical) / kpi.totalLots) * 100)}%` : "100%", sub: "of lots", tone: "good" },
                     ]}
-                    primaryBreakdown={{ title: "Material class · KG", entries: pulseMaterialBreakdown, unit: "KG" }}
-                    secondaryBreakdown={{ title: "Plant allocation", entries: pulsePlantBreakdown, unit: "KG" }}
+                    primaryBreakdown={{ title: "Material class · stock UOM", entries: pulseMaterialBreakdown, unit: "" }}
+                    secondaryBreakdown={{ title: "Plant allocation · stock UOM", entries: pulsePlantBreakdown, unit: "" }}
                     ageing={pulseAgeing}
                     locationBreakdown={pulseLocationBreakdown}
                     matrix={pulseMatrix}
@@ -551,7 +591,7 @@ function DonutChart({ data }: { data: Array<{ key: string; pct: number; color: s
                 )
             })}
             <text x="55" y="51" textAnchor="middle" className="fill-slate-900" style={{ fontSize: 16, fontWeight: 800 }}>{data.reduce((s, d) => s + d.kg, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</text>
-            <text x="55" y="64" textAnchor="middle" className="fill-slate-500" style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.2 }}>KG TOTAL</text>
+            <text x="55" y="64" textAnchor="middle" className="fill-slate-500" style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.2 }}>TOTAL</text>
         </svg>
     )
 }
@@ -578,7 +618,7 @@ function BulkTable({ rows, total, pageSize, onPageSize, loading, onSelect }: { r
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {rows.map((r: any, i: number) => {
-                            const onhand = Number(r.qty_kg || r.on_hand_qty || 0)
+                            const onhand = rowQty(r)
                             const reserved = Number(r.reserved_qty || 0)
                             const available = Math.max(0, onhand - reserved)
                             const h = healthOf(r)
@@ -638,7 +678,7 @@ function BulkGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { ro
         <WorkspaceSection title="Bulk cards" eyebrow={`${rows.length} of ${total}`} tone="emerald" icon={<Boxes className="h-4 w-4" />}>
             <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 {rows.map((r: any) => {
-                    const onhand = Number(r.qty_kg || 0)
+                    const onhand = rowQty(r)
                     const reserved = Number(r.reserved_qty || 0)
                     const h = healthOf(r)
                     const addon = isAddon(r)
@@ -678,7 +718,7 @@ function BulkGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { ro
 }
 
 function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
-    const onhand = Number(row.qty_kg || row.on_hand_qty || 0)
+    const onhand = rowQty(row)
     const reserved = Number(row.reserved_qty || 0)
     const available = Math.max(0, onhand - reserved)
     const h = healthOf(row)

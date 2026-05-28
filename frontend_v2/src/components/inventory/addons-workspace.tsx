@@ -88,6 +88,35 @@ function formatStockQty(qty: number, row: any, fallback = "KG"): string {
     return `${fmtNum(qty, qtyDecimalsForUom(uom))} ${uom}`
 }
 
+function rowQty(row: any): number {
+    return Number(row?.qty ?? row?.qty_kg ?? row?.on_hand_qty ?? 0)
+}
+
+function formatQtyByUom(qty: number, uom: string): string {
+    const normalized = String(uom || "").toUpperCase()
+    return `${fmtNum(qty, qtyDecimalsForUom(normalized))} ${normalized}`.trim()
+}
+
+function mixedTotals(rows: any[], valueOf: (row: any) => number = rowQty): { uom: string; qty: number }[] {
+    const map = new Map<string, number>()
+    for (const row of rows) {
+        const uom = stockUom(row, "UNIT")
+        map.set(uom, (map.get(uom) || 0) + valueOf(row))
+    }
+    return Array.from(map.entries())
+        .map(([uom, qty]) => ({ uom, qty }))
+        .filter((entry) => Math.abs(entry.qty) > 0.000001)
+        .sort((a, b) => b.qty - a.qty)
+}
+
+function formatMixedTotals(rows: any[], valueOf?: (row: any) => number, fallback = "0"): string {
+    const totals = mixedTotals(rows, valueOf)
+    if (totals.length === 0) return fallback
+    if (totals.length <= 2) return totals.map((entry) => formatQtyByUom(entry.qty, entry.uom)).join(" + ")
+    const [first, second] = totals
+    return `${formatQtyByUom(first.qty, first.uom)} + ${formatQtyByUom(second.qty, second.uom)} + ${totals.length - 2} UOMs`
+}
+
 function makeTrend(target: number, points = 12): number[] {
     if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0]
     const seed = Math.max(target * 0.65, 1)
@@ -111,7 +140,7 @@ function detectFamily(row: any): Exclude<Family, "ALL"> {
 }
 
 function healthOf(row: any): { score: number; bucket: "HEALTHY" | "LOW" | "CRITICAL" } {
-    const onhand = Number(row.qty_kg || row.on_hand_qty || row.qty || 0)
+    const onhand = rowQty(row)
     const reorder = Number(row.reorder_point || 50)
     const score = onhand > reorder * 2 ? 100 : Math.max(0, Math.min(100, Math.round((onhand / Math.max(reorder, 1)) * 50)))
     const bucket = score >= 60 ? "HEALTHY" : score >= 30 ? "LOW" : "CRITICAL"
@@ -195,13 +224,15 @@ export function AddonsWorkspaceV36() {
     }, [allRows, filters])
 
     const kpi = React.useMemo(() => {
-        const totalKg = filtered.reduce((s: number, r: any) => s + Number(r.qty_kg || r.on_hand_qty || 0), 0)
+        const totalQty = filtered.reduce((s: number, r: any) => s + rowQty(r), 0)
         const reservedKg = filtered.reduce((s: number, r: any) => s + Number(r.reserved_qty || 0), 0)
+        const totalDisplay = formatMixedTotals(filtered, rowQty)
+        const reservedDisplay = formatMixedTotals(filtered, (r) => Number(r.reserved_qty || 0))
         const inks = filtered.filter((r) => detectFamily(r) === "INK").length
         const adhesives = filtered.filter((r) => detectFamily(r) === "ADHESIVE").length
         const solvents = filtered.filter((r) => detectFamily(r) === "SOLVENT").length
         const critical = filtered.filter((r: any) => healthOf(r).bucket === "CRITICAL").length
-        return { items: filtered.length, totalKg, reservedKg, inks, adhesives, solvents, critical }
+        return { items: filtered.length, totalQty, reservedKg, totalDisplay, reservedDisplay, inks, adhesives, solvents, critical }
     }, [filtered])
 
     const chips = React.useMemo(() => {
@@ -219,27 +250,24 @@ export function AddonsWorkspaceV36() {
     const pulseFamilyBreakdown = React.useMemo(() => {
         const map = new Map<string, number>()
         for (const r of filtered as any[]) {
-            const k = detectFamily(r)
-            const kg = Number(r.qty_kg || r.on_hand_qty || 0)
-            map.set(k, (map.get(k) || 0) + kg)
+            const k = `${detectFamily(r)} · ${stockUom(r, "UNIT")}`
+            map.set(k, (map.get(k) || 0) + rowQty(r))
         }
         return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
     }, [filtered])
     const pulseMaterialBreakdown = React.useMemo(() => {
         const map = new Map<string, number>()
         for (const r of filtered as any[]) {
-            const k = String(r.material_code || r.material_name || "—")
-            const kg = Number(r.qty_kg || r.on_hand_qty || 0)
-            map.set(k, (map.get(k) || 0) + kg)
+            const k = `${String(r.material_code || r.material_name || "—")} · ${stockUom(r, "UNIT")}`
+            map.set(k, (map.get(k) || 0) + rowQty(r))
         }
         return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
     }, [filtered])
     const pulseLocationBreakdown = React.useMemo(() => {
         const map = new Map<string, number>()
         for (const r of filtered as any[]) {
-            const k = String(r.location_code || r.location_name || "—")
-            const kg = Number(r.qty_kg || r.on_hand_qty || 0)
-            map.set(k, (map.get(k) || 0) + kg)
+            const k = `${String(r.location_code || r.location_name || "—")} · ${stockUom(r, "UNIT")}`
+            map.set(k, (map.get(k) || 0) + rowQty(r))
         }
         return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
     }, [filtered])
@@ -260,30 +288,30 @@ export function AddonsWorkspaceV36() {
         const rowSet = new Set<string>()
         const colSet = new Set<string>()
         for (const r of filtered as any[]) {
-            const fam = detectFamily(r)
+            const fam = `${detectFamily(r)} · ${stockUom(r, "UNIT")}`
             const plant = String(r.plant_name || r.plant_id || "—")
             rowSet.add(fam); colSet.add(plant)
             cellMap[fam] = cellMap[fam] || {}
-            cellMap[fam][plant] = (cellMap[fam][plant] || 0) + Number(r.qty_kg || r.on_hand_qty || 0)
+            cellMap[fam][plant] = (cellMap[fam][plant] || 0) + rowQty(r)
         }
         return {
-            title: "Family × plant (kg)",
-            subtitle: "Where each addon family lives",
+            title: "Family × plant",
+            subtitle: "Where each addon family lives by stock UOM",
             rowLabel: "family", colLabel: "plant",
             rows: Array.from(rowSet).sort(),
             cols: Array.from(colSet).sort(),
             cells: cellMap,
-            unit: "kg",
+            unit: "",
         }
     }, [filtered])
 
     const pulseTopList = React.useMemo(() => {
         const rows = pulseMaterialBreakdown.slice(0, 8).map((m) => ({
-            label: m.label, sub: `addon · ${kpi.totalKg > 0 ? `${((m.value / kpi.totalKg) * 100).toFixed(1)}%` : "0%"} of total`,
-            value: `${fmtNum(m.value, 0)} kg`,
+            label: m.label, sub: "addon stock",
+            value: formatQtyByUom(m.value, m.label.split(" · ").pop() || ""),
         }))
-        return { title: "Top materials by KG", subtitle: "Most-stocked addons", rows }
-    }, [pulseMaterialBreakdown, kpi.totalKg])
+        return { title: "Top materials by stock", subtitle: "Most-stocked add-ons by their own UOM", rows }
+    }, [pulseMaterialBreakdown])
 
     if (stockQuery.isError) {
         return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900"><div className="font-bold">Could not load add-ons.</div><div className="mt-1 text-xs">{describeApiError(stockQuery.error, "Check backend.")}</div></div>
@@ -299,7 +327,7 @@ export function AddonsWorkspaceV36() {
                 palette="violet"
                 chips={[
                     { icon: <Palette className="h-3.5 w-3.5" />, label: "Items", value: `${kpi.items}`, tone: "ok" },
-                    { icon: <Droplets className="h-3.5 w-3.5" />, label: "KG / L", value: fmtNum(kpi.totalKg, 0), tone: "violet" },
+                    { icon: <Droplets className="h-3.5 w-3.5" />, label: "Stock", value: kpi.totalDisplay, tone: "violet" },
                     { icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Critical", value: `${kpi.critical}`, tone: "warn" },
                 ]}
                 actions={
@@ -323,7 +351,7 @@ export function AddonsWorkspaceV36() {
                 <PulseViewV36
                     kpis={[
                         { label: "Items", value: fmtNum(kpi.items), sub: "add-on lots", icon: <Palette className="h-3.5 w-3.5" />, trend: makeTrend(kpi.items, 12) },
-                        { label: "Total KG/L", value: fmtNum(kpi.totalKg, 0), sub: `${fmtNum(kpi.reservedKg, 0)} reserved`, tone: "good", trend: makeTrend(kpi.totalKg, 12) },
+                        { label: "Total stock", value: kpi.totalDisplay, sub: `${kpi.reservedDisplay} reserved`, tone: "good", trend: makeTrend(kpi.totalQty, 12) },
                         { label: "Inks", value: fmtNum(kpi.inks), sub: "colour pigments", icon: <Palette className="h-3.5 w-3.5" />, trend: makeTrend(kpi.inks, 12) },
                         { label: "Adhesives", value: fmtNum(kpi.adhesives), sub: "bonding agents", icon: <Beaker className="h-3.5 w-3.5" />, trend: makeTrend(kpi.adhesives, 12) },
                         { label: "Solvents", value: fmtNum(kpi.solvents), sub: "thinners", icon: <Droplets className="h-3.5 w-3.5" />, trend: makeTrend(kpi.solvents, 12) },
@@ -333,12 +361,12 @@ export function AddonsWorkspaceV36() {
                         { label: "Families", value: fmtNum(pulseFamilyBreakdown.length), sub: "ink/adh/solv/chem" },
                         { label: "Materials", value: fmtNum(pulseMaterialBreakdown.length), sub: "distinct codes" },
                         { label: "Locations", value: fmtNum(pulseLocationBreakdown.length), sub: "warehouses" },
-                        { label: "Avg per item", value: kpi.items > 0 ? `${(kpi.totalKg / kpi.items).toFixed(1)} kg` : "—", sub: "per lot" },
-                        { label: "Reserved %", value: kpi.totalKg > 0 ? `${Math.round((kpi.reservedKg / kpi.totalKg) * 100)}%` : "0%", sub: "kg held", tone: kpi.reservedKg > 0 ? "warn" : "default" },
+                        { label: "Stock UOMs", value: fmtNum(mixedTotals(filtered).length), sub: "active units" },
+                        { label: "Reserved", value: kpi.reservedDisplay, sub: "same-UOM total", tone: kpi.reservedKg > 0 ? "warn" : "default" },
                         { label: "Healthy", value: kpi.items > 0 ? `${Math.round(((kpi.items - kpi.critical) / kpi.items) * 100)}%` : "100%", sub: "of items", tone: "good" },
                     ]}
-                    primaryBreakdown={{ title: "By family · KG", entries: pulseFamilyBreakdown, unit: "KG" }}
-                    secondaryBreakdown={{ title: "Top materials", entries: pulseMaterialBreakdown.slice(0, 10), unit: "KG" }}
+                    primaryBreakdown={{ title: "By family · stock UOM", entries: pulseFamilyBreakdown, unit: "" }}
+                    secondaryBreakdown={{ title: "Top materials", entries: pulseMaterialBreakdown.slice(0, 10), unit: "" }}
                     ageing={pulseAgeing}
                     locationBreakdown={pulseLocationBreakdown}
                     matrix={pulseMatrix}
@@ -450,7 +478,7 @@ function AddonsTable({ rows, total, pageSize, onPageSize, loading, onSelect }: {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {rows.map((r: any, i: number) => {
-                            const onhand = Number(r.qty_kg || r.on_hand_qty || 0)
+                            const onhand = rowQty(r)
                             const reserved = Number(r.reserved_qty || 0)
                             const available = Math.max(0, onhand - reserved)
                             const f = detectFamily(r)
@@ -512,7 +540,7 @@ function AddonsGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { 
         <WorkspaceSection title="Add-on cards" eyebrow={`${rows.length} of ${total}`} tone="violet" icon={<Palette className="h-4 w-4" />}>
             <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {rows.map((r: any) => {
-                    const onhand = Number(r.qty_kg || 0)
+                    const onhand = rowQty(r)
                     const reserved = Number(r.reserved_qty || 0)
                     const f = detectFamily(r)
                     const h = healthOf(r)
@@ -550,7 +578,7 @@ function AddonsGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { 
 }
 
 function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
-    const onhand = Number(row.qty_kg || row.on_hand_qty || 0)
+    const onhand = rowQty(row)
     const reserved = Number(row.reserved_qty || 0)
     const available = Math.max(0, onhand - reserved)
     const f = detectFamily(row)

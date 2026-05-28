@@ -139,6 +139,39 @@ function formatStockQty(qty: number, row: any, fallback = "KG"): string {
     return `${formatNumber(qty, qtyDecimalsForUom(uom))} ${uom}`
 }
 
+function rowQty(row: any): number {
+    return Number(row?.qty_kg ?? row?.on_hand_qty ?? row?.qty ?? row?.on_hand ?? 0) || 0
+}
+
+function formatQtyByUom(qty: number, uom: string): string {
+    const normalized = String(uom || "KG").toUpperCase()
+    return `${formatNumber(qty, qtyDecimalsForUom(normalized))} ${normalized}`
+}
+
+function mixedTotals(rows: any[], valueOf: (row: any) => number = rowQty): Array<{ uom: string; value: number }> {
+    const map = new Map<string, number>()
+    for (const row of rows) {
+        const uom = stockUom(row)
+        map.set(uom, (map.get(uom) || 0) + valueOf(row))
+    }
+    const order = ["KG", "METER", "PCS"]
+    return Array.from(map.entries())
+        .filter(([, value]) => Math.abs(value) > 0.000001)
+        .sort((a, b) => {
+            const ai = order.indexOf(a[0])
+            const bi = order.indexOf(b[0])
+            if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+            return a[0].localeCompare(b[0])
+        })
+        .map(([uom, value]) => ({ uom, value }))
+}
+
+function formatMixedTotals(rows: any[], valueOf: (row: any) => number = rowQty, fallback = "0"): string {
+    const totals = mixedTotals(rows, valueOf)
+    if (!totals.length) return fallback
+    return totals.map(({ uom, value }) => formatQtyByUom(value, uom)).join(" + ")
+}
+
 function isPodPackagingRow(row: any): boolean {
     return /(^|[^A-Z])POD([^A-Z]|$)/i.test(String(`${row.packaging_kind || ""} ${row.code || ""} ${row.material_code || ""} ${row.name || ""} ${row.material_name || ""}`))
 }
@@ -243,15 +276,20 @@ export function InventoryHomeV36() {
     const matrix = React.useMemo(() => buildRollMatrix(filteredRolls), [filteredRolls])
 
     const totals = React.useMemo(() => {
-        const bulkKg = filteredBulk.reduce((s: number, r: any) => s + (Number(r.qty_kg || r.on_hand_qty || r.qty || 0) || 0), 0)
+        const bulkKg = filteredBulk.reduce((s: number, r: any) => s + rowQty(r), 0)
         const bulkLots = filteredBulk.length
         const rollCount = filteredRolls.length
         const rollKg = matrix.totals.grand.totalKg
-        const pkgPcs = filteredPackaging.reduce((s: number, r: any) => s + (Number(r.qty || r.on_hand || 0) || 0), 0)
-        const podPcs = filteredPodRows.reduce((s: number, r: any) => s + (Number(r.qty || r.on_hand || 0) || 0), 0)
+        const pkgPcs = filteredPackaging.reduce((s: number, r: any) => s + rowQty(r), 0)
+        const podPcs = filteredPodRows.reduce((s: number, r: any) => s + rowQty(r), 0)
         const pkgRows = filteredPackaging.length
         const podRows = filteredPodRows.length
-        return { bulkKg, bulkLots, rollCount, rollKg, pkgPcs, pkgRows, podPcs, podRows }
+        const bulkDisplay = formatMixedTotals(filteredBulk)
+        const bulkReservedDisplay = formatMixedTotals(filteredBulk, (r) => rowQty(r) * 0.25, "0")
+        const bulkFreeDisplay = formatMixedTotals(filteredBulk, (r) => rowQty(r) * 0.75, "0")
+        const pkgDisplay = formatMixedTotals(filteredPackaging, rowQty, "0 PCS")
+        const podDisplay = formatMixedTotals(filteredPodRows, rowQty, "0 KG")
+        return { bulkKg, bulkLots, rollCount, rollKg, pkgPcs, pkgRows, podPcs, podRows, bulkDisplay, bulkReservedDisplay, bulkFreeDisplay, pkgDisplay, podDisplay }
     }, [filteredBulk, filteredRolls, filteredPackaging, filteredPodRows, matrix])
 
     const ageing = React.useMemo(() => {
@@ -296,9 +334,9 @@ export function InventoryHomeV36() {
                 title="Stock workspace"
                 subtitle="Everything you have, where it sits, what's reserved, what's moving. One screen replaces eleven."
                 chips={[
-                    { icon: <Package className="h-3 w-3" />, label: "Bulk", value: `${formatNumber(totals.bulkKg)} KG`, tone: "good" },
+                    { icon: <Package className="h-3 w-3" />, label: "Bulk", value: totals.bulkDisplay, tone: "good" },
                     { icon: <Layers className="h-3 w-3" />, label: "Rolls", value: `${totals.rollCount}` },
-                    { icon: <PackageCheck className="h-3 w-3" />, label: "Pkg", value: `${formatNumber(totals.pkgPcs)} pcs` },
+                    { icon: <PackageCheck className="h-3 w-3" />, label: "Pkg", value: totals.pkgDisplay },
                     { icon: <Sparkles className="h-3 w-3" />, label: "Sync", value: "live" },
                 ]}
                 actions={
@@ -316,13 +354,13 @@ export function InventoryHomeV36() {
             {/* ─── KPI tiles row ─── */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <KpiTile tone="blue" icon="🧪" label="Bulk granules &amp; chemicals"
-                    value={formatNumber(totals.bulkKg, 0)} unit="KG"
+                    value={totals.bulkDisplay} unit=""
                     sub={`across ${totals.bulkLots} lots · live`} health={78} />
                 <KpiTile tone="violet" icon="🌀" label="Active rolls"
                     value={formatNumber(totals.rollCount)} unit={totals.rollCount === 1 ? "roll" : "rolls"}
                     sub={`${formatNumber(totals.rollKg, 0)} KG total · matrix below`} health={62} />
                 <KpiTile tone="amber" icon="📦" label="Packaging materials"
-                    value={formatNumber(totals.pkgPcs, 0)} unit="PCS"
+                    value={totals.pkgDisplay} unit=""
                     sub={`${totals.pkgRows} packing rows · ${totals.podRows} POD rows separate`} health={84} />
             </div>
 
@@ -468,8 +506,8 @@ export function InventoryHomeV36() {
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Reservations open</span>
                         <span className="rounded-full bg-violet-100 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">SO holds visible to sales</span>
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">{formatNumber(totals.bulkKg * 0.25, 0)} KG reserved (est)</span>
-                        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{formatNumber(totals.bulkKg * 0.75, 0)} KG free (est)</span>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">{totals.bulkReservedDisplay} reserved (est)</span>
+                        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{totals.bulkFreeDisplay} free (est)</span>
                     </div>
                     <Link href="/inventory/period" className="text-[11px] font-bold text-blue-600 hover:underline">Period: open · close →</Link>
                 </div>
@@ -792,13 +830,13 @@ function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
 
 function PodTile({ row, onClick }: { row: any; onClick?: () => void }) {
     const qty = Number(row.qty || row.on_hand || 0)
-    const qtyDecimals = qtyDecimalsForUom(stockUom(row, "PCS"))
+    const qtyDecimals = qtyDecimalsForUom(stockUom(row, "KG"))
     const status = qty > 50 ? "ok" : qty > 0 ? "warn" : "empty"
     const TONE = { ok: "border-emerald-200 bg-emerald-50/40", warn: "border-amber-200 bg-amber-50/40", empty: "border-slate-200 bg-slate-50" } as const
     return (
         <button onClick={onClick} className={cn("w-full text-left rounded-lg border px-2.5 py-2 hover:shadow-md", TONE[status])}>
             <div className="font-mono text-[11px] font-bold text-slate-900 truncate">{row.code || "—"}</div>
-            <div className="mt-0.5 font-mono text-[10px] text-slate-700">{formatNumber(qty, qtyDecimals)} {stockUom(row, "PCS")}</div>
+            <div className="mt-0.5 font-mono text-[10px] text-slate-700">{formatNumber(qty, qtyDecimals)} {stockUom(row, "KG")}</div>
         </button>
     )
 }
@@ -892,7 +930,7 @@ function CellDrawer({ cell, row, col, onClose }: { cell: RollMatrixCell | undefi
 interface AgeingBuckets { fresh: number; aged: number; old: number; total: number }
 interface ClassBreakdown { roll: { kg: number; pct: number }; bulk: { kg: number; pct: number }; pack: { kg: number; pct: number } }
 
-function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets; classBreakdown: ClassBreakdown; totals: { rollCount: number; bulkLots: number; pkgRows: number; rollKg: number; bulkKg: number; pkgPcs: number } }) {
+function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets; classBreakdown: ClassBreakdown; totals: { rollCount: number; bulkLots: number; pkgRows: number; rollKg: number; bulkKg: number; pkgPcs: number; bulkDisplay: string; pkgDisplay: string } }) {
     return (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {/* Ageing donut */}
@@ -925,8 +963,8 @@ function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets
                 </div>
                 <div className="mt-3 space-y-2.5">
                     <BarRow color="bg-violet-500" label="Rolls" v={`${formatNumber(totals.rollKg, 0)} KG · ${totals.rollCount} rolls`} pct={Math.max(classBreakdown.roll.pct, 2)} />
-                    <BarRow color="bg-blue-500" label="Bulk" v={`${formatNumber(totals.bulkKg, 0)} KG · ${totals.bulkLots} lots`} pct={Math.max(classBreakdown.bulk.pct, 2)} />
-                    <BarRow color="bg-amber-500" label="Pack" v={`${formatNumber(totals.pkgPcs, 0)} pcs · ${totals.pkgRows} SKUs`} pct={Math.max(classBreakdown.pack.pct, 2)} />
+                    <BarRow color="bg-blue-500" label="Bulk" v={`${totals.bulkDisplay} · ${totals.bulkLots} lots`} pct={Math.max(classBreakdown.bulk.pct, 2)} />
+                    <BarRow color="bg-amber-500" label="Pack" v={`${totals.pkgDisplay} · ${totals.pkgRows} SKUs`} pct={Math.max(classBreakdown.pack.pct, 2)} />
                 </div>
             </div>
 
@@ -944,15 +982,15 @@ function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                         <div className="rounded-lg bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-100">
                             <div className="text-[9px] font-black uppercase tracking-wide text-emerald-700">In</div>
-                            <div className="font-mono font-bold text-emerald-800">+{formatNumber((totals.bulkKg + totals.rollKg) * 0.18, 0)} KG</div>
+                            <div className="font-mono font-bold text-emerald-800">+{formatNumber((totals.bulkKg + totals.rollKg) * 0.18, 0)} stock units</div>
                         </div>
                         <div className="rounded-lg bg-rose-50 px-2 py-1.5 ring-1 ring-rose-100">
                             <div className="text-[9px] font-black uppercase tracking-wide text-rose-700">Out</div>
-                            <div className="font-mono font-bold text-rose-800">−{formatNumber((totals.bulkKg + totals.rollKg) * 0.12, 0)} KG</div>
+                            <div className="font-mono font-bold text-rose-800">−{formatNumber((totals.bulkKg + totals.rollKg) * 0.12, 0)} stock units</div>
                         </div>
                         <div className="rounded-lg bg-blue-50 px-2 py-1.5 ring-1 ring-blue-100">
                             <div className="text-[9px] font-black uppercase tracking-wide text-blue-700">Net</div>
-                            <div className="font-mono font-bold text-blue-800">+{formatNumber((totals.bulkKg + totals.rollKg) * 0.06, 0)} KG</div>
+                            <div className="font-mono font-bold text-blue-800">+{formatNumber((totals.bulkKg + totals.rollKg) * 0.06, 0)} stock units</div>
                         </div>
                     </div>
                 </div>
@@ -1034,7 +1072,7 @@ function Sparkline() {
 // ─── Bulk & Packaging drawers ───────────────────────────────────────────
 
 function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
-    const onhand = Number(row.qty_kg || row.on_hand_qty || row.qty || 0) || 0
+    const onhand = rowQty(row)
     const reserved = Number(row.reserved_qty || 0) || 0
     const available = Math.max(0, onhand - reserved)
     const reservationPct = onhand > 0 ? Math.round((reserved / onhand) * 100) : 0
@@ -1095,7 +1133,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-mono text-[11px] font-bold text-violet-800">{r.so_no || r.so_id || "—"}</span>
-                                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatNumber(Number(r.qty || 0), 1)} {r.uom || "KG"}</span>
+                                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatNumber(Number(r.qty || 0), 1)} {r.uom || stockUom(row)}</span>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5">{r.customer_name || "Customer"} · promise {r.promise_date || "—"}</div>
                             </div>
@@ -1117,6 +1155,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     const qty = Number(row.qty || row.on_hand || 0) || 0
     const reserved = Number(row.reserved_qty || 0) || 0
     const available = Math.max(0, qty - reserved)
+    const uomFallback = isPodPackagingRow(row) ? "KG" : "PCS"
     const rsvQuery = useQuery({
         queryKey: ["inventory-reservations", "PACKAGING", row.id],
         queryFn: () => inventoryService.getInventoryReservations({ ref_id: row.id, ref_type: "PACKAGING" }),
@@ -1138,9 +1177,9 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                         <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X className="h-4 w-4 text-slate-500" /></button>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                        <Stat label="On hand" value={`${formatNumber(qty)} ${row.uom || "PCS"}`} tone="slate" />
-                        <Stat label="Reserved" value={`${formatNumber(reserved)}`} tone="violet" />
-                        <Stat label="Available" value={`${formatNumber(available)}`} tone="emerald" />
+                        <Stat label="On hand" value={`${formatNumber(qty, qtyDecimalsForUom(stockUom(row, uomFallback)))} ${stockUom(row, uomFallback)}`} tone="slate" />
+                        <Stat label="Reserved" value={`${formatNumber(reserved, qtyDecimalsForUom(stockUom(row, uomFallback)))} ${stockUom(row, uomFallback)}`} tone="violet" />
+                        <Stat label="Available" value={`${formatNumber(available, qtyDecimalsForUom(stockUom(row, uomFallback)))} ${stockUom(row, uomFallback)}`} tone="emerald" />
                     </div>
                 </div>
                 <div className="px-5 py-4 space-y-4">
@@ -1163,7 +1202,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-mono text-[11px] font-bold text-violet-800">{r.so_no || r.so_id || "—"}</span>
-                                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatNumber(Number(r.qty || 0))} {r.uom || row.uom || "PCS"}</span>
+                                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatNumber(Number(r.qty || 0), qtyDecimalsForUom(String(r.uom || stockUom(row, uomFallback)).toUpperCase()))} {r.uom || stockUom(row, uomFallback)}</span>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-0.5">{r.customer_name || "Customer"} · promise {r.promise_date || "—"}</div>
                             </div>
@@ -1200,7 +1239,7 @@ function Field({ label, value }: { label: string; value: any }) {
 
 // ─── Workspace launcher tiles ─────────────────────────────────────
 
-function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: number; pkgRows: number; podRows: number; podPcs: number; rollKg: number; bulkKg: number; pkgPcs: number } }) {
+function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: number; pkgRows: number; podRows: number; podPcs: number; rollKg: number; bulkKg: number; pkgPcs: number; bulkDisplay: string; pkgDisplay: string; podDisplay: string } }) {
     const TILES = [
         {
             href: "/inventory/rolls",
@@ -1221,7 +1260,7 @@ function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: 
             subtitle: "Granules · resins · health bars · plant split",
             kpis: [
                 { label: "Lots", value: formatNumber(totals.bulkLots) },
-                { label: "KG", value: formatNumber(totals.bulkKg, 0) },
+                { label: "Stock", value: totals.bulkDisplay },
             ],
         },
         {
@@ -1232,7 +1271,7 @@ function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: 
             subtitle: "Inner pouch · gunny · carton · sheet · tape",
             kpis: [
                 { label: "SKUs", value: formatNumber(totals.pkgRows) },
-                { label: "PCS", value: formatNumber(totals.pkgPcs, 0) },
+                { label: "Stock", value: totals.pkgDisplay },
             ],
         },
         {
@@ -1243,7 +1282,7 @@ function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: 
             subtitle: "POD sleeves only · details and stock",
             kpis: [
                 { label: "Rows", value: formatNumber(totals.podRows) },
-                { label: "PCS", value: formatNumber(totals.podPcs, 0) },
+                { label: "Stock", value: totals.podDisplay },
             ],
         },
         {

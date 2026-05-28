@@ -2,10 +2,16 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from apps.factory.models import Plant
-from apps.inventory.models import InventoryBulk, InventoryLocation, Vendor
+from apps.inventory.models import BulkTransaction, InventoryBulk, InventoryLocation, Vendor
+from apps.inventory.serializers import BulkTransactionSerializer, InventoryBulkSerializer
+from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.grn import GRNService
+from apps.inventory.services.grn_history import GRNHistoryService
+from apps.inventory.views import _stock_snapshot_payload
 from apps.materials.models import InventoryMaterial
 from apps.materials.serializers import InventoryMaterialSerializer
 
@@ -78,6 +84,112 @@ class AddonBulkGrnTests(TestCase):
         self.assertEqual(stock.material.base_uom, "METER")
         self.assertEqual(tx.material, addon)
         self.assertEqual(tx.qty_kg, Decimal("1250.0000"))
+
+    def test_meter_addon_keeps_meter_uom_in_history_snapshot_and_serializers(self):
+        addon = InventoryMaterial.objects.create(
+            code="ZIP-METER-VIEW",
+            name="Meter zipper view",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        tx = GRNService.create_bulk_grn(
+            material=addon,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=Decimal("1250"),
+            plant=self.plant,
+            cost=Decimal("0.42"),
+            reference="ADDON-METER-VIEW-GRN",
+            vendor_invoice_no="MTR-VIEW-001",
+            manual_po_ref="VND-PO-MTR-001",
+        )
+        stock = InventoryBulk.objects.get(material=addon, location=self.location)
+
+        self.assertEqual(InventoryBulkSerializer(stock).data["uom"], "METER")
+        tx_payload = BulkTransactionSerializer(tx).data
+        self.assertEqual(tx_payload["uom"], "METER")
+        self.assertEqual(tx_payload["vendor_name"], "Addon Vendor")
+
+        history = GRNHistoryService.list_history({"source_type": "BULK", "search": "ZIP-METER-VIEW"})
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["uom"], "METER")
+        self.assertEqual(history[0]["vendor_name"], "Addon Vendor")
+        self.assertEqual(history[0]["manual_po_ref"], "VND-PO-MTR-001")
+
+        request = Request(APIRequestFactory().get("/api/inventory/v36/snapshot/"))
+        snapshot = _stock_snapshot_payload(request)
+        row = next(item for item in snapshot["bulk"] if item["material_code"] == "ZIP-METER-VIEW")
+        self.assertEqual(row["uom"], "METER")
+        self.assertEqual(row["vendor_name"], "Addon Vendor")
+        self.assertEqual(row["last_grn_no"], "MTR-VIEW-001")
+
+    def test_meter_addon_consumption_reduces_meter_stock(self):
+        addon = InventoryMaterial.objects.create(
+            code="ZIP-METER-CONSUME",
+            name="Meter zipper consume",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        GRNService.create_bulk_grn(
+            material=addon,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=Decimal("1250"),
+            plant=self.plant,
+            cost=Decimal("0.42"),
+            reference="ADDON-METER-CONSUME-GRN",
+            vendor_invoice_no="MTR-CONSUME-001",
+        )
+        tx = BulkService.consume_bulk(
+            material_id=str(addon.id),
+            qty=Decimal("250"),
+            location_id=str(self.location.id),
+            reference="SO-CONSUME-ZIP-METER",
+        )
+
+        stock = InventoryBulk.objects.get(material=addon, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("1000.0000"))
+        self.assertEqual(tx.qty_kg, Decimal("-250.0000"))
+        self.assertEqual(BulkTransaction.objects.filter(material=addon, type="CONSUME").count(), 1)
+        self.assertEqual(BulkTransactionSerializer(tx).data["uom"], "METER")
+
+    def test_snapshot_uses_legacy_reference_vendor_when_vendor_fk_is_missing(self):
+        addon = InventoryMaterial.objects.create(
+            code="ZIP-METER-LEGACY",
+            name="Meter zipper legacy",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        BulkService.add_bulk(
+            material_id=str(addon.id),
+            qty=Decimal("1250"),
+            plant_id=str(self.plant.id),
+            location_id=str(self.location.id),
+            cost=Decimal("0.42"),
+            reference="VENDOR:Legacy Zipper Vendor | LEGACY-GRN-001",
+        )
+
+        request = Request(APIRequestFactory().get("/api/inventory/v36/snapshot/"))
+        snapshot = _stock_snapshot_payload(request)
+        row = next(item for item in snapshot["bulk"] if item["material_code"] == "ZIP-METER-LEGACY")
+        self.assertEqual(row["uom"], "METER")
+        self.assertEqual(row["vendor_name"], "Legacy Zipper Vendor")
+        self.assertEqual(row["last_grn_no"], "VENDOR:Legacy Zipper Vendor | LEGACY-GRN-001")
 
     def test_material_library_serializer_exposes_purchase_flags_for_grn_picker(self):
         addon = InventoryMaterial.objects.create(

@@ -59,7 +59,7 @@ class GRNHistoryService:
         date_to = params.get("date_to") or params.get("to")
 
         if source in {"ALL", "BULK"}:
-            qs = BulkTransaction.objects.select_related("material", "granule_code", "location", "location__plant").filter(type="INWARD")
+            qs = BulkTransaction.objects.select_related("material", "granule_code", "location", "location__plant", "vendor").filter(type="INWARD")
             if material:
                 qs = qs.filter(material_id=material)
             if plant:
@@ -149,7 +149,10 @@ class GRNHistoryService:
 
     @staticmethod
     def _bulk_row(tx: BulkTransaction) -> dict[str, Any]:
-        vendor = _vendor_from_reference(tx.reference or "")
+        reference_vendor = _vendor_from_reference(tx.reference or "")
+        vendor_code = tx.vendor.code if tx.vendor_id and tx.vendor else reference_vendor.get("vendor_code")
+        vendor_name = tx.vendor.name if tx.vendor_id and tx.vendor else reference_vendor.get("vendor_name")
+        uom = (tx.material.base_uom if tx.material else "") or "KG"
         return {
             "id": str(tx.id),
             "source_type": "BULK",
@@ -164,13 +167,17 @@ class GRNHistoryService:
             "location": str(tx.location_id),
             "location_name": tx.location.name if tx.location else "",
             "quantity": _float(tx.qty_kg),
-            "uom": "KG",
+            "uom": uom,
+            "base_uom": uom,
+            "stock_uom": uom,
             "avg_cost": _float(tx.avg_cost),
             "reference": tx.reference or "",
             "vendor_invoice_no": tx.vendor_invoice_no or "",
             "manual_po_ref": tx.manual_po_ref or "",
+            "vendor": str(tx.vendor_id) if tx.vendor_id else None,
+            "vendor_code": vendor_code,
+            "vendor_name": vendor_name,
             "created_at": tx.created_at.isoformat() if tx.created_at else None,
-            **vendor,
         }
 
     @staticmethod
