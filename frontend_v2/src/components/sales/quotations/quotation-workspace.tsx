@@ -1902,6 +1902,12 @@ function CustomQuoteLane({
                                     {activeLine.addons.map((addon, addonIndex) => {
                                         const addonMeta = addons.find((entry: any) => String(entry.id) === String(addon.addon_id))
                                         const mode = String(addonMeta?.weight_mode || "PER_PIECE").toUpperCase()
+                                        const qtyLabel = mode === "PER_MM" ? "Runs / pouch" : mode === "PER_PIECE" ? "Count / pouch" : "Multiplier / pouch"
+                                        const qtyHint = mode === "PER_MM"
+                                            ? "Length comes from pouch size; this is only the number of zipper/tape runs."
+                                            : mode === "PER_PIECE"
+                                              ? "Use this for counted add-ons like air holes, D-cut, handle, or spout pieces."
+                                              : "Use this only when the add-on has a fixed per-pouch weight."
                                         return (
                                             <div key={addon.localId} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 xl:grid-cols-[1.2fr_120px_180px_auto]">
                                                 <FieldSelect label={`Add-on ${addonIndex + 1}`} value={addon.addon_id || "NONE"} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, addons: current.addons.map((row, idx) => idx === addonIndex ? { ...row, addon_id: value === "NONE" ? "" : value } : row) }))}>
@@ -1910,7 +1916,10 @@ function CustomQuoteLane({
                                                         <SelectItem key={entry.id} value={entry.id}>{entry.name}</SelectItem>
                                                     ))}
                                                 </FieldSelect>
-                                                <FieldNumber label="Qty" value={addon.qty} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, addons: current.addons.map((row, idx) => idx === addonIndex ? { ...row, qty: value } : row) }))} />
+                                                <div>
+                                                    <FieldNumber label={qtyLabel} value={addon.qty} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, addons: current.addons.map((row, idx) => idx === addonIndex ? { ...row, qty: value } : row) }))} />
+                                                    <div className="mt-1 text-[10px] font-semibold leading-snug text-slate-500">{qtyHint}</div>
+                                                </div>
                                                 {mode === "PER_MM" ? (
                                                     <FieldSelect label="Applies To" value={addon.applies_to} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, addons: current.addons.map((row, idx) => idx === addonIndex ? { ...row, applies_to: value as AddonDraft["applies_to"] } : row) }))}>
                                                         <SelectItem value="WIDTH">Per MM - Width</SelectItem>

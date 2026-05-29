@@ -76,6 +76,7 @@ class PackagingService:
         input_uom=None,
         vendor_invoice_no="",
         manual_po_ref="",
+        allow_duplicate_vendor_invoice=False,
     ):
         material = InventoryMaterial.objects.get(id=material_id)
         cls._validate_packaging_material(material)
@@ -87,7 +88,9 @@ class PackagingService:
         invoice_no = (vendor_invoice_no or "").strip()
         if not invoice_no and isinstance(meta_json, dict):
             invoice_no = str(meta_json.get("vendor_invoice_no") or "").strip()
-        if vendor_id and invoice_no:
+        if vendor_id and invoice_no and not allow_duplicate_vendor_invoice:
+            from apps.inventory.models import Vendor
+            Vendor.objects.select_for_update().filter(id=vendor_id).first()
             if PackagingTransaction.objects.filter(
                 vendor_id=vendor_id, vendor_invoice_no=invoice_no
             ).exists():

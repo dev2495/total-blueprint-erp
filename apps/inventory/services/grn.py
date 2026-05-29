@@ -58,6 +58,7 @@ class GRNService:
                         granule_code: str | None = None,
                         vendor_invoice_no: str = "",
                         manual_po_ref: str = "",
+                        allow_duplicate_vendor_invoice: bool = False,
                         # Compatibility aliases used by some tests/callers:
                         qty=None,
                         rate=None,
@@ -89,7 +90,8 @@ class GRNService:
 
         # Vendor-invoice dedup (safety net; constraint is the source of truth).
         invoice_no = (vendor_invoice_no or "").strip()
-        if vendor and invoice_no:
+        if vendor and invoice_no and not allow_duplicate_vendor_invoice:
+            Vendor.objects.select_for_update().filter(id=vendor.id).first()
             from apps.inventory.models import BulkTransaction
             if BulkTransaction.objects.filter(
                 vendor=vendor, vendor_invoice_no=invoice_no
@@ -147,6 +149,7 @@ class GRNService:
             vendor_id=str(vendor.id),
             vendor_invoice_no=invoice_no,
             manual_po_ref=(manual_po_ref or "").strip(),
+            allow_duplicate_vendor_invoice=allow_duplicate_vendor_invoice,
         )
 
     @classmethod
@@ -159,7 +162,8 @@ class GRNService:
                         rolls_data: List[Dict[str, Any]],
                         reference: str = "",
                         vendor_invoice_no: str = "",
-                        manual_po_ref: str = "") -> List[InventoryRoll]:
+                        manual_po_ref: str = "",
+                        allow_duplicate_vendor_invoice: bool = False) -> List[InventoryRoll]:
         """
         Phase 56: Record a Roll Goods Receipt (Multiple Rolls).
         Creates InventoryRoll objects with full physical specs.
@@ -183,7 +187,8 @@ class GRNService:
         cls._validate_vendor(vendor)
 
         invoice_no = (vendor_invoice_no or "").strip()
-        if vendor and invoice_no:
+        if vendor and invoice_no and not allow_duplicate_vendor_invoice:
+            Vendor.objects.select_for_update().filter(id=vendor.id).first()
             if InventoryRoll.objects.filter(
                 vendor=vendor, vendor_invoice_no=invoice_no
             ).exists():

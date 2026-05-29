@@ -370,13 +370,6 @@ class BulkTransaction(models.Model):
     class Meta:
         db_table = 'inventory_bulk_transactions'
         ordering = ['-created_at']
-        constraints = [
-            models.UniqueConstraint(
-                fields=["vendor", "vendor_invoice_no"],
-                condition=models.Q(vendor_invoice_no__gt="") & models.Q(vendor__isnull=False),
-                name="uniq_bulk_tx_vendor_invoice",
-            ),
-        ]
 
 
 class PackagingStock(models.Model):
@@ -440,13 +433,6 @@ class PackagingTransaction(models.Model):
     class Meta:
         db_table = 'inventory_packaging_transactions'
         ordering = ['-created_at']
-        constraints = [
-            models.UniqueConstraint(
-                fields=["vendor", "vendor_invoice_no"],
-                condition=models.Q(vendor_invoice_no__gt="") & models.Q(vendor__isnull=False),
-                name="uniq_pkg_tx_vendor_invoice",
-            ),
-        ]
 
 
 class InventoryCorrectionAudit(models.Model):

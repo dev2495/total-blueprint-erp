@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
-from apps.inventory.models import InventoryAuditBatch, InventoryBulk, InventoryLocation, InventoryRoll, PackagingStock, Vendor
+from apps.inventory.models import BulkTransaction, InventoryAuditBatch, InventoryBulk, InventoryLocation, InventoryRoll, PackagingStock, Vendor
 from apps.materials.models import InventoryMaterial
 from apps.users.models import Role, User
 
@@ -30,6 +30,7 @@ class InventoryV36ApiTests(TestCase):
         self.location = InventoryLocation.objects.create(plant=self.plant, code="RM-V36", name="V36 RM", type="RM")
         self.vendor = Vendor.objects.create(name="V36 Vendor", code="V36-V", type="RM", status="ACTIVE")
         self.bulk_material = InventoryMaterial.objects.create(code="V36-GRANULE", name="V36 Granule", category="GRANULE", base_uom="KG")
+        self.bulk_material_two = InventoryMaterial.objects.create(code="V36-GRANULE-2", name="V36 Granule 2", category="GRANULE", base_uom="KG")
         self.family = InventoryMaterial.objects.create(code="V36-FAMILY", name="V36 Family", category="FILM_FAMILY", base_uom="KG")
         self.roll_material = InventoryMaterial.objects.create(
             code="V36-ROLL",
@@ -76,6 +77,98 @@ class InventoryV36ApiTests(TestCase):
         snapshot = self.client.get("/api/inventory/snapshot/", {"plant_id": str(self.plant.id)})
         self.assertEqual(snapshot.status_code, 200, snapshot.json())
         self.assertTrue(any(row["material_code"] == self.bulk_material.code for row in snapshot.json()["bulk"]))
+
+    def test_unified_bulk_grn_allows_multiple_lines_on_one_vendor_invoice(self):
+        response = self.client.post(
+            "/api/inventory/grn/create/",
+            {
+                "klass": "BULK",
+                "vendor_id": str(self.vendor.id),
+                "store_location_id": str(self.location.id),
+                "vendor_invoice_no": "V36-MULTI-INV",
+                "lines": [
+                    {
+                        "material_code": self.bulk_material.code,
+                        "qty": "125.5",
+                        "uom": "KG",
+                        "rate_per_uom": "82.5",
+                        "lot_no": "LOT-A",
+                    },
+                    {
+                        "material_code": self.bulk_material_two.code,
+                        "qty": "210",
+                        "uom": "KG",
+                        "rate_per_uom": "91",
+                        "lot_no": "LOT-B",
+                    },
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        self.assertEqual(len(response.json()["stock_movements"]), 2)
+        self.assertEqual(
+            BulkTransaction.objects.filter(vendor=self.vendor, vendor_invoice_no="V36-MULTI-INV").count(),
+            2,
+        )
+        self.assertEqual(InventoryBulk.objects.get(material=self.bulk_material, location=self.location).qty_kg, Decimal("125.5000"))
+        self.assertEqual(InventoryBulk.objects.get(material=self.bulk_material_two, location=self.location).qty_kg, Decimal("210.0000"))
+
+        duplicate = self.client.post(
+            "/api/inventory/grn/create/",
+            {
+                "klass": "BULK",
+                "vendor_id": str(self.vendor.id),
+                "store_location_id": str(self.location.id),
+                "vendor_invoice_no": "V36-MULTI-INV",
+                "lines": [
+                    {
+                        "material_code": self.bulk_material.code,
+                        "qty": "1",
+                        "uom": "KG",
+                        "rate_per_uom": "82.5",
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertIn("duplicate vendor invoice", str(duplicate.json()).lower())
+        self.assertEqual(
+            BulkTransaction.objects.filter(vendor=self.vendor, vendor_invoice_no="V36-MULTI-INV").count(),
+            2,
+        )
+
+    def test_unified_bulk_grn_multiline_failure_rolls_back_first_line(self):
+        response = self.client.post(
+            "/api/inventory/grn/create/",
+            {
+                "klass": "BULK",
+                "vendor_id": str(self.vendor.id),
+                "store_location_id": str(self.location.id),
+                "vendor_invoice_no": "V36-ROLLBACK-INV",
+                "lines": [
+                    {
+                        "material_code": self.bulk_material.code,
+                        "qty": "50",
+                        "uom": "KG",
+                        "rate_per_uom": "82.5",
+                    },
+                    {
+                        "material_code": "DOES-NOT-EXIST",
+                        "qty": "25",
+                        "uom": "KG",
+                        "rate_per_uom": "91",
+                    },
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(BulkTransaction.objects.filter(vendor=self.vendor, vendor_invoice_no="V36-ROLLBACK-INV").exists())
+        self.assertFalse(InventoryBulk.objects.filter(material=self.bulk_material, location=self.location).exists())
 
     def test_unified_roll_grn_validates_tare_math_and_creates_roll(self):
         response = self.client.post(

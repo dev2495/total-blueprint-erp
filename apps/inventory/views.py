@@ -1099,6 +1099,30 @@ class StockViewSet(viewsets.ViewSet):
 class GRNViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _vendor_invoice_exists(klass: str, vendor: Vendor, invoice_no: str) -> bool:
+        invoice_no = str(invoice_no or "").strip()
+        if not invoice_no:
+            return False
+        if klass == "BULK":
+            return BulkTransaction.objects.filter(
+                vendor=vendor,
+                vendor_invoice_no=invoice_no,
+                type="INWARD",
+            ).exists()
+        if klass == "PACKAGING":
+            return PackagingTransaction.objects.filter(
+                vendor=vendor,
+                vendor_invoice_no=invoice_no,
+                type="INWARD",
+            ).exists()
+        if klass == "ROLL":
+            return InventoryRoll.objects.filter(
+                vendor=vendor,
+                vendor_invoice_no=invoice_no,
+            ).exists()
+        return False
+
     @action(detail=False, methods=['get'], url_path='history')
     def history(self, request):
         """Normalized inward history across bulk, roll, and packaging GRNs."""
@@ -1130,6 +1154,7 @@ class GRNViewSet(viewsets.ViewSet):
             return Response({"error": str(getattr(e, "message", "") or e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='create')
+    @transaction.atomic
     def create_unified(self, request):
         """
         V3.6 Smart GRN adapter.
@@ -1168,13 +1193,18 @@ class GRNViewSet(viewsets.ViewSet):
 
         try:
             StockLifecycleService.ensure_default_period()
+            if invoice_no:
+                Vendor.objects.select_for_update().filter(id=vendor.id).first()
+                if self._vendor_invoice_exists(klass, vendor, invoice_no):
+                    raise ValidationError(f"Duplicate vendor invoice '{invoice_no}' for vendor {vendor.name}.")
+
             for line in lines:
                 line = dict(line or {})
                 material = _resolve_material_from_payload(line)
                 location = _resolve_location_from_payload(line, fallback_id=fallback_location_id)
                 plant = location.plant
                 if request.data.get("plant_id") and str(plant.id) != str(request.data.get("plant_id")):
-                    return Response({"error": "Receiving location does not belong to selected plant."}, status=status.HTTP_400_BAD_REQUEST)
+                    raise ValidationError("Receiving location does not belong to selected plant.")
 
                 line_ref = " | ".join(part for part in [
                     receipt_ref,
@@ -1196,6 +1226,7 @@ class GRNViewSet(viewsets.ViewSet):
                         granule_code=line.get("granule_code") or "",
                         vendor_invoice_no=invoice_no,
                         manual_po_ref=manual_po_ref,
+                        allow_duplicate_vendor_invoice=True,
                     )
                     total_qty += qty
                     total_value += qty * rate
@@ -1214,6 +1245,7 @@ class GRNViewSet(viewsets.ViewSet):
                         input_uom=line.get("uom") or getattr(material, "base_uom", None),
                         vendor_invoice_no=invoice_no,
                         manual_po_ref=manual_po_ref,
+                        allow_duplicate_vendor_invoice=True,
                         meta_json={
                             "vendor_invoice_no": invoice_no,
                             "packaging_kind": line.get("packaging_kind") or getattr(material, "packaging_kind", ""),
@@ -1260,6 +1292,7 @@ class GRNViewSet(viewsets.ViewSet):
                         reference=line_ref,
                         vendor_invoice_no=invoice_no,
                         manual_po_ref=manual_po_ref,
+                        allow_duplicate_vendor_invoice=True,
                     )
                     roll = created[0]
                     update_fields = []
@@ -1288,8 +1321,10 @@ class GRNViewSet(viewsets.ViewSet):
                     created_refs.append({"id": str(roll.id), "ref": roll.label_id, "type": "ROLL"})
 
         except (ValidationError, InventoryMaterial.DoesNotExist, InventoryLocation.DoesNotExist) as exc:
+            transaction.set_rollback(True)
             return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as exc:
+            transaction.set_rollback(True)
             return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         grn_no = f"GRN/{timezone.now().strftime('%Y/%m')}/{str(uuid.uuid4())[:5].upper()}"

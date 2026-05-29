@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Sum
-from apps.inventory.models import InventoryBulk, BulkTransaction, InventoryLocation
+from apps.inventory.models import InventoryBulk, BulkTransaction, InventoryLocation, Vendor
 from apps.inventory.services.wac import apply_wac, dec, q4
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
 
@@ -27,7 +27,7 @@ class BulkService:
 
     @classmethod
     @transaction.atomic
-    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None, granule_code_id=None, vendor_id=None, vendor_invoice_no="", manual_po_ref=""):
+    def add_bulk(cls, material_id, qty, plant_id, location_id, cost=0, reference="", tx_type="INWARD", job_id=None, granule_code_id=None, vendor_id=None, vendor_invoice_no="", manual_po_ref="", allow_duplicate_vendor_invoice=False):
         """
         Increase bulk quantity and update average cost.
         Used by GRN and manual adjustments.
@@ -40,7 +40,8 @@ class BulkService:
         quality_code = cls._resolve_granule_code(material_id, granule_code_id)
 
         # Vendor invoice dedup (partial unique by vendor + vendor_invoice_no).
-        if vendor_id and vendor_invoice_no:
+        if vendor_id and vendor_invoice_no and not allow_duplicate_vendor_invoice:
+            Vendor.objects.select_for_update().filter(id=vendor_id).first()
             if BulkTransaction.objects.filter(
                 vendor_id=vendor_id, vendor_invoice_no=vendor_invoice_no
             ).exists():

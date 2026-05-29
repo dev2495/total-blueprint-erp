@@ -48,6 +48,7 @@ import { LiveBomRail } from "@/components/erp/live-bom-rail"
 import {
     productMasterService,
     type ProductMaster,
+    type ProductMasterSize,
     type VariantAxisDef,
 } from "@/services/product-master"
 import {
@@ -383,7 +384,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                             {/* Addons */}
                             {addonAxis ? (
                                 <FieldGroup label="Add-ons" hint={addonAxis.required ? "required" : "optional"}>
-                                    <AddonPicker addons={allowedAddonMasters} selected={line.addons} onChange={(addons) => onPatch({ addons })} />
+                                    <AddonPicker addons={allowedAddonMasters} selected={line.addons} selectedSize={selectedSize} orderQty={line.qty_value} orderUom={line.qty_uom} onChange={(addons) => onPatch({ addons })} />
                                 </FieldGroup>
                             ) : null}
 
@@ -835,30 +836,105 @@ function CatalogAxisField({ master, axis, value, onChange }: { master: ProductMa
     )
 }
 
-function AddonPicker({ addons, selected, onChange }: { addons: Addon[]; selected: string[]; onChange: (codes: string[]) => void }) {
+function AddonPicker({
+    addons,
+    selected,
+    selectedSize,
+    orderQty,
+    orderUom,
+    onChange,
+}: {
+    addons: Addon[]
+    selected: string[]
+    selectedSize?: ProductMasterSize
+    orderQty: number
+    orderUom: string
+    onChange: (codes: string[]) => void
+}) {
     if (!addons.length) {
         return <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">No add-ons allowed on this Product Master.</div>
     }
+    const selectedRows = addons.filter((addon) => selected.includes(addon.code))
     return (
-        <div className="flex flex-wrap gap-1.5">
-            {addons.map((a) => {
-                const active = selected.includes(a.code)
-                return (
-                    <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => onChange(active ? selected.filter((x) => x !== a.code) : [...selected, a.code])}
-                        className={cn(
-                            "rounded-full px-3 py-1.5 text-[11px] font-bold ring-1 ring-inset",
-                            active ? "bg-amber-500 text-white ring-amber-600 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-amber-50 hover:text-amber-800 hover:ring-amber-200",
-                        )}
-                    >
-                        {a.name || a.code}
-                    </button>
-                )
-            })}
+        <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+                {addons.map((a) => {
+                    const active = selected.includes(a.code)
+                    return (
+                        <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => onChange(active ? selected.filter((x) => x !== a.code) : [...selected, a.code])}
+                            className={cn(
+                                "rounded-full px-3 py-1.5 text-left text-[11px] font-bold ring-1 ring-inset",
+                                active ? "bg-amber-500 text-white ring-amber-600 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-amber-50 hover:text-amber-800 hover:ring-amber-200",
+                            )}
+                        >
+                            <span>{a.name || a.code}</span>
+                            <span className={cn("ml-1 font-mono text-[9px] uppercase", active ? "text-amber-50" : "text-slate-400")}>{addonUsageKind(a)}</span>
+                        </button>
+                    )
+                })}
+            </div>
+            {selectedRows.length ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Add-on usage preview</div>
+                    <div className="mt-1 space-y-1">
+                        {selectedRows.map((addon) => (
+                            <div key={`addon-preview-${addon.id}`} className="text-[11px] font-semibold text-amber-900">
+                                <span className="font-bold">{addon.name || addon.code}</span>
+                                <span className="text-amber-700"> · {addonUsagePreview(addon, selectedSize, orderQty, orderUom)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
         </div>
     )
+}
+
+function addonUsageKind(addon: Addon) {
+    const mode = String(addon.weight_mode || "").toUpperCase()
+    const uom = String(addon.addon_purchase_uom || addon.base_uom || "").toUpperCase()
+    if (mode === "PER_MM") return uom === "METER" ? "run length" : "per mm"
+    if (mode === "PER_PIECE") return "count/pouch"
+    if (mode === "FIXED") return "multiplier"
+    return "usage"
+}
+
+function addonUsagePreview(addon: Addon, selectedSize?: ProductMasterSize, orderQty = 0, orderUom = "PCS") {
+    const mode = String(addon.weight_mode || "").toUpperCase()
+    const uom = String(addon.addon_purchase_uom || addon.base_uom || "KG").toUpperCase()
+    const qty = Math.max(0, Number(orderQty || 0))
+    const qtyLabel = String(orderUom || "PCS").toUpperCase() === "PCS" ? "pouches" : `${String(orderUom || "units").toUpperCase()} entered`
+    const weightValue = Math.max(0, Number(addon.weight_value || 0))
+    const widthMm = Math.max(0, Number(selectedSize?.width_mm || 0))
+    const heightMm = Math.max(0, Number(selectedSize?.height_mm || 0))
+    const dimensionMm = widthMm || heightMm
+
+    if (mode === "PER_MM" && dimensionMm > 0) {
+        const meterQty = (dimensionMm * qty) / 1000
+        const weightKg = (weightValue * dimensionMm * qty) / 1000
+        const stockPart = uom === "METER" ? `${fmtAddonNumber(meterQty)} METER stock` : `${fmtAddonNumber(weightKg)} KG stock`
+        return `1 run/pouch x ${fmtAddonNumber(dimensionMm)} mm x ${fmtAddonNumber(qty, 0)} ${qtyLabel} = ${stockPart}; weight math ${fmtAddonNumber(weightKg)} KG`
+    }
+    if (mode === "PER_MM") {
+        return `Runs per pouch; stock uses selected size length once width/height is known. Weight value ${fmtAddonNumber(weightValue)} g/mm.`
+    }
+    if (mode === "PER_PIECE") {
+        const pieces = qty
+        const weightKg = (weightValue * qty) / 1000
+        return `Count per pouch: 1 x ${fmtAddonNumber(qty, 0)} ${qtyLabel} = ${fmtAddonNumber(pieces, 0)} ${uom}; weight math ${fmtAddonNumber(weightKg)} KG`
+    }
+    return `Multiplier per pouch: 1 x ${fmtAddonNumber(qty, 0)} ${qtyLabel}; stock UOM ${uom}.`
+}
+
+function fmtAddonNumber(value: number, digits = 2) {
+    if (!Number.isFinite(value)) return "0"
+    return value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: digits,
+    })
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
