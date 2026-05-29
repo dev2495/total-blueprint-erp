@@ -281,9 +281,15 @@ export default function WCMTerminal() {
     const wcId = params?.id as string
     const { toast } = useToast()
     const queryClient = useQueryClient()
-    const { user, effectiveRole } = useAuth()
+    const { user, effectiveRole, loading: authLoading } = useAuth()
     const userRole = effectiveRole || user?.role_info?.code
     const isManager = ["WORK_CENTER_MANAGER", "ADMIN", "OWNER", "SUPER_ADMIN"].includes(userRole || "")
+    const userPermissions: string[] = (user?.entitlements?.permissions || []) as string[]
+    const isSuperuser = Boolean(user?.is_superuser || user?.is_owner)
+    const hasProductionAccess = isSuperuser
+        || userPermissions.includes("production.view")
+        || userPermissions.includes("production.manage")
+        || ["WORK_CENTER_MANAGER", "OPERATOR", "PLANT_MANAGER", "ADMIN", "OWNER", "SUPER_ADMIN"].includes(userRole || "")
 
     const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null)
     const [activeMainTab, setActiveMainTab] = useState<"terminal" | "running" | "history">("terminal")
@@ -296,6 +302,7 @@ export default function WCMTerminal() {
     const [materialIssueDrafts, setMaterialIssueDrafts] = useState<Record<string, WcmMaterialIssueDraft>>({})
     const [queueSearch, setQueueSearch] = useState("")
     const [queueStatusFilter, setQueueStatusFilter] = useState<"ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE">("ALL")
+    const [queueSortKey, setQueueSortKey] = useState<"PRIORITY_ASC" | "PRIORITY_DESC" | "SO_DATE" | "CUSTOMER" | "MACHINE">("PRIORITY_ASC")
     const [historySearch, setHistorySearch] = useState("")
     const [historyStatusFilter, setHistoryStatusFilter] = useState("ALL")
     const [historyDaysFilter, setHistoryDaysFilter] = useState("30")
@@ -307,11 +314,24 @@ export default function WCMTerminal() {
     const autoAssignRef = useRef<Set<string>>(new Set())
 
     // 1. Data Fetching
-    const { data: assignments, isLoading } = useQuery({
+    const { data: assignments, isLoading, isError: queueIsError, error: queueError, refetch: refetchQueue } = useQuery({
         queryKey: ["wcm-queue", wcId],
         queryFn: () => wcmService.getQueue(wcId),
         refetchInterval: 5000 // Polling for new jobs
     })
+
+    // Live company-wide shift inference (CompanyProfile.shift_boundaries).
+    const { data: currentShift } = useQuery<{ shift_code: string; started_at: string | null; ends_at: string | null }>({
+        queryKey: ["production-current-shift"],
+        queryFn: async () => {
+            const { data } = await api.get("/api/production/current-shift/")
+            return data
+        },
+        // Re-poll roughly every 5 min to catch shift roll-over.
+        refetchInterval: 5 * 60 * 1000,
+        staleTime: 60 * 1000,
+    })
+    const shiftLabel = currentShift?.shift_code ? `Shift ${currentShift.shift_code}` : "Shift —"
 
     const { data: workCenter } = useQuery({
         queryKey: ["work-center", wcId],
@@ -383,8 +403,8 @@ export default function WCMTerminal() {
         }),
         [activeAssignments]
     )
-    const visibleQueueAssignments = useMemo(
-        () => baseQueueAssignments.filter((assignment: any) => {
+    const visibleQueueAssignments = useMemo(() => {
+        const filtered = baseQueueAssignments.filter((assignment: any) => {
             const job = assignment?.job_details || {}
             const status = String(assignment?.status || "").toUpperCase()
             const hasMachine = Boolean(assignment?.assigned_machine)
@@ -399,9 +419,26 @@ export default function WCMTerminal() {
                 .join(" ")
                 .toLowerCase()
                 .includes(search)
-        }),
-        [baseQueueAssignments, queueSearch, queueStatusFilter]
-    )
+        })
+
+        const sorted = [...filtered]
+        const cmpString = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" })
+        sorted.sort((a: any, b: any) => {
+            const ja = a?.job_details || {}
+            const jb = b?.job_details || {}
+            if (queueSortKey === "PRIORITY_ASC") return Number(ja.priority ?? 999) - Number(jb.priority ?? 999)
+            if (queueSortKey === "PRIORITY_DESC") return Number(jb.priority ?? 999) - Number(ja.priority ?? 999)
+            if (queueSortKey === "SO_DATE") {
+                const da = new Date(ja.order_placed_at || ja.created_at || 0).getTime()
+                const db = new Date(jb.order_placed_at || jb.created_at || 0).getTime()
+                return da - db
+            }
+            if (queueSortKey === "CUSTOMER") return cmpString(String(ja.customer_name || ""), String(jb.customer_name || ""))
+            if (queueSortKey === "MACHINE") return cmpString(String(a?.assigned_machine_name || ""), String(b?.assigned_machine_name || ""))
+            return 0
+        })
+        return sorted
+    }, [baseQueueAssignments, queueSearch, queueStatusFilter, queueSortKey])
     const visibleRunningAssignments = useMemo(
         () => runningAssignments.filter((assignment: any) => {
             const job = assignment?.job_details || {}
@@ -1476,6 +1513,43 @@ export default function WCMTerminal() {
         })
     }
 
+    if (!authLoading && user && !hasProductionAccess) {
+        return (
+            <div className="flex min-h-[60vh] items-center justify-center p-6" data-testid="wcm-access-denied">
+                <div className="max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center shadow-sm">
+                    <AlertCircle className="mx-auto mb-3 h-10 w-10 text-rose-600" />
+                    <div className="text-lg font-semibold text-rose-900">Access denied</div>
+                    <p className="mt-1 text-sm text-rose-700">
+                        Your role ({userRole || "n/a"}) does not have <code className="font-mono">production.view</code> or
+                        <code className="font-mono"> production.manage</code> permission for the Work Center terminal.
+                    </p>
+                    <a href="/dashboard" className="mt-4 inline-flex items-center rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+                        Back to dashboard
+                    </a>
+                </div>
+            </div>
+        )
+    }
+
+    if (queueIsError && !isLoading) {
+        return (
+            <div className="flex min-h-[60vh] items-center justify-center p-6" data-testid="wcm-queue-error">
+                <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-center shadow-sm">
+                    <AlertCircle className="mx-auto mb-3 h-10 w-10 text-rose-600" />
+                    <div className="text-lg font-semibold text-rose-900">Failed to load work-center queue</div>
+                    <div className="mt-1 text-xs text-slate-500">{String((queueError as any)?.message || "Network or server error")}</div>
+                    <Button
+                        type="button"
+                        onClick={() => refetchQueue()}
+                        className="mt-4 bg-rose-600 text-white hover:bg-rose-700"
+                    >
+                        Retry
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
     if (isLoading) {
         return (
             <div className="flex h-[50vh] items-center justify-center">
@@ -1585,7 +1659,7 @@ export default function WCMTerminal() {
                             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                                 <span>{workCenter?.plant_name || (workCenter as any)?.plant?.name || "Production plant"}</span>
                                 <span>·</span>
-                                <span>Shift A</span>
+                                <span data-testid="wcm-shift-label">{shiftLabel}</span>
                                 <span>·</span>
                                 <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                             </div>
@@ -1650,9 +1724,18 @@ export default function WCMTerminal() {
                                         {label}
                                     </button>
                                 ))}
-                                <button type="button" className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                                    Sort: Priority
-                                </button>
+                                <Select value={queueSortKey} onValueChange={(value) => setQueueSortKey(value as typeof queueSortKey)}>
+                                    <SelectTrigger className="h-9 w-[200px] rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700">
+                                        <SelectValue placeholder="Sort by" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="PRIORITY_ASC">Priority · highest first</SelectItem>
+                                        <SelectItem value="PRIORITY_DESC">Priority · lowest first</SelectItem>
+                                        <SelectItem value="SO_DATE">SO date · oldest first</SelectItem>
+                                        <SelectItem value="CUSTOMER">Customer (A→Z)</SelectItem>
+                                        <SelectItem value="MACHINE">Machine (A→Z)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                                 <button
                                     type="button"
                                     onClick={() => setActiveMainTab("running")}

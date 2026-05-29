@@ -123,6 +123,15 @@ export const wcmService = {
                     assign_job_ids?: string[];
                 } | null;
                 meta: Record<string, any>;
+                created_at?: string | null;
+                received_at?: string | null;
+                plant_id?: string | null;
+                plant_code?: string | null;
+                plant_name?: string | null;
+                location_code?: string | null;
+                location_name?: string | null;
+                created_by_job?: { job_number: string; completed_at: string | null } | null;
+                parent_roll?: { label_id: string; width_mm: number } | null;
             }>;
             target_width_mm: number | null;
             planned_parent_width_mm?: number | null;
@@ -138,6 +147,9 @@ export const wcmService = {
                 prefer_remainder_first: boolean;
                 parent_width_strategy: string;
             } | null;
+            job_plant_id?: string | null;
+            job_plant_code?: string | null;
+            remaining_qty_kg?: number | null;
         }>(`/api/production/jobs/${jobId}/tiered-rolls/`);
         return data;
     },
@@ -152,6 +164,32 @@ export const wcmService = {
         }>(
             `/api/production/jobs/${jobId}/allocate-with-slit/`,
             { roll_id: rollId, child_widths_mm: childWidthsMm, reason: reason || "" },
+        );
+        return data;
+    },
+
+    /**
+     * Atomic batch allocation. Posts every selected roll in a single transaction;
+     * any validation/runtime failure rolls the whole batch back.
+     */
+    allocateWithSlitBatch: async (
+        jobId: string,
+        picks: Array<{ roll_id: string; mode: "ONE" | "MAX" | "GANG"; reason?: string }>,
+        idempotencyKey?: string,
+    ) => {
+        const { data } = await api.post<{
+            job_id: string;
+            picks_count: number;
+            total_qty_allocated_kg: number;
+            child_rolls: Array<{ roll_id: string; label_id: string; width_mm: number; weight_kg: number; parent_roll_id: string }>;
+            remainder_rolls: Array<{ roll_id: string; label_id: string; width_mm: number; weight_kg: number; parent_roll_id: string }>;
+            scrap_mm_total: number;
+            assigned_jobs: Array<{ job_id: string; job_number: string; child_roll_id: string; qty_kg: number }>;
+            gang_group_id: string | null;
+        }>(
+            `/api/production/jobs/${jobId}/allocate-with-slit-batch/`,
+            { picks },
+            idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : undefined,
         );
         return data;
     },

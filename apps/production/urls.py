@@ -1,6 +1,6 @@
 from django.urls import path, include
 from config.routers import OptionalSlashRouter
-from .views import ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorViewSet, PackingViewSet, DeliveryChallanViewSet, PlannedStockOrderViewSet, PlannedBulkStockOrderViewSet, ExecutionViewSet, PlannerSkuViewSet, PlannerSkuVariantViewSet
+from .views import ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorViewSet, PackingViewSet, DeliveryChallanViewSet, PlannedStockOrderViewSet, PlannedBulkStockOrderViewSet, ExecutionViewSet, PlannerSkuViewSet, PlannerSkuVariantViewSet, current_shift
 
 from .views_wc import WCQueueViewSet, JobAllocationViewSet
 from .views_planner import PlannerViewSet
@@ -34,7 +34,10 @@ router.register(r'flow-engine', ExecutionViewSet, basename='flow-engine')  # Pha
 
 urlpatterns = [
     path('', include(router.urls)),
-    
+
+    # Shift inference
+    path('current-shift/', current_shift, name='production-current-shift'),
+
     # Machine Terminal API - Machine-Centric Execution
     path('machine/<uuid:machine_id>/', machine_detail, name='machine-detail'),
     path('machine/<uuid:machine_id>/queue/', machine_queue, name='machine-queue'),

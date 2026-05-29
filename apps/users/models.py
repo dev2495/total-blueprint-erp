@@ -351,6 +351,16 @@ class CompanyProfile(models.Model):
     # Logo path (relative to frontend_v2/public/)
     logo_path = models.CharField(max_length=200, default="brand/tpp-logo-pdf.svg")
 
+    # Shift boundaries used for shift inference (HH:MM 24h, local time)
+    shift_boundaries = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Mapping of shift_code -> [start_HHMM, end_HHMM] in local time. "
+            "Default: A=06-14, B=14-22, C=22-06."
+        ),
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         "users.User",

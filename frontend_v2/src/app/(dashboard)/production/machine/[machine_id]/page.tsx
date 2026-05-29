@@ -31,6 +31,7 @@ import { toast } from '@/hooks/use-toast';
 import { inventoryService } from '@/services/inventory';
 import { masterDataService, type GranuleQualityCode, type Material } from '@/services/master-data';
 import { machineService, type MachineJobEvent } from '@/services/machine';
+import { ArtworkButton, CylinderSetCard } from '@/components/machine/cylinder-artwork';
 
 type QueueFilter = 'ALL' | 'RUNNING' | 'READY' | 'PAUSED';
 type TerminalTab = 'run' | 'history';
@@ -1056,11 +1057,20 @@ export default function MachineExecutionPage() {
     if (machineError || queueError) {
         return (
             <div className="min-h-screen bg-slate-50 p-6">
-                <div className={cn(surfaceClass, 'flex items-start gap-3 border-rose-200 p-6 text-rose-700')}>
+                <div className={cn(surfaceClass, 'flex items-start gap-3 border-rose-200 p-6 text-rose-700')} data-testid="machine-terminal-error">
                     <AlertCircle className="mt-0.5 h-5 w-5" />
-                    <div>
+                    <div className="flex-1">
                         <div className="font-black">Failed to load machine terminal</div>
-                        <div className="text-sm font-semibold text-rose-600">Refresh and try again.</div>
+                        <div className="text-sm font-semibold text-rose-600">{String((machineError as any)?.message || (queueError as any)?.message || 'Network or server error')}</div>
+                        <Button
+                            type="button"
+                            onClick={() => refreshAll()}
+                            className="mt-3 h-9 rounded-[10px] bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                            data-testid="machine-terminal-retry"
+                        >
+                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                            Retry
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -1168,6 +1178,15 @@ export default function MachineExecutionPage() {
                                         ))}
                                         <span className="inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-2 py-1 font-mono text-[11px] font-semibold text-yellow-300">{behavior}</span>
                                     </div>
+                                    {selectedJob ? (
+                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            <ArtworkButton
+                                                artworkId={selectedJob?.committed_artwork_id || null}
+                                                artworkCode={selectedJob?.committed_artwork_code || null}
+                                                artworkName={selectedJob?.committed_artwork_name || null}
+                                            />
+                                        </div>
+                                    ) : null}
                                 </div>
                                 <div className="grid gap-2 sm:grid-cols-3 xl:col-span-5">
                                     <KpiCard label="Target" value={kg(targetKg)} tone="blue" />
@@ -1185,6 +1204,15 @@ export default function MachineExecutionPage() {
                                 </div>
                             </div>
                         </section>
+
+                        {selectedJob && (selectedJob?.current_step_print_capable || selectedJob?.committed_artwork_id) ? (
+                            <CylinderSetCard
+                                artworkId={selectedJob?.committed_artwork_id || null}
+                                artworkCode={selectedJob?.committed_artwork_code || null}
+                                artworkName={selectedJob?.committed_artwork_name || null}
+                                printCapable={Boolean(selectedJob?.current_step_print_capable)}
+                            />
+                        ) : null}
 
                         <div className="grid gap-4 xl:grid-cols-12">
                             <aside className="space-y-3 xl:col-span-3">

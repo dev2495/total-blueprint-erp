@@ -187,6 +187,10 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         payload = []
         for entry in tiered:
             roll = entry["roll"]
+            location = getattr(roll, "location", None)
+            roll_plant = getattr(roll, "plant", None) or getattr(location, "plant", None)
+            parent = getattr(roll, "parent_roll", None)
+            creator_job = getattr(roll, "created_by_job", None)
             payload.append({
                 "roll_id": str(roll.id),
                 "label_id": roll.label_id,
@@ -199,12 +203,50 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                 "tier": entry["tier"],
                 "slit_preview": entry["slit_preview"],
                 "meta": (roll.meta_json or {}),
+                # Polish payload extensions
+                "created_at": roll.created_at.isoformat() if getattr(roll, "created_at", None) else None,
+                "received_at": (
+                    roll.received_at.isoformat()
+                    if getattr(roll, "received_at", None)
+                    else (roll.created_at.isoformat() if getattr(roll, "created_at", None) else None)
+                ),
+                "plant_id": str(getattr(roll_plant, "id", "") or "") if roll_plant else "",
+                "plant_code": getattr(roll_plant, "code", "") if roll_plant else "",
+                "plant_name": getattr(roll_plant, "name", "") if roll_plant else "",
+                "location_code": getattr(location, "code", "") if location else "",
+                "location_name": getattr(location, "name", "") if location else "",
+                "created_by_job": (
+                    {
+                        "job_number": getattr(creator_job, "job_number", ""),
+                        "completed_at": creator_job.closed_at.isoformat() if getattr(creator_job, "closed_at", None) else None,
+                    }
+                    if creator_job
+                    else None
+                ),
+                "parent_roll": (
+                    {
+                        "label_id": getattr(parent, "label_id", ""),
+                        "width_mm": float(getattr(parent, "width_mm", 0) or 0),
+                    }
+                    if parent
+                    else None
+                ),
             })
         target_w = None
         child_w = None
         lane_count = 1
         web_width_policy = None
+        job_plant_id = ""
+        job_plant_code = ""
         try:
+            from apps.production.services.services_execution import ExecutionService
+
+            resolved_plant_id = ExecutionService._resolve_job_plant_id(job)
+            if resolved_plant_id:
+                job_plant_id = str(resolved_plant_id)
+                plant = getattr(job, "plant", None) or getattr(getattr(job, "from_location", None), "plant", None)
+                if plant and str(getattr(plant, "id", "")) == job_plant_id:
+                    job_plant_code = getattr(plant, "code", "") or ""
             target_w = float(RollAllocationService.planned_parent_width(job))
             child_w = float(RollAllocationService.target_child_width(job))
             lane_count = RollAllocationService.preferred_lane_count(job)
@@ -223,6 +265,16 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                 }
         except Exception:
             target_w = None
+        # Surface job's remaining quantity in kg so the dialog's coverage card
+        # can compute "needed / picked / still need" without a second round-trip.
+        remaining_qty_kg = None
+        try:
+            uom = str(getattr(job, "uom", "") or "").upper()
+            remaining = getattr(job, "remaining_qty", None)
+            if remaining is not None and uom == "KG":
+                remaining_qty_kg = float(remaining)
+        except Exception:
+            remaining_qty_kg = None
         return Response({
             "candidates": payload,
             "target_width_mm": target_w,
@@ -230,6 +282,9 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             "child_target_width_mm": child_w,
             "preferred_lane_count": lane_count,
             "web_width_policy": web_width_policy,
+            "job_plant_id": job_plant_id,
+            "job_plant_code": job_plant_code,
+            "remaining_qty_kg": remaining_qty_kg,
         })
 
     @action(detail=True, methods=['post'], url_path='allocate-with-slit')
@@ -278,6 +333,83 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             return Response(out)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='allocate-with-slit-batch')
+    def allocate_with_slit_batch(self, request, pk=None):
+        """
+        Atomic batch slit-and-assign.
+
+        Body:
+            {
+              "picks": [
+                {"roll_id": "<uuid>", "mode": "ONE"|"MAX"|"GANG", "reason": "..."},
+                ...
+              ]
+            }
+
+        Headers:
+            Idempotency-Key: optional, dedupes the same batch within 24h.
+
+        Behaviour: every pick is validated up-front under one transaction.
+        If any pick fails validation or mutation, the entire batch rolls back —
+        no partial allocation. Returns aggregated child/remainder/scrap/assignment
+        info.
+        """
+        from apps.production.services.roll_allocation_service import RollAllocationService
+        from apps.production.models import ProductionJob, RollAllocationBatchRequest
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.db import transaction
+
+        try:
+            job = ProductionJob.objects.get(pk=pk)
+        except ProductionJob.DoesNotExist:
+            return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        picks = request.data.get('picks') or []
+        if not isinstance(picks, list) or not picks:
+            return Response({"error": "picks (non-empty list) required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        client_token = str(request.headers.get("Idempotency-Key") or "").strip()[:120]
+        if client_token:
+            actor = request.user if getattr(request.user, "is_authenticated", False) else None
+            try:
+                with transaction.atomic():
+                    record, _created = (
+                        RollAllocationBatchRequest.objects.select_for_update().get_or_create(
+                            job=job,
+                            client_token=client_token,
+                            defaults={"created_by": actor, "status": "RUNNING"},
+                        )
+                    )
+                    if record.status == "COMPLETED" and isinstance(record.response_json, dict) and record.response_json:
+                        return Response(record.response_json, status=status.HTTP_200_OK)
+
+                    result = RollAllocationService.perform_slit_assign_batch(
+                        job=job, picks=picks, user=request.user,
+                    )
+                    record.status = "COMPLETED"
+                    record.response_json = result
+                    if actor and not record.created_by_id:
+                        record.created_by = actor
+                    record.save(update_fields=["status", "response_json", "created_by", "updated_at"])
+                    return Response(result, status=status.HTTP_200_OK)
+            except DjangoValidationError as exc:
+                payload = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+                return Response({"error": "Validation failed", "details": payload}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = RollAllocationService.perform_slit_assign_batch(
+                job=job, picks=picks, user=request.user,
+            )
+        except DjangoValidationError as exc:
+            payload = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+            return Response({"error": "Validation failed", "details": payload}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
@@ -1811,3 +1943,21 @@ class ExecutionViewSet(viewsets.ViewSet):
             return Response(context)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def current_shift(request):
+    """Return the active company-wide shift window based on CompanyProfile.shift_boundaries."""
+    from apps.production.services.shift_inference import shift_window_for
+
+    payload = shift_window_for()
+    return Response({
+        "shift_code": payload.get("shift_code") or "",
+        "started_at": payload.get("started_at").isoformat() if payload.get("started_at") else None,
+        "ends_at": payload.get("ends_at").isoformat() if payload.get("ends_at") else None,
+    })

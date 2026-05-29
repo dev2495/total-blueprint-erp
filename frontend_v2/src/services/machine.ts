@@ -72,6 +72,10 @@ export interface ProductionJob {
     execution_model_version?: number;
     input_form: 'NONE' | 'BULK' | 'ROLL';
     output_form: 'BULK' | 'ROLL';
+    committed_artwork_id?: string | null;
+    committed_artwork_code?: string | null;
+    committed_artwork_name?: string | null;
+    current_step_print_capable?: boolean;
 }
 
 export interface InterPlantDCMeta {

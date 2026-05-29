@@ -730,3 +730,230 @@ class RollAllocationService:
                     })
 
         return out
+
+    @classmethod
+    def _resolve_pick_plan(cls, job, roll, mode):
+        """
+        Resolve the child_widths_mm + assign_jobs for a single pick given mode.
+
+        - "ONE": single child at target child width (single-job assign)
+        - "MAX": as many copies of target child width as fit (single-job assign of first child)
+        - "GANG": use the committed gang plan (multiple jobs, one child each)
+        - Full-roll auto-assign (no slit): when roll already EXACT/ORDER_BOUND for this
+          job, the caller can pass mode="ONE" with width equal to roll width (handled
+          here transparently).
+        """
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        process_trim = resolve_process_trim_mm(process)
+        target_w = cls.planned_parent_width(job)
+        parent_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
+        mode = (mode or "ONE").upper()
+
+        if mode == "GANG":
+            gang_jobs, gang_widths = cls.committed_gang_child_plan(job, strict=True)
+            if len(gang_jobs) < 2:
+                raise ValueError("GANG mode requires a committed gang of 2+ jobs")
+            return [float(w) for w in gang_widths], gang_jobs
+
+        # Auto-recognise full-roll pick (EXACT / ORDER_BOUND tier): width within
+        # +10% of target with no slit required. Single child = parent width.
+        auto_max = target_w * Decimal("1.10") if target_w else Decimal("0")
+        if target_w and parent_w >= target_w and parent_w <= auto_max:
+            return [float(parent_w)], None
+
+        if not target_w:
+            # No planned width — fall back to one child at full parent.
+            return [float(parent_w)], None
+
+        if mode == "MAX":
+            children = []
+            remaining = parent_w
+            while remaining >= target_w + process_trim:
+                children.append(target_w)
+                remaining = remaining - target_w - process_trim
+            if not children:
+                raise ValueError(
+                    f"MAX mode could not fit any child at {target_w} mm in parent {parent_w} mm"
+                )
+            return [float(c) for c in children], None
+
+        # Default: ONE
+        return [float(target_w)], None
+
+    @classmethod
+    def perform_slit_assign_batch(cls, job, picks, *, user=None):
+        """
+        Atomic batch variant of perform_slit_assign.
+
+        Args:
+            job: the ProductionJob receiving the assignment
+            picks: list of {"roll_id": <uuid>, "mode": "ONE"|"MAX"|"GANG", "reason": str}
+            user: actor
+
+        Behaviour:
+          - One single transaction wraps validation + every per-pick mutation.
+          - All input rolls are locked via select_for_update() in one query
+            before any mutation, so concurrent allocators cannot win the race
+            and a half-allocated state is impossible.
+          - If validation fails on any pick (status not AVAILABLE, plant
+            mismatch, web-width policy reject, …) the entire batch raises a
+            ValidationError and rolls back.
+
+        Returns:
+            aggregated dict matching the spec.
+        """
+        from django.db import transaction
+        from django.core.exceptions import ValidationError
+
+        picks = list(picks or [])
+        if not picks:
+            raise ValidationError("picks list cannot be empty")
+
+        roll_ids = []
+        seen = set()
+        for entry in picks:
+            if not isinstance(entry, dict):
+                raise ValidationError("each pick must be an object with roll_id")
+            rid = str(entry.get("roll_id") or "").strip()
+            if not rid:
+                raise ValidationError("pick missing roll_id")
+            if rid in seen:
+                raise ValidationError(f"duplicate roll_id in batch: {rid}")
+            seen.add(rid)
+            roll_ids.append(rid)
+
+        with transaction.atomic():
+            # Lock all input rolls atomically up-front.
+            locked = list(
+                InventoryRoll.objects.select_for_update().filter(id__in=roll_ids)
+            )
+            locked_map = {str(r.id): r for r in locked}
+
+            # Validate ALL picks before mutating ANY.
+            errors = []
+            resolved = []  # tuples (roll, mode, child_widths_mm, assign_jobs, reason)
+            job_plant_id = None
+            try:
+                from apps.production.services.services_execution import ExecutionService
+                job_plant_id = ExecutionService._resolve_job_plant_id(job)
+            except Exception:
+                job_plant_id = getattr(job, "plant_id", None) or getattr(getattr(job, "from_location", None), "plant_id", None)
+
+            for entry in picks:
+                rid = str(entry.get("roll_id"))
+                mode = str(entry.get("mode") or "ONE").upper()
+                reason = str(entry.get("reason") or "").strip()
+                roll = locked_map.get(rid)
+                if roll is None:
+                    errors.append(f"roll {rid}: not found")
+                    continue
+                status_val = str(getattr(roll, "status", "")).upper()
+                if status_val not in {"AVAILABLE", "RESERVED"}:
+                    errors.append(f"roll {roll.label_id}: status={status_val} (must be AVAILABLE/RESERVED)")
+                    continue
+                # Plant match.
+                roll_plant_id = (
+                    getattr(roll, "plant_id", None)
+                    or getattr(getattr(roll, "location", None), "plant_id", None)
+                )
+                if job_plant_id and roll_plant_id and str(job_plant_id) != str(roll_plant_id):
+                    errors.append(
+                        f"roll {roll.label_id}: plant mismatch ({roll_plant_id} vs job {job_plant_id})"
+                    )
+                    continue
+                # Slit plan resolution (also catches GANG-without-committed-gang).
+                try:
+                    widths, assign_jobs = cls._resolve_pick_plan(job, roll, mode)
+                except Exception as exc:
+                    errors.append(f"roll {roll.label_id}: {exc}")
+                    continue
+                resolved.append((roll, mode, widths, assign_jobs, reason))
+
+            if errors:
+                raise ValidationError({"picks": errors})
+
+            # Execute each pick under the same outer atomic. perform_slit_assign
+            # opens its own transaction.atomic() block which under Django nests
+            # as a savepoint, so a raise here unwinds the parent atomic too.
+            child_rolls = []
+            remainder_rolls = []
+            scrap_mm_total = 0.0
+            assigned_jobs_agg = []
+            total_qty = Decimal("0")
+            gang_group_id = None
+
+            for (roll, mode, widths, assign_jobs, reason) in resolved:
+                # Capture parent width/weight before consumption for qty math.
+                parent_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
+                parent_weight = Decimal(str(getattr(roll, "weight_kg", 0) or 0))
+                out = cls.perform_slit_assign(
+                    job, roll, widths, user=user, reason=reason, assign_jobs=assign_jobs,
+                )
+                # Accumulate.
+                for child_id in out.get("child_ids", []) or []:
+                    try:
+                        cr = InventoryRoll.objects.get(id=child_id)
+                        child_rolls.append({
+                            "roll_id": str(cr.id),
+                            "label_id": cr.label_id,
+                            "width_mm": float(cr.width_mm or 0),
+                            "weight_kg": float(cr.weight_kg or 0),
+                            "parent_roll_id": str(roll.id),
+                        })
+                        total_qty += Decimal(str(cr.weight_kg or 0))
+                    except InventoryRoll.DoesNotExist:
+                        continue
+                if out.get("remainder_id"):
+                    try:
+                        rr = InventoryRoll.objects.get(id=out["remainder_id"])
+                        remainder_rolls.append({
+                            "roll_id": str(rr.id),
+                            "label_id": rr.label_id,
+                            "width_mm": float(rr.width_mm or 0),
+                            "weight_kg": float(rr.weight_kg or 0),
+                            "parent_roll_id": str(roll.id),
+                        })
+                    except InventoryRoll.DoesNotExist:
+                        pass
+                scrap_mm_total += float(out.get("waste_mm") or 0)
+                for aj in out.get("assigned_jobs", []) or []:
+                    try:
+                        qty = Decimal("0")
+                        child_id = aj.get("child_roll_id")
+                        if child_id:
+                            qty = Decimal(
+                                str(
+                                    InventoryRoll.objects.filter(id=child_id)
+                                    .values_list("weight_kg", flat=True)
+                                    .first()
+                                    or 0
+                                )
+                            )
+                        assigned_jobs_agg.append({
+                            "job_id": aj.get("job_id"),
+                            "job_number": aj.get("job_number"),
+                            "child_roll_id": child_id,
+                            "qty_kg": float(qty),
+                        })
+                    except Exception:
+                        assigned_jobs_agg.append({
+                            "job_id": aj.get("job_id"),
+                            "job_number": aj.get("job_number"),
+                            "child_roll_id": aj.get("child_roll_id"),
+                            "qty_kg": 0.0,
+                        })
+                if mode == "GANG":
+                    gang_meta = str(((getattr(job, "meta_json", None) or {}).get("gang_group_id") or "")).strip()
+                    if gang_meta:
+                        gang_group_id = gang_meta
+
+        return {
+            "job_id": str(job.id),
+            "picks_count": len(picks),
+            "total_qty_allocated_kg": float(total_qty),
+            "child_rolls": child_rolls,
+            "remainder_rolls": remainder_rolls,
+            "scrap_mm_total": float(scrap_mm_total),
+            "assigned_jobs": assigned_jobs_agg,
+            "gang_group_id": gang_group_id,
+        }

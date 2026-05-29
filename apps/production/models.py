@@ -13,6 +13,39 @@ from apps.factory.models import Process, WorkCenter, Machine, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll
 
 
+def _autostamp_shift_code(instance, primary_field: str, fallback_field: str = "created_at") -> None:
+    """Populate ``shift_code`` / ``shift_date`` on log models when missing.
+
+    Uses :func:`apps.production.services.shift_inference.infer_shift` so the
+    company-wide A/B/C boundaries from ``CompanyProfile.shift_boundaries``
+    are respected. Existing non-empty values are left untouched.
+    """
+    try:
+        current = str(getattr(instance, "shift_code", "") or "").strip()
+        if current:
+            return
+        from django.utils import timezone
+
+        ts = (
+            getattr(instance, primary_field, None)
+            or getattr(instance, fallback_field, None)
+            or timezone.now()
+        )
+        from apps.production.services.shift_inference import infer_shift
+
+        code = infer_shift(ts)
+        if code:
+            instance.shift_code = code
+            if hasattr(instance, "shift_date") and not getattr(instance, "shift_date", None):
+                try:
+                    instance.shift_date = timezone.localtime(ts).date()
+                except Exception:
+                    pass
+    except Exception:
+        # Auto-stamp must never break a save() call.
+        return
+
+
 def _next_year_scoped_sequence(model_cls, field_name: str, prefix: str, year: int) -> str:
     base_prefix = f"{prefix}-{year}-"
     values = model_cls.objects.filter(**{f"{field_name}__startswith": base_prefix}).values_list(field_name, flat=True)
@@ -779,6 +812,11 @@ class JobExecutionLog(models.Model):
     class Meta:
         db_table = 'production_execution_logs'
 
+    def save(self, *args, **kwargs):
+        _autostamp_shift_code(self, "logged_at")
+        super().save(*args, **kwargs)
+
+
 class ScrapLog(models.Model):
     """
     Event Log: Operator logs Scrap.
@@ -809,6 +847,11 @@ class ScrapLog(models.Model):
     class Meta:
         db_table = 'production_scrap_logs'
 
+    def save(self, *args, **kwargs):
+        _autostamp_shift_code(self, "logged_at")
+        super().save(*args, **kwargs)
+
+
 class DowntimeLog(models.Model):
     """
     Event Log: Machine Downtime.
@@ -838,7 +881,11 @@ class DowntimeLog(models.Model):
 
     class Meta:
         db_table = 'production_downtime_logs'
-    
+
+    def save(self, *args, **kwargs):
+        _autostamp_shift_code(self, "start_time", fallback_field="created_at")
+        super().save(*args, **kwargs)
+
     @property
     def duration_minutes(self):
         if self.end_time and self.start_time:
@@ -1338,3 +1385,48 @@ class SalesOrderItemInHouseDemand(models.Model):
     def __str__(self):
         target = self.planned_stock_order or self.planned_bulk_stock_order
         return f"{self.sales_order_item_id} {self.demand_kind} -> {target}"
+
+
+class RollAllocationBatchRequest(models.Model):
+    """DB-backed idempotency for WCM multi-roll allocation requests."""
+
+    STATUS_CHOICES = [
+        ("RUNNING", "Running"),
+        ("COMPLETED", "Completed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(
+        ProductionJob,
+        on_delete=models.CASCADE,
+        related_name="allocation_batch_requests",
+    )
+    client_token = models.CharField(max_length=120, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="RUNNING")
+    response_json = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="roll_allocation_batch_requests",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "production_roll_allocation_batch_requests"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["job", "client_token"],
+                condition=Q(client_token__gt=""),
+                name="uniq_roll_alloc_batch_job_token",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["job", "client_token"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.job_id} · {self.client_token} · {self.status}"

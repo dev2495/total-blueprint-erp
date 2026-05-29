@@ -56,6 +56,44 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     total_weight_kg = serializers.SerializerMethodField()
     execution_profile = serializers.SerializerMethodField()
 
+    # Artwork commitment derived from sales/MTS source
+    committed_artwork_id = serializers.SerializerMethodField()
+    committed_artwork_code = serializers.SerializerMethodField()
+    committed_artwork_name = serializers.SerializerMethodField()
+    current_step_print_capable = serializers.SerializerMethodField()
+
+    def _resolve_committed_artwork(self, obj):
+        try:
+            if getattr(obj, "sales_order_item_id", None) and getattr(obj.sales_order_item, "assigned_artwork_id", None):
+                return obj.sales_order_item.assigned_artwork
+        except Exception:
+            pass
+        try:
+            mts = getattr(obj, "mts_order", None)
+            if mts and getattr(mts, "committed_artwork_id", None):
+                return mts.committed_artwork
+        except Exception:
+            pass
+        return None
+
+    def get_committed_artwork_id(self, obj):
+        artwork = self._resolve_committed_artwork(obj)
+        return str(artwork.id) if artwork else None
+
+    def get_committed_artwork_code(self, obj):
+        artwork = self._resolve_committed_artwork(obj)
+        return getattr(artwork, "design_code", "") if artwork else ""
+
+    def get_committed_artwork_name(self, obj):
+        artwork = self._resolve_committed_artwork(obj)
+        return getattr(artwork, "name", "") if artwork else ""
+
+    def get_current_step_print_capable(self, obj):
+        proc = getattr(obj, "current_process", None) or getattr(obj, "process", None)
+        if not proc:
+            return False
+        return bool(getattr(proc, "print_capable", False) or getattr(proc, "has_artwork", False))
+
     def get_geometry(self, obj):
         if obj.sales_order_item:
             return obj.sales_order_item.geometry_snapshot
@@ -222,6 +260,8 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'geometry', 'layers', 'printing', 'addons',
             'bom_snapshot', 'unit_weight_g', 'total_weight_kg',
             'execution_profile', 'product_spec',
+            'committed_artwork_id', 'committed_artwork_code', 'committed_artwork_name',
+            'current_step_print_capable',
         ]
         read_only_fields = ['job_number', 'status']
 
