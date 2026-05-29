@@ -1430,3 +1430,62 @@ class RollAllocationBatchRequest(models.Model):
 
     def __str__(self):
         return f"{self.job_id} · {self.client_token} · {self.status}"
+
+
+class ReasonCodeBase(models.Model):
+    """
+    Abstract base for operator-facing reason taxonomies (scrap + downtime).
+
+    Two-level taxonomy: a top-level reason has ``parent`` = NULL, and a
+    sub-code references its parent via ``parent``. ``code`` is unique within
+    the concrete table so it can be stored on log rows / referenced by APIs.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=40, unique=True)
+    label = models.CharField(max_length=120)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["sort_order", "code"]
+
+    def clean(self):
+        super().clean()
+        # A sub-code cannot itself be a parent (enforce a single level of nesting),
+        # and a code cannot be its own parent.
+        if self.parent_id and self.parent_id == self.id:
+            raise ValidationError({"parent": "A reason code cannot be its own parent."})
+        if self.parent_id and getattr(self.parent, "parent_id", None):
+            raise ValidationError({"parent": "Sub-codes cannot be nested more than one level deep."})
+
+    def __str__(self):
+        return f"{self.code} · {self.label}"
+
+
+class ScrapReason(ReasonCodeBase):
+    """Configurable scrap reason taxonomy surfaced on the machine terminal."""
+
+    class Meta(ReasonCodeBase.Meta):
+        db_table = "production_scrap_reasons"
+        verbose_name = "Scrap Reason"
+        verbose_name_plural = "Scrap Reasons"
+
+
+class DowntimeReason(ReasonCodeBase):
+    """Configurable downtime reason taxonomy surfaced on the machine terminal."""
+
+    class Meta(ReasonCodeBase.Meta):
+        db_table = "production_downtime_reasons"
+        verbose_name = "Downtime Reason"
+        verbose_name_plural = "Downtime Reasons"

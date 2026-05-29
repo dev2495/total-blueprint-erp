@@ -150,11 +150,49 @@ class WorkCenterSerializer(serializers.ModelSerializer):
 class MachineSerializer(serializers.ModelSerializer):
     work_center_name = serializers.ReadOnlyField(source='work_center.name')
     cost_absorption_group_code = serializers.CharField(source='cost_absorption_group.code', read_only=True, allow_null=True)
+    # Live execution state for WCM / machine cards.
+    state = serializers.SerializerMethodField()
+    current_job_number = serializers.SerializerMethodField()
+    busy_until = serializers.SerializerMethodField()
 
     class Meta:
         model = Machine
-        fields = ['id', 'work_center', 'work_center_name', 'name', 'code', 'status', 'cost_absorption_group', 'cost_absorption_group_code']
+        fields = [
+            'id', 'work_center', 'work_center_name', 'name', 'code', 'status',
+            'cost_absorption_group', 'cost_absorption_group_code',
+            'state', 'current_job_number', 'busy_until',
+        ]
         validators = []
+
+    def _live(self, obj):
+        """
+        Resolve {state, current_job_number, busy_until} for a machine.
+
+        Prefers a precomputed ``machine_live_state`` map in serializer context
+        (populated in bulk by the viewset list to avoid N+1 queries); otherwise
+        falls back to a direct lookup for the single machine.
+        """
+        cached = self.context.get("machine_live_state")
+        if cached is not None:
+            return cached.get(str(obj.id)) or {
+                "state": "IDLE",
+                "current_job_number": None,
+                "busy_until": None,
+            }
+        return _resolve_machine_live_state([obj]).get(str(obj.id)) or {
+            "state": "IDLE",
+            "current_job_number": None,
+            "busy_until": None,
+        }
+
+    def get_state(self, obj):
+        return self._live(obj)["state"]
+
+    def get_current_job_number(self, obj):
+        return self._live(obj)["current_job_number"]
+
+    def get_busy_until(self, obj):
+        return self._live(obj)["busy_until"]
 
     def validate_code(self, value):
         normalized = normalize_machine_code(value)
@@ -178,6 +216,66 @@ class MachineSerializer(serializers.ModelSerializer):
                 "code": f"Machine code '{code}' already belongs to {duplicate.name} in {duplicate.work_center.name}.",
             })
         return attrs
+
+
+def _resolve_machine_live_state(machines):
+    """
+    Bulk-resolve live state for a set of machines.
+
+    state:
+      - "RUNNING" if a job is EXECUTING/RUNNING on the machine
+      - "DOWN"    if the latest open downtime log (no end_time) is for a job on
+                  the machine and no job is currently running
+      - "IDLE"    otherwise
+    current_job_number: job number of the running job (if RUNNING)
+    busy_until: best-effort end-of-current-downtime / null
+    """
+    from apps.production.models import ProductionJob, DowntimeLog
+    from django.db.models import Q
+
+    result = {}
+    machine_ids = [m.id for m in machines]
+    if not machine_ids:
+        return result
+    for mid in machine_ids:
+        result[str(mid)] = {"state": "IDLE", "current_job_number": None, "busy_until": None}
+
+    # Running jobs per machine.
+    running = (
+        ProductionJob.objects.filter(machine_id__in=machine_ids)
+        .filter(Q(job_state="EXECUTING") | Q(status="RUNNING"))
+        .exclude(job_state__in=["COMPLETED", "CANCELLED"])
+        .exclude(status__in=["COMPLETED", "CANCELLED"])
+        .values("machine_id", "job_number", "job_state")
+        .order_by("machine_id", "-updated_at")
+    )
+    running_machine_ids = set()
+    for row in running:
+        mid = str(row["machine_id"])
+        if result[mid]["current_job_number"] is None:
+            result[mid]["state"] = "RUNNING"
+            result[mid]["current_job_number"] = row["job_number"]
+            running_machine_ids.add(mid)
+
+    # Open downtime (no end_time) on the machine's current jobs => DOWN when idle.
+    open_downtime = (
+        DowntimeLog.objects.filter(
+            end_time__isnull=True,
+            production_job__machine_id__in=machine_ids,
+        )
+        .select_related("production_job")
+        .values("production_job__machine_id", "start_time")
+        .order_by("production_job__machine_id", "-start_time")
+    )
+    seen_down = set()
+    for row in open_downtime:
+        mid = str(row["production_job__machine_id"])
+        if mid in seen_down:
+            continue
+        seen_down.add(mid)
+        if mid not in running_machine_ids:
+            result[mid]["state"] = "DOWN"
+    return result
 
 
 class PlantShiftDefinitionSerializer(serializers.ModelSerializer):

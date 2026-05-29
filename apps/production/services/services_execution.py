@@ -4273,6 +4273,25 @@ class ExecutionService:
                 return category_to_step.get("SOLVENT") or category_to_step.get("CHEMICAL")
             return category_to_step.get(category_code)
 
+        def _row_qty_and_uom(row, material, section_name):
+            section = str(section_name or "").upper()
+            uom = str(row.get("uom") or row.get("stock_uom") or getattr(material, "base_uom", None) or "KG").upper()
+            if section in {"ADDONS", "ADDON"}:
+                uom = str(
+                    row.get("stock_uom")
+                    or row.get("uom")
+                    or getattr(material, "addon_purchase_uom", None)
+                    or getattr(material, "base_uom", None)
+                    or "KG"
+                ).upper()
+            if uom not in {"KG", "PCS", "METER"}:
+                uom = "KG"
+            if uom == "KG":
+                qty = _to_decimal(row.get("stock_qty") if row.get("stock_qty") not in (None, "") else row.get("weight_kg"))
+            else:
+                qty = _to_decimal(row.get("stock_qty") if row.get("stock_qty") not in (None, "") else row.get("quantity"))
+            return qty, uom
+
         # Aggregate material requirements by selected step.
         required_matrix = {}
         planning_lines = bom.get("planning_lines") if isinstance(bom.get("planning_lines"), list) else []
@@ -4299,13 +4318,17 @@ class ExecutionService:
                 planned_issue_qty = _to_decimal(row.get("planned_issue_qty"))
                 if planned_issue_qty <= 0:
                     continue
+                row_uom = str(row.get("uom") or getattr(material, "base_uom", None) or "KG").upper()
+                if row_uom not in {"KG", "PCS", "METER"}:
+                    row_uom = "KG"
                 key = (str(step.id), str(material.id))
                 bucket = required_matrix.get(
                     key,
-                    {"required_qty": Decimal("0"), "theoretical_qty": Decimal("0")},
+                    {"required_qty": Decimal("0"), "theoretical_qty": Decimal("0"), "uom": row_uom},
                 )
                 bucket["required_qty"] += planned_issue_qty
                 bucket["theoretical_qty"] += theoretical_qty
+                bucket["uom"] = bucket.get("uom") or row_uom
                 required_matrix[key] = bucket
         else:
             for section_name in ("films", "granules", "inks", "chemicals", "addons", "pod"):
@@ -4323,24 +4346,25 @@ class ExecutionService:
                     if not step:
                         continue
 
-                    per_unit_kg = _to_decimal(row.get("weight_kg"))
-                    if per_unit_kg <= 0:
+                    per_unit_qty, row_uom = _row_qty_and_uom(row, material, section_name)
+                    if per_unit_qty <= 0:
                         continue
 
                     if order_qty_pcs > 0:
-                        required_qty = per_unit_kg * order_qty_pcs
+                        required_qty = per_unit_qty * order_qty_pcs
                     elif qty_uom == "KG":
-                        # ROLL KG invariant mode stores BOM rows as absolute order-level KG.
-                        required_qty = per_unit_kg
+                        # ROLL KG invariant mode stores BOM rows as absolute order-level quantities.
+                        required_qty = per_unit_qty
                     else:
                         required_qty = Decimal("0")
                     key = (str(step.id), str(material.id))
                     bucket = required_matrix.get(
                         key,
-                        {"required_qty": Decimal("0"), "theoretical_qty": Decimal("0")},
+                        {"required_qty": Decimal("0"), "theoretical_qty": Decimal("0"), "uom": row_uom},
                     )
                     bucket["required_qty"] += required_qty
                     bucket["theoretical_qty"] += required_qty
+                    bucket["uom"] = bucket.get("uom") or row_uom
                     required_matrix[key] = bucket
 
         requirements = []
@@ -4352,6 +4376,9 @@ class ExecutionService:
                     continue
                 required_qty = _to_decimal(qtys.get("required_qty"))
                 theoretical_qty = _to_decimal(qtys.get("theoretical_qty"))
+                uom = str(qtys.get("uom") or getattr(material, "base_uom", None) or "KG").upper()
+                if uom not in {"KG", "PCS", "METER"}:
+                    uom = "KG"
                 req, _created = JobMaterialRequirement.objects.update_or_create(
                     production_job=job,
                     material=material,
@@ -4360,7 +4387,7 @@ class ExecutionService:
                         "theoretical_qty": theoretical_qty,
                         "planned_issue_qty": required_qty,
                         "required_qty": required_qty,
-                        "uom": "KG",
+                        "uom": uom,
                     },
                 )
                 requirements.append(req)
@@ -6849,6 +6876,9 @@ class ExecutionService:
             other_plants_available = Decimal(str(global_available)) - Decimal(str(plant_available))
             if other_plants_available < 0:
                 other_plants_available = Decimal('0')
+            req_uom = str(req.uom or getattr(req.material, "base_uom", None) or "KG").upper()
+            if req_uom not in {"KG", "PCS", "METER"}:
+                req_uom = "KG"
 
             granule_code_options = []
             if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
@@ -6878,7 +6908,23 @@ class ExecutionService:
                 'material_name': req.material.name,
                 'category': req.material.category,
                 'category_display': req.material.category,
-                'mode': req.uom,
+                'mode': req_uom,
+                'uom': req_uom,
+                'required_qty': float(required),
+                'available_qty': float(available),
+                'plant_available_qty': float(plant_available),
+                'global_available_qty': float(global_available),
+                'source_location_available_qty': float(available),
+                'current_plant_available_qty': float(plant_available),
+                'other_plants_available_qty': float(other_plants_available),
+                'theoretical_qty': float(theoretical_qty),
+                'planned_issue_qty': float(planned_issue_qty),
+                'actual_issued_qty': float(actual_issued_qty),
+                'actual_returned_qty': float(actual_returned_qty),
+                'actual_scrap_qty': float(actual_scrap_qty),
+                'actual_consumed_qty': float(actual_consumed_qty),
+                'variance_qty': float(variance_qty),
+                'estimated_actual_qty': float(estimated_actual_qty),
                 'required_qty_kg': float(required),
                 # Backward-compatible legacy keys
                 'available_qty_kg': float(available),

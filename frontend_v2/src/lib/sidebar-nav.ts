@@ -392,6 +392,13 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN"],
         permissions: ["materials.view", "materials.manage", "inventory.manage"],
       },
+      {
+        title: "Reason Codes",
+        href: "/system/reason-codes",
+        icon: ClipboardList,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN"],
+        permissions: ["production.manage"],
+      },
     ],
   },
   {

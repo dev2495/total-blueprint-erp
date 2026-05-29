@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ProductionJob, WorkCenterAssignment
+from .models import ProductionJob, WorkCenterAssignment, ScrapReason, DowntimeReason
 from apps.factory.models import Machine
 from apps.materials.models import PodSkuVariant
 from apps.users.models import User
@@ -711,3 +711,55 @@ class PlannerSkuSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_by", "created_at", "updated_at", "variants"]
+
+
+class ReasonCodeSerializer(serializers.ModelSerializer):
+    """
+    Shared serializer for ScrapReason / DowntimeReason.
+
+    Exposes the public contract fields:
+      id, code, label, parent_id, parent_code, is_active, sort_order.
+    ``parent_id`` is writable (FK to a top-level code in the same taxonomy);
+    ``parent_code`` is a read-only convenience for the UI tree.
+    """
+
+    parent_code = serializers.ReadOnlyField(source="parent.code")
+
+    class Meta:
+        model = None  # bound by concrete subclasses
+        fields = ["id", "code", "label", "parent_id", "parent_code", "is_active", "sort_order"]
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # Build the writable parent FK lazily so its queryset is scoped to the
+        # concrete taxonomy (Scrap vs Downtime) without a class-time queryset.
+        model = self.Meta.model
+        if model is not None:
+            fields["parent_id"] = serializers.PrimaryKeyRelatedField(
+                source="parent",
+                queryset=model.objects.all(),
+                allow_null=True,
+                required=False,
+            )
+        return fields
+
+    def validate(self, attrs):
+        parent = attrs.get("parent", getattr(self.instance, "parent", None))
+        if parent is not None:
+            if self.instance is not None and parent.id == self.instance.id:
+                raise serializers.ValidationError({"parent_id": "A reason code cannot be its own parent."})
+            if parent.parent_id:
+                raise serializers.ValidationError(
+                    {"parent_id": "Sub-codes cannot be nested more than one level deep."}
+                )
+        return attrs
+
+
+class ScrapReasonSerializer(ReasonCodeSerializer):
+    class Meta(ReasonCodeSerializer.Meta):
+        model = ScrapReason
+
+
+class DowntimeReasonSerializer(ReasonCodeSerializer):
+    class Meta(ReasonCodeSerializer.Meta):
+        model = DowntimeReason

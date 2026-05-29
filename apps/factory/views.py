@@ -105,6 +105,21 @@ class MachineViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(work_center_id=work_center)
         return queryset
 
+    @staticmethod
+    def _live_state_context(machines):
+        """Bulk live-state map for a machine list, for the serializer context."""
+        from .serializers import _resolve_machine_live_state
+        return {"machine_live_state": _resolve_machine_live_state(list(machines))}
+
+    def list(self, request, *args, **kwargs):
+        queryset = list(self.filter_queryset(self.get_queryset()))
+        serializer = self.get_serializer(
+            queryset,
+            many=True,
+            context={**self.get_serializer_context(), **self._live_state_context(queryset)},
+        )
+        return Response(serializer.data)
+
     def _deny_if_not_admin(self, request):
         if _is_admin_actor(request.user):
             return None
@@ -141,12 +156,17 @@ class MachineViewSet(viewsets.ModelViewSet):
         is_admin = role_code in ['ADMIN', 'SUPER_ADMIN', 'OWNER'] or user.is_owner or user.is_superuser
 
         if is_admin:
-            return Response(MachineSerializer(self.queryset, many=True).data)
+            machines = list(self.get_queryset())
+            return Response(
+                MachineSerializer(machines, many=True, context=self._live_state_context(machines)).data
+            )
 
         from apps.users.models import WorkCenterAssignment
         assigned_wc_ids = WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True)
-        machines = Machine.objects.filter(work_center_id__in=assigned_wc_ids)
-        return Response(MachineSerializer(machines, many=True).data)
+        machines = list(Machine.objects.filter(work_center_id__in=assigned_wc_ids).select_related('work_center'))
+        return Response(
+            MachineSerializer(machines, many=True, context=self._live_state_context(machines)).data
+        )
 
     @action(detail=True, methods=['post'], url_path='downtime')
     def downtime(self, request, pk=None):

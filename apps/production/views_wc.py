@@ -19,7 +19,7 @@ from .models import (
     JobMaterialRequirement,
 )
 from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer
-from .services.job_services import WCManagerService
+from .services.job_services import WCManagerService, MachineBusyError
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
 from apps.inventory.serializers import InventoryRollSerializer
@@ -214,6 +214,25 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             if job_state in {"COMPLETED", "CANCELLED"} or job_status in {"COMPLETED", "CANCELLED"}:
                 continue
             payload.append(row)
+
+        # Queue-row enrichment (ink colors, cylinder + material readiness,
+        # elapsed/last-log timing, stall flag). Computed from the live ORM rows
+        # in a small fixed number of grouped queries (read-only, no mutation).
+        from .services.queue_enrichment import build_queue_enrichment
+        kept_job_ids = {
+            str((row.get("job_details") or {}).get("id"))
+            for row in payload
+            if (row.get("job_details") or {}).get("id")
+        }
+        enrichment = build_queue_enrichment(
+            [a for a in queryset if str(a.production_job_id) in kept_job_ids]
+        )
+        for row in payload:
+            job_id = str((row.get("job_details") or {}).get("id") or "")
+            extra = enrichment.get(job_id)
+            if extra:
+                row.update(extra)
+
         for row in payload:
             job_details = row.get("job_details") or {}
             job_id = job_details.get("id")
@@ -558,6 +577,11 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response(serializer.data)
         except WorkCenterAssignment.DoesNotExist:
             return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except MachineBusyError as e:
+            return Response(
+                {"detail": str(e), "conflicting_job_number": e.conflicting_job_number},
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

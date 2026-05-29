@@ -5,6 +5,7 @@ from .views import ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorVi
 from .views_wc import WCQueueViewSet, JobAllocationViewSet
 from .views_planner import PlannerViewSet
 from .views_limitless import WCMExecutionViewSet
+from .views_reasons import ScrapReasonViewSet, DowntimeReasonViewSet, stalled_jobs
 
 # Machine Terminal API
 from .views_machine import (
@@ -26,6 +27,8 @@ router.register(r'stock-orders', PlannedStockOrderViewSet, basename='stock-order
 router.register(r'bulk-stock-orders', PlannedBulkStockOrderViewSet, basename='bulk-stock-order')
 router.register(r'planner/sku-catalog', PlannerSkuViewSet, basename='planner-sku')
 router.register(r'planner/sku-variants', PlannerSkuVariantViewSet, basename='planner-sku-variant')
+router.register(r'scrap-reasons', ScrapReasonViewSet, basename='scrap-reason')
+router.register(r'downtime-reasons', DowntimeReasonViewSet, basename='downtime-reason')
 router.register(r'wc/(?P<wc_id>[^/.]+)', WCQueueViewSet, basename='wc-queue')
 router.register(r'wc-allocation', JobAllocationViewSet, basename='wc-allocation')
 router.register(r'planner', PlannerViewSet, basename='planner')
@@ -33,6 +36,10 @@ router.register(r'execution', WCMExecutionViewSet, basename='execution')
 router.register(r'flow-engine', ExecutionViewSet, basename='flow-engine')  # Phase 68
 
 urlpatterns = [
+    # Read-only stalled-jobs surface (registered before the router so the
+    # wc/<wc_id> catch-all can never shadow it).
+    path('stalled-jobs/', stalled_jobs, name='production-stalled-jobs'),
+
     path('', include(router.urls)),
 
     # Shift inference

@@ -103,6 +103,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/system/audit",
   "/system/company-profile",
   "/system/governance",
+  "/system/reason-codes",
   "/system/report-center",
   "/system/role-matrix",
   "/system/users",

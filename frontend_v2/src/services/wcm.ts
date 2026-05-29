@@ -17,6 +17,23 @@ export interface WorkCenterAssignment {
     assigned_by: string | null;
     assigned_at: string | null;
     created_at: string;
+    // --- Queue row enrichment (WCM queue serializer) ---
+    /** Ink color names from the job's committed_artwork cylinders / ink color map. */
+    ink_colors?: string[];
+    /** True when every required cylinder for the committed artwork is mounted/ready. */
+    cylinder_ready?: boolean;
+    /** Cylinder readiness state. NA when the current step is not print-capable. */
+    cylinder_status?: 'READY' | 'MISSING' | 'NA';
+    /** True when material availability blocks starting this job. */
+    material_blocked?: boolean;
+    /** Human-readable reason when material_blocked is true. */
+    material_block_reason?: string;
+    /** Minutes since assigned_at/started; null when not yet started. */
+    elapsed_minutes?: number | null;
+    /** ISO timestamp of the most recent execution/scrap/downtime/quality log. */
+    last_log_at?: string | null;
+    /** True when the job is EXECUTING but has had no logs in the stall window. */
+    is_stalled?: boolean;
     audit_events?: Array<{
         id: string;
         action: string;
@@ -44,6 +61,42 @@ export interface WorkCenterAssignment {
 export interface RollOverridePayload {
     manual_override?: boolean;
     override_reason?: string;
+}
+
+/**
+ * A machine row inside the work-center machines payload
+ * (GET /api/factory/machines/?work_center=<id>), enriched with live state.
+ */
+export interface WcMachine {
+    id: string;
+    code: string;
+    name: string;
+    work_center: string;
+    work_center_name: string;
+    status: string;
+    /** Live execution state for the machine card. */
+    state?: 'IDLE' | 'RUNNING' | 'DOWN';
+    /** Job number currently running on this machine, if any. */
+    current_job_number?: string | null;
+    /** ISO timestamp the machine is reserved/busy until, if known. */
+    busy_until?: string | null;
+}
+
+/**
+ * A stalled job row from GET /api/production/stalled-jobs/.
+ * Read-only surfaced list: a job is EXECUTING with no logs in the last 60 min
+ * (or zero logs and started > 60 min ago).
+ */
+export interface StalledJob {
+    job_id: string;
+    job_number: string;
+    work_center_name: string;
+    machine_name: string;
+    customer_name: string;
+    product_name: string;
+    started_at: string | null;
+    last_event_at: string | null;
+    idle_minutes: number;
 }
 
 export interface CurrentStepMaterialPolicyItem {
@@ -92,6 +145,18 @@ export const wcmService = {
     getStats: async (wcId: string) => {
         const { data } = await api.get<{ running: number; waiting: number; total_active: number }>(`/api/production/wc/${wcId}/stats/`);
         return data;
+    },
+
+    /**
+     * Read-only list of stalled (EXECUTING but idle) jobs.
+     * Optionally scoped by work center and/or plant.
+     */
+    getStalledJobs: async (filters?: { work_center?: string; plant?: string }) => {
+        const params: Record<string, string> = {};
+        if (filters?.work_center) params.work_center = filters.work_center;
+        if (filters?.plant) params.plant = filters.plant;
+        const { data } = await api.get<StalledJob[]>(`/api/production/stalled-jobs/`, { params });
+        return Array.isArray(data) ? data : ((data as { results?: StalledJob[] })?.results ?? []);
     },
 
     getEligibleRolls: async (jobId: string) => {

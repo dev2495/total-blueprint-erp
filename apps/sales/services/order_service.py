@@ -1091,6 +1091,30 @@ def _planned_issue_qty(theoretical_qty: Decimal, mode: str, value: Decimal) -> D
     return theoretical_qty.quantize(Decimal("0.0001"))
 
 
+def _planning_qty_and_uom(section_name, row):
+    section = str(section_name or "").upper()
+    src = row if isinstance(row, dict) else {}
+    uom = str(src.get("uom") or src.get("stock_uom") or "KG").upper()
+    if section == "ADDONS":
+        material_id = _safe_uuid_str(src.get("material_id") or src.get("addon_id"))
+        material = InventoryMaterial.objects.filter(id=material_id).only("base_uom", "addon_purchase_uom").first() if material_id else None
+        uom = str(
+            src.get("stock_uom")
+            or src.get("uom")
+            or getattr(material, "addon_purchase_uom", None)
+            or getattr(material, "base_uom", None)
+            or "KG"
+        ).upper()
+    if uom not in {"KG", "PCS", "METER"}:
+        uom = "KG"
+
+    if uom == "KG":
+        qty = Decimal(str(src.get("stock_qty") if src.get("stock_qty") not in (None, "") else src.get("weight_kg") or 0))
+    else:
+        qty = Decimal(str(src.get("stock_qty") if src.get("stock_qty") not in (None, "") else src.get("quantity") or 0))
+    return qty, uom
+
+
 def _summarize_material_plan_lines(lines):
     src = lines if isinstance(lines, list) else []
     theoretical_total = Decimal("0")
@@ -1156,7 +1180,7 @@ def _build_material_plan_lines(
             if not isinstance(row, dict):
                 continue
             material_id, material_name, material_code = _planning_material_identity(section_name, row)
-            theoretical_qty = Decimal(str(row.get("weight_kg") or 0))
+            theoretical_qty, line_uom = _planning_qty_and_uom(section_name, row)
             if theoretical_qty <= 0:
                 continue
             if section_name not in order_scoped:
@@ -1199,7 +1223,7 @@ def _build_material_plan_lines(
                         "material_id": material_id,
                         "material_code": material_code,
                         "material_name": material_name,
-                        "uom": "KG",
+                        "uom": line_uom,
                         "step_id": template_policy.get("step_id"),
                         "step_sequence": template_policy.get("step_sequence"),
                         "step_name": template_policy.get("step_name"),

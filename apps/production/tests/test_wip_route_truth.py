@@ -177,12 +177,22 @@ class WipRouteTruthTests(SimpleTestCase):
             status="WC_READY",
             assigned_machine=None,
             production_job=job,
+            production_job_id="job-1",
+            work_center_id=None,
             save=MagicMock(),
         )
-        machine = SimpleNamespace(id="machine-1")
+        machine = SimpleNamespace(id="machine-1", name="Machine 1", work_center_id=None)
+
+        # Busy-check query chain: no machine is currently running another job.
+        busy_qs = MagicMock()
+        busy_qs.filter.return_value = busy_qs
+        busy_qs.exclude.return_value = busy_qs
+        busy_qs.order_by.return_value = busy_qs
+        busy_qs.first.return_value = None
 
         with patch("apps.production.services.job_services.transaction.atomic", return_value=nullcontext()), \
              patch("apps.production.services.job_services.WorkCenterAssignment.objects.get", return_value=assignment), \
+             patch("apps.production.services.job_services.ProductionJob.objects.filter", return_value=busy_qs), \
              patch("apps.factory.models.Machine.objects.get", return_value=machine), \
              patch.object(WCManagerService, "_sync_assignment_status"):
             result = WCManagerService.assign_machine("assignment-1", "machine-1", user="admin")

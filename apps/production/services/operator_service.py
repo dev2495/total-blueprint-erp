@@ -98,10 +98,11 @@ class OperatorService:
             if satisfaction.get('rolls_missing'):
                 missing_lines.append(f"rolls missing: {satisfaction.get('rolls_missing')}")
             for row in (satisfaction.get('bulk_consumption') or []):
-                req = Decimal(str(row.get('required_qty_kg') or 0))
-                avail = Decimal(str(row.get('available_qty_kg') or 0))
+                req = Decimal(str(row.get('required_qty') if row.get('required_qty') is not None else row.get('required_qty_kg') or 0))
+                avail = Decimal(str(row.get('available_qty') if row.get('available_qty') is not None else row.get('available_qty_kg') or 0))
+                uom = str(row.get("uom") or row.get("mode") or "KG").upper()
                 if req > avail:
-                    missing_lines.append(f"{row.get('material_name') or row.get('category')}: short {(req - avail):.3f} kg")
+                    missing_lines.append(f"{row.get('material_name') or row.get('category')}: short {(req - avail):.3f} {uom.lower()}")
             detail = f" ({'; '.join(missing_lines[:3])})" if missing_lines else ""
             raise ValueError(f"Cannot start job: requirements not satisfied{detail}.")
         return JobService.start_job(job, user=user)

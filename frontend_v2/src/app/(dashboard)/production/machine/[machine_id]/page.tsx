@@ -23,14 +23,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { NumPadPopover } from '@/components/ui/num-pad';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { normalizeProductSpec } from '@/lib/product-spec';
 import { toast } from '@/hooks/use-toast';
+import { useOnlineStatus, STALE_THRESHOLD_SECONDS } from '@/hooks/use-online-status';
+import { ConnectionLostBanner } from '@/components/system/connection-banner';
 import { inventoryService } from '@/services/inventory';
 import { masterDataService, type GranuleQualityCode, type Material } from '@/services/master-data';
 import { machineService, type MachineJobEvent } from '@/services/machine';
+import { reasonCodesService, groupReasonCodes, type ReasonCode, type ReasonCodeGroup } from '@/services/reason-codes';
 import { ArtworkButton, CylinderSetCard } from '@/components/machine/cylinder-artwork';
 
 type QueueFilter = 'ALL' | 'RUNNING' | 'READY' | 'PAUSED';
@@ -268,6 +272,7 @@ export default function MachineExecutionPage() {
     const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
+    const { online, markSynced, secondsSinceSync } = useOnlineStatus();
 
     const machineIdParam = params?.machine_id;
     const machineId = Array.isArray(machineIdParam) ? machineIdParam[0] : String(machineIdParam || '');
@@ -302,8 +307,10 @@ export default function MachineExecutionPage() {
     const [sublog, setSublog] = useState<SublogKind>(null);
     const [scrapDialogQty, setScrapDialogQty] = useState('0');
     const [scrapDialogReason, setScrapDialogReason] = useState('TRIM');
+    const [scrapDialogReasonId, setScrapDialogReasonId] = useState<string | null>(null);
     const [scrapDialogNotes, setScrapDialogNotes] = useState('');
     const [downtimeReason, setDowntimeReason] = useState('MATERIAL');
+    const [downtimeReasonId, setDowntimeReasonId] = useState<string | null>(null);
     const [downtimeStart, setDowntimeStart] = useState(toDateTimeLocal());
     const [downtimeEnd, setDowntimeEnd] = useState('');
     const [downtimeAutoStop, setDowntimeAutoStop] = useState(true);
@@ -356,12 +363,23 @@ export default function MachineExecutionPage() {
 
     const selectedId = String(selectedJob?.id || '');
 
-    const { data: context, isLoading: contextLoading } = useQuery({
+    const {
+        data: context,
+        isLoading: contextLoading,
+        isSuccess: contextSuccess,
+        dataUpdatedAt: contextUpdatedAt,
+    } = useQuery({
         queryKey: ['machine-job-context', machineId, selectedId],
         queryFn: () => machineService.getJobContext(machineId, selectedId),
         enabled: Boolean(machineId && selectedId),
         refetchInterval: POLL_MS,
     });
+
+    // Record a healthy sync whenever the job-context refetch lands so the
+    // connection-lost banner clears (React Query v5 has no useQuery onSuccess).
+    useEffect(() => {
+        if (contextSuccess && contextUpdatedAt) markSynced();
+    }, [contextSuccess, contextUpdatedAt, markSynced]);
 
     const { data: events = [], isLoading: eventsLoading } = useQuery({
         queryKey: ['machine-job-events', machineId, selectedId],
@@ -404,6 +422,21 @@ export default function MachineExecutionPage() {
         staleTime: 60_000,
     });
 
+    const { data: scrapReasons = [] } = useQuery<ReasonCode[]>({
+        queryKey: ['machine-scrap-reasons'],
+        queryFn: () => reasonCodesService.scrap.list(),
+        staleTime: 5 * 60_000,
+    });
+
+    const { data: downtimeReasons = [] } = useQuery<ReasonCode[]>({
+        queryKey: ['machine-downtime-reasons'],
+        queryFn: () => reasonCodesService.downtime.list(),
+        staleTime: 5 * 60_000,
+    });
+
+    const scrapReasonGroups = useMemo(() => groupReasonCodes(Array.isArray(scrapReasons) ? scrapReasons : []), [scrapReasons]);
+    const downtimeReasonGroups = useMemo(() => groupReasonCodes(Array.isArray(downtimeReasons) ? downtimeReasons : []), [downtimeReasons]);
+
     useEffect(() => {
         if (!queueItems.length) {
             setSelectedJobId('');
@@ -434,6 +467,38 @@ export default function MachineExecutionPage() {
     const stepTransform = `${currentInputForm.toLowerCase()} → ${currentOutputForm.toLowerCase()}`;
     const spec = normalizeProductSpec(selectedJob, context);
     const chips = specChips(spec, selectedJob, context);
+
+    // Full process route derived from the existing job-context payload (no backend changes):
+    // - sequence/name pairs come from all_other_requirements[] (covers upstream + current steps)
+    // - merged with the live current_step + current_step_index for state.
+    // Sequences are 1-based; current_step_index is 0-based.
+    const currentStepAny = context?.current_step as any;
+    const currentJobAny = context?.job as any;
+    const selectedJobAny = selectedJob as any;
+    const currentStepSequence = Math.max(
+        1,
+        toNumber(currentStepAny?.sequence, toNumber(currentJobAny?.current_step_index ?? selectedJobAny?.current_step_index, 0) + 1)
+    );
+    const routeSteps = useMemo(() => {
+        const bySeq = new Map<number, { sequence: number; name: string }>();
+        const otherReqs = Array.isArray(context?.all_other_requirements) ? context.all_other_requirements : [];
+        for (const row of otherReqs) {
+            const seq = toNullableNumber(row?.step_sequence);
+            const name = firstNonEmpty(row?.step_name);
+            if (seq && seq > 0 && name && !bySeq.has(seq)) bySeq.set(seq, { sequence: seq, name });
+        }
+        // Always ensure the current step is present with its live process name.
+        const currentName = firstNonEmpty(context?.current_step?.process_name, context?.display?.step_name, stepName, 'Current step');
+        bySeq.set(currentStepSequence, { sequence: currentStepSequence, name: currentName });
+        const ordered = Array.from(bySeq.values()).sort((a, b) => a.sequence - b.sequence);
+        return ordered.map((step) => ({
+            sequence: step.sequence,
+            name: step.name,
+            state: step.sequence < currentStepSequence ? 'done' : step.sequence === currentStepSequence ? 'current' : 'pending',
+            transform: step.sequence === currentStepSequence ? stepTransform : '',
+            isCurrent: step.sequence === currentStepSequence,
+        }));
+    }, [context, currentStepSequence, stepName, stepTransform]);
 
     const stepExecution: any = context?.step_execution || {};
     const progressWeight: any = context?.progress?.weight_kg || context?.execution_profile?.progress?.weight_kg || {};
@@ -500,6 +565,13 @@ export default function MachineExecutionPage() {
         !allocationRequired ||
         (laneGroupMode ? (requiredLaneCount <= 0 ? reservedRolls.length > 0 : reservedLaneCount >= requiredLaneCount) : reservedRolls.length >= 1);
     const reservedInputTotalKg = reservedRolls.reduce((sum: number, row: any) => sum + toNumber(row.weight_kg, 0), 0);
+    const inventoryCounters: any = context?.telemetry?.inventory_counters || {};
+    const consumedInputTotalKg = Math.max(
+        0,
+        toNumber(inventoryCounters?.bulk_consumed_kg ?? context?.telemetry?.bulk_consumed_kg, 0) +
+            toNumber(inventoryCounters?.rolls_consumed_kg ?? context?.telemetry?.rolls_consumed_kg, 0)
+    );
+    const heldInputTotalKg = Math.max(0, reservedInputTotalKg - consumedInputTotalKg);
     const contextMaxOutputKg = toNullableNumber(stepExecution?.max_output_kg ?? context?.execution_profile?.max_output_kg);
     const maxOutputWithoutScrapKg = currentInputForm === 'ROLL'
         ? Math.max(0, Math.min(contextMaxOutputKg ?? remainingKg, reservedInputTotalKg || (contextMaxOutputKg ?? remainingKg)))
@@ -698,13 +770,13 @@ export default function MachineExecutionPage() {
                 if (!requirementId) continue;
                 active.add(requirementId);
                 if (!next[requirementId]) {
-                    const issued = toNumber(row?.actual_issued_qty_kg ?? row?.estimated_actual_qty_kg ?? row?.actual_consumed_qty_kg ?? row?.required_qty_kg, 0);
+                    const issued = toNumber(row?.actual_issued_qty ?? row?.actual_issued_qty_kg ?? row?.estimated_actual_qty ?? row?.estimated_actual_qty_kg ?? row?.actual_consumed_qty ?? row?.actual_consumed_qty_kg ?? row?.required_qty ?? row?.required_qty_kg, 0);
                     next[requirementId] = {
                         requirement_id: requirementId,
                         material_id: row?.material_id ? String(row.material_id) : undefined,
                         actual_issued_qty: issued > 0 ? issued.toFixed(3) : '',
-                        actual_returned_qty: toNumber(row?.actual_returned_qty_kg, 0).toFixed(3),
-                        actual_scrap_qty: toNumber(row?.actual_scrap_qty_kg, 0).toFixed(3),
+                        actual_returned_qty: toNumber(row?.actual_returned_qty ?? row?.actual_returned_qty_kg, 0).toFixed(3),
+                        actual_scrap_qty: toNumber(row?.actual_scrap_qty ?? row?.actual_scrap_qty_kg, 0).toFixed(3),
                         is_estimated: true,
                         return_mode: 'EXACT_COLOR_RETURN',
                         granule_code_allocations: [],
@@ -885,6 +957,7 @@ export default function MachineExecutionPage() {
             return machineService.logScrap(machineId, String(selectedJob.id), {
                 quantity: Math.max(0, toNumber(scrapDialogQty, 0)),
                 reason: scrapDialogReason,
+                reason_master_id: scrapDialogReasonId || undefined,
                 notes: scrapDialogNotes,
             });
         },
@@ -902,6 +975,7 @@ export default function MachineExecutionPage() {
             if (!selectedJob) throw new Error('Select a job first.');
             return machineService.logDowntime(machineId, String(selectedJob.id), {
                 reason: downtimeReason,
+                reason_master_id: downtimeReasonId || undefined,
                 start_time: downtimeStart ? new Date(downtimeStart).toISOString() : undefined,
                 end_time: downtimeEnd ? new Date(downtimeEnd).toISOString() : undefined,
                 notes: downtimeNotes,
@@ -1088,6 +1162,12 @@ export default function MachineExecutionPage() {
             className="min-h-screen bg-[radial-gradient(900px_500px_at_0%_-10%,#e0f2fe_0%,transparent_55%),radial-gradient(900px_500px_at_100%_-10%,#ddd6fe_0%,transparent_55%),linear-gradient(180deg,#fff_0%,#f8fafc_100%)] text-[#0b1220]"
             data-testid="machine-execution-page"
         >
+            <ConnectionLostBanner
+                online={online}
+                stale={secondsSinceSync > STALE_THRESHOLD_SECONDS}
+                secondsSinceSync={secondsSinceSync}
+                onRetry={() => refreshAll()}
+            />
             <span className="sr-only">Kiosk focus for operators Select job Start / resume Log output Idle machine</span>
             <div className="mx-auto max-w-[1520px] px-4 py-4 md:px-6 md:py-5">
                 <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1246,6 +1326,7 @@ export default function MachineExecutionPage() {
                                     canLogOutput={canLogOutput}
                                     canComplete={canComplete}
                                     nextAction={operatorNextStep}
+                                    routeSteps={routeSteps}
                                 />
 
                                 <section className={cn(surfaceClass, 'overflow-hidden border-2 border-blue-500')} id="machine-output-panel" data-testid="machine-output-panel">
@@ -1314,6 +1395,8 @@ export default function MachineExecutionPage() {
                                             updateSplitRow={updateSplitRow}
                                             removeSplitRow={(id: number) => setSplitRows((prev) => (prev.length <= 1 ? prev : prev.filter((row) => row.id !== id)))}
                                             reservedRolls={reservedRolls}
+                                            reservedInputTotalKg={reservedInputTotalKg}
+                                            wasteKgValue={wasteKgValue}
                                             previewOutputKg={previewOutputKg}
                                             previewOutputPcs={previewOutputPcs}
                                             trimInput={trimInput}
@@ -1338,12 +1421,12 @@ export default function MachineExecutionPage() {
                                         ) : null}
                                     </div>
 
-                                    <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:flex-row lg:items-center lg:justify-between">
                                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setScrapDialogQty(scrapInput || '0'); setScrapDialogReason(scrapReason); setSublog('scrap'); }}>
+                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setScrapDialogQty(scrapInput || '0'); setScrapDialogReason(scrapReason); setScrapDialogReasonId(null); setSublog('scrap'); }}>
                                                 + Scrap
                                             </Button>
-                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setDowntimeStart(toDateTimeLocal()); setSublog('downtime'); }}>
+                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setDowntimeStart(toDateTimeLocal()); setDowntimeReasonId(null); setSublog('downtime'); }}>
                                                 + Downtime
                                             </Button>
                                             <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => setSublog('consumption')}>
@@ -1373,7 +1456,7 @@ export default function MachineExecutionPage() {
 
                             <aside className="space-y-3 xl:col-span-3">
                                 <RollsWipCard rolls={rightRailRolls} />
-                                <ExecutionHealthCard allocationReady={allocationReady} shortage={toNumber((context?.telemetry?.execution_health as any)?.roll_shortage_count ?? (context?.satisfaction as any)?.rolls_missing, 0)} producedKg={producedKg} targetKg={targetKg} remainingKg={remainingKg} nextAction={operatorNextStep} contextLoading={contextLoading} />
+                                <ExecutionHealthCard allocationReady={allocationReady} shortage={toNumber((context?.telemetry?.execution_health as any)?.roll_shortage_count ?? (context?.satisfaction as any)?.rolls_missing, 0)} producedKg={producedKg} targetKg={targetKg} remainingKg={remainingKg} nextAction={operatorNextStep} contextLoading={contextLoading} reservedInputKg={reservedInputTotalKg} consumedInputKg={consumedInputTotalKg} heldInputKg={heldInputTotalKg} />
                                 <LiveEventsCard events={events} loading={eventsLoading} />
                             </aside>
                         </div>
@@ -1389,12 +1472,18 @@ export default function MachineExecutionPage() {
                 setScrapDialogQty={setScrapDialogQty}
                 scrapDialogReason={scrapDialogReason}
                 setScrapDialogReason={setScrapDialogReason}
+                scrapDialogReasonId={scrapDialogReasonId}
+                setScrapDialogReasonId={setScrapDialogReasonId}
+                scrapReasonGroups={scrapReasonGroups}
                 scrapDialogNotes={scrapDialogNotes}
                 setScrapDialogNotes={setScrapDialogNotes}
                 scrapMutationPending={scrapMutation.isPending}
                 onSaveScrap={() => scrapMutation.mutate()}
                 downtimeReason={downtimeReason}
                 setDowntimeReason={setDowntimeReason}
+                downtimeReasonId={downtimeReasonId}
+                setDowntimeReasonId={setDowntimeReasonId}
+                downtimeReasonGroups={downtimeReasonGroups}
                 downtimeStart={downtimeStart}
                 setDowntimeStart={setDowntimeStart}
                 downtimeEnd={downtimeEnd}
@@ -1560,6 +1649,7 @@ function RouteStepper({
     canLogOutput,
     canComplete,
     nextAction,
+    routeSteps = [],
 }: any) {
     const hasJob = Boolean(jobState);
     const statusLabel = !hasJob ? 'Waiting for job' : isExecuting ? 'Running live' : isPaused ? 'Paused' : canStart ? 'Ready to start' : jobState;
@@ -1619,8 +1709,14 @@ function RouteStepper({
                 </div>
             </div>
             <div className="mb-3 flex items-center justify-between gap-3">
-                <div className={labelClass}>Live route</div>
-                <div className="text-xs font-semibold text-slate-500">Shows what is done, active, and still pending for this machine step.</div>
+                <div className={labelClass}>Process route</div>
+                <div className="text-xs font-semibold text-slate-500">Full job route — upstream done, current step live, downstream pending.</div>
+            </div>
+            <ProcessRouteStrip routeSteps={routeSteps} remainingKg={remainingKg} producedKg={producedKg} behavior={behavior} fallbackName={stepName} fallbackTransform={stepTransform} />
+
+            <div className="mb-3 mt-5 flex items-center justify-between gap-3">
+                <div className={labelClass}>This step</div>
+                <div className="text-xs font-semibold text-slate-500">What is done, active, and still pending for this machine step.</div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-5">
                 {steps.map((step, index) => (
@@ -1646,6 +1742,51 @@ function RouteStepper({
                 ))}
             </div>
         </section>
+    );
+}
+
+function ProcessRouteStrip({ routeSteps, remainingKg, producedKg, behavior, fallbackName, fallbackTransform }: any) {
+    const steps: any[] = Array.isArray(routeSteps) && routeSteps.length
+        ? routeSteps
+        : [{ sequence: 1, name: fallbackName || 'Current step', state: 'current', transform: fallbackTransform || '', isCurrent: true }];
+    return (
+        <div className="overflow-x-auto" data-testid="machine-process-route">
+            <div className="flex min-w-max items-stretch gap-2">
+                {steps.map((step: any, index: number) => (
+                    <div key={`${step.sequence}-${step.name}`} className="flex items-center gap-2">
+                        <div
+                            className={cn(
+                                'flex min-h-[78px] min-w-[140px] flex-col justify-between rounded-[14px] border px-3 py-2.5 transition',
+                                step.state === 'done' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                                step.state === 'current' && 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]',
+                                step.state === 'pending' && 'border-slate-200 bg-slate-50 text-slate-500'
+                            )}
+                            data-state={step.state}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black', step.state === 'current' ? 'bg-white text-sky-600' : step.state === 'done' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-500')}>
+                                    {step.state === 'done' ? '✓' : step.sequence}
+                                </span>
+                                <span className="truncate text-sm font-black leading-tight">{step.name}</span>
+                            </div>
+                            <div className={cn('mt-1.5 text-[11px] font-semibold leading-4', step.state === 'current' ? 'text-white/85' : 'text-slate-500')}>
+                                {step.isCurrent
+                                    ? `${step.transform || 'current'}${behavior && behavior !== 'NONE' ? ` · ${behaviorLabel(behavior)}` : ''}`
+                                    : step.state === 'done'
+                                      ? 'Completed'
+                                      : 'Pending'}
+                            </div>
+                            {step.isCurrent ? (
+                                <div className="mt-1 inline-flex w-fit items-center rounded-md bg-white/20 px-1.5 py-0.5 font-mono text-[10px] font-bold">
+                                    {remainingKg > 0 ? `${kg(remainingKg, 1)} left` : `${kg(producedKg, 1)} done`}
+                                </div>
+                            ) : null}
+                        </div>
+                        {index < steps.length - 1 ? <span className="shrink-0 text-slate-300">→</span> : null}
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -1680,6 +1821,8 @@ function ProcessLogForm(props: any) {
         updateSplitRow,
         removeSplitRow,
         reservedRolls,
+        reservedInputTotalKg = 0,
+        wasteKgValue = 0,
         previewOutputKg,
         previewOutputPcs,
         trimInput,
@@ -1694,7 +1837,11 @@ function ProcessLogForm(props: any) {
         materialConfirmations,
         reconcilableBulkRows,
         updateMaterialConfirmation,
+        behavior,
     } = props;
+    // Remainder roll is created whenever input is consumed but output + waste < input.
+    const remainderKgEstimate = Math.max(0, toNumber(reservedInputTotalKg, 0) - toNumber(previewOutputKg, 0) - toNumber(wasteKgValue, 0));
+    const showRemainderPicker = toNumber(reservedInputTotalKg, 0) > 0 && remainderKgEstimate > 0.001;
 
     return (
         <div className="space-y-4">
@@ -1758,17 +1905,15 @@ function ProcessLogForm(props: any) {
                     </div>
                     <div>
                         <Label className={labelClass}>Good output PCS</Label>
-                        <div className="mt-1 flex items-center gap-1">
-                            <Input data-testid="machine-output-pcs" value={outputPcs} onChange={(event) => handleOutputPcsChange(event.target.value)} className={cn(inputClass, 'font-mono text-base font-bold')} type="number" />
-                            <span className="text-xs font-semibold text-slate-500">pcs</span>
+                        <div className="mt-1">
+                            <NumPadPopover value={outputPcs} onChange={handleOutputPcsChange} unit="pcs" step={1} decimals={0} label="Good output PCS" min={0} inputProps={{ 'data-testid': 'machine-output-pcs' } as any} inputClassName="h-10 text-base" />
                         </div>
                         <div className="mt-1 text-[10px] text-slate-500">≈ <b className="font-mono">{kg(previewOutputKg)}</b></div>
                     </div>
                     <div>
                         <Label className={labelClass}>Output kg</Label>
-                        <div className="mt-1 flex items-center gap-1">
-                            <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" step="0.001" />
-                            <span className="text-xs font-semibold text-slate-500">kg</span>
+                        <div className="mt-1">
+                            <NumPadPopover value={outputWeightKg} onChange={handleOutputWeightChange} unit="kg" step={1} decimals={3} label="Output KG" min={0} inputProps={{ 'data-testid': 'machine-output-weight' } as any} inputClassName="h-10" />
                         </div>
                     </div>
                 </div>
@@ -1785,9 +1930,8 @@ function ProcessLogForm(props: any) {
                     </div>
                     <div>
                         <Label className={labelClass}>Good output KG</Label>
-                        <div className="mt-1 flex items-center gap-1">
-                            <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono text-base font-bold')} type="number" step="0.001" />
-                            <span className="text-xs font-semibold text-slate-500">kg</span>
+                        <div className="mt-1">
+                            <NumPadPopover value={outputWeightKg} onChange={handleOutputWeightChange} unit="kg" step={1} decimals={3} label="Good output KG" min={0} inputProps={{ 'data-testid': 'machine-output-weight' } as any} inputClassName="h-10 text-base" />
                         </div>
                     </div>
                 </div>
@@ -1795,23 +1939,20 @@ function ProcessLogForm(props: any) {
                 <div className="grid gap-3 md:grid-cols-3">
                     <div>
                         <Label className={labelClass}>{variant === 'printing' ? 'Throughput good qty' : 'Total produced'}</Label>
-                        <div className="mt-1 flex items-center gap-1">
-                            <Input data-testid="machine-output-weight" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className={cn(inputClass, 'font-mono text-base font-bold')} type="number" step="0.001" />
-                            <span className="text-xs font-semibold text-slate-500">kg</span>
+                        <div className="mt-1">
+                            <NumPadPopover value={outputWeightKg} onChange={handleOutputWeightChange} unit="kg" step={1} decimals={3} label={variant === 'printing' ? 'Throughput good qty' : 'Total produced'} min={0} inputProps={{ 'data-testid': 'machine-output-weight' } as any} inputClassName="h-10 text-base" />
                         </div>
                     </div>
                     <div>
                         <Label className={labelClass}>Output width</Label>
-                        <div className="mt-1 flex items-center gap-1">
-                            <Input data-testid="machine-output-width" value={outputWidthMm} onChange={(event) => setOutputWidthMm(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" />
-                            <span className="text-xs text-slate-500">mm</span>
+                        <div className="mt-1">
+                            <NumPadPopover value={outputWidthMm} onChange={setOutputWidthMm} unit="mm" step={1} decimals={0} label="Output width" min={0} inputProps={{ 'data-testid': 'machine-output-width' } as any} inputClassName="h-10" />
                         </div>
                     </div>
                     <div>
                         <Label className={labelClass}>Output length opt</Label>
-                        <div className="mt-1 flex items-center gap-1">
-                            <Input data-testid="machine-output-length" value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className={cn(inputClass, 'font-mono')} type="number" />
-                            <span className="text-xs text-slate-500">m</span>
+                        <div className="mt-1">
+                            <NumPadPopover value={outputLengthM} onChange={setOutputLengthM} unit="m" step={1} decimals={1} label="Output length" min={0} inputProps={{ 'data-testid': 'machine-output-length' } as any} inputClassName="h-10" />
                         </div>
                     </div>
                 </div>
@@ -1841,22 +1982,22 @@ function ProcessLogForm(props: any) {
                                 <tr className="border-t border-slate-100">
                                     <td className="p-2 pl-4 font-mono text-xs text-slate-500">1</td>
                                     <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-gross-0" value={outputGrossKg} onChange={(event) => updatePrimaryRollGrossTare('gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-tare-0" value={outputTareKg} onChange={(event) => updatePrimaryRollGrossTare('tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-weight-0" value={outputWeightKg} onChange={(event) => handleOutputWeightChange(event.target.value)} className="ml-auto h-9 w-28 rounded-lg bg-emerald-50 font-mono font-semibold text-emerald-900" /></td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-width-0" value={outputWidthMm} onChange={(event) => setOutputWidthMm(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                    <td className="p-2 text-right"><Input data-testid="machine-create-row-length-0" value={outputLengthM} onChange={(event) => setOutputLengthM(event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                    <td className="p-2 text-right"><NumPadCell testId="machine-create-row-gross-0" value={outputGrossKg} onChange={(value) => updatePrimaryRollGrossTare('gross_weight_kg', value)} decimals={3} label="Gross weight (kg)" width="w-28" /></td>
+                                    <td className="p-2 text-right"><NumPadCell testId="machine-create-row-tare-0" value={outputTareKg} onChange={(value) => updatePrimaryRollGrossTare('tare_weight_kg', value)} decimals={3} label="Core tare (kg)" width="w-24" /></td>
+                                    <td className="p-2 text-right"><NumPadCell testId="machine-create-row-weight-0" value={outputWeightKg} onChange={handleOutputWeightChange} decimals={3} label="Net weight (kg)" width="w-28" tone="emerald" /></td>
+                                    <td className="p-2 text-right"><NumPadCell testId="machine-create-row-width-0" value={outputWidthMm} onChange={setOutputWidthMm} decimals={0} label="Width (mm)" width="w-24" /></td>
+                                    <td className="p-2 text-right"><NumPadCell testId="machine-create-row-length-0" value={outputLengthM} onChange={setOutputLengthM} decimals={1} label="Length (m)" width="w-24" /></td>
                                     <td />
                                 </tr>
                                 {createRollRows.map((row: CreateRollRow, index: number) => (
                                     <tr key={row.id} className="border-t border-slate-100">
                                         <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 2}</td>
                                         <td className="p-2 font-mono text-xs font-semibold">Auto label on save</td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-gross-${index + 1}`} value={row.gross_weight_kg} onChange={(event) => updateCreateRow(row.id, 'gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-tare-${index + 1}`} value={row.tare_weight_kg} onChange={(event) => updateCreateRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-weight-${index + 1}`} value={row.weight_kg} onChange={(event) => updateCreateRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg bg-emerald-50 font-mono font-semibold text-emerald-900" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-width-${index + 1}`} value={row.width_mm} onChange={(event) => updateCreateRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-create-row-length-${index + 1}`} value={row.length_m} onChange={(event) => updateCreateRow(row.id, 'length_m', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-create-row-gross-${index + 1}`} value={row.gross_weight_kg} onChange={(value) => updateCreateRow(row.id, 'gross_weight_kg', value)} decimals={3} label="Gross weight (kg)" width="w-28" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-create-row-tare-${index + 1}`} value={row.tare_weight_kg} onChange={(value) => updateCreateRow(row.id, 'tare_weight_kg', value)} decimals={3} label="Core tare (kg)" width="w-24" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-create-row-weight-${index + 1}`} value={row.weight_kg} onChange={(value) => updateCreateRow(row.id, 'weight_kg', value)} decimals={3} label="Net weight (kg)" width="w-28" tone="emerald" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-create-row-width-${index + 1}`} value={row.width_mm} onChange={(value) => updateCreateRow(row.id, 'width_mm', value)} decimals={0} label="Width (mm)" width="w-24" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-create-row-length-${index + 1}`} value={row.length_m} onChange={(value) => updateCreateRow(row.id, 'length_m', value)} decimals={1} label="Length (m)" width="w-24" /></td>
                                         <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeCreateRow(row.id)}><Trash2 className="h-4 w-4" /></Button></td>
                                     </tr>
                                 ))}
@@ -1889,10 +2030,10 @@ function ProcessLogForm(props: any) {
                                     <tr key={row.id} className="border-t border-slate-100">
                                         <td className="p-2 pl-4 font-mono text-xs text-slate-500">{index + 1}</td>
                                         <td className="p-2 font-mono text-xs font-semibold">Auto child label</td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-width-${index}`} value={row.width_mm} onChange={(event) => updateSplitRow(row.id, 'width_mm', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-gross-${index}`} value={row.gross_weight_kg} onChange={(event) => updateSplitRow(row.id, 'gross_weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-tare-${index}`} value={row.tare_weight_kg} onChange={(event) => updateSplitRow(row.id, 'tare_weight_kg', event.target.value)} className="ml-auto h-9 w-24 rounded-lg font-mono" /></td>
-                                        <td className="p-2 text-right"><Input data-testid={`machine-split-row-weight-${index}`} value={row.weight_kg} onChange={(event) => updateSplitRow(row.id, 'weight_kg', event.target.value)} className="ml-auto h-9 w-28 rounded-lg bg-emerald-50 font-mono font-semibold text-emerald-900" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-split-row-width-${index}`} value={row.width_mm} onChange={(value) => updateSplitRow(row.id, 'width_mm', value)} decimals={0} label="Child width (mm)" width="w-24" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-split-row-gross-${index}`} value={row.gross_weight_kg} onChange={(value) => updateSplitRow(row.id, 'gross_weight_kg', value)} decimals={3} label="Gross weight (kg)" width="w-28" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-split-row-tare-${index}`} value={row.tare_weight_kg} onChange={(value) => updateSplitRow(row.id, 'tare_weight_kg', value)} decimals={3} label="Core tare (kg)" width="w-24" /></td>
+                                        <td className="p-2 text-right"><NumPadCell testId={`machine-split-row-weight-${index}`} value={row.weight_kg} onChange={(value) => updateSplitRow(row.id, 'weight_kg', value)} decimals={3} label="Net weight (kg)" width="w-28" tone="emerald" /></td>
                                         <td className="p-2 text-right"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-600" onClick={() => removeSplitRow(row.id)} disabled={splitRows.length <= 1}><Trash2 className="h-4 w-4" /></Button></td>
                                     </tr>
                                 ))}
@@ -1919,7 +2060,7 @@ function ProcessLogForm(props: any) {
                                 <div key={requirementId} className="grid gap-2 rounded-lg border border-blue-100 bg-white p-2 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] md:items-end">
                                     <div>
                                         <div className="text-xs font-black text-slate-900">{row.material_name || row.material_code || 'Material'}</div>
-                                        <div className="text-[10px] font-semibold text-slate-500">Required {kg(row.required_qty_kg || row.theoretical_qty_kg)}</div>
+                                        <div className="text-[10px] font-semibold text-slate-500">Required {qtyLabel(row.required_qty ?? row.required_qty_kg ?? row.theoretical_qty ?? row.theoretical_qty_kg, row.uom || row.mode || 'KG')}</div>
                                     </div>
                                     <InlineNumber label="Issued" value={draft.actual_issued_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_issued_qty: value, is_estimated: false })} />
                                     <InlineNumber label="Returned" value={draft.actual_returned_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_returned_qty: value, is_estimated: false })} />
@@ -1940,11 +2081,11 @@ function ProcessLogForm(props: any) {
                     <div className="flex flex-wrap items-center gap-2">
                         <div>
                             <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Trim</div>
-                            <Input data-testid="machine-trim-input" value={trimInput} onChange={(event) => setTrimInput(event.target.value)} className="h-10 w-24 rounded-lg border-rose-200 bg-white font-mono" type="number" step="0.001" />
+                            <NumPadCell testId="machine-trim-input" value={trimInput} onChange={setTrimInput} decimals={scrapEntryMode === 'PCS' ? 0 : 3} label={`Trim (${scrapEntryMode.toLowerCase()})`} width="w-24" tone="rose" />
                         </div>
                         <div>
                             <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Scrap</div>
-                            <Input data-testid="machine-scrap-input" value={scrapInput} onChange={(event) => setScrapInput(event.target.value)} className="h-10 w-24 rounded-lg border-rose-200 bg-white font-mono" type="number" step="0.001" />
+                            <NumPadCell testId="machine-scrap-input" value={scrapInput} onChange={setScrapInput} decimals={scrapEntryMode === 'PCS' ? 0 : 3} label={`Scrap (${scrapEntryMode.toLowerCase()})`} width="w-24" tone="rose" />
                         </div>
                         <Select value={scrapEntryMode} onValueChange={(value) => setScrapEntryMode(value as EntryMode)}>
                             <SelectTrigger className="h-10 w-24 rounded-lg border-rose-200 bg-white"><SelectValue /></SelectTrigger>
@@ -1957,15 +2098,31 @@ function ProcessLogForm(props: any) {
                 </div>
             </div>
 
-            {variant === 'pouching' ? (
-                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/30 p-3">
+            {showRemainderPicker ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/30 p-3" data-testid="machine-remainder-picker">
+                    <div className="mb-2 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                            <div className={cn(labelClass, 'text-emerald-700')}>For this job</div>
+                            <div className="mt-0.5 font-mono text-sm font-black text-emerald-900">{kg(previewOutputKg)}</div>
+                            <div className="text-[10px] font-semibold text-emerald-700/80">Good output going to next step / FG</div>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                            <div className={cn(labelClass, 'text-amber-700')}>Remainder back to stock</div>
+                            <div className="mt-0.5 font-mono text-sm font-black text-amber-900">{kg(remainderKgEstimate)}</div>
+                            <div className="text-[10px] font-semibold text-amber-700/80">Input balance returned as a remainder roll</div>
+                        </div>
+                    </div>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <div className={cn(labelClass, 'text-amber-800')}>Roll remainder · returns to bin</div>
-                            <div className="text-[11px] text-amber-900/70">Input roll balance is returned to the selected remainder location.</div>
+                            <div className={cn(labelClass, 'text-amber-800')}>Remainder location</div>
+                            <div className="text-[11px] text-amber-900/70">
+                                {behavior === 'SPLIT'
+                                    ? 'Uncut input balance + edge trim is returned to the selected location.'
+                                    : 'Input roll balance is returned to the selected remainder location.'}
+                            </div>
                         </div>
                         <Select value={remainderLocationId} onValueChange={setRemainderLocationId}>
-                            <SelectTrigger className="h-10 min-w-[220px] rounded-lg border-amber-200 bg-white"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-10 min-w-[220px] rounded-lg border-amber-200 bg-white" data-testid="machine-remainder-location"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value={DEFAULT_REMAINDER}>Use job output location</SelectItem>
                                 {remainderLocations.map((loc: any) => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
@@ -1982,8 +2139,51 @@ function InlineNumber({ label, value, onChange }: { label: string; value: string
     return (
         <div>
             <Label className={labelClass}>{label}</Label>
-            <Input value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 rounded-lg font-mono" type="number" step="0.001" />
+            <NumPadPopover value={value} onChange={onChange} decimals={3} step={1} min={0} label={label} className="mt-1" inputClassName="h-9 rounded-lg text-base" />
         </div>
+    );
+}
+
+/**
+ * Compact, table-friendly numpad input. Renders a fixed-width NumPadPopover
+ * trigger sized to fit dense output tables while still opening the tap keypad
+ * and accepting direct keyboard entry.
+ */
+function NumPadCell({
+    testId,
+    value,
+    onChange,
+    decimals = 3,
+    label,
+    width = 'w-24',
+    tone = 'slate',
+}: {
+    testId?: string;
+    value: string;
+    onChange: (value: string) => void;
+    decimals?: number;
+    label?: string;
+    width?: string;
+    tone?: 'slate' | 'emerald' | 'rose';
+}) {
+    const toneClass =
+        tone === 'emerald'
+            ? 'border-emerald-200 bg-emerald-50 font-semibold text-emerald-900'
+            : tone === 'rose'
+              ? 'border-rose-200 bg-white'
+              : 'border-slate-200 bg-white';
+    return (
+        <NumPadPopover
+            value={value}
+            onChange={onChange}
+            decimals={decimals}
+            step={1}
+            min={0}
+            label={label}
+            className={cn('ml-auto', width)}
+            inputClassName={cn('h-9 rounded-lg px-2 text-sm', toneClass)}
+            inputProps={testId ? ({ 'data-testid': testId } as any) : undefined}
+        />
     );
 }
 
@@ -2021,7 +2221,8 @@ function RollsWipCard({ rolls }: { rolls: any[] }) {
     );
 }
 
-function ExecutionHealthCard({ allocationReady, shortage, producedKg, targetKg, remainingKg, nextAction, contextLoading }: any) {
+function ExecutionHealthCard({ allocationReady, shortage, producedKg, targetKg, remainingKg, nextAction, contextLoading, reservedInputKg = 0, consumedInputKg = 0, heldInputKg = 0 }: any) {
+    const hasReservation = toNumber(reservedInputKg, 0) > 0 || toNumber(consumedInputKg, 0) > 0;
     return (
         <section className={cn(surfaceClass, 'p-4')}>
             <div className={cn(labelClass, 'mb-3')}>Execution health</div>
@@ -2031,6 +2232,28 @@ function ExecutionHealthCard({ allocationReady, shortage, producedKg, targetKg, 
                 <HealthTile label="Step progress" value={`${kg(producedKg)} / ${kg(targetKg)}`} />
                 <HealthTile label="Remaining" value={kg(remainingKg)} tone="amber" />
             </div>
+            {hasReservation ? (
+                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3" data-testid="machine-reservation-usage">
+                    <div className={cn(labelClass, 'text-blue-700')}>Reservation usage</div>
+                    <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+                        <div>
+                            <div className="font-mono text-base font-black text-blue-900">{toNumber(reservedInputKg, 0).toFixed(1)}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700/80">Reserved kg</div>
+                        </div>
+                        <div>
+                            <div className="font-mono text-base font-black text-emerald-700">{toNumber(consumedInputKg, 0).toFixed(1)}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/80">Consumed kg</div>
+                        </div>
+                        <div>
+                            <div className="font-mono text-base font-black text-amber-700">{toNumber(heldInputKg, 0).toFixed(1)}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80">Held kg</div>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-[11px] font-semibold leading-4 text-blue-900/70">
+                        Reserved {kg(reservedInputKg, 1)} · consumed {kg(consumedInputKg, 1)} · {kg(heldInputKg, 1)} held
+                    </div>
+                </div>
+            ) : null}
             <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className={labelClass}>Next action</div>
                 <div className="mt-1 text-sm font-black leading-5 text-slate-950">{nextAction}</div>
@@ -2155,6 +2378,19 @@ function HistoryPanel({ historyRows, historySummary: rawHistorySummary, historyL
     );
 }
 
+type ReasonMasterPickerProps = {
+    groups?: ReasonCodeGroup[];
+    fallbackReasons: string[];
+    allowedLegacyCodes?: string[];
+    value: string;
+    valueId: string | null;
+    onChange: (code: string, id: string | null) => void;
+};
+
+function ReasonMasterPicker(props: ReasonMasterPickerProps) {
+    return <ReasonMasterPickerBody {...props} />;
+}
+
 function SublogDialog(props: any) {
     const {
         sublog,
@@ -2164,12 +2400,18 @@ function SublogDialog(props: any) {
         setScrapDialogQty,
         scrapDialogReason,
         setScrapDialogReason,
+        scrapDialogReasonId,
+        setScrapDialogReasonId,
+        scrapReasonGroups,
         scrapDialogNotes,
         setScrapDialogNotes,
         scrapMutationPending,
         onSaveScrap,
         downtimeReason,
         setDowntimeReason,
+        downtimeReasonId,
+        setDowntimeReasonId,
+        downtimeReasonGroups,
         downtimeStart,
         setDowntimeStart,
         downtimeEnd,
@@ -2213,10 +2455,16 @@ function SublogDialog(props: any) {
                     <>
                         <DialogHeader><DialogTitle>Log scrap</DialogTitle><DialogDescription>Quantity, reason, and notes are written to ScrapLog.</DialogDescription></DialogHeader>
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <div><Label className={labelClass}>Quantity</Label><Input value={scrapDialogQty} onChange={(event) => setScrapDialogQty(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="number" step="0.001" /></div>
+                            <div><Label className={labelClass}>Quantity</Label><NumPadPopover value={scrapDialogQty} onChange={setScrapDialogQty} unit="kg" decimals={3} step={1} min={0} label="Scrap quantity" className="mt-1" inputProps={{ 'data-testid': 'machine-scrap-dialog-qty' } as any} inputClassName="h-10" /></div>
                             <div><Label className={labelClass}>UOM</Label><Input value="KG" disabled className={cn(inputClass, 'mt-1 font-mono')} /></div>
                         </div>
-                        <ReasonChips reasons={['SETUP', 'TRIM', 'DEFECT', 'MACHINE', 'MATERIAL', 'OTHER']} value={scrapDialogReason} onChange={setScrapDialogReason} />
+                        <ReasonMasterPicker
+                            groups={scrapReasonGroups}
+                            fallbackReasons={['SETUP', 'TRIM', 'DEFECT', 'MACHINE', 'MATERIAL', 'OTHER']}
+                            value={scrapDialogReason}
+                            valueId={scrapDialogReasonId}
+                            onChange={(code: string, id: string | null) => { setScrapDialogReason(code); setScrapDialogReasonId(id); }}
+                        />
                         <Textarea value={scrapDialogNotes} onChange={(event) => setScrapDialogNotes(event.target.value)} placeholder="Notes" className="min-h-20 rounded-lg" />
                         <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-rose-600 to-red-500 text-white" disabled={scrapMutationPending} onClick={onSaveScrap}>Save scrap</Button></div>
                     </>
@@ -2227,7 +2475,14 @@ function SublogDialog(props: any) {
                             <div><Label className={labelClass}>Start time</Label><Input value={downtimeStart} onChange={(event) => setDowntimeStart(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="datetime-local" /></div>
                             <div><Label className={labelClass}>End time</Label><Input value={downtimeEnd} onChange={(event) => setDowntimeEnd(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="datetime-local" /></div>
                         </div>
-                        <ReasonChips reasons={['BREAKDOWN', 'MAINTENANCE', 'MATERIAL', 'MANPOWER', 'POWER', 'OTHER']} value={downtimeReason} onChange={setDowntimeReason} />
+                        <ReasonMasterPicker
+                            groups={downtimeReasonGroups}
+                            fallbackReasons={['BREAKDOWN', 'MAINTENANCE', 'MATERIAL', 'MANPOWER', 'POWER', 'OTHER']}
+                            allowedLegacyCodes={['BREAKDOWN', 'MAINTENANCE', 'MATERIAL', 'MANPOWER', 'POWER', 'OTHER']}
+                            value={downtimeReason}
+                            valueId={downtimeReasonId}
+                            onChange={(code: string, id: string | null) => { setDowntimeReason(code); setDowntimeReasonId(id); }}
+                        />
                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><Checkbox checked={downtimeAutoStop} onCheckedChange={(value) => setDowntimeAutoStop(Boolean(value))} /> Auto-stop the running step</label>
                         <Textarea value={downtimeNotes} onChange={(event) => setDowntimeNotes(event.target.value)} placeholder="Notes" className="min-h-20 rounded-lg" />
                         <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-amber-600 to-orange-500 text-white" disabled={downtimeMutationPending} onClick={onSaveDowntime}>Save downtime</Button></div>
@@ -2268,7 +2523,7 @@ function SublogDialog(props: any) {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div><Label className={labelClass}>Quantity kg</Label><Input value={consumptionQty} onChange={(event) => setConsumptionQty(event.target.value)} className={cn(inputClass, 'mt-1 font-mono')} type="number" step="0.001" /></div>
+                            <div><Label className={labelClass}>Quantity kg</Label><NumPadPopover value={consumptionQty} onChange={setConsumptionQty} unit="kg" decimals={3} step={1} min={0} label="Consumption qty" className="mt-1" inputProps={{ 'data-testid': 'machine-consumption-qty' } as any} inputClassName="h-10" /></div>
                         </div>
                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><Checkbox checked={consumptionEstimated} onCheckedChange={(value) => setConsumptionEstimated(Boolean(value))} /> Estimated quantity</label>
                         <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSublog(null)}>Cancel</Button><Button className="bg-gradient-to-br from-blue-700 to-blue-500 text-white" disabled={consumptionPending} onClick={onSaveConsumption}>Save consumption</Button></div>
@@ -2305,6 +2560,77 @@ function ReasonChips({ reasons, value, onChange }: { reasons: string[]; value: s
                     <Button key={reason} type="button" variant="outline" className={cn('h-9 rounded-full text-xs font-semibold', value === reason ? 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white' : 'bg-white')} onClick={() => onChange(reason)}>
                         {reason}
                     </Button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Two-level reason picker backed by the reason-code masters.
+ * Renders parent reasons then their sub-codes as grouped chips. Selecting any
+ * node reports both the master id and a legacy code string for back-compat.
+ * When `allowedLegacyCodes` is supplied (e.g. the fixed downtime enum) the
+ * emitted legacy code is constrained to that set. Falls back to the plain
+ * hardcoded chips when the master list is empty so the flow never breaks.
+ */
+function ReasonMasterPickerBody({
+    groups,
+    fallbackReasons,
+    allowedLegacyCodes,
+    value,
+    valueId,
+    onChange,
+}: ReasonMasterPickerProps) {
+    const safeGroups = Array.isArray(groups) ? groups : [];
+    if (!safeGroups.length) {
+        // No masters configured — keep the original behavior (legacy code only).
+        return <ReasonChips reasons={fallbackReasons} value={value} onChange={(code) => onChange(code, null)} />;
+    }
+
+    const allowed = allowedLegacyCodes ? new Set(allowedLegacyCodes.map((code) => code.toUpperCase())) : null;
+    const deriveLegacyCode = (node: ReasonCode, parent?: ReasonCode): string => {
+        const selfCode = String(node.code || '').toUpperCase();
+        const parentCode = String(parent?.code || node.parent_code || '').toUpperCase();
+        if (!allowed) return selfCode || parentCode || value;
+        if (selfCode && allowed.has(selfCode)) return selfCode;
+        if (parentCode && allowed.has(parentCode)) return parentCode;
+        if (allowed.has('OTHER')) return 'OTHER';
+        return selfCode || parentCode || value;
+    };
+
+    const chip = (node: ReasonCode, parent?: ReasonCode) => {
+        const selected = String(valueId) === String(node.id);
+        return (
+            <Button
+                key={node.id}
+                type="button"
+                variant="outline"
+                data-testid={`reason-chip-${node.code}`}
+                className={cn('h-9 rounded-full px-3 text-xs font-semibold', selected ? 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white' : 'bg-white')}
+                onClick={() => onChange(deriveLegacyCode(node, parent), String(node.id))}
+            >
+                {node.label || node.code}
+            </Button>
+        );
+    };
+
+    return (
+        <div>
+            <Label className={labelClass}>Reason</Label>
+            <div className="mt-2 space-y-2.5">
+                {safeGroups.map((group) => (
+                    <div key={group.parent.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {chip(group.parent)}
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">{group.parent.code}</span>
+                        </div>
+                        {group.children.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5 border-t border-slate-200 pl-2 pt-2">
+                                {group.children.map((child) => chip(child, group.parent))}
+                            </div>
+                        ) : null}
+                    </div>
                 ))}
             </div>
         </div>

@@ -322,13 +322,35 @@ class BOMResolverService:
                     addon_weight_unit_g = weight_val * addon_item_qty
                 else:
                     addon_weight_unit_g = Decimal('0')
-                
+
+                stock_uom = str(getattr(addon_mat, 'addon_purchase_uom', None) or getattr(addon_mat, 'base_uom', None) or 'KG').upper()
+                if stock_uom not in {'KG', 'PCS', 'METER'}:
+                    stock_uom = 'KG'
+                if stock_uom == 'METER':
+                    if addon_mat.weight_mode == 'PER_MM' and dim > 0:
+                        stock_qty_unit = (dim / Decimal('1000')) * addon_item_qty
+                    else:
+                        # For non PER_MM meter-stock add-ons, quantity is interpreted
+                        # as meters per finished unit.
+                        stock_qty_unit = addon_item_qty
+                elif stock_uom == 'PCS':
+                    stock_qty_unit = addon_item_qty
+                else:
+                    stock_qty_unit = addon_weight_unit_g / Decimal('1000')
+
                 addons_bom.append({
                     "addon_id": str(addon_mat.id),
                     "code": addon_mat.code,
                     "name": addon_mat.name,
                     "quantity": float(addon_item_qty),
-                    "weight_kg": float(round(addon_weight_unit_g / Decimal('1000'), 6))
+                    "weight_kg": float(round(addon_weight_unit_g / Decimal('1000'), 6)),
+                    "stock_qty": float(round(stock_qty_unit, 6)),
+                    "stock_uom": stock_uom,
+                    "uom": stock_uom,
+                    "weight_mode": addon_mat.weight_mode,
+                    "weight_value": float(weight_val),
+                    "applies_to": applies_to,
+                    "applied_dimension_mm": float(round(dim, 6)) if addon_mat.weight_mode == 'PER_MM' else 0.0,
                 })
             except (ObjectDoesNotExist, ValueError): continue
 

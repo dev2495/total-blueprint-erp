@@ -72,6 +72,8 @@ export interface ProductionJob {
     execution_model_version?: number;
     input_form: 'NONE' | 'BULK' | 'ROLL';
     output_form: 'BULK' | 'ROLL';
+    /** 0-based index of the current step within the job's routing rule. */
+    current_step_index?: number;
     committed_artwork_id?: string | null;
     committed_artwork_code?: string | null;
     committed_artwork_name?: string | null;
@@ -104,6 +106,22 @@ export interface OperatorMachine {
         product_name: string;
     } | null;
     queue_count: number;
+    // --- Live machine state (WC machines payload enrichment) ---
+    /** Live execution state for the machine card. */
+    state?: 'IDLE' | 'RUNNING' | 'DOWN';
+    /** Job number currently running on this machine, if any. */
+    current_job_number?: string | null;
+    /** ISO timestamp the machine is reserved/busy until, if known. */
+    busy_until?: string | null;
+    /** Active roll reservations against this machine, if surfaced in the payload. */
+    reservations?: Array<{
+        id: string;
+        roll_id: string;
+        roll_label: string;
+        material_name: string;
+        qty_reserved: number;
+        job_number?: string | null;
+    }>;
 }
 
 export interface JobSatisfactionStatus {
@@ -192,10 +210,28 @@ export interface JobContext {
     target_roll_invariants?: Record<string, any>;
     target_roll_invariant_list?: Array<Record<string, any>>;
     current_step?: {
+        /** 1-based sequence number of the current step in the route. */
+        sequence?: number;
         process_name?: string;
+        process_code?: string;
         input_form?: 'NONE' | 'BULK' | 'ROLL';
         output_form?: 'BULK' | 'ROLL';
     };
+    /**
+     * Per-step non-film material requirements up to and including the current
+     * step. Each row carries the process name + 1-based sequence, which the
+     * machine terminal uses to render the full process route strip.
+     */
+    all_other_requirements?: Array<{
+        material_id?: string;
+        code?: string;
+        name?: string;
+        category?: string;
+        weight_kg?: number;
+        uom?: string;
+        step_sequence?: number | null;
+        step_name?: string | null;
+    }>;
     satisfaction: JobSatisfactionStatus;
     wip_pool: Array<{
         id: string;
@@ -628,7 +664,7 @@ export const machineService = {
     logScrap: async (
         machineId: string,
         jobId: string,
-        payload: { quantity: number; reason: string; notes?: string }
+        payload: { quantity: number; reason: string; reason_master_id?: string; notes?: string }
     ): Promise<ProductionJob> => {
         const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/log-scrap/`, payload);
         return (data?.data || data) as ProductionJob;
@@ -639,6 +675,7 @@ export const machineService = {
         jobId: string,
         payload: {
             reason: string;
+            reason_master_id?: string;
             start_time?: string;
             end_time?: string;
             notes?: string;

@@ -7,6 +7,18 @@ from apps.factory.models import Process, WorkCenter, WorkCenterProcess, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll, InventoryReservation
 from apps.production.services.shift_resolver import build_shift_fields_for_job
 
+
+class MachineBusyError(Exception):
+    """
+    Raised when a machine is already running another job and therefore cannot
+    accept a new assignment. The view layer maps this to HTTP 409.
+    """
+
+    def __init__(self, message, conflicting_job_number=None):
+        super().__init__(message)
+        self.conflicting_job_number = conflicting_job_number
+
+
 class JobService:
     KG_EPSILON = Decimal("0.0001")
     PCS_EPSILON = Decimal("0.01")
@@ -1454,15 +1466,42 @@ class WCManagerService:
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
             cls._ensure_pre_release_editable(assignment)
             machine = Machine.objects.get(id=machine_id)
-            
+
+            # Validate the chosen machine belongs to this assignment's work center.
+            assignment_wc_id = getattr(assignment, "work_center_id", None)
+            machine_wc_id = getattr(machine, "work_center_id", None)
+            if assignment_wc_id and machine_wc_id and machine_wc_id != assignment_wc_id:
+                wc_label = getattr(getattr(assignment, "work_center", None), "name", assignment_wc_id)
+                raise ValueError(
+                    f"Machine {machine.name} does not belong to work center {wc_label}."
+                )
+
+            # Reject if the machine is already running another job (busy).
+            this_job_id = getattr(assignment, "production_job_id", None)
+            conflicting = (
+                ProductionJob.objects.filter(machine_id=machine.id)
+                .filter(Q(job_state="EXECUTING") | Q(status="RUNNING"))
+                .exclude(id=this_job_id)
+                .exclude(job_state__in=["COMPLETED", "CANCELLED"])
+                .exclude(status__in=["COMPLETED", "CANCELLED"])
+                .order_by("-updated_at")
+                .first()
+            )
+            if conflicting is not None:
+                raise MachineBusyError(
+                    f"Machine {machine.name} is already running job {conflicting.job_number}.",
+                    conflicting_job_number=conflicting.job_number,
+                )
+
             assignment.assigned_machine = machine
-            
+
             # Optional: Assign Rolls in the same step
             if roll_ids:
                 from apps.inventory.models import InventoryRoll
                 from apps.inventory.models import InventoryReservation
                 from apps.production.services.services_execution import ExecutionService
-                from django.db.models import Q
+                # NOTE: Q is imported at module scope; a local re-import here would
+                # shadow it across the whole function and break the busy-check above.
 
                 job = assignment.production_job
                 process = job.current_process or job.process
