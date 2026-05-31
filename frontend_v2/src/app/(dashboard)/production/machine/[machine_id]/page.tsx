@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    Activity,
     AlertCircle,
     ArrowLeft,
     CheckCircle2,
@@ -69,6 +68,37 @@ type MaterialConfirmationDraft = {
     return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
     target_ink_material_id?: string;
     granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: string }>;
+};
+
+type MaterialReleaseRow = {
+    requirement_id: string;
+    material_id?: string;
+    code: string;
+    name: string;
+    category: string;
+    uom: string;
+    requiredQty: number;
+    theoreticalQty: number;
+    plannedIssueQty: number;
+    issuedQty: number;
+    returnedQty: number;
+    scrapQty: number;
+    consumedQty: number;
+    varianceQty: number;
+    estimatedQty: number;
+    availableQty: number;
+    currentPlantAvailableQty: number;
+    otherPlantsAvailableQty: number;
+    sourceLocationName: string;
+    captureMode: string;
+    policyLabel: string;
+    granuleCodeOptions: Array<{
+        granule_code_id: string;
+        code: string;
+        available_qty_kg?: number;
+        location_name?: string;
+        plant_name?: string;
+    }>;
 };
 
 type QualityDraft = {
@@ -228,16 +258,6 @@ function resolveCreateNewDefaultWidth(context?: any): number | null {
     return fallback && fallback > 0 ? fallback : null;
 }
 
-function eventTone(type?: string) {
-    const normalized = String(type || '').toUpperCase();
-    if (normalized.includes('SCRAP')) return 'bg-rose-500';
-    if (normalized.includes('DOWN')) return 'bg-slate-500';
-    if (normalized.includes('CONSUMPTION')) return 'bg-blue-600';
-    if (normalized.includes('QUALITY')) return 'bg-cyan-500';
-    if (normalized.includes('ROLL')) return 'bg-blue-500';
-    return 'bg-emerald-500';
-}
-
 function stateBadgeClass(state?: string) {
     const normalized = String(state || '').toUpperCase();
     if (normalized === 'EXECUTING') return 'border-blue-200 bg-blue-50 text-blue-800';
@@ -245,6 +265,15 @@ function stateBadgeClass(state?: string) {
     if (normalized === 'RELEASED' || normalized === 'READY') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
     if (normalized === 'COMPLETED') return 'border-slate-200 bg-slate-50 text-slate-700';
     return 'border-slate-200 bg-white text-slate-700';
+}
+
+function terminalStateBadgeClass(state?: string) {
+    const normalized = String(state || '').toUpperCase();
+    if (normalized === 'RUNNING') return 'bg-emerald-500/20 text-emerald-200 ring-emerald-300/30';
+    if (normalized === 'READY') return 'bg-sky-500/20 text-sky-200 ring-sky-300/30';
+    if (normalized === 'PAUSED') return 'bg-amber-500/20 text-amber-200 ring-amber-300/30';
+    if (normalized === 'COMPLETE') return 'bg-violet-500/20 text-violet-200 ring-violet-300/30';
+    return 'bg-white/10 text-slate-200 ring-white/10';
 }
 
 function specChips(spec: any, selectedJob: any, context: any) {
@@ -266,6 +295,103 @@ function specChips(spec: any, selectedJob: any, context: any) {
         spec.printingLabel ? { label: spec.printingLabel, tone: 'bg-sky-50 text-sky-800 border-sky-200' } : null,
         template ? { label: template, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
     ].filter(Boolean) as Array<{ label: string; tone: string }>;
+}
+
+function firstNumber(row: any, keys: string[], fallback = 0) {
+    for (const key of keys) {
+        const value = toNullableNumber(row?.[key]);
+        if (value !== null) return value;
+    }
+    return fallback;
+}
+
+function buildMaterialReleaseRows(
+    context: any,
+    reconcilableBulkRows: any[],
+    materialConfirmations: Record<string, MaterialConfirmationDraft>
+): MaterialReleaseRow[] {
+    const savedConfirmations = new Map<string, any>();
+    for (const row of Array.isArray(context?.current_step_material_confirmations) ? context.current_step_material_confirmations : []) {
+        const requirementId = String(row?.requirement_id || '').trim();
+        const materialId = String(row?.material_id || '').trim();
+        if (requirementId) savedConfirmations.set(`req:${requirementId}`, row);
+        if (materialId) savedConfirmations.set(`mat:${materialId}`, row);
+    }
+
+    return (Array.isArray(reconcilableBulkRows) ? reconcilableBulkRows : [])
+        .map((row: any, index: number) => {
+            const requirementId = String(row?.requirement_id || row?.id || `material-${index}`).trim();
+            const materialId = row?.material_id ? String(row.material_id) : undefined;
+            const draft = materialConfirmations[requirementId];
+            const saved = savedConfirmations.get(`req:${requirementId}`) || (materialId ? savedConfirmations.get(`mat:${materialId}`) : null) || {};
+            const plannedIssueQty = firstNumber(row, ['planned_issue_qty_kg', 'planned_issue_qty', 'estimated_actual_qty_kg', 'estimated_actual_qty', 'required_qty_kg', 'required_qty']);
+            const issuedQty = firstNumber(
+                {
+                    ...row,
+                    ...saved,
+                    draft_actual_issued_qty: draft?.actual_issued_qty,
+                },
+                ['draft_actual_issued_qty', 'actual_issued_qty_kg', 'actual_issued_qty', 'estimated_actual_qty_kg', 'estimated_actual_qty', 'planned_issue_qty_kg', 'planned_issue_qty'],
+                plannedIssueQty
+            );
+            const returnedQty = firstNumber(
+                {
+                    ...row,
+                    ...saved,
+                    draft_actual_returned_qty: draft?.actual_returned_qty,
+                },
+                ['draft_actual_returned_qty', 'actual_returned_qty_kg', 'actual_returned_qty'],
+                0
+            );
+            const scrapQty = firstNumber(
+                {
+                    ...row,
+                    ...saved,
+                    draft_actual_scrap_qty: draft?.actual_scrap_qty,
+                },
+                ['draft_actual_scrap_qty', 'actual_scrap_qty_kg', 'actual_scrap_qty'],
+                0
+            );
+            const consumedQty = Math.max(
+                0,
+                firstNumber(row, ['actual_consumed_qty_kg', 'actual_consumed_qty'], Math.max(0, issuedQty - returnedQty))
+            );
+            const granuleCodeOptions = Array.isArray(row?.granule_code_options)
+                ? row.granule_code_options.map((option: any) => ({
+                    granule_code_id: String(option?.granule_code_id || option?.id || ''),
+                    code: String(option?.code || option?.label || ''),
+                    available_qty_kg: toNumber(option?.available_qty_kg ?? option?.available_qty, 0),
+                    location_name: option?.location_name || '',
+                    plant_name: option?.plant_name || '',
+                })).filter((option: any) => option.granule_code_id)
+                : [];
+
+            return {
+                requirement_id: requirementId,
+                material_id: materialId,
+                code: String(row?.material_code || row?.code || ''),
+                name: firstNonEmpty(row?.material_name, row?.name, row?.material_code, 'Material'),
+                category: String(row?.category || row?.category_display || row?.material_category || '').toUpperCase(),
+                uom: String(row?.uom || row?.mode || 'KG').toUpperCase(),
+                requiredQty: firstNumber(row, ['required_qty_kg', 'required_qty', 'weight_kg']),
+                theoreticalQty: firstNumber(row, ['theoretical_qty_kg', 'theoretical_qty']),
+                plannedIssueQty,
+                issuedQty,
+                returnedQty,
+                scrapQty,
+                consumedQty,
+                varianceQty: firstNumber(row, ['variance_qty_kg', 'variance_qty'], consumedQty - firstNumber(row, ['theoretical_qty_kg', 'theoretical_qty'])),
+                estimatedQty: firstNumber(row, ['estimated_actual_qty_kg', 'estimated_actual_qty'], plannedIssueQty),
+                availableQty: firstNumber(row, ['source_location_available_qty_kg', 'source_location_available_qty', 'available_qty_kg', 'available_qty']),
+                currentPlantAvailableQty: firstNumber(row, ['current_plant_available_qty_kg', 'current_plant_available_qty', 'plant_available_qty_kg', 'plant_available_qty']),
+                otherPlantsAvailableQty: firstNumber(row, ['other_plants_available_qty_kg', 'other_plants_available_qty']),
+                sourceLocationName: firstNonEmpty(row?.location_name, row?.source_location_name, 'Source location'),
+                captureMode: String(row?.capture_mode || row?.strategy || 'MANUAL').toUpperCase(),
+                policyLabel: firstNonEmpty(row?.effective_issue_policy_mode, row?.template_issue_policy_mode, row?.policy_source, 'Planned issue'),
+                granuleCodeOptions,
+            };
+        })
+        .filter((row) => row.requirement_id && row.name);
 }
 
 export default function MachineExecutionPage() {
@@ -708,6 +834,25 @@ export default function MachineExecutionPage() {
         }
         return Array.from(byId.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
     }, [materialRowsFromContext, materialLibrary]);
+    const materialReleaseRows = useMemo(
+        () => buildMaterialReleaseRows(context, reconcilableBulkRows, materialConfirmations),
+        [context, reconcilableBulkRows, materialConfirmations]
+    );
+    const inkTargetOptions = useMemo(() => {
+        const byId = new Map<string, { id: string; name: string; code?: string; category?: string }>();
+        for (const row of materialReleaseRows) {
+            if (row.material_id && row.category === 'INK') {
+                byId.set(row.material_id, { id: row.material_id, name: row.name, code: row.code, category: row.category });
+            }
+        }
+        for (const material of materialOptions) {
+            const category = String(material?.category || '').toUpperCase();
+            if (material?.id && category === 'INK') {
+                byId.set(String(material.id), { id: String(material.id), name: material.name, code: material.code, category });
+            }
+        }
+        return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [materialOptions, materialReleaseRows]);
     const selectedMaterial = materialOptions.find((material: any) => String(material.id) === String(consumptionMaterialId));
     const filteredGranuleCodes = useMemo(
         () =>
@@ -1095,9 +1240,22 @@ export default function MachineExecutionPage() {
         return next;
     }));
     const updateMaterialConfirmation = (requirementId: string, patch: Partial<MaterialConfirmationDraft>) => {
+        const baseDraft: MaterialConfirmationDraft = {
+            requirement_id: requirementId,
+            actual_issued_qty: '',
+            actual_returned_qty: '0.000',
+            actual_scrap_qty: '0.000',
+            is_estimated: false,
+            return_mode: 'EXACT_COLOR_RETURN',
+            granule_code_allocations: [],
+        };
         setMaterialConfirmations((prev) => ({
             ...prev,
-            [requirementId]: { ...prev[requirementId], ...patch },
+            [requirementId]: {
+                ...baseDraft,
+                ...(prev[requirementId] || {}),
+                ...(patch as Partial<MaterialConfirmationDraft>),
+            },
         }));
     };
     const autoSplitEqual = (parts?: number) => {
@@ -1156,6 +1314,27 @@ export default function MachineExecutionPage() {
     const customerName = firstNonEmpty(spec.customerName, context?.job?.customer_name, selectedJob?.customer_name, 'Stock production');
     const orderNumber = firstNonEmpty(spec.orderNumber, context?.job?.order_number, selectedJob?.order_number, selectedJob?.job_number, 'STOCK');
     const historyRows = Array.isArray((historyData as any)?.jobs) ? (historyData as any).jobs : [];
+    const terminalState = !selectedJob
+        ? 'IDLE'
+        : isExecuting
+          ? 'RUNNING'
+          : isPaused
+            ? 'PAUSED'
+            : jobState === 'COMPLETED'
+              ? 'COMPLETE'
+              : canStart
+                ? 'READY'
+                : jobState || 'READY';
+    const syncLabel = !online
+        ? 'Offline'
+        : secondsSinceSync > STALE_THRESHOLD_SECONDS
+          ? `Stale ${secondsSinceSync}s`
+          : secondsSinceSync <= 1
+            ? 'Synced now'
+            : `Synced ${secondsSinceSync}s ago`;
+    const templateName = firstNonEmpty(context?.display?.template_name, selectedJob?.template_name, spec.productName, 'Production job');
+    const plannerNote = firstNonEmpty((context?.display as any)?.planner_note, (context?.job as any)?.planner_note, selectedJobAny?.planner_note, selectedJobAny?.notes);
+    const yieldPct = targetKg > 0 ? Math.max(0, Math.min(999, (producedKg / targetKg) * 100)) : 0;
 
     return (
         <div
@@ -1169,60 +1348,66 @@ export default function MachineExecutionPage() {
                 onRetry={() => refreshAll()}
             />
             <span className="sr-only">Kiosk focus for operators Select job Start / resume Log output Idle machine</span>
-            <div className="mx-auto max-w-[1520px] px-4 py-4 md:px-6 md:py-5">
-                <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 font-bold text-white">M</div>
-                        <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Poly Print ERP</div>
-                            <div className="text-sm font-bold">Production · Machine Terminal</div>
+            <div className="mx-auto max-w-[1640px] px-3 py-4 md:px-6">
+                <section className="mb-4 overflow-hidden rounded-[20px] bg-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.55)] ring-1 ring-slate-200">
+                    <div className="flex flex-col gap-2 bg-slate-900 px-4 py-3 text-sm text-white lg:flex-row lg:items-center">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <Button type="button" variant="ghost" className="h-8 rounded-lg px-2 text-xs font-black text-white hover:bg-white/10 hover:text-white" onClick={() => router.push('/production/machine-selector')}>
+                                <ArrowLeft className="mr-1 h-4 w-4" />
+                                Machines
+                            </Button>
+                            <span className="min-w-0 break-words font-black">{machineName}</span>
+                            <span className="text-slate-400">· {machineCode}</span>
+                            <span className="text-slate-400">· {machineDetail?.machine?.plant_name || 'Plant'}</span>
+                            <span className="text-slate-400">· {machineDetail?.machine?.work_center_name || 'Assigned line'}</span>
+                            <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wider ring-1', terminalStateBadgeClass(terminalState))}>
+                                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                {terminalState}
+                            </span>
+                            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-200">Shift live</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+                            <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold ring-1', online ? 'bg-white/10 text-slate-200 ring-white/10' : 'bg-rose-500/20 text-rose-200 ring-rose-300/30')}>{syncLabel}</span>
+                            <Button type="button" variant={activeTab === 'run' ? 'secondary' : 'ghost'} className={cn('h-8 rounded-lg px-3 text-xs font-black', activeTab === 'run' ? 'bg-white text-slate-950 hover:bg-slate-100' : 'text-white hover:bg-white/10 hover:text-white')} onClick={() => setActiveTab('run')}>
+                                Run
+                            </Button>
+                            <Button type="button" variant={activeTab === 'history' ? 'secondary' : 'ghost'} className={cn('h-8 rounded-lg px-3 text-xs font-black', activeTab === 'history' ? 'bg-white text-slate-950 hover:bg-slate-100' : 'text-white hover:bg-white/10 hover:text-white')} onClick={() => setActiveTab('history')}>
+                                <History className="mr-1.5 h-3.5 w-3.5" />
+                                History
+                            </Button>
+                            <Button type="button" variant="ghost" className="h-8 rounded-lg px-3 text-xs font-black text-white hover:bg-white/10 hover:text-white" onClick={() => refreshAll()}>
+                                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
                         </div>
                     </div>
-                </div>
-
-                <section className={cn(surfaceClass, 'mb-4 p-4')}>
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex items-center gap-3">
-                            <Button type="button" variant="outline" className="h-10 rounded-[10px] border-slate-200 bg-white text-xs font-bold" onClick={() => router.push('/production/work-center')}>
-                                <ArrowLeft className="mr-1 h-4 w-4" />
-                                WCM
-                            </Button>
-                            <div className="flex items-center gap-2">
-                                <span className={cn('h-2.5 w-2.5 rounded-full', isExecuting ? 'bg-blue-500' : isPaused ? 'bg-amber-500' : 'bg-emerald-500')} />
-                                <div>
-                                    <h1 className="text-lg font-black tracking-tight">{machineName}</h1>
-                                    <div className="font-mono text-[11px] text-slate-500">
-                                        {machineCode} · {machineDetail?.machine?.work_center_name || 'Work center'} · {machineDetail?.machine?.plant_name || 'Plant'}
-                                    </div>
-                                </div>
+                    <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                            <div className={labelClass}>Machine Terminal</div>
+                            <h1 className="mt-1 break-words text-2xl font-black tracking-tight text-slate-950">{templateName}</h1>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                                <span>{customerName}</span>
+                                <span className="text-slate-300">/</span>
+                                <span className="font-mono">{orderNumber}</span>
+                                <span className="text-slate-300">/</span>
+                                <span>{stepName}</span>
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button type="button" variant={activeTab === 'history' ? 'default' : 'outline'} className={cn('h-10 rounded-[10px] text-sm font-semibold', activeTab === 'history' && 'bg-slate-950 text-white hover:bg-slate-900')} onClick={() => setActiveTab('history')}>
-                                <History className="mr-2 h-4 w-4" />
-                                History
-                            </Button>
-                            {activeTab === 'history' ? (
-                                <Button type="button" variant="outline" className="h-10 rounded-[10px] text-sm font-semibold" onClick={() => setActiveTab('run')}>
-                                    <Activity className="mr-2 h-4 w-4" />
-                                    Back to live
-                                </Button>
-                            ) : null}
-                            <Button type="button" variant="outline" className="h-10 rounded-[10px] border-slate-200 bg-white text-sm font-semibold" onClick={() => refreshAll()}>
-                                <RefreshCw className="mr-2 h-4 w-4" />
-                                Refresh
-                            </Button>
                             {isExecuting ? (
-                                <Button type="button" className="h-10 rounded-[10px] bg-gradient-to-br from-amber-500 to-orange-500 text-sm font-semibold text-white" data-testid="machine-stop-step" disabled={!canStop || stopMutation.isPending} onClick={() => stopMutation.mutate()}>
+                                <Button type="button" className="h-11 rounded-[12px] bg-amber-500 px-5 text-sm font-black text-white hover:bg-amber-600" data-testid="machine-stop-step" disabled={!canStop || stopMutation.isPending} onClick={() => stopMutation.mutate()}>
                                     <Pause className="mr-2 h-4 w-4" />
                                     Pause
                                 </Button>
                             ) : (
-                                <Button type="button" className="h-10 rounded-[10px] bg-gradient-to-br from-emerald-600 to-emerald-500 text-sm font-semibold text-white" data-testid="machine-start-step" disabled={!canStart || startMutation.isPending} onClick={() => startMutation.mutate()}>
+                                <Button type="button" className="h-11 rounded-[12px] bg-emerald-600 px-5 text-sm font-black text-white hover:bg-emerald-700" data-testid="machine-start-step" disabled={!canStart || startMutation.isPending} onClick={() => startMutation.mutate()}>
                                     <Play className="mr-2 h-4 w-4" />
                                     {isPaused ? 'Resume job' : 'Start job'}
                                 </Button>
                             )}
+                            <Button type="button" variant="outline" className="h-11 rounded-[12px] bg-white px-4 text-sm font-black" onClick={() => document.getElementById('machine-output-panel')?.scrollIntoView({ block: 'center' })}>
+                                Output
+                            </Button>
                         </div>
                     </div>
                 </section>
@@ -1241,61 +1426,8 @@ export default function MachineExecutionPage() {
                     />
                 ) : (
                     <>
-                        <section className={cn(surfaceClass, 'mb-4 p-5')} style={{ background: 'linear-gradient(180deg,#eff6ff 0%, #fff 100%)' }}>
-                            <div className="grid gap-4 xl:grid-cols-12 xl:items-center">
-                                <div className="xl:col-span-5">
-                                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">{customerName}</span>
-                                        <span className="font-mono text-[11px] text-slate-500">{orderNumber}</span>
-                                        <span className={cn('inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide', stateBadgeClass(jobState))}>{jobState || 'No job'}</span>
-                                    </div>
-                                    <h2 className="text-3xl font-black tracking-tight">{spec.productName || selectedJob?.product_name || 'Pick a released job'}</h2>
-                                    <div className="mt-2 flex flex-wrap gap-1.5">
-                                        {chips.map((chip) => (
-                                            <span key={`${chip.label}-${chip.tone}`} className={cn('inline-flex items-center rounded-md border px-2 py-1 text-[11px] font-semibold', chip.tone)}>
-                                                {chip.label}
-                                            </span>
-                                        ))}
-                                        <span className="inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-2 py-1 font-mono text-[11px] font-semibold text-yellow-300">{behavior}</span>
-                                    </div>
-                                    {selectedJob ? (
-                                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                                            <ArtworkButton
-                                                artworkId={selectedJob?.committed_artwork_id || null}
-                                                artworkCode={selectedJob?.committed_artwork_code || null}
-                                                artworkName={selectedJob?.committed_artwork_name || null}
-                                            />
-                                        </div>
-                                    ) : null}
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-3 xl:col-span-5">
-                                    <KpiCard label="Target" value={kg(targetKg)} tone="blue" />
-                                    <KpiCard label="Produced" value={kg(producedKg)} tone="emerald" />
-                                    <KpiCard label="Remaining" value={kg(remainingKg)} tone="amber" />
-                                </div>
-                                <div className="flex items-center gap-3 xl:col-span-2">
-                                    <ProgressRing value={progressPct} />
-                                    <div>
-                                        <div className={labelClass}>Current step</div>
-                                        <div className="mt-0.5 text-sm font-bold">{stepName}</div>
-                                        <div className="text-[11px] text-slate-500">{stepTransform}</div>
-                                        <span className="mt-1 inline-flex rounded-md border border-slate-700 bg-slate-800 px-2 py-1 font-mono text-[11px] font-semibold text-yellow-300">{behaviorLabel(behavior)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {selectedJob && (selectedJob?.current_step_print_capable || selectedJob?.committed_artwork_id) ? (
-                            <CylinderSetCard
-                                artworkId={selectedJob?.committed_artwork_id || null}
-                                artworkCode={selectedJob?.committed_artwork_code || null}
-                                artworkName={selectedJob?.committed_artwork_name || null}
-                                printCapable={Boolean(selectedJob?.current_step_print_capable)}
-                            />
-                        ) : null}
-
-                        <div className="grid gap-4 xl:grid-cols-12">
-                            <aside className="space-y-3 xl:col-span-3">
+                        <div className="grid min-w-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px]">
+                            <aside className="order-2 min-w-0 space-y-4 xl:order-1">
                                 <QueueRail
                                     visibleQueueItems={visibleQueueItems}
                                     queueItems={queueItems}
@@ -1307,9 +1439,35 @@ export default function MachineExecutionPage() {
                                     setSelectedJobId={setSelectedJobId}
                                     refreshAll={refreshAll}
                                 />
+                                <InputFeedCard
+                                    reservedRolls={reservedRolls}
+                                    wipRolls={rightRailRolls}
+                                    materialRows={materialReleaseRows}
+                                    materialConfirmations={materialConfirmations}
+                                    updateMaterialConfirmation={updateMaterialConfirmation}
+                                    inkTargetOptions={inkTargetOptions}
+                                    contextLoading={contextLoading}
+                                />
                             </aside>
 
-                            <main className="space-y-3 xl:col-span-6">
+                            <main className="order-1 min-w-0 space-y-4 xl:order-2">
+                                <FocusedJobHero
+                                    selectedJob={selectedJob}
+                                    spec={spec}
+                                    chips={chips}
+                                    customerName={customerName}
+                                    orderNumber={orderNumber}
+                                    templateName={templateName}
+                                    plannerNote={plannerNote}
+                                    stepName={stepName}
+                                    behavior={behavior}
+                                    targetKg={targetKg}
+                                    producedKg={producedKg}
+                                    remainingKg={remainingKg}
+                                    yieldPct={yieldPct}
+                                    progressPct={progressPct}
+                                />
+
                                 <RouteStepper
                                     stepName={stepName}
                                     stepTransform={stepTransform}
@@ -1329,15 +1487,39 @@ export default function MachineExecutionPage() {
                                     routeSteps={routeSteps}
                                 />
 
-                                <section className={cn(surfaceClass, 'overflow-hidden border-2 border-blue-500')} id="machine-output-panel" data-testid="machine-output-panel">
+                                <div className="grid gap-4 lg:grid-cols-2">
+                                    {selectedJob && (selectedJob?.current_step_print_capable || selectedJob?.committed_artwork_id) ? (
+                                        <CylinderSetCard
+                                            artworkId={selectedJob?.committed_artwork_id || null}
+                                            artworkCode={selectedJob?.committed_artwork_code || null}
+                                            artworkName={selectedJob?.committed_artwork_name || null}
+                                            printCapable={Boolean(selectedJob?.current_step_print_capable)}
+                                        />
+                                    ) : (
+                                        <section className={cn(surfaceClass, 'p-4')}>
+                                            <div className={labelClass}>Artwork / tooling</div>
+                                            <div className="mt-1 text-sm font-black text-slate-950">No print tooling for this step</div>
+                                            <div className="mt-1 text-xs font-semibold leading-5 text-slate-500">When an artwork or cylinder set is committed, it appears here beside reserved material.</div>
+                                        </section>
+                                    )}
+                                    <ReservationSummaryCard
+                                        reservedInputKg={reservedInputTotalKg}
+                                        consumedInputKg={consumedInputTotalKg}
+                                        heldInputKg={heldInputTotalKg}
+                                        reservedRolls={reservedRolls}
+                                        materialRows={materialReleaseRows}
+                                    />
+                                </div>
+
+                                <section className={cn(surfaceClass, 'min-w-0 overflow-hidden')} id="machine-output-panel" data-testid="machine-output-panel">
                                     <span className="sr-only">Enter only the fields this step needs.</span>
-                                    <div className="flex items-center justify-between gap-3 bg-gradient-to-br from-sky-500 to-blue-600 px-5 py-3 text-white">
-                                        <div>
-                                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">Log output · primary action</div>
-                                            <div className="mt-0.5 text-lg font-black">{variantTitle(variant, stepName, behavior)}</div>
+                                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+                                        <div className="min-w-0">
+                                            <div className={labelClass}>Production controls</div>
+                                            <div className="mt-0.5 break-words text-lg font-black text-slate-950">{variantTitle(variant, stepName, behavior)}</div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Button type="button" size="sm" variant="secondary" className="h-8 rounded-lg bg-white/15 text-xs font-bold text-white hover:bg-white/20" data-testid="machine-stage-output" onClick={() => document.getElementById('machine-output-panel')?.scrollIntoView({ block: 'center' })}>
+                                            <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg bg-white text-xs font-bold" data-testid="machine-stage-output" onClick={() => document.getElementById('machine-output-panel')?.scrollIntoView({ block: 'center' })}>
                                                 Focus
                                             </Button>
                                         </div>
@@ -1409,9 +1591,7 @@ export default function MachineExecutionPage() {
                                             remainderLocationId={remainderLocationId}
                                             setRemainderLocationId={setRemainderLocationId}
                                             selectedMaterial={selectedMaterial}
-                                            materialConfirmations={materialConfirmations}
                                             reconcilableBulkRows={reconcilableBulkRows}
-                                            updateMaterialConfirmation={updateMaterialConfirmation}
                                         />
 
                                         {exceedsOutputCap ? (
@@ -1428,9 +1608,6 @@ export default function MachineExecutionPage() {
                                             </Button>
                                             <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setDowntimeStart(toDateTimeLocal()); setDowntimeReasonId(null); setSublog('downtime'); }}>
                                                 + Downtime
-                                            </Button>
-                                            <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => setSublog('consumption')}>
-                                                + Consumption
                                             </Button>
                                             <Button type="button" variant="outline" className="h-9 rounded-[10px] bg-white text-xs font-semibold" onClick={() => { setQualityRows(qualityPreset(variant)); setSublog('quality'); }}>
                                                 + Quality
@@ -1454,10 +1631,23 @@ export default function MachineExecutionPage() {
 
                             </main>
 
-                            <aside className="space-y-3 xl:col-span-3">
-                                <RollsWipCard rolls={rightRailRolls} />
-                                <ExecutionHealthCard allocationReady={allocationReady} shortage={toNumber((context?.telemetry?.execution_health as any)?.roll_shortage_count ?? (context?.satisfaction as any)?.rolls_missing, 0)} producedKg={producedKg} targetKg={targetKg} remainingKg={remainingKg} nextAction={operatorNextStep} contextLoading={contextLoading} reservedInputKg={reservedInputTotalKg} consumedInputKg={consumedInputTotalKg} heldInputKg={heldInputTotalKg} />
-                                <LiveEventsCard events={events} loading={eventsLoading} />
+                            <aside className="order-3 min-w-0">
+                                <TelemetryPanel
+                                    events={events}
+                                    loading={eventsLoading}
+                                    inventoryCounters={inventoryCounters}
+                                    producedKg={producedKg}
+                                    targetKg={targetKg}
+                                    remainingKg={remainingKg}
+                                    nextAction={operatorNextStep}
+                                    allocationReady={allocationReady}
+                                    shortage={toNumber((context?.telemetry?.execution_health as any)?.roll_shortage_count ?? (context?.satisfaction as any)?.rolls_missing, 0)}
+                                    contextLoading={contextLoading}
+                                    reservedInputKg={reservedInputTotalKg}
+                                    consumedInputKg={consumedInputTotalKg}
+                                    heldInputKg={heldInputTotalKg}
+                                    onRefresh={refreshAll}
+                                />
                             </aside>
                         </div>
                     </>
@@ -1518,41 +1708,6 @@ export default function MachineExecutionPage() {
     );
 }
 
-function KpiCard({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'emerald' | 'amber' }) {
-    const tones = {
-        blue: 'border-l-blue-500 bg-white text-slate-950',
-        emerald: 'border-l-emerald-500 bg-emerald-50 text-emerald-800',
-        amber: 'border-l-amber-500 bg-amber-50 text-amber-800',
-    };
-    return (
-        <div className={cn('rounded-[14px] border border-slate-200 border-l-[3px] p-3', tones[tone])}>
-            <div className={labelClass}>{label}</div>
-            <div className="mt-1 font-mono text-2xl font-black">{value}</div>
-        </div>
-    );
-}
-
-function ProgressRing({ value }: { value: number }) {
-    const radius = 26;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (circumference * Math.round(value)) / 100;
-    return (
-        <div className="relative h-16 w-16">
-            <svg className="-rotate-90" width="64" height="64" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r={radius} stroke="#e2e8f0" strokeWidth="6" fill="none" />
-                <circle cx="32" cy="32" r={radius} stroke="url(#machine-ring)" strokeWidth="6" fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
-                <defs>
-                    <linearGradient id="machine-ring" x1="0" x2="1">
-                        <stop offset="0%" stopColor="#0ea5e9" />
-                        <stop offset="100%" stopColor="#3b82f6" />
-                    </linearGradient>
-                </defs>
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-sm font-black">{Math.round(value)}%</div>
-        </div>
-    );
-}
-
 function MetricTile({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'slate' | 'amber' }) {
     const classes = tone === 'blue' ? 'border-blue-100 bg-blue-50 text-blue-950' : tone === 'amber' ? 'border-amber-100 bg-amber-50 text-amber-950' : 'border-slate-200 bg-slate-50 text-slate-950';
     return (
@@ -1563,9 +1718,427 @@ function MetricTile({ label, value, tone }: { label: string; value: string; tone
     );
 }
 
+function FocusedJobHero({
+    selectedJob,
+    spec,
+    chips,
+    customerName,
+    orderNumber,
+    templateName,
+    plannerNote,
+    stepName,
+    behavior,
+    targetKg,
+    producedKg,
+    remainingKg,
+    yieldPct,
+    progressPct,
+}: any) {
+    if (!selectedJob) {
+        return (
+            <section className="overflow-hidden rounded-[20px] bg-gradient-to-br from-slate-900 to-slate-800 p-6 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.65)]">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-300">Idle</div>
+                <div className="mt-2 text-2xl font-black">No job selected</div>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-300">Choose a released job from the queue drawer. This terminal starts the machine step, logs output, and captures returns or scrap for material already issued upstream.</p>
+            </section>
+        );
+    }
+
+    const jobNumber = firstNonEmpty(selectedJob?.job_number, selectedJob?.number, 'Job');
+    const priority = firstNonEmpty(selectedJob?.priority, selectedJob?.priority_score);
+    const displayChips = chips?.length ? chips : [{ label: spec?.size?.label || 'Size not captured', tone: 'border-white/20 bg-white/10 text-white' }];
+    const safeProgress = Math.max(0, Math.min(100, progressPct));
+    const gaugeStyle = {
+        background: `conic-gradient(#10b981 ${safeProgress}%, rgba(255,255,255,0.18) 0)`,
+    } as any;
+
+    return (
+        <section className="overflow-hidden rounded-[20px] bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-5 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.65)]" data-testid="machine-job-briefing">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_150px]">
+                <div className="min-w-0">
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-indigo-200">Now selected · {jobNumber} · {orderNumber}</div>
+                    <h2 className="mt-1 break-words text-2xl font-black tracking-tight md:text-3xl">{spec?.productName || templateName}</h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-indigo-100">
+                        <span>{customerName}</span>
+                        <span className="text-indigo-300">/</span>
+                        <span>{stepName}</span>
+                        <span className="text-indigo-300">/</span>
+                        <span>{behaviorLabel(behavior)}</span>
+                        {priority ? <span className="rounded-full bg-amber-300/20 px-2.5 py-1 text-[11px] font-black text-amber-100 ring-1 ring-amber-300/30">Priority {priority}</span> : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                        {displayChips.map((chip: any) => (
+                            <span key={chip.label} className="inline-flex min-h-7 items-center rounded-full bg-white/12 px-3 py-1 text-[11px] font-black text-white ring-1 ring-white/20">
+                                {chip.label}
+                            </span>
+                        ))}
+                    </div>
+                    {plannerNote ? (
+                        <div className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold leading-5 text-indigo-50 ring-1 ring-white/15">
+                            Planner note: {plannerNote}
+                        </div>
+                    ) : null}
+                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                        <HeroMetric label="Target" value={kg(targetKg, 1)} />
+                        <HeroMetric label="Produced" value={kg(producedKg, 1)} tone="emerald" />
+                        <HeroMetric label="Remaining" value={kg(remainingKg, 1)} />
+                        <HeroMetric label="Yield" value={`${yieldPct.toFixed(1)}%`} />
+                    </div>
+                </div>
+                <div className="flex flex-row items-center justify-between gap-3 lg:flex-col lg:items-end">
+                    <ArtworkButton
+                        artworkId={selectedJob?.committed_artwork_id || null}
+                        artworkCode={selectedJob?.committed_artwork_code || null}
+                        artworkName={selectedJob?.committed_artwork_name || null}
+                    />
+                    <div className="grid h-28 w-28 place-items-center rounded-full p-2" style={gaugeStyle}>
+                        <div className="grid h-full w-full place-items-center rounded-full bg-white text-center text-slate-950">
+                            <div>
+                                <div className="font-mono text-2xl font-black">{Math.round(safeProgress)}%</div>
+                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Done</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function HeroMetric({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'emerald' }) {
+    return (
+        <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/10">
+            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-indigo-200">{label}</div>
+            <div className={cn('mt-1 break-words font-mono text-lg font-black text-white', tone === 'emerald' && 'text-emerald-300')}>{value}</div>
+        </div>
+    );
+}
+
+function ReservationSummaryCard({ reservedInputKg, consumedInputKg, heldInputKg, reservedRolls, materialRows }: any) {
+    const pct = reservedInputKg > 0 ? Math.max(0, Math.min(100, (consumedInputKg / reservedInputKg) * 100)) : 0;
+    const issuedQty = materialRows.reduce((sum: number, row: MaterialReleaseRow) => sum + toNumber(row.issuedQty || row.plannedIssueQty || row.requiredQty, 0), 0);
+    return (
+        <section className={cn(surfaceClass, 'p-4')} data-testid="machine-reserved-material-card">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <div className={labelClass}>Reserved / issued material</div>
+                    <div className="mt-1 text-base font-black text-slate-950">Upstream release truth</div>
+                </div>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                    Read only issue
+                </span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    <div className="font-mono text-sm font-black">{kg(reservedInputKg, 1)}</div>
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-400">Reserved</div>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2">
+                    <div className="font-mono text-sm font-black text-emerald-800">{kg(consumedInputKg, 1)}</div>
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">Consumed</div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-2">
+                    <div className="font-mono text-sm font-black text-amber-800">{kg(heldInputKg, 1)}</div>
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-wider text-amber-700">Held</div>
+                </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-500">
+                <span>{reservedRolls.length} reserved rolls</span>
+                <span className="text-slate-300">/</span>
+                <span>{materialRows.length} bulk or ink rows</span>
+                <span className="text-slate-300">/</span>
+                <span>{kg(issuedQty, 1)} issued qty shown</span>
+            </div>
+        </section>
+    );
+}
+
+function InputFeedCard({
+    reservedRolls,
+    wipRolls,
+    materialRows,
+    materialConfirmations,
+    updateMaterialConfirmation,
+    inkTargetOptions,
+    contextLoading,
+}: {
+    reservedRolls: any[];
+    wipRolls: any[];
+    materialRows: MaterialReleaseRow[];
+    materialConfirmations: Record<string, MaterialConfirmationDraft>;
+    updateMaterialConfirmation: (requirementId: string, patch: Partial<MaterialConfirmationDraft>) => void;
+    inkTargetOptions: Array<{ id: string; name: string; code?: string }>;
+    contextLoading: boolean;
+}) {
+    return (
+        <section className={cn(surfaceClass, 'min-w-0 overflow-hidden')} data-testid="machine-material-release-card">
+            <div className="border-b border-slate-200 bg-white px-4 py-3">
+                <div className={labelClass}>Inputs (read only)</div>
+                <div className="mt-0.5 text-base font-black text-slate-950">WCM issued material</div>
+                <div className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">
+                    Issue happens upstream. This terminal only confirms returns, scrap, and output.
+                </div>
+            </div>
+            <div className="max-h-[760px] space-y-4 overflow-y-auto p-4">
+                <div>
+                    <div className="mb-2 flex items-center justify-between">
+                        <div className={labelClass}>Reserved input rolls</div>
+                        <span className="font-mono text-[11px] font-bold text-slate-500">{reservedRolls.length} rows</span>
+                    </div>
+                    <div className="space-y-2">
+                        {reservedRolls.length ? reservedRolls.map((roll) => (
+                            <div key={roll.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="break-words font-mono text-xs font-black text-slate-950">{roll.label_id || roll.id}</div>
+                                        <div className="mt-0.5 break-words text-[11px] font-semibold text-slate-500">{roll.material_name}</div>
+                                    </div>
+                                    <div className="shrink-0 font-mono text-sm font-black">{kg(roll.weight_kg)}</div>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.width_mm, 0).toFixed(0)} mm</span>
+                                    <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.thickness_micron, 0).toFixed(1)} um</span>
+                                    <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{roll.grade || '-'}</span>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs italic text-slate-500">No reserved input roll is visible for this step.</div>
+                        )}
+                    </div>
+                </div>
+
+                <div>
+                    <div className="mb-2 flex items-center justify-between">
+                        <div className={labelClass}>Issued bulk / ink</div>
+                        <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider', contextLoading ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800')}>
+                            {contextLoading ? 'Syncing' : `${materialRows.length} items`}
+                        </span>
+                    </div>
+                    <div className="space-y-2">
+                        {materialRows.length ? materialRows.map((row) => {
+                            const draft = materialConfirmations[row.requirement_id] || {
+                                requirement_id: row.requirement_id,
+                                material_id: row.material_id,
+                                actual_issued_qty: row.issuedQty > 0 ? row.issuedQty.toFixed(3) : '',
+                                actual_returned_qty: row.returnedQty.toFixed(3),
+                                actual_scrap_qty: row.scrapQty.toFixed(3),
+                                is_estimated: true,
+                                return_mode: 'EXACT_COLOR_RETURN' as const,
+                                granule_code_allocations: [],
+                            };
+                            return (
+                                <div key={row.requirement_id} className="rounded-xl border border-slate-200 bg-white p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="break-words text-sm font-black text-slate-950">{row.name}</div>
+                                            <div className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                                {row.code ? <span>{row.code}</span> : null}
+                                                {row.category ? <span>{row.category}</span> : null}
+                                                <span>{row.captureMode.replaceAll('_', ' ')}</span>
+                                            </div>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                            <div className="font-mono text-sm font-black text-slate-950" data-testid={`machine-material-issued-${row.requirement_id}`}>{qtyLabel(row.issuedQty || row.plannedIssueQty || row.requiredQty, row.uom)}</div>
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">issued</div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                            <div className="font-mono text-xs font-black">{qtyLabel(row.requiredQty, row.uom, 3)}</div>
+                                            <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Required</div>
+                                        </div>
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                            <div className="font-mono text-xs font-black text-emerald-700">{qtyLabel(row.availableQty, row.uom, 3)}</div>
+                                            <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">At source</div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        <InlineNumber
+                                            label="Returned"
+                                            value={draft.actual_returned_qty}
+                                            testId={`machine-material-returned-${row.requirement_id}`}
+                                            onChange={(value) => updateMaterialConfirmation(row.requirement_id, { material_id: row.material_id, actual_returned_qty: value, is_estimated: false })}
+                                        />
+                                        <InlineNumber
+                                            label="Material scrap"
+                                            value={draft.actual_scrap_qty}
+                                            testId={`machine-material-scrap-${row.requirement_id}`}
+                                            onChange={(value) => updateMaterialConfirmation(row.requirement_id, { material_id: row.material_id, actual_scrap_qty: value, is_estimated: false })}
+                                        />
+                                    </div>
+                                    {row.category === 'INK' ? (
+                                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                            <div>
+                                                <Label className={labelClass}>Return mode</Label>
+                                                <Select
+                                                    value={draft.return_mode || 'EXACT_COLOR_RETURN'}
+                                                    onValueChange={(value) => updateMaterialConfirmation(row.requirement_id, { material_id: row.material_id, return_mode: value as MaterialConfirmationDraft['return_mode'], is_estimated: false })}
+                                                >
+                                                    <SelectTrigger className={cn(inputClass, 'mt-1')} data-testid={`machine-material-return-mode-${row.requirement_id}`}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="EXACT_COLOR_RETURN">Exact color return</SelectItem>
+                                                        <SelectItem value="REMIXED_RETURN">Remixed return</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            {draft.return_mode === 'REMIXED_RETURN' ? (
+                                                <div>
+                                                    <Label className={labelClass}>Target ink</Label>
+                                                    <Select
+                                                        value={draft.target_ink_material_id || SELECT_NONE}
+                                                        onValueChange={(value) => updateMaterialConfirmation(row.requirement_id, { material_id: row.material_id, target_ink_material_id: value === SELECT_NONE ? undefined : value, is_estimated: false })}
+                                                    >
+                                                        <SelectTrigger className={cn(inputClass, 'mt-1')} data-testid={`machine-material-target-ink-${row.requirement_id}`}>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value={SELECT_NONE}>Select target ink</SelectItem>
+                                                            {inkTargetOptions
+                                                                .filter((option) => String(option.id) !== String(row.material_id))
+                                                                .map((option) => (
+                                                                    <SelectItem key={option.id} value={option.id}>
+                                                                        {option.name}{option.code ? ` · ${option.code}` : ''}
+                                                                    </SelectItem>
+                                                                ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            );
+                        }) : (
+                            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs italic text-slate-500">No issued bulk material is required for this step.</div>
+                        )}
+                    </div>
+                </div>
+
+                {wipRolls.length ? (
+                    <div>
+                        <div className="mb-2 flex items-center justify-between">
+                            <div className={labelClass}>WIP pool</div>
+                            <span className="font-mono text-[11px] font-bold text-slate-500">{wipRolls.length} rows</span>
+                        </div>
+                        <div className="space-y-2">
+                            {wipRolls.slice(0, 4).map((roll) => (
+                                <div key={roll.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="break-words font-mono text-xs font-black text-slate-950">{roll.label_id || roll.id}</div>
+                                            <div className="mt-0.5 break-words text-[11px] font-semibold text-slate-500">{roll.material_name}</div>
+                                        </div>
+                                        <div className="shrink-0 font-mono text-sm font-black">{kg(roll.weight_kg)}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        </section>
+    );
+}
+
+function TelemetryPanel({
+    events,
+    loading,
+    inventoryCounters,
+    producedKg,
+    targetKg,
+    remainingKg,
+    nextAction,
+    allocationReady,
+    shortage,
+    contextLoading,
+    reservedInputKg,
+    consumedInputKg,
+    heldInputKg,
+    onRefresh,
+}: any) {
+    const bulkConsumedKg = toNumber(inventoryCounters?.bulk_consumed_kg, 0);
+    const rollsConsumedKg = toNumber(inventoryCounters?.rolls_consumed_kg, 0);
+    const rollsConsumedCount = toNumber(inventoryCounters?.rolls_consumed_count, 0);
+    const rollsCreatedKg = toNumber(inventoryCounters?.rolls_created_kg, 0);
+    const rollsCreatedCount = toNumber(inventoryCounters?.rolls_created_count, 0);
+    const scrapKg = toNumber(inventoryCounters?.scrap_kg ?? inventoryCounters?.scrap_total_kg, 0);
+    return (
+        <section className={cn(surfaceClass, 'min-w-0 overflow-hidden')}>
+            <div className="border-b border-slate-200 bg-white px-4 py-3">
+                <div className={labelClass}>Live consumption / telemetry</div>
+                <div className="mt-0.5 text-base font-black text-slate-950">Current step truth</div>
+            </div>
+            <div className="space-y-3 p-4">
+                <TelemetryMetric label="Bulk consumed" value={kg(bulkConsumedKg)} />
+                <TelemetryMetric label="Rolls consumed" value={`${rollsConsumedCount} rolls · ${kg(rollsConsumedKg)}`} />
+                <TelemetryMetric label="Rolls created" value={`${rollsCreatedCount} rolls · ${kg(rollsCreatedKg)}`} />
+                <TelemetryMetric label="Scrap" value={kg(scrapKg)} tone={scrapKg > 0 ? 'rose' : 'slate'} />
+                <div className="grid grid-cols-2 gap-2">
+                    <TelemetryMetric label="Input ready" value={contextLoading ? '...' : allocationReady ? 'Yes' : 'No'} tone={allocationReady ? 'slate' : 'rose'} />
+                    <TelemetryMetric label="Roll shortage" value={String(shortage)} />
+                    <TelemetryMetric label="Step progress" value={`${kg(producedKg)} / ${kg(targetKg)}`} />
+                    <TelemetryMetric label="Remaining" value={kg(remainingKg)} />
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3" data-testid="machine-reservation-usage">
+                    <div className={cn(labelClass, 'text-blue-700')}>Reservation usage</div>
+                    <div className="mt-2 text-xs font-semibold leading-5 text-blue-950">
+                        Reserved {kg(reservedInputKg, 1)} · consumed {kg(consumedInputKg, 1)} · {kg(heldInputKg, 1)} held
+                    </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className={labelClass}>Next action</div>
+                    <div className="mt-1 text-sm font-black leading-5 text-slate-950">{nextAction}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                        <div>
+                            <div className={labelClass}>Live logs</div>
+                            <div className="text-sm font-black text-slate-950">Last 20</div>
+                        </div>
+                        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500"><span className="h-2 w-2 rounded-full bg-emerald-500" />poll 5s</span>
+                    </div>
+                    <div className="space-y-1.5">
+                        {loading ? (
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">Loading events...</div>
+                        ) : events.length ? events.slice(0, 6).map((event: MachineJobEvent) => (
+                            <div key={event.id} className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-xs">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-black text-slate-900">{String(event.type).replaceAll('_', ' ')}</span>
+                                    <span className="font-mono text-[10px] text-slate-500">{formatTime(event.ts)}</span>
+                                </div>
+                                {event.label ? <div className="mt-0.5 text-[11px] font-semibold text-slate-500">{event.label}</div> : null}
+                            </div>
+                        )) : (
+                            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs font-semibold text-slate-500">No events yet.</div>
+                        )}
+                    </div>
+                </div>
+                <Button type="button" variant="outline" className="h-10 w-full rounded-[12px] bg-white text-sm font-semibold" onClick={onRefresh}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Refresh
+                </Button>
+            </div>
+        </section>
+    );
+}
+
+function TelemetryMetric({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'rose' }) {
+    return (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className={labelClass}>{label}</div>
+            <div className={cn('mt-1 break-words font-mono text-base font-black', tone === 'rose' ? 'text-rose-700' : 'text-slate-950')}>{value}</div>
+        </div>
+    );
+}
+
 function QueueRail({ visibleQueueItems, queueItems, selectedId, queueSearch, setQueueSearch, queueStatusFilter, setQueueStatusFilter, setSelectedJobId, refreshAll }: any) {
     return (
-        <section className={cn(surfaceClass, 'p-4')}>
+        <section className={cn(surfaceClass, 'p-4')} id="machine-queue-rail">
             <div className="mb-3 flex items-center justify-between">
                 <div>
                     <div className={labelClass}>Queue</div>
@@ -1616,7 +2189,7 @@ function QueueRail({ visibleQueueItems, queueItems, selectedId, queueSearch, set
                                 <div className="truncate text-sm font-semibold">{spec.customerName}</div>
                                 <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase', stateBadgeClass(job.job_state))}>{job.job_state || 'ready'}</span>
                             </div>
-                            <div className="mb-1 font-mono text-[11px] text-slate-500">{job.job_number} · {spec.productName} · {kg(job.step_remaining_kg ?? job.quantity, 0)}</div>
+                            <div className="mb-1 break-words font-mono text-[11px] text-slate-500">{job.job_number} · {spec.productName} · {kg(job.step_remaining_kg ?? job.quantity, 0)}</div>
                             <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px]">
                                 <div className="font-semibold text-blue-900">{spec.size?.label || 'Size not captured'}</div>
                                 <div className="font-mono text-slate-500">{(spec.layers || []).slice(0, 2).map((layer: any) => layer.label).join(' · ') || job.process_code || 'Step'}</div>
@@ -1675,16 +2248,9 @@ function RouteStepper({
                 : canComplete
                   ? 'Complete step'
                   : nextAction;
-    const steps = [
-        { eyebrow: 'Gate', label: 'WCM released', detail: 'Ready queue', state: hasJob ? 'done' : 'pending' },
-        { eyebrow: 'Machine', label: 'Ready', detail: allocationReady ? 'Input ready' : 'Input pending', state: !hasJob ? 'pending' : allocationReady ? 'done' : 'current' },
-        { eyebrow: 'Now', label: stepName, detail: `${stepTransform} · ${behaviorLabel(behavior)}`, state: isExecuting ? 'current' : hasJob && (canStart || isPaused) ? 'current' : 'pending' },
-        { eyebrow: 'Output', label: 'Log output', detail: producedKg > 0 ? `${kg(producedKg)} logged` : 'Awaiting entry', state: producedKg > 0 ? 'done' : isExecuting ? 'current' : 'pending' },
-        { eyebrow: 'Close', label: 'Complete step', detail: remainingKg > 0 ? `${kg(remainingKg)} remaining` : 'Ready to close', state: canComplete ? 'current' : 'pending' },
-    ];
     return (
-        <section className={cn(surfaceClass, 'p-5 md:p-6')}>
-            <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+        <section className={cn(surfaceClass, 'p-4 md:p-5')}>
+            <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
                 <div>
                     <div className={labelClass}>Current status</div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1708,39 +2274,16 @@ function RouteStepper({
                     <div className="mt-2 text-xs font-semibold text-slate-500">{kg(producedKg)} / {kg(targetKg)}</div>
                 </div>
             </div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-                <div className={labelClass}>Process route</div>
-                <div className="text-xs font-semibold text-slate-500">Full job route — upstream done, current step live, downstream pending.</div>
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <div className={labelClass}>Live route</div>
+                    <div className="text-xs font-semibold text-slate-500">Upstream done, current process live, downstream pending.</div>
+                </div>
+                <span className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
+                    {stepName} · {behaviorLabel(behavior)}
+                </span>
             </div>
             <ProcessRouteStrip routeSteps={routeSteps} remainingKg={remainingKg} producedKg={producedKg} behavior={behavior} fallbackName={stepName} fallbackTransform={stepTransform} />
-
-            <div className="mb-3 mt-5 flex items-center justify-between gap-3">
-                <div className={labelClass}>This step</div>
-                <div className="text-xs font-semibold text-slate-500">What is done, active, and still pending for this machine step.</div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-5">
-                {steps.map((step, index) => (
-                    <div key={step.label} className="flex items-stretch">
-                        <div
-                            className={cn(
-                                'flex min-h-[104px] w-full items-start gap-3 rounded-[16px] border px-3.5 py-3 text-left transition',
-                                step.state === 'done' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
-                                step.state === 'current' && 'border-transparent bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]',
-                                step.state === 'pending' && 'border-slate-200 bg-slate-50 text-slate-500'
-                            )}
-                        >
-                            <span className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black', step.state === 'current' ? 'bg-white text-sky-600' : step.state === 'done' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-500')}>
-                                {step.state === 'done' ? '✓' : index + 1}
-                            </span>
-                            <span className="min-w-0">
-                                <span className={cn('block text-[10px] font-black uppercase tracking-[0.18em]', step.state === 'current' ? 'text-white/75' : 'text-slate-400')}>{step.eyebrow}</span>
-                                <span className="mt-1 block text-sm font-black leading-tight">{step.label}</span>
-                                <span className={cn('mt-1 block text-xs font-semibold leading-4', step.state === 'current' ? 'text-white/80' : 'text-slate-500')}>{step.detail}</span>
-                            </span>
-                        </div>
-                    </div>
-                ))}
-            </div>
         </section>
     );
 }
@@ -1834,9 +2377,7 @@ function ProcessLogForm(props: any) {
         remainderLocations,
         remainderLocationId,
         setRemainderLocationId,
-        materialConfirmations,
         reconcilableBulkRows,
-        updateMaterialConfirmation,
         behavior,
     } = props;
     // Remainder roll is created whenever input is consumed but output + waste < input.
@@ -2045,29 +2586,9 @@ function ProcessLogForm(props: any) {
 
             {reconcilableBulkRows.length ? (
                 <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                        <div>
-                            <div className={cn(labelClass, 'text-blue-800')}>Material actuals</div>
-                            <div className="text-[11px] text-blue-900/70">Confirm measured issue/return/scrap before closing this step.</div>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        {reconcilableBulkRows.slice(0, 5).map((row: any) => {
-                            const requirementId = String(row.requirement_id || '');
-                            const draft = materialConfirmations[requirementId];
-                            if (!draft) return null;
-                            return (
-                                <div key={requirementId} className="grid gap-2 rounded-lg border border-blue-100 bg-white p-2 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] md:items-end">
-                                    <div>
-                                        <div className="text-xs font-black text-slate-900">{row.material_name || row.material_code || 'Material'}</div>
-                                        <div className="text-[10px] font-semibold text-slate-500">Required {qtyLabel(row.required_qty ?? row.required_qty_kg ?? row.theoretical_qty ?? row.theoretical_qty_kg, row.uom || row.mode || 'KG')}</div>
-                                    </div>
-                                    <InlineNumber label="Issued" value={draft.actual_issued_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_issued_qty: value, is_estimated: false })} />
-                                    <InlineNumber label="Returned" value={draft.actual_returned_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_returned_qty: value, is_estimated: false })} />
-                                    <InlineNumber label="Scrap" value={draft.actual_scrap_qty} onChange={(value) => updateMaterialConfirmation(requirementId, { actual_scrap_qty: value, is_estimated: false })} />
-                                </div>
-                            );
-                        })}
+                    <div className={cn(labelClass, 'text-blue-800')}>Issued inputs linked</div>
+                    <div className="mt-1 text-[11px] font-semibold leading-4 text-blue-900/75">
+                        Issued quantities come from release. This terminal records output plus any material return or scrap before Complete step.
                     </div>
                 </div>
             ) : null}
@@ -2135,11 +2656,21 @@ function ProcessLogForm(props: any) {
     );
 }
 
-function InlineNumber({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function InlineNumber({ label, value, onChange, testId }: { label: string; value: string; onChange: (value: string) => void; testId?: string }) {
     return (
         <div>
             <Label className={labelClass}>{label}</Label>
-            <NumPadPopover value={value} onChange={onChange} decimals={3} step={1} min={0} label={label} className="mt-1" inputClassName="h-9 rounded-lg text-base" />
+            <NumPadPopover
+                value={value}
+                onChange={onChange}
+                decimals={3}
+                step={1}
+                min={0}
+                label={label}
+                className="mt-1"
+                inputClassName="h-9 rounded-lg text-base"
+                inputProps={testId ? ({ 'data-testid': testId } as any) : undefined}
+            />
         </div>
     );
 }
@@ -2184,122 +2715,6 @@ function NumPadCell({
             inputClassName={cn('h-9 rounded-lg px-2 text-sm', toneClass)}
             inputProps={testId ? ({ 'data-testid': testId } as any) : undefined}
         />
-    );
-}
-
-function RollsWipCard({ rolls }: { rolls: any[] }) {
-    return (
-        <section className={cn(surfaceClass, 'p-4')}>
-            <div className="mb-2 flex items-center justify-between">
-                <div>
-                    <div className={labelClass}>Rolls and WIP</div>
-                    <div className="mt-0.5 text-base font-black">Input pool</div>
-                </div>
-                <span className="font-mono text-xs text-slate-500">{rolls.length} rows</span>
-            </div>
-            <div className="space-y-2">
-                {rolls.length ? rolls.slice(0, 6).map((roll) => (
-                    <div key={roll.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                                <div className="truncate font-mono text-xs font-bold text-slate-950">{roll.label_id || roll.id}</div>
-                                <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{roll.material_name}</div>
-                            </div>
-                            <div className="font-mono text-sm font-black">{kg(roll.weight_kg)}</div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                            <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.width_mm, 0).toFixed(0)} mm</span>
-                            <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.thickness_micron, 0).toFixed(1)} μ</span>
-                            <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{roll.grade || '-'}</span>
-                        </div>
-                    </div>
-                )) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs italic text-slate-500">No roll or WIP input is visible for this step.</div>
-                )}
-            </div>
-        </section>
-    );
-}
-
-function ExecutionHealthCard({ allocationReady, shortage, producedKg, targetKg, remainingKg, nextAction, contextLoading, reservedInputKg = 0, consumedInputKg = 0, heldInputKg = 0 }: any) {
-    const hasReservation = toNumber(reservedInputKg, 0) > 0 || toNumber(consumedInputKg, 0) > 0;
-    return (
-        <section className={cn(surfaceClass, 'p-4')}>
-            <div className={cn(labelClass, 'mb-3')}>Execution health</div>
-            <div className="grid grid-cols-2 gap-2">
-                <HealthTile label="Input ready" value={contextLoading ? '...' : allocationReady ? 'Yes' : 'No'} tone={allocationReady ? 'emerald' : 'rose'} />
-                <HealthTile label="Roll shortage" value={String(shortage)} />
-                <HealthTile label="Step progress" value={`${kg(producedKg)} / ${kg(targetKg)}`} />
-                <HealthTile label="Remaining" value={kg(remainingKg)} tone="amber" />
-            </div>
-            {hasReservation ? (
-                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3" data-testid="machine-reservation-usage">
-                    <div className={cn(labelClass, 'text-blue-700')}>Reservation usage</div>
-                    <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
-                        <div>
-                            <div className="font-mono text-base font-black text-blue-900">{toNumber(reservedInputKg, 0).toFixed(1)}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700/80">Reserved kg</div>
-                        </div>
-                        <div>
-                            <div className="font-mono text-base font-black text-emerald-700">{toNumber(consumedInputKg, 0).toFixed(1)}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/80">Consumed kg</div>
-                        </div>
-                        <div>
-                            <div className="font-mono text-base font-black text-amber-700">{toNumber(heldInputKg, 0).toFixed(1)}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80">Held kg</div>
-                        </div>
-                    </div>
-                    <div className="mt-2 text-[11px] font-semibold leading-4 text-blue-900/70">
-                        Reserved {kg(reservedInputKg, 1)} · consumed {kg(consumedInputKg, 1)} · {kg(heldInputKg, 1)} held
-                    </div>
-                </div>
-            ) : null}
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className={labelClass}>Next action</div>
-                <div className="mt-1 text-sm font-black leading-5 text-slate-950">{nextAction}</div>
-            </div>
-        </section>
-    );
-}
-
-function HealthTile({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'emerald' | 'amber' | 'rose' }) {
-    const toneClass = tone === 'emerald' ? 'text-emerald-700' : tone === 'amber' ? 'text-amber-700' : tone === 'rose' ? 'text-rose-700' : 'text-slate-950';
-    return (
-        <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
-            <div className={labelClass}>{label}</div>
-            <div className={cn('mt-1 break-words text-base font-black', toneClass)}>{value}</div>
-        </div>
-    );
-}
-
-function LiveEventsCard({ events, loading }: { events: MachineJobEvent[]; loading: boolean }) {
-    return (
-        <section className={cn(surfaceClass, 'p-4')}>
-            <div className="mb-2 flex items-center justify-between">
-                <div>
-                    <div className={labelClass}>Live events</div>
-                    <div className="mt-0.5 text-base font-black">Last 20</div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-                    <span className="font-mono text-[10px] text-slate-500">poll 5s</span>
-                </div>
-            </div>
-            <div className="space-y-1.5">
-                {loading ? (
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">Loading events...</div>
-                ) : events.length ? events.map((event) => (
-                    <div key={event.id} className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-2 rounded-lg border border-slate-100 bg-white px-2.5 py-2 text-xs">
-                        <span className={cn('h-2 w-2 rounded-full', eventTone(event.type))} />
-                        <span className="font-mono text-[11px] text-slate-500">{formatTime(event.ts)}</span>
-                        <span className="min-w-0 truncate"><b>{String(event.type).replaceAll('_', ' ')}</b>{event.label ? ` · ${event.label}` : ''}</span>
-                        <span className="text-[10px] text-slate-400">{event.user || ''}</span>
-                    </div>
-                )) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs font-semibold text-slate-500">No events yet.</div>
-                )}
-            </div>
-        </section>
     );
 }
 

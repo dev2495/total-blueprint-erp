@@ -11,6 +11,7 @@ from apps.production.models import (
     DowntimeLog,
     FinishedGoodsBatch,
     JobExecutionLog,
+    JobMaterialRequirement,
     MaterialConsumptionLog,
     ProductionJob,
     QualityReading,
@@ -19,6 +20,7 @@ from apps.production.models import (
 from apps.production.views_machine import (
     machine_complete_job,
     machine_job_events,
+    machine_job_context,
     machine_queue,
     machine_start_job,
     machine_log_consumption,
@@ -278,6 +280,50 @@ class MachineTerminalEndpointTests(TestCase):
 
         response = self._post(machine_log_downtime, {"reason": "BAD_REASON"})
         self.assertEqual(response.status_code, 400)
+
+    def test_job_context_exposes_material_release_actuals_for_terminal(self):
+        ink = InventoryMaterial.objects.create(code="MT-INK-CYAN", name="Cyan Ink", category="INK", base_uom="KG")
+        process = Process.objects.create(
+            code="MT_INK_RELEASE",
+            name="Ink Release Step",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        job = self._make_job("INK-RELEASE", process=process, material=self.material, quantity="10.0000")
+        step = job.template.process_steps.get(sequence_number=1)
+        requirement = JobMaterialRequirement.objects.create(
+            production_job=job,
+            material=ink,
+            process_step=step,
+            required_qty=Decimal("1.5000"),
+            theoretical_qty=Decimal("1.2500"),
+            planned_issue_qty=Decimal("1.6000"),
+            actual_issued_qty=Decimal("1.4000"),
+            actual_returned_qty=Decimal("0.2000"),
+            actual_scrap_qty=Decimal("0.0500"),
+            consumed_qty=Decimal("1.2000"),
+            variance_qty=Decimal("-0.0500"),
+            uom="KG",
+        )
+
+        request = self.factory.get("/")
+        force_authenticate(request, user=self.user)
+        response = machine_job_context(request, self.machine.id, job.id)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        preview_rows = response.data["inputs"]["bulk_preview"]
+        ink_row = next(row for row in preview_rows if row["requirement_id"] == str(requirement.id))
+        self.assertEqual(ink_row["material_name"], "Cyan Ink")
+        self.assertEqual(ink_row["category"], "INK")
+        self.assertEqual(ink_row["theoretical_qty_kg"], 1.25)
+        self.assertEqual(ink_row["actual_issued_qty_kg"], 1.4)
+        self.assertEqual(ink_row["actual_returned_qty_kg"], 0.2)
+        self.assertEqual(ink_row["actual_scrap_qty_kg"], 0.05)
+        self.assertIn("planned_issue_qty_kg", ink_row)
+        self.assertIn("current_plant_available_qty_kg", ink_row)
+        self.assertIn("other_plants_available_qty_kg", ink_row)
+        self.assertIn("capture_mode", ink_row)
 
     def test_log_output_create_new_supports_multi_roll_output_math(self):
         film = self._make_film("MT-FILM-CREATE")
